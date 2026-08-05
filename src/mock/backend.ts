@@ -1,5 +1,10 @@
 import { recordedMs } from '../core/recording';
-import { createSession, reduce } from '../core/session';
+import {
+  createSession,
+  isParticipant,
+  otherParty,
+  reduce,
+} from '../core/session';
 import type { SessionAction, SessionState, UserId } from '../core/types';
 import type {
   Account,
@@ -7,6 +12,7 @@ import type {
   ContactStatus,
   LiveInvite,
   RecordingRecord,
+  RejoinableSession,
 } from './types';
 
 /** 'accepted', or 'pending:<requesterId>' while awaiting the recipient. */
@@ -230,15 +236,17 @@ export class MockBackend {
   }
 
   /**
-   * Live invites are in-app only: they surface while the session exists and has
-   * not been joined by the invitee. There is no OS-level push in this version.
+   * Live invites are in-app only: they surface while the session exists and the
+   * invitee has *never* entered it. Once they have, a later absence is a
+   * re-entry (see `liveSessionsFor`), not a fresh invitation. There is no
+   * OS-level push in this version.
    */
   invitesFor(userId: UserId): LiveInvite[] {
     const invites: LiveInvite[] = [];
     this.sessions.forEach((session) => {
       if (session.status !== 'active') return;
       if (session.invitee !== userId) return;
-      if (session.present.includes(userId)) return;
+      if (session.everPresent.includes(userId)) return;
       const from = this.accounts.get(session.initiator);
       if (from) {
         invites.push({ sessionId: session.id, from, createdAt: session.createdAt });
@@ -247,11 +255,31 @@ export class MockBackend {
     return invites.sort((a, b) => a.createdAt - b.createdAt);
   }
 
-  /** A session this user is already in, if any — used to restore the view. */
-  activeSessionFor(userId: UserId): SessionState | undefined {
-    return [...this.sessions.values()].find(
-      (s) => s.status === 'active' && s.present.includes(userId)
-    );
+  /**
+   * Sessions this user has entered and since left, which are still alive. The
+   * spec allows re-entry for as long as a session exists but gives Home no
+   * route back to one, so these surface as their own list. Symmetric across
+   * both roles — an initiator who leaves is no more stranded than an invitee.
+   */
+  liveSessionsFor(userId: UserId): RejoinableSession[] {
+    const rejoinable: RejoinableSession[] = [];
+    this.sessions.forEach((session) => {
+      if (session.status !== 'active') return;
+      if (!isParticipant(session, userId)) return;
+      if (session.present.includes(userId)) return;
+      if (!session.everPresent.includes(userId)) return;
+
+      const otherId = otherParty(session, userId);
+      const other = this.accounts.get(otherId);
+      if (!other) return;
+      rejoinable.push({
+        sessionId: session.id,
+        other,
+        otherPresent: session.present.includes(otherId),
+        createdAt: session.createdAt,
+      });
+    });
+    return rejoinable.sort((a, b) => a.createdAt - b.createdAt);
   }
 
   // --- Recordings ---------------------------------------------------------

@@ -35,3 +35,13 @@ export interface RecordingRecord {
   /** Stand-in for the S3 object both participants can fetch independently. */
   s3Key: string;
 }
+
+/** An active session this user has left and may re-enter. */
+export interface RejoinableSession {
+  sessionId: string;
+  /** The other participant, whichever role this user held. */
+  other: Account;
+  /** Whether they are still in there waiting, or the session sits empty. */
+  otherPresent: boolean;
+  createdAt: number;
+}

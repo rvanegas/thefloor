@@ -14,8 +14,9 @@ import { Button, Card, Empty, Field, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 /**
- * Signed in, not in a session. Ordered by priority: live invites, contacts,
- * adding a contact, then past recordings.
+ * Signed in, not in a session. Ordered by priority: live invites, sessions you
+ * left and can still re-enter, contacts, adding a contact, then past
+ * recordings.
  */
 export function HomeView({
   me,
@@ -32,6 +33,7 @@ export function HomeView({
   const invites = backend
     .invitesFor(me.id)
     .filter((i) => !dismissed.includes(i.sessionId));
+  const live = backend.liveSessionsFor(me.id);
   const contacts = backend.contactsFor(me.id);
   const recordings = backend.recordingsFor(me.id);
 
@@ -56,6 +58,37 @@ export function HomeView({
           onDismiss={() => setDismissed((d) => [...d, invite.sessionId])}
         />
       ))}
+
+      {live.length > 0 ? (
+        <>
+          <SectionLabel>Live sessions</SectionLabel>
+          <View style={styles.list}>
+            {live.map((session) => (
+              <Card key={session.sessionId} style={styles.row}>
+                <View style={styles.rowMain}>
+                  <Text style={type.body}>{session.other.displayName}</Text>
+                  <Text style={type.muted}>
+                    {session.otherPresent
+                      ? 'Still there — you left'
+                      : 'Empty — ends within a minute'}
+                  </Text>
+                </View>
+                <Button
+                  label="Rejoin"
+                  variant="primary"
+                  onPress={() => {
+                    backend.dispatch(session.sessionId, {
+                      type: 'ENTER',
+                      userId: me.id,
+                    });
+                    onEnterSession(session.sessionId);
+                  }}
+                />
+              </Card>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <SectionLabel>Contacts</SectionLabel>
       {contacts.length === 0 ? (
