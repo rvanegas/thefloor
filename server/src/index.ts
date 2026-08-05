@@ -1,4 +1,5 @@
 import { buildApp } from './app';
+import { ConsoleMailer, SesMailer, type Mailer } from './mail';
 
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? '0.0.0.0';
@@ -6,11 +7,11 @@ const dbPath = process.env.DB_PATH ?? './thefloor.db';
 
 /**
  * Accepts any code from anyone, as whoever they claim to be. It exists only
- * because there is no SMS or email transport yet, so no real user could receive
- * a code — sign-in would otherwise be impossible rather than merely insecure.
+ * because delivery is not yet available for every identifier — sign-in would
+ * otherwise be impossible rather than merely insecure.
  *
  * This is not a weakened check; it is the absence of one. Delete it, and the
- * `authBypass` branches it feeds, the moment a transport lands.
+ * `authBypass` branches it feeds, once every identifier has a transport.
  */
 const authBypass = process.env.AUTH_DEV_BYPASS === 'true';
 
@@ -25,13 +26,32 @@ if (authBypass && process.env.NODE_ENV === 'production') {
   process.exit(1);
 }
 
-const app = buildApp({ dbPath, authBypass, logger: true });
+/**
+ * MAIL_FROM must be an address on an SES-verified identity. Without it, codes
+ * are printed locally instead of sent, which is fine on a laptop and useless
+ * anywhere else.
+ */
+const mailFrom = process.env.MAIL_FROM;
+const mailRegion = process.env.AWS_REGION ?? 'us-west-2';
+const mailer: Mailer = mailFrom
+  ? new SesMailer({ from: mailFrom, region: mailRegion })
+  : new ConsoleMailer();
+
+const app = buildApp({ dbPath, authBypass, mailer, logger: true });
 app.sessions.start();
 
 app.fastify
   .listen({ port, host })
   .then(() => {
-    app.fastify.log.info({ dbPath, authBypass }, 'the floor server listening');
+    app.fastify.log.info(
+      { dbPath, authBypass, mail: mailFrom ? `ses:${mailFrom}` : 'console' },
+      'the floor server listening'
+    );
+    if (!mailFrom) {
+      app.fastify.log.warn(
+        'MAIL_FROM is unset — one-time codes are printed to this console, not emailed.'
+      );
+    }
     if (authBypass) {
       app.fastify.log.warn(
         { host, port },

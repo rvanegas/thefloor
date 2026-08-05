@@ -1,4 +1,5 @@
 import { buildApp, type App } from '../src/app';
+import { MemoryMailer } from '../src/mail';
 
 /**
  * The development bypass accepts any code as valid, because there is no SMS or
@@ -75,8 +76,11 @@ describe('with the bypass on', () => {
 });
 
 describe('with the bypass off (the default)', () => {
+  let mailer: MemoryMailer;
+
   beforeEach(() => {
-    app = buildApp({ dbPath: ':memory:', now: () => clock });
+    mailer = new MemoryMailer();
+    app = buildApp({ dbPath: ':memory:', mailer, now: () => clock });
   });
 
   it('defaults to off', async () => {
@@ -85,7 +89,7 @@ describe('with the bypass off (the default)', () => {
   });
 
   it('refuses a wrong code', async () => {
-    const code = app.accounts.issueCode('+15550000001', clock);
+    const code = app.accounts.issueCode('+15550000001', clock)!;
     const wrong = code === '000000' ? '000001' : '000000';
     expect((await verify('+15550000001', wrong)).statusCode).toBe(401);
   });
@@ -98,15 +102,19 @@ describe('with the bypass off (the default)', () => {
     const response = await app.fastify.inject({
       method: 'POST',
       url: '/auth/request-code',
-      payload: { identifier: '+15550000001' },
+      payload: { identifier: 'someone@example.com' },
     });
     expect(response.json()).toEqual({ sent: true });
 
-    // Belt and braces: the real code must not appear anywhere in the response.
+    // The code reached the transport, and nothing about it reached the caller.
+    const sent = mailer.lastCodeFor('someone@example.com')!;
+    expect(sent).toMatch(/^\d{6}$/);
+    expect(response.payload).not.toContain(sent);
+    expect(response.payload).not.toMatch(/\d{6}/);
+
     const issued = app.db
       .prepare('SELECT code_hash FROM otp_codes WHERE identifier = ?')
-      .get('+15550000001') as { code_hash: string };
+      .get('someone@example.com') as { code_hash: string };
     expect(response.payload).not.toContain(issued.code_hash);
-    expect(response.payload).not.toMatch(/\d{6}/);
   });
 });

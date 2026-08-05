@@ -81,7 +81,7 @@ class Client {
 }
 
 async function signIn(identifier: string, displayName?: string) {
-  const code = app.accounts.issueCode(identifier, clock);
+  const code = app.accounts.issueCode(identifier, clock)!;
   const verified = await app.fastify.inject({
     method: 'POST',
     url: '/auth/verify',

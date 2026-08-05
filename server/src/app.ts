@@ -3,6 +3,7 @@ import websocket from '@fastify/websocket';
 import type { HomeView, PublicAccount } from '../../core/protocol';
 import { Accounts } from './accounts';
 import { openDb, type AccountRow, type Db } from './db';
+import { isEmailAddress, type Mailer } from './mail';
 import { SessionRegistry } from './sessions';
 import { registerWebsocket } from './ws';
 
@@ -15,6 +16,8 @@ export interface BuildOptions {
    * can become anyone — and is refused outright in production (see index.ts).
    */
   authBypass?: boolean;
+  /** Delivers one-time codes. Without one, only the bypass can sign anyone in. */
+  mailer?: Mailer;
   now?: () => number;
   logger?: boolean;
 }
@@ -67,9 +70,35 @@ export function buildApp(options: BuildOptions = {}): App {
       return { sent: true, bypass: true };
     }
 
-    accounts.issueCode(identifier, now());
-    // Deliberately not logged. A one-time code in the logs is a credential in
-    // the logs, and would be a second bypass that no flag controls.
+    if (!isEmailAddress(identifier)) {
+      // Phone numbers are a real identifier for this app, but nothing can
+      // deliver to one yet. Saying so plainly beats accepting the request and
+      // silently never sending.
+      return reply.code(400).send({
+        error: 'Text messages are not available yet — use an email address.',
+        code: 'sms_unavailable',
+      });
+    }
+
+    if (!options.mailer) {
+      request.log.error('no mailer configured; cannot deliver a code');
+      return reply.code(503).send({ error: 'Sign-in is temporarily unavailable.' });
+    }
+
+    const code = accounts.issueCode(identifier, now());
+    if (code) {
+      try {
+        await options.mailer.sendCode(identifier, code);
+      } catch (error) {
+        // Logged without the code: a one-time code in the logs is a credential
+        // in the logs, and would be a bypass no flag controls.
+        request.log.error({ err: error, identifier }, 'failed to send code');
+        return reply.code(502).send({ error: 'Could not send the code.' });
+      }
+    }
+
+    // Identical whether a code was just sent or the throttle suppressed it, so
+    // the endpoint cannot be used to probe recent activity for an address.
     return { sent: true };
   });
 

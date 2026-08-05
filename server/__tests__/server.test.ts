@@ -25,7 +25,7 @@ afterEach(async () => {
  * exercised without a dev affordance existing in the server at all.
  */
 async function signIn(identifier: string, displayName?: string) {
-  const code = app.accounts.issueCode(identifier, clock);
+  const code = app.accounts.issueCode(identifier, clock)!;
   const verified = await app.fastify.inject({
     method: 'POST',
     url: '/auth/verify',
@@ -71,7 +71,7 @@ describe('one-time codes', () => {
   });
 
   it('rejects a wrong code', async () => {
-    const code = app.accounts.issueCode('+15550000001', clock);
+    const code = app.accounts.issueCode('+15550000001', clock)!;
     // Derived from the real code so it is guaranteed to differ.
     const wrong = code === '000000' ? '000001' : '000000';
 
@@ -85,7 +85,7 @@ describe('one-time codes', () => {
   });
 
   it('expires a code after ten minutes', async () => {
-    const code = app.accounts.issueCode('+15550000003', clock);
+    const code = app.accounts.issueCode('+15550000003', clock)!;
     clock += 10 * 60 * 1000 + 1;
     const response = await app.fastify.inject({
       method: 'POST',
@@ -96,7 +96,7 @@ describe('one-time codes', () => {
   });
 
   it('stops accepting attempts after five failures', async () => {
-    const code = app.accounts.issueCode('+15550000004', clock);
+    const code = app.accounts.issueCode('+15550000004', clock)!;
     const wrong = code === '111111' ? '222222' : '111111';
 
     for (let i = 0; i < 5; i++) {

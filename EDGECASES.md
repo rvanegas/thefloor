@@ -150,7 +150,16 @@ Found while writing this list. These are real, not hypothetical.
    `miro@example.com` is required in full. Defensible for a
    phone-number/email lookup — you shouldn't be able to enumerate strangers by
    prefix — but there's no feedback distinguishing "typo" from "no such user."
-7. **Requesting someone who already requested you silently accepts.**
+7. **`authBypass` must be deleted, not merely switched off.** Email delivery now
+   works, so the bypass is only load-bearing for phone identifiers. Once SMS
+   lands, the flag and the `authBypass` branches it feeds in `server/src/app.ts`
+   have to come out of the code. A bypass that survives because a boolean
+   defaults to false is the version that eventually ships.
+8. **Phone sign-in is refused outright** (`sms_unavailable`), so a phone number
+   is currently an identifier you can be *found* by but cannot sign in with.
+   Contact search still accepts one, which is a coherent state but a confusing
+   one until SMS exists.
+9. **Requesting someone who already requested you silently accepts.**
    `sendContactRequest` treats an inbound pending request as an acceptance
    rather than erroring. Reasonable, but it means the pair goes straight to
    `accepted` with no confirmation step. `app/src/mock/backend.ts`.

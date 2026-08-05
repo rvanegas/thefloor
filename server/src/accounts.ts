@@ -3,6 +3,12 @@ import type { PublicAccount } from '../../core/protocol';
 import { newId, pairKey, sha256, type AccountRow, type Db } from './db';
 
 export const OTP_TTL_MS = 10 * 60 * 1000;
+/**
+ * Minimum gap between codes for one identifier. Issuing now sends real email,
+ * so an unthrottled endpoint is a way to bill someone else's SES account and to
+ * bury a stranger's inbox.
+ */
+export const OTP_RESEND_INTERVAL_MS = 60 * 1000;
 export const OTP_MAX_ATTEMPTS = 5;
 export const TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
@@ -39,8 +45,21 @@ export class Accounts {
    * development it is logged rather than sent, which is why this returns it at
    * all. A real SMS/email transport replaces that without touching this.
    */
-  issueCode(identifier: string, now: number): string {
+  /**
+   * Issues a code, or returns null if one was issued for this identifier less
+   * than a minute ago. Callers should report success either way — whether a
+   * code was just sent is not something an unauthenticated caller should learn.
+   */
+  issueCode(identifier: string, now: number): string | null {
     const id = normalize(identifier);
+
+    const existing = this.db
+      .prepare('SELECT created_at FROM otp_codes WHERE identifier = ?')
+      .get(id) as { created_at: number } | undefined;
+    if (existing && now - existing.created_at < OTP_RESEND_INTERVAL_MS) {
+      return null;
+    }
+
     const code = String(randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(
       6,
       '0'
