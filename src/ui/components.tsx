@@ -148,8 +148,8 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     textTransform: 'uppercase',
-    marginBottom: spacing(1),
-    marginTop: spacing(3),
+    marginBottom: spacing(0.75),
+    marginTop: spacing(2),
   },
   card: {
     backgroundColor: colors.surface,

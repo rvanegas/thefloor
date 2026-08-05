@@ -98,7 +98,7 @@ export function SessionView({
       ) : null}
 
       <View style={styles.presence}>
-        <Text style={type.title}>{otherName}</Text>
+        <Text style={styles.otherName}>{otherName}</Text>
         <Text style={type.muted}>
           {isPresent(session, otherId)
             ? 'Present'
@@ -140,17 +140,19 @@ export function SessionView({
           </Text>
         ) : null}
 
+        {claimRemaining !== null && iHoldFloor ? null : (
         <Text style={styles.floorHint}>
           {iHoldFloor
-            ? `${otherName} is muted until you release, or for up to three minutes.`
+            ? `${otherName} is muted until you release, up to three minutes.`
             : theyHoldFloor
               ? 'You cannot claim the floor while you are silenced.'
               : cooldown !== null
                 ? 'You claimed last — you can claim again after this cooldown, or as soon as they claim and release.'
                 : !bothPresent(session)
                   ? 'The floor becomes available once both of you are present.'
-                  : 'Claim it to speak uninterrupted for up to three minutes.'}
+                  : 'Speak uninterrupted for up to three minutes.'}
         </Text>
+        )}
 
         {iHoldFloor ? (
           <Button
@@ -185,7 +187,7 @@ export function SessionView({
             ? `Silenced by ${otherName}'s floor claim.`
             : iAmSelfMuted
               ? 'Muted by you. This is separate from the floor and costs you nothing.'
-              : 'Open. Muting yourself never affects your floor eligibility.'}
+              : 'Open. Self-mute never affects floor eligibility.'}
         </Text>
       </Card>
 
@@ -199,8 +201,8 @@ export function SessionView({
           />
         ) : session.recording.status === 'stopped' ? (
           <Text style={type.muted}>
-            Recording stopped — {formatDuration(recordedMs(session.recording, now))}{' '}
-            captured. It will be available on Home once the session ends.
+            Stopped — {formatDuration(recordedMs(session.recording, now))} captured.
+            Available on Home once the session ends.
           </Text>
         ) : (
           <View style={styles.buttonRow}>
@@ -233,11 +235,11 @@ export function SessionView({
         )}
         {iAmSilenced && recordingLive ? (
           <Text style={type.muted}>
-            You cannot pause or stop the recording while you are silenced.
+            Silenced — pause and stop unavailable.
           </Text>
         ) : session.recording.status === 'idle' && !canStartRecording(session) ? (
           <Text style={type.muted}>
-            Recording can start once both of you have connected.
+            Starts once both of you have connected.
           </Text>
         ) : null}
       </Card>
@@ -317,14 +319,14 @@ function PeerSimulator({
       <View style={styles.buttonRow}>
         <Button
           label={present ? 'They leave' : 'They join'}
-          style={styles.flexButton}
+          style={styles.simulatorButton}
           onPress={() =>
             dispatch({ type: present ? 'LEAVE' : 'ENTER', userId: otherId })
           }
         />
         <Button
           label={holds ? 'They release' : 'They claim'}
-          style={styles.flexButton}
+          style={styles.simulatorButton}
           disabled={!holds && !canClaimFloor(session, otherId, now)}
           onPress={() =>
             dispatch({
@@ -340,8 +342,9 @@ function PeerSimulator({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  otherName: { fontSize: 24, fontWeight: '700', color: colors.text },
   scroll: { flex: 1 },
-  container: { padding: spacing(2.5), paddingBottom: spacing(3) },
+  container: { padding: spacing(2), paddingBottom: spacing(2) },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -350,7 +353,7 @@ const styles = StyleSheet.create({
     gap: spacing(2),
   },
   centeredText: { textAlign: 'center', lineHeight: 20 },
-  presence: { gap: 4, marginBottom: spacing(1) },
+  presence: { gap: 2, marginBottom: spacing(0.5) },
   warning: { color: colors.silenced, fontSize: 13, marginTop: spacing(0.5) },
   recordingIndicator: {
     flexDirection: 'row',
@@ -378,27 +381,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
-  floorCard: { gap: spacing(1.25), borderColor: colors.border },
+  floorCard: { gap: spacing(1), borderColor: colors.border },
   floorCardHeld: { borderColor: colors.floor, backgroundColor: colors.floorDim },
   floorCardSilenced: { borderColor: colors.silenced },
   floorStatus: { fontSize: 17, fontWeight: '600', color: colors.text },
   countdown: {
-    fontSize: 40,
+    fontSize: 34,
     fontWeight: '700',
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
-  countdownMuted: { fontSize: 28, color: colors.textMuted },
+  countdownMuted: { fontSize: 24, color: colors.textMuted },
   floorHint: { ...type.muted, lineHeight: 19 },
-  stack: { gap: spacing(1.25) },
+  stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   flexButton: { flex: 1 },
   // Pinned below the scroll area: the second party has to be reachable at any
   // moment, not buried under the fold.
   simulator: {
-    paddingHorizontal: spacing(2.5),
-    paddingTop: spacing(1.5),
-    paddingBottom: spacing(2.5),
+    paddingHorizontal: spacing(2),
+    paddingTop: spacing(1),
+    paddingBottom: spacing(1.5),
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
@@ -406,7 +409,9 @@ const styles = StyleSheet.create({
   },
   simulatorLabel: {
     ...type.label,
+    fontSize: 11,
     color: colors.textMuted,
     textTransform: 'uppercase',
   },
+  simulatorButton: { flex: 1, minHeight: 40, paddingVertical: spacing(0.75) },
 });
