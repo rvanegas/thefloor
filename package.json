@@ -3,8 +3,9 @@
   "private": true,
   "description": "Monorepo root. core/ holds the shared rules, app/ the Expo client, server/ the backend.",
   "scripts": {
-    "test": "npm test --prefix core && npm test --prefix app",
-    "typecheck": "npm run typecheck --prefix core && npm run typecheck --prefix app",
-    "start": "npm start --prefix app"
+    "test": "npm test --prefix core && npm test --prefix app && npm test --prefix server",
+    "typecheck": "npm run typecheck --prefix core && npm run typecheck --prefix app && npm run typecheck --prefix server",
+    "start": "npm start --prefix app",
+    "server": "npm run dev --prefix server"
   }
 }
