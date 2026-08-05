@@ -11,7 +11,7 @@ let clock = 1_700_000_000_000;
 
 beforeEach(() => {
   clock = 1_700_000_000_000;
-  app = buildApp({ dbPath: ':memory:', exposeCodes: true, now: () => clock });
+  app = buildApp({ dbPath: ':memory:', now: () => clock });
 });
 
 afterEach(async () => {
@@ -19,24 +19,23 @@ afterEach(async () => {
   await app.fastify.close();
 });
 
+/**
+ * Issues the code through Accounts rather than reading it off a response. The
+ * server never returns a code to a caller, so the real verification path can be
+ * exercised without a dev affordance existing in the server at all.
+ */
 async function signIn(identifier: string, displayName?: string) {
-  const requested = await app.fastify.inject({
-    method: 'POST',
-    url: '/auth/request-code',
-    payload: { identifier },
-  });
-  const { devCode } = requested.json() as { devCode: string };
-
+  const code = app.accounts.issueCode(identifier, clock);
   const verified = await app.fastify.inject({
     method: 'POST',
     url: '/auth/verify',
-    payload: { identifier, code: devCode, displayName },
+    payload: { identifier, code, displayName },
   });
   const body = verified.json() as {
     token: string;
     account: { id: string; displayName: string };
   };
-  return { ...body, code: devCode };
+  return { ...body, code };
 }
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -72,14 +71,9 @@ describe('one-time codes', () => {
   });
 
   it('rejects a wrong code', async () => {
-    const requested = await app.fastify.inject({
-      method: 'POST',
-      url: '/auth/request-code',
-      payload: { identifier: '+15550000001' },
-    });
-    const { devCode } = requested.json() as { devCode: string };
+    const code = app.accounts.issueCode('+15550000001', clock);
     // Derived from the real code so it is guaranteed to differ.
-    const wrong = devCode === '000000' ? '000001' : '000000';
+    const wrong = code === '000000' ? '000001' : '000000';
 
     const response = await app.fastify.inject({
       method: 'POST',
@@ -91,30 +85,19 @@ describe('one-time codes', () => {
   });
 
   it('expires a code after ten minutes', async () => {
-    const requested = await app.fastify.inject({
-      method: 'POST',
-      url: '/auth/request-code',
-      payload: { identifier: '+15550000003' },
-    });
-    const { devCode } = requested.json() as { devCode: string };
-
+    const code = app.accounts.issueCode('+15550000003', clock);
     clock += 10 * 60 * 1000 + 1;
     const response = await app.fastify.inject({
       method: 'POST',
       url: '/auth/verify',
-      payload: { identifier: '+15550000003', code: devCode },
+      payload: { identifier: '+15550000003', code },
     });
     expect(response.statusCode).toBe(401);
   });
 
   it('stops accepting attempts after five failures', async () => {
-    const requested = await app.fastify.inject({
-      method: 'POST',
-      url: '/auth/request-code',
-      payload: { identifier: '+15550000004' },
-    });
-    const { devCode } = requested.json() as { devCode: string };
-    const wrong = devCode === '111111' ? '222222' : '111111';
+    const code = app.accounts.issueCode('+15550000004', clock);
+    const wrong = code === '111111' ? '222222' : '111111';
 
     for (let i = 0; i < 5; i++) {
       await app.fastify.inject({
@@ -127,7 +110,7 @@ describe('one-time codes', () => {
     const response = await app.fastify.inject({
       method: 'POST',
       url: '/auth/verify',
-      payload: { identifier: '+15550000004', code: devCode },
+      payload: { identifier: '+15550000004', code },
     });
     expect(response.statusCode).toBe(401);
   });

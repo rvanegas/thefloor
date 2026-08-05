@@ -8,8 +8,13 @@ import { registerWebsocket } from './ws';
 
 export interface BuildOptions {
   dbPath?: string;
-  /** Returns OTP codes in the response instead of delivering them. Dev only. */
-  exposeCodes?: boolean;
+  /**
+   * Accepts ANY code as valid, signing in whoever is asked for. This exists
+   * because there is no SMS or email transport yet, so no real user could
+   * otherwise receive a code. It is a complete authentication bypass — anyone
+   * can become anyone — and is refused outright in production (see index.ts).
+   */
+  authBypass?: boolean;
   now?: () => number;
   logger?: boolean;
 }
@@ -57,13 +62,14 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(400).send({ error: 'identifier is required' });
     }
 
-    const code = accounts.issueCode(identifier, now());
-    // No transport yet. Logging it is what makes development possible, and is
-    // exactly what must be replaced before this is reachable by real users.
-    fastify.log.info({ identifier, code }, 'issued one-time code');
-    if (options.exposeCodes) {
-      return { sent: true, devCode: code };
+    if (options.authBypass) {
+      // Nothing is sent and nothing is checked; any code will be accepted.
+      return { sent: true, bypass: true };
     }
+
+    accounts.issueCode(identifier, now());
+    // Deliberately not logged. A one-time code in the logs is a credential in
+    // the logs, and would be a second bypass that no flag controls.
     return { sent: true };
   });
 
@@ -75,12 +81,9 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(400).send({ error: 'identifier and code are required' });
     }
 
-    const result = accounts.verifyCode(
-      body.identifier,
-      body.code,
-      body.displayName,
-      now()
-    );
+    const result = options.authBypass
+      ? accounts.establish(body.identifier, body.displayName, now())
+      : accounts.verifyCode(body.identifier, body.code, body.displayName, now());
     // One message for every failure mode, so this cannot be used to discover
     // which identifiers have accounts.
     if (!result) return reply.code(401).send({ error: 'Invalid or expired code.' });
@@ -154,7 +157,10 @@ export function buildApp(options: BuildOptions = {}): App {
     return { sessionId: result.session.id };
   });
 
-  fastify.get('/healthz', async () => ({ ok: true }));
+  fastify.get('/healthz', async () => ({
+    ok: true,
+    authBypass: options.authBypass === true,
+  }));
 
   // --- Shared views -------------------------------------------------------
 

@@ -14,7 +14,7 @@ let clock = 1_700_000_000_000;
 
 beforeEach(async () => {
   clock = 1_700_000_000_000;
-  app = buildApp({ dbPath: ':memory:', exposeCodes: true, now: () => clock });
+  app = buildApp({ dbPath: ':memory:', now: () => clock });
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const address = app.fastify.server.address();
   if (typeof address === 'string' || address === null) throw new Error('no port');
@@ -81,16 +81,11 @@ class Client {
 }
 
 async function signIn(identifier: string, displayName?: string) {
-  const requested = await app.fastify.inject({
-    method: 'POST',
-    url: '/auth/request-code',
-    payload: { identifier },
-  });
-  const { devCode } = requested.json() as { devCode: string };
+  const code = app.accounts.issueCode(identifier, clock);
   const verified = await app.fastify.inject({
     method: 'POST',
     url: '/auth/verify',
-    payload: { identifier, code: devCode, displayName },
+    payload: { identifier, code, displayName },
   });
   return verified.json() as {
     token: string;

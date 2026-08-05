@@ -94,7 +94,20 @@ export class Accounts {
     }
 
     this.db.prepare('DELETE FROM otp_codes WHERE identifier = ?').run(id);
+    return this.establish(id, displayName, now);
+  }
 
+  /**
+   * Signs in, creating the account on first sight, and issues a token. This is
+   * the step that follows a *successful* check — callers are responsible for
+   * having done the checking.
+   */
+  establish(
+    identifier: string,
+    displayName: string | undefined,
+    now: number
+  ): { account: AccountRow; token: string } {
+    const id = normalize(identifier);
     let account = this.byIdentifier(id);
     if (!account) {
       const accountId = newId('acct');
@@ -105,7 +118,6 @@ export class Accounts {
         .run(accountId, id, displayName?.trim() || id, now);
       account = this.byId(accountId)!;
     }
-
     return { account, token: this.issueToken(account.id, now) };
   }
 
