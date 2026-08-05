@@ -1,4 +1,4 @@
-import type { UserId } from '../core/types';
+import type { UserId } from '../../../core/types';
 
 export interface Account {
   id: UserId;

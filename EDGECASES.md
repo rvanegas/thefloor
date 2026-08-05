@@ -1,7 +1,7 @@
 # Edge cases
 
 A review list for the floor mechanic, session lifecycle, and recording rules.
-Written against `the-floor-app-spec.md` and the implementation in `src/core/`.
+Written against `the-floor-app-spec.md` and the implementation in `core/`.
 
 Sections 1–2 are the things to *check*; section 3 is where the spec needed a
 reading, and section 4 is defects found while compiling this list.
@@ -13,7 +13,7 @@ reading, and section 4 is defects found while compiling this list.
 These have assertions and boundary checks. Listed so a manual pass can skip
 them, or so a behavior change tells you which test should have caught it.
 
-### Floor eligibility — `src/core/__tests__/floor.test.ts`
+### Floor eligibility — `core/__tests__/floor.test.ts`
 
 | Case | Expected | Test |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ them, or so a behavior change tells you which test should have caught it.
 | Re-entry during the empty window | Cancels the timer | *cancels the empty-session timer on re-entry* |
 | Explicit end by an absent party | Allowed; irreversible; re-entry blocked | *ends explicitly and irreversibly, from either party, present or not* |
 
-### Recording — `src/core/__tests__/recording.test.ts`
+### Recording — `core/__tests__/recording.test.ts`
 
 | Case | Expected | Test |
 | --- | --- | --- |
@@ -101,14 +101,14 @@ candidate for "actually, do the other thing."
    restriction). The spec equates them, but when nobody holds the floor neither
    party is silenced. Implemented per the clarifying sentence that follows:
    pause/stop are withheld **only** from the non-holder **during an active
-   claim**. `canPauseOrStopRecording` in `src/core/recording.ts`.
+   claim**. `canPauseOrStopRecording` in `core/recording.ts`.
 2. **"After both users have connected"** (§Recording). Read as *ever* connected,
    not *currently* present, so a party left alone can still start a recording.
    Consistent with the spec's insistence that recording survives leaving. See
-   `everPresent` in `src/core/types.ts`.
+   `everPresent` in `core/types.ts`.
 3. **Resume carries no floor restriction.** The spec names only pause and stop.
    Resuming doesn't cut off the record, so it's unrestricted — a silenced party
-   may resume a paused recording. `canResumeRecording` in `src/core/session.ts`.
+   may resume a paused recording. `canResumeRecording` in `core/session.ts`.
 4. **Cooldown is strictly greater than one minute.** "More than one minute has
    elapsed" is implemented as `> 60_000`, so re-claiming at exactly 60.000s is
    refused. Off-by-one in the user's favour would be `>=`.
@@ -126,18 +126,18 @@ Found while writing this list. These are real, not hypothetical.
    `startSession` has no guard, so tapping "Start session" on Dana twice creates
    two live sessions, and Dana's Home shows two stacked invite banners from the
    same person. The spec doesn't forbid it, but it's almost certainly not wanted.
-   `src/mock/backend.ts`.
+   `app/src/mock/backend.ts`.
 2. ~~**`activeSessionFor` is dead code.**~~ **Resolved.** Replaced by
    `liveSessionsFor`, which backs a "Live sessions" section on Home. The spec
    requires re-entry (§Session Lifecycle) but lists no Home affordance for it,
    so previously an initiator who left had no route back, while an invitee who
    left reappeared in their own invite list — an accident of the invite query
    that read as a fresh invitation. `invitesFor` is now narrowed to parties who
-   have *never* entered. Covered by `src/mock/__tests__/rejoin.test.ts`.
+   have *never* entered. Covered by `app/src/mock/__tests__/rejoin.test.ts`.
 3. **Dismissed invites resurrect.** The dismissed list is local `useState` in
    `HomeView`, so navigating away and back re-shows a banner the user dismissed.
    The spec calls the banner "dismissable... persistent until acted on," which
-   implies the dismissal should outlive a remount. `src/ui/HomeView.tsx:30`.
+   implies the dismissal should outlive a remount. `app/src/ui/HomeView.tsx:30`.
 4. **Timers are wall-clock and unguarded.** Every rule derives from a
    caller-supplied `now` (`Date.now()`). A device clock change, or the OS
    throttling the 500ms interval while backgrounded, will skew countdowns and
@@ -153,13 +153,17 @@ Found while writing this list. These are real, not hypothetical.
 7. **Requesting someone who already requested you silently accepts.**
    `sendContactRequest` treats an inbound pending request as an acceptance
    rather than erroring. Reasonable, but it means the pair goes straight to
-   `accepted` with no confirmation step. `src/mock/backend.ts`.
+   `accepted` with no confirmation step. `app/src/mock/backend.ts`.
 
 ---
 
 ## Running the suite
 
+From the repo root, across both packages:
+
 ```bash
-npm test           # 38 tests
-npx tsc --noEmit
+npm test           # core (33) + app (12)
+npm run typecheck
 ```
+
+Or one package at a time: `npm test --prefix core`, `npm test --prefix app`.

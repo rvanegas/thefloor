@@ -4,8 +4,8 @@ import {
   cooldownRemainingMs,
   floorRemainingMs,
   isSilenced,
-} from '../core/floor';
-import { isRecordingActive, recordedMs } from '../core/recording';
+} from '../../../core/floor';
+import { isRecordingActive, recordedMs } from '../../../core/recording';
 import {
   bothPresent,
   canClaimFloor,
@@ -16,8 +16,8 @@ import {
   emptyTimeoutRemainingMs,
   isPresent,
   otherParty,
-} from '../core/session';
-import type { SessionState } from '../core/types';
+} from '../../../core/session';
+import type { SessionState } from '../../../core/types';
 import { backend } from '../mock/backend';
 import type { Account } from '../mock/types';
 import { useBackendState } from '../state/useBackend';

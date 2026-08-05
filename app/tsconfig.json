@@ -3,5 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "types": ["jest"]
-  }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../core/*.ts"],
+  "exclude": ["node_modules"]
 }

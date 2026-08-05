@@ -1,11 +1,11 @@
-import { recordedMs } from '../core/recording';
+import { recordedMs } from '../../../core/recording';
 import {
   createSession,
   isParticipant,
   otherParty,
   reduce,
-} from '../core/session';
-import type { SessionAction, SessionState, UserId } from '../core/types';
+} from '../../../core/session';
+import type { SessionAction, SessionState, UserId } from '../../../core/types';
 import type {
   Account,
   ContactEntry,

@@ -1,38 +1,10 @@
 {
   "name": "thefloor",
-  "version": "1.0.0",
-  "main": "index.ts",
-  "dependencies": {
-    "expo": "~57.0.10",
-    "expo-status-bar": "~57.0.1",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-native": "0.86.2",
-    "react-native-safe-area-context": "~5.7.0",
-    "react-native-web": "^0.21.2"
-  },
-  "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "@types/react": "~19.2.2",
-    "jest": "^29.7.0",
-    "jest-expo": "^57.0.3",
-    "typescript": "~6.0.3"
-  },
-  "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "test": "jest"
-  },
   "private": true,
-  "jest": {
-    "preset": "jest-expo",
-    "testPathIgnorePatterns": [
-      "/node_modules/"
-    ],
-    "setupFiles": [
-      "<rootDir>/jest.setup.js"
-    ]
+  "description": "Monorepo root. core/ holds the shared rules, app/ the Expo client, server/ the backend.",
+  "scripts": {
+    "test": "npm test --prefix core && npm test --prefix app",
+    "typecheck": "npm run typecheck --prefix core && npm run typecheck --prefix app",
+    "start": "npm start --prefix app"
   }
 }
