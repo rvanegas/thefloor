@@ -4,6 +4,7 @@ import type { HomeView, PublicAccount } from '../../core/protocol';
 import { Accounts } from './accounts';
 import { openDb, type AccountRow, type Db } from './db';
 import { isEmailAddress, type Mailer } from './mail';
+import type { MediaServer } from './media';
 import { SessionRegistry } from './sessions';
 import { registerWebsocket } from './ws';
 
@@ -18,6 +19,10 @@ export interface BuildOptions {
   authBypass?: boolean;
   /** Delivers one-time codes. Without one, only the bypass can sign anyone in. */
   mailer?: Mailer;
+  /** Carries audio and enforces the floor as an actual mute. */
+  media?: MediaServer;
+  /** The wss:// URL clients should connect to. Sent alongside a join token. */
+  mediaUrl?: string;
   now?: () => number;
   logger?: boolean;
 }
@@ -33,9 +38,10 @@ export function buildApp(options: BuildOptions = {}): App {
   const now = options.now ?? Date.now;
   const db = openDb(options.dbPath ?? ':memory:');
   const accounts = new Accounts(db);
-  const sessions = new SessionRegistry(db, accounts, now);
-
   const fastify = Fastify({ logger: options.logger ?? false });
+  const sessions = new SessionRegistry(db, accounts, now, options.media, (error, context) =>
+    fastify.log.error({ err: error, context }, 'media operation failed')
+  );
 
   /** Resolves the bearer token to an account, or replies 401 and returns null. */
   function authenticate(request: FastifyRequest): AccountRow | null {
@@ -186,9 +192,30 @@ export function buildApp(options: BuildOptions = {}): App {
     return { sessionId: result.session.id };
   });
 
+  /**
+   * A join credential for the session's audio room. Minted per participant and
+   * short-lived, and refused to anyone who is not in the session — the room
+   * name is the session id, so this is the only thing standing between knowing
+   * an id and listening in.
+   */
+  fastify.post('/sessions/:id/media-token', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    const result = await sessions.mediaToken(id, account.id);
+    if (!result.ok) {
+      return reply.code(result.error === 'Not your session.' ? 403 : 400).send({
+        error: result.error,
+      });
+    }
+    return { token: result.token, url: options.mediaUrl };
+  });
+
   fastify.get('/healthz', async () => ({
     ok: true,
     authBypass: options.authBypass === true,
+    audio: options.media ? 'livekit' : 'none',
   }));
 
   // --- Shared views -------------------------------------------------------

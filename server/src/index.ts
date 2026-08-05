@@ -1,5 +1,6 @@
 import { buildApp } from './app';
 import { ConsoleMailer, SesMailer, type Mailer } from './mail';
+import { LiveKitMediaServer, type MediaServer } from './media';
 
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? '0.0.0.0';
@@ -37,16 +38,50 @@ const mailer: Mailer = mailFrom
   ? new SesMailer({ from: mailFrom, region: mailRegion })
   : new ConsoleMailer();
 
-const app = buildApp({ dbPath, authBypass, mailer, logger: true });
+/**
+ * Audio is optional: without LiveKit credentials the whole app still runs and
+ * every rule is enforced, there is simply nothing to hear. That keeps the
+ * session mechanics testable without a media server.
+ */
+const liveKitUrl = process.env.LIVEKIT_URL;
+const liveKitKey = process.env.LIVEKIT_API_KEY;
+const liveKitSecret = process.env.LIVEKIT_API_SECRET;
+const media: MediaServer | undefined =
+  liveKitUrl && liveKitKey && liveKitSecret
+    ? new LiveKitMediaServer({
+        url: liveKitUrl,
+        apiKey: liveKitKey,
+        apiSecret: liveKitSecret,
+      })
+    : undefined;
+
+const app = buildApp({
+  dbPath,
+  authBypass,
+  mailer,
+  media,
+  mediaUrl: liveKitUrl,
+  logger: true,
+});
 app.sessions.start();
 
 app.fastify
   .listen({ port, host })
   .then(() => {
     app.fastify.log.info(
-      { dbPath, authBypass, mail: mailFrom ? `ses:${mailFrom}` : 'console' },
+      {
+        dbPath,
+        authBypass,
+        mail: mailFrom ? `ses:${mailFrom}` : 'console',
+        audio: media ? liveKitUrl : 'none',
+      },
       'the floor server listening'
     );
+    if (!media) {
+      app.fastify.log.warn(
+        'LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET are unset — sessions run with no audio.'
+      );
+    }
     if (!mailFrom) {
       app.fastify.log.warn(
         'MAIL_FROM is unset — one-time codes are printed to this console, not emailed.'

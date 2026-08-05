@@ -71,7 +71,7 @@ describe('with the bypass on', () => {
 
   it('is visible on the health endpoint rather than having to be inferred', async () => {
     const health = await app.fastify.inject({ method: 'GET', url: '/healthz' });
-    expect(health.json()).toEqual({ ok: true, authBypass: true });
+    expect(health.json()).toEqual({ ok: true, authBypass: true, audio: 'none' });
   });
 });
 
@@ -85,7 +85,7 @@ describe('with the bypass off (the default)', () => {
 
   it('defaults to off', async () => {
     const health = await app.fastify.inject({ method: 'GET', url: '/healthz' });
-    expect(health.json()).toEqual({ ok: true, authBypass: false });
+    expect(health.json()).toEqual({ ok: true, authBypass: false, audio: 'none' });
   });
 
   it('refuses a wrong code', async () => {

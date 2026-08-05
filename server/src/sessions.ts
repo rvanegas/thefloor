@@ -9,6 +9,7 @@ import type { SessionAction, SessionState } from '../../core/types';
 import type { InviteView, RejoinableView } from '../../core/protocol';
 import type { Accounts } from './accounts';
 import { newId, type Db, type RecordingRow } from './db';
+import type { MediaServer } from './media';
 
 export const TICK_INTERVAL_MS = 500;
 
@@ -31,7 +32,9 @@ export class SessionRegistry {
   constructor(
     private db: Db,
     private accounts: Accounts,
-    private now: () => number = Date.now
+    private now: () => number = Date.now,
+    private media?: MediaServer,
+    private onMediaError: (error: unknown, context: string) => void = () => {}
   ) {}
 
   // --- Lifecycle ----------------------------------------------------------
@@ -214,12 +217,82 @@ export class SessionRegistry {
 
   private commit(before: SessionState, after: SessionState): void {
     this.sessions.set(after.id, after);
+    this.applyFloorToMedia(before, after);
     if (before.status === 'active' && after.status === 'ended') {
       this.persistEnded(after);
+      this.run(() => this.media?.closeRoom(after.id), `closeRoom ${after.id}`);
       // Keep it briefly so watchers get a final snapshot explaining why it
       // ended, rather than the session vanishing from under them.
       setTimeout(() => this.sessions.delete(after.id), 30_000).unref?.();
     }
+  }
+
+  /**
+   * Turns a change of floor-holder into an actual mute. Whoever does not hold
+   * the floor while someone does is silenced at the media server; when nobody
+   * holds it, both are open.
+   *
+   * Note this reacts to the *committed* state, so it cannot disagree with what
+   * the reducer decided or with what the clients were told.
+   */
+  private applyFloorToMedia(before: SessionState, after: SessionState): void {
+    if (!this.media) return;
+    if (before.floor.holder === after.floor.holder) return;
+
+    const silenced = after.floor.holder
+      ? [otherParty(after, after.floor.holder)]
+      : [];
+    for (const participant of [after.initiator, after.invitee]) {
+      const muted = silenced.includes(participant);
+      this.run(
+        () =>
+          this.media?.setMuted({
+            room: after.id,
+            identity: participant,
+            muted,
+          }),
+        `setMuted ${after.id}/${participant}=${muted}`
+      );
+    }
+  }
+
+  /**
+   * Media calls are deliberately not awaited: the session state is already
+   * committed and the clients have been told, so a slow or failing media server
+   * must not stall the rules. Failures are surfaced to the caller's logger
+   * rather than swallowed — a mute that did not land means someone is audible
+   * who should not be, which is worth seeing.
+   */
+  private run(operation: () => Promise<unknown> | undefined, context: string): void {
+    try {
+      operation()?.catch((error) => this.onMediaError(error, context));
+    } catch (error) {
+      this.onMediaError(error, context);
+    }
+  }
+
+  /** A join credential for this participant, scoped to this session's room. */
+  async mediaToken(
+    sessionId: string,
+    userId: string
+  ): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+    if (!this.media) return { ok: false, error: 'Audio is not configured.' };
+    const session = this.sessions.get(sessionId);
+    if (!session || session.status !== 'active') {
+      return { ok: false, error: 'No such session.' };
+    }
+    if (!isParticipant(session, userId)) {
+      return { ok: false, error: 'Not your session.' };
+    }
+    const account = this.accounts.public(userId);
+    if (!account) return { ok: false, error: 'No such account.' };
+
+    const token = await this.media.issueToken({
+      room: sessionId,
+      identity: userId,
+      displayName: account.displayName,
+    });
+    return { ok: true, token };
   }
 
   private persistEnded(session: SessionState): void {
