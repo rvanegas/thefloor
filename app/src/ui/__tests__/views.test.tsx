@@ -1,12 +1,53 @@
 import React from 'react';
-import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { backend } from '../../mock/backend';
-import type { Account } from '../../mock/types';
-import App from '../../../App';
+import renderer, {
+  act,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
+import { createSession, reduce } from '../../../../core/session';
+import type { SessionState } from '../../../../core/types';
+import type { HomeView as HomeViewData } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { SessionView } from '../SessionView';
 
-/** Flattens a rendered tree to its visible text, for asserting on copy. */
+/**
+ * The views now render server snapshots rather than driving a local model, so
+ * these feed them protocol-shaped data directly. That also pins the views to
+ * the real protocol types: a change on the server that the client has not kept
+ * up with fails here rather than on a phone.
+ */
+
+const ME = 'acct_me';
+const THEM = 'acct_them';
+const NOW = 1_700_000_000_000;
+
+const mockApp = {
+  ready: true,
+  token: 'token',
+  me: { id: ME, displayName: 'Me' },
+  home: null as HomeViewData | null,
+  sessionView: null as { session: SessionState; other: { id: string; displayName: string }; serverNow: number } | null,
+  status: 'open' as 'open' | 'connecting' | 'closed',
+  lastError: null,
+  serverNow: () => NOW,
+  requestCode: jest.fn(),
+  verify: jest.fn(),
+  signOut: jest.fn(),
+  requestContact: jest.fn(),
+  acceptContact: jest.fn(),
+  declineContact: jest.fn(),
+  startSession: jest.fn(),
+  watchSession: jest.fn(),
+  leaveSessionView: jest.fn(),
+  act: jest.fn(),
+  clearError: jest.fn(),
+};
+
+jest.mock('../../state/AppProvider', () => ({
+  useApp: () => mockApp,
+  AppProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 function textOf(tree: ReactTestRenderer): string {
   const strings: string[] = [];
   const walk = (node: unknown): void => {
@@ -20,6 +61,30 @@ function textOf(tree: ReactTestRenderer): string {
   return strings.join(' ');
 }
 
+/** The visible text inside one instance, used to identify a button by label. */
+function labelOf(instance: ReactTestInstance): string {
+  const out: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') out.push(node);
+    else if (Array.isArray(node)) node.forEach(walk);
+    else if (node && typeof node === 'object') {
+      const props = (node as { props?: { children?: unknown } }).props;
+      if (props?.children !== undefined) walk(props.children);
+    }
+  };
+  walk(instance.props.children);
+  return out.join(' ');
+}
+
+function findButton(
+  tree: ReactTestRenderer,
+  label: string
+): ReactTestInstance | undefined {
+  return tree.root
+    .findAll((n) => n.props?.accessibilityRole === 'button')
+    .find((n) => labelOf(n).includes(label));
+}
+
 function render(element: React.ReactElement): ReactTestRenderer {
   let tree!: ReactTestRenderer;
   act(() => {
@@ -28,77 +93,141 @@ function render(element: React.ReactElement): ReactTestRenderer {
   return tree;
 }
 
-const me: Account = backend.signIn('+15550000001');
-const dana = backend.findByIdentifier('+15550000002')!;
-
-describe('view smoke tests', () => {
-  it('renders Auth when signed out', () => {
-    const tree = render(<App />);
-    expect(textOf(tree)).toContain('The Floor');
-    expect(textOf(tree)).toContain('Send code');
-    act(() => tree.unmount());
+function sessionOf(mutate: (s: SessionState) => SessionState = (s) => s) {
+  const base = createSession({
+    id: 'sess_1',
+    initiator: ME,
+    invitee: THEM,
+    now: NOW,
   });
+  return mutate(reduce(base, { type: 'ENTER', userId: THEM }, NOW));
+}
 
-  it('renders Home with contacts and a pending request', () => {
-    const tree = render(
-      <HomeView me={me} onEnterSession={() => {}} onSignOut={() => {}} />
-    );
+function showSession(session: SessionState) {
+  mockApp.sessionView = {
+    session,
+    other: { id: THEM, displayName: 'Dana Chu' },
+    serverNow: NOW,
+  };
+}
+
+beforeEach(() => {
+  mockApp.home = null;
+  mockApp.sessionView = null;
+  mockApp.status = 'open';
+  jest.clearAllMocks();
+});
+
+describe('Home', () => {
+  it('renders contacts, invites and rejoinable sessions from a snapshot', () => {
+    mockApp.home = {
+      invites: [
+        {
+          sessionId: 'sess_a',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+        },
+      ],
+      rejoinable: [
+        {
+          sessionId: 'sess_b',
+          other: { id: 'acct_x', displayName: 'Miro Okafor' },
+          otherPresent: true,
+          createdAt: NOW,
+        },
+      ],
+      contacts: [
+        { account: { id: 'acct_p', displayName: 'Priya Raman' }, status: 'incoming' },
+        { account: { id: 'acct_q', displayName: 'Quinn Ito' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterSession={() => {}} />);
     const text = textOf(tree);
-    expect(text).toContain('Dana Chu');
-    expect(text).toContain('Start session');
-    // Priya's incoming request shows accept/decline in place of tap-to-session.
+    expect(text).toContain('tap to join');
+    expect(text).toContain('Miro Okafor');
+    expect(text).toContain('Still there — you left');
     expect(text).toContain('Priya Raman');
     expect(text).toContain('Accept');
+    expect(text).toContain('Quinn Ito');
+    expect(text).toContain('Start session');
     act(() => tree.unmount());
   });
 
-  it('renders a session the initiator is waiting alone in', () => {
-    const sessionId = backend.startSession(me.id, dana.id);
-    const tree = render(
-      <SessionView me={me} sessionId={sessionId} onExit={() => {}} />
-    );
+  it('says so when the connection is down', () => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.status = 'closed';
+    const tree = render(<HomeView onEnterSession={() => {}} />);
+    expect(textOf(tree)).toContain('Not connected');
+    act(() => tree.unmount());
+  });
+});
+
+describe('Session', () => {
+  it('waits rather than rendering a stale screen before the first snapshot', () => {
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    expect(textOf(tree)).toContain('Loading session');
+    expect(mockApp.watchSession).toHaveBeenCalledWith('sess_1');
+    act(() => tree.unmount());
+  });
+
+  it('shows the claim control when eligible', () => {
+    showSession(sessionOf());
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('Dana Chu');
-    expect(text).toContain('Waiting for them to join');
     expect(text).toContain('Nobody has the floor');
-    expect(text).toContain('becomes available once both of you are present');
-    // The peer stand-in is pinned below the scroll area, not buried under it.
-    expect(text).toContain('Demo controls');
-    expect(text).toContain('They join');
+    expect(text).toContain('Claim the floor');
     act(() => tree.unmount());
   });
 
-  it('reflects a live claim, and shows the invite banner on Home', () => {
-    const sessionId = backend.startSession(me.id, dana.id);
-    backend.dispatch(sessionId, { type: 'ENTER', userId: dana.id });
-    backend.dispatch(sessionId, { type: 'CLAIM_FLOOR', userId: dana.id });
-
-    const session = render(
-      <SessionView me={me} sessionId={sessionId} onExit={() => {}} />
+  it('reflects being silenced by the other party', () => {
+    showSession(
+      sessionOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
-    const text = textOf(session);
-    expect(text).toContain('Dana Chu has the floor');
-    expect(text).toContain('your mic is cut');
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('Dana Chu has the floor — your mic is cut');
     expect(text).toContain('cannot claim the floor while you are silenced');
-    act(() => session.unmount());
-
-    // Dana is present in that session, so from Dana's side there is no invite;
-    // a fresh session to Dana that she has not joined does produce one.
-    const pending = backend.startSession(me.id, dana.id);
-    const home = render(
-      <HomeView me={dana} onEnterSession={() => {}} onSignOut={() => {}} />
-    );
-    expect(textOf(home)).toContain('tap to join');
-    act(() => home.unmount());
-    backend.dispatch(pending, { type: 'END', userId: me.id });
+    act(() => tree.unmount());
   });
 
-  it('renders the ended state after the session is ended', () => {
-    const sessionId = backend.startSession(me.id, dana.id);
-    backend.dispatch(sessionId, { type: 'END', userId: me.id });
-    const tree = render(
-      <SessionView me={me} sessionId={sessionId} onExit={() => {}} />
+  it('counts down against the server clock, not the device clock', () => {
+    const claimed = sessionOf((s) =>
+      reduce(s, { type: 'CLAIM_FLOOR', userId: ME }, NOW)
     );
+    showSession(claimed);
+    // Device clock is irrelevant; serverNow decides. 40s into a 3:00 claim.
+    mockApp.serverNow = () => NOW + 40_000;
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    expect(textOf(tree)).toContain('2:20');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('dispatches a claim rather than mutating anything locally', () => {
+    showSession(sessionOf());
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const claim = findButton(tree, 'Claim the floor');
+    expect(claim).toBeDefined();
+    expect(claim!.props.accessibilityState.disabled).toBe(false);
+    act(() => claim!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'CLAIM_FLOOR' });
+    act(() => tree.unmount());
+  });
+
+  it('warns that a dropped connection counts as leaving', () => {
+    showSession(sessionOf());
+    mockApp.status = 'connecting';
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    expect(textOf(tree)).toContain('dropped connection counts as leaving');
+    act(() => tree.unmount());
+  });
+
+  it('renders the ended state', () => {
+    showSession(sessionOf((s) => reduce(s, { type: 'END', userId: THEM }, NOW)));
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
     expect(textOf(tree)).toContain('Session ended');
     act(() => tree.unmount());
   });

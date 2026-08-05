@@ -47,3 +47,6 @@ yarn-error.*
 *.db
 *.db-wal
 *.db-shm
+
+# local env
+.env

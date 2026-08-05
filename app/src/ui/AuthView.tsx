@@ -7,44 +7,74 @@ import {
   Text,
   View,
 } from 'react-native';
-import { backend } from '../mock/backend';
-import type { Account } from '../mock/types';
+import { API_URL, describeMissingConfig } from '../api/config';
+import { ApiError } from '../api/http';
+import { useApp } from '../state/AppProvider';
 import { Button, Field } from './components';
 import { colors, spacing, type } from './theme';
 
 /**
- * Signed-out state. Identity is a phone number or email plus a one-time code —
- * no password. A display name is collected only when the account is new.
+ * Signed-out state. Identity is an email address plus a one-time code — no
+ * password. Whether an account is new is the server's decision, so a display
+ * name is offered alongside the code and ignored for an existing account.
  */
-export function AuthView({ onSignedIn }: { onSignedIn: (a: Account) => void }) {
+export function AuthView() {
+  const { requestCode, verify } = useApp();
   const [step, setStep] = useState<'identify' | 'verify'>('identify');
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const isNewAccount = step === 'verify' && !backend.findByIdentifier(identifier);
+  const missingConfig = describeMissingConfig();
 
-  function sendCode() {
+  async function sendCode() {
     if (!identifier.trim()) {
-      setError('Enter a phone number or email.');
+      setError('Enter your email address.');
       return;
     }
-    backend.requestCode(identifier);
+    setBusy(true);
     setError(null);
-    setStep('verify');
+    try {
+      await requestCode(identifier.trim());
+      setStep('verify');
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.code === 'sms_unavailable'
+          ? 'Text messages are not supported — use an email address.'
+          : e instanceof Error
+            ? e.message
+            : String(e)
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function verify() {
-    if (!backend.isValidCode(code)) {
-      setError('Enter the six-digit code.');
+  async function submitCode() {
+    if (!code.trim()) {
+      setError('Enter the code from your email.');
       return;
     }
-    if (isNewAccount && !displayName.trim()) {
-      setError('Choose a display name.');
-      return;
+    setBusy(true);
+    setError(null);
+    try {
+      await verify(identifier.trim(), code.trim(), displayName.trim() || undefined);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
     }
-    onSignedIn(backend.signIn(identifier, displayName));
+  }
+
+  if (missingConfig) {
+    return (
+      <View style={styles.configError}>
+        <Text style={type.heading}>Not configured</Text>
+        <Text style={styles.configText}>{missingConfig}</Text>
+      </View>
+    );
   }
 
   return (
@@ -65,16 +95,21 @@ export function AuthView({ onSignedIn }: { onSignedIn: (a: Account) => void }) {
             <Field
               value={identifier}
               onChangeText={setIdentifier}
-              placeholder="Phone number or email"
+              placeholder="Email address"
               keyboardType="email-address"
               autoFocus
             />
-            <Button label="Send code" variant="primary" onPress={sendCode} />
+            <Button
+              label={busy ? 'Sending…' : 'Send code'}
+              variant="primary"
+              disabled={busy}
+              onPress={sendCode}
+            />
           </>
         ) : (
           <>
             <Text style={[type.muted, styles.sentTo]}>
-              Code sent to {identifier.trim()}
+              We emailed a six-digit code to {identifier.trim()}
             </Text>
             <Field
               value={code}
@@ -83,21 +118,20 @@ export function AuthView({ onSignedIn }: { onSignedIn: (a: Account) => void }) {
               keyboardType="number-pad"
               autoFocus
             />
-            {isNewAccount ? (
-              <Field
-                value={displayName}
-                onChangeText={setDisplayName}
-                placeholder="Display name"
-                autoCapitalize="words"
-              />
-            ) : null}
-            <Button
-              label={isNewAccount ? 'Create account' : 'Sign in'}
-              variant="primary"
-              onPress={verify}
+            <Field
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Display name (new accounts only)"
+              autoCapitalize="words"
             />
             <Button
-              label="Use a different number or email"
+              label={busy ? 'Checking…' : 'Sign in'}
+              variant="primary"
+              disabled={busy}
+              onPress={submitCode}
+            />
+            <Button
+              label="Use a different address"
               variant="ghost"
               onPress={() => {
                 setStep('identify');
@@ -110,11 +144,7 @@ export function AuthView({ onSignedIn }: { onSignedIn: (a: Account) => void }) {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Text style={styles.hint}>
-          Demo build: no code is actually sent — any six digits work. Seeded
-          accounts: +15550000001 (You), +15550000002 (Dana Chu),
-          miro@example.com, priya@example.com.
-        </Text>
+        <Text style={styles.hint}>Server: {API_URL}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -137,5 +167,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginTop: spacing(4),
+  },
+  configError: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing(3),
+    gap: spacing(1.5),
+  },
+  configText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });

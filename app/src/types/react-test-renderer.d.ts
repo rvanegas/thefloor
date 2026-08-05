@@ -11,8 +11,18 @@ declare module 'react-test-renderer' {
     children: Array<ReactTestRendererJSON | string> | null;
   }
 
+  export interface ReactTestInstance {
+    props: Record<string, any>;
+    type: unknown;
+    children: Array<ReactTestInstance | string>;
+    findAll(
+      predicate: (instance: ReactTestInstance) => boolean
+    ): ReactTestInstance[];
+  }
+
   export interface ReactTestRenderer {
     toJSON(): ReactTestRendererJSON | ReactTestRendererJSON[] | null;
+    root: ReactTestInstance;
     unmount(): void;
     update(element: ReactElement): void;
   }

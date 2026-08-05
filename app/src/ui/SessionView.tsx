@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   cooldownRemainingMs,
@@ -15,40 +15,47 @@ import {
   canStopRecording,
   emptyTimeoutRemainingMs,
   isPresent,
-  otherParty,
 } from '../../../core/session';
-import type { SessionState } from '../../../core/types';
-import { backend } from '../mock/backend';
-import type { Account } from '../mock/types';
-import { useBackendState } from '../state/useBackend';
+import { useApp } from '../state/AppProvider';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
+/**
+ * The in-session screen. Control states come from the same guards the server
+ * enforces, so a greyed-out button and a refused action cannot disagree — but
+ * the server is the authority and this only renders what it has been told.
+ */
 export function SessionView({
-  me,
   sessionId,
   onExit,
 }: {
-  me: Account;
   sessionId: string;
   onExit: () => void;
 }) {
-  useBackendState();
-  const session = backend.getSession(sessionId);
-  const now = Date.now();
+  const app = useApp();
+  const view = app.sessionView;
 
-  if (!session) {
+  useEffect(() => {
+    app.watchSession(sessionId);
+    // Deliberately not unwatching on unmount: leaving this screen is a separate
+    // decision from leaving the session, and conflating them would silently
+    // drop the user out of a live conversation.
+  }, [sessionId]);
+
+  if (!view || view.session.id !== sessionId) {
     return (
       <View style={styles.centered}>
-        <Text style={type.body}>This session no longer exists.</Text>
-        <Button label="Back to home" variant="primary" onPress={onExit} />
+        <Text style={type.body}>
+          {app.status === 'open' ? 'Loading session…' : 'Reconnecting…'}
+        </Text>
+        <Button label="Back to home" variant="ghost" onPress={onExit} />
       </View>
     );
   }
 
-  const otherId = otherParty(session, me.id);
-  const other = backend.getAccount(otherId);
-  const otherName = other?.displayName ?? 'Contact';
+  const { session, other } = view;
+  const me = app.me?.id ?? '';
+  const now = app.serverNow();
 
   if (session.status === 'ended') {
     return (
@@ -64,15 +71,14 @@ export function SessionView({
     );
   }
 
-  const dispatch = (action: Parameters<typeof backend.dispatch>[1]) =>
-    backend.dispatch(sessionId, action);
+  const act = (action: Parameters<typeof app.act>[1]) => app.act(sessionId, action);
 
-  const iHoldFloor = session.floor.holder === me.id;
-  const theyHoldFloor = session.floor.holder === otherId;
-  const iAmSilenced = isSilenced(session.floor, me.id);
-  const iAmSelfMuted = !!session.selfMuted[me.id];
-  const claimable = canClaimFloor(session, me.id, now);
-  const cooldown = cooldownRemainingMs(session.floor, me.id, now);
+  const iHoldFloor = session.floor.holder === me;
+  const theyHoldFloor = session.floor.holder === other.id;
+  const iAmSilenced = isSilenced(session.floor, me);
+  const iAmSelfMuted = !!session.selfMuted[me];
+  const claimable = canClaimFloor(session, me, now);
+  const cooldown = cooldownRemainingMs(session.floor, me, now);
   const claimRemaining = floorRemainingMs(session.floor, now);
   const emptyRemaining = emptyTimeoutRemainingMs(session, now);
   const recordingLive = isRecordingActive(session.recording);
@@ -80,262 +86,196 @@ export function SessionView({
   return (
     <View style={styles.root}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-      {recordingLive ? (
-        <View style={styles.recordingIndicator}>
-          <View
-            style={[
-              styles.recordingDot,
-              session.recording.status === 'paused' && styles.recordingDotPaused,
-            ]}
-          />
-          <Text style={styles.recordingLabel}>
-            {session.recording.status === 'paused' ? 'Paused' : 'Recording'}
-          </Text>
-          <Text style={styles.recordingTime}>
-            {formatDuration(recordedMs(session.recording, now))}
-          </Text>
-        </View>
-      ) : null}
-
-      <View style={styles.presence}>
-        <Text style={styles.otherName}>{otherName}</Text>
-        <Text style={type.muted}>
-          {isPresent(session, otherId)
-            ? 'Present'
-            : session.everPresent.includes(otherId)
-              ? 'Left the session'
-              : 'Waiting for them to join…'}
-          {' · '}
-          {formatDuration(now - session.createdAt)} elapsed
-        </Text>
-        {emptyRemaining !== null ? (
-          <Text style={styles.warning}>
-            Session empty — ends in {formatDuration(emptyRemaining)} unless
-            someone re-enters.
-          </Text>
-        ) : null}
-      </View>
-
-      <SectionLabel>The floor</SectionLabel>
-      <Card
-        style={[
-          styles.floorCard,
-          iHoldFloor && styles.floorCardHeld,
-          iAmSilenced && styles.floorCardSilenced,
-        ]}
-      >
-        <Text style={styles.floorStatus}>
-          {iHoldFloor
-            ? 'You have the floor'
-            : theyHoldFloor
-              ? `${otherName} has the floor — your mic is cut`
-              : 'Nobody has the floor'}
-        </Text>
-
-        {claimRemaining !== null ? (
-          <Text style={styles.countdown}>{formatDuration(claimRemaining)}</Text>
-        ) : cooldown !== null ? (
-          <Text style={[styles.countdown, styles.countdownMuted]}>
-            {formatDuration(cooldown)}
-          </Text>
-        ) : null}
-
-        {claimRemaining !== null && iHoldFloor ? null : (
-        <Text style={styles.floorHint}>
-          {iHoldFloor
-            ? `${otherName} is muted until you release, up to three minutes.`
-            : theyHoldFloor
-              ? 'You cannot claim the floor while you are silenced.'
-              : cooldown !== null
-                ? 'You claimed last — you can claim again after this cooldown, or as soon as they claim and release.'
-                : !bothPresent(session)
-                  ? 'The floor becomes available once both of you are present.'
-                  : 'Speak uninterrupted for up to three minutes.'}
-        </Text>
-        )}
-
-        {iHoldFloor ? (
-          <Button
-            label="Release the floor"
-            variant="floor"
-            onPress={() => dispatch({ type: 'RELEASE_FLOOR', userId: me.id })}
-          />
-        ) : (
-          <Button
-            label="Claim the floor"
-            variant="floor"
-            disabled={!claimable}
-            onPress={() => dispatch({ type: 'CLAIM_FLOOR', userId: me.id })}
-          />
-        )}
-      </Card>
-
-      <SectionLabel>Your microphone</SectionLabel>
-      <Card style={styles.stack}>
-        <Button
-          label={iAmSelfMuted ? 'Unmute yourself' : 'Mute yourself'}
-          onPress={() =>
-            dispatch({
-              type: 'SET_SELF_MUTE',
-              userId: me.id,
-              muted: !iAmSelfMuted,
-            })
-          }
-        />
-        <Text style={type.muted}>
-          {iAmSilenced
-            ? `Silenced by ${otherName}'s floor claim.`
-            : iAmSelfMuted
-              ? 'Muted by you. This is separate from the floor and costs you nothing.'
-              : 'Open. Self-mute never affects floor eligibility.'}
-        </Text>
-      </Card>
-
-      <SectionLabel>Recording</SectionLabel>
-      <Card style={styles.stack}>
-        {session.recording.status === 'idle' ? (
-          <Button
-            label="Start recording"
-            disabled={!canStartRecording(session)}
-            onPress={() => dispatch({ type: 'START_RECORDING', userId: me.id })}
-          />
-        ) : session.recording.status === 'stopped' ? (
-          <Text style={type.muted}>
-            Stopped — {formatDuration(recordedMs(session.recording, now))} captured.
-            Available on Home once the session ends.
-          </Text>
-        ) : (
-          <View style={styles.buttonRow}>
-            {session.recording.status === 'paused' ? (
-              <Button
-                label="Resume"
-                style={styles.flexButton}
-                disabled={!canResumeRecording(session)}
-                onPress={() =>
-                  dispatch({ type: 'RESUME_RECORDING', userId: me.id })
-                }
-              />
-            ) : (
-              <Button
-                label="Pause"
-                style={styles.flexButton}
-                disabled={!canPauseRecording(session, me.id)}
-                onPress={() =>
-                  dispatch({ type: 'PAUSE_RECORDING', userId: me.id })
-                }
-              />
-            )}
-            <Button
-              label="Stop"
-              style={styles.flexButton}
-              disabled={!canStopRecording(session, me.id)}
-              onPress={() => dispatch({ type: 'STOP_RECORDING', userId: me.id })}
+        {recordingLive ? (
+          <View style={styles.recordingIndicator}>
+            <View
+              style={[
+                styles.recordingDot,
+                session.recording.status === 'paused' && styles.recordingDotPaused,
+              ]}
             />
+            <Text style={styles.recordingLabel}>
+              {session.recording.status === 'paused' ? 'Paused' : 'Recording'}
+            </Text>
+            <Text style={styles.recordingTime}>
+              {formatDuration(recordedMs(session.recording, now))}
+            </Text>
           </View>
-        )}
-        {iAmSilenced && recordingLive ? (
-          <Text style={type.muted}>
-            Silenced — pause and stop unavailable.
-          </Text>
-        ) : session.recording.status === 'idle' && !canStartRecording(session) ? (
-          <Text style={type.muted}>
-            Starts once both of you have connected.
-          </Text>
         ) : null}
-      </Card>
 
-      <SectionLabel>Leaving</SectionLabel>
-      <View style={styles.buttonRow}>
-        <Button
-          label="Leave"
-          sublabel="You can re-enter"
-          style={styles.flexButton}
-          onPress={() => {
-            dispatch({ type: 'LEAVE', userId: me.id });
-            onExit();
-          }}
-        />
-        <Button
-          label="End session"
-          sublabel="Permanent, for both"
-          variant="danger"
-          style={styles.flexButton}
-          onPress={() =>
-            Alert.alert(
-              'End this session?',
-              'This ends it immediately and permanently for both of you. Neither party can re-enter.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'End session',
-                  style: 'destructive',
-                  onPress: () => dispatch({ type: 'END', userId: me.id }),
-                },
-              ]
-            )
-          }
-        />
-      </View>
+        <View style={styles.presence}>
+          <Text style={styles.otherName}>{other.displayName}</Text>
+          <Text style={type.muted}>
+            {isPresent(session, other.id)
+              ? 'Present'
+              : session.everPresent.includes(other.id)
+                ? 'Left the session'
+                : 'Waiting for them to join…'}
+            {' · '}
+            {formatDuration(now - session.createdAt)} elapsed
+          </Text>
+          {emptyRemaining !== null ? (
+            <Text style={styles.warning}>
+              Session empty — ends in {formatDuration(emptyRemaining)} unless
+              someone re-enters.
+            </Text>
+          ) : null}
+          {app.status !== 'open' ? (
+            <Text style={styles.warning}>
+              Reconnecting — a dropped connection counts as leaving.
+            </Text>
+          ) : null}
+        </View>
 
+        <SectionLabel>The floor</SectionLabel>
+        <Card
+          style={[
+            styles.floorCard,
+            iHoldFloor && styles.floorCardHeld,
+            iAmSilenced && styles.floorCardSilenced,
+          ]}
+        >
+          <Text style={styles.floorStatus}>
+            {iHoldFloor
+              ? 'You have the floor'
+              : theyHoldFloor
+                ? `${other.displayName} has the floor — your mic is cut`
+                : 'Nobody has the floor'}
+          </Text>
+
+          {claimRemaining !== null ? (
+            <Text style={styles.countdown}>{formatDuration(claimRemaining)}</Text>
+          ) : cooldown !== null ? (
+            <Text style={[styles.countdown, styles.countdownMuted]}>
+              {formatDuration(cooldown)}
+            </Text>
+          ) : null}
+
+          {claimRemaining !== null && iHoldFloor ? null : (
+            <Text style={styles.floorHint}>
+              {iHoldFloor
+                ? `${other.displayName} is muted until you release, up to three minutes.`
+                : theyHoldFloor
+                  ? 'You cannot claim the floor while you are silenced.'
+                  : cooldown !== null
+                    ? 'You claimed last — you can claim again after this cooldown, or as soon as they claim and release.'
+                    : !bothPresent(session)
+                      ? 'The floor becomes available once both of you are present.'
+                      : 'Speak uninterrupted for up to three minutes.'}
+            </Text>
+          )}
+
+          {iHoldFloor ? (
+            <Button
+              label="Release the floor"
+              variant="floor"
+              onPress={() => act({ type: 'RELEASE_FLOOR' })}
+            />
+          ) : (
+            <Button
+              label="Claim the floor"
+              variant="floor"
+              disabled={!claimable}
+              onPress={() => act({ type: 'CLAIM_FLOOR' })}
+            />
+          )}
+        </Card>
+
+        <SectionLabel>Your microphone</SectionLabel>
+        <Card style={styles.stack}>
+          <Button
+            label={iAmSelfMuted ? 'Unmute yourself' : 'Mute yourself'}
+            onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
+          />
+          <Text style={type.muted}>
+            {iAmSilenced
+              ? `Silenced by ${other.displayName}'s floor claim.`
+              : iAmSelfMuted
+                ? 'Muted by you. This is separate from the floor and costs you nothing.'
+                : 'Open. Self-mute never affects floor eligibility.'}
+          </Text>
+        </Card>
+
+        <SectionLabel>Recording</SectionLabel>
+        <Card style={styles.stack}>
+          {session.recording.status === 'idle' ? (
+            <Button
+              label="Start recording"
+              disabled={!canStartRecording(session)}
+              onPress={() => act({ type: 'START_RECORDING' })}
+            />
+          ) : session.recording.status === 'stopped' ? (
+            <Text style={type.muted}>
+              Stopped — {formatDuration(recordedMs(session.recording, now))}{' '}
+              captured.
+            </Text>
+          ) : (
+            <View style={styles.buttonRow}>
+              {session.recording.status === 'paused' ? (
+                <Button
+                  label="Resume"
+                  style={styles.flexButton}
+                  disabled={!canResumeRecording(session)}
+                  onPress={() => act({ type: 'RESUME_RECORDING' })}
+                />
+              ) : (
+                <Button
+                  label="Pause"
+                  style={styles.flexButton}
+                  disabled={!canPauseRecording(session, me)}
+                  onPress={() => act({ type: 'PAUSE_RECORDING' })}
+                />
+              )}
+              <Button
+                label="Stop"
+                style={styles.flexButton}
+                disabled={!canStopRecording(session, me)}
+                onPress={() => act({ type: 'STOP_RECORDING' })}
+              />
+            </View>
+          )}
+          {iAmSilenced && recordingLive ? (
+            <Text style={type.muted}>Silenced — pause and stop unavailable.</Text>
+          ) : session.recording.status === 'idle' &&
+            !canStartRecording(session) ? (
+            <Text style={type.muted}>Starts once both of you have connected.</Text>
+          ) : null}
+        </Card>
+
+        <SectionLabel>Leaving</SectionLabel>
+        <View style={styles.buttonRow}>
+          <Button
+            label="Leave"
+            sublabel="You can re-enter"
+            style={styles.flexButton}
+            onPress={() => {
+              act({ type: 'LEAVE' });
+              app.leaveSessionView(sessionId);
+              onExit();
+            }}
+          />
+          <Button
+            label="End session"
+            sublabel="Permanent, for both"
+            variant="danger"
+            style={styles.flexButton}
+            onPress={() =>
+              Alert.alert(
+                'End this session?',
+                'This ends it immediately and permanently for both of you. Neither party can re-enter.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'End session',
+                    style: 'destructive',
+                    onPress: () => act({ type: 'END' }),
+                  },
+                ]
+              )
+            }
+          />
+        </View>
       </ScrollView>
-
-      <PeerSimulator
-        session={session}
-        otherId={otherId}
-        otherName={otherName}
-        now={now}
-        dispatch={dispatch}
-      />
-    </View>
-  );
-}
-
-/**
- * Stands in for the second device until real signalling exists: it drives the
- * other party's actions through the very same reducer, so every rule on display
- * here is the real one.
- */
-function PeerSimulator({
-  session,
-  otherId,
-  otherName,
-  now,
-  dispatch,
-}: {
-  session: SessionState;
-  otherId: string;
-  otherName: string;
-  now: number;
-  dispatch: (action: Parameters<typeof backend.dispatch>[1]) => void;
-}) {
-  const present = isPresent(session, otherId);
-  const holds = session.floor.holder === otherId;
-
-  return (
-    <View style={styles.simulator}>
-      <Text style={styles.simulatorLabel}>
-        Demo controls · acts as {otherName}
-      </Text>
-      <View style={styles.buttonRow}>
-        <Button
-          label={present ? 'They leave' : 'They join'}
-          style={styles.simulatorButton}
-          onPress={() =>
-            dispatch({ type: present ? 'LEAVE' : 'ENTER', userId: otherId })
-          }
-        />
-        <Button
-          label={holds ? 'They release' : 'They claim'}
-          style={styles.simulatorButton}
-          disabled={!holds && !canClaimFloor(session, otherId, now)}
-          onPress={() =>
-            dispatch({
-              type: holds ? 'RELEASE_FLOOR' : 'CLAIM_FLOOR',
-              userId: otherId,
-            })
-          }
-        />
-      </View>
     </View>
   );
 }
@@ -396,22 +336,4 @@ const styles = StyleSheet.create({
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   flexButton: { flex: 1 },
-  // Pinned below the scroll area: the second party has to be reachable at any
-  // moment, not buried under the fold.
-  simulator: {
-    paddingHorizontal: spacing(2),
-    paddingTop: spacing(1),
-    paddingBottom: spacing(1.5),
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-    gap: spacing(1),
-  },
-  simulatorLabel: {
-    ...type.label,
-    fontSize: 11,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  simulatorButton: { flex: 1, minHeight: 40, paddingVertical: spacing(0.75) },
 });

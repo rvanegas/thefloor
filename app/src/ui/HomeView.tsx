@@ -7,52 +7,66 @@ import {
   Text,
   View,
 } from 'react-native';
-import { backend } from '../mock/backend';
-import type { Account, ContactEntry, LiveInvite } from '../mock/types';
-import { useBackendState } from '../state/useBackend';
+import type {
+  ContactView,
+  InviteView,
+  RejoinableView,
+} from '../../../core/protocol';
+import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Field, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 /**
  * Signed in, not in a session. Ordered by priority: live invites, sessions you
  * left and can still re-enter, contacts, adding a contact, then past
- * recordings.
+ * recordings. Everything here is a server snapshot — nothing is computed
+ * locally.
  */
 export function HomeView({
-  me,
   onEnterSession,
-  onSignOut,
 }: {
-  me: Account;
   onEnterSession: (sessionId: string) => void;
-  onSignOut: () => void;
 }) {
-  useBackendState();
+  const app = useApp();
   const [dismissed, setDismissed] = useState<string[]>([]);
 
-  const invites = backend
-    .invitesFor(me.id)
-    .filter((i) => !dismissed.includes(i.sessionId));
-  const live = backend.liveSessionsFor(me.id);
-  const contacts = backend.contactsFor(me.id);
-  const recordings = backend.recordingsFor(me.id);
+  const home = app.home;
+  const invites = (home?.invites ?? []).filter(
+    (i) => !dismissed.includes(i.sessionId)
+  );
+  const live = home?.rejoinable ?? [];
+  const contacts = home?.contacts ?? [];
+  const recordings = home?.recordings ?? [];
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerMain}>
           <Text style={type.title}>The Floor</Text>
-          <Text style={type.muted}>Signed in as {me.displayName}</Text>
+          <Text style={type.muted}>
+            {app.me ? `Signed in as ${app.me.displayName}` : 'Signed in'}
+            {app.status !== 'open' ? ` · ${describeStatus(app.status)}` : ''}
+          </Text>
         </View>
-        <Button label="Sign out" variant="ghost" onPress={onSignOut} />
+        <Button label="Sign out" variant="ghost" onPress={() => app.signOut()} />
       </View>
+
+      {app.status !== 'open' ? (
+        <View style={styles.offline}>
+          <Text style={styles.offlineText}>
+            {app.status === 'connecting'
+              ? 'Reconnecting…'
+              : 'Not connected — invites and sessions will not update.'}
+          </Text>
+        </View>
+      ) : null}
 
       {invites.map((invite) => (
         <InviteBanner
           key={invite.sessionId}
           invite={invite}
           onJoin={() => {
-            backend.dispatch(invite.sessionId, { type: 'ENTER', userId: me.id });
+            app.act(invite.sessionId, { type: 'ENTER' });
             onEnterSession(invite.sessionId);
           }}
           onDismiss={() => setDismissed((d) => [...d, invite.sessionId])}
@@ -64,89 +78,83 @@ export function HomeView({
           <SectionLabel>Live sessions</SectionLabel>
           <View style={styles.list}>
             {live.map((session) => (
-              <Card key={session.sessionId} style={styles.row}>
-                <View style={styles.rowMain}>
-                  <Text style={type.body}>{session.other.displayName}</Text>
-                  <Text style={type.muted}>
-                    {session.otherPresent
-                      ? 'Still there — you left'
-                      : 'Empty — ends within a minute'}
-                  </Text>
-                </View>
-                <Button
-                  label="Rejoin"
-                  variant="primary"
-                  onPress={() => {
-                    backend.dispatch(session.sessionId, {
-                      type: 'ENTER',
-                      userId: me.id,
-                    });
-                    onEnterSession(session.sessionId);
-                  }}
-                />
-              </Card>
+              <RejoinRow
+                key={session.sessionId}
+                session={session}
+                onRejoin={() => {
+                  app.act(session.sessionId, { type: 'ENTER' });
+                  onEnterSession(session.sessionId);
+                }}
+              />
             ))}
           </View>
         </>
       ) : null}
 
       <SectionLabel>Contacts</SectionLabel>
-      {contacts.length === 0 ? (
+      {!home ? (
+        <Empty>Loading…</Empty>
+      ) : contacts.length === 0 ? (
         <Empty>No contacts yet. Add one below.</Empty>
       ) : (
         <View style={styles.list}>
           {contacts.map((entry) => (
             <ContactRow
               key={entry.account.id}
-              me={me}
               entry={entry}
-              onStartSession={() =>
-                onEnterSession(backend.startSession(me.id, entry.account.id))
-              }
+              onStartSession={async () => {
+                try {
+                  const id = await app.startSession(entry.account.id);
+                  app.act(id, { type: 'ENTER' });
+                  onEnterSession(id);
+                } catch (e) {
+                  Alert.alert(
+                    'Could not start session',
+                    e instanceof Error ? e.message : String(e)
+                  );
+                }
+              }}
             />
           ))}
         </View>
       )}
 
       <SectionLabel>Add contact</SectionLabel>
-      <AddContact me={me} />
+      <AddContact />
 
       <SectionLabel>Past recordings</SectionLabel>
       {recordings.length === 0 ? (
         <Empty>Recordings you make in a session will appear here.</Empty>
       ) : (
         <View style={styles.list}>
-          {recordings.map((r) => {
-            const otherId = r.participants.find((p) => p !== me.id);
-            const other = otherId ? backend.getAccount(otherId) : undefined;
-            return (
-              <Card key={r.id} style={styles.row}>
-                <View style={styles.rowMain}>
-                  <Text style={type.body}>{other?.displayName ?? 'Unknown'}</Text>
-                  <Text style={type.muted}>
-                    {new Date(r.startedAt).toLocaleString()} ·{' '}
-                    {formatDuration(r.durationMs)}
-                  </Text>
-                </View>
-                <Button
-                  label="Export"
-                  onPress={() => {
-                    const key = backend.exportRecording(r.id, me.id);
-                    Alert.alert(
-                      'Export recording',
-                      key
-                        ? `Demo build — no file is written. The stored object is:\n\n${key}`
-                        : 'This recording is not available to you.'
-                    );
-                  }}
-                />
-              </Card>
-            );
-          })}
+          {recordings.map((r) => (
+            <Card key={r.id} style={styles.row}>
+              <View style={styles.rowMain}>
+                <Text style={type.body}>{r.other?.displayName ?? 'Unknown'}</Text>
+                <Text style={type.muted}>
+                  {new Date(r.startedAt).toLocaleString()} ·{' '}
+                  {formatDuration(r.durationMs)}
+                </Text>
+              </View>
+              <Button
+                label="Export"
+                onPress={() =>
+                  Alert.alert(
+                    'Export recording',
+                    'Recording capture is not implemented yet, so there is no audio file to export.'
+                  )
+                }
+              />
+            </Card>
+          ))}
         </View>
       )}
     </ScrollView>
   );
+}
+
+function describeStatus(status: string): string {
+  return status === 'connecting' ? 'reconnecting' : 'offline';
 }
 
 /**
@@ -158,7 +166,7 @@ function InviteBanner({
   onJoin,
   onDismiss,
 }: {
-  invite: LiveInvite;
+  invite: InviteView;
   onJoin: () => void;
   onDismiss: () => void;
 }) {
@@ -179,23 +187,42 @@ function InviteBanner({
   );
 }
 
+function RejoinRow({
+  session,
+  onRejoin,
+}: {
+  session: RejoinableView;
+  onRejoin: () => void;
+}) {
+  return (
+    <Card style={styles.row}>
+      <View style={styles.rowMain}>
+        <Text style={type.body}>{session.other.displayName}</Text>
+        <Text style={type.muted}>
+          {session.otherPresent
+            ? 'Still there — you left'
+            : 'Empty — ends within a minute'}
+        </Text>
+      </View>
+      <Button label="Rejoin" variant="primary" onPress={onRejoin} />
+    </Card>
+  );
+}
+
 function ContactRow({
-  me,
   entry,
   onStartSession,
 }: {
-  me: Account;
-  entry: ContactEntry;
+  entry: ContactView;
   onStartSession: () => void;
 }) {
+  const app = useApp();
   const { account, status } = entry;
   return (
     <Card style={styles.row}>
       <View style={styles.rowMain}>
         <Text style={type.body}>{account.displayName}</Text>
-        <Text style={type.muted}>
-          {status === 'accepted' ? account.identifier : 'Pending'}
-        </Text>
+        <Text style={type.muted}>{status === 'accepted' ? '' : 'Pending'}</Text>
       </View>
 
       {status === 'accepted' ? (
@@ -205,12 +232,12 @@ function ContactRow({
           <Button
             label="Accept"
             variant="primary"
-            onPress={() => backend.acceptContactRequest(me.id, account.id)}
+            onPress={() => app.acceptContact(account.id)}
           />
           <Button
             label="Decline"
             variant="ghost"
-            onPress={() => backend.declineContactRequest(me.id, account.id)}
+            onPress={() => app.declineContact(account.id)}
           />
         </View>
       ) : (
@@ -220,19 +247,29 @@ function ContactRow({
   );
 }
 
-function AddContact({ me }: { me: Account }) {
+function AddContact() {
+  const app = useApp();
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
     null
   );
+  const [busy, setBusy] = useState(false);
 
-  function send() {
-    const result = backend.sendContactRequest(me.id, query);
-    if (result.ok) {
-      setMessage({ ok: true, text: 'Request sent — awaiting their acceptance.' });
+  async function send() {
+    setBusy(true);
+    try {
+      const { accepted } = await app.requestContact(query.trim());
+      setMessage({
+        ok: true,
+        text: accepted
+          ? 'They had already asked — you are now contacts.'
+          : 'Request sent — awaiting their acceptance.',
+      });
       setQuery('');
-    } else {
-      setMessage({ ok: false, text: result.error });
+    } catch (e) {
+      setMessage({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -241,9 +278,14 @@ function AddContact({ me }: { me: Account }) {
       <Field
         value={query}
         onChangeText={setQuery}
-        placeholder="Search by phone number or email"
+        placeholder="Search by email address"
+        keyboardType="email-address"
       />
-      <Button label="Send request" onPress={send} disabled={!query.trim()} />
+      <Button
+        label={busy ? 'Sending…' : 'Send request'}
+        onPress={send}
+        disabled={!query.trim() || busy}
+      />
       {message ? (
         <Text
           style={[
@@ -259,8 +301,6 @@ function AddContact({ me }: { me: Account }) {
 }
 
 const styles = StyleSheet.create({
-  // Without an explicit flex, a ScrollView keeps its full content height
-  // (RN defaults to flexShrink: 0), overflows its parent, and never scrolls.
   scroll: { flex: 1 },
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
   header: {
@@ -269,6 +309,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing(1),
   },
+  headerMain: { flex: 1 },
+  offline: {
+    backgroundColor: colors.surface,
+    borderColor: colors.silenced,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing(1.25),
+    marginBottom: spacing(1),
+  },
+  offlineText: { color: colors.silenced, fontSize: 13 },
   list: { gap: spacing(1) },
   row: {
     flexDirection: 'row',
