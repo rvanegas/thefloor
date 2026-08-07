@@ -39,6 +39,24 @@ export function buildApp(options: BuildOptions = {}): App {
   const db = openDb(options.dbPath ?? ':memory:');
   const accounts = new Accounts(db);
   const fastify = Fastify({ logger: options.logger ?? false });
+
+  // Several endpoints take no body, and a client that still declares
+  // application/json would otherwise be rejected before reaching any handler.
+  // Treating an empty body as {} makes that a non-event rather than a 400 that
+  // looks like a permissions problem.
+  fastify.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_request, body: string, done) => {
+      if (!body || body.trim() === '') return done(null, {});
+      try {
+        done(null, JSON.parse(body));
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    }
+  );
+
   // Filled in once the websocket plugin loads; a no-op until then.
   const homeNotifier = createHomeNotifier();
   const sessions = new SessionRegistry(db, accounts, now, options.media, (error, context) =>

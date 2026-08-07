@@ -220,6 +220,56 @@ describe('contacts', () => {
   });
 });
 
+describe('bodyless POSTs', () => {
+  // Every endpoint without a payload was rejected before reaching its handler,
+  // because a real fetch sets content-type: application/json even with no body
+  // and Fastify refuses that. inject() omits the header unless a payload is
+  // given, so the whole test suite sailed past it — accept, decline, sign out
+  // and the audio token were all broken from the app.
+  it.each([
+    ['/auth/sign-out', 204],
+    ['/contacts/acct_nobody/accept', 400],
+  ])('accepts %s with content-type and an empty body', async (url, expected) => {
+    const { token } = await signIn('+15550000001', 'Alice');
+    const response = await app.fastify.inject({
+      method: 'POST',
+      url,
+      headers: { ...auth(token), 'content-type': 'application/json' },
+      payload: '',
+    });
+    // The point is that it reaches the handler at all. A 204 carries no body,
+    // so check the raw payload rather than parsing it.
+    expect(response.payload).not.toContain('FST_ERR_CTP_EMPTY_JSON_BODY');
+    expect(response.statusCode).toBe(expected);
+  });
+
+  it('lets one contact accept another with no request body', async () => {
+    const alice = await signIn('+15550000001', 'Alice');
+    const bob = await signIn('+15550000002', 'Bob');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: '+15550000002' },
+    });
+
+    const accepted = await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${alice.account.id}/accept`,
+      headers: { ...auth(bob.token), 'content-type': 'application/json' },
+      payload: '',
+    });
+    expect(accepted.statusCode).toBe(200);
+
+    const home = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(alice.token),
+    });
+    expect(home.json().contacts[0].status).toBe('accepted');
+  });
+});
+
 describe('sessions', () => {
   it('will not create a duplicate session for the same pair', async () => {
     const { alice, bob } = await twoContacts();

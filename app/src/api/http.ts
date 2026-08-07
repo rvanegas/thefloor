@@ -23,7 +23,13 @@ async function request<T>(
     response = await fetch(API_URL + path, {
       method: options.method ?? 'GET',
       headers: {
-        'content-type': 'application/json',
+        // Only claim a JSON body when there is one. Declaring the content type
+        // on a bodyless POST makes Fastify reject it outright
+        // (FST_ERR_CTP_EMPTY_JSON_BODY), which silently broke every request
+        // without a payload: accept, decline, sign out, and the audio token.
+        ...(options.body === undefined
+          ? {}
+          : { 'content-type': 'application/json' }),
         ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
