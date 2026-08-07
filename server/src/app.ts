@@ -6,7 +6,7 @@ import { openDb, type AccountRow, type Db } from './db';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { SessionRegistry } from './sessions';
-import { registerWebsocket } from './ws';
+import { createHomeNotifier, registerWebsocket } from './ws';
 
 export interface BuildOptions {
   dbPath?: string;
@@ -39,6 +39,8 @@ export function buildApp(options: BuildOptions = {}): App {
   const db = openDb(options.dbPath ?? ':memory:');
   const accounts = new Accounts(db);
   const fastify = Fastify({ logger: options.logger ?? false });
+  // Filled in once the websocket plugin loads; a no-op until then.
+  const homeNotifier = createHomeNotifier();
   const sessions = new SessionRegistry(db, accounts, now, options.media, (error, context) =>
     fastify.log.error({ err: error, context }, 'media operation failed')
   );
@@ -148,6 +150,9 @@ export function buildApp(options: BuildOptions = {}): App {
 
     const result = accounts.requestContact(account.id, body.identifier, now());
     if (!result.ok) return reply.code(400).send({ error: result.error });
+    // The recipient is the whole point: without telling them, a request simply
+    // never appears on their side.
+    homeNotifier.notify([account.id, result.targetId]);
     return { ok: true, accepted: result.accepted };
   });
 
@@ -158,6 +163,7 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!accounts.acceptContact(account.id, id)) {
       return reply.code(400).send({ error: 'No pending request from that user.' });
     }
+    homeNotifier.notify([account.id, id]);
     return { ok: true };
   });
 
@@ -168,6 +174,7 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!accounts.declineContact(account.id, id)) {
       return reply.code(400).send({ error: 'No pending request.' });
     }
+    homeNotifier.notify([account.id, id]);
     return { ok: true };
   });
 
@@ -248,7 +255,14 @@ export function buildApp(options: BuildOptions = {}): App {
   // fails at runtime with "socket.send is not a function", not at boot.
   fastify.register(async (instance) => {
     await instance.register(websocket);
-    registerWebsocket({ fastify: instance, accounts, sessions, homeFor, now });
+    registerWebsocket({
+      fastify: instance,
+      accounts,
+      sessions,
+      homeFor,
+      now,
+      homeNotifier,
+    });
   });
 
   return { fastify, db, accounts, sessions };

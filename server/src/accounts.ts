@@ -217,7 +217,9 @@ export class Accounts {
     from: string,
     identifier: string,
     now: number
-  ): { ok: true; accepted: boolean } | { ok: false; error: string } {
+  ):
+    | { ok: true; accepted: boolean; targetId: string }
+    | { ok: false; error: string } {
     const target = this.byIdentifier(identifier);
     if (!target) return { ok: false, error: 'No account with that phone or email.' };
     if (target.id === from) return { ok: false, error: 'That’s you.' };
@@ -232,7 +234,7 @@ export class Accounts {
       }
       // They asked first; treat this as accepting.
       this.acceptContact(from, target.id);
-      return { ok: true, accepted: true };
+      return { ok: true, accepted: true, targetId: target.id };
     }
 
     const [a, b] = pairKey(from, target.id);
@@ -241,7 +243,7 @@ export class Accounts {
         'INSERT INTO contacts (a_id, b_id, state, requester_id, created_at) VALUES (?, ?, ?, ?, ?)'
       )
       .run(a, b, 'pending', from, now);
-    return { ok: true, accepted: false };
+    return { ok: true, accepted: false, targetId: target.id };
   }
 
   /** Only the recipient may accept — the requester cannot accept their own. */

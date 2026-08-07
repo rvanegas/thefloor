@@ -17,6 +17,19 @@ interface Connection {
 }
 
 /**
+ * Lets non-session code (contact changes, which arrive over HTTP) push Home to
+ * the people affected. Created before the websocket plugin has loaded, so it
+ * starts as a no-op and is filled in when the socket layer registers.
+ */
+export interface HomeNotifier {
+  notify: (userIds: string[]) => void;
+}
+
+export function createHomeNotifier(): HomeNotifier {
+  return { notify: () => {} };
+}
+
+/**
  * Realtime fan-out. Clients never compute session state — they watch it. Every
  * snapshot carries the server's clock, so countdowns run against one authority
  * rather than each device's own idea of the time.
@@ -27,8 +40,9 @@ export function registerWebsocket(deps: {
   sessions: SessionRegistry;
   homeFor: (userId: string) => HomeView;
   now: () => number;
+  homeNotifier: HomeNotifier;
 }): void {
-  const { fastify, accounts, sessions, homeFor, now } = deps;
+  const { fastify, accounts, sessions, homeFor, now, homeNotifier } = deps;
   const connections = new Set<Connection>();
 
   function send(connection: Connection, message: ServerMessage): void {
@@ -55,6 +69,17 @@ export function registerWebsocket(deps: {
   function pushHome(connection: Connection): void {
     send(connection, { type: 'home', home: homeFor(connection.userId) });
   }
+
+  // Contact changes arrive over HTTP and touch two people's Home lists: the
+  // requester's and the recipient's. Without this the recipient learns nothing
+  // until they happen to reload — a request simply never appears.
+  homeNotifier.notify = (userIds) => {
+    for (const connection of connections) {
+      if (connection.watchingHome && userIds.includes(connection.userId)) {
+        pushHome(connection);
+      }
+    }
+  };
 
   // Any session change can alter both parties' Home (an invite appears, a
   // rejoinable session shows up), so both views refresh together.

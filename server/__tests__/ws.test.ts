@@ -150,6 +150,65 @@ describe('websocket', () => {
     bobClient.close();
   });
 
+  it('pushes an incoming contact request to the recipient', async () => {
+    // Found by hand on two simulators: contact changes arrive over HTTP, and
+    // nothing told the recipient's socket, so a request never appeared until
+    // they happened to reload.
+    const alice = await signIn('+15550000001', 'Alice');
+    const bob = await signIn('+15550000002', 'Bob');
+
+    const bobClient = new Client(bob.token, baseUrl);
+    await bobClient.open();
+    bobClient.send({ type: 'watch.home' });
+    await bobClient.next('home');
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: '+15550000002' },
+    });
+
+    const home = await bobClient.next(
+      'home',
+      (m) => m.home.contacts.length > 0
+    );
+    expect(home.home.contacts[0]).toMatchObject({
+      status: 'incoming',
+      account: { displayName: 'Alice' },
+    });
+    bobClient.close();
+  });
+
+  it('pushes an acceptance back to the requester', async () => {
+    const alice = await signIn('+15550000001', 'Alice');
+    const bob = await signIn('+15550000002', 'Bob');
+
+    const aliceClient = new Client(alice.token, baseUrl);
+    await aliceClient.open();
+    aliceClient.send({ type: 'watch.home' });
+    await aliceClient.next('home');
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: '+15550000002' },
+    });
+    await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${alice.account.id}/accept`,
+      headers: auth(bob.token),
+    });
+
+    const home = await aliceClient.next(
+      'home',
+      (m) => m.home.contacts[0]?.status === 'accepted'
+    );
+    expect(home.home.contacts[0].account.displayName).toBe('Bob');
+    aliceClient.close();
+  });
+
   it('pushes a floor claim to the silenced party', async () => {
     const { alice, bob, sessionId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
