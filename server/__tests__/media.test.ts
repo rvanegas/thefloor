@@ -21,6 +21,9 @@ beforeEach(() => {
     media,
     mediaUrl: 'wss://example.livekit.cloud',
     now: () => clock,
+    // No grace period here: the delay exists to let real clients disconnect
+    // first, and waiting it out would only slow the suite down.
+    roomCloseGraceMs: 0,
   });
 });
 

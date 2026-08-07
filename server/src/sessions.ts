@@ -14,6 +14,16 @@ import type { MediaServer } from './media';
 export const TICK_INTERVAL_MS = 500;
 
 /**
+ * How long to leave the audio room standing after a session ends. Clients drop
+ * their own connection as soon as they see they are no longer present, so this
+ * only has to outlast one push. Deleting it immediately yanked the room out
+ * from under still-connected clients, which surfaced as unclean socket closes
+ * and ping timeouts — noise that hides real warnings, and a microphone held
+ * open until the client noticed.
+ */
+export const ROOM_CLOSE_GRACE_MS = 5_000;
+
+/**
  * The authority for live sessions. Every rule it enforces comes from core/ —
  * this class owns *when* the reducer runs and *who* is allowed to act, not what
  * the rules are.
@@ -34,7 +44,8 @@ export class SessionRegistry {
     private accounts: Accounts,
     private now: () => number = Date.now,
     private media?: MediaServer,
-    private onMediaError: (error: unknown, context: string) => void = () => {}
+    private onMediaError: (error: unknown, context: string) => void = () => {},
+    private roomCloseGraceMs: number = ROOM_CLOSE_GRACE_MS
   ) {}
 
   // --- Lifecycle ----------------------------------------------------------
@@ -220,7 +231,11 @@ export class SessionRegistry {
     this.applyFloorToMedia(before, after);
     if (before.status === 'active' && after.status === 'ended') {
       this.persistEnded(after);
-      this.run(() => this.media?.closeRoom(after.id), `closeRoom ${after.id}`);
+      // A backstop, not the mechanism: participants leave on their own once
+      // told the session ended. This guarantees the room does not outlive it.
+      setTimeout(() => {
+        this.run(() => this.media?.closeRoom(after.id), `closeRoom ${after.id}`);
+      }, this.roomCloseGraceMs).unref?.();
       // Keep it briefly so watchers get a final snapshot explaining why it
       // ended, rather than the session vanishing from under them.
       setTimeout(() => this.sessions.delete(after.id), 30_000).unref?.();

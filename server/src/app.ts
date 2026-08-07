@@ -23,6 +23,8 @@ export interface BuildOptions {
   media?: MediaServer;
   /** The wss:// URL clients should connect to. Sent alongside a join token. */
   mediaUrl?: string;
+  /** Grace period before an ended session's audio room is torn down. */
+  roomCloseGraceMs?: number;
   now?: () => number;
   logger?: boolean;
 }
@@ -59,8 +61,14 @@ export function buildApp(options: BuildOptions = {}): App {
 
   // Filled in once the websocket plugin loads; a no-op until then.
   const homeNotifier = createHomeNotifier();
-  const sessions = new SessionRegistry(db, accounts, now, options.media, (error, context) =>
-    fastify.log.error({ err: error, context }, 'media operation failed')
+  const sessions = new SessionRegistry(
+    db,
+    accounts,
+    now,
+    options.media,
+    (error, context) =>
+      fastify.log.error({ err: error, context }, 'media operation failed'),
+    options.roomCloseGraceMs
   );
 
   /** Resolves the bearer token to an account, or replies 401 and returns null. */
