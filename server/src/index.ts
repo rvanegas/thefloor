@@ -2,6 +2,16 @@ import { buildApp } from './app';
 import { ConsoleMailer, SesMailer, type Mailer } from './mail';
 import { LiveKitMediaServer, type MediaServer } from './media';
 
+// Node's own .env loader — no dependency. Resolved against the working
+// directory, which npm scripts set to this package. A missing file is not an
+// error, so the server still runs from a bare environment (a container, a
+// systemd unit) where the variables are supplied directly.
+try {
+  process.loadEnvFile();
+} catch {
+  // No .env; environment variables alone decide the configuration.
+}
+
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? '0.0.0.0';
 const dbPath = process.env.DB_PATH ?? './thefloor.db';

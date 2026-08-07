@@ -3,20 +3,24 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
-    "expo": "~57.0.10",
-    "expo-secure-store": "~57.0.1",
-    "expo-status-bar": "~57.0.1",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-native": "0.86.2",
-    "react-native-safe-area-context": "~5.7.0",
+    "@livekit/react-native": "^2.12.0",
+    "@livekit/react-native-webrtc": "^144.1.2",
+    "expo": "~54.0.36",
+    "expo-secure-store": "~15.0.8",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@config-plugins/react-native-webrtc": "^13.0.0",
+    "@livekit/react-native-expo-plugin": "^1.0.2",
     "@types/jest": "^30.0.0",
-    "@types/react": "~19.2.2",
+    "@types/react": "~19.1.0",
     "jest": "^29.7.0",
-    "jest-expo": "^57.0.3",
+    "jest-expo": "~54.0.12",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -35,6 +39,9 @@
     ],
     "setupFiles": [
       "<rootDir>/jest.setup.js"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^@babel/runtime/(.*)$": "<rootDir>/node_modules/@babel/runtime/$1"
+    }
   }
 }
