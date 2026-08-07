@@ -263,15 +263,15 @@ export class SessionRegistry {
       ? [otherParty(after, after.floor.holder)]
       : [];
     for (const participant of [after.initiator, after.invitee]) {
-      const muted = silenced.includes(participant);
+      const isSilenced = silenced.includes(participant);
       this.run(
         () =>
-          this.media?.setMuted({
+          this.media?.setSilenced({
             room: after.id,
             identity: participant,
-            muted,
+            silenced: isSilenced,
           }),
-        `setMuted ${after.id}/${participant}=${muted}`
+        `setSilenced ${after.id}/${participant}=${isSilenced}`
       );
     }
   }

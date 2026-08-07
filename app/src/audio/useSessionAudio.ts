@@ -42,11 +42,15 @@ export interface SessionAudio {
  * @param token     the app's own auth token, used to fetch a join credential
  * @param selfMuted the user's own mute, which is theirs alone and unrelated to
  *                  the floor
+ * @param silenced  whether the floor currently silences this user, per the
+ *                  server. Enforcement is the server's job — this only decides
+ *                  whether to publish again once it lifts.
  */
 export function useSessionAudio(
   sessionId: string | null,
   token: string | null,
-  selfMuted: boolean
+  selfMuted: boolean,
+  silenced: boolean
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -143,13 +147,21 @@ export function useSessionAudio(
     };
   }, [sessionId, token]);
 
-  // Self-mute is unilateral and unrelated to the floor, so it acts directly on
-  // the local publication rather than going through the server.
+  /**
+   * Keeps the published microphone in step with both reasons it may be off.
+   *
+   * Self-mute is unilateral and acts directly on the local publication. The
+   * floor is the server's decision, enforced by revoking publish permission —
+   * but regaining permission does not republish anything, so a release would
+   * otherwise leave the user permanently inaudible: silenced correctly, never
+   * restored. Publishing again here is what makes the floor temporary.
+   */
   useEffect(() => {
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-    room.localParticipant.setMicrophoneEnabled(!selfMuted).catch(() => {});
-  }, [selfMuted, state.status]);
+    const shouldPublish = !selfMuted && !silenced;
+    room.localParticipant.setMicrophoneEnabled(shouldPublish).catch(() => {});
+  }, [selfMuted, silenced, state.status]);
 
   return state;
 }

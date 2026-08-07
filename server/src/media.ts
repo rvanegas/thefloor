@@ -2,7 +2,6 @@ import {
   EncodedFileOutput,
   EncodedFileType,
   S3Upload,
-  TrackType,
 } from '@livekit/protocol';
 import { AccessToken, EgressClient, RoomServiceClient } from 'livekit-server-sdk';
 
@@ -25,11 +24,20 @@ export interface MediaServer {
     displayName: string;
   }): Promise<string>;
 
-  /** Silences or restores a participant's published audio. */
-  setMuted(params: {
+  /**
+   * Silences or restores a participant.
+   *
+   * Implemented by revoking publish permission rather than muting their track.
+   * A server may mute someone — that is moderation — but LiveKit deliberately
+   * refuses to un-mute them, because switching a stranger's microphone back on
+   * is a privacy hazard. That asymmetry made the floor a one-way door: claims
+   * silenced correctly and releases never restored anyone. Permissions are
+   * server-owned in both directions, so they can express a temporary silence.
+   */
+  setSilenced(params: {
     room: string;
     identity: string;
-    muted: boolean;
+    silenced: boolean;
   }): Promise<void>;
 
   /** Tears the room down when the session ends. */
@@ -146,24 +154,30 @@ export class LiveKitMediaServer implements MediaServer {
     return token.toJwt();
   }
 
-  async setMuted({
+  async setSilenced({
     room,
     identity,
-    muted,
+    silenced,
   }: {
     room: string;
     identity: string;
-    muted: boolean;
+    silenced: boolean;
   }): Promise<void> {
-    const participant = await this.rooms.getParticipant(room, identity);
-    const audioTracks = participant.tracks.filter(
-      (track) => track.type === TrackType.AUDIO
-    );
-    await Promise.all(
-      audioTracks.map((track) =>
-        this.rooms.mutePublishedTrack(room, identity, track.sid, muted)
-      )
-    );
+    // The full permission set is sent every time: a partial update would reset
+    // whatever it omits, which is how a "silence" turns into a participant who
+    // can no longer hear either.
+    await this.rooms.updateParticipant(room, identity, {
+      permission: {
+        canSubscribe: true,
+        canPublish: !silenced,
+        canPublishData: false,
+        hidden: false,
+        canUpdateMetadata: false,
+        canPublishSources: [],
+        agent: false,
+        canSubscribeMetrics: false,
+      },
+    });
   }
 
   async closeRoom(room: string): Promise<void> {
@@ -188,16 +202,16 @@ export class MemoryMediaServer implements MediaServer {
     return `token:${room}:${identity}`;
   }
 
-  async setMuted({
+  async setSilenced({
     room,
     identity,
-    muted,
+    silenced,
   }: {
     room: string;
     identity: string;
-    muted: boolean;
+    silenced: boolean;
   }) {
-    this.muted.set(`${room}/${identity}`, muted);
+    this.muted.set(`${room}/${identity}`, silenced);
   }
 
   async closeRoom(room: string) {

@@ -86,6 +86,34 @@ describe('the floor as an actual mute', () => {
     expect(media.isMuted(sessionId, alice.account.id)).toBe(false);
   });
 
+  it('restores the silenced party when the claim is released, not just on paper', async () => {
+    // The bug this exists for: claims silenced correctly and releases restored
+    // nobody, so the floor was a one-way door. Muting a track is something a
+    // server may do; un-muting one is something LiveKit refuses, so
+    // enforcement is publish permission — reversible in both directions.
+    const { alice, bob, sessionId } = await sessionOfTwo();
+
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+    expect(media.isMuted(sessionId, bob.account.id)).toBe(true);
+
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    await settle();
+    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
+
+    // And it survives a second round: the other party claims, then releases.
+    clock += 61_000;
+    app.sessions.dispatch(sessionId, bob.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+    expect(media.isMuted(sessionId, alice.account.id)).toBe(true);
+    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
+
+    app.sessions.dispatch(sessionId, bob.account.id, { type: 'RELEASE_FLOOR' });
+    await settle();
+    expect(media.isMuted(sessionId, alice.account.id)).toBe(false);
+    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
+  });
+
   it('restores both when the claim is released', async () => {
     const { alice, bob, sessionId } = await sessionOfTwo();
     app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
@@ -151,7 +179,7 @@ describe('the floor as an actual mute', () => {
         async issueToken() {
           return 'irrelevant';
         },
-        async setMuted() {
+        async setSilenced() {
           throw new Error('livekit unreachable');
         },
         async closeRoom() {},
