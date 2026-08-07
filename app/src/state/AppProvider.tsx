@@ -115,6 +115,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         onServerTime: (value) => {
           clockOffset.current = value - Date.now();
         },
+        // Restoring a stored token skips the sign-in response, so this is the
+        // only thing that tells a relaunched app who it is. Without it `me`
+        // stays null, and every screen that compares against the current user
+        // — the whole floor mechanic — silently compares against nothing.
+        onHello: (account) => setState((s) => ({ ...s, me: account })),
         onHome: (home) => setState((s) => ({ ...s, home })),
         onSession: (view) => setState((s) => ({ ...s, sessionView: view })),
         onSessionGone: (sessionId) =>

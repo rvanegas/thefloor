@@ -10,6 +10,8 @@ import { WS_URL } from './config';
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
 export interface RealtimeHandlers {
+  /** Identifies who this connection belongs to, per the server. */
+  onHello?: (account: { id: string; displayName: string }) => void;
   onHome?: (home: HomeView) => void;
   onSession?: (view: SessionView) => void;
   onSessionGone?: (sessionId: string) => void;
@@ -88,6 +90,7 @@ export class Realtime {
       switch (message.type) {
         case 'hello':
           this.handlers.onServerTime?.(message.serverNow);
+          this.handlers.onHello?.(message.account);
           break;
         case 'home':
           this.handlers.onHome?.(message.home);
