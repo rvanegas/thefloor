@@ -59,6 +59,12 @@ export function useSessionAudio(
     otherAudible: false,
   });
   const roomRef = useRef<Room | null>(null);
+  /**
+   * What the microphone should be doing, per the latest session snapshot. Held
+   * in a ref so the permission listener — registered once, when the room is
+   * created — always sees the current answer rather than a stale closure.
+   */
+  const shouldPublish = useRef(false);
 
   useEffect(() => {
     if (!sessionId || !token) return;
@@ -93,7 +99,22 @@ export function useSessionAudio(
       if (track.kind === Track.Kind.Audio) update({ otherAudible: false });
     };
 
+    /**
+     * Publishing again is gated on LiveKit, not on us. The server restores
+     * permission asynchronously while pushing the session snapshot
+     * immediately, so acting on the snapshot alone loses the race: the client
+     * asks to publish, LiveKit answers "insufficient permissions to publish",
+     * and nothing ever asks again — a released floor that stays silent
+     * forever. Re-applying when permission actually changes is what closes it.
+     */
+    const onPermissions = () => {
+      if (room.localParticipant.permissions?.canPublish && shouldPublish.current) {
+        room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+      }
+    };
+
     room
+      .on(RoomEvent.ParticipantPermissionsChanged, onPermissions)
       .on(RoomEvent.TrackMuted, onMuted)
       .on(RoomEvent.TrackUnmuted, onUnmuted)
       .on(RoomEvent.TrackSubscribed, onSubscribed)
@@ -157,10 +178,16 @@ export function useSessionAudio(
    * restored. Publishing again here is what makes the floor temporary.
    */
   useEffect(() => {
+    shouldPublish.current = !selfMuted && !silenced;
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-    const shouldPublish = !selfMuted && !silenced;
-    room.localParticipant.setMicrophoneEnabled(shouldPublish).catch(() => {});
+
+    // Attempt immediately for the self-mute case, which needs no permission.
+    // If the floor was just released this may still lose the race with
+    // LiveKit, which is what the permission listener above exists for.
+    room.localParticipant
+      .setMicrophoneEnabled(shouldPublish.current)
+      .catch(() => {});
   }, [selfMuted, silenced, state.status]);
 
   return state;
