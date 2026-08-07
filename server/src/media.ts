@@ -1,5 +1,10 @@
-import { TrackType } from '@livekit/protocol';
-import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
+import {
+  EncodedFileOutput,
+  EncodedFileType,
+  S3Upload,
+  TrackType,
+} from '@livekit/protocol';
+import { AccessToken, EgressClient, RoomServiceClient } from 'livekit-server-sdk';
 
 /**
  * The media plane. The floor is described in the spec as "a hard cut at the
@@ -29,6 +34,29 @@ export interface MediaServer {
 
   /** Tears the room down when the session ends. */
   closeRoom(room: string): Promise<void>;
+
+  /**
+   * Begins capturing the room's mixed audio to `key`. Returns a handle for
+   * stopping it.
+   *
+   * There is no pause in the underlying API, and pausing must genuinely stop
+   * capture rather than record-then-trim: people pause precisely so something
+   * is not recorded. So a paused recording stops its capture and a resumed one
+   * starts a fresh segment, which is why a session yields one object per run
+   * rather than one per recording.
+   */
+  startRecording(params: { room: string; key: string }): Promise<string>;
+
+  stopRecording(handle: string): Promise<void>;
+}
+
+export interface RecordingStorage {
+  bucket: string;
+  region: string;
+  accessKey: string;
+  secret: string;
+  /** Key prefix inside the bucket, e.g. "sessions". */
+  prefix?: string;
 }
 
 export interface LiveKitOptions {
@@ -38,16 +66,56 @@ export interface LiveKitOptions {
   apiSecret: string;
   /** How long a join credential stays valid. */
   tokenTtlSeconds?: number;
+  /** Where recordings are written. Without it, recording cannot start. */
+  storage?: RecordingStorage;
 }
 
 export class LiveKitMediaServer implements MediaServer {
   private rooms: RoomServiceClient;
+  private egress: EgressClient;
 
   constructor(private options: LiveKitOptions) {
     // RoomServiceClient speaks HTTPS to the same host the clients reach over
     // WSS, so the scheme is swapped rather than configured separately.
     const httpUrl = options.url.replace(/^ws/, 'http');
     this.rooms = new RoomServiceClient(httpUrl, options.apiKey, options.apiSecret);
+    this.egress = new EgressClient(httpUrl, options.apiKey, options.apiSecret);
+  }
+
+  async startRecording({
+    room,
+    key,
+  }: {
+    room: string;
+    key: string;
+  }): Promise<string> {
+    const storage = this.options.storage;
+    if (!storage) throw new Error('No recording storage configured.');
+
+    // Audio only: this app has no video, and mixing to one file is what makes
+    // a session's recording a single artefact rather than a per-speaker pile.
+    const info = await this.egress.startRoomCompositeEgress(
+      room,
+      new EncodedFileOutput({
+        fileType: EncodedFileType.OGG,
+        filepath: key,
+        output: {
+          case: 's3',
+          value: new S3Upload({
+            bucket: storage.bucket,
+            region: storage.region,
+            accessKey: storage.accessKey,
+            secret: storage.secret,
+          }),
+        },
+      }),
+      { audioOnly: true }
+    );
+    return info.egressId;
+  }
+
+  async stopRecording(handle: string): Promise<void> {
+    await this.egress.stopEgress(handle);
   }
 
   async issueToken({
@@ -106,6 +174,12 @@ export class LiveKitMediaServer implements MediaServer {
 /** Records what would have been asked of a media server. For tests. */
 export class MemoryMediaServer implements MediaServer {
   readonly muted = new Map<string, boolean>();
+  readonly recordings: Array<{
+    room: string;
+    key: string;
+    handle: string;
+    stopped: boolean;
+  }> = [];
   readonly issued: Array<{ room: string; identity: string }> = [];
   readonly closed: string[] = [];
 
@@ -128,6 +202,17 @@ export class MemoryMediaServer implements MediaServer {
 
   async closeRoom(room: string) {
     this.closed.push(room);
+  }
+
+  async startRecording({ room, key }: { room: string; key: string }) {
+    const handle = `egress_${this.recordings.length + 1}`;
+    this.recordings.push({ room, key, handle, stopped: false });
+    return handle;
+  }
+
+  async stopRecording(handle: string) {
+    const found = this.recordings.find((r) => r.handle === handle);
+    if (found) found.stopped = true;
   }
 
   isMuted(room: string, identity: string): boolean | undefined {

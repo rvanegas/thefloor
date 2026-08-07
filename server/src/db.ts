@@ -31,6 +31,7 @@ export interface RecordingRow {
   started_at: number;
   duration_ms: number;
   s3_key: string;
+  segment_keys: string | null;
 }
 
 const SCHEMA = `
@@ -90,7 +91,10 @@ CREATE TABLE IF NOT EXISTS recordings (
   invitee_id   TEXT NOT NULL,
   started_at   INTEGER NOT NULL,
   duration_ms  INTEGER NOT NULL,
-  s3_key       TEXT NOT NULL
+  s3_key       TEXT NOT NULL,
+  -- JSON array of object keys, in order. A recording is one object per run:
+  -- pausing stops capture rather than trimming afterwards.
+  segment_keys TEXT
 );
 CREATE INDEX IF NOT EXISTS recordings_participants
   ON recordings(initiator_id, invitee_id);
@@ -103,7 +107,18 @@ export function openDb(path: string): Db {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+/** Additive migrations for databases created before a column existed. */
+function migrate(db: Db): void {
+  const columns = db
+    .prepare('PRAGMA table_info(recordings)')
+    .all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === 'segment_keys')) {
+    db.exec('ALTER TABLE recordings ADD COLUMN segment_keys TEXT');
+  }
 }
 
 export function sha256(value: string): string {

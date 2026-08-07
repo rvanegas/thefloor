@@ -155,6 +155,10 @@ describe('the floor as an actual mute', () => {
           throw new Error('livekit unreachable');
         },
         async closeRoom() {},
+        async startRecording() {
+          return 'egress_x';
+        },
+        async stopRecording() {},
       },
     });
 
@@ -204,6 +208,93 @@ describe('the floor as an actual mute', () => {
 
     broken.sessions.stop();
     await broken.fastify.close();
+  });
+});
+
+describe('recording capture', () => {
+  it('starts capture when recording starts', async () => {
+    const { alice, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+
+    expect(media.recordings).toHaveLength(1);
+    expect(media.recordings[0]).toMatchObject({
+      room: sessionId,
+      key: `${sessionId}/001.ogg`,
+      stopped: false,
+    });
+  });
+
+  it('stops capture on pause and starts a new segment on resume', async () => {
+    const { alice, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    await settle();
+
+    // Pausing must genuinely halt capture, not merely mark a boundary to trim
+    // later — nothing said while paused should ever reach storage.
+    expect(media.recordings[0].stopped).toBe(true);
+
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RESUME_RECORDING' });
+    await settle();
+
+    expect(media.recordings).toHaveLength(2);
+    expect(media.recordings[1].key).toBe(`${sessionId}/002.ogg`);
+    expect(media.recordings[1].stopped).toBe(false);
+  });
+
+  it('stops capture when the recording is stopped', async () => {
+    const { alice, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+    expect(media.recordings[0].stopped).toBe(true);
+  });
+
+  it('stops capture when the session ends mid-recording', async () => {
+    const { alice, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+    expect(media.recordings[0].stopped).toBe(true);
+  });
+
+  it('records every segment against the finished recording', async () => {
+    const { alice, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 10_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    await settle();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RESUME_RECORDING' });
+    await settle();
+    clock += 5_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+
+    const row = app.db
+      .prepare('SELECT * FROM recordings WHERE session_id = ?')
+      .get(sessionId) as { segment_keys: string; duration_ms: number };
+    expect(JSON.parse(row.segment_keys)).toEqual([
+      `${sessionId}/001.ogg`,
+      `${sessionId}/002.ogg`,
+    ]);
+    // Paused time is excluded, so the duration is the two run segments only.
+    expect(row.duration_ms).toBe(15_000);
+  });
+
+  it('captures nothing when recording was never started', async () => {
+    const { alice, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+    expect(media.recordings).toHaveLength(0);
+    const row = app.db
+      .prepare('SELECT COUNT(*) c FROM recordings WHERE session_id = ?')
+      .get(sessionId) as { c: number };
+    expect(row.c).toBe(0);
   });
 });
 

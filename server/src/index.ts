@@ -56,12 +56,31 @@ const mailer: Mailer = mailFrom
 const liveKitUrl = process.env.LIVEKIT_URL;
 const liveKitKey = process.env.LIVEKIT_API_KEY;
 const liveKitSecret = process.env.LIVEKIT_API_SECRET;
+/**
+ * Recording needs somewhere to write. These credentials are handed to LiveKit
+ * with each egress request, so they leave this account — scope the IAM user to
+ * PutObject on this one bucket and nothing else.
+ */
+const s3Bucket = process.env.RECORDINGS_BUCKET;
+const s3Key = process.env.RECORDINGS_AWS_ACCESS_KEY_ID;
+const s3Secret = process.env.RECORDINGS_AWS_SECRET_ACCESS_KEY;
+const storage =
+  s3Bucket && s3Key && s3Secret
+    ? {
+        bucket: s3Bucket,
+        region: process.env.RECORDINGS_REGION ?? mailRegion,
+        accessKey: s3Key,
+        secret: s3Secret,
+      }
+    : undefined;
+
 const media: MediaServer | undefined =
   liveKitUrl && liveKitKey && liveKitSecret
     ? new LiveKitMediaServer({
         url: liveKitUrl,
         apiKey: liveKitKey,
         apiSecret: liveKitSecret,
+        storage,
       })
     : undefined;
 
@@ -84,12 +103,18 @@ app.fastify
         authBypass,
         mail: mailFrom ? `ses:${mailFrom}` : 'console',
         audio: media ? liveKitUrl : 'none',
+        recordings: storage ? `s3://${storage.bucket}` : 'not configured',
       },
       'the floor server listening'
     );
     if (!media) {
       app.fastify.log.warn(
         'LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET are unset — sessions run with no audio.'
+      );
+    }
+    if (media && !storage) {
+      app.fastify.log.warn(
+        'RECORDINGS_BUCKET / RECORDINGS_AWS_ACCESS_KEY_ID / RECORDINGS_AWS_SECRET_ACCESS_KEY are unset — the UI will offer recording, but nothing will be captured.'
       );
     }
     if (!mailFrom) {

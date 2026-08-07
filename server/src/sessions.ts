@@ -36,6 +36,10 @@ export const ROOM_CLOSE_GRACE_MS = 5_000;
  */
 export class SessionRegistry {
   private sessions = new Map<string, SessionState>();
+  /** Live egress handle per session, present only while capture is running. */
+  private capturing = new Map<string, string>();
+  /** Object keys written so far, in order, per session. */
+  private segments = new Map<string, string[]>();
   private listeners = new Set<(sessionIds: string[]) => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -229,6 +233,7 @@ export class SessionRegistry {
   private commit(before: SessionState, after: SessionState): void {
     this.sessions.set(after.id, after);
     this.applyFloorToMedia(before, after);
+    this.applyRecordingToMedia(before, after);
     if (before.status === 'active' && after.status === 'ended') {
       this.persistEnded(after);
       // A backstop, not the mechanism: participants leave on their own once
@@ -267,6 +272,57 @@ export class SessionRegistry {
             muted,
           }),
         `setMuted ${after.id}/${participant}=${muted}`
+      );
+    }
+  }
+
+  /**
+   * Turns recording state into actual capture. There is no pause in the egress
+   * API and pausing must genuinely stop capture — people pause precisely so
+   * something is not recorded — so a pause stops the current segment and a
+   * resume starts a new one. A session therefore yields one object per run,
+   * concatenated when exported.
+   */
+  private applyRecordingToMedia(
+    before: SessionState,
+    after: SessionState
+  ): void {
+    if (!this.media) return;
+    const was = before.recording.status;
+    const now = after.recording.status;
+    if (was === now) return;
+
+    const shouldCapture = now === 'recording';
+    const isCapturing = this.capturing.has(after.id);
+
+    if (shouldCapture && !isCapturing) {
+      const existing = this.segments.get(after.id) ?? [];
+      const key = `${after.id}/${String(existing.length + 1).padStart(3, '0')}.ogg`;
+      // Reserved before the call returns so a second transition cannot pick the
+      // same index, and so a failed start still shows up as a gap rather than
+      // silently reusing a key.
+      this.segments.set(after.id, [...existing, key]);
+      this.run(async () => {
+        const handle = await this.media!.startRecording({
+          room: after.id,
+          key,
+        });
+        // The session may have moved on while the call was in flight.
+        if (this.sessions.get(after.id)?.recording.status === 'recording') {
+          this.capturing.set(after.id, handle);
+        } else {
+          await this.media!.stopRecording(handle);
+        }
+      }, `startRecording ${key}`);
+      return;
+    }
+
+    if (!shouldCapture && isCapturing) {
+      const handle = this.capturing.get(after.id)!;
+      this.capturing.delete(after.id);
+      this.run(
+        () => this.media?.stopRecording(handle),
+        `stopRecording ${after.id}`
       );
     }
   }
@@ -318,11 +374,13 @@ export class SessionRegistry {
     const duration = recordedMs(session.recording, session.endedAt ?? this.now());
     if (session.recording.status !== 'stopped' || duration <= 0) return;
 
+    const keys = this.segments.get(session.id) ?? [];
+    this.segments.delete(session.id);
     this.db
       .prepare(
         `INSERT OR IGNORE INTO recordings
-           (id, session_id, initiator_id, invitee_id, started_at, duration_ms, s3_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+           (id, session_id, initiator_id, invitee_id, started_at, duration_ms, s3_key, segment_keys)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         newId('rec'),
@@ -331,8 +389,8 @@ export class SessionRegistry {
         session.invitee,
         session.recording.startedAt ?? session.createdAt,
         duration,
-        // Placeholder until LiveKit Egress writes the real object.
-        `s3://thefloor-recordings/${session.id}.m4a`
+        keys[0] ?? '',
+        JSON.stringify(keys)
       );
   }
 }
