@@ -16,6 +16,7 @@ import {
   emptyTimeoutRemainingMs,
   isPresent,
 } from '../../../core/session';
+import { useSessionAudio } from '../audio/useSessionAudio';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
@@ -34,6 +35,18 @@ export function SessionView({
 }) {
   const app = useApp();
   const view = app.sessionView;
+  const session = view?.session.id === sessionId ? view.session : null;
+  const me = app.me?.id ?? '';
+
+  // Audio follows presence, not the screen: connect only while actually in the
+  // session, so leaving stops publishing rather than leaving a live microphone
+  // open behind a closed view.
+  const present = !!session && session.status === 'active' && session.present.includes(me);
+  const audio = useSessionAudio(
+    present ? sessionId : null,
+    app.token,
+    !!session?.selfMuted[me]
+  );
 
   useEffect(() => {
     app.watchSession(sessionId);
@@ -42,7 +55,7 @@ export function SessionView({
     // drop the user out of a live conversation.
   }, [sessionId]);
 
-  if (!view || view.session.id !== sessionId) {
+  if (!view || !session) {
     return (
       <View style={styles.centered}>
         <Text style={type.body}>
@@ -53,8 +66,7 @@ export function SessionView({
     );
   }
 
-  const { session, other } = view;
-  const me = app.me?.id ?? '';
+  const { other } = view;
   const now = app.serverNow();
 
   if (session.status === 'ended') {
@@ -194,6 +206,7 @@ export function SessionView({
                 ? 'Muted by you. This is separate from the floor and costs you nothing.'
                 : 'Open. Self-mute never affects floor eligibility.'}
           </Text>
+          <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
         </Card>
 
         <SectionLabel>Recording</SectionLabel>
@@ -280,8 +293,36 @@ export function SessionView({
   );
 }
 
+/** Plain-language audio state, so a silent session is never a mystery. */
+function describeAudio(audio: ReturnType<typeof useSessionAudio>): string {
+  switch (audio.status) {
+    case 'idle':
+      return 'Audio not connected.';
+    case 'connecting':
+      return 'Connecting audio…';
+    case 'connected':
+      return audio.otherAudible
+        ? 'Audio connected.'
+        : 'Audio connected — waiting for them to be audible.';
+    case 'denied':
+      return audio.message ?? 'Microphone access refused.';
+    case 'unavailable':
+      return 'Audio is not configured on the server.';
+    case 'error':
+      return `Audio failed: ${audio.message ?? 'unknown error'}`;
+  }
+}
+
+function audioTone(status: string) {
+  return status === 'denied' || status === 'error'
+    ? styles.audioBad
+    : styles.audioMuted;
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  audioMuted: { ...type.muted, color: colors.textFaint },
+  audioBad: { ...type.muted, color: colors.danger },
   otherName: { fontSize: 24, fontWeight: '700', color: colors.text },
   scroll: { flex: 1 },
   container: { padding: spacing(2), paddingBottom: spacing(2) },

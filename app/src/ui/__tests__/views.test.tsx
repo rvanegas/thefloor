@@ -43,6 +43,18 @@ const mockApp = {
   clearError: jest.fn(),
 };
 
+// The views are rendered without a native audio stack: @livekit/react-native
+// ships untranspiled ESM, and more importantly a render test has no business
+// opening a microphone. Audio behaviour is verified on a device, not here.
+jest.mock('../../audio/useSessionAudio', () => ({
+  useSessionAudio: () => ({
+    status: 'idle',
+    message: null,
+    mutedByServer: false,
+    otherAudible: false,
+  }),
+}));
+
 jest.mock('../../state/AppProvider', () => ({
   useApp: () => mockApp,
   AppProvider: ({ children }: { children: React.ReactNode }) => children,
