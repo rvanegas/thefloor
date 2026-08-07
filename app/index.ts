@@ -1,6 +1,22 @@
+// This import must come first and must stay first.
+//
+// @livekit/react-native installs a DOMException polyfill as an import side
+// effect, and livekit-client references DOMException while its own module body
+// evaluates. ES imports evaluate in declaration order, so if anything reaches
+// livekit-client before this line the app dies at startup with
+// "ReferenceError: Property 'DOMException' doesn't exist" — before any of our
+// code runs, which makes it look like a bundler fault rather than an ordering
+// one. Registering inside the audio hook is too late: that module imports
+// livekit-client above its own registerGlobals() call.
+import { registerGlobals } from '@livekit/react-native';
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';
+
+// Installs the WebRTC globals livekit-client expects (RTCPeerConnection and
+// friends). Must happen before any Room is constructed.
+registerGlobals();
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,

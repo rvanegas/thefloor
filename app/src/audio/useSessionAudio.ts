@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
 import {
   Room,
   RoomEvent,
@@ -8,7 +7,7 @@ import {
   type RemoteTrack,
   type TrackPublication,
 } from 'livekit-client';
-import { AudioSession, registerGlobals } from '@livekit/react-native';
+import { AudioSession } from '@livekit/react-native';
 import { api } from '../api/http';
 
 /**
@@ -19,12 +18,6 @@ import { api } from '../api/http';
  * connects, publishes, and reports what happened, and nothing here reasons
  * about eligibility.
  */
-
-// LiveKit's client needs WebRTC globals installed before any Room is created.
-// Safe to call more than once; a no-op on web, where the browser provides them.
-if (Platform.OS !== 'web') {
-  registerGlobals();
-}
 
 export type AudioStatus =
   | 'idle'
