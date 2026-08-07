@@ -98,6 +98,8 @@ export function AuthView() {
               placeholder="Email address"
               keyboardType="email-address"
               autoFocus
+              onSubmit={sendCode}
+              submitLabel="send"
             />
             <Button
               label={busy ? 'Sending…' : 'Send code'}
@@ -117,12 +119,16 @@ export function AuthView() {
               placeholder="Six-digit code"
               keyboardType="number-pad"
               autoFocus
+              onSubmit={submitCode}
+              submitLabel="go"
             />
             <Field
               value={displayName}
               onChangeText={setDisplayName}
               placeholder="Display name (new accounts only)"
               autoCapitalize="words"
+              onSubmit={submitCode}
+              submitLabel="go"
             />
             <Button
               label={busy ? 'Checking…' : 'Sign in'}

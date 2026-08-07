@@ -280,6 +280,8 @@ function AddContact() {
         onChangeText={setQuery}
         placeholder="Search by email address"
         keyboardType="email-address"
+        onSubmit={query.trim() && !busy ? send : undefined}
+        submitLabel="send"
       />
       <Button
         label={busy ? 'Sending…' : 'Send request'}

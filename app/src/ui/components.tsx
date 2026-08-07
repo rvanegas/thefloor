@@ -76,6 +76,8 @@ export function Field({
   keyboardType,
   autoFocus,
   autoCapitalize = 'none',
+  onSubmit,
+  submitLabel = 'done',
 }: {
   value: string;
   onChangeText: (v: string) => void;
@@ -83,6 +85,9 @@ export function Field({
   keyboardType?: 'default' | 'email-address' | 'number-pad' | 'phone-pad';
   autoFocus?: boolean;
   autoCapitalize?: 'none' | 'words';
+  /** Return key submits the form this field belongs to. */
+  onSubmit?: () => void;
+  submitLabel?: 'done' | 'go' | 'send' | 'next';
 }) {
   return (
     <TextInput
@@ -94,6 +99,11 @@ export function Field({
       autoFocus={autoFocus}
       autoCapitalize={autoCapitalize}
       autoCorrect={false}
+      returnKeyType={onSubmit ? submitLabel : undefined}
+      onSubmitEditing={onSubmit}
+      // A number-pad has no return key, so the form would otherwise be
+      // unsubmittable from the keyboard alone.
+      submitBehavior="blurAndSubmit"
       style={styles.field}
     />
   );
