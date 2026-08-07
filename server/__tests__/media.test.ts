@@ -262,6 +262,45 @@ describe('recording capture', () => {
     expect(media.recordings[0].stopped).toBe(true);
   });
 
+  it('files the recording when the session ends while paused', async () => {
+    // Ending while paused is the path with nothing left to stop: capture was
+    // already halted at the pause. The recording must still be finalised and
+    // filed, and no egress may be left running.
+    const { alice, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 8_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    await settle();
+    clock += 30_000; // A long pause that must not count towards the duration.
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+
+    expect(app.sessions.get(sessionId)!.recording.status).toBe('stopped');
+    expect(media.recordings.every((r) => r.stopped)).toBe(true);
+
+    const row = app.db
+      .prepare('SELECT duration_ms, segment_keys FROM recordings WHERE session_id = ?')
+      .get(sessionId) as { duration_ms: number; segment_keys: string };
+    expect(JSON.parse(row.segment_keys)).toEqual([`${sessionId}/001.ogg`]);
+    expect(row.duration_ms).toBe(8_000);
+  });
+
+  it('stops capture when an empty session times out mid-recording', async () => {
+    // Nobody is present to press stop, so only the tick loop can end this.
+    const { alice, bob, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'LEAVE' });
+    app.sessions.dispatch(sessionId, bob.account.id, { type: 'LEAVE' });
+    clock += 60_000;
+    app.sessions.tick();
+    await settle();
+
+    expect(app.sessions.get(sessionId)!.endedReason).toBe('empty-timeout');
+    expect(media.recordings[0].stopped).toBe(true);
+  });
+
   it('records every segment against the finished recording', async () => {
     const { alice, sessionId } = await sessionOfTwo();
     app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
