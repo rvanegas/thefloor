@@ -103,9 +103,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * this rather than the device clock, which drifts and which the user can set.
    */
   const clockOffset = useRef(0);
-  // Snapshots only arrive when something changes, so a local tick is what keeps
-  // a running countdown moving between them.
-  const [, forceTick] = useState(0);
+  /**
+   * Snapshots only arrive when something changes, so a local tick is what keeps
+   * a running countdown moving between them. The counter is a dependency of the
+   * context value below, not merely local state: re-rendering this provider is
+   * not enough, because a memoised value with an unchanged identity lets React
+   * skip every consumer. Without it the timers only advance when the server
+   * happens to push, which looks like the countdowns are frozen.
+   */
+  const [tick, forceTick] = useState(0);
 
   const serverNow = useCallback(() => Date.now() + clockOffset.current, []);
 
@@ -254,7 +260,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),
     }),
-    [state, serverNow, connect, realtime]
+    [state, serverNow, connect, realtime, tick]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
