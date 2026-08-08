@@ -1,9 +1,4 @@
-import {
-  EncodedFileOutput,
-  EncodedFileType,
-  S3Upload,
-  TrackType,
-} from '@livekit/protocol';
+import { DirectFileOutput, S3Upload, TrackType } from '@livekit/protocol';
 import { AccessToken, EgressClient, RoomServiceClient } from 'livekit-server-sdk';
 
 /**
@@ -116,11 +111,23 @@ export class LiveKitMediaServer implements MediaServer {
     const storage = this.options.storage;
     if (!storage) throw new Error('No recording storage configured.');
 
-    // OGG carries the Opus the participant is already publishing, so there is
-    // no transcode; and with no video in this app it is audio by construction.
-    const info = await this.egress.startParticipantEgress(room, identity, {
-      file: new EncodedFileOutput({
-        fileType: EncodedFileType.OGG,
+    // Track egress, not participant egress. Participant egress captures a
+    // participant's audio *and* video, and rejects an audio-only container
+    // with "no supported codec is compatible with all outputs" — there being
+    // no codec that satisfies both. This app has no video, so the right
+    // primitive is the single track: it writes the Opus already being
+    // published, with no transcode.
+    const participant = await this.rooms.getParticipant(room, identity);
+    const audio = participant.tracks.find(
+      (track) => track.type === TrackType.AUDIO
+    );
+    if (!audio) {
+      throw new Error(`${identity} is not publishing audio; nothing to record.`);
+    }
+
+    const info = await this.egress.startTrackEgress(
+      room,
+      new DirectFileOutput({
         filepath: key,
         output: {
           case: 's3',
@@ -132,7 +139,8 @@ export class LiveKitMediaServer implements MediaServer {
           }),
         },
       }),
-    });
+      audio.sid
+    );
     return info.egressId;
   }
 
