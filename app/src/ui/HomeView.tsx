@@ -40,6 +40,30 @@ export function HomeView({
   const contacts = home?.contacts ?? [];
   const recordings = home?.recordings ?? [];
 
+  /**
+   * The one live session with each contact, if there is one. A pair has at most
+   * one — the server returns the existing session rather than making a second —
+   * so a contact row must not offer to start what has already begun.
+   *
+   * `shown` is whether that session already has its own affordance above, as a
+   * banner or a rejoin row. When it does, the contact row says so and offers
+   * nothing; when it does not — a dismissed invite — the row is the only way
+   * back, and offers to join rather than to start.
+   */
+  const sessionWith = new Map<string, { sessionId: string; shown: boolean }>();
+  for (const invite of home?.invites ?? []) {
+    sessionWith.set(invite.from.id, {
+      sessionId: invite.sessionId,
+      shown: !dismissed.includes(invite.sessionId),
+    });
+  }
+  for (const session of live) {
+    sessionWith.set(session.other.id, {
+      sessionId: session.sessionId,
+      shown: true,
+    });
+  }
+
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       <View style={styles.header}>
@@ -104,6 +128,7 @@ export function HomeView({
             <ContactRow
               key={entry.account.id}
               entry={entry}
+              existing={sessionWith.get(entry.account.id)}
               onStartSession={async () => {
                 try {
                   const id = await app.startSession(entry.account.id);
@@ -115,6 +140,10 @@ export function HomeView({
                     e instanceof Error ? e.message : String(e)
                   );
                 }
+              }}
+              onJoinExisting={(sessionId) => {
+                app.act(sessionId, { type: 'ENTER' });
+                onEnterSession(sessionId);
               }}
             />
           ))}
@@ -240,10 +269,15 @@ function RejoinRow({
 
 function ContactRow({
   entry,
+  existing,
   onStartSession,
+  onJoinExisting,
 }: {
   entry: ContactView;
+  /** The live session with this contact, if one has already begun. */
+  existing?: { sessionId: string; shown: boolean };
   onStartSession: () => void;
+  onJoinExisting: (sessionId: string) => void;
 }) {
   const app = useApp();
   const { account, status } = entry;
@@ -251,11 +285,24 @@ function ContactRow({
     <Card style={styles.row}>
       <View style={styles.rowMain}>
         <Text style={type.body}>{account.displayName}</Text>
-        <Text style={type.muted}>{status === 'accepted' ? '' : 'Pending'}</Text>
+        <Text style={type.muted}>
+          {status !== 'accepted'
+            ? 'Pending'
+            : existing?.shown
+              ? 'Session already open'
+              : ''}
+        </Text>
       </View>
 
       {status === 'accepted' ? (
-        <Button label="Start session" onPress={onStartSession} />
+        existing?.shown ? null : existing ? (
+          <Button
+            label="Join session"
+            onPress={() => onJoinExisting(existing.sessionId)}
+          />
+        ) : (
+          <Button label="Start session" onPress={onStartSession} />
+        )
       ) : status === 'incoming' ? (
         <View style={styles.rowActions}>
           <Button

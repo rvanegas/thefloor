@@ -198,6 +198,98 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
+  it('does not offer to start a session that has already begun', () => {
+    // A pair has at most one session. When it exists, the invite above is the
+    // way in, and the contact row must not offer to start a second.
+    mockApp.home = {
+      invites: [
+        {
+          sessionId: 'sess_a',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+        },
+      ],
+      rejoinable: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterSession={() => {}} />);
+    expect(findButton(tree, 'Start session')).toBeUndefined();
+    expect(textOf(tree)).toContain('Session already open');
+    expect(textOf(tree)).toContain('tap to join');
+    act(() => tree.unmount());
+  });
+
+  it('does not offer to start one you have left either', () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          sessionId: 'sess_b',
+          other: { id: THEM, displayName: 'Dana Chu' },
+          otherPresent: true,
+          createdAt: NOW,
+        },
+      ],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterSession={() => {}} />);
+    expect(findButton(tree, 'Start session')).toBeUndefined();
+    expect(textOf(tree)).toContain('Session already open');
+    act(() => tree.unmount());
+  });
+
+  it('offers to join, not start, once the invite has been dismissed', () => {
+    // Dismissing the banner removes the only other way in. Suppressing the
+    // contact row as well would leave no route to a session that still exists.
+    mockApp.home = {
+      invites: [
+        {
+          sessionId: 'sess_a',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+        },
+      ],
+      rejoinable: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterSession={() => {}} />);
+    const dismiss = tree.root.find(
+      (n) => n.props?.accessibilityLabel === 'Dismiss invite'
+    );
+    act(() => dismiss.props.onPress());
+
+    expect(findButton(tree, 'Start session')).toBeUndefined();
+    expect(findButton(tree, 'Join session')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('still offers to start when there is no session yet', () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+    const tree = render(<HomeView onEnterSession={() => {}} />);
+    expect(findButton(tree, 'Start session')).toBeDefined();
+    expect(textOf(tree)).not.toContain('Session already open');
+    act(() => tree.unmount());
+  });
+
   it('says so when the connection is down', () => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     mockApp.status = 'closed';

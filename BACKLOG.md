@@ -236,6 +236,13 @@ Then, the logic of claiming the floor must be generalized to multiple users.
 
 ---
 
+## Interaction with phonecalls
+
+There ought to be a proper co-existence with phone calls and equivalents, modeled after the
+functionality of Facetime and Zoom sessions.
+
+---
+
 ## Known defects
 
 Real, reproducible, and left alone. Resolved entries have been dropped — the
