@@ -194,6 +194,23 @@ describe('Session', () => {
     act(() => tree.unmount());
   });
 
+  it('says plainly that a silenced user is still being recorded', () => {
+    // Being unheard is easily mistaken for being unrecorded, and someone might
+    // speak freely on that assumption. The capture is complete; only the export
+    // omits them.
+    let session = sessionOf((s) =>
+      reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW)
+    );
+    session = reduce(session, { type: 'START_RECORDING', userId: THEM }, NOW);
+    showSession(session);
+
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('still being recorded');
+    expect(text).toContain('left out of the exported recording');
+    act(() => tree.unmount());
+  });
+
   it('reflects being silenced by the other party', () => {
     showSession(
       sessionOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))

@@ -206,6 +206,16 @@ export function SessionView({
                 ? 'Muted by you. This is separate from the floor and costs you nothing.'
                 : 'Open. Self-mute never affects floor eligibility.'}
           </Text>
+          {recordingLive && iAmSilenced ? (
+            // Being unheard is not the same as being unrecorded, and it would
+            // be easy to assume otherwise. Say it plainly rather than let
+            // someone speak freely on that assumption.
+            <Text style={styles.warning}>
+              You are still being recorded. {other.displayName} cannot hear you,
+              but your microphone is captured; it is left out of the exported
+              recording, not out of the capture.
+            </Text>
+          ) : null}
           <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
         </Card>
 
@@ -248,7 +258,10 @@ export function SessionView({
             </View>
           )}
           {iAmSilenced && recordingLive ? (
-            <Text style={type.muted}>Silenced — pause and stop unavailable.</Text>
+            <Text style={type.muted}>
+              Silenced — pause and stop unavailable, and your microphone is
+              still being captured.
+            </Text>
           ) : session.recording.status === 'idle' &&
             !canStartRecording(session) ? (
             <Text style={type.muted}>Starts once both of you have connected.</Text>
