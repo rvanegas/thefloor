@@ -6,61 +6,61 @@ what *has* been built.
 
 ---
 
-## Per-track recording with the floor applied at mix time
+## Per-speaker stems, with the floor applied when the recording is encoded
 
 **Status:** designed 2026-08-07, not started. Next substantial piece of work.
 
 ### Why
 
-The floor is enforced live by unsubscribing the other party from the silenced
-speaker's track (see `setSilenced` in `server/src/media.ts`). That leaves the
-silenced person still publishing — their audio pipeline is deliberately never
-disturbed, which is the whole point of the approach — so a room-composite
-recording, which subscribes to everyone, captures speech that nobody was
-allowed to hear.
+The floor is enforced live by unsubscribing the listener from the silenced
+speaker (`setSilenced` in `server/src/media.ts`), which deliberately leaves the
+silenced person publishing. Capture is currently room-composite: LiveKit blends
+both participants into one file before it reaches S3, so a recording contains
+speech nobody was permitted to hear — and a mix cannot be un-mixed afterwards.
 
-Being silenced has to mean not being on the record either: someone cut off
-mid-sentence should not find their words in an exported recording.
+**Until this lands, exported recordings do not honour the floor.**
 
-Scoped deliberately (decision, 2026-08-07): the raw stems live in a bucket only
-the server can read, so it is acceptable for them to contain silenced speech.
-The omission has to happen before anything is handed to a user — at export.
-That is what makes continuous capture viable instead of stopping and restarting
-a stem at every floor transition.
+### What actually has to be true
 
-**Until this lands, exported recordings cannot be trusted to exclude silenced
-audio.**
+Two conditions, and only these two (decision, 2026-08-07):
+
+1. **Live** — a silenced speaker is not heard by the other party. Already done.
+2. **Playback** — a silenced speaker is not heard in an exported recording.
+
+What sits in S3 in between is not a constraint. The bucket is server-only,
+stems are never exposed to a client, and the exclusion is a property of the
+encode rather than of the capture. Earlier drafts of this note treated capture
+as the privacy boundary and proposed stopping a stem for the duration of a
+claim; that is unnecessary, and it would have cost audio at every segment
+boundary while an egress reconnected.
 
 ### Design
 
-1. **Capture per participant, not per room.** Replace
-   `startRoomCompositeEgress` with one track egress per participant. Because
-   subscription-based enforcement never unpublishes anyone, track SIDs are
-   stable for the life of the session — so each stem can run continuously
-   rather than being restarted at every floor transition.
-2. **Record the floor timeline** alongside the recording: who was silenced,
-   from when to when. A JSON column, as `segment_keys` already is. The session
-   reducer already knows this; it simply is not persisted.
-3. **Mix at export**, gating each stem to silence across its silenced windows.
-   The exclusion is then provable — the audio is never mixed in — rather than
-   depending on the media server honouring a subscription change.
+1. **One stem per participant, continuous.** Replace
+   `startRoomCompositeEgress` with per-track egress. Subscription-based
+   enforcement never unpublishes anyone, so track SIDs are stable and each stem
+   runs unbroken for the whole recording — no boundary clipping, in particular
+   none in the floor-holder's protected speech.
+2. **Persist the floor timeline** with the recording: who was silenced, from
+   when to when, as offsets from the recording's start. A JSON column, as
+   `segment_keys` already is. The reducer knows this; it simply is not stored.
+3. **Encode on export.** The server fetches the stems, applies the timeline as
+   per-stem volume envelopes in ffmpeg, mixes, and returns one file. Users never
+   see a stem.
 
-Pause and resume keep segmenting as they do now; this is orthogonal.
+User-triggered pause and resume keep segmenting as they do now; that is
+orthogonal, and each segment carries its own offset.
 
 ### Consequences
 
-- Export stops being concatenation and becomes a real mixing job: ffmpeg with
-  per-stem volume envelopes. Export is unbuilt, so this is work that was coming
-  regardless, but it is meaningfully more than joining files.
-- Storage roughly doubles — two stems rather than one mix. Negligible at this
-  scale.
+- Export becomes a mixing job rather than concatenation. Export is unbuilt, so
+  this is work that was coming anyway.
+- Storage roughly doubles. Negligible at this scale.
 - Per-speaker stems become available, which is generally useful.
-
-### Origin
-
-Proposed by the user as an alternative to unsubscribing the egress participant
-from the silenced track. It is the better design: it does not depend on egress
-honouring subscription updates, which is unverified and outside our control.
+- The correctness of the exclusion now rests on the encoder applying the
+  timeline. That wants a test which asserts silence in the *output* across a
+  silenced window — measuring the exported file, the way live audio was
+  verified.
 
 ---
 
