@@ -120,6 +120,11 @@ export class Accounts {
    * Signs in, creating the account on first sight, and issues a token. This is
    * the step that follows a *successful* check — callers are responsible for
    * having done the checking.
+   *
+   * A name given here always takes effect, on an existing account as much as a
+   * new one. Signing out and back in is therefore how someone corrects it;
+   * without that, a typo made once at signup would be permanent. Omitting the
+   * name keeps whatever is already there.
    */
   establish(
     identifier: string,
@@ -127,16 +132,24 @@ export class Accounts {
     now: number
   ): { account: AccountRow; token: string } {
     const id = normalize(identifier);
+    const name = displayName?.trim();
     let account = this.byIdentifier(id);
+
     if (!account) {
       const accountId = newId('acct');
       this.db
         .prepare(
           'INSERT INTO accounts (id, identifier, display_name, created_at) VALUES (?, ?, ?, ?)'
         )
-        .run(accountId, id, displayName?.trim() || id, now);
+        .run(accountId, id, name || id, now);
       account = this.byId(accountId)!;
+    } else if (name && name !== account.display_name) {
+      this.db
+        .prepare('UPDATE accounts SET display_name = ? WHERE id = ?')
+        .run(name, account.id);
+      account = this.byId(account.id)!;
     }
+
     return { account, token: this.issueToken(account.id, now) };
   }
 

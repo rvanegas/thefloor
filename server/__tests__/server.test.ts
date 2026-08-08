@@ -70,6 +70,23 @@ describe('one-time codes', () => {
     expect(second.token).not.toBe(first.token);
   });
 
+  it('renames an existing account when a name is given', async () => {
+    // Signing out and back in is the only way to fix a name, so a name given
+    // at sign-in has to apply to an account that already exists.
+    const first = await signIn('+15550000007', 'B');
+    expect(first.account.displayName).toBe('B');
+
+    const second = await signIn('+15550000007', 'Bob');
+    expect(second.account.id).toBe(first.account.id);
+    expect(second.account.displayName).toBe('Bob');
+  });
+
+  it('keeps the current name when none is given', async () => {
+    const first = await signIn('+15550000008', 'Priya');
+    const second = await signIn('+15550000008');
+    expect(second.account.displayName).toBe('Priya');
+  });
+
   it('rejects a wrong code', async () => {
     const code = app.accounts.issueCode('+15550000001', clock)!;
     // Derived from the real code so it is guaranteed to differ.

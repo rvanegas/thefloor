@@ -15,8 +15,9 @@ import { colors, spacing, type } from './theme';
 
 /**
  * Signed-out state. Identity is an email address plus a one-time code — no
- * password. Whether an account is new is the server's decision, so a display
- * name is offered alongside the code and ignored for an existing account.
+ * password. A display name is offered alongside the code: it names a new
+ * account, and renames an existing one, so signing out and back in is how a
+ * name gets corrected. Left blank, the current name stands.
  */
 export function AuthView() {
   const { requestCode, verify } = useApp();
@@ -125,7 +126,7 @@ export function AuthView() {
             <Field
               value={displayName}
               onChangeText={setDisplayName}
-              placeholder="Display name (new accounts only)"
+              placeholder="Display name (blank keeps your current one)"
               autoCapitalize="words"
               onSubmit={submitCode}
               submitLabel="go"
