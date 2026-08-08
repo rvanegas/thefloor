@@ -6,69 +6,40 @@ what *has* been built.
 
 ---
 
-## Per-speaker stems, with the floor applied when the recording is encoded
+## Deliver an export to the user
 
-**Status:** capture and timeline landed 2026-08-07. The encoder remains.
+**Status:** the server side is done (2026-08-07). The app's Export button is
+still an alert.
 
-### Why
+`GET /recordings/:id/export` fetches the stems, applies the floor timeline, and
+returns one mixed OGG. Participants only; a stranger is told the recording does
+not exist rather than that they may not have it. Recordings captured before
+per-speaker stems existed are refused with `legacy_recording`, because the
+floor cannot be applied to a mix and handing one over could release remarks the
+other party never heard.
 
-The floor is enforced live by unsubscribing the listener from the silenced
-speaker (`setSilenced` in `server/src/media.ts`), which deliberately leaves the
-silenced person publishing. Capture is currently room-composite: LiveKit blends
-both participants into one file before it reaches S3, so a recording contains
-speech nobody was permitted to hear — and a mix cannot be un-mixed afterwards.
+What remains is getting the bytes to a phone. Two options:
 
-**Until this lands, exported recordings do not honour the floor.**
+1. **`expo-file-system` + `expo-sharing`** — download with the bearer token,
+   hand to the system share sheet. Natural, but both need native code, so it
+   costs a rebuild of the dev build on every device.
+2. **A short-lived signed export URL** the client opens with `Linking` — no new
+   native dependencies and no rebuild, at the cost of a signed-URL scheme on the
+   server and a credential that briefly exists outside the app.
 
-### What actually has to be true
+Neither is obviously right; option 1 is more conventional, option 2 is cheaper
+to get running.
 
-Two conditions, and only these two (decision, 2026-08-07):
+### Note for whoever builds it
 
-1. **Live** — a silenced speaker is not heard by the other party. Already done.
-2. **Playback** — a silenced speaker is not heard in an exported recording.
+The mix is encoded per request rather than stored, so a change to how the floor
+is applied takes effect for past recordings too. That is deliberate — a cached
+mix would keep leaking a silenced remark after the bug that let it through was
+fixed. If encoding ever becomes too slow to do on demand, cache it keyed by
+something that changes when the gating logic does.
 
-What sits in S3 in between is not a constraint. The bucket is server-only,
-stems are never exposed to a client, and the exclusion is a property of the
-encode rather than of the capture. Earlier drafts of this note treated capture
-as the privacy boundary and proposed stopping a stem for the duration of a
-claim; that is unnecessary, and it would have cost audio at every segment
-boundary while an egress reconnected.
-
-### Remaining
-
-Step 3 only. Steps 1 and 2 are done: capture is per participant, and the floor
-timeline is persisted with every recording. Until the encoder applies it,
-**exports do not honour the floor** — and there is now no mixed file at all, so
-export cannot work by simply handing over an object.
-
-### Design
-
-1. ~~**One stem per participant, continuous.**~~ Done. Replace
-   `startRoomCompositeEgress` with per-track egress. Subscription-based
-   enforcement never unpublishes anyone, so track SIDs are stable and each stem
-   runs unbroken for the whole recording — no boundary clipping, in particular
-   none in the floor-holder's protected speech.
-2. ~~**Persist the floor timeline**~~ Done — `floor_timeline`, offsets into the
-   recorded audio. Originally specified as: persist with the recording: who was silenced, from
-   when to when, as offsets from the recording's start. A JSON column, as
-   `segment_keys` already is. The reducer knows this; it simply is not stored.
-3. **Encode on export.** The server fetches the stems, applies the timeline as
-   per-stem volume envelopes in ffmpeg, mixes, and returns one file. Users never
-   see a stem.
-
-User-triggered pause and resume keep segmenting as they do now; that is
-orthogonal, and each segment carries its own offset.
-
-### Consequences
-
-- Export becomes a mixing job rather than concatenation. Export is unbuilt, so
-  this is work that was coming anyway.
-- Storage roughly doubles. Negligible at this scale.
-- Per-speaker stems become available, which is generally useful.
-- The correctness of the exclusion now rests on the encoder applying the
-  timeline. That wants a test which asserts silence in the *output* across a
-  silenced window — measuring the exported file, the way live audio was
-  verified.
+`ffmpeg` must be on the server's PATH. That is a deployment requirement the
+Lightsail box does not yet satisfy.
 
 ---
 

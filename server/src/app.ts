@@ -3,9 +3,11 @@ import websocket from '@fastify/websocket';
 import type { HomeView, PublicAccount } from '../../core/protocol';
 import { Accounts } from './accounts';
 import { openDb, type AccountRow, type Db } from './db';
+import { encodeRecording } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { SessionRegistry } from './sessions';
+import type { RecordingStore } from './storage';
 import { createHomeNotifier, registerWebsocket } from './ws';
 
 export interface BuildOptions {
@@ -23,6 +25,8 @@ export interface BuildOptions {
   media?: MediaServer;
   /** The wss:// URL clients should connect to. Sent alongside a join token. */
   mediaUrl?: string;
+  /** Read access to the recordings bucket, for encoding an export. */
+  store?: RecordingStore;
   /** Grace period before an ended session's audio room is torn down. */
   roomCloseGraceMs?: number;
   now?: () => number;
@@ -243,6 +247,69 @@ export function buildApp(options: BuildOptions = {}): App {
       });
     }
     return { token: result.token, url: options.mediaUrl };
+  });
+
+  /**
+   * The finished recording, with the floor applied.
+   *
+   * Encoded per request rather than stored: the stems are the durable artefact
+   * and the mix is derived from them, so a change to how the floor is applied
+   * takes effect for past recordings too rather than leaving a stale file that
+   * lets a silenced remark through.
+   */
+  fastify.get('/recordings/:id/export', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    const row = db
+      .prepare('SELECT * FROM recordings WHERE id = ?')
+      .get(id) as
+      | {
+          initiator_id: string;
+          invitee_id: string;
+          stems: string | null;
+          floor_timeline: string | null;
+        }
+      | undefined;
+
+    // Absent and not-yours are the same answer: knowing a recording exists is
+    // itself something only its participants should learn.
+    if (
+      !row ||
+      (row.initiator_id !== account.id && row.invitee_id !== account.id)
+    ) {
+      return reply.code(404).send({ error: 'No such recording.' });
+    }
+    if (!options.store) {
+      return reply.code(503).send({ error: 'Recording storage is not configured.' });
+    }
+
+    const stems = row.stems ? JSON.parse(row.stems) : {};
+    const timeline = row.floor_timeline ? JSON.parse(row.floor_timeline) : [];
+    if (Object.keys(stems).length === 0) {
+      // Recorded before per-participant capture existed, so the floor cannot be
+      // applied to it. Refusing beats handing over audio that may contain
+      // remarks the other party was not permitted to hear.
+      return reply.code(409).send({
+        error: 'This recording predates per-speaker capture and cannot be exported.',
+        code: 'legacy_recording',
+      });
+    }
+
+    try {
+      const { data, contentType } = await encodeRecording(
+        { stems, timeline },
+        (key) => options.store!.get(key)
+      );
+      return reply
+        .header('content-type', contentType)
+        .header('content-disposition', `attachment; filename="${id}.ogg"`)
+        .send(data);
+    } catch (error) {
+      request.log.error({ err: error, recording: id }, 'export failed');
+      return reply.code(500).send({ error: 'Could not prepare the recording.' });
+    }
   });
 
   fastify.get('/healthz', async () => ({

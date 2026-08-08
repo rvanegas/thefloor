@@ -1,6 +1,7 @@
 import { buildApp } from './app';
 import { ConsoleMailer, SesMailer, type Mailer } from './mail';
 import { LiveKitMediaServer, type MediaServer } from './media';
+import { S3RecordingStore } from './storage';
 
 // Node's own .env loader — no dependency. Resolved against the working
 // directory, which npm scripts set to this package. A missing file is not an
@@ -84,12 +85,22 @@ const media: MediaServer | undefined =
       })
     : undefined;
 
+/**
+ * Reading is a separate privilege from writing. The key above travels to
+ * LiveKit and is PutObject-only; this uses the server's own credential chain,
+ * so a leak of the third-party key cannot retrieve anyone's conversations.
+ */
+const store = s3Bucket
+  ? new S3RecordingStore(s3Bucket, process.env.RECORDINGS_REGION ?? mailRegion)
+  : undefined;
+
 const app = buildApp({
   dbPath,
   authBypass,
   mailer,
   media,
   mediaUrl: liveKitUrl,
+  store,
   logger: true,
 });
 app.sessions.start();
