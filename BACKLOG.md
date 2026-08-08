@@ -50,29 +50,50 @@ addressed the cause.
 The plain `audio` background mode is sufficient for this. Something about our
 audio session is not satisfying it.
 
-### Candidates
+### Attempted: removing the duplicate audio session owner (2026-08-08)
 
-Background audio needs three things: category `playAndRecord`, the session
-**active**, and audio actually flowing. The third holds — the phone was
-publishing. So one of the first two is not.
+`registerGlobals()` installs LiveKit's automatic management, which its own
+documentation says configures and activates the session natively as the audio
+engine changes state — and `useSessionAudio` was calling
+`AudioSession.startAudioSession()` and `stopAudioSession()` by hand as well.
+Two owners of one AVAudioSession, with `deactivateOnStop` defaulting to true.
+The manual calls are gone.
 
-1. **Two owners of the audio session.** `registerGlobals()` installs LiveKit's
-   automatic management, whose own documentation says the session is
-   "configured and activated natively as the audio engine changes state, with
-   no JavaScript involvement per transition" — and `useSessionAudio` then calls
-   `AudioSession.startAudioSession()` manually as well. Two things activating
-   and deactivating one session, with `deactivateOnStop` defaulting to true.
-   Cheapest to test: drop the manual calls and rely on automatic management.
-2. **The category is wrong.** If automatic management is not landing on
-   `playAndRecord`, background execution would not be granted. Fix by passing
-   an explicit `IOSAudioSessionPolicy` to `setupIOSAudioManagement`.
-3. **Instrument it.** Console.app against the device during a background
-   transition will say what the session's category and active state actually
-   are, and why the app was suspended. Slower, but it ends the guessing —
-   which by this point has cost more than instrumenting would have.
+**It helped, and it is not the cause.** Measured on a real device:
 
-Try them in that order. Each needs a rebuild and a test on a real device;
-a simulator establishes nothing here.
+| | Before | After |
+| --- | --- | --- |
+| Survives backgrounding | seconds | roughly 30-60s |
+| Websocket close | half-open, unnoticed | clean, `LEAVE` fires |
+| Recovers on foreground | never — stayed stranded | fully, audio returns |
+
+Worth keeping: one owner is correct regardless, and it fixed the stranding.
+But the call still does not persist, which was the goal.
+
+### What the timing suggests
+
+An app with no valid background mode gets roughly thirty seconds of grace
+before iOS suspends it. Surviving about that long and then dying is the
+signature of *not* being recognised as playing audio — were the `audio`
+background mode being honoured, it would run indefinitely rather than expiring
+on schedule.
+
+So the session is very likely not in a state that qualifies: wrong category,
+or not active at the moment iOS checks.
+
+### Next
+
+**Instrument, do not guess.** Console.app on the Mac, filtered to the device,
+during a background transition — it reports the AVAudioSession category and
+active state, and why the process was suspended. Two attempts have now been
+spent on plausible-sounding causes; the measurement is cheaper than a third.
+
+Only if that is inconclusive: pass an explicit `IOSAudioSessionPolicy` with
+`playAndRecord` to `setupIOSAudioManagement`, rather than trusting the default
+to land there.
+
+Every attempt needs a rebuild and a real device; a simulator establishes
+nothing here.
 
 ### Downstream defects, worth fixing regardless
 
