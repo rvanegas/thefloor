@@ -134,7 +134,7 @@ export function SessionView({
           ) : null}
           {app.status !== 'open' ? (
             <Text style={styles.warning}>
-              Reconnecting — you are still in the session.
+              Reconnecting — a dropped connection counts as leaving.
             </Text>
           ) : null}
         </View>

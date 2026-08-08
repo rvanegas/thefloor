@@ -176,16 +176,17 @@ export function registerWebsocket(deps: {
     });
 
     socket.on('close', () => {
-      // Only the socket goes; presence does not. A phone that backgrounds to
-      // check a message, or drops a bar of signal, has not left the
-      // conversation, and treating it as though it had ended sessions out from
-      // under people constantly. Presence is now explicit: you are in until you
-      // leave or end.
-      //
-      // A holder who vanishes therefore keeps the floor, but only until the
-      // three-minute expiry releases it — the mechanic's own bound does the
-      // work that disconnect-detection used to.
       connections.delete(connection);
+      // A dropped connection is a leave: the spec treats the two identically,
+      // so a holder's floor claim is force-released either way.
+      //
+      // Note this fires for a genuine loss of connectivity, which is what the
+      // rule is for. Backgrounding should not reach here at all: the app holds
+      // an active audio session, iOS keeps the process alive to run it, and
+      // this socket lives in that same process.
+      for (const sessionId of connection.watchingSessions) {
+        sessions.dispatch(sessionId, connection.userId, { type: 'LEAVE' });
+      }
     });
   });
 }
