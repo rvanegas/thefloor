@@ -122,8 +122,9 @@ Two things a rehydration would have to decide, neither obvious:
 
 ## An invite cannot reach anyone whose app is closed
 
-**Status:** deferred by the spec. Arguably the largest thing standing between
-this and something usable.
+**Status:** deliberately deferred (decision, 2026-08-08). In-app only for now,
+to keep the development loop short. Not a defect, and the spec stands as
+written.
 
 The spec is explicit (§Session Lifecycle):
 
@@ -135,16 +136,16 @@ That is implemented faithfully: the invite goes over the websocket and renders
 as a banner on Home. If the app is not running, the socket does not exist and
 nothing arrives.
 
-### Why it matters more than the wording suggests
+### What it costs while deferred
 
-Both parties must already have the app open for a session to begin. In practice
-that means arranging by some other means to open the app — which is most of the
-work a calling app is supposed to save you. Someone expecting the app to behave
-like a phone will conclude it is broken; the first thing anyone looks for is a
-notification on the lock screen.
+Both parties must already have the app open for a session to begin, so testing
+means arranging that by some other means. An empty session self-destructs after
+a minute, so an initiator who starts one and waits gets nothing unless the
+other party happens to be looking.
 
-An empty session also self-destructs after a minute, so an initiator who starts
-one and waits gets nothing unless the other party happens to be looking.
+Worth knowing before showing this to anyone who has not been told: the first
+thing a person does is check the lock screen, and finding nothing there reads
+as the app being broken rather than as a deliberate scope decision.
 
 ### What it needs
 
@@ -158,11 +159,14 @@ one and waits gets nothing unless the other party happens to be looking.
 - `voip` in `UIBackgroundModes`, currently declared and unused, becomes load
   bearing again if PushKit is adopted.
 
-### The cheaper half
+### When it is picked up
 
 A plain APNs alert — a notification you tap to open the app into the session —
 needs no CallKit or PushKit and covers most of the value. Full call semantics
-(ringing, answering from the lock screen) is the larger version and can wait.
+(ringing, answering from the lock screen) is the larger version.
+
+Nothing about the in-app path needs undoing to add either: the invite already
+exists as a server-side event, and a push would be a second delivery of it.
 
 ---
 
