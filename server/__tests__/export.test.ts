@@ -310,19 +310,4 @@ describe('the export endpoint', () => {
     expect(response.statusCode).toBe(401);
   });
 
-  it('refuses a recording captured before per-speaker stems existed', async () => {
-    // The floor cannot be applied to a mix, so handing one over could release
-    // remarks the other party was never permitted to hear.
-    const alice = await signIn('alice@example.com', 'Alice');
-    const bob = await signIn('bob@example.com', 'Bob');
-    fileRecording('rec_old', alice.account.id, bob.account.id, {});
-
-    const response = await app.fastify.inject({
-      method: 'GET',
-      url: '/recordings/rec_old/export',
-      headers: { authorization: `Bearer ${alice.token}` },
-    });
-    expect(response.statusCode).toBe(409);
-    expect(response.json().code).toBe('legacy_recording');
-  });
 });

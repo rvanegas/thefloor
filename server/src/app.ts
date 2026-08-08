@@ -287,15 +287,6 @@ export function buildApp(options: BuildOptions = {}): App {
 
     const stems = row.stems ? JSON.parse(row.stems) : {};
     const timeline = row.floor_timeline ? JSON.parse(row.floor_timeline) : [];
-    if (Object.keys(stems).length === 0) {
-      // Recorded before per-participant capture existed, so the floor cannot be
-      // applied to it. Refusing beats handing over audio that may contain
-      // remarks the other party was not permitted to hear.
-      return reply.code(409).send({
-        error: 'This recording predates per-speaker capture and cannot be exported.',
-        code: 'legacy_recording',
-      });
-    }
 
     try {
       const { data, contentType } = await encodeRecording(

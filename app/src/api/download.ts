@@ -8,9 +8,8 @@ import { ApiError } from './http';
  *
  * The legacy FileSystem entry point is used deliberately: it reports the HTTP
  * status, and the newer File API does not. Without it a refusal — a recording
- * that is not yours, or one captured before the floor could be applied — would
- * be written to disk as a JSON error and offered to the user as though it were
- * audio.
+ * that is not yours, say — would be written to disk as a JSON error and offered
+ * to the user as though it were audio.
  */
 export async function exportRecording(
   token: string,
