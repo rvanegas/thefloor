@@ -6,6 +6,79 @@ what *has* been built.
 
 ---
 
+## A call does not survive backgrounding the app
+
+**Status:** measured on a real device 2026-08-07. Not started. The largest gap
+between this and an ordinary VoIP app.
+
+### What happens
+
+Background the app on an iPhone mid-session and the phone leaves the LiveKit
+room within seconds. It does not rejoin on its own, and did not recover even
+after returning to the foreground. Zoom and FaceTime keep a call running in the
+background; this does not.
+
+Measured with `server/dev-session.mjs` and `server/dev-guest.mjs` (both
+gitignored) against a real iPhone, not a simulator.
+
+### What is already configured
+
+- `UIBackgroundModes: ["audio", "voip"]` in `app.json`.
+- `registerGlobals()` installs LiveKit's automatic iOS audio-session management
+  by default, which configures and activates the AVAudioSession natively as the
+  audio engine changes state.
+- `useSessionAudio` calls `AudioSession.startAudioSession()` before connecting.
+
+So the obvious configuration is present, and it is not enough.
+
+### What was ruled out
+
+That iOS suspended the app for want of anything to play. The phone was
+publishing its own microphone at the time — capturing requires an active audio
+session, and the `audio` background mode covers recording as much as playback.
+The counterpart being a silent simulator was therefore irrelevant.
+
+### Candidates
+
+1. **AVAudioSession category or activation.** Check what is actually applied on
+   the device rather than what the API promises — the device console log during
+   a background transition would say. Cheaper to investigate; may be nothing.
+2. **CallKit.** How VoIP apps get iOS to treat a session as a genuine call
+   rather than an app that happens to be making noise. Almost certainly the
+   real answer, and a substantial piece of work: call lifecycle, the system call
+   UI, and PushKit if incoming calls should wake a closed app.
+
+Note `voip` is currently declared in `UIBackgroundModes` without PushKit. It is
+doing nothing, and App Review has been known to object to it. Either use it or
+drop it.
+
+### Downstream defects, worth fixing regardless
+
+These surfaced while investigating and are real on their own:
+
+1. **A closing connection can evict a user who has already reconnected.** The
+   server treats every socket close as authoritative without checking whether
+   that connection is still the user's current one. On foregrounding, the
+   client reconnected and re-entered, then the stale socket's close fired
+   `LEAVE` and removed them. This is what stranded the phone in a session it
+   was not in.
+2. **No heartbeat on the app's websocket.** A half-open socket goes unnoticed
+   indefinitely. The server reported the phone present for a full thirty
+   seconds while it could neither speak nor hear, and only noticed when the OS
+   finally tore the socket down.
+3. **"Audio connected" can be stale.** When the audio hook tears down, its
+   cleanup cannot update state because the effect has already been cancelled,
+   so the last status sticks. The screen asserted audio that was not there.
+
+### The general lesson
+
+Presence is derived from the app's websocket, and participation is what happens
+in the LiveKit room. Tonight showed those two can disagree for a long time in
+either direction. Whatever fixes the background case, presence probably ought
+to follow room membership — that is exactly "speaking or hearing".
+
+---
+
 ## Live sessions do not survive a server restart
 
 **Status:** known, not scheduled. Becomes urgent on deployment.
@@ -83,6 +156,10 @@ gone: every identifier the app now supports has real delivery, and local
 development can read codes off the server console by leaving `MAIL_FROM` unset
 (`ConsoleMailer`). The bypass should be deleted rather than left switched off —
 see gap #7 in `EDGECASES.md`.
+
+### Multiple auth per user
+
+Signing in as a user who is already signed in elsewhere, should sign the user out of other location.
 
 ### Multiple Users
 
