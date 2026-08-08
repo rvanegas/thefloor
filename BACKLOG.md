@@ -120,6 +120,52 @@ Two things a rehydration would have to decide, neither obvious:
 
 ---
 
+## An invite cannot reach anyone whose app is closed
+
+**Status:** deferred by the spec. Arguably the largest thing standing between
+this and something usable.
+
+The spec is explicit (§Session Lifecycle):
+
+> sends an **in-app live invite notification** to that contact — visible only
+> if their app is open (foreground or backgrounded but running); there is no
+> push notification / OS-level delivery to a closed app in this version.
+
+That is implemented faithfully: the invite goes over the websocket and renders
+as a banner on Home. If the app is not running, the socket does not exist and
+nothing arrives.
+
+### Why it matters more than the wording suggests
+
+Both parties must already have the app open for a session to begin. In practice
+that means arranging by some other means to open the app — which is most of the
+work a calling app is supposed to save you. Someone expecting the app to behave
+like a phone will conclude it is broken; the first thing anyone looks for is a
+notification on the lock screen.
+
+An empty session also self-destructs after a minute, so an initiator who starts
+one and waits gets nothing unless the other party happens to be looking.
+
+### What it needs
+
+- **APNs**, and a registry of device tokens per account.
+- **A push on session creation**, to the invitee, deep-linking to the session.
+- An **Apple Developer account** — already needed for TestFlight.
+- For a genuinely call-like experience, **PushKit** to wake a closed app, which
+  in turn requires **CallKit** — Apple requires a PushKit VoIP push to report an
+  incoming call. Note CallKit was ruled out for background *audio* (see above);
+  this is the other thing it is for, and here it would be the right tool.
+- `voip` in `UIBackgroundModes`, currently declared and unused, becomes load
+  bearing again if PushKit is adopted.
+
+### The cheaper half
+
+A plain APNs alert — a notification you tap to open the app into the session —
+needs no CallKit or PushKit and covers most of the value. Full call semantics
+(ringing, answering from the lock screen) is the larger version and can wait.
+
+---
+
 ## Two-party consent has not been reviewed
 
 **Status:** unanswered. A gate on letting anyone outside this machine record.
