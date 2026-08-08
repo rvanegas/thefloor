@@ -150,7 +150,21 @@ Found while writing this list. These are real, not hypothetical.
    `miro@example.com` is required in full. Defensible for a
    phone-number/email lookup — you shouldn't be able to enumerate strangers by
    prefix — but there's no feedback distinguishing "typo" from "no such user."
-7. **`authBypass` must be deleted, not merely switched off.** Email delivery now
+7. **Deliberate divergence from the spec: a dropped connection is no longer a
+   leave.** §Session Lifecycle says "Reconnection / dropped connections are
+   treated identically to a deliberate leave". They no longer are. Backgrounding
+   the app to read a message dropped the websocket, which removed the user, and
+   sessions ended out from under people constantly. Presence is now explicit:
+   you are in until you leave or end.
+
+   The consequence to watch is that a participant who genuinely vanishes stays
+   present, so the empty-session timer never runs for them and the session
+   lingers until someone ends it. A holder who vanishes keeps the floor, but
+   only until the three-minute expiry — the mechanic's own bound does the work
+   disconnect-detection used to.
+
+8. ~~**`authBypass` must be deleted, not merely switched off.**~~ Done — the
+   flag, its branches, and its tests are gone. Originally noted as: Email delivery now
    works, so the bypass is only load-bearing for phone identifiers. Once SMS
    lands, the flag and the `authBypass` branches it feeds in `server/src/app.ts`
    have to come out of the code. A bypass that survives because a boolean

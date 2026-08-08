@@ -43,10 +43,13 @@ describe('identifier routing', () => {
     expect(isEmailAddress(identifier)).toBe(expected);
   });
 
-  it('says plainly that SMS is not available rather than silently not sending', async () => {
+  it('rejects anything that is not an email, without mentioning phones', async () => {
+    // Sign-in is email-only and the interface says so nowhere else; an error
+    // that raised the possibility of texting would be the one place it leaked.
     const response = await requestCode('+15550000001');
     expect(response.statusCode).toBe(400);
-    expect(response.json().code).toBe('sms_unavailable');
+    expect(response.json().code).toBe('invalid_identifier');
+    expect(response.payload.toLowerCase()).not.toMatch(/sms|text message|phone/);
     expect(mailer.sent).toHaveLength(0);
   });
 });

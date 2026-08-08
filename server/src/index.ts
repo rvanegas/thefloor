@@ -18,27 +18,6 @@ const host = process.env.HOST ?? '0.0.0.0';
 const dbPath = process.env.DB_PATH ?? './thefloor.db';
 
 /**
- * Accepts any code from anyone, as whoever they claim to be. It exists only
- * because delivery is not yet available for every identifier — sign-in would
- * otherwise be impossible rather than merely insecure.
- *
- * This is not a weakened check; it is the absence of one. Delete it, and the
- * `authBypass` branches it feeds, once every identifier has a transport.
- */
-const authBypass = process.env.AUTH_DEV_BYPASS === 'true';
-
-// A config file travelling from a laptop to a server is the realistic way this
-// ends up somewhere it must never be, so refuse to start rather than serve.
-if (authBypass && process.env.NODE_ENV === 'production') {
-  console.error(
-    'FATAL: AUTH_DEV_BYPASS is set with NODE_ENV=production.\n' +
-      'It accepts any code as valid, which means anyone can sign in as anyone.\n' +
-      'Refusing to start.'
-  );
-  process.exit(1);
-}
-
-/**
  * MAIL_FROM must be an address on an SES-verified identity. Without it, codes
  * are printed locally instead of sent, which is fine on a laptop and useless
  * anywhere else.
@@ -96,7 +75,6 @@ const store = s3Bucket
 
 const app = buildApp({
   dbPath,
-  authBypass,
   mailer,
   media,
   mediaUrl: liveKitUrl,
@@ -111,8 +89,7 @@ app.fastify
     app.fastify.log.info(
       {
         dbPath,
-        authBypass,
-        mail: mailFrom ? `ses:${mailFrom}` : 'console',
+              mail: mailFrom ? `ses:${mailFrom}` : 'console',
         audio: media ? liveKitUrl : 'none',
         recordings: storage ? `s3://${storage.bucket}` : 'not configured',
       },
@@ -132,19 +109,6 @@ app.fastify
       app.fastify.log.warn(
         'MAIL_FROM is unset — one-time codes are printed to this console, not emailed.'
       );
-    }
-    if (authBypass) {
-      app.fastify.log.warn(
-        { host, port },
-        'AUTHENTICATION IS DISABLED (AUTH_DEV_BYPASS). Any code signs in as any identifier. ' +
-          'Do not expose this to a network you do not control.'
-      );
-      if (host !== '127.0.0.1' && host !== 'localhost') {
-        app.fastify.log.warn(
-          { host },
-          'Bypass is on and the server is bound beyond loopback — anyone who can reach this port can sign in as anyone. Set HOST=127.0.0.1 unless you intend that.'
-        );
-      }
     }
   })
   .catch((error) => {

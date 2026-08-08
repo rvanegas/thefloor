@@ -244,7 +244,11 @@ describe('websocket', () => {
     m.close();
   });
 
-  it('treats a dropped connection as a leave, releasing the floor', async () => {
+  it('keeps a dropped party in the session rather than removing them', async () => {
+    // Backgrounding to read a message is not leaving a conversation. Treating
+    // it as a leave ended sessions out from under people; presence is now
+    // explicit, and a holder who vanishes is bounded by the three-minute
+    // expiry rather than by disconnect detection.
     const { alice, bob, sessionId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
@@ -257,16 +261,13 @@ describe('websocket', () => {
     b.send({ type: 'session.action', sessionId, action: { type: 'CLAIM_FLOOR' } });
     await a.next('session', (m) => m.view.session.floor.holder === bob.account.id);
 
-    // Bob's connection drops while he holds the floor. Per the spec this is
-    // identical to a deliberate leave, so the claim is force-released.
     b.close();
-    await a.next(
-      'session',
-      (m) =>
-        m.view.session.floor.holder === null &&
-        !m.view.session.present.includes(bob.account.id)
-    );
-    expect(app.sessions.get(sessionId)!.floor.lastClaimant).toBe(bob.account.id);
+    await new Promise((r) => setTimeout(r, 300));
+
+    const session = app.sessions.get(sessionId)!;
+    expect(session.present).toContain(bob.account.id);
+    expect(session.floor.holder).toBe(bob.account.id);
     a.close();
   });
+
 });

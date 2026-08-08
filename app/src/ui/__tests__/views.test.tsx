@@ -277,11 +277,11 @@ describe('Session', () => {
     act(() => tree.unmount());
   });
 
-  it('warns that a dropped connection counts as leaving', () => {
+  it('reassures that a dropped connection has not ended the session', () => {
     showSession(sessionOf());
     mockApp.status = 'connecting';
     const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
-    expect(textOf(tree)).toContain('dropped connection counts as leaving');
+    expect(textOf(tree)).toContain('still in the session');
     act(() => tree.unmount());
   });
 

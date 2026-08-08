@@ -8,7 +8,6 @@ import {
   View,
 } from 'react-native';
 import { API_URL, describeMissingConfig } from '../api/config';
-import { ApiError } from '../api/http';
 import { useApp } from '../state/AppProvider';
 import { Button, Field } from './components';
 import { colors, spacing, type } from './theme';
@@ -41,13 +40,7 @@ export function AuthView() {
       await requestCode(identifier.trim());
       setStep('verify');
     } catch (e) {
-      setError(
-        e instanceof ApiError && e.code === 'sms_unavailable'
-          ? 'Text messages are not supported — use an email address.'
-          : e instanceof Error
-            ? e.message
-            : String(e)
-      );
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }

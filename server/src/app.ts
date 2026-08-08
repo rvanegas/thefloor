@@ -12,13 +12,6 @@ import { createHomeNotifier, registerWebsocket } from './ws';
 
 export interface BuildOptions {
   dbPath?: string;
-  /**
-   * Accepts ANY code as valid, signing in whoever is asked for. This exists
-   * because there is no SMS or email transport yet, so no real user could
-   * otherwise receive a code. It is a complete authentication bypass — anyone
-   * can become anyone — and is refused outright in production (see index.ts).
-   */
-  authBypass?: boolean;
   /** Delivers one-time codes. Without one, only the bypass can sign anyone in. */
   mailer?: Mailer;
   /** Carries audio and enforces the floor as an actual mute. */
@@ -103,18 +96,14 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(400).send({ error: 'identifier is required' });
     }
 
-    if (options.authBypass) {
-      // Nothing is sent and nothing is checked; any code will be accepted.
-      return { sent: true, bypass: true };
-    }
-
+    // Sign-in is by email. The spec also allows a phone number and the backlog
+    // keeps the design for it, but nothing user-facing hints at it: an
+    // unavailable option is worse than an absent one, because someone will try
+    // it and conclude the app is broken.
     if (!isEmailAddress(identifier)) {
-      // Phone numbers are a real identifier for this app, but nothing can
-      // deliver to one yet. Saying so plainly beats accepting the request and
-      // silently never sending.
       return reply.code(400).send({
-        error: 'Text messages are not available yet — use an email address.',
-        code: 'sms_unavailable',
+        error: 'Enter a valid email address.',
+        code: 'invalid_identifier',
       });
     }
 
@@ -148,9 +137,12 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(400).send({ error: 'identifier and code are required' });
     }
 
-    const result = options.authBypass
-      ? accounts.establish(body.identifier, body.displayName, now())
-      : accounts.verifyCode(body.identifier, body.code, body.displayName, now());
+    const result = accounts.verifyCode(
+      body.identifier,
+      body.code,
+      body.displayName,
+      now()
+    );
     // One message for every failure mode, so this cannot be used to discover
     // which identifiers have accounts.
     if (!result) return reply.code(401).send({ error: 'Invalid or expired code.' });
@@ -305,7 +297,6 @@ export function buildApp(options: BuildOptions = {}): App {
 
   fastify.get('/healthz', async () => ({
     ok: true,
-    authBypass: options.authBypass === true,
     audio: options.media ? 'livekit' : 'none',
   }));
 

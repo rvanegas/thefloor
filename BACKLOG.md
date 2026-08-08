@@ -6,6 +6,35 @@ what *has* been built.
 
 ---
 
+## Live sessions do not survive a server restart
+
+**Status:** known, not scheduled. Becomes urgent on deployment.
+
+`SessionRegistry` holds live sessions in memory and writes only ended ones to
+SQLite. Restarting the server therefore drops every conversation in progress:
+participants keep their websockets briefly, then find the session gone.
+
+The trade was deliberate. Sessions are short-lived by construction, and keeping
+the tick loop in memory avoids writing to disk every 500ms. It costs nothing
+while the server is restarted by hand between tests.
+
+It stops being free once the server is deployed, because then a routine deploy
+drops live calls. Two directions:
+
+1. **Persist on transition.** Write the session row whenever the reducer
+   produces a new state, and rehydrate on boot. Simple, and the write rate is
+   bounded by how often people actually act — the 500ms tick only matters when
+   it changes something.
+2. **Drain before exit.** Refuse new sessions, wait for existing ones to end,
+   then stop. Avoids persistence entirely but makes deploys slow and unbounded,
+   since a session can legitimately run for hours.
+
+The first is probably right. Note that presence is now explicit — a dropped
+socket no longer removes anyone — so a rehydrated session would also need to
+decide what to do about participants whose clients never come back.
+
+---
+
 ## SMS authentication — shelved indefinitely
 
 **Status:** shelved 2026-08-04. Not scheduled.
@@ -54,3 +83,13 @@ gone: every identifier the app now supports has real delivery, and local
 development can read codes off the server console by leaving `MAIL_FROM` unset
 (`ConsoleMailer`). The bypass should be deleted rather than left switched off —
 see gap #7 in `EDGECASES.md`.
+
+### Multiple Users
+
+Currently sessions allow for only two speakers. Let us plan to expand to this to multiple users.
+
+To begin with, the session does not even currently display who one is speaking with. Let's begin by displaying this.
+
+Then, the logic of claiming the floor must be generalized to multiple users.
+
+
