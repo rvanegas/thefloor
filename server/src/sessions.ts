@@ -36,10 +36,19 @@ export const ROOM_CLOSE_GRACE_MS = 5_000;
  */
 export class SessionRegistry {
   private sessions = new Map<string, SessionState>();
-  /** Live egress handle per session, present only while capture is running. */
-  private capturing = new Map<string, string>();
-  /** Object keys written so far, in order, per session. */
-  private segments = new Map<string, string[]>();
+  /** Live egress handles per session, one per participant, while capturing. */
+  private capturing = new Map<string, Array<{ identity: string; handle: string }>>();
+  /** Object keys written so far, in order, per participant, per session. */
+  private segments = new Map<string, Map<string, string[]>>();
+  /**
+   * When each participant was silenced, as offsets into the *recorded* audio
+   * rather than wall clock — so paused time is already excluded and the
+   * encoder can gate on these directly. An open window has `toMs` null.
+   */
+  private floorWindows = new Map<
+    string,
+    Array<{ identity: string; fromMs: number; toMs: number | null }>
+  >();
   private listeners = new Set<(sessionIds: string[]) => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -234,6 +243,7 @@ export class SessionRegistry {
     this.sessions.set(after.id, after);
     this.applyFloorToMedia(before, after);
     this.applyRecordingToMedia(before, after);
+    this.trackFloorWindows(before, after);
     if (before.status === 'active' && after.status === 'ended') {
       this.persistEnded(after);
       // A backstop, not the mechanism: participants leave on their own once
@@ -300,34 +310,83 @@ export class SessionRegistry {
     const isCapturing = this.capturing.has(after.id);
 
     if (shouldCapture && !isCapturing) {
-      const existing = this.segments.get(after.id) ?? [];
-      const key = `${after.id}/${String(existing.length + 1).padStart(3, '0')}.ogg`;
-      // Reserved before the call returns so a second transition cannot pick the
-      // same index, and so a failed start still shows up as a gap rather than
-      // silently reusing a key.
-      this.segments.set(after.id, [...existing, key]);
-      this.run(async () => {
-        const handle = await this.media!.startRecording({
-          room: after.id,
-          key,
-        });
-        // The session may have moved on while the call was in flight.
-        if (this.sessions.get(after.id)?.recording.status === 'recording') {
-          this.capturing.set(after.id, handle);
-        } else {
-          await this.media!.stopRecording(handle);
-        }
-      }, `startRecording ${key}`);
+      const perParticipant = this.segments.get(after.id) ?? new Map();
+      this.segments.set(after.id, perParticipant);
+      const started: Array<{ identity: string; handle: string }> = [];
+      this.capturing.set(after.id, started);
+
+      for (const identity of [after.initiator, after.invitee]) {
+        const previous = perParticipant.get(identity) ?? [];
+        const index = String(previous.length + 1).padStart(3, '0');
+        const key = `${after.id}/${identity}-${index}.ogg`;
+        // Reserved before the call returns so a second transition cannot pick
+        // the same index, and so a failed start leaves a visible gap rather
+        // than silently reusing a key.
+        perParticipant.set(identity, [...previous, key]);
+
+        this.run(async () => {
+          const handle = await this.media!.startRecording({
+            room: after.id,
+            identity,
+            key,
+          });
+          // The recording may have moved on while the call was in flight.
+          if (
+            this.sessions.get(after.id)?.recording.status === 'recording' &&
+            this.capturing.get(after.id) === started
+          ) {
+            started.push({ identity, handle });
+          } else {
+            await this.media!.stopRecording(handle);
+          }
+        }, `startRecording ${key}`);
+      }
       return;
     }
 
     if (!shouldCapture && isCapturing) {
-      const handle = this.capturing.get(after.id)!;
+      const handles = this.capturing.get(after.id)!;
       this.capturing.delete(after.id);
-      this.run(
-        () => this.media?.stopRecording(handle),
-        `stopRecording ${after.id}`
-      );
+      for (const { identity, handle } of handles) {
+        this.run(
+          () => this.media?.stopRecording(handle),
+          `stopRecording ${after.id}/${identity}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Keeps the floor timeline that the encoder gates on. Offsets are taken from
+   * `recordedMs`, so they are positions in the recorded audio rather than in
+   * wall clock — paused time is already excluded, which is what lets the
+   * encoder apply them to concatenated segments without further arithmetic.
+   *
+   * Runs on both floor and recording transitions, because a claim can begin
+   * before a recording does and can outlast it.
+   */
+  private trackFloorWindows(before: SessionState, after: SessionState): void {
+    const wasRecording = before.recording.status === 'recording';
+    const isRecording = after.recording.status === 'recording';
+    if (!wasRecording && !isRecording) return;
+
+    const at = recordedMs(after.recording, this.now());
+    const windows = this.floorWindows.get(after.id) ?? [];
+    this.floorWindows.set(after.id, windows);
+    const open = windows.find((w) => w.toMs === null);
+
+    // Who is silenced now: the party who does not hold the floor, while
+    // someone does and the recording is running.
+    const silenced =
+      isRecording && after.floor.holder
+        ? otherParty(after, after.floor.holder)
+        : null;
+
+    if (open && open.identity !== silenced) {
+      open.toMs = at;
+    }
+    if (silenced && !windows.some((w) => w.toMs === null)) {
+      windows.push({ identity: silenced, fromMs: at, toMs: null });
     }
   }
 
@@ -378,13 +437,24 @@ export class SessionRegistry {
     const duration = recordedMs(session.recording, session.endedAt ?? this.now());
     if (session.recording.status !== 'stopped' || duration <= 0) return;
 
-    const keys = this.segments.get(session.id) ?? [];
+    const perParticipant = this.segments.get(session.id) ?? new Map();
     this.segments.delete(session.id);
+    const stems = Object.fromEntries(perParticipant);
+    const flat = Object.values(stems).flat() as string[];
+
+    // A claim still open when the recording ended runs to the end of it.
+    const windows = this.floorWindows.get(session.id) ?? [];
+    this.floorWindows.delete(session.id);
+    for (const window of windows) {
+      if (window.toMs === null) window.toMs = duration;
+    }
+
     this.db
       .prepare(
         `INSERT OR IGNORE INTO recordings
-           (id, session_id, initiator_id, invitee_id, started_at, duration_ms, s3_key, segment_keys)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+           (id, session_id, initiator_id, invitee_id, started_at, duration_ms,
+            s3_key, segment_keys, stems, floor_timeline)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         newId('rec'),
@@ -393,8 +463,10 @@ export class SessionRegistry {
         session.invitee,
         session.recording.startedAt ?? session.createdAt,
         duration,
-        keys[0] ?? '',
-        JSON.stringify(keys)
+        flat[0] ?? '',
+        JSON.stringify(flat),
+        JSON.stringify(stems),
+        JSON.stringify(windows)
       );
   }
 }

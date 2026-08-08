@@ -51,16 +51,23 @@ export interface MediaServer {
   closeRoom(room: string): Promise<void>;
 
   /**
-   * Begins capturing the room's mixed audio to `key`. Returns a handle for
+   * Begins capturing one participant's audio to `key`. Returns a handle for
    * stopping it.
    *
-   * There is no pause in the underlying API, and pausing must genuinely stop
-   * capture rather than record-then-trim: people pause precisely so something
-   * is not recorded. So a paused recording stops its capture and a resumed one
-   * starts a fresh segment, which is why a session yields one object per run
-   * rather than one per recording.
+   * Per participant rather than a room mix, because the floor has to be applied
+   * when the recording is encoded and a mix cannot be un-mixed. Isolated stems
+   * let the server drop a silenced speaker across the windows where they were
+   * silenced; a blended file could not.
+   *
+   * There is no pause in the underlying API, so a paused recording stops its
+   * captures and a resumed one starts fresh ones — which is why a participant
+   * yields one object per run rather than one per recording.
    */
-  startRecording(params: { room: string; key: string }): Promise<string>;
+  startRecording(params: {
+    room: string;
+    identity: string;
+    key: string;
+  }): Promise<string>;
 
   stopRecording(handle: string): Promise<void>;
 }
@@ -99,19 +106,20 @@ export class LiveKitMediaServer implements MediaServer {
 
   async startRecording({
     room,
+    identity,
     key,
   }: {
     room: string;
+    identity: string;
     key: string;
   }): Promise<string> {
     const storage = this.options.storage;
     if (!storage) throw new Error('No recording storage configured.');
 
-    // Audio only: this app has no video, and mixing to one file is what makes
-    // a session's recording a single artefact rather than a per-speaker pile.
-    const info = await this.egress.startRoomCompositeEgress(
-      room,
-      new EncodedFileOutput({
+    // OGG carries the Opus the participant is already publishing, so there is
+    // no transcode; and with no video in this app it is audio by construction.
+    const info = await this.egress.startParticipantEgress(room, identity, {
+      file: new EncodedFileOutput({
         fileType: EncodedFileType.OGG,
         filepath: key,
         output: {
@@ -124,8 +132,7 @@ export class LiveKitMediaServer implements MediaServer {
           }),
         },
       }),
-      { audioOnly: true }
-    );
+    });
     return info.egressId;
   }
 
@@ -199,6 +206,7 @@ export class MemoryMediaServer implements MediaServer {
   }> = [];
   readonly recordings: Array<{
     room: string;
+    identity: string;
     key: string;
     handle: string;
     stopped: boolean;
@@ -231,9 +239,17 @@ export class MemoryMediaServer implements MediaServer {
     this.closed.push(room);
   }
 
-  async startRecording({ room, key }: { room: string; key: string }) {
+  async startRecording({
+    room,
+    identity,
+    key,
+  }: {
+    room: string;
+    identity: string;
+    key: string;
+  }) {
     const handle = `egress_${this.recordings.length + 1}`;
-    this.recordings.push({ room, key, handle, stopped: false });
+    this.recordings.push({ room, identity, key, handle, stopped: false });
     return handle;
   }
 

@@ -54,3 +54,6 @@ android/
 .env
 .env.*
 !.env.example
+
+# scratch dev diagnostics (mint tokens, inspect live rooms)
+dev-*.mjs

@@ -272,20 +272,24 @@ describe('the floor as an actual mute', () => {
 });
 
 describe('recording capture', () => {
-  it('starts capture when recording starts', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
+  it('captures one isolated stem per participant, not a room mix', async () => {
+    // A mix cannot be un-mixed, so the floor could never be applied to it.
+    const { alice, bob, sessionId } = await sessionOfTwo();
     app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
 
-    expect(media.recordings).toHaveLength(1);
-    expect(media.recordings[0]).toMatchObject({
-      room: sessionId,
-      key: `${sessionId}/001.ogg`,
-      stopped: false,
-    });
+    expect(media.recordings).toHaveLength(2);
+    expect(media.recordings.map((r) => r.identity).sort()).toEqual(
+      [alice.account.id, bob.account.id].sort()
+    );
+    for (const r of media.recordings) {
+      expect(r.room).toBe(sessionId);
+      expect(r.key).toBe(`${sessionId}/${r.identity}-001.ogg`);
+      expect(r.stopped).toBe(false);
+    }
   });
 
-  it('stops capture on pause and starts a new segment on resume', async () => {
+  it('stops every stem on pause and starts new segments on resume', async () => {
     const { alice, sessionId } = await sessionOfTwo();
     app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
@@ -294,14 +298,20 @@ describe('recording capture', () => {
 
     // Pausing must genuinely halt capture, not merely mark a boundary to trim
     // later — nothing said while paused should ever reach storage.
-    expect(media.recordings[0].stopped).toBe(true);
+    expect(media.recordings.every((r) => r.stopped)).toBe(true);
 
     app.sessions.dispatch(sessionId, alice.account.id, { type: 'RESUME_RECORDING' });
     await settle();
 
-    expect(media.recordings).toHaveLength(2);
-    expect(media.recordings[1].key).toBe(`${sessionId}/002.ogg`);
-    expect(media.recordings[1].stopped).toBe(false);
+    expect(media.recordings).toHaveLength(4);
+    const second = media.recordings.slice(2);
+    expect(second.map((r) => r.key).sort()).toEqual(
+      [
+        `${sessionId}/${alice.account.id}-002.ogg`,
+        `${sessionId}/${second.find((r) => r.identity !== alice.account.id)!.identity}-002.ogg`,
+      ].sort()
+    );
+    expect(second.every((r) => !r.stopped)).toBe(true);
   });
 
   it('stops capture when the recording is stopped', async () => {
@@ -326,7 +336,7 @@ describe('recording capture', () => {
     // Ending while paused is the path with nothing left to stop: capture was
     // already halted at the pause. The recording must still be finalised and
     // filed, and no egress may be left running.
-    const { alice, sessionId } = await sessionOfTwo();
+    const { alice, bob, sessionId } = await sessionOfTwo();
     app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 8_000;
@@ -340,9 +350,15 @@ describe('recording capture', () => {
     expect(media.recordings.every((r) => r.stopped)).toBe(true);
 
     const row = app.db
-      .prepare('SELECT duration_ms, segment_keys FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { duration_ms: number; segment_keys: string };
-    expect(JSON.parse(row.segment_keys)).toEqual([`${sessionId}/001.ogg`]);
+      .prepare('SELECT duration_ms, stems FROM recordings WHERE session_id = ?')
+      .get(sessionId) as { duration_ms: number; stems: string };
+    const stems = JSON.parse(row.stems) as Record<string, string[]>;
+    expect(Object.keys(stems).sort()).toEqual(
+      [alice.account.id, bob.account.id].sort()
+    );
+    expect(stems[alice.account.id]).toEqual([
+      `${sessionId}/${alice.account.id}-001.ogg`,
+    ]);
     expect(row.duration_ms).toBe(8_000);
   });
 
@@ -362,7 +378,7 @@ describe('recording capture', () => {
   });
 
   it('records every segment against the finished recording', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
+    const { alice, bob, sessionId } = await sessionOfTwo();
     app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 10_000;
@@ -376,11 +392,15 @@ describe('recording capture', () => {
 
     const row = app.db
       .prepare('SELECT * FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { segment_keys: string; duration_ms: number };
-    expect(JSON.parse(row.segment_keys)).toEqual([
-      `${sessionId}/001.ogg`,
-      `${sessionId}/002.ogg`,
-    ]);
+      .get(sessionId) as { stems: string; duration_ms: number };
+    const stems = JSON.parse(row.stems) as Record<string, string[]>;
+    // Each participant's stem is split by the pause, and only by the pause.
+    for (const identity of [alice.account.id, bob.account.id]) {
+      expect(stems[identity]).toEqual([
+        `${sessionId}/${identity}-001.ogg`,
+        `${sessionId}/${identity}-002.ogg`,
+      ]);
+    }
     // Paused time is excluded, so the duration is the two run segments only.
     expect(row.duration_ms).toBe(15_000);
   });
@@ -394,6 +414,129 @@ describe('recording capture', () => {
       .prepare('SELECT COUNT(*) c FROM recordings WHERE session_id = ?')
       .get(sessionId) as { c: number };
     expect(row.c).toBe(0);
+  });
+});
+
+describe('the floor timeline', () => {
+  /** The windows persisted for a finished session's recording. */
+  const timelineFor = (sessionId: string) => {
+    const row = app.db
+      .prepare('SELECT floor_timeline FROM recordings WHERE session_id = ?')
+      .get(sessionId) as { floor_timeline: string } | undefined;
+    return row ? (JSON.parse(row.floor_timeline) as Array<{
+      identity: string;
+      fromMs: number;
+      toMs: number;
+    }>) : [];
+  };
+
+  it('records when each party was silenced, as offsets into the audio', async () => {
+    const { alice, bob, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+
+    clock += 10_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    clock += 8_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    clock += 5_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+
+    // Alice claimed, so Bob is the one to be dropped from the encode.
+    expect(timelineFor(sessionId)).toEqual([
+      { identity: bob.account.id, fromMs: 10_000, toMs: 18_000 },
+    ]);
+  });
+
+  it('excludes paused time, so offsets match the recorded audio', async () => {
+    // The encoder gates concatenated segments, which contain no paused time.
+    // An offset measured against the wall clock would drift past every pause.
+    const { alice, bob, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+
+    clock += 5_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    clock += 30_000; // A long pause, absent from the audio entirely.
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RESUME_RECORDING' });
+    await settle();
+
+    clock += 4_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    clock += 3_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+
+    // 5s recorded, then 4s more: the claim begins 9s into the audio, not 39s.
+    expect(timelineFor(sessionId)).toEqual([
+      { identity: bob.account.id, fromMs: 9_000, toMs: 12_000 },
+    ]);
+  });
+
+  it('closes a claim that was still open when the recording ended', async () => {
+    const { alice, bob, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 6_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    clock += 4_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+
+    expect(timelineFor(sessionId)).toEqual([
+      { identity: bob.account.id, fromMs: 6_000, toMs: 10_000 },
+    ]);
+  });
+
+  it('opens a window at zero when recording starts mid-claim', async () => {
+    // The claim predates the recording, so the silenced party is inaudible from
+    // the first sample rather than from whenever the next transition happens.
+    const { alice, bob, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    clock += 2_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 7_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+
+    expect(timelineFor(sessionId)).toEqual([
+      { identity: bob.account.id, fromMs: 0, toMs: 7_000 },
+    ]);
+  });
+
+  it('records both turns when the floor alternates', async () => {
+    const { alice, bob, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+
+    clock += 3_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    clock += 4_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    clock += 1_000;
+    // Bob may claim immediately: the other party claimed last.
+    app.sessions.dispatch(sessionId, bob.account.id, { type: 'CLAIM_FLOOR' });
+    clock += 5_000;
+    app.sessions.dispatch(sessionId, bob.account.id, { type: 'END' });
+    await settle();
+
+    expect(timelineFor(sessionId)).toEqual([
+      { identity: bob.account.id, fromMs: 3_000, toMs: 7_000 },
+      { identity: alice.account.id, fromMs: 8_000, toMs: 13_000 },
+    ]);
+  });
+
+  it('leaves the timeline empty when nobody claimed', async () => {
+    const { alice, sessionId } = await sessionOfTwo();
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 9_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+
+    expect(timelineFor(sessionId)).toEqual([]);
   });
 });
 

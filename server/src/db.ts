@@ -32,6 +32,10 @@ export interface RecordingRow {
   duration_ms: number;
   s3_key: string;
   segment_keys: string | null;
+  /** JSON: { [identity]: string[] } — each participant's segments, in order. */
+  stems: string | null;
+  /** JSON: Array<{ identity, fromMs, toMs }> — when each party was silenced. */
+  floor_timeline: string | null;
 }
 
 const SCHEMA = `
@@ -92,9 +96,17 @@ CREATE TABLE IF NOT EXISTS recordings (
   started_at   INTEGER NOT NULL,
   duration_ms  INTEGER NOT NULL,
   s3_key       TEXT NOT NULL,
-  -- JSON array of object keys, in order. A recording is one object per run:
-  -- pausing stops capture rather than trimming afterwards.
-  segment_keys TEXT
+  -- Flat list of every object written, in order. Superseded by stems, which
+  -- says whose audio each one is; kept because it is cheap and readable.
+  segment_keys TEXT,
+  -- JSON { [identity]: string[] }. One isolated stem per participant, because
+  -- the floor is applied when the recording is encoded and a mix cannot be
+  -- un-mixed. Pausing still splits a stem into segments.
+  stems TEXT,
+  -- JSON Array<{ identity, fromMs, toMs }>, offsets into the *recorded* audio
+  -- rather than wall clock, so paused time is already excluded. This is what
+  -- the encoder gates on.
+  floor_timeline TEXT
 );
 CREATE INDEX IF NOT EXISTS recordings_participants
   ON recordings(initiator_id, invitee_id);
@@ -116,8 +128,10 @@ function migrate(db: Db): void {
   const columns = db
     .prepare('PRAGMA table_info(recordings)')
     .all() as Array<{ name: string }>;
-  if (!columns.some((c) => c.name === 'segment_keys')) {
-    db.exec('ALTER TABLE recordings ADD COLUMN segment_keys TEXT');
+  for (const column of ['segment_keys', 'stems', 'floor_timeline']) {
+    if (!columns.some((c) => c.name === column)) {
+      db.exec(`ALTER TABLE recordings ADD COLUMN ${column} TEXT`);
+    }
   }
 }
 

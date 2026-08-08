@@ -8,7 +8,7 @@ what *has* been built.
 
 ## Per-speaker stems, with the floor applied when the recording is encoded
 
-**Status:** designed 2026-08-07, not started. Next substantial piece of work.
+**Status:** capture and timeline landed 2026-08-07. The encoder remains.
 
 ### Why
 
@@ -34,14 +34,22 @@ as the privacy boundary and proposed stopping a stem for the duration of a
 claim; that is unnecessary, and it would have cost audio at every segment
 boundary while an egress reconnected.
 
+### Remaining
+
+Step 3 only. Steps 1 and 2 are done: capture is per participant, and the floor
+timeline is persisted with every recording. Until the encoder applies it,
+**exports do not honour the floor** — and there is now no mixed file at all, so
+export cannot work by simply handing over an object.
+
 ### Design
 
-1. **One stem per participant, continuous.** Replace
+1. ~~**One stem per participant, continuous.**~~ Done. Replace
    `startRoomCompositeEgress` with per-track egress. Subscription-based
    enforcement never unpublishes anyone, so track SIDs are stable and each stem
    runs unbroken for the whole recording — no boundary clipping, in particular
    none in the floor-holder's protected speech.
-2. **Persist the floor timeline** with the recording: who was silenced, from
+2. ~~**Persist the floor timeline**~~ Done — `floor_timeline`, offsets into the
+   recorded audio. Originally specified as: persist with the recording: who was silenced, from
    when to when, as offsets from the recording's start. A JSON column, as
    `segment_keys` already is. The reducer knows this; it simply is not stored.
 3. **Encode on export.** The server fetches the stems, applies the timeline as
