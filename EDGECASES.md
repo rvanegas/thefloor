@@ -156,11 +156,18 @@ Found while writing this list. These are real, not hypothetical.
    lands, the flag and the `authBypass` branches it feeds in `server/src/app.ts`
    have to come out of the code. A bypass that survives because a boolean
    defaults to false is the version that eventually ships.
-8. **Phone sign-in is refused outright** (`sms_unavailable`), so a phone number
-   is currently an identifier you can be *found* by but cannot sign in with.
-   Contact search still accepts one, which is a coherent state but a confusing
-   one until SMS exists.
-9. **Requesting someone who already requested you silently accepts.**
+8. ~~**Phone sign-in is refused outright** (`sms_unavailable`)~~ Now
+   `invalid_identifier`, with nothing in the interface suggesting a phone
+   number was ever an option. A phone number remains something contact search
+   would match, but no account can hold one, so nothing is findable that way.
+9. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
+   code field uses a number pad, which has no return key, so iOS floats a
+   standalone key in the bottom-right — far from the fields, over empty space,
+   and reading "Go" while the button below it says "Sign in". It works; it
+   looks like it belongs to something else. Either match the label to the
+   action or reconsider the number pad. `returnKeyType` in
+   `app/src/ui/components.tsx`.
+10. **Requesting someone who already requested you silently accepts.**
    `sendContactRequest` treats an inbound pending request as an acceptance
    rather than erroring. Reasonable, but it means the pair goes straight to
    `accepted` with no confirmation step. `app/src/mock/backend.ts`.

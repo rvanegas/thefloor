@@ -7,7 +7,6 @@ import {
   type RemoteTrack,
   type TrackPublication,
 } from 'livekit-client';
-import { AudioSession } from '@livekit/react-native';
 import { api } from '../api/http';
 
 /**
@@ -109,8 +108,13 @@ export function useSessionAudio(
         }
         if (cancelled) return;
 
-        // Routes audio to the earpiece/speaker and takes the audio focus.
-        await AudioSession.startAudioSession();
+        // The audio session is deliberately not started here. registerGlobals()
+        // installs LiveKit's automatic management, which configures and
+        // activates it natively as the audio engine changes state; starting one
+        // by hand as well meant two owners of a single AVAudioSession, with
+        // deactivateOnStop defaulting to true. That is the leading suspect for
+        // iOS suspending the app on backgrounding despite the audio background
+        // mode being declared.
         await room.connect(credential.url, credential.token);
         if (cancelled) {
           await room.disconnect();
@@ -138,7 +142,8 @@ export function useSessionAudio(
       cancelled = true;
       room.removeAllListeners();
       room.disconnect().catch(() => {});
-      AudioSession.stopAudioSession().catch(() => {});
+      // Likewise not stopped by hand: automatic management deactivates the
+      // session when the audio engine stops.
       roomRef.current = null;
     };
   }, [sessionId, token]);
