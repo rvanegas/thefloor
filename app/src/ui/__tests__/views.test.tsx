@@ -265,9 +265,10 @@ describe('Home', () => {
     };
 
     const tree = render(<HomeView onEnterSession={() => {}} />);
-    const dismiss = tree.root.find(
-      (n) => n.props?.accessibilityLabel === 'Dismiss invite'
+    const [dismiss] = tree.root.findAll(
+      (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
+    expect(dismiss).toBeDefined();
     act(() => dismiss.props.onPress());
 
     expect(findButton(tree, 'Start session')).toBeUndefined();
