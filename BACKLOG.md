@@ -6,94 +6,64 @@ what *has* been built.
 
 ---
 
-## A call does not survive backgrounding the app
+## Backgrounding: real failures, not currently reproducible
 
-**Status:** measured on a real device 2026-08-07. Not started. The largest gap
-between this and an ordinary VoIP app.
+**Status:** investigated 2026-08-07 and 2026-08-08. The audio background mode
+is confirmed working. The failures were real and are not reproducing. Nobody
+has explained why.
 
-### What happens
+### What was observed failing
 
-Background the app on an iPhone mid-session and the phone leaves the LiveKit
-room within seconds. It does not rejoin on its own, and did not recover even
-after returning to the foreground. Zoom and FaceTime keep a call running in the
-background; this does not.
+On 2026-08-07, on a real iPhone: backgrounding the app dropped the phone from
+the LiveKit room within seconds, it did not rejoin, and it did not recover on
+returning to the foreground. On 2026-08-08 a foregrounded session dropped after
+85 seconds with auto-lock disabled.
 
-Measured with `server/dev-session.mjs` and `server/dev-guest.mjs` (both
-gitignored) against a real iPhone, not a simulator.
+Each of those was seen once.
 
-### What is already configured
+### What was confirmed working
 
-- `UIBackgroundModes: ["audio", "voip"]` in `app.json`.
-- `registerGlobals()` installs LiveKit's automatic iOS audio-session management
-  by default, which configures and activates the AVAudioSession natively as the
-  audio engine changes state.
-- `useSessionAudio` calls `AudioSession.startAudioSession()` before connecting.
+On 2026-08-08, unplugged, on Wi-Fi, instrumented: **six minutes backgrounded
+with no drop**, two of those minutes with the room silent. Across 854,000 lines
+of device log there were zero suspensions and zero releases of the audio
+assertion.
 
-So the obvious configuration is present, and it is not enough.
+The app holds `com.apple.mediaexperience:MediaPlayback` from `audiomxd` — the
+assertion the `audio` background mode exists to grant. **The audio session is
+configured correctly.** That was the leading hypothesis for the whole problem
+and it is wrong.
 
-### What was ruled out
+### What is not explained
 
-That iOS suspended the app for want of anything to play. The phone was
-publishing its own microphone at the time — capturing requires an active audio
-session, and the `audio` background mode covers recording as much as playback.
-The counterpart being a silent simulator was therefore irrelevant.
+Nothing in the app changed between the failing runs and the working ones. The
+audio-session commit (c63726f, removing a duplicate owner) was already in place
+during the 85-second foreground failure. The only changes after that were
+server-side — the track egress fix and a restart — and neither touches the
+phone's audio.
 
-### Ruled out: CallKit
+So the difference is unaccounted for. Candidates nobody has tested:
 
-The obvious guess, and wrong. Zoom and Clubhouse both keep audio running in the
-background and neither appears in the system call list or Recents — so neither
-is using CallKit for it. CallKit is for apps that want to *be* the phone:
-incoming call UI, Do Not Disturb integration, Recents. It would have been an
-expensive detour with a visible change in behaviour, and it would not have
-addressed the cause.
+- **Network.** Both failures happened on the same Wi-Fi, but a transient is
+  indistinguishable from a suspension in what we measured.
+- **Accumulated app state.** The failing runs came after many
+  background/foreground cycles; the working ones came after a fresh launch.
+- **Coincidence.** Two observations is not a pattern.
 
-The plain `audio` background mode is sufficient for this. Something about our
-audio session is not satisfying it.
+### How to investigate when it recurs
 
-### Attempted: removing the duplicate audio session owner (2026-08-08)
+The instrumentation is set up and works without a cable:
 
-`registerGlobals()` installs LiveKit's automatic management, which its own
-documentation says configures and activates the session natively as the audio
-engine changes state — and `useSessionAudio` was calling
-`AudioSession.startAudioSession()` and `stopAudioSession()` by hand as well.
-Two owners of one AVAudioSession, with `deactivateOnStop` defaulting to true.
-The manual calls are gone.
+    idevicesyslog -n -u <udid> > capture.log
 
-**It helped, and it is not the cause.** Measured on a real device:
+The device is paired for network access ("Show this iPhone when on Wi-Fi" in
+Finder). `server/dev-guest.mjs --status` reads LiveKit room membership and
+`server/dev-session.mjs` reads the server's own view; both are gitignored.
 
-| | Before | After |
-| --- | --- | --- |
-| Survives backgrounding | seconds | roughly 30-60s |
-| Websocket close | half-open, unnoticed | clean, `LEAVE` fires |
-| Recovers on foreground | never — stayed stranded | fully, audio returns |
+Useful greps once a drop is caught: `MediaPlayback` for the audio assertion,
+`suspend` for the decision, and the app's bundle id for its lifecycle.
 
-Worth keeping: one owner is correct regardless, and it fixed the stranding.
-But the call still does not persist, which was the goal.
-
-### What the timing suggests
-
-An app with no valid background mode gets roughly thirty seconds of grace
-before iOS suspends it. Surviving about that long and then dying is the
-signature of *not* being recognised as playing audio — were the `audio`
-background mode being honoured, it would run indefinitely rather than expiring
-on schedule.
-
-So the session is very likely not in a state that qualifies: wrong category,
-or not active at the moment iOS checks.
-
-### Next
-
-**Instrument, do not guess.** Console.app on the Mac, filtered to the device,
-during a background transition — it reports the AVAudioSession category and
-active state, and why the process was suspended. Two attempts have now been
-spent on plausible-sounding causes; the measurement is cheaper than a third.
-
-Only if that is inconclusive: pass an explicit `IOSAudioSessionPolicy` with
-`playAndRecord` to `setupIOSAudioManagement`, rather than trusting the default
-to land there.
-
-Every attempt needs a rebuild and a real device; a simulator establishes
-nothing here.
+**Do not plug in the phone to investigate.** USB masked the failure entirely —
+plugged in, nothing reproduced across several minutes in either state.
 
 ### Downstream defects, worth fixing regardless
 
@@ -103,22 +73,20 @@ These surfaced while investigating and are real on their own:
    server treats every socket close as authoritative without checking whether
    that connection is still the user's current one. On foregrounding, the
    client reconnected and re-entered, then the stale socket's close fired
-   `LEAVE` and removed them. This is what stranded the phone in a session it
-   was not in.
+   `LEAVE` and removed them.
 2. **No heartbeat on the app's websocket.** A half-open socket goes unnoticed
    indefinitely. The server reported the phone present for a full thirty
-   seconds while it could neither speak nor hear, and only noticed when the OS
-   finally tore the socket down.
+   seconds while it could neither speak nor hear.
 3. **"Audio connected" can be stale.** When the audio hook tears down, its
    cleanup cannot update state because the effect has already been cancelled,
-   so the last status sticks. The screen asserted audio that was not there.
+   so the last status sticks.
 
 ### The general lesson
 
-Presence is derived from the app's websocket, and participation is what happens
-in the LiveKit room. Tonight showed those two can disagree for a long time in
-either direction. Whatever fixes the background case, presence probably ought
-to follow room membership — that is exactly "speaking or hearing".
+Presence is derived from the app's websocket; participation is what happens in
+the LiveKit room. These can disagree for a long time in either direction.
+Presence probably ought to follow room membership — that is exactly "speaking
+or hearing".
 
 ---
 
