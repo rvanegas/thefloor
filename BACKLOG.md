@@ -1,8 +1,11 @@
 # Backlog
 
-Work deliberately not being done, with enough context to pick it up cold.
-Distinct from `EDGECASES.md`, which tracks defects and untested behaviour in
-what *has* been built.
+Everything known and not done: work deliberately deferred, defects found and
+left, behaviour nobody has tested, and the places where the spec was ambiguous
+and the implementation had to choose.
+
+Ordered roughly by size — the substantial pieces first, then individual
+defects, then the reference material.
 
 ---
 
@@ -65,21 +68,10 @@ Useful greps once a drop is caught: `MediaPlayback` for the audio assertion,
 **Do not plug in the phone to investigate.** USB masked the failure entirely —
 plugged in, nothing reproduced across several minutes in either state.
 
-### Downstream defects, worth fixing regardless
-
-These surfaced while investigating and are real on their own:
-
-1. **A closing connection can evict a user who has already reconnected.** The
-   server treats every socket close as authoritative without checking whether
-   that connection is still the user's current one. On foregrounding, the
-   client reconnected and re-entered, then the stale socket's close fired
-   `LEAVE` and removed them.
-2. **No heartbeat on the app's websocket.** A half-open socket goes unnoticed
-   indefinitely. The server reported the phone present for a full thirty
-   seconds while it could neither speak nor hear.
-3. **"Audio connected" can be stale.** When the audio hook tears down, its
-   cleanup cannot update state because the effect has already been cancelled,
-   so the last status sticks.
+Three separate defects surfaced during this investigation and are worth fixing
+on their own account — the socket-close eviction race, the missing websocket
+heartbeat, and the stale audio status. They are listed under **Known defects**
+below.
 
 ### The general lesson
 
@@ -165,14 +157,17 @@ Delivery sits behind the `Mailer` interface in `server/src/mail.ts`.
 making sign-in impossible rather than merely insecure. That justification is
 gone: every identifier the app now supports has real delivery, and local
 development can read codes off the server console by leaving `MAIL_FROM` unset
-(`ConsoleMailer`). The bypass should be deleted rather than left switched off —
-see gap #7 in `EDGECASES.md`.
+(`ConsoleMailer`). The bypass has since been deleted outright (`d0ffab3`).
 
-### Multiple auth per user
+---
+
+## Multiple auth per user
 
 Signing in as a user who is already signed in elsewhere, should sign the user out of other location.
 
-### Multiple Users
+---
+
+## Multiple Users
 
 Currently sessions allow for only two speakers. Let us plan to expand to this to multiple users.
 
@@ -180,4 +175,137 @@ To begin with, the session does not even currently display who one is speaking w
 
 Then, the logic of claiming the floor must be generalized to multiple users.
 
+---
 
+## Known defects
+
+Real, reproducible, and left alone. Resolved entries have been dropped — the
+commits record them.
+
+1. **A closing connection can evict a user who has already reconnected.** The
+   server treats every socket close as authoritative without checking whether
+   that connection is still the user's current one. On foregrounding, the client
+   reconnected and re-entered, then the stale socket's close fired `LEAVE` and
+   removed them — leaving the phone in a session it was not in.
+   `server/src/ws.ts`.
+2. **No heartbeat on the app's websocket.** A half-open socket goes unnoticed
+   indefinitely: the server reported a phone present for a full thirty seconds
+   while it could neither speak nor hear. Both ends should notice a dead
+   connection in seconds.
+3. **"Audio connected" can be stale.** When the audio hook tears down, its
+   cleanup cannot update state — the effect has already been cancelled — so the
+   last status sticks and the screen asserts audio that is not there.
+   `app/src/audio/useSessionAudio.ts`.
+4. **Dismissed invites resurrect.** The dismissed list is local `useState`, so
+   navigating away and back re-shows a banner the user dismissed. The spec calls
+   the banner "dismissable... persistent until acted on", which implies the
+   dismissal should outlive a remount. `app/src/ui/HomeView.tsx:33`.
+5. **Recording has no maximum duration.** A session with someone present records
+   until stopped. One unattended session ran 37 minutes straight to egress
+   minutes. Worth a cap, or a warning.
+6. **A failed capture is invisible to the user.** When egress fails to start,
+   the session still shows "Recording" and counts up. That is exactly the
+   misrepresentation the indicator exists to prevent, and it hid a completely
+   broken capture path for hours. The failure reaches the server log and nothing
+   else.
+7. **Contact search gives no useful feedback.** `findByIdentifier` matches the
+   whole string, case-insensitively — deliberately, since prefix search would
+   let anyone enumerate strangers — but a typo is indistinguishable from no such
+   user. `server/src/accounts.ts`.
+8. **Requesting someone who already requested you silently accepts.**
+   `requestContact` treats an inbound pending request as an acceptance rather
+   than erroring, so the pair goes straight to `accepted` with no confirmation.
+   Reasonable, but silent. `server/src/accounts.ts`.
+9. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
+   code field uses a number pad, which has no return key, so iOS floats a
+   standalone key in the bottom-right — far from the fields, over empty space,
+   reading "Go" while the button below says "Sign in". Either match the label or
+   reconsider the number pad. `app/src/ui/components.tsx`.
+10. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
+    The server is now the authority, which removed the device-drift problem, but
+    a clock change on the server would still skew live countdowns. A monotonic
+    source would be sounder.
+
+---
+
+## Untested behaviour
+
+No assertions exist for these. Ordered by how likely they are to be wrong.
+
+1. **Two time-driven transitions in one tick.** If a claim's 3:00 expiry and the
+   empty-session 60s deadline fall in the same `TICK`, `reduce` handles floor
+   expiry first, then the auto-end. Worth confirming that ordering is intended.
+2. **A claim in the same instant the session auto-ends.** The guard checks
+   `status === 'active'`, but the interleaving of a tap against the 500ms tick
+   is untested.
+3. **Chained alternation with early voluntary releases.** The alternation test
+   only exercises full 3:00 turns. A releases at 0:30 → B claims → B releases at
+   0:10 → can A claim? (Should be yes: B was the last claimant.)
+4. **Both parties leave, one re-enters after 30s, then leaves again.** Does the
+   empty timer restart cleanly from the second departure, or carry a stale
+   `emptySince`? Believed correct, untested.
+5. **Recording paused, then the other party claims.** Resume is deliberately
+   unrestricted, so a silenced party can resume but not re-pause. Verify that is
+   not a control that looks broken.
+6. **Self-mute across leave and re-entry.** `selfMuted` is never reset on
+   `LEAVE`, so someone who leaves muted returns muted. Probably right; the spec
+   does not say.
+7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
+   reducer returns early on non-active sessions — but untested.
+8. **Export against a real recording.** The encoder is tested against synthetic
+   tones and verified to gate them, but the Export button has never been run
+   end to end on a session containing actual speech.
+
+---
+
+## Spec interpretations open to review
+
+Places the spec was ambiguous and the implementation chose. Each is a candidate
+for "actually, do the other thing."
+
+1. **"Silenced" vs. "does not hold the floor"** (§Recording, control
+   restriction). The spec equates them, but when nobody holds the floor neither
+   party is silenced. Implemented per the clarifying sentence that follows:
+   pause/stop are withheld **only** from the non-holder **during an active
+   claim**. `canPauseOrStopRecording` in `core/recording.ts`.
+2. **"After both users have connected"** (§Recording). Read as *ever* connected,
+   not *currently* present, so a party left alone can still start a recording.
+   Consistent with the spec's insistence that recording survives leaving.
+   `everPresent` in `core/types.ts`.
+3. **Resume carries no floor restriction.** The spec names only pause and stop.
+   Resuming does not cut off the record, so a silenced party may resume.
+   `canResumeRecording` in `core/session.ts`.
+4. **Cooldown is strictly greater than one minute.** "More than one minute has
+   elapsed" is `> 60_000`, so reclaiming at exactly 60.000s is refused. The
+   off-by-one in the user's favour would be `>=`.
+5. **The initiator is present from creation**, so the empty-session timer never
+   runs before the first join. Matches "the initiator lands in the Session view
+   immediately."
+6. **The floor is cut at the listener, not the speaker.** The spec calls it "a
+   hard cut at the transport/mic level". It still is — LiveKit stops forwarding
+   those packets, so the audio never reaches the other device — but it is made
+   by unsubscribing the listener rather than silencing the speaker. Acting on
+   the speaker was tried twice and both ways broke them: a server cannot un-mute
+   a track it muted, and revoking publish permission tears down iOS's audio
+   unit. `setSilenced` in `server/src/media.ts`.
+7. **Capture is not the privacy boundary; the export is.** Stems contain what a
+   silenced speaker said, and the floor is applied when the recording is
+   encoded. The bucket is server-only and stems never reach a client, so the two
+   conditions that matter — not heard live, not heard in an export — both hold.
+
+---
+
+## Running the suite
+
+From the repo root, across all three packages:
+
+```bash
+npm test           # core + app + server
+npm run typecheck
+```
+
+Or one at a time: `npm test --prefix core`, `--prefix app`, `--prefix server`.
+
+The per-behaviour table of which test covers what has been dropped: it
+duplicated the suite and went stale faster than the code did. The tests are the
+record.
