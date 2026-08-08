@@ -86,6 +86,38 @@ describe('the floor as an actual mute', () => {
     expect(media.isMuted(sessionId, alice.account.id)).toBe(false);
   });
 
+  it('acts on the listener, never on the silenced party', async () => {
+    // The property that makes this design survivable. Two earlier versions
+    // acted on the speaker — muting their track, then revoking their publish
+    // permission — and both broke them: unpublishing tears down iOS's audio
+    // unit, so they lost their microphone and their playback and got neither
+    // back. Withholding them from the listener leaves their pipeline alone.
+    const { alice, bob, sessionId } = await sessionOfTwo();
+    media.subscriptions.length = 0;
+
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+
+    // Alice holds the floor, so Alice stops receiving Bob.
+    expect(media.subscriptions).toContainEqual({
+      room: sessionId,
+      speaker: bob.account.id,
+      listener: alice.account.id,
+      silenced: true,
+    });
+    // Bob keeps hearing Alice throughout — silencing him is not deafening him.
+    expect(media.subscriptions).toContainEqual({
+      room: sessionId,
+      speaker: alice.account.id,
+      listener: bob.account.id,
+      silenced: false,
+    });
+    // And nothing was asked of Bob's own publishing.
+    expect(
+      media.subscriptions.filter((s) => s.listener === bob.account.id && s.silenced)
+    ).toEqual([]);
+  });
+
   it('restores the silenced party when the claim is released, not just on paper', async () => {
     // The bug this exists for: claims silenced correctly and releases restored
     // nobody, so the floor was a one-way door. Muting a track is something a

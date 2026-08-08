@@ -45,8 +45,7 @@ export function SessionView({
   const audio = useSessionAudio(
     present ? sessionId : null,
     app.token,
-    !!session?.selfMuted[me],
-    !!session && isSilenced(session.floor, me)
+    !!session?.selfMuted[me]
   );
 
   useEffect(() => {

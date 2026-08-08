@@ -2,15 +2,16 @@ import {
   EncodedFileOutput,
   EncodedFileType,
   S3Upload,
+  TrackType,
 } from '@livekit/protocol';
 import { AccessToken, EgressClient, RoomServiceClient } from 'livekit-server-sdk';
 
 /**
- * The media plane. The floor is described in the spec as "a hard cut at the
- * transport/mic level — the silenced user's audio does not reach the other
- * party at all", which cannot be honoured by a client muting itself: a modified
- * client would simply keep publishing. So muting is done here, server-side, by
- * the same authority that decides who holds the floor.
+ * The media plane. The spec calls the floor "a hard cut at the transport/mic
+ * level — the silenced user's audio does not reach the other party at all",
+ * which a client cannot be trusted to honour about itself: a modified one would
+ * simply keep sending, or keep playing. So the cut is made here, by the same
+ * authority that decides who holds the floor.
  *
  * Behind an interface for the same reason delivery is: it keeps the session
  * rules testable without a media server, and it keeps the choice of provider
@@ -25,18 +26,24 @@ export interface MediaServer {
   }): Promise<string>;
 
   /**
-   * Silences or restores a participant.
+   * Stops `listener` from receiving `speaker`, or restores it.
    *
-   * Implemented by revoking publish permission rather than muting their track.
-   * A server may mute someone — that is moderation — but LiveKit deliberately
-   * refuses to un-mute them, because switching a stranger's microphone back on
-   * is a privacy hazard. That asymmetry made the floor a one-way door: claims
-   * silenced correctly and releases never restored anyone. Permissions are
-   * server-owned in both directions, so they can express a temporary silence.
+   * Acts on the receiving end rather than the sending one. Two earlier attempts
+   * acted on the speaker and both failed against the platform: muting their
+   * track cannot be undone by a server, and revoking their publish permission
+   * unpublishes them, which tears down iOS's audio unit — so the silenced
+   * person lost their microphone *and* their playback, and got neither back.
+   *
+   * Unsubscribing the listener is still a transport-level cut — the audio never
+   * reaches their device — but it leaves the silenced person's audio pipeline
+   * completely undisturbed, which is what makes it survivable and reversible.
    */
   setSilenced(params: {
     room: string;
-    identity: string;
+    /** Whose audio is being withheld. */
+    speaker: string;
+    /** Who stops receiving it. */
+    listener: string;
     silenced: boolean;
   }): Promise<void>;
 
@@ -156,28 +163,23 @@ export class LiveKitMediaServer implements MediaServer {
 
   async setSilenced({
     room,
-    identity,
+    speaker,
+    listener,
     silenced,
   }: {
     room: string;
-    identity: string;
+    speaker: string;
+    listener: string;
     silenced: boolean;
   }): Promise<void> {
-    // The full permission set is sent every time: a partial update would reset
-    // whatever it omits, which is how a "silence" turns into a participant who
-    // can no longer hear either.
-    await this.rooms.updateParticipant(room, identity, {
-      permission: {
-        canSubscribe: true,
-        canPublish: !silenced,
-        canPublishData: false,
-        hidden: false,
-        canUpdateMetadata: false,
-        canPublishSources: [],
-        agent: false,
-        canSubscribeMetrics: false,
-      },
-    });
+    const publisher = await this.rooms.getParticipant(room, speaker);
+    const audio = publisher.tracks
+      .filter((track) => track.type === TrackType.AUDIO)
+      .map((track) => track.sid);
+    // Nothing published yet: whoever publishes next is subscribed to by
+    // default, so a later claim reapplies this against a real track.
+    if (audio.length === 0) return;
+    await this.rooms.updateSubscriptions(room, listener, audio, !silenced);
   }
 
   async closeRoom(room: string): Promise<void> {
@@ -188,6 +190,13 @@ export class LiveKitMediaServer implements MediaServer {
 /** Records what would have been asked of a media server. For tests. */
 export class MemoryMediaServer implements MediaServer {
   readonly muted = new Map<string, boolean>();
+  /** Every subscription change asked for, in order. */
+  readonly subscriptions: Array<{
+    room: string;
+    speaker: string;
+    listener: string;
+    silenced: boolean;
+  }> = [];
   readonly recordings: Array<{
     room: string;
     key: string;
@@ -204,14 +213,18 @@ export class MemoryMediaServer implements MediaServer {
 
   async setSilenced({
     room,
-    identity,
+    speaker,
+    listener,
     silenced,
   }: {
     room: string;
-    identity: string;
+    speaker: string;
+    listener: string;
     silenced: boolean;
   }) {
-    this.muted.set(`${room}/${identity}`, silenced);
+    // Keyed by who is being withheld, which is what callers ask about.
+    this.muted.set(`${room}/${speaker}`, silenced);
+    this.subscriptions.push({ room, speaker, listener, silenced });
   }
 
   async closeRoom(room: string) {

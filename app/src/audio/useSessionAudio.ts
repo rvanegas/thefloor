@@ -42,15 +42,11 @@ export interface SessionAudio {
  * @param token     the app's own auth token, used to fetch a join credential
  * @param selfMuted the user's own mute, which is theirs alone and unrelated to
  *                  the floor
- * @param silenced  whether the floor currently silences this user, per the
- *                  server. Enforcement is the server's job — this only decides
- *                  whether to publish again once it lifts.
  */
 export function useSessionAudio(
   sessionId: string | null,
   token: string | null,
-  selfMuted: boolean,
-  silenced: boolean
+  selfMuted: boolean
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -59,12 +55,6 @@ export function useSessionAudio(
     otherAudible: false,
   });
   const roomRef = useRef<Room | null>(null);
-  /**
-   * What the microphone should be doing, per the latest session snapshot. Held
-   * in a ref so the permission listener — registered once, when the room is
-   * created — always sees the current answer rather than a stale closure.
-   */
-  const shouldPublish = useRef(false);
 
   useEffect(() => {
     if (!sessionId || !token) return;
@@ -99,22 +89,7 @@ export function useSessionAudio(
       if (track.kind === Track.Kind.Audio) update({ otherAudible: false });
     };
 
-    /**
-     * Publishing again is gated on LiveKit, not on us. The server restores
-     * permission asynchronously while pushing the session snapshot
-     * immediately, so acting on the snapshot alone loses the race: the client
-     * asks to publish, LiveKit answers "insufficient permissions to publish",
-     * and nothing ever asks again — a released floor that stays silent
-     * forever. Re-applying when permission actually changes is what closes it.
-     */
-    const onPermissions = () => {
-      if (room.localParticipant.permissions?.canPublish && shouldPublish.current) {
-        room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
-      }
-    };
-
     room
-      .on(RoomEvent.ParticipantPermissionsChanged, onPermissions)
       .on(RoomEvent.TrackMuted, onMuted)
       .on(RoomEvent.TrackUnmuted, onUnmuted)
       .on(RoomEvent.TrackSubscribed, onSubscribed)
@@ -177,18 +152,17 @@ export function useSessionAudio(
    * otherwise leave the user permanently inaudible: silenced correctly, never
    * restored. Publishing again here is what makes the floor temporary.
    */
+  /**
+   * Only self-mute touches the microphone. The floor is enforced by the server
+   * withholding this participant from the other one, so a silenced user keeps
+   * publishing exactly as before — which is deliberate, and is what keeps their
+   * audio session alive so they can still hear and can speak again afterwards.
+   */
   useEffect(() => {
-    shouldPublish.current = !selfMuted && !silenced;
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-
-    // Attempt immediately for the self-mute case, which needs no permission.
-    // If the floor was just released this may still lose the race with
-    // LiveKit, which is what the permission listener above exists for.
-    room.localParticipant
-      .setMicrophoneEnabled(shouldPublish.current)
-      .catch(() => {});
-  }, [selfMuted, silenced, state.status]);
+    room.localParticipant.setMicrophoneEnabled(!selfMuted).catch(() => {});
+  }, [selfMuted, state.status]);
 
   return state;
 }

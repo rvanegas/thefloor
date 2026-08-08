@@ -259,19 +259,23 @@ export class SessionRegistry {
     if (!this.media) return;
     if (before.floor.holder === after.floor.holder) return;
 
-    const silenced = after.floor.holder
-      ? [otherParty(after, after.floor.holder)]
-      : [];
-    for (const participant of [after.initiator, after.invitee]) {
-      const isSilenced = silenced.includes(participant);
+    // Both directions are stated explicitly on every transition rather than
+    // only the one that changed, so the media plane is told the whole truth and
+    // cannot drift out of step with the reducer.
+    for (const listener of [after.initiator, after.invitee]) {
+      const speaker = otherParty(after, listener);
+      // Whoever holds the floor stops receiving the other party. Nothing is
+      // done to the silenced person's own publishing.
+      const silenced = after.floor.holder === listener;
       this.run(
         () =>
           this.media?.setSilenced({
             room: after.id,
-            identity: participant,
-            silenced: isSilenced,
+            speaker,
+            listener,
+            silenced,
           }),
-        `setSilenced ${after.id}/${participant}=${isSilenced}`
+        `setSilenced ${after.id} ${listener}<-${speaker}=${silenced}`
       );
     }
   }
