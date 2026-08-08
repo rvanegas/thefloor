@@ -252,9 +252,6 @@ No assertions exist for these. Ordered by how likely they are to be wrong.
    does not say.
 7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
    reducer returns early on non-active sessions — but untested.
-8. **Export against a real recording.** The encoder is tested against synthetic
-   tones and verified to gate them, but the Export button has never been run
-   end to end on a session containing actual speech.
 
 ---
 
