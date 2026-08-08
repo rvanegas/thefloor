@@ -38,19 +38,41 @@ publishing its own microphone at the time — capturing requires an active audio
 session, and the `audio` background mode covers recording as much as playback.
 The counterpart being a silent simulator was therefore irrelevant.
 
+### Ruled out: CallKit
+
+The obvious guess, and wrong. Zoom and Clubhouse both keep audio running in the
+background and neither appears in the system call list or Recents — so neither
+is using CallKit for it. CallKit is for apps that want to *be* the phone:
+incoming call UI, Do Not Disturb integration, Recents. It would have been an
+expensive detour with a visible change in behaviour, and it would not have
+addressed the cause.
+
+The plain `audio` background mode is sufficient for this. Something about our
+audio session is not satisfying it.
+
 ### Candidates
 
-1. **AVAudioSession category or activation.** Check what is actually applied on
-   the device rather than what the API promises — the device console log during
-   a background transition would say. Cheaper to investigate; may be nothing.
-2. **CallKit.** How VoIP apps get iOS to treat a session as a genuine call
-   rather than an app that happens to be making noise. Almost certainly the
-   real answer, and a substantial piece of work: call lifecycle, the system call
-   UI, and PushKit if incoming calls should wake a closed app.
+Background audio needs three things: category `playAndRecord`, the session
+**active**, and audio actually flowing. The third holds — the phone was
+publishing. So one of the first two is not.
 
-Note `voip` is currently declared in `UIBackgroundModes` without PushKit. It is
-doing nothing, and App Review has been known to object to it. Either use it or
-drop it.
+1. **Two owners of the audio session.** `registerGlobals()` installs LiveKit's
+   automatic management, whose own documentation says the session is
+   "configured and activated natively as the audio engine changes state, with
+   no JavaScript involvement per transition" — and `useSessionAudio` then calls
+   `AudioSession.startAudioSession()` manually as well. Two things activating
+   and deactivating one session, with `deactivateOnStop` defaulting to true.
+   Cheapest to test: drop the manual calls and rely on automatic management.
+2. **The category is wrong.** If automatic management is not landing on
+   `playAndRecord`, background execution would not be granted. Fix by passing
+   an explicit `IOSAudioSessionPolicy` to `setupIOSAudioManagement`.
+3. **Instrument it.** Console.app against the device during a background
+   transition will say what the session's category and active state actually
+   are, and why the app was suspended. Slower, but it ends the guessing —
+   which by this point has cost more than instrumenting would have.
+
+Try them in that order. Each needs a rebuild and a test on a real device;
+a simulator establishes nothing here.
 
 ### Downstream defects, worth fixing regardless
 
