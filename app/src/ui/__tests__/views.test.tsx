@@ -46,6 +46,10 @@ const mockApp = {
 // The views are rendered without a native audio stack: @livekit/react-native
 // ships untranspiled ESM, and more importantly a render test has no business
 // opening a microphone. Audio behaviour is verified on a device, not here.
+jest.mock('../../api/download', () => ({
+  exportRecording: jest.fn(async () => {}),
+}));
+
 jest.mock('../../audio/useSessionAudio', () => ({
   useSessionAudio: () => ({
     status: 'idle',
@@ -164,6 +168,33 @@ describe('Home', () => {
     expect(text).toContain('Accept');
     expect(text).toContain('Quinn Ito');
     expect(text).toContain('Start session');
+    act(() => tree.unmount());
+  });
+
+  it('offers an export for each past recording', async () => {
+    const { exportRecording } = require('../../api/download');
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [],
+      recordings: [
+        {
+          id: 'rec_1',
+          sessionId: 'sess_1',
+          other: { id: THEM, displayName: 'Dana Chu' },
+          startedAt: NOW,
+          durationMs: 92_000,
+        },
+      ],
+    };
+
+    const tree = render(<HomeView onEnterSession={() => {}} />);
+    expect(textOf(tree)).toContain('1:32');
+
+    const button = findButton(tree, 'Export');
+    expect(button).toBeDefined();
+    await act(async () => button!.props.onPress());
+    expect(exportRecording).toHaveBeenCalledWith('token', 'rec_1', 'Dana Chu');
     act(() => tree.unmount());
   });
 

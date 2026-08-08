@@ -10,8 +10,10 @@ import {
 import type {
   ContactView,
   InviteView,
+  RecordingView,
   RejoinableView,
 } from '../../../core/protocol';
+import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Field, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
@@ -136,20 +138,47 @@ export function HomeView({
                   {formatDuration(r.durationMs)}
                 </Text>
               </View>
-              <Button
-                label="Export"
-                onPress={() =>
-                  Alert.alert(
-                    'Export recording',
-                    'Recording capture is not implemented yet, so there is no audio file to export.'
-                  )
-                }
-              />
+              <ExportButton recording={r} />
             </Card>
           ))}
         </View>
       )}
     </ScrollView>
+  );
+}
+
+/**
+ * Its own component so each row keeps its own progress state — the mix is
+ * encoded on demand, so this is a wait of seconds rather than an instant
+ * download, and a shared flag would show every row as busy.
+ */
+function ExportButton({ recording }: { recording: RecordingView }) {
+  const app = useApp();
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Button
+      label={busy ? 'Preparing…' : 'Export'}
+      disabled={busy}
+      onPress={async () => {
+        if (!app.token) return;
+        setBusy(true);
+        try {
+          await exportRecording(
+            app.token,
+            recording.id,
+            recording.other?.displayName ?? 'session'
+          );
+        } catch (e) {
+          Alert.alert(
+            'Could not export',
+            e instanceof Error ? e.message : String(e)
+          );
+        } finally {
+          setBusy(false);
+        }
+      }}
+    />
   );
 }
 

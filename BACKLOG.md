@@ -6,43 +6,6 @@ what *has* been built.
 
 ---
 
-## Deliver an export to the user
-
-**Status:** the server side is done (2026-08-07). The app's Export button is
-still an alert.
-
-`GET /recordings/:id/export` fetches the stems, applies the floor timeline, and
-returns one mixed OGG. Participants only; a stranger is told the recording does
-not exist rather than that they may not have it. Recordings captured before
-per-speaker stems existed are refused with `legacy_recording`, because the
-floor cannot be applied to a mix and handing one over could release remarks the
-other party never heard.
-
-What remains is getting the bytes to a phone. Two options:
-
-1. **`expo-file-system` + `expo-sharing`** — download with the bearer token,
-   hand to the system share sheet. Natural, but both need native code, so it
-   costs a rebuild of the dev build on every device.
-2. **A short-lived signed export URL** the client opens with `Linking` — no new
-   native dependencies and no rebuild, at the cost of a signed-URL scheme on the
-   server and a credential that briefly exists outside the app.
-
-Neither is obviously right; option 1 is more conventional, option 2 is cheaper
-to get running.
-
-### Note for whoever builds it
-
-The mix is encoded per request rather than stored, so a change to how the floor
-is applied takes effect for past recordings too. That is deliberate — a cached
-mix would keep leaking a silenced remark after the bug that let it through was
-fixed. If encoding ever becomes too slow to do on demand, cache it keyed by
-something that changes when the gating logic does.
-
-`ffmpeg` must be on the server's PATH. That is a deployment requirement the
-Lightsail box does not yet satisfy.
-
----
-
 ## SMS authentication — shelved indefinitely
 
 **Status:** shelved 2026-08-04. Not scheduled.

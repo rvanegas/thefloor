@@ -57,3 +57,7 @@ android/
 
 # scratch dev diagnostics (mint tokens, inspect live rooms)
 dev-*.mjs
+
+# editor lock files
+.#*
+#*#
