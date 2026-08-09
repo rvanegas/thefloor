@@ -355,21 +355,34 @@ commits record them.
    whole string, case-insensitively — deliberately, since prefix search would
    let anyone enumerate strangers — but a typo is indistinguishable from no such
    user. `server/src/accounts.ts`.
-4. **Requesting someone who already requested you silently accepts.**
-   `requestContact` treats an inbound pending request as an acceptance rather
-   than erroring, so the pair goes straight to `accepted` with no confirmation.
-   Reasonable, but silent. `server/src/accounts.ts`.
-5. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
+4. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
    code field uses a number pad, which has no return key, so iOS floats a
    standalone key in the bottom-right — far from the fields, over empty space,
    reading "Go" while the button below says "Sign in". Either match the label or
    reconsider the number pad. `app/src/ui/components.tsx`.
-6. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
+5. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
     The server is now the authority, which removed the device-drift problem, but
     a clock change on the server would still skew live countdowns. A monotonic
     source would be sounder.
 
 ---
+
+### Not a defect: requesting someone who already requested you
+
+Considered and declined (decision, 2026-08-08). `requestContact` treats an
+inbound pending request as an acceptance, so the pair goes straight to
+`accepted` with no confirmation.
+
+That reads intent correctly — requesting someone who has requested you is
+consent to be their contact — and reaching it means walking past the obvious
+affordance to find an obscure one: incoming requests sort to the top of the
+contact list with Accept and Decline beside them, while this path requires
+scrolling to Add Contact and typing their address instead.
+
+The only cost is silence: the user learns of it by noticing the person is now
+accepted. If it ever wants improving, the fix is a sentence rather than a rule
+— "they had already requested you, so you are now contacts" — and not a change
+to the model.
 
 ### Not a defect: recording has no maximum duration
 
