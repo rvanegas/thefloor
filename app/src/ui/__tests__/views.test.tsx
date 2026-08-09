@@ -351,6 +351,30 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
+  it('lists an invite to a stranger like any other sent request', () => {
+    // Outgoing requests carry no account id and show the address rather than a
+    // name, so one to somebody who has not signed up is indistinguishable.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        { account: { id: '', displayName: 'nobody@example.com' }, status: 'outgoing' },
+        { account: { id: '', displayName: 'real@example.com' }, status: 'outgoing' },
+      ],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterSession={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('nobody@example.com');
+    expect(text).toContain('real@example.com');
+    expect(text).toContain('Sent');
+    // Neither offers a session, and neither can be accepted.
+    expect(findButton(tree, 'Start session')).toBeUndefined();
+    expect(findButton(tree, 'Accept')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
   it('says so when the connection is down', () => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     mockApp.status = 'closed';

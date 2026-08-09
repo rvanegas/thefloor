@@ -344,16 +344,6 @@ commits record them.
    cleanup cannot update state — the effect has already been cancelled — so the
    last status sticks and the screen asserts audio that is not there.
    `app/src/audio/useSessionAudio.ts`.
-**Contact search cannot distinguish a typo from a stranger.**
-   `findByIdentifier` matches the whole address, case-insensitively —
-   deliberately, since prefix search would let anyone enumerate strangers — and
-   a miss says "No account with that email address." That is feedback, and it
-   already discloses whether an address has an account here, so the privacy
-   property is weaker than the exact-match rule suggests. What it cannot do is
-   tell someone they mistyped. Worth deciding whether to accept the disclosure
-   openly or to say something that confirms nothing, but the current state is
-   the worst of both: it leaks, and it still leaves the user guessing.
-   `server/src/accounts.ts`.
 2. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
    code field uses a number pad, which has no return key, so iOS floats a
    standalone key in the bottom-right — far from the fields, over empty space,

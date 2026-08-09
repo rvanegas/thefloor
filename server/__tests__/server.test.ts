@@ -87,6 +87,112 @@ describe('one-time codes', () => {
     expect(second.account.displayName).toBe('Priya');
   });
 
+  it('answers identically whether or not the address has an account', async () => {
+    // The property this exists for. If a request to a stranger were refused
+    // and a request to a user accepted, the endpoint would answer whether an
+    // address has an account here, one guess at a time.
+    const alice = await signIn('alice@example.com', 'Alice');
+    await signIn('real@example.com', 'Real');
+
+    const toReal = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: { authorization: `Bearer ${alice.token}` },
+      payload: { identifier: 'real@example.com' },
+    });
+    const toNobody = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: { authorization: `Bearer ${alice.token}` },
+      payload: { identifier: 'nobody@example.com' },
+    });
+
+    expect(toReal.statusCode).toBe(toNobody.statusCode);
+    expect(toReal.json()).toEqual(toNobody.json());
+  });
+
+  it('shows both kinds of outgoing request identically', async () => {
+    // Including in the contact list: a display name for one and an address for
+    // the other would answer the same question a step later.
+    const alice = await signIn('alice@example.com', 'Alice');
+    await signIn('real@example.com', 'Real');
+
+    for (const identifier of ['real@example.com', 'nobody@example.com']) {
+      await app.fastify.inject({
+        method: 'POST',
+        url: '/contacts/request',
+        headers: { authorization: `Bearer ${alice.token}` },
+        payload: { identifier },
+      });
+    }
+
+    const contacts = app.accounts.contactsFor(alice.account.id);
+    expect(contacts).toHaveLength(2);
+    for (const entry of contacts) {
+      expect(entry.status).toBe('outgoing');
+      expect(entry.account.id).toBe('');
+    }
+    expect(contacts.map((c) => c.account.displayName).sort()).toEqual([
+      'nobody@example.com',
+      'real@example.com',
+    ]);
+  });
+
+  it('turns an invite into a real request when that address signs up', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: { authorization: `Bearer ${alice.token}` },
+      payload: { identifier: 'later@example.com' },
+    });
+
+    // They sign up, and find Alice already waiting.
+    const later = await signIn('later@example.com', 'Later');
+    const theirs = app.accounts.contactsFor(later.account.id);
+    expect(theirs).toEqual([
+      { account: { id: alice.account.id, displayName: 'Alice' }, status: 'incoming' },
+    ]);
+
+    // And Alice's side is now a real pending request rather than an invite.
+    const hers = app.accounts.contactsFor(alice.account.id);
+    expect(hers).toHaveLength(1);
+    expect(hers[0].status).toBe('outgoing');
+
+    // Which they can accept, exactly as if it had always been one.
+    expect(
+      app.accounts.acceptContact(later.account.id, alice.account.id)
+    ).toBe(true);
+    expect(app.accounts.areContacts(alice.account.id, later.account.id)).toBe(true);
+  });
+
+  it('refuses a second invite to the same address, as it would a real one', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const send = () =>
+      app.fastify.inject({
+        method: 'POST',
+        url: '/contacts/request',
+        headers: { authorization: `Bearer ${alice.token}` },
+        payload: { identifier: 'nobody@example.com' },
+      });
+    expect((await send()).statusCode).toBe(200);
+    const second = await send();
+    expect(second.statusCode).toBe(400);
+    expect(second.json().error).toBe('Request already sent.');
+  });
+
+  it('will not let someone invite their own address', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const response = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: { authorization: `Bearer ${alice.token}` },
+      payload: { identifier: 'ALICE@example.com' },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toBe('That’s you.');
+  });
+
   it('rejects a wrong code', async () => {
     const code = app.accounts.issueCode('+15550000001', clock)!;
     // Derived from the real code so it is guaranteed to differ.

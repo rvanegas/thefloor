@@ -143,6 +143,7 @@ export class Accounts {
         )
         .run(accountId, id, name || id, now);
       account = this.byId(accountId)!;
+      this.resolveInvitesFor(account);
     } else if (name && name !== account.display_name) {
       this.db
         .prepare('UPDATE accounts SET display_name = ? WHERE id = ?')
@@ -181,7 +182,49 @@ export class Accounts {
 
   // --- Contacts -----------------------------------------------------------
 
-  contactsFor(userId: string): Array<{ account: AccountRow; status: string }> {
+  /**
+   * Turns requests sent to this address before it had an account into real
+   * pending contact requests, now that it does.
+   *
+   * Someone who signs up therefore finds whoever invited them already waiting,
+   * which is the point of storing the request in the first place.
+   */
+  private resolveInvitesFor(account: AccountRow): void {
+    const invites = this.db
+      .prepare(
+        'SELECT requester_id FROM pending_invites WHERE identifier = ? COLLATE NOCASE'
+      )
+      .all(account.identifier) as Array<{ requester_id: string }>;
+
+    for (const { requester_id } of invites) {
+      if (requester_id === account.id) continue;
+      const [a, b] = pairKey(requester_id, account.id);
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO contacts (a_id, b_id, state, requester_id, created_at)
+           VALUES (?, ?, 'pending', ?, ?)`
+        )
+        .run(a, b, requester_id, account.created_at);
+    }
+
+    this.db
+      .prepare('DELETE FROM pending_invites WHERE identifier = ? COLLATE NOCASE')
+      .run(account.identifier);
+  }
+
+  /**
+   * The contact list, including requests sent to addresses with no account.
+   *
+   * An outgoing request is shown as the address it was sent to rather than the
+   * recipient's name, and carries no account id. That is what makes a request
+   * to a real account and one to an address that does not exist identical:
+   * showing a display name for one and an address for the other would answer
+   * the question the pending_invites table exists to avoid answering. The name
+   * appears when they accept, which is also when it starts to mean anything.
+   */
+  contactsFor(
+    userId: string
+  ): Array<{ account: { id: string; displayName: string }; status: string }> {
     const rows = this.db
       .prepare('SELECT * FROM contacts WHERE a_id = ? OR b_id = ?')
       .all(userId, userId) as unknown as Array<{
@@ -201,15 +244,32 @@ export class Accounts {
           : row.requester_id === userId
             ? 'outgoing'
             : 'incoming';
-      return [{ account, status }];
+      const view =
+        status === 'outgoing'
+          ? { id: '', displayName: account.identifier }
+          : { id: account.id, displayName: account.display_name };
+      return [{ account: view, status }];
     });
+
+    // Requests to addresses that have no account yet, shown exactly as above.
+    const invites = this.db
+      .prepare(
+        'SELECT identifier FROM pending_invites WHERE requester_id = ?'
+      )
+      .all(userId) as Array<{ identifier: string }>;
+    for (const invite of invites) {
+      entries.push({
+        account: { id: '', displayName: invite.identifier },
+        status: 'outgoing',
+      });
+    }
 
     const rank = (s: string) =>
       s === 'incoming' ? 0 : s === 'accepted' ? 1 : 2;
     return entries.sort(
       (x, y) =>
         rank(x.status) - rank(y.status) ||
-        x.account.display_name.localeCompare(y.account.display_name)
+        x.account.displayName.localeCompare(y.account.displayName)
     );
   }
 
@@ -231,12 +291,37 @@ export class Accounts {
     identifier: string,
     now: number
   ):
-    | { ok: true; accepted: boolean; targetId: string }
+    // targetId is null when the address has no account yet: there is nobody to
+    // notify, which the caller has to know without the answer reaching a user.
+    | { ok: true; accepted: boolean; targetId: string | null }
     | { ok: false; error: string } {
-    const target = this.byIdentifier(identifier);
-    // Sign-in is email-only, so no account can hold a phone number and saying
-    // otherwise is the last trace of an option the interface no longer offers.
-    if (!target) return { ok: false, error: 'No account with that email address.' };
+    const id = normalize(identifier);
+    const target = this.byIdentifier(id);
+
+    // No account with that address: the request is stored against the address
+    // itself and resolves if they ever sign up. Deliberately indistinguishable
+    // from a request to a real account — refusing here would answer whether an
+    // address has an account, one guess at a time.
+    if (!target) {
+      const me = this.byId(from);
+      if (me && me.identifier.toLowerCase() === id.toLowerCase()) {
+        return { ok: false, error: 'That’s you.' };
+      }
+      const already = this.db
+        .prepare(
+          'SELECT 1 FROM pending_invites WHERE requester_id = ? AND identifier = ? COLLATE NOCASE'
+        )
+        .get(from, id);
+      if (already) return { ok: false, error: 'Request already sent.' };
+
+      this.db
+        .prepare(
+          'INSERT INTO pending_invites (requester_id, identifier, created_at) VALUES (?, ?, ?)'
+        )
+        .run(from, id, now);
+      return { ok: true, accepted: false, targetId: null };
+    }
+
     if (target.id === from) return { ok: false, error: 'That’s you.' };
 
     const existing = this.contactState(from, target.id);

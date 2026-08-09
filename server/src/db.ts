@@ -77,6 +77,23 @@ CREATE TABLE IF NOT EXISTS contacts (
   PRIMARY KEY (a_id, b_id)
 );
 
+-- A contact request sent to an address with no account yet.
+--
+-- Requests must be storable whether or not the recipient exists, or the
+-- interface answers a question it should not: a real request produces a
+-- pending row and an imaginary one produces nothing, which tells anyone who
+-- looks whether an address has an account here. Keeping both means every
+-- request looks the same — and it lets someone invite a friend before that
+-- friend has signed up, which is worth having on its own.
+--
+-- Resolved into a real contacts row the first time that address signs in.
+CREATE TABLE IF NOT EXISTS pending_invites (
+  requester_id TEXT NOT NULL REFERENCES accounts(id),
+  identifier   TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  PRIMARY KEY (requester_id, identifier)
+);
+
 -- Sessions are held in memory while live; this is the record written when one
 -- ends, for history and to anchor recordings.
 CREATE TABLE IF NOT EXISTS sessions (

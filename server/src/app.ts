@@ -174,7 +174,10 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!result.ok) return reply.code(400).send({ error: result.error });
     // The recipient is the whole point: without telling them, a request simply
     // never appears on their side.
-    homeNotifier.notify([account.id, result.targetId]);
+    // No target to notify when the address has no account yet.
+    homeNotifier.notify(
+      result.targetId ? [account.id, result.targetId] : [account.id]
+    );
     return { ok: true, accepted: result.accepted };
   });
 
@@ -306,8 +309,12 @@ export function buildApp(options: BuildOptions = {}): App {
     return {
       invites: sessions.invitesFor(userId),
       rejoinable: sessions.rejoinableFor(userId),
+      // contactsFor already returns the public shape, deliberately: an
+      // outgoing request carries the address rather than a name, so a request
+      // to a real account and one to an address without an account look the
+      // same.
       contacts: accounts.contactsFor(userId).map((entry) => ({
-        account: toPublic(entry.account),
+        account: entry.account,
         status: entry.status as 'accepted' | 'outgoing' | 'incoming',
       })),
       recordings: sessions.recordingsFor(userId).map((row) => {
