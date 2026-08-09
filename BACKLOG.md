@@ -82,6 +82,56 @@ or hearing".
 
 ---
 
+## Deployment
+
+Deployed 2026-08-09 to **https://thefloor.rvanegas.co**.
+
+`bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
+runs the tests first and refuses to continue if they fail.
+
+### What is where
+
+| | |
+| --- | --- |
+| Instance | Lightsail `thefloor`, us-west-2a, Ubuntu 24.04, 2GB, $12/mo |
+| Static IP | `44.241.121.49` |
+| DNS | Namecheap, A record `thefloor` → that IP |
+| TLS | Caddy, automatic Let's Encrypt, renews itself |
+| Service | systemd `thefloor`, restarts on failure and on boot |
+| Node | 22, required for the built-in `node:sqlite` |
+| Database | `/home/ubuntu/thefloor-data/thefloor.db`, outside the synced tree |
+| Logs | `journalctl -u thefloor` and `-u caddy` |
+
+Node binds to loopback only; nothing reaches it except through Caddy.
+
+### Credentials
+
+Three, deliberately separate, so no single leak is worse than it has to be:
+
+- **LiveKit** — media, held by the server.
+- **`thefloor-egress`** — PutObject only, and it travels to LiveKit. It cannot
+  read the bucket back, so a leak of the key a third party holds does not
+  expose anyone's conversations.
+- **`thefloor-server`** — `ses:SendEmail` on the rvanegas.co identity and
+  `s3:GetObject` on the recordings bucket. Nothing else. Created for this
+  deployment because Lightsail instances get no IAM role, so the default
+  credential chain has nothing to find.
+
+`server/.env` on the box holds all of it, mode 600, and is excluded from the
+sync so a deploy cannot overwrite it.
+
+### Known rough edges
+
+- **A deploy drops every live session.** Sessions are in memory; see below.
+- **The 380-day-uptime box is not this one.** dianoia runs on a separate
+  instance and was deliberately left alone — it owns ports 80 and 443 there
+  with its own nginx and certbot.
+- **`tsx` runs TypeScript directly in production.** Fine at this scale and it
+  keeps the cross-package `core/` imports working without a build step, but a
+  compile step would start faster and use less memory if that ever matters.
+
+---
+
 ## Live sessions do not survive a server restart
 
 **Status:** known, not scheduled. Becomes urgent on deployment.

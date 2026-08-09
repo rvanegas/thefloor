@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+# Ships the server to Lightsail and restarts it.
+#
+# Deliberately rsync rather than git: there is no remote yet, and this keeps
+# deployment to one command that works from a dirty tree. Excludes are the
+# point — node_modules is rebuilt on the far side for that architecture, and
+# .env there holds production secrets this must never overwrite.
+#
+# Live sessions live in memory, so a restart drops every call in progress.
+# There is no way around that yet; see BACKLOG.md.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+SSH="ssh -i $KEY -o BatchMode=yes"
+
+cd "$(dirname "$0")/.."
+
+echo "→ tests"
+npm test --prefix core --silent >/dev/null
+npm test --prefix server --silent >/dev/null
+
+echo "→ syncing"
+rsync -az --delete -e "$SSH" \
+  --exclude node_modules --exclude .git --exclude 'app/' \
+  --exclude '.env' --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
+  ./ "$HOST:/home/ubuntu/thefloor/"
+
+echo "→ installing and restarting"
+$SSH "$HOST" '
+  cd ~/thefloor/server && npm install --omit=dev --no-audit --no-fund --silent
+  sudo systemctl restart thefloor
+'
+
+echo "→ waiting for health"
+for _ in $(seq 1 20); do
+  if curl -sf --max-time 5 https://thefloor.rvanegas.co/healthz >/dev/null; then
+    echo "✓ $(curl -s https://thefloor.rvanegas.co/healthz)"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "✗ did not come back healthy; check: $SSH $HOST 'journalctl -u thefloor -n 40'" >&2
+exit 1
