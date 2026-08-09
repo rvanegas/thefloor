@@ -340,27 +340,20 @@ functionality of Facetime and Zoom sessions.
 Real, reproducible, and left alone. Resolved entries have been dropped — the
 commits record them.
 
-1. **No heartbeat on the app's websocket.** A half-open socket goes unnoticed
-   indefinitely: the server reported a phone present for a full thirty seconds
-   while it could neither speak nor hear. Less damaging now that a disconnect
-   only starts a grace period rather than removing anyone, but it still means
-   the *start* of that period can be minutes late, and that the other party is
-   shown someone as connected who is not. Both ends should notice a dead
-   connection in seconds.
-2. **"Audio connected" can be stale.** When the audio hook tears down, its
+1. **"Audio connected" can be stale.** When the audio hook tears down, its
    cleanup cannot update state — the effect has already been cancelled — so the
    last status sticks and the screen asserts audio that is not there.
    `app/src/audio/useSessionAudio.ts`.
-3. **Contact search gives no useful feedback.** `findByIdentifier` matches the
+2. **Contact search gives no useful feedback.** `findByIdentifier` matches the
    whole string, case-insensitively — deliberately, since prefix search would
    let anyone enumerate strangers — but a typo is indistinguishable from no such
    user. `server/src/accounts.ts`.
-4. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
+3. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
    code field uses a number pad, which has no return key, so iOS floats a
    standalone key in the bottom-right — far from the fields, over empty space,
    reading "Go" while the button below says "Sign in". Either match the label or
    reconsider the number pad. `app/src/ui/components.tsx`.
-5. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
+4. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
     The server is now the authority, which removed the device-drift problem, but
     a clock change on the server would still skew live countdowns. A monotonic
     source would be sounder.
@@ -393,8 +386,11 @@ Running away with it requires a phone left foregrounded and unattended — and
 note that a screen lock does not reliably prevent this, since the app survived
 five minutes backgrounded with its connection intact, and capture is
 server-side egress that does not care what the phone is doing. It ends only
-once the socket actually dies: a minute of grace, then the empty-session
-minute.
+once the socket actually dies — now detected within about twelve seconds by the
+heartbeat, then a minute of grace, then the empty-session minute. Before the
+heartbeat existed that bound was theoretical: a half-open socket went unnoticed
+for hours, so nothing was ever removed and a forgotten recording really could
+run indefinitely.
 
 Against a cap: the spec puts no bound on session length, and cutting off a long
 conversation mid-sentence is a poor trade for an app whose premise is

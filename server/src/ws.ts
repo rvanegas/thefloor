@@ -1,5 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import type { WebSocket } from 'ws';
+import {
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_TIMEOUT_MS,
+} from '../../core/constants';
 import { otherParty } from '../../core/session';
 import type {
   ClientMessage,
@@ -14,6 +18,8 @@ interface Connection {
   userId: string;
   watchingHome: boolean;
   watchingSessions: Set<string>;
+  /** When anything was last heard from this client. */
+  lastSeen: number;
 }
 
 /**
@@ -48,6 +54,27 @@ export function registerWebsocket(deps: {
   /** Whether this user still has any live socket. */
   const hasConnection = (userId: string): boolean =>
     [...connections].some((c) => c.userId === userId);
+
+  /**
+   * Closes connections that have gone quiet.
+   *
+   * A TCP connection can die without either end being told — no close arrives,
+   * and the socket sits half-open until the OS gives up, which is hours by
+   * default. Left to that, nothing downstream works: the grace period never
+   * starts, so nobody is removed, so a session never empties, never auto-ends,
+   * and a recording bills indefinitely against two egresses.
+   *
+   * Closing the socket is enough; its close handler does the reporting, which
+   * keeps one path for every kind of departure.
+   */
+  const sweep = setInterval(() => {
+    const cutoff = now() - HEARTBEAT_TIMEOUT_MS;
+    for (const connection of connections) {
+      if (connection.lastSeen < cutoff) connection.socket.close();
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+  sweep.unref?.();
+  fastify.addHook('onClose', async () => clearInterval(sweep));
 
   function send(connection: Connection, message: ServerMessage): void {
     if (connection.socket.readyState === 1) {
@@ -124,6 +151,7 @@ export function registerWebsocket(deps: {
       userId: account.id,
       watchingHome: false,
       watchingSessions: new Set(),
+      lastSeen: now(),
     };
     connections.add(connection);
 
@@ -140,6 +168,9 @@ export function registerWebsocket(deps: {
     });
 
     socket.on('message', (raw: Buffer | string) => {
+      // Any message is proof of life, not only a heartbeat.
+      connection.lastSeen = now();
+
       let message: ClientMessage;
       try {
         message = JSON.parse(String(raw)) as ClientMessage;
@@ -149,6 +180,10 @@ export function registerWebsocket(deps: {
       }
 
       switch (message.type) {
+        case 'ping':
+          send(connection, { type: 'pong', serverNow: now() });
+          return;
+
         case 'watch.home':
           connection.watchingHome = true;
           pushHome(connection);

@@ -1,6 +1,9 @@
 import WebSocket from 'ws';
 import { buildApp, type App } from '../src/app';
-import { DISCONNECT_GRACE_MS } from '../../core/constants';
+import {
+  DISCONNECT_GRACE_MS,
+  HEARTBEAT_TIMEOUT_MS,
+} from '../../core/constants';
 import type { ClientMessage, ServerMessage } from '../../core/protocol';
 
 /**
@@ -244,6 +247,45 @@ describe('websocket', () => {
     expect(app.sessions.get(sessionId)!.status).toBe('active');
     m.close();
   });
+
+  it('answers a heartbeat', async () => {
+    const { token } = await signIn('+15550000001', 'Alice');
+    const client = new Client(token, baseUrl);
+    await client.open();
+    await client.next('hello');
+
+    client.send({ type: 'ping' });
+    const pong = await client.next('pong');
+    expect(pong.serverNow).toBeGreaterThan(0);
+    client.close();
+  });
+
+  it('starts the grace period for a connection that has gone silent', async () => {
+    // A socket can die without either end being told: no close arrives and it
+    // sits half-open until the OS gives up, which is hours. Nothing downstream
+    // works in the meantime — nobody is removed, so no session ever empties or
+    // auto-ends, and a recording bills against two egresses indefinitely.
+    const { alice, bob, sessionId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.session', sessionId });
+    b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
+    await b.next('session', (m) => m.view.session.present.length === 2);
+
+    // Bob's socket stays open but says nothing further. The clock moves past
+    // the point where that is survivable.
+    clock += HEARTBEAT_TIMEOUT_MS + 1_000;
+    await new Promise((r) => setTimeout(r, 6_500));
+
+    const session = app.sessions.get(sessionId)!;
+    expect(session.disconnectedAt[bob.account.id]).toBeDefined();
+    // Still present: silence starts the clock, it does not remove anyone.
+    expect(session.present).toContain(bob.account.id);
+    a.close();
+    b.close();
+  }, 15_000);
 
   it('keeps a dropped party in the session, and their floor', async () => {
     // Losing a socket is not leaving. Only staying gone past the grace period

@@ -25,3 +25,16 @@ export const EMPTY_SESSION_TIMEOUT_MS = 60 * 1000;
  * which a tunnel or a lift is survivable.
  */
 export const DISCONNECT_GRACE_MS = 60_000;
+
+/**
+ * How often each side proves it is still there, and how long silence is
+ * tolerated before the connection is treated as dead.
+ *
+ * Deliberately aggressive. Detection latency adds to DISCONNECT_GRACE_MS, so a
+ * slow check delays every timer that depends on knowing someone has gone — a
+ * user is not removed, a session never empties, and a recording keeps billing.
+ * Being wrong is cheap by comparison: a false positive shows "reconnecting…"
+ * for a moment and then clears, because a disconnect no longer removes anyone.
+ */
+export const HEARTBEAT_INTERVAL_MS = 5_000;
+export const HEARTBEAT_TIMEOUT_MS = 12_000;

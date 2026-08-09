@@ -1,3 +1,7 @@
+import {
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_TIMEOUT_MS,
+} from '../../../core/constants';
 import type {
   ClientAction,
   ClientMessage,
@@ -44,6 +48,9 @@ export class Realtime {
   private enteredSession: string | null = null;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  /** When anything was last heard from the server. */
+  private lastSeen = 0;
   private closedByUs = false;
 
   connect(token: string, handlers: RealtimeHandlers): void {
@@ -63,6 +70,8 @@ export class Realtime {
 
     socket.onopen = () => {
       this.reconnectAttempt = 0;
+      this.lastSeen = Date.now();
+      this.startHeartbeat();
       this.handlers.onStatus?.('open');
       // Restore whatever this client was doing before the drop.
       if (this.watchingHome) this.send({ type: 'watch.home' });
@@ -80,6 +89,9 @@ export class Realtime {
     };
 
     socket.onmessage = (event) => {
+      // Anything at all is proof the connection is alive, not only a pong.
+      this.lastSeen = Date.now();
+
       let message: ServerMessage;
       try {
         message = JSON.parse(String(event.data)) as ServerMessage;
@@ -88,6 +100,10 @@ export class Realtime {
       }
 
       switch (message.type) {
+        case 'pong':
+          this.handlers.onServerTime?.(message.serverNow);
+          break;
+
         case 'hello':
           this.handlers.onServerTime?.(message.serverNow);
           this.handlers.onHello?.(message.account);
@@ -111,6 +127,7 @@ export class Realtime {
 
     socket.onclose = () => {
       this.socket = null;
+      this.stopHeartbeat();
       this.handlers.onStatus?.('closed');
       if (!this.closedByUs) this.scheduleReconnect();
     };
@@ -118,6 +135,35 @@ export class Realtime {
     socket.onerror = () => {
       // onclose always follows, which is where reconnection is handled.
     };
+  }
+
+  /**
+   * Proves the connection is alive in both directions.
+   *
+   * The server needs to hear from us or it starts our grace period; we need to
+   * hear from it or we sit on a dead socket believing all is well. A socket
+   * can die without either end being told, and waiting for the OS to notice
+   * takes hours — so silence past the timeout is treated as death and the
+   * connection is replaced.
+   *
+   * Being wrong is cheap: an unnecessary reconnect costs a round trip, where a
+   * missed disconnect costs every timer that depends on knowing someone left.
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (Date.now() - this.lastSeen > HEARTBEAT_TIMEOUT_MS) {
+        // onclose runs next, which reconnects.
+        this.socket?.close();
+        return;
+      }
+      this.send({ type: 'ping' });
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
   }
 
   private scheduleReconnect(): void {

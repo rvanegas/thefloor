@@ -81,7 +81,13 @@ export type ClientMessage =
   /** Start receiving snapshots for one session. */
   | { type: 'watch.session'; sessionId: string }
   | { type: 'unwatch.session'; sessionId: string }
-  | { type: 'session.action'; sessionId: string; action: ClientAction };
+  | { type: 'session.action'; sessionId: string; action: ClientAction }
+  /**
+   * Heartbeat. Sent by the client because React Native's WebSocket cannot send
+   * protocol-level pings, so a single application-level exchange is what lets
+   * *both* ends notice a connection that has died quietly.
+   */
+  | { type: 'ping' };
 
 export type ServerMessage =
   | { type: 'hello'; account: PublicAccount; serverNow: number }
@@ -89,4 +95,5 @@ export type ServerMessage =
   | { type: 'session'; view: SessionView }
   /** The session ended or is no longer visible to this user. */
   | { type: 'session.gone'; sessionId: string }
-  | { type: 'error'; message: string; code?: string };
+  | { type: 'error'; message: string; code?: string }
+  | { type: 'pong'; serverNow: number };
