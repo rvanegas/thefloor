@@ -120,6 +120,48 @@ Two things a rehydration would have to decide, neither obvious:
 
 ---
 
+## Android has never been built or run
+
+**Status:** not started. The spec asks for it; nothing has been done about it.
+
+> React Native, targeting both iOS and Android from a single codebase.
+
+`app.json` carries Android configuration from the scaffold, and the icons are
+still Expo's defaults. There is no `android/` directory, no build has ever been
+attempted, and no line of this has run on Android hardware or an emulator.
+
+### What makes it more than a build step
+
+Every hard problem in this project has been an iOS problem, and each was solved
+against iOS's rules:
+
+- **Background audio** was chased for two days through `UIBackgroundModes`,
+  AVAudioSession ownership and CallKit. Android's foreground-service model is
+  different in every particular, and the work does not transfer.
+- **The audio session** is started explicitly through
+  `@livekit/react-native`'s `AudioSession`, whose behaviour differs by
+  platform — `AndroidAudioTypeOptions` exists precisely because the two need
+  configuring differently.
+- **Export** hands a file to `expo-sharing`, which resolves to a different
+  system sheet with different expectations about file URIs.
+- **The dev loop** is `expo run:ios` against a paired device. Nothing equivalent
+  is set up, and EAS was deliberately deferred until Android arrived — which is
+  now.
+
+So this is not "flip a target and rebuild". Expect the platform-specific parts
+to need doing twice, and expect the second time to surface assumptions the
+first one baked in.
+
+### Sequence when picked up
+
+1. `npx expo prebuild --platform android`, and confirm the WebRTC and
+   file-system config plugins produce a working build at all.
+2. Get a session running between an Android device and an iPhone, which is the
+   first real test of whether the media layer is as portable as assumed.
+3. Only then background audio, where the work genuinely diverges.
+
+---
+
 ## An invite cannot reach anyone whose app is closed
 
 **Status:** deliberately deferred (decision, 2026-08-08). In-app only for now,
