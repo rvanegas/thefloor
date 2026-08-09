@@ -90,7 +90,7 @@ export function SessionView({
   const iAmSilenced = isSilenced(session.floor, me);
   const iAmSelfMuted = !!session.selfMuted[me];
   const claimable = canClaimFloor(session, me, now);
-  const cooldown = cooldownRemainingMs(session.floor, me, now);
+  const cooldown = cooldownRemainingMs(session.floor, session.present, me, now);
   const claimRemaining = floorRemainingMs(session.floor, now);
   const emptyRemaining = emptyTimeoutRemainingMs(session, now);
   const recordingLive = isRecordingActive(session.recording);

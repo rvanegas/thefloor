@@ -1,9 +1,14 @@
 import {
   EMPTY_SESSION_TIMEOUT_MS,
   FLOOR_CLAIM_MS,
-  FLOOR_SAME_USER_COOLDOWN_MS,
+  FLOOR_CLAIM_DELAY_STEP_MS,
 } from '../constants';
-import { cooldownRemainingMs, floorRemainingMs, isSilenced } from '../floor';
+import {
+  claimDelayMs,
+  cooldownRemainingMs,
+  floorRemainingMs,
+  isSilenced,
+} from '../floor';
 import { canClaimFloor, createSession, reduce } from '../session';
 import type { SessionAction, SessionState } from '../types';
 
@@ -58,29 +63,49 @@ describe('eligibility rule', () => {
     expect(canClaimFloor(s, B, T0 + 5_000)).toBe(true);
   });
 
-  it('makes the same user wait out the one-minute cooldown', () => {
+  it('makes the most recent speaker wait a step before reclaiming', () => {
+    // With two present, A has spoken more recently than B, so A waits one step
+    // and B waits none. Nobody ever waits two steps in a pair — that tier only
+    // appears once a third person is in the ordering.
     const releasedAt = T0 + 5_000;
     const s = apply(joined(), [
       [{ type: 'CLAIM_FLOOR', userId: A }, T0],
       [{ type: 'RELEASE_FLOOR', userId: A }, releasedAt],
     ]);
     expect(canClaimFloor(s, A, releasedAt)).toBe(false);
-    expect(canClaimFloor(s, A, releasedAt + FLOOR_SAME_USER_COOLDOWN_MS)).toBe(
-      false // strictly *more than* one minute must elapse
-    );
     expect(
-      canClaimFloor(s, A, releasedAt + FLOOR_SAME_USER_COOLDOWN_MS + 1)
-    ).toBe(true);
+      canClaimFloor(s, A, releasedAt + FLOOR_CLAIM_DELAY_STEP_MS - 1)
+    ).toBe(false);
+    expect(canClaimFloor(s, A, releasedAt + FLOOR_CLAIM_DELAY_STEP_MS)).toBe(
+      true
+    );
   });
 
-  it('reports cooldown remaining only for the user it blocks', () => {
+  it('always leaves somebody able to claim without waiting', () => {
+    // The invariant the whole rule is shaped around. If everyone present owed
+    // a delay, the floor would sit free and unclaimable — dead time nobody
+    // asked for.
     const releasedAt = T0 + 5_000;
     const s = apply(joined(), [
       [{ type: 'CLAIM_FLOOR', userId: A }, T0],
       [{ type: 'RELEASE_FLOOR', userId: A }, releasedAt],
     ]);
-    expect(cooldownRemainingMs(s.floor, A, releasedAt + 20_000)).toBe(40_000);
-    expect(cooldownRemainingMs(s.floor, B, releasedAt + 20_000)).toBeNull();
+    const waits = s.present.map((u) => claimDelayMs(s.floor, s.present, u));
+    expect(Math.min(...waits)).toBe(0);
+  });
+
+  it('reports the wait only for whoever is actually held back', () => {
+    const releasedAt = T0 + 5_000;
+    const s = apply(joined(), [
+      [{ type: 'CLAIM_FLOOR', userId: A }, T0],
+      [{ type: 'RELEASE_FLOOR', userId: A }, releasedAt],
+    ]);
+    expect(cooldownRemainingMs(s.floor, s.present, A, releasedAt + 4_000)).toBe(
+      6_000
+    );
+    expect(
+      cooldownRemainingMs(s.floor, s.present, B, releasedAt + 4_000)
+    ).toBeNull();
   });
 
   it('is unaffected by self-mute', () => {
@@ -112,7 +137,7 @@ describe('claim expiry', () => {
 
     const at = reduce(claimed, { type: 'TICK' }, T0 + FLOOR_CLAIM_MS);
     expect(at.floor.holder).toBeNull();
-    expect(at.floor.lastClaimant).toBe(A);
+    expect(at.floor.lastClaimedAt[A]).toBe(T0);
     expect(at.floor.lastReleasedAt).toBe(T0 + FLOOR_CLAIM_MS);
   });
 
@@ -169,7 +194,7 @@ describe('intended emergent behavior', () => {
       expect(s.floor.holder).toBe(A);
       now += FLOOR_CLAIM_MS;
       s = reduce(s, { type: 'TICK' }, now);
-      now += FLOOR_SAME_USER_COOLDOWN_MS + 1;
+      now += FLOOR_CLAIM_DELAY_STEP_MS;
       expect(canClaimFloor(s, A, now)).toBe(true);
     }
   });
@@ -180,7 +205,7 @@ describe('leaving and the floor', () => {
     const claimed = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
     const left = reduce(claimed, { type: 'LEAVE', userId: A }, T0 + 10_000);
     expect(left.floor.holder).toBeNull();
-    expect(left.floor.lastClaimant).toBe(A);
+    expect(left.floor.lastClaimedAt[A]).toBeDefined();
     expect(left.floor.lastReleasedAt).toBe(T0 + 10_000);
     // B is no longer silenced, but is now alone, so cannot claim.
     expect(isSilenced(left.floor, B)).toBe(false);
@@ -259,5 +284,84 @@ describe('session lifecycle', () => {
     const attempted = reduce(s, { type: 'ENTER', userId: A }, T0 + 7_000);
     expect(attempted.present).toEqual([]);
     expect(attempted).toBe(s);
+  });
+});
+
+describe('the claim delay with more than two people', () => {
+  /**
+   * Sessions still hold exactly two, but the rule does not. Testing it against
+   * a synthetic set of participants proves the design before the data model
+   * changes to allow a third — which is the expensive part, and the wrong place
+   * to discover the rule was wrong.
+   */
+  const C = 'user-c';
+  const D = 'user-d';
+  const at = (claims: Record<string, number>) => ({
+    holder: null,
+    claimedAt: null,
+    lastClaimedAt: claims,
+    lastReleasedAt: T0,
+  });
+
+  it('lets whoever spoke longest ago claim immediately', () => {
+    // C most recent, then B, then A.
+    const floor = at({ [A]: T0 - 30_000, [B]: T0 - 20_000, [C]: T0 - 10_000 });
+    const present = [A, B, C];
+    expect(claimDelayMs(floor, present, A)).toBe(0);
+    expect(claimDelayMs(floor, present, B)).toBe(FLOOR_CLAIM_DELAY_STEP_MS);
+    expect(claimDelayMs(floor, present, C)).toBe(FLOOR_CLAIM_DELAY_STEP_MS * 2);
+  });
+
+  it('treats never having claimed as having spoken longest ago', () => {
+    // The case the rule exists for: two people trading while a third waits.
+    // The pair are held back and the quiet one has the floor to themselves.
+    const floor = at({ [A]: T0 - 20_000, [B]: T0 - 10_000 });
+    const present = [A, B, C];
+    expect(claimDelayMs(floor, present, C)).toBe(0);
+    expect(claimDelayMs(floor, present, A)).toBe(FLOOR_CLAIM_DELAY_STEP_MS);
+    expect(claimDelayMs(floor, present, B)).toBe(FLOOR_CLAIM_DELAY_STEP_MS * 2);
+  });
+
+  it('leaves everyone who has never claimed at zero together', () => {
+    // They tie rather than ordering themselves arbitrarily, so a newcomer is
+    // never made to wait behind another newcomer.
+    const floor = at({ [A]: T0 - 10_000 });
+    const present = [A, B, C, D];
+    expect(claimDelayMs(floor, present, B)).toBe(0);
+    expect(claimDelayMs(floor, present, C)).toBe(0);
+    expect(claimDelayMs(floor, present, D)).toBe(0);
+  });
+
+  it('caps the wait at two steps however many have spoken since', () => {
+    const floor = at({
+      [A]: T0 - 40_000,
+      [B]: T0 - 30_000,
+      [C]: T0 - 20_000,
+      [D]: T0 - 10_000,
+    });
+    const present = [A, B, C, D];
+    expect(claimDelayMs(floor, present, D)).toBe(FLOOR_CLAIM_DELAY_STEP_MS * 2);
+    expect(claimDelayMs(floor, present, C)).toBe(FLOOR_CLAIM_DELAY_STEP_MS * 2);
+  });
+
+  it('ranks only those present, so a departure cannot strand the floor', () => {
+    // Counting someone who has left would let them hold the zero slot they
+    // cannot use, leaving the floor free with nobody permitted to take it.
+    const floor = at({ [A]: T0 - 20_000, [B]: T0 - 10_000 });
+    expect(claimDelayMs(floor, [A, B, C], A)).toBe(FLOOR_CLAIM_DELAY_STEP_MS);
+    expect(claimDelayMs(floor, [A, B], A)).toBe(0);
+  });
+
+  it('always leaves somebody at zero, whoever is present', () => {
+    const floor = at({
+      [A]: T0 - 40_000,
+      [B]: T0 - 30_000,
+      [C]: T0 - 20_000,
+      [D]: T0 - 10_000,
+    });
+    for (const present of [[A, B], [A, B, C], [A, B, C, D], [B, D], [C]]) {
+      const waits = present.map((u) => claimDelayMs(floor, present, u));
+      expect(Math.min(...waits)).toBe(0);
+    }
   });
 });

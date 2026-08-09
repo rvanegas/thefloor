@@ -8,7 +8,15 @@ export interface FloorState {
   /** When the current claim started. Null iff `holder` is null. */
   claimedAt: number | null;
   /** Who made the most recent claim, whether or not it is still active. */
-  lastClaimant: UserId | null;
+  /**
+   * When each user last claimed. The claim delay is derived from the ordering
+   * this gives, so there is nothing else to keep in step with it.
+   *
+   * Absent means never claimed, which counts as having spoken longest ago —
+   * so anyone who has not taken a turn is always among those who may claim
+   * immediately.
+   */
+  lastClaimedAt: Record<UserId, number>;
   /** When the most recent claim ended. Null while a claim is active. */
   lastReleasedAt: number | null;
 }

@@ -98,9 +98,9 @@ describe('a disconnected floor-holder', () => {
     state = tick(state, T0 + 1_000 + DISCONNECT_GRACE_MS);
     expect(state.floor.holder).toBeNull();
     expect(isPresent(state, B)).toBe(false);
-    // Released as any other departure would release it, so the cooldown still
-    // records who claimed last.
-    expect(state.floor.lastClaimant).toBe(B);
+    // Released as any other departure would release it, and their claim is
+    // still on record — so they still rank as having spoken most recently.
+    expect(state.floor.lastClaimedAt[B]).toBeDefined();
   });
 
   it('is removed by the grace period long before the claim would expire', () => {

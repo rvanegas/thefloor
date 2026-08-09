@@ -7,10 +7,18 @@
 export const FLOOR_CLAIM_MS = 3 * 60 * 1000;
 
 /**
- * How long the *same* user must wait after releasing the floor before they may
- * claim it again. Does not apply when the other user was the last claimant.
+ * One step of the claim delay, and the most steps anyone ever waits.
+ *
+ * The rule: whoever spoke longest ago may claim immediately, and everyone else
+ * waits one step for each person who spoke longer ago than they did, up to two.
+ *
+ * The invariant that shapes it is that somebody must always be able to claim
+ * without delay — otherwise the floor sits free and unclaimable, which is dead
+ * time nobody asked for. Ordering by recency gives that for nothing: somebody
+ * is always last in the ordering, so somebody is always at zero.
  */
-export const FLOOR_SAME_USER_COOLDOWN_MS = 60 * 1000;
+export const FLOOR_CLAIM_DELAY_STEP_MS = 10_000;
+export const FLOOR_CLAIM_DELAY_MAX_STEPS = 2;
 
 /** How long a session may sit with nobody present before it auto-ends. */
 export const EMPTY_SESSION_TIMEOUT_MS = 60 * 1000;

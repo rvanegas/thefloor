@@ -334,7 +334,7 @@ describe('websocket', () => {
     // Removed as any departure removes someone, so the claim is released and
     // the cooldown still records who held it.
     expect(session.floor.holder).toBeNull();
-    expect(session.floor.lastClaimant).toBe(bob.account.id);
+    expect(session.floor.lastClaimedAt[bob.account.id]).toBeDefined();
     a.close();
   });
 

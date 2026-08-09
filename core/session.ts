@@ -85,7 +85,9 @@ export function canClaimFloor(
 ): boolean {
   if (state.status !== 'active') return false;
   if (!isPresent(state, userId) || !bothPresent(state)) return false;
-  return satisfiesEligibilityRule(state.floor, userId, now);
+  // Ranked against who is present, not who is in the session: someone who has
+  // left must not occupy the zero slot they cannot use.
+  return satisfiesEligibilityRule(state.floor, state.present, userId, now);
 }
 
 export function canReleaseFloor(state: SessionState, userId: UserId): boolean {
