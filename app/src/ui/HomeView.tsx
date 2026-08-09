@@ -126,10 +126,11 @@ export function HomeView({
         <View style={styles.list}>
           {contacts.map((entry) => (
             <ContactRow
-              // Outgoing entries carry no account id — they are shown as the
-              // address they were sent to, so a request to someone who has not
-              // signed up looks like any other — so the name is what
-              // distinguishes them.
+              // An outgoing request carries no account id — deliberately, so
+              // that one sent to an address without an account is
+              // indistinguishable from one sent to a user. Its identity is the
+              // address, which is what `displayName` holds for these rows and
+              // is unique: there cannot be two requests to the same address.
               key={entry.account.id || `sent:${entry.account.displayName}`}
               entry={entry}
               existing={sessionWith.get(entry.account.id)}
