@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import { buildApp, type App } from '../src/app';
+import { DISCONNECT_GRACE_MS } from '../../core/constants';
 import type { ClientMessage, ServerMessage } from '../../core/protocol';
 
 /**
@@ -244,7 +245,93 @@ describe('websocket', () => {
     m.close();
   });
 
-  it('treats a dropped connection as a leave, releasing the floor', async () => {
+  it('keeps a dropped party in the session, and their floor', async () => {
+    // Losing a socket is not leaving. Only staying gone past the grace period
+    // is, and that is a timer rather than an event.
+    const { alice, bob, sessionId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.session', sessionId });
+    b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
+    await b.next('session', (m) => m.view.session.present.length === 2);
+    b.send({ type: 'session.action', sessionId, action: { type: 'CLAIM_FLOOR' } });
+    await a.next('session', (m) => m.view.session.floor.holder === bob.account.id);
+
+    b.close();
+    await new Promise((r) => setTimeout(r, 200));
+
+    const session = app.sessions.get(sessionId)!;
+    expect(session.present).toContain(bob.account.id);
+    expect(session.floor.holder).toBe(bob.account.id);
+    expect(session.disconnectedAt[bob.account.id]).toBeDefined();
+    a.close();
+  });
+
+  it('removes them once the grace period has run out', async () => {
+    const { alice, bob, sessionId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.session', sessionId });
+    b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
+    await b.next('session', (m) => m.view.session.present.length === 2);
+    b.send({ type: 'session.action', sessionId, action: { type: 'CLAIM_FLOOR' } });
+    await a.next('session', (m) => m.view.session.floor.holder === bob.account.id);
+
+    b.close();
+    await new Promise((r) => setTimeout(r, 200));
+
+    clock += DISCONNECT_GRACE_MS;
+    app.sessions.tick();
+
+    const session = app.sessions.get(sessionId)!;
+    expect(session.present).not.toContain(bob.account.id);
+    // Removed as any departure removes someone, so the claim is released and
+    // the cooldown still records who held it.
+    expect(session.floor.holder).toBeNull();
+    expect(session.floor.lastClaimant).toBe(bob.account.id);
+    a.close();
+  });
+
+  it('does not let a dying socket evict a user who has already reconnected', async () => {
+    // The race that stranded a phone: iOS delivered a stale socket's close
+    // *after* the replacement had connected, and the corpse got a vote. The
+    // reconnected socket is a live connection, so the close reports nothing.
+    const { alice, bob, sessionId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const stale = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), stale.open()]);
+
+    a.send({ type: 'watch.session', sessionId });
+    stale.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
+    await stale.next('session', (m) => m.view.session.present.length === 2);
+
+    // Bob reconnects on a new socket before the old one's close arrives.
+    const fresh = new Client(bob.token, baseUrl);
+    await fresh.open();
+    fresh.send({ type: 'watch.session', sessionId });
+    await fresh.next('session');
+
+    stale.close();
+    await new Promise((r) => setTimeout(r, 200));
+
+    const session = app.sessions.get(sessionId)!;
+    expect(session.present).toContain(bob.account.id);
+    // No grace period started at all: he has a connection.
+    expect(session.disconnectedAt[bob.account.id]).toBeUndefined();
+
+    // And he stays put once the grace period would have elapsed.
+    clock += DISCONNECT_GRACE_MS;
+    app.sessions.tick();
+    expect(app.sessions.get(sessionId)!.present).toContain(bob.account.id);
+    a.close();
+    fresh.close();
+  });
+
+  it('cancels the grace period when the user comes back', async () => {
     const { alice, bob, sessionId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
@@ -254,20 +341,26 @@ describe('websocket', () => {
     b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
     await b.next('session', (m) => m.view.session.present.length === 2);
 
-    b.send({ type: 'session.action', sessionId, action: { type: 'CLAIM_FLOOR' } });
-    await a.next('session', (m) => m.view.session.floor.holder === bob.account.id);
-
-    // Losing connectivity is leaving: the spec treats them identically, so the
-    // claim is force-released.
     b.close();
-    await a.next(
-      'session',
-      (m) =>
-        m.view.session.floor.holder === null &&
-        !m.view.session.present.includes(bob.account.id)
-    );
-    expect(app.sessions.get(sessionId)!.floor.lastClaimant).toBe(bob.account.id);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(
+      app.sessions.get(sessionId)!.disconnectedAt[bob.account.id]
+    ).toBeDefined();
+
+    const back = new Client(bob.token, baseUrl);
+    await back.open();
+    back.send({ type: 'watch.session', sessionId });
+    await back.next('session');
+
+    expect(
+      app.sessions.get(sessionId)!.disconnectedAt[bob.account.id]
+    ).toBeUndefined();
+
+    clock += DISCONNECT_GRACE_MS;
+    app.sessions.tick();
+    expect(app.sessions.get(sessionId)!.present).toContain(bob.account.id);
     a.close();
+    back.close();
   });
 
 

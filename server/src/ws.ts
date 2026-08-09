@@ -45,6 +45,10 @@ export function registerWebsocket(deps: {
   const { fastify, accounts, sessions, homeFor, now, homeNotifier } = deps;
   const connections = new Set<Connection>();
 
+  /** Whether this user still has any live socket. */
+  const hasConnection = (userId: string): boolean =>
+    [...connections].some((c) => c.userId === userId);
+
   function send(connection: Connection, message: ServerMessage): void {
     if (connection.socket.readyState === 1) {
       connection.socket.send(JSON.stringify(message));
@@ -123,6 +127,12 @@ export function registerWebsocket(deps: {
     };
     connections.add(connection);
 
+    // Any session this user is already in now has a live connection again,
+    // cancelling a grace period they may be part-way through.
+    for (const session of sessions.sessionsFor(account.id)) {
+      sessions.report(session, account.id, 'CONNECTED');
+    }
+
     send(connection, {
       type: 'hello',
       account: { id: account.id, displayName: account.display_name },
@@ -146,6 +156,10 @@ export function registerWebsocket(deps: {
 
         case 'watch.session':
           connection.watchingSessions.add(message.sessionId);
+          // Watching is itself proof of a connection to this session, which
+          // matters on a reconnect: the socket is new, so nothing has told the
+          // session its owner is reachable again.
+          sessions.report(message.sessionId, connection.userId, 'CONNECTED');
           pushSession(connection, message.sessionId);
           return;
 
@@ -177,15 +191,18 @@ export function registerWebsocket(deps: {
 
     socket.on('close', () => {
       connections.delete(connection);
-      // A dropped connection is a leave: the spec treats the two identically,
-      // so a holder's floor claim is force-released either way.
+      // Losing a socket is not leaving a session. It starts the grace period,
+      // and reconnecting inside that minute cancels it — so a tunnel, a lift
+      // or a backgrounded app costs nobody their place.
       //
-      // Note this fires for a genuine loss of connectivity, which is what the
-      // rule is for. Backgrounding should not reach here at all: the app holds
-      // an active audio session, iOS keeps the process alive to run it, and
-      // this socket lives in that same process.
+      // Deleting the connection first matters: `hasConnection` must not count
+      // the one that is closing. And a socket that dies *after* its
+      // replacement has connected reports nothing at all, which is what stops
+      // a dead connection evicting a user who is demonstrably back.
       for (const sessionId of connection.watchingSessions) {
-        sessions.dispatch(sessionId, connection.userId, { type: 'LEAVE' });
+        if (!hasConnection(connection.userId)) {
+          sessions.report(sessionId, connection.userId, 'DISCONNECTED');
+        }
       }
     });
   });

@@ -59,6 +59,17 @@ export interface SessionState {
   floor: FloorState;
   selfMuted: Record<UserId, boolean>;
   recording: RecordingState;
+  /**
+   * When each present user's last connection dropped. Absent means connected.
+   *
+   * Connectivity and presence are deliberately separate. A socket that drops
+   * and returns changes nothing about who is in the session; only staying gone
+   * past DISCONNECT_GRACE_MS removes anyone. Without that separation a moment's
+   * bad signal reads as leaving, and — worse — a socket dying after its
+   * replacement has already connected can evict someone who is demonstrably
+   * back.
+   */
+  disconnectedAt: Partial<Record<UserId, number>>;
 }
 
 export type SessionAction =
@@ -77,5 +88,12 @@ export type SessionAction =
    * media plane reports it — so it carries no userId and no guard.
    */
   | { type: 'RECORDING_FAILED'; reason: string }
+  /**
+   * Transport, not intent: reported by whatever holds the connection rather
+   * than performed by anyone. Neither changes presence directly — DISCONNECTED
+   * starts the grace clock and CONNECTED cancels it.
+   */
+  | { type: 'CONNECTED'; userId: UserId }
+  | { type: 'DISCONNECTED'; userId: UserId }
   /** Advances time-driven transitions: floor expiry and empty-session auto-end. */
   | { type: 'TICK' };

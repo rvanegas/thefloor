@@ -119,7 +119,13 @@ export function SessionView({
           <Text style={styles.otherName}>{other.displayName}</Text>
           <Text style={type.muted}>
             {isPresent(session, other.id)
-              ? 'Present'
+              ? // Present but unreachable is its own state, not absence: they
+                // are still in the session and still hold whatever they hold.
+                // Saying so beats making them vanish and reappear over a
+                // moment's bad signal.
+                session.disconnectedAt[other.id] !== undefined
+                ? 'Present · reconnecting…'
+                : 'Present'
               : session.everPresent.includes(other.id)
                 ? 'Left the session'
                 : 'Waiting for them to join…'}

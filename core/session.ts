@@ -1,4 +1,4 @@
-import { EMPTY_SESSION_TIMEOUT_MS } from './constants';
+import { DISCONNECT_GRACE_MS, EMPTY_SESSION_TIMEOUT_MS } from './constants';
 import {
   claimFloor,
   hasExpired,
@@ -46,6 +46,7 @@ export function createSession(params: {
     floor: initialFloorState(),
     selfMuted: { [initiator]: false, [invitee]: false },
     recording: initialRecordingState(),
+    disconnectedAt: {},
   };
 }
 
@@ -141,6 +142,26 @@ export function reduce(
   // no actor to authorise and is not subject to the floor's restrictions —
   // including the one that withholds stop from a silenced party. Capture that
   // has failed has already stopped; refusing to say so helps nobody.
+  // Transport reports, not user actions: no actor to authorise, and neither
+  // changes presence on its own.
+  if (action.type === 'CONNECTED') {
+    if (!(action.userId in state.disconnectedAt)) return state;
+    const { [action.userId]: _gone, ...rest } = state.disconnectedAt;
+    return { ...state, disconnectedAt: rest };
+  }
+
+  if (action.type === 'DISCONNECTED') {
+    // Only meaningful for someone actually in the session, and a second report
+    // must not restart the clock — that would make a flapping connection
+    // survive indefinitely.
+    if (!isPresent(state, action.userId)) return state;
+    if (action.userId in state.disconnectedAt) return state;
+    return {
+      ...state,
+      disconnectedAt: { ...state.disconnectedAt, [action.userId]: now },
+    };
+  }
+
   if (action.type === 'RECORDING_FAILED') {
     if (!isRecordingActive(state.recording)) return state;
     return {
@@ -154,8 +175,12 @@ export function reduce(
   switch (action.type) {
     case 'ENTER': {
       if (isPresent(state, action.userId)) return state;
+      // Entering is itself proof of a live connection, so any pending
+      // disconnect clock for this user is cancelled.
+      const { [action.userId]: _back, ...others } = state.disconnectedAt;
       return {
         ...state,
+        disconnectedAt: others,
         present: [...state.present, action.userId],
         everPresent: state.everPresent.includes(action.userId)
           ? state.everPresent
@@ -168,9 +193,14 @@ export function reduce(
     case 'LEAVE': {
       if (!isPresent(state, action.userId)) return state;
       const present = state.present.filter((id) => id !== action.userId);
+      // Whatever they left by — a tap or a grace period running out — they are
+      // no longer in the session, so a pending disconnect clock is moot. Left
+      // behind it would fire again on every tick.
+      const { [action.userId]: _left, ...stillConnected } = state.disconnectedAt;
       return {
         ...state,
         present,
+        disconnectedAt: stillConnected,
         // A departing floor-holder's claim is force-released, exactly as if
         // released voluntarily. Dropped connections take this same path.
         floor:
@@ -230,6 +260,15 @@ export function reduce(
 function tick(state: SessionState, now: number): SessionState {
   if (state.status !== 'active') return state;
   let next = state;
+
+  // Someone gone past the grace period has left. Handled before the floor
+  // expiry so their claim is released by the leave itself, as any other
+  // departure would release it.
+  for (const [userId, since] of Object.entries(next.disconnectedAt)) {
+    if (since !== undefined && now - since >= DISCONNECT_GRACE_MS) {
+      next = reduce(next, { type: 'LEAVE', userId }, now);
+    }
+  }
 
   // A claim that has run its three minutes releases automatically.
   if (hasExpired(next.floor, now)) {

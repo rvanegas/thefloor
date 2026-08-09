@@ -177,6 +177,40 @@ export class SessionRegistry {
     return { ok: true, session: this.sessions.get(sessionId) ?? next };
   }
 
+  /**
+   * Reports a change in whether a user has a connection, which is not a change
+   * in whether they are in the session.
+   *
+   * Separate from `dispatch` because these carry no actor to authorise: the
+   * transport reports them, nobody performs them. Losing a connection starts
+   * the grace period; regaining one cancels it. Only the grace period running
+   * out removes anyone, and that goes through `LEAVE` like any other departure.
+   */
+  report(
+    sessionId: string,
+    userId: string,
+    state: 'CONNECTED' | 'DISCONNECTED'
+  ): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    const next = reduce(session, { type: state, userId }, this.now());
+    if (next !== session) {
+      this.commit(session, next);
+      this.emit([sessionId]);
+    }
+  }
+
+  /** Live sessions this user is currently in. */
+  sessionsFor(userId: string): string[] {
+    const ids: string[] = [];
+    for (const [id, session] of this.sessions) {
+      if (session.status === 'active' && session.present.includes(userId)) {
+        ids.push(id);
+      }
+    }
+    return ids;
+  }
+
   // --- Queries ------------------------------------------------------------
 
   get(sessionId: string): SessionState | undefined {

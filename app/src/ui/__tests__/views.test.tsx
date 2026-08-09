@@ -358,6 +358,19 @@ describe('Session', () => {
     act(() => tree.unmount());
   });
 
+  it('shows a disconnected party as present but reconnecting', () => {
+    // Not "left": they are still in the session, still hold whatever they
+    // hold, and have a minute to come back.
+    const session = sessionOf();
+    showSession({ ...session, disconnectedAt: { [THEM]: NOW - 5_000 } });
+
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('Present · reconnecting…');
+    expect(text).not.toContain('Left the session');
+    act(() => tree.unmount());
+  });
+
   it('reflects being silenced by the other party', () => {
     showSession(
       sessionOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
