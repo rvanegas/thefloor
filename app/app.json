@@ -1,18 +1,22 @@
 {
   "expo": {
-    "name": "thefloor",
+    "name": "The Floor",
     "slug": "thefloor",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "co.rvanegas.thefloor",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "The Floor uses your microphone so the other person in a session can hear you.",
-        "UIBackgroundModes": ["audio", "voip"]
-      }
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "1"
     },
     "android": {
       "package": "co.rvanegas.thefloor",

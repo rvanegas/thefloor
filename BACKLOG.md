@@ -138,6 +138,30 @@ sync so a deploy cannot overwrite it.
 
 ---
 
+## Before the first TestFlight build
+
+Configuration decided 2026-08-09 and worth knowing the reasons for.
+
+- **`supportsTablet` is now false.** Nothing in the layout adapts to a larger
+  screen and nobody has opened it on an iPad. Claiming support invites App
+  Review to test there, on a layout built for a phone. Turn it back on after
+  actually looking at one.
+- **`voip` removed from `UIBackgroundModes`.** It does nothing without PushKit,
+  and reviewers have objected to apps declaring it unused. It becomes load
+  bearing again if push notification is ever picked up.
+- **`userInterfaceStyle` is `dark`,** matching the interface. It said `light`,
+  which left system surfaces — alerts, the keyboard, the status bar — rendering
+  pale against a `#0E1013` app.
+- **`ITSAppUsesNonExemptEncryption: false`.** All traffic is HTTPS and WebRTC,
+  which is the standard exemption. Declaring it stops App Store Connect asking
+  on every single upload.
+- **Icons are still the Expo defaults.** A build will upload, and every tester
+  gets a generic square.
+
+`buildNumber` must increase for each upload, even when the version does not.
+
+---
+
 ## Live sessions do not survive a server restart
 
 **Status:** known, not scheduled. Becomes urgent on deployment.
