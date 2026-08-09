@@ -534,13 +534,68 @@ Signing in as a user who is already signed in elsewhere, should sign the user ou
 
 ---
 
-## Multiple Users
+## Multiple users in a session
 
-Currently sessions allow for only two speakers. Let us plan to expand to this to multiple users.
+**Status:** designed 2026-08-09, not started. The largest remaining change:
+roughly 78 references assume exactly two people, across nine files, heaviest in
+`server/src/sessions.ts` and `core/session.ts`.
 
-To begin with, the session does not even currently display who one is speaking with. Let's begin by displaying this.
+The original note said the session does not display who you are speaking with.
+It does — the other party's name is the largest thing on the screen — so that
+step is done and the work is the rest.
 
-Then, the logic of claiming the floor must be generalized to multiple users.
+### The eligibility rule, generalised
+
+> **Whoever spoke longest ago may claim immediately. Everyone else waits ten
+> seconds for each person who spoke longer ago than they did, up to twenty.**
+
+Anyone who has never claimed counts as having spoken longest ago.
+
+The invariant that shapes it: **someone must always be able to claim without
+delay.** Since somebody is always last in that ordering, somebody is always at
+zero, and the floor can never sit free and unclaimable. An earlier draft ranked
+by the last two claims and gave 20s / 10s / 0s by class — which left two people
+at 10s and 20s with nobody at zero, and so produced dead time.
+
+What it yields:
+
+| | |
+| --- | --- |
+| Two people, both eager | Gapless alternation — the original guarantee, intact |
+| Three, all eager | Gapless rotation; the least-recent speaker is always free |
+| Two eager, one quiet | The pair are held 10s and 20s while the quiet one is at zero |
+
+That third row is the point. The gap is not a pause added for fairness; it is
+the pair being held back while the person who has not spoken has the floor to
+themselves, should they want it. If they do not take it, the pair resumes ten
+seconds later and nothing is lost.
+
+### Known limitation, deliberately deferred
+
+**With four or more, everyone outside the two most recent speakers is at zero
+together, so they race.** Whoever taps first wins. The rule bounds how often any
+one person can hold the floor, but does not order the people waiting. To be
+addressed as a later feature — noted here so it is not mistaken for an
+oversight.
+
+### What it costs in state
+
+`floor.lastClaimant: UserId | null` becomes a timestamp per person —
+`lastClaimedAt: Record<UserId, number>` — from which the ordering is derived, so
+nothing needs maintaining separately. `FLOOR_SAME_USER_COOLDOWN_MS` is replaced
+by a ten-second step with a twenty-second cap.
+
+`SessionState.initiator` / `invitee` become a participant list, and
+`otherParty`, `bothPresent` and the protocol's singular `other` all follow.
+Recording already generalises: stems are per participant and the floor timeline
+is per identity, so neither needs changing.
+
+### Still to decide
+
+- How people are added: all at creation, or during a session?
+- Is there a maximum?
+- Does a claim silence everyone else, or only those present? (Almost certainly
+  everyone else — but it is N-1 unsubscribes per claim rather than one.)
 
 ---
 
