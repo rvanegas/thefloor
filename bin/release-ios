@@ -1,0 +1,64 @@
+#!/bin/bash
+#
+# Archives the iOS app and uploads it to App Store Connect for TestFlight.
+#
+# Signing is automatic and cloud-managed: the distribution certificate and
+# provisioning profile are created by Apple on first use and never appear in
+# the local keychain, so `security find-identity` showing only a development
+# certificate is expected and not a problem.
+#
+# DEVELOPMENT_TEAM has to be passed explicitly because `prebuild --clean`
+# regenerates ios/ and drops it, leaving an archive that fails with "requires a
+# development team".
+set -euo pipefail
+
+TEAM=${APPLE_TEAM_ID:-9946JKHZUJ}
+WORKSPACE=app/ios/TheFloor.xcworkspace
+SCHEME=TheFloor
+ARCHIVE=/tmp/thefloor.xcarchive
+
+cd "$(dirname "$0")/.."
+
+# Every upload needs a build number Apple has not seen before, even when the
+# version is unchanged. Bumping it here means one fewer thing to forget.
+node - <<'JS'
+const fs = require('fs');
+const path = 'app/app.json';
+const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
+const next = String(Number(cfg.expo.ios.buildNumber || '0') + 1);
+cfg.expo.ios.buildNumber = next;
+fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
+console.log(`→ build ${next}`);
+JS
+
+echo "→ prebuild"
+(cd app && npx expo prebuild --platform ios >/dev/null)
+
+echo "→ archive"
+rm -rf "$ARCHIVE"
+xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
+  -configuration Release -destination 'generic/platform=iOS' \
+  -archivePath "$ARCHIVE" -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+  archive >/tmp/thefloor-archive.log 2>&1 \
+  || { echo "✗ archive failed; see /tmp/thefloor-archive.log" >&2; exit 1; }
+
+echo "→ upload"
+cat > /tmp/UploadOptions.plist <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>method</key><string>app-store-connect</string>
+  <key>teamID</key><string>$TEAM</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>destination</key><string>upload</string>
+  <key>uploadSymbols</key><true/>
+</dict></plist>
+PLIST
+
+xcodebuild -exportArchive -archivePath "$ARCHIVE" \
+  -exportPath /tmp/thefloor-upload \
+  -exportOptionsPlist /tmp/UploadOptions.plist \
+  -allowProvisioningUpdates 2>&1 | grep -E "Uploaded|EXPORT (SUCCEEDED|FAILED)|error:"
+
+echo "✓ processing in App Store Connect — TestFlight in a few minutes"
