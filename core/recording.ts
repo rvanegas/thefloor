@@ -7,6 +7,7 @@ export function initialRecordingState(): RecordingState {
     startedAt: null,
     accumulatedMs: 0,
     segmentStartedAt: null,
+    failure: null,
   };
 }
 
@@ -44,6 +45,9 @@ export function startRecording(
     startedAt: now,
     accumulatedMs: 0,
     segmentStartedAt: now,
+    // Starting again clears whatever went wrong last time, so a stale reason
+    // cannot outlive the recording it belonged to.
+    failure: null,
   };
 }
 
@@ -76,4 +80,30 @@ export function stopRecording(
     accumulatedMs: recordedMs(recording, now),
     segmentStartedAt: null,
   };
+}
+
+/**
+ * Ends a recording that could not be captured, and says why.
+ *
+ * A capture failure ends the whole recording rather than continuing with
+ * whoever did start: a session recorded with one speaker missing is worse than
+ * no recording, because it looks complete.
+ *
+ * Where it ends up depends on whether anything was ever captured. A recording
+ * that never got going did not happen, so it returns to idle and may be
+ * started again — a failed attempt must not consume the session's one
+ * recording. One that had already captured something keeps it, and stops.
+ */
+export function failRecording(
+  recording: RecordingState,
+  reason: string,
+  now: number
+): RecordingState {
+  // Time accumulated before this run is the only evidence that capture ever
+  // actually worked; the current segment's elapsed time proves nothing, since
+  // it is measured from the request rather than from any audio arriving.
+  if (recording.accumulatedMs === 0) {
+    return { ...initialRecordingState(), failure: reason };
+  }
+  return { ...stopRecording(recording, now), failure: reason };
 }

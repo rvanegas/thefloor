@@ -324,22 +324,26 @@ export class SessionRegistry {
         // than silently reusing a key.
         perParticipant.set(identity, [...previous, key]);
 
-        this.run(async () => {
-          const handle = await this.media!.startRecording({
-            room: after.id,
-            identity,
-            key,
-          });
-          // The recording may have moved on while the call was in flight.
-          if (
-            this.sessions.get(after.id)?.recording.status === 'recording' &&
-            this.capturing.get(after.id) === started
-          ) {
-            started.push({ identity, handle });
-          } else {
-            await this.media!.stopRecording(handle);
-          }
-        }, `startRecording ${key}`);
+        this.run(
+          async () => {
+            const handle = await this.media!.startRecording({
+              room: after.id,
+              identity,
+              key,
+            });
+            // The recording may have moved on while the call was in flight.
+            if (
+              this.sessions.get(after.id)?.recording.status === 'recording' &&
+              this.capturing.get(after.id) === started
+            ) {
+              started.push({ identity, handle });
+            } else {
+              await this.media!.stopRecording(handle);
+            }
+          },
+          `startRecording ${key}`,
+          (error) => this.captureFailed(after.id, identity, key, error)
+        );
       }
       return;
     }
@@ -397,11 +401,62 @@ export class SessionRegistry {
    * rather than swallowed — a mute that did not land means someone is audible
    * who should not be, which is worth seeing.
    */
-  private run(operation: () => Promise<unknown> | undefined, context: string): void {
-    try {
-      operation()?.catch((error) => this.onMediaError(error, context));
-    } catch (error) {
+  private run(
+    operation: () => Promise<unknown> | undefined,
+    context: string,
+    onFailure?: (error: unknown) => void
+  ): void {
+    const fail = (error: unknown) => {
       this.onMediaError(error, context);
+      onFailure?.(error);
+    };
+    try {
+      operation()?.catch(fail);
+    } catch (error) {
+      fail(error);
+    }
+  }
+
+  /**
+   * Capture could not be started, so the recording ends and says so.
+   *
+   * Until this existed the failure reached the server log and nowhere else:
+   * the session went on showing "Recording" and counting up while nothing was
+   * captured. That hid a completely broken capture path for hours, and it is
+   * the one place the interface makes a promise about the world rather than
+   * about itself — somebody may be speaking because of that red dot.
+   *
+   * The reserved key is released too. Claiming a stem that was never written
+   * leaves a recording whose export cannot find its own audio.
+   */
+  private captureFailed(
+    sessionId: string,
+    identity: string,
+    key: string,
+    error: unknown
+  ): void {
+    const perParticipant = this.segments.get(sessionId);
+    const keys = perParticipant?.get(identity);
+    if (keys) {
+      const remaining = keys.filter((k) => k !== key);
+      if (remaining.length > 0) perParticipant!.set(identity, remaining);
+      else perParticipant!.delete(identity);
+    }
+
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    const next = reduce(
+      session,
+      {
+        type: 'RECORDING_FAILED',
+        reason:
+          error instanceof Error ? error.message : 'Recording could not start.',
+      },
+      this.now()
+    );
+    if (next !== session) {
+      this.commit(session, next);
+      this.emit([sessionId]);
     }
   }
 

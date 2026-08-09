@@ -335,6 +335,29 @@ describe('Session', () => {
     act(() => tree.unmount());
   });
 
+  it('says a recording failed rather than showing it as never started', () => {
+    // Silence about this is the specific fault: the indicator promised audio
+    // was being kept while nothing was captured at all.
+    let session = sessionOf();
+    session = {
+      ...session,
+      recording: {
+        ...session.recording,
+        failure: 'no supported codec is compatible with all outputs',
+      },
+    };
+    showSession(session);
+
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('Recording failed');
+    expect(text).toContain('no supported codec');
+    // And it can be attempted again — a failure must not consume the session's
+    // one recording.
+    expect(findButton(tree, 'Try recording again')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
   it('reflects being silenced by the other party', () => {
     showSession(
       sessionOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))

@@ -319,11 +319,6 @@ commits record them.
 5. **Recording has no maximum duration.** A session with someone present records
    until stopped. One unattended session ran 37 minutes straight to egress
    minutes. Worth a cap, or a warning.
-6. **A failed capture is invisible to the user.** When egress fails to start,
-   the session still shows "Recording" and counts up. That is exactly the
-   misrepresentation the indicator exists to prevent, and it hid a completely
-   broken capture path for hours. The failure reaches the server log and nothing
-   else.
 7. **Contact search gives no useful feedback.** `findByIdentifier` matches the
    whole string, case-insensitively — deliberately, since prefix search would
    let anyone enumerate strangers — but a typo is indistinguishable from no such

@@ -221,16 +221,27 @@ export function SessionView({
 
         <SectionLabel>Recording</SectionLabel>
         <Card style={styles.stack}>
+          {session.recording.failure ? (
+            // Capture stopping for a reason nobody asked for must not read like
+            // a recording somebody chose to end. Whoever was speaking on the
+            // strength of the indicator needs to know it was not kept.
+            <Text style={styles.warning}>
+              Recording failed — {session.recording.failure}
+            </Text>
+          ) : null}
+
           {session.recording.status === 'idle' ? (
             <Button
-              label="Start recording"
+              label={
+                session.recording.failure ? 'Try recording again' : 'Start recording'
+              }
               disabled={!canStartRecording(session)}
               onPress={() => act({ type: 'START_RECORDING' })}
             />
           ) : session.recording.status === 'stopped' ? (
             <Text style={type.muted}>
-              Stopped — {formatDuration(recordedMs(session.recording, now))}{' '}
-              captured.
+              {session.recording.failure ? 'Ended early — ' : 'Stopped — '}
+              {formatDuration(recordedMs(session.recording, now))} captured.
             </Text>
           ) : (
             <View style={styles.buttonRow}>

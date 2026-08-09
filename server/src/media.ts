@@ -221,6 +221,11 @@ export class MemoryMediaServer implements MediaServer {
   }> = [];
   readonly issued: Array<{ room: string; identity: string }> = [];
   readonly closed: string[] = [];
+  /**
+   * While set, startRecording rejects — for every participant, or just one when
+   * an identity is given, which is how a partial failure is exercised.
+   */
+  failStart: { reason: string; identity?: string } | null = null;
 
   async issueToken({ room, identity }: { room: string; identity: string }) {
     this.issued.push({ room, identity });
@@ -256,6 +261,12 @@ export class MemoryMediaServer implements MediaServer {
     identity: string;
     key: string;
   }) {
+    if (
+      this.failStart &&
+      (!this.failStart.identity || this.failStart.identity === identity)
+    ) {
+      throw new Error(this.failStart.reason);
+    }
     const handle = `egress_${this.recordings.length + 1}`;
     this.recordings.push({ room, identity, key, handle, stopped: false });
     return handle;

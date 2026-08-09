@@ -8,6 +8,7 @@ import {
 } from './floor';
 import {
   canPauseOrStopRecording,
+  failRecording,
   initialRecordingState,
   isRecordingActive,
   pauseRecording,
@@ -135,6 +136,19 @@ export function reduce(
 ): SessionState {
   if (action.type === 'TICK') return tick(state, now);
   if (state.status !== 'active') return state;
+
+  // Reported by the media plane rather than performed by anyone, so it carries
+  // no actor to authorise and is not subject to the floor's restrictions —
+  // including the one that withholds stop from a silenced party. Capture that
+  // has failed has already stopped; refusing to say so helps nobody.
+  if (action.type === 'RECORDING_FAILED') {
+    if (!isRecordingActive(state.recording)) return state;
+    return {
+      ...state,
+      recording: failRecording(state.recording, action.reason, now),
+    };
+  }
+
   if (!isParticipant(state, action.userId)) return state;
 
   switch (action.type) {

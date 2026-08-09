@@ -23,6 +23,15 @@ export interface RecordingState {
   accumulatedMs: number;
   /** When the current run segment began; null unless status is 'recording'. */
   segmentStartedAt: number | null;
+  /**
+   * Why capture stopped, when it stopped for a reason nobody asked for.
+   *
+   * Recording is the one feature where the interface makes a promise about the
+   * world rather than about itself — a red dot saying audio is being kept. If
+   * capture is not actually running, saying so is not a nicety; someone may be
+   * speaking on the strength of that indicator.
+   */
+  failure: string | null;
 }
 
 export interface SessionState {
@@ -63,5 +72,10 @@ export type SessionAction =
   | { type: 'PAUSE_RECORDING'; userId: UserId }
   | { type: 'RESUME_RECORDING'; userId: UserId }
   | { type: 'STOP_RECORDING'; userId: UserId }
+  /**
+   * Capture could not be started or kept running. Not a user action — the
+   * media plane reports it — so it carries no userId and no guard.
+   */
+  | { type: 'RECORDING_FAILED'; reason: string }
   /** Advances time-driven transitions: floor expiry and empty-session auto-end. */
   | { type: 'TICK' };

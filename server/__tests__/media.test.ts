@@ -417,6 +417,81 @@ describe('recording capture', () => {
   });
 });
 
+describe('when capture cannot start', () => {
+  it('ends the recording and says why, rather than counting up in silence', async () => {
+    // The failure that hid a completely broken capture path for hours: every
+    // egress refused, the log said so, and the session went on showing
+    // "Recording" while nothing was kept.
+    const { alice, sessionId } = await sessionOfTwo();
+    media.failStart = {
+      reason: 'no supported codec is compatible with all outputs',
+    };
+
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+
+    const recording = app.sessions.get(sessionId)!.recording;
+    // Idle, not stopped: nothing was captured, so the recording did not happen
+    // and must not consume the session's one attempt.
+    expect(recording.status).toBe('idle');
+    expect(recording.failure).toBe(
+      'no supported codec is compatible with all outputs'
+    );
+  });
+
+  it('claims no stem it did not write', async () => {
+    // A recording that lists an object nobody wrote is worse than one that
+    // lists none: export fetches it and fails on audio that never existed.
+    const { alice, sessionId } = await sessionOfTwo();
+    media.failStart = { reason: 'egress refused' };
+
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 1_000;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    await settle();
+
+    const row = app.db
+      .prepare('SELECT stems FROM recordings WHERE session_id = ?')
+      .get(sessionId) as { stems: string } | undefined;
+    const stems = row ? JSON.parse(row.stems) : {};
+    expect(Object.values(stems).flat()).toEqual([]);
+  });
+
+  it('fails the whole recording when only one speaker cannot be captured', async () => {
+    // A session recorded with one voice missing is worse than none, because it
+    // looks complete. Whichever stem did start is stopped with it.
+    const { alice, bob, sessionId } = await sessionOfTwo();
+    media.failStart = { reason: 'that track went away', identity: bob.account.id };
+
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+
+    expect(app.sessions.get(sessionId)!.recording.status).toBe('idle');
+    expect(app.sessions.get(sessionId)!.recording.failure).toBe(
+      'that track went away'
+    );
+    // Alice's capture did start, and must not be left running.
+    expect(media.recordings.every((r) => r.stopped)).toBe(true);
+  });
+
+  it('lets the recording be started again afterwards', async () => {
+    const { alice, sessionId } = await sessionOfTwo();
+    media.failStart = { reason: 'transient' };
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    expect(app.sessions.get(sessionId)!.recording.failure).toBe('transient');
+
+    media.failStart = null;
+    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    const recording = app.sessions.get(sessionId)!.recording;
+    expect(recording.status).toBe('recording');
+    // The old reason must not outlive the recording it belonged to.
+    expect(recording.failure).toBeNull();
+  });
+});
+
 describe('the floor timeline', () => {
   /** The windows persisted for a finished session's recording. */
   const timelineFor = (sessionId: string) => {
