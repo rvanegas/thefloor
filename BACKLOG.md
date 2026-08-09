@@ -351,28 +351,47 @@ commits record them.
    cleanup cannot update state — the effect has already been cancelled — so the
    last status sticks and the screen asserts audio that is not there.
    `app/src/audio/useSessionAudio.ts`.
-3. **Recording has no maximum duration.** A session with someone present records
-   until stopped. One unattended session ran 37 minutes straight to egress
-   minutes. Worth a cap, or a warning.
-4. **Contact search gives no useful feedback.** `findByIdentifier` matches the
+3. **Contact search gives no useful feedback.** `findByIdentifier` matches the
    whole string, case-insensitively — deliberately, since prefix search would
    let anyone enumerate strangers — but a typo is indistinguishable from no such
    user. `server/src/accounts.ts`.
-5. **Requesting someone who already requested you silently accepts.**
+4. **Requesting someone who already requested you silently accepts.**
    `requestContact` treats an inbound pending request as an acceptance rather
    than erroring, so the pair goes straight to `accepted` with no confirmation.
    Reasonable, but silent. `server/src/accounts.ts`.
-6. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
+5. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
    code field uses a number pad, which has no return key, so iOS floats a
    standalone key in the bottom-right — far from the fields, over empty space,
    reading "Go" while the button below says "Sign in". Either match the label or
    reconsider the number pad. `app/src/ui/components.tsx`.
-7. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
+6. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
     The server is now the authority, which removed the device-drift problem, but
     a clock change on the server would still skew live countdowns. A monotonic
     source would be sounder.
 
 ---
+
+### Not a defect: recording has no maximum duration
+
+Considered and declined (decision, 2026-08-08). A session with someone present
+records until stopped, and nothing caps it.
+
+Running away with it requires a phone left foregrounded and unattended — and
+note that a screen lock does not reliably prevent this, since the app survived
+five minutes backgrounded with its connection intact, and capture is
+server-side egress that does not care what the phone is doing. It ends only
+once the socket actually dies: a minute of grace, then the empty-session
+minute.
+
+Against a cap: the spec puts no bound on session length, and cutting off a long
+conversation mid-sentence is a poor trade for an app whose premise is
+protecting someone's speaking time. Both parties also see a persistent red dot
+throughout, which is the answer the spec already gives to this question.
+
+Worth knowing operationally rather than fixing in code: **egress is billed per
+minute per stem, and per-speaker capture runs two**, so a recording costs twice
+what a room mix would. Watch it on the LiveKit dashboard rather than in the
+reducer.
 
 ## Untested behaviour
 
