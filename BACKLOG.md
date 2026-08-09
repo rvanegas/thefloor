@@ -156,6 +156,45 @@ the rename that caused it.
 
 ---
 
+## A contact invite cannot be withdrawn, and never expires
+
+**Status:** noted 2026-08-09, not scheduled. There is one in production
+already, sent to a mistyped address.
+
+Requests to an address with no account are stored in `pending_invites` and
+resolved when that address first signs in. Nothing else ever removes one.
+
+- **No expiry.** The row has a `created_at` and nothing reads it. There is no
+  sweep and no TTL.
+- **No withdrawal.** `declineContact` works on the `contacts` table and needs an
+  account id; a pending invite has no account. Outgoing rows also carry an
+  empty id deliberately, so that a request to a stranger looks like one to a
+  user — which means even a real outgoing request has no id to cancel by. The
+  interface shows "Sent" with nothing beside it.
+
+Three consequences, the second being the uncomfortable one:
+
+1. A mistyped address sits in the sender's contact list as "Sent" forever.
+2. **If that address ever signs up — in a year, in five — the invite resolves
+   into a live contact request.** Someone would find a request dated long before
+   they had heard of the app. That is the feature working as designed, and also
+   not what anyone expects.
+3. Nothing bounds the table. Typos accumulate.
+
+### When picked up
+
+- An expiry, swept somewhere. Thirty or ninety days; the argument for the
+  shorter is consequence 2.
+- A way to withdraw one, which needs an endpoint and something to identify the
+  invite by. Careful here: giving outgoing rows a real id again would undo the
+  indistinguishability the empty id exists for, so the handle wants to be the
+  address rather than a row id.
+
+Both were omitted when the invite path was built, rather than considered and
+deferred.
+
+---
+
 ## Names, which are three different things
 
 - **`The Floor`** — what appears under the icon. `CFBundleDisplayName`, set in
