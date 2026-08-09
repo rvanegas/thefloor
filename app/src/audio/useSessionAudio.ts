@@ -7,6 +7,7 @@ import {
   type RemoteTrack,
   type TrackPublication,
 } from 'livekit-client';
+import { AudioSession } from '@livekit/react-native';
 import { api } from '../api/http';
 
 /**
@@ -108,13 +109,13 @@ export function useSessionAudio(
         }
         if (cancelled) return;
 
-        // The audio session is deliberately not started here. registerGlobals()
-        // installs LiveKit's automatic management, which configures and
-        // activates it natively as the audio engine changes state; starting one
-        // by hand as well meant two owners of a single AVAudioSession, with
-        // deactivateOnStop defaulting to true. That is the leading suspect for
-        // iOS suspending the app on backgrounding despite the audio background
-        // mode being declared.
+        // Started explicitly, despite registerGlobals() also installing
+        // automatic management. Leaving it to the automatic path alone meant
+        // that after a party left and rejoined, the other side's playback never
+        // resumed: subscribed to the new track, reporting healthy, and silent.
+        // Taking the session here makes it active before anything is published
+        // or subscribed, which is the state remote playback needs.
+        await AudioSession.startAudioSession();
         await room.connect(credential.url, credential.token);
         if (cancelled) {
           await room.disconnect();
@@ -142,8 +143,7 @@ export function useSessionAudio(
       cancelled = true;
       room.removeAllListeners();
       room.disconnect().catch(() => {});
-      // Likewise not stopped by hand: automatic management deactivates the
-      // session when the audio engine stops.
+      AudioSession.stopAudioSession().catch(() => {});
       roomRef.current = null;
     };
   }, [sessionId, token]);
