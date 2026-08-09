@@ -117,6 +117,12 @@ Three, deliberately separate, so no single leak is worse than it has to be:
   deployment because Lightsail instances get no IAM role, so the default
   credential chain has nothing to find.
 
+  It also needs the **configuration set** in its resource list, not only the
+  identity. The rvanegas.co identity has `my-first-configuration-set` attached
+  as its default, so SES applies it to every send and checks permission on it —
+  which failed with a message naming a resource nothing in this codebase asks
+  for. Worth knowing before scoping an SES policy anywhere else.
+
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it.
 
