@@ -1,0 +1,58 @@
+#!/bin/bash
+#
+# A SQLite shell on the session database.
+#
+#   bin/db                          interactive, on the deployed server
+#   bin/db "select * from accounts" one query, then exit
+#   bin/db --local                  the development database on this machine
+#   bin/db --write                  allow writes (read-only otherwise)
+#
+# Read-only by default. Poking at production is a normal thing to want to do
+# and dropping a table by accident is not, so the destructive case is the one
+# you have to ask for.
+#
+# Note the live picture is not in here. Sessions are held in memory until they
+# end, so an active call has no row anywhere — `accounts`, `contacts` and
+# `recordings` are the durable state, and `sessions` only fills in afterwards.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+LOCAL_DB="$(cd "$(dirname "$0")/.." && pwd)/server/thefloor.db"
+
+local_mode=false
+readonly_flag="-readonly"
+sql=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    --write) readonly_flag="" ;;
+    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) sql="$arg" ;;
+  esac
+done
+
+# Column headers and aligned output: this is for reading, not for piping into
+# something else. Ask for -noheader explicitly if you need to parse it.
+opts=(-header -column -cmd '.timeout 2000')
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  if [ -n "$sql" ]; then
+    exec sqlite3 $readonly_flag "${opts[@]}" "$LOCAL_DB" "$sql"
+  fi
+  echo "→ local · ${readonly_flag:-writable}"
+  exec sqlite3 $readonly_flag "${opts[@]}" "$LOCAL_DB"
+fi
+
+if [ -n "$sql" ]; then
+  # shellcheck disable=SC2029 — $sql is meant to expand here, on purpose.
+  exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+    "sqlite3 $readonly_flag -header -column '$REMOTE_DB' \"${sql//\"/\\\"}\""
+fi
+
+echo "→ production · ${readonly_flag:--readonly}"
+exec ssh -t -i "$KEY" "$HOST" \
+  "sqlite3 $readonly_flag -header -column -cmd '.timeout 2000' '$REMOTE_DB'"
