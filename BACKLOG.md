@@ -138,6 +138,24 @@ sync so a deploy cannot overwrite it.
 
 ---
 
+## `prebuild --clean` drops the signing team
+
+`expo prebuild --platform ios --clean` regenerates `ios/` from scratch, which
+discards `DEVELOPMENT_TEAM` and leaves the next archive failing with "Signing
+for TheFloor requires a development team".
+
+Pass it explicitly until something better exists:
+
+    xcodebuild ... DEVELOPMENT_TEAM=9946JKHZUJ CODE_SIGN_STYLE=Automatic
+
+Note too that changing `expo.name` renames the whole native project. It became
+`TheFloor` when the display name did, so the workspace, scheme and source
+directory all moved from `thefloor` to `TheFloor`. Anything with those paths
+hard-coded breaks silently, and the error names a missing scheme rather than
+the rename that caused it.
+
+---
+
 ## Names, which are three different things
 
 - **`The Floor`** — what appears under the icon. `CFBundleDisplayName`, set in
