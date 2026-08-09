@@ -344,16 +344,22 @@ commits record them.
    cleanup cannot update state — the effect has already been cancelled — so the
    last status sticks and the screen asserts audio that is not there.
    `app/src/audio/useSessionAudio.ts`.
-2. **Contact search gives no useful feedback.** `findByIdentifier` matches the
-   whole string, case-insensitively — deliberately, since prefix search would
-   let anyone enumerate strangers — but a typo is indistinguishable from no such
-   user. `server/src/accounts.ts`.
-3. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
+**Contact search cannot distinguish a typo from a stranger.**
+   `findByIdentifier` matches the whole address, case-insensitively —
+   deliberately, since prefix search would let anyone enumerate strangers — and
+   a miss says "No account with that email address." That is feedback, and it
+   already discloses whether an address has an account here, so the privacy
+   property is weaker than the exact-match rule suggests. What it cannot do is
+   tell someone they mistyped. Worth deciding whether to accept the disclosure
+   openly or to say something that confirms nothing, but the current state is
+   the worst of both: it leaks, and it still leaves the user guessing.
+   `server/src/accounts.ts`.
+2. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
    code field uses a number pad, which has no return key, so iOS floats a
    standalone key in the bottom-right — far from the fields, over empty space,
    reading "Go" while the button below says "Sign in". Either match the label or
    reconsider the number pad. `app/src/ui/components.tsx`.
-4. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
+3. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
     The server is now the authority, which removed the device-drift problem, but
     a clock change on the server would still skew live countdowns. A monotonic
     source would be sounder.

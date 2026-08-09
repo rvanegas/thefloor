@@ -234,7 +234,9 @@ export class Accounts {
     | { ok: true; accepted: boolean; targetId: string }
     | { ok: false; error: string } {
     const target = this.byIdentifier(identifier);
-    if (!target) return { ok: false, error: 'No account with that phone or email.' };
+    // Sign-in is email-only, so no account can hold a phone number and saying
+    // otherwise is the last trace of an option the interface no longer offers.
+    if (!target) return { ok: false, error: 'No account with that email address.' };
     if (target.id === from) return { ok: false, error: 'That’s you.' };
 
     const existing = this.contactState(from, target.id);
