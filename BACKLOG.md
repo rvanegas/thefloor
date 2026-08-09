@@ -156,6 +156,68 @@ the rename that caused it.
 
 ---
 
+## Shared audio playback during a session
+
+**Status:** raised 2026-08-09, not scheduled. Asked as "can we play YouTube so
+both people hear it, audio only".
+
+Technically straightforward. The obstacle is the source, and specifically the
+audio-only part.
+
+### Two architectures, both viable
+
+**A. The server publishes it as a third participant.** LiveKit permits a
+server-side agent to join a room and publish an audio track, which the SFU
+mixes like any other speaker. In sync by construction, no client work, and it
+records naturally as its own stem — which also means it can be excluded at
+encode time, exactly as the floor windows are.
+
+**B. Both clients play the same source locally**, with play, pause and seek
+carried over the existing websocket. This is how watch-party features usually
+work. Better quality and less bandwidth, since nothing extra crosses LiveKit,
+but it needs sync correction and client work on both platforms.
+
+Neither is a rewrite. A is simpler and interacts correctly with recording; B is
+cheaper to run.
+
+### Why YouTube specifically does not work
+
+- **The YouTube API Services Terms require the embedded player to be visible
+  and unobscured, and prohibit separating audio from video.** Architecture B
+  with the video hidden is precisely the thing they forbid — so "never mind the
+  video" is the part that breaks it, not an incidental simplification.
+- **Architecture A would require fetching the audio server-side** — `yt-dlp` or
+  equivalent — which is a clearer violation, and moves the liability from a
+  user's device onto the server.
+
+### Sources that would work
+
+- **Audio the user already owns.** A file they choose. No third-party terms.
+- **Podcasts.** Most RSS feeds point at a plain MP3 anyone may fetch, which
+  architecture A handles by streaming the URL into the room. Probably the best
+  first target: real content, no licensing question, trivial to implement.
+- **Explicitly licensed sources.** Some services offer partner APIs for
+  synchronised playback; none of the large ones offer it casually.
+- **YouTube with the video shown**, using the official embedded player in both
+  clients with playback state synced. Legitimate, but it means building the
+  video interface the question set out to avoid.
+
+### Decide before building, not after
+
+Whatever plays, **it lands in the recording**. A stored conversation is one
+thing; a conversation with a copyrighted track mixed into it is another, and
+export redistributes it. Architecture A makes this tractable, since the media
+arrives as its own stem and can be dropped at encode time — the same mechanism
+the floor already uses. Architecture B does not, because the audio never passes
+through the server and would be captured only via each participant's
+microphone, badly.
+
+Worth also deciding what playback does to the floor. Does a claim pause it?
+Does it duck? Does the silenced party still hear it? The mechanic is about
+protecting a speaker, and a track playing underneath changes what that means.
+
+---
+
 ## A contact invite cannot be withdrawn, and never expires
 
 **Status:** noted 2026-08-09, not scheduled. There is one in production
