@@ -138,6 +138,23 @@ sync so a deploy cannot overwrite it.
 
 ---
 
+## Names, which are three different things
+
+- **`The Floor`** — what appears under the icon. `CFBundleDisplayName`, set in
+  `app.json`. Nine characters, inside the dozen or so iOS shows before
+  truncating.
+- **`The Floor Uninterrupted`** — the App Store listing name, registered
+  2026-08-09. Both `The Floor` and `TheFloor` were already taken; listing names
+  are unique across the whole store, and this one never reaches a device.
+- **`co.rvanegas.thefloor`** — the bundle identifier, which is permanent once
+  registered and is what actually identifies the app to Apple.
+
+Worth writing down because only the first is in the codebase. The other two live
+in App Store Connect, and a future reader finding "The Floor" everywhere in the
+repo has no way to know the store calls it something else.
+
+---
+
 ## Before the first TestFlight build
 
 Configuration decided 2026-08-09 and worth knowing the reasons for.
