@@ -351,27 +351,23 @@ commits record them.
    cleanup cannot update state — the effect has already been cancelled — so the
    last status sticks and the screen asserts audio that is not there.
    `app/src/audio/useSessionAudio.ts`.
-3. **Dismissed invites resurrect.** The dismissed list is local `useState`, so
-   navigating away and back re-shows a banner the user dismissed. The spec calls
-   the banner "dismissable... persistent until acted on", which implies the
-   dismissal should outlive a remount. `app/src/ui/HomeView.tsx:33`.
-4. **Recording has no maximum duration.** A session with someone present records
+3. **Recording has no maximum duration.** A session with someone present records
    until stopped. One unattended session ran 37 minutes straight to egress
    minutes. Worth a cap, or a warning.
-5. **Contact search gives no useful feedback.** `findByIdentifier` matches the
+4. **Contact search gives no useful feedback.** `findByIdentifier` matches the
    whole string, case-insensitively — deliberately, since prefix search would
    let anyone enumerate strangers — but a typo is indistinguishable from no such
    user. `server/src/accounts.ts`.
-6. **Requesting someone who already requested you silently accepts.**
+5. **Requesting someone who already requested you silently accepts.**
    `requestContact` treats an inbound pending request as an acceptance rather
    than erroring, so the pair goes straight to `accepted` with no confirmation.
    Reasonable, but silent. `server/src/accounts.ts`.
-7. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
+6. **The keyboard's submit key is labelled "Go" and sits in the corner.** The
    code field uses a number pad, which has no return key, so iOS floats a
    standalone key in the bottom-right — far from the fields, over empty space,
    reading "Go" while the button below says "Sign in". Either match the label or
    reconsider the number pad. `app/src/ui/components.tsx`.
-8. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
+7. **Timers derive from wall clock.** Every rule uses a caller-supplied `now`.
     The server is now the authority, which removed the device-drift problem, but
     a clock change on the server would still skew live countdowns. A monotonic
     source would be sounder.

@@ -76,6 +76,9 @@ interface AppValue extends AppState {
   leaveSessionView: (sessionId: string) => void;
   act: (sessionId: string, action: ClientAction) => void;
   clearError: () => void;
+  /** Invites this user has dismissed, by session id. */
+  dismissedInvites: string[];
+  dismissInvite: (sessionId: string) => void;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -87,6 +90,20 @@ export function useApp(): AppValue {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  /**
+   * Dismissed invites, by session id. Held here rather than in the view
+   * because a dismissal is an action, and one that forgets itself the moment
+   * you navigate away is not really a dismissal.
+   *
+   * Keyed by session, so it is permanent for that invitation and no longer:
+   * there is only ever one live session per pair, so being invited again means
+   * a new session with a new id, which raises a new banner. That gives both
+   * halves of what a dismissal should mean without a second rule.
+   *
+   * It does not survive relaunching the app. Sessions are short-lived, and
+   * reopening to see what is currently live is reasonable rather than a fault.
+   */
+  const [dismissedInvites, setDismissedInvites] = useState<string[]>([]);
   const [state, setState] = useState<AppState>({
     ready: false,
     token: null,
@@ -191,6 +208,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...state,
       serverNow,
+      dismissedInvites,
+
+      dismissInvite: (sessionId) => {
+        setDismissedInvites((d) =>
+          d.includes(sessionId) ? d : [...d, sessionId]
+        );
+      },
 
       requestCode: async (identifier) => {
         await api.requestCode(identifier);
@@ -260,7 +284,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),
     }),
-    [state, serverNow, connect, realtime, tick]
+    [state, serverNow, connect, realtime, tick, dismissedInvites]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -41,6 +41,10 @@ const mockApp = {
   leaveSessionView: jest.fn(),
   act: jest.fn(),
   clearError: jest.fn(),
+  dismissedInvites: [] as string[],
+  dismissInvite: jest.fn((sessionId: string) => {
+    mockApp.dismissedInvites = [...mockApp.dismissedInvites, sessionId];
+  }),
 };
 
 // The views are rendered without a native audio stack: @livekit/react-native
@@ -131,6 +135,7 @@ beforeEach(() => {
   mockApp.home = null;
   mockApp.sessionView = null;
   mockApp.status = 'open';
+  mockApp.dismissedInvites = [];
   jest.clearAllMocks();
 });
 
@@ -270,7 +275,10 @@ describe('Home', () => {
     );
     expect(dismiss).toBeDefined();
     act(() => dismiss.props.onPress());
+    expect(mockApp.dismissInvite).toHaveBeenCalledWith('sess_a');
 
+    // Dismissal lives in the provider now, so re-render with it applied.
+    act(() => tree.update(<HomeView onEnterSession={() => {}} />));
     expect(findButton(tree, 'Start session')).toBeUndefined();
     expect(findButton(tree, 'Join session')).toBeDefined();
     act(() => tree.unmount());
@@ -288,6 +296,58 @@ describe('Home', () => {
     const tree = render(<HomeView onEnterSession={() => {}} />);
     expect(findButton(tree, 'Start session')).toBeDefined();
     expect(textOf(tree)).not.toContain('Session already open');
+    act(() => tree.unmount());
+  });
+
+  it('keeps an invite dismissed across leaving Home and coming back', () => {
+    // The defect: the dismissed list was component state, so navigating into a
+    // session and back re-raised a banner the user had already acted on. A
+    // dismissal that forgets itself is not a dismissal.
+    mockApp.home = {
+      invites: [
+        {
+          sessionId: 'sess_a',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+        },
+      ],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+
+    const first = render(<HomeView onEnterSession={() => {}} />);
+    const [dismiss] = first.root.findAll(
+      (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
+    );
+    act(() => dismiss.props.onPress());
+    act(() => first.unmount());
+
+    // Home is mounted afresh, as it is on returning from a session.
+    const second = render(<HomeView onEnterSession={() => {}} />);
+    expect(textOf(second)).not.toContain('tap to join');
+    act(() => second.unmount());
+  });
+
+  it('raises a new banner when the same contact invites again', () => {
+    // Dismissal is permanent for that invitation and no longer. A pair has at
+    // most one live session, so a fresh invite is a different session id.
+    mockApp.dismissedInvites = ['sess_a'];
+    mockApp.home = {
+      invites: [
+        {
+          sessionId: 'sess_b',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+        },
+      ],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterSession={() => {}} />);
+    expect(textOf(tree)).toContain('tap to join');
     act(() => tree.unmount());
   });
 

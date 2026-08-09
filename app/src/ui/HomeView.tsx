@@ -30,7 +30,7 @@ export function HomeView({
   onEnterSession: (sessionId: string) => void;
 }) {
   const app = useApp();
-  const [dismissed, setDismissed] = useState<string[]>([]);
+  const dismissed = app.dismissedInvites;
 
   const home = app.home;
   const invites = (home?.invites ?? []).filter(
@@ -95,7 +95,7 @@ export function HomeView({
             app.act(invite.sessionId, { type: 'ENTER' });
             onEnterSession(invite.sessionId);
           }}
-          onDismiss={() => setDismissed((d) => [...d, invite.sessionId])}
+          onDismiss={() => app.dismissInvite(invite.sessionId)}
         />
       ))}
 
