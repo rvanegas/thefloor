@@ -80,12 +80,35 @@ function Root() {
       // it is the one thing this change could plausibly make worse.
       liveChannel={
         live
-          ? { channelId: live.id, name: live.name, present: live.present.length }
+          ? {
+              channelId: live.id,
+              title: titleOf(live.name, view!.participants, me),
+              present: live.present.length,
+            }
           : null
       }
       onReturnToChannel={setChannelId}
     />
   );
+}
+
+/**
+ * What to call a channel on screen: its name if it has one, otherwise the
+ * roster — the other person, or a head count.
+ *
+ * The same fallback the channel's own header uses, so a channel does not
+ * answer to one thing in one place and another somewhere else.
+ */
+function titleOf(
+  name: string | null,
+  participants: Array<{ id: string; displayName: string }>,
+  me: string
+): string {
+  if (name) return name;
+  const others = participants.filter((p) => p.id !== me);
+  return others.length === 1
+    ? others[0].displayName
+    : `${others.length + 1} people`;
 }
 
 export default function App() {

@@ -1076,12 +1076,13 @@ describe('Home while still in a channel', () => {
       <HomeView
         onEnterChannel={() => {}}
         onOpenProfile={() => {}}
-        liveChannel={{ channelId: 'sess_1', name: 'Book club', present: 2 }}
+        liveChannel={{ channelId: 'sess_1', title: 'Book club', present: 2 }}
         onReturnToChannel={onReturn}
       />
     );
     const text = textOf(tree).replace(/\s+/g, ' ');
-    expect(text).toContain('In Book club');
+    expect(text).toContain('Book club');
+    expect(text).not.toContain('In Book club');
     expect(text).toContain('2 present');
     expect(text).toContain('tap to go back');
 
@@ -1094,19 +1095,23 @@ describe('Home while still in a channel', () => {
     act(() => tree.unmount());
   });
 
-  it('names an unnamed channel without pretending it has a name', () => {
+  it('falls back to the roster when the channel has no name', () => {
+    // The same fallback the channel's own header uses, computed in App.tsx —
+    // a channel must not answer to one thing here and another there.
     home();
     const tree = render(
       <HomeView
         onEnterChannel={() => {}}
         onOpenProfile={() => {}}
-        liveChannel={{ channelId: 'sess_1', name: null, present: 1 }}
+        liveChannel={{ channelId: 'sess_1', title: 'Dana Chu', present: 1 }}
         onReturnToChannel={() => {}}
       />
     );
     const text = textOf(tree).replace(/\s+/g, ' ');
-    expect(text).toContain('In a channel');
+    expect(text).toContain('Dana Chu');
     expect(text).toContain('You are the only one here');
+    // No preposition dressing up the title.
+    expect(text).not.toContain('In Dana Chu');
     act(() => tree.unmount());
   });
 

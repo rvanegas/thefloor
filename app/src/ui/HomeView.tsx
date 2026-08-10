@@ -37,7 +37,7 @@ export function HomeView({
    * The channel you are present in right now, if you walked back here without
    * stepping out. Null when you are not in one.
    */
-  liveChannel?: { channelId: string; name: string | null; present: number } | null;
+  liveChannel?: { channelId: string; title: string; present: number } | null;
   onReturnToChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
@@ -132,8 +132,8 @@ export function HomeView({
           style={styles.liveBar}
         >
           <View style={styles.rowMain}>
-            <Text style={styles.liveTitle}>
-              In {liveChannel.name ?? 'a channel'}
+            <Text style={styles.liveTitle} numberOfLines={1}>
+              {liveChannel.title}
             </Text>
             <Text style={styles.liveSub}>
               {liveChannel.present === 1
