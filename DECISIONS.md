@@ -477,3 +477,27 @@ anybody's contact.** It sends an ordinary pending request and the other person
 decides, exactly as an emailed one does. Somebody who has already asked you
 gets the existing treatment: the request goes straight through as an
 acceptance, on the grounds that asking somebody who asked you is agreement.
+
+---
+
+## Presence is exclusive
+
+Fixed 2026-08-10, after being reachable in the shipped app: go Home from a
+channel, tap a second one, and you were left marked present in both.
+
+Nothing had gone wrong in the reducer, which is the point. Entering is a fact
+about one channel and stepping out is a fact about another, and no rule
+connected them, because the reducer sees one channel at a time and cannot.
+
+What made it worse than merely leaving is that `rejoinableFor` filters out
+channels you are present in — reasonably, since you would be looking at one
+rather than needing a way back to it. So being wrongly marked present made the
+first channel invisible on your own home screen at the same moment it became
+unreachable, while everybody still in it saw you as Present with your audio
+connected somewhere else entirely.
+
+A person has one microphone and one pair of ears, so entering somewhere now
+steps you out of wherever you were, applied in the registry — the only place
+that can see a person across channels. Everything that ordinarily follows a
+departure follows this one: a floor claim is released, and a recording left
+with nobody in it stops and files itself.

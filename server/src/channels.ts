@@ -316,6 +316,7 @@ export class ChannelRegistry {
         s.participants.every((id) => want.has(id))
     );
     if (existing) {
+      this.stepOutOfOthers(initiator, existing.id);
       const rejoined = reduce(
         existing,
         { type: 'ENTER', userId: initiator },
@@ -430,6 +431,13 @@ export class ChannelRegistry {
       if (typeof (action as { description?: unknown }).description !== 'string') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
       }
+    }
+
+    // Entering somewhere is leaving wherever you were. Done before the ENTER
+    // so there is no instant in which you are present in two places, which is
+    // the state watchers would otherwise be told about.
+    if (action.type === 'ENTER') {
+      this.stepOutOfOthers(userId, channelId);
     }
 
     // A run's id is minted here, never accepted from the client — it becomes
@@ -569,6 +577,26 @@ export class ChannelRegistry {
       if (isParticipant(channel, a) && isParticipant(channel, b)) return true;
     }
     return false;
+  }
+
+  /**
+   * Steps `userId` out of every channel but `keep`.
+   *
+   * **Presence is exclusive.** A person has one microphone and one pair of
+   * ears, so being present in two channels is not a state that can be
+   * honoured — and until this existed it was reachable: entering a second
+   * channel left you marked present in the first, where the others went on
+   * seeing you as Present while your audio was somewhere else entirely. Worse
+   * than having left, because a channel you are present in is filtered out of
+   * your own home screen, so there was no way back to it.
+   *
+   * It lives here rather than in the reducer because the reducer sees one
+   * channel at a time and this is a fact about a person across all of them.
+   */
+  private stepOutOfOthers(userId: string, keep: string): void {
+    for (const id of this.channelsFor(userId)) {
+      if (id !== keep) this.apply(id, userId, { type: 'STEP_OUT' });
+    }
   }
 
   /** Live channels this user is currently in. */

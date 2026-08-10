@@ -589,3 +589,88 @@ describe('the export graph with offset segments', () => {
     expect(graph!.filter).not.toContain('adelay');
   });
 });
+
+describe('presence is exclusive', () => {
+  /** Alice, in two channels of her own, with bob and carol respectively. */
+  async function twoChannels() {
+    const { alice, bob, carol } = await circle();
+    const first = (await createSessionWith(alice, [bob.account.id]).then((r) =>
+      r.json()
+    )) as { channelId: string };
+    const second = (await createSessionWith(alice, [carol.account.id]).then(
+      (r) => r.json()
+    )) as { channelId: string };
+    return { alice, bob, carol, first: first.channelId, second: second.channelId };
+  }
+
+  it('steps you out of the first channel when you enter a second', async () => {
+    // A person has one microphone and one pair of ears. Being present in two
+    // channels is not a state that can be honoured, and it used to be
+    // reachable simply by going Home and tapping another channel.
+    const { alice, first, second } = await twoChannels();
+    expect(app.channels.get(first)!.present).toContain(alice.account.id);
+
+    app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });
+
+    expect(app.channels.get(first)!.present).not.toContain(alice.account.id);
+    expect(app.channels.get(second)!.present).toContain(alice.account.id);
+    expect(app.channels.channelsFor(alice.account.id)).toEqual([second]);
+  });
+
+  it('leaves the first channel reachable rather than stranding it', async () => {
+    // The reason the old behaviour was worse than leaving: a channel you are
+    // present in is filtered out of your own home screen, so being wrongly
+    // marked present in it made it invisible and unreachable at once.
+    const { alice, first, second } = await twoChannels();
+    app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });
+
+    const reachable = app.channels
+      .rejoinableFor(alice.account.id)
+      .map((entry) => entry.channelId);
+    expect(reachable).toContain(first);
+  });
+
+  it('keeps you a member of the channel it steps you out of', async () => {
+    // Stepped out, not gone: the distinction the two departures exist for.
+    const { alice, first, second } = await twoChannels();
+    app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });
+
+    const channel = app.channels.get(first)!;
+    expect(channel.participants).toContain(alice.account.id);
+    expect(channel.everPresent).toContain(alice.account.id);
+    expect(channel.status).toBe('active');
+  });
+
+  it('releases a floor claim held in the channel being left', async () => {
+    const { alice, bob, first, second } = await twoChannels();
+    app.channels.dispatch(first, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(first, alice.account.id, { type: 'CLAIM_FLOOR' });
+    expect(app.channels.get(first)!.floor.holder).toBe(alice.account.id);
+
+    app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });
+    expect(app.channels.get(first)!.floor.holder).toBeNull();
+  });
+
+  it('stops a recording the departure leaves with nobody in it', async () => {
+    // Stepping out empties the channel, and an empty channel stops recording —
+    // the same rule, reached by a new route.
+    const { alice, first, second } = await twoChannels();
+    app.channels.dispatch(first, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    expect(app.channels.get(first)!.recording.status).toBe('recording');
+
+    clock += 5_000;
+    app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(app.channels.get(first)!.present).toEqual([]);
+    expect(app.channels.get(first)!.recording.status).toBe('idle');
+    expect(app.channels.get(first)!.lastRecording?.durationMs).toBe(5_000);
+  });
+
+  it('re-entering the channel you are already in changes nothing', async () => {
+    const { alice, first } = await twoChannels();
+    app.channels.dispatch(first, alice.account.id, { type: 'ENTER' });
+    expect(app.channels.channelsFor(alice.account.id)).toEqual([first]);
+  });
+});
