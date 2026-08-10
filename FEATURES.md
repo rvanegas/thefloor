@@ -5,7 +5,10 @@ These are new items on the roadmap.
 
 ## Contact Connections
 
-It should be possible to connect to a user one sees in a channel.
+It should be possible to connect to a user one sees in a channel. Their
+profile is now reachable from the roster; what is missing is the request
+itself, which needs a by-id path on the server — the requester has an
+account id but not an address, and exposing the address would leak it.
 
 ## Dark Mode
 

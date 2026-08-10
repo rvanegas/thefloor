@@ -23,6 +23,7 @@ import type { SessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
 import { ChannelSettingsView } from './ChannelSettingsView';
+import { ProfileView } from './ProfileView';
 import { InlineMarkdown } from './markdown';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
@@ -60,6 +61,10 @@ export function ChannelView({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [viewing, setViewing] = useState<{
+    id: string;
+    displayName: string;
+  } | null>(null);
 
   useEffect(() => {
     app.watchChannel(channelId);
@@ -100,7 +105,17 @@ export function ChannelView({
   }
 
   // Rendered instead of the channel, not instead of being in it: the audio
-  // hook above stays mounted, so opening settings hangs up nothing.
+  // connection lives above this screen, so neither of these hangs up.
+  if (viewing) {
+    return (
+      <ProfileView
+        accountId={viewing.id}
+        fallbackName={viewing.displayName}
+        onBack={() => setViewing(null)}
+      />
+    );
+  }
+
   if (settingsOpen) {
     return (
       <ChannelSettingsView
@@ -194,7 +209,19 @@ export function ChannelView({
             />
           ) : null}
           {others.map((participant) => (
-            <Text key={participant.id} style={type.muted}>
+            /*
+              Tappable, because "who is this?" is a question that arises about
+              somebody an acquaintance brought in, and this line is the only
+              place their name appears. A row rather than a button: it is a
+              status line first, and reads as one.
+            */
+            <Text
+              key={participant.id}
+              style={type.muted}
+              accessibilityRole="button"
+              accessibilityLabel={`${participant.displayName}, view profile`}
+              onPress={() => setViewing(participant)}
+            >
               {/* When the header is the other party's own name, repeating it
                   here says nothing; under a channel name it is the only place
                   their name appears. */}
@@ -210,11 +237,12 @@ export function ChannelView({
                   ? 'Present · reconnecting…'
                   : 'Present'
                 : channel.everPresent.includes(participant.id)
-                  ? 'Left the channel'
+                  ? 'Stepped out'
                   : 'Waiting for them to join…'}
               {channel.selfMuted[participant.id] ? ' · muted' : ''}
             </Text>
           ))}
+
           {app.status !== 'open' ? (
             <Text style={styles.warning}>
               Reconnecting — a dropped connection counts as leaving.

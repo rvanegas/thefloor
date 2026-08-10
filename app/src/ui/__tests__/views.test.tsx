@@ -38,8 +38,13 @@ const mockApp = {
   acceptContact: jest.fn(),
   declineContact: jest.fn(),
   startChannel: jest.fn(),
-  loadProfile: jest.fn(async () => ({
-    account: { id: ME, displayName: 'Me' },
+  // Answers for whoever is asked about, as the server does — a mock that
+  // returns one person regardless would hide a component reading the wrong id.
+  loadProfile: jest.fn(async (accountId: string) => ({
+    account: {
+      id: accountId,
+      displayName: accountId === ME ? 'Me' : 'Dana Chu',
+    },
     bio: 'Cellist. **Bach** mostly.',
   })),
   saveProfile: jest.fn(async () => {}),
@@ -509,7 +514,7 @@ describe('Channel', () => {
       />);
     const text = textOf(tree);
     expect(text).toContain('Present · reconnecting…');
-    expect(text).not.toContain('Left the channel');
+    expect(text).not.toContain('Stepped out');
     act(() => tree.unmount());
   });
 
@@ -1153,6 +1158,65 @@ describe('Home while still in a channel', () => {
       <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
     );
     expect(textOf(tree)).not.toContain('tap to go back');
+    act(() => tree.unmount());
+  });
+});
+
+describe('reading somebody else’s profile', () => {
+  it('opens from the roster and comes back', async () => {
+    // The line naming who you are with is the only place their name appears,
+    // and "who is this?" is a real question about somebody an acquaintance
+    // brought in — so that line is the way to their profile.
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    const row = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => String(n.props?.accessibilityLabel).includes('Dana Chu'));
+    expect(row).toBeDefined();
+
+    await act(async () => row!.props.onPress());
+    expect(mockApp.loadProfile).toHaveBeenCalledWith(THEM);
+
+    // Their name is there before the fetch lands, because the roster knew it.
+    const text = textOf(tree);
+    expect(text).toContain('Dana Chu');
+    // And the channel is gone from view without anything being dispatched.
+    expect(mockApp.act).not.toHaveBeenCalled();
+
+    await act(async () => findButton(tree, 'Done')!.props.onPress());
+    expect(textOf(tree)).toContain('The floor');
+    act(() => tree.unmount());
+  });
+
+  it('says so plainly when there is nothing to show', async () => {
+    // Refused and absent are one answer by design, and this must not try to
+    // tell them apart either.
+    mockApp.loadProfile.mockRejectedValueOnce(new Error('nope'));
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const row = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => String(n.props?.accessibilityLabel).includes('Dana Chu'));
+    await act(async () => row!.props.onPress());
+
+    const text = textOf(tree);
+    expect(text).toContain('no profile here to show you');
+    expect(text).toContain('Dana Chu');
     act(() => tree.unmount());
   });
 });
