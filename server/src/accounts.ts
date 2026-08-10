@@ -19,8 +19,77 @@ export const OTP_RESEND_INTERVAL_MS = 60 * 1000;
 export const OTP_MAX_ATTEMPTS = 5;
 export const TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
+/**
+ * How long a request to an address with no account waits for that address to
+ * sign up.
+ *
+ * There has to be a deadline, because an invite resolves the *first* time its
+ * address signs in and nothing else ever removes one. Without this, somebody
+ * joining years from now could be handed a contact request from a stranger,
+ * dated before they had heard of the app — the feature working exactly as
+ * designed, and not what anyone would expect. Thirty days rather than ninety
+ * for that reason, and because it clears a mistyped address out of the
+ * sender's list while they might still remember sending it.
+ */
+export const INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * How often expired rows are swept. Every deadline here is far longer than the
+ * interval, so this figure decides only how long dead rows linger — never
+ * whether something expires on time, which is enforced on read regardless.
+ */
+export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
 export class Accounts {
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(private db: Db) {}
+
+  // --- Maintenance --------------------------------------------------------
+
+  /**
+   * Begins sweeping, and sweeps once straight away so a server that has been
+   * down for a while does not carry the backlog until the first interval.
+   *
+   * Takes the clock rather than reading one, so the sweep agrees with whatever
+   * the rest of the application believes the time to be. Reading `Date.now()`
+   * in here would make this the single component that disagrees — harmless in
+   * production and wrong everywhere else.
+   */
+  start(now: () => number = Date.now): void {
+    if (this.sweepTimer) return;
+    this.sweepExpired(now());
+    this.sweepTimer = setInterval(
+      () => this.sweepExpired(now()),
+      SWEEP_INTERVAL_MS
+    );
+    this.sweepTimer.unref?.();
+  }
+
+  stop(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    this.sweepTimer = null;
+  }
+
+  /**
+   * Deletes rows that can no longer do anything, and reports what went.
+   *
+   * This changes no behaviour: neither table is honoured past its deadline
+   * anyway — `verify` refuses an expired code and deletes it on sight, and an
+   * invite past its TTL is one nobody should be handed. It exists because
+   * nothing else bounds either table. A code nobody returns to enter, or a
+   * request to an address that never signs up, would otherwise sit there for
+   * the life of the database.
+   */
+  sweepExpired(now: number): { codes: number; invites: number } {
+    const codes = this.db
+      .prepare('DELETE FROM otp_codes WHERE expires_at <= ?')
+      .run(now).changes;
+    const invites = this.db
+      .prepare('DELETE FROM pending_invites WHERE created_at <= ?')
+      .run(now - INVITE_TTL_MS).changes;
+    return { codes: Number(codes), invites: Number(invites) };
+  }
 
   // --- Lookup -------------------------------------------------------------
 

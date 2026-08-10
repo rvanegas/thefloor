@@ -96,6 +96,14 @@ export function buildApp(options: BuildOptions = {}): App {
     options.roomCloseGraceMs
   );
 
+  // Expired one-time codes and invitations are dead the moment their deadline
+  // passes, and nothing else ever removes them. Sweeping belongs to the
+  // application rather than to any one entry point, so it starts here — a
+  // deploy, a test harness or a script all get the same behaviour — and runs on
+  // the app's own clock so it can never disagree with the rows it is judging.
+  accounts.start(now);
+  fastify.addHook('onClose', async () => accounts.stop());
+
   /** Resolves the bearer token to an account, or replies 401 and returns null. */
   function authenticate(request: FastifyRequest): AccountRow | null {
     const header = request.headers.authorization;

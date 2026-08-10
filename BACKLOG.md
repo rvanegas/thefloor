@@ -320,42 +320,50 @@ the `media` key from `stems` in the export route and it is gone.
 
 ---
 
-## A contact invite cannot be withdrawn, and never expires
+## A contact invite cannot be withdrawn
 
-**Status:** noted 2026-08-09, not scheduled. There is one in production
-already, sent to a mistyped address.
+**Status:** noted 2026-08-09. The expiry half was **fixed the same day**; the
+withdrawal half is still open. There is one invite in production, sent to a
+mistyped address, which will now age out on its own around 2026-09-08.
 
 Requests to an address with no account are stored in `pending_invites` and
-resolved when that address first signs in. Nothing else ever removes one.
+resolved when that address first signs in.
 
-- **No expiry.** The row has a `created_at` and nothing reads it. There is no
-  sweep and no TTL.
-- **No withdrawal.** `declineContact` works on the `contacts` table and needs an
-  account id; a pending invite has no account. Outgoing rows also carry an
-  empty id deliberately, so that a request to a stranger looks like one to a
-  user — which means even a real outgoing request has no id to cancel by. The
-  interface shows "Sent" with nothing beside it.
+### Fixed: they now expire
 
-Three consequences, the second being the uncomfortable one:
+`INVITE_TTL_MS` is thirty days, swept by `Accounts.sweepExpired`, which runs
+hourly and once at construction. Thirty rather than ninety because the deadline
+exists mainly to bound this:
 
-1. A mistyped address sits in the sender's contact list as "Sent" forever.
-2. **If that address ever signs up — in a year, in five — the invite resolves
-   into a live contact request.** Someone would find a request dated long before
-   they had heard of the app. That is the feature working as designed, and also
-   not what anyone expects.
-3. Nothing bounds the table. Typos accumulate.
+> If the address ever signs up — in a year, in five — the invite resolves into
+> a live contact request. Someone would find a request dated long before they
+> had heard of the app.
 
-### When picked up
+That is now impossible past a month, and typos no longer accumulate without
+limit. The sweep also takes expired one-time codes, which were unbounded for
+the same reason.
 
-- An expiry, swept somewhere. Thirty or ninety days; the argument for the
-  shorter is consequence 2.
-- A way to withdraw one, which needs an endpoint and something to identify the
-  invite by. Careful here: giving outgoing rows a real id again would undo the
-  indistinguishability the empty id exists for, so the handle wants to be the
-  address rather than a row id.
+The sweep starts in `buildApp`, not at the entry point, so it holds for
+anything that constructs the app rather than only for a deploy. It runs on the
+app's injected clock — the same one the session tick uses — so it can never
+disagree with the rows it is judging, and it is torn down by a Fastify
+`onClose` hook.
 
-Both were omitted when the invite path was built, rather than considered and
-deferred.
+### Still open: no way to withdraw one
+
+`declineContact` works on the `contacts` table and needs an account id; a
+pending invite has no account. Outgoing rows also carry an empty id
+deliberately, so that a request to a stranger looks exactly like one to a real
+user — which means even a genuine outgoing request has no id to cancel by. The
+interface shows "Sent" with nothing beside it.
+
+So a mistyped address still sits in the sender's list until it expires, and
+there is no way to take it back sooner.
+
+When picked up: this needs an endpoint and something to identify the invite by.
+Careful — giving outgoing rows a real id again would undo the
+indistinguishability the empty id exists for, so the handle wants to be the
+address rather than a row id.
 
 ---
 
