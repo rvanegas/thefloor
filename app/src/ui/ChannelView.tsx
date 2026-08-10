@@ -23,6 +23,7 @@ import { useSessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
 import { ChannelSettingsView } from './ChannelSettingsView';
+import { InlineMarkdown } from './markdown';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
@@ -175,6 +176,12 @@ export function ChannelView({
               onPress={() => setSettingsOpen(true)}
             />
           </View>
+          {channel.description ? (
+            <InlineMarkdown
+              text={channel.description}
+              style={styles.description}
+            />
+          ) : null}
           {others.map((participant) => (
             <Text key={participant.id} style={type.muted}>
               {/* When the header is the other party's own name, repeating it
@@ -430,18 +437,31 @@ export function ChannelView({
           ) : null}
 
           {channel.recording.status === 'idle' ? (
-            <Button
-              label={
-                channel.recording.failure ? 'Try recording again' : 'Start recording'
-              }
-              disabled={!canStartRecording(channel, me)}
-              onPress={() => act({ type: 'START_RECORDING' })}
-            />
-          ) : channel.recording.status === 'stopped' ? (
-            <Text style={type.muted}>
-              {channel.recording.failure ? 'Ended early — ' : 'Stopped — '}
-              {formatDuration(recordedMs(channel.recording, now))} captured.
-            </Text>
+            <>
+              <Button
+                label={
+                  channel.recording.failure
+                    ? 'Try recording again'
+                    : channel.lastRecording
+                      ? 'Record again'
+                      : 'Start recording'
+                }
+                disabled={!canStartRecording(channel, me)}
+                onPress={() => act({ type: 'START_RECORDING' })}
+              />
+              {/*
+                What the previous run captured. A channel holds as many
+                recordings as people care to make, so stopping is no longer a
+                dead end — this reports the last one and the button above
+                offers another.
+              */}
+              {channel.lastRecording ? (
+                <Text style={type.muted}>
+                  {channel.lastRecording.failure ? 'Ended early — ' : 'Saved — '}
+                  {formatDuration(channel.lastRecording.durationMs)} captured.
+                </Text>
+              ) : null}
+            </>
           ) : (
             <View style={styles.buttonRow}>
               {channel.recording.status === 'paused' ? (
@@ -636,6 +656,12 @@ const styles = StyleSheet.create({
   },
   centeredText: { textAlign: 'center', lineHeight: 20 },
   presence: { gap: 2, marginBottom: spacing(0.5) },
+  description: {
+    ...type.muted,
+    lineHeight: 20,
+    marginTop: spacing(0.5),
+    marginBottom: spacing(0.5),
+  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -13,6 +13,17 @@ import type { ChannelAction, ChannelState } from '../types';
 const A = 'user-a';
 const B = 'user-b';
 const T0 = 1_700_000_000_000;
+const RUN = 'rec_one';
+
+/**
+ * A run is named by the server, never by the reducer, so every start carries
+ * an id the way it carries a user.
+ */
+const start = (userId: string, runId = RUN): ChannelAction => ({
+  type: 'START_RECORDING',
+  userId,
+  runId,
+});
 
 function joined(now = T0): ChannelState {
   return reduce(
@@ -40,7 +51,7 @@ describe('starting a recording', () => {
     expect(alone.present).toEqual([A]);
     expect(canStartRecording(alone, A)).toBe(true);
 
-    const s = reduce(alone, { type: 'START_RECORDING', userId: A }, T0);
+    const s = reduce(alone, start(A), T0);
     expect(s.recording.status).toBe('recording');
   });
 
@@ -49,7 +60,7 @@ describe('starting a recording', () => {
     // not in. B is a member here and has never entered.
     const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
     expect(canStartRecording(alone, B)).toBe(false);
-    expect(reduce(alone, { type: 'START_RECORDING', userId: B }, T0)).toBe(alone);
+    expect(reduce(alone, start(B), T0)).toBe(alone);
   });
 
   it('is unavailable once the channel is empty', () => {
@@ -66,17 +77,28 @@ describe('starting a recording', () => {
 
   it('can be initiated by either user', () => {
     for (const user of [A, B]) {
-      const s = reduce(joined(), { type: 'START_RECORDING', userId: user }, T0);
+      const s = reduce(joined(), start(user), T0);
       expect(s.recording.status).toBe('recording');
       expect(s.recording.startedAt).toBe(T0);
     }
+  });
+
+  it('files the run under the id it was given', () => {
+    const s = reduce(joined(), start(A, 'rec_given'), T0);
+    expect(s.recording.runId).toBe('rec_given');
+  });
+
+  it('is refused while a run is already in progress', () => {
+    const s = reduce(joined(), start(A), T0);
+    expect(canStartRecording(s, B)).toBe(false);
+    expect(reduce(s, start(B, 'rec_two'), T0 + 1_000)).toBe(s);
   });
 });
 
 describe('pause, resume, and stop', () => {
   it('accumulates recorded time across pauses, excluding paused time', () => {
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'PAUSE_RECORDING', userId: A }, T0 + 10_000],
       [{ type: 'RESUME_RECORDING', userId: A }, T0 + 40_000],
     ]);
@@ -85,23 +107,56 @@ describe('pause, resume, and stop', () => {
     expect(recordedMs(s.recording, T0 + 45_000)).toBe(15_000);
 
     const stopped = reduce(s, { type: 'STOP_RECORDING', userId: A }, T0 + 45_000);
-    expect(stopped.recording.status).toBe('stopped');
-    expect(recordedMs(stopped.recording, T0 + 99_000)).toBe(15_000);
+    // Stopping returns the channel to idle rather than parking it in a
+    // terminal state; what was captured moves to `lastRecording`, which is the
+    // only place a finished run is described.
+    expect(stopped.recording.status).toBe('idle');
+    expect(stopped.recording.runId).toBeNull();
+    expect(stopped.lastRecording).toMatchObject({
+      runId: RUN,
+      startedAt: T0,
+      endedAt: T0 + 45_000,
+      durationMs: 15_000,
+    });
   });
 
   it('does not end the channel', () => {
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'STOP_RECORDING', userId: A }, T0 + 10_000],
     ]);
     expect(s.status).toBe('active');
+  });
+
+  it('leaves the channel ready to record again, under a new id', () => {
+    // The point of returning to idle: several runs in one permanent channel.
+    const s = apply(joined(), [
+      [start(A), T0],
+      [{ type: 'STOP_RECORDING', userId: A }, T0 + 10_000],
+    ]);
+    expect(canStartRecording(s, A)).toBe(true);
+
+    const again = reduce(s, start(B, 'rec_two'), T0 + 20_000);
+    expect(again.recording.status).toBe('recording');
+    expect(again.recording.runId).toBe('rec_two');
+    // The first run is still described until the second one finishes.
+    expect(again.lastRecording?.runId).toBe(RUN);
+  });
+
+  it('files nothing for a run that captured no time', () => {
+    const s = apply(joined(), [
+      [start(A), T0],
+      [{ type: 'STOP_RECORDING', userId: A }, T0],
+    ]);
+    expect(s.recording.status).toBe('idle');
+    expect(s.lastRecording).toBeNull();
   });
 });
 
 describe('floor restriction on recording controls', () => {
   it('withholds pause and stop from the silenced party during a claim', () => {
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'CLAIM_FLOOR', userId: A }, T0 + 1_000],
     ]);
     expect(canPauseRecording(s, A)).toBe(true);
@@ -115,7 +170,7 @@ describe('floor restriction on recording controls', () => {
   });
 
   it('leaves both parties free to pause and stop when no claim is active', () => {
-    const s = reduce(joined(), { type: 'START_RECORDING', userId: A }, T0);
+    const s = reduce(joined(), start(A), T0);
     expect(canPauseRecording(s, A)).toBe(true);
     expect(canPauseRecording(s, B)).toBe(true);
     expect(canStopRecording(s, A)).toBe(true);
@@ -124,7 +179,7 @@ describe('floor restriction on recording controls', () => {
 
   it('restores the silenced party’s controls when the claim ends', () => {
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'CLAIM_FLOOR', userId: A }, T0 + 1_000],
       [{ type: 'TICK' }, T0 + 1_000 + FLOOR_CLAIM_MS],
     ]);
@@ -134,7 +189,7 @@ describe('floor restriction on recording controls', () => {
 
   it('does not restrict resuming', () => {
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'PAUSE_RECORDING', userId: A }, T0 + 1_000],
       [{ type: 'CLAIM_FLOOR', userId: A }, T0 + 2_000],
     ]);
@@ -147,7 +202,7 @@ describe('floor restriction on recording controls', () => {
 describe('recording and presence', () => {
   it('keeps running while one person is still there alone', () => {
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
       [{ type: 'TICK' }, T0 + 40_000],
     ]);
@@ -161,36 +216,36 @@ describe('recording and presence', () => {
     // via the empty-channel timer ending the channel a minute later — which
     // is why the old assertion here was 20s plus that whole extra minute.
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
       [{ type: 'STEP_OUT', userId: B }, T0 + 20_000],
     ]);
     expect(s.status).toBe('active');
-    expect(s.recording.status).toBe('stopped');
-    expect(recordedMs(s.recording, Infinity)).toBe(20_000);
+    expect(s.recording.status).toBe('idle');
+    expect(s.lastRecording?.durationMs).toBe(20_000);
   });
 
   it('stops when the last person is dropped by the grace period', () => {
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
       [{ type: 'DISCONNECTED', userId: B }, T0 + 20_000],
       [{ type: 'TICK' }, T0 + 20_000 + DISCONNECT_GRACE_MS],
     ]);
-    expect(s.recording.status).toBe('stopped');
+    expect(s.recording.status).toBe('idle');
     // The grace period is inside the recording: an abrupt end leaves up to a
     // minute of silence on the tail.
-    expect(recordedMs(s.recording, Infinity)).toBe(20_000 + DISCONNECT_GRACE_MS);
+    expect(s.lastRecording?.durationMs).toBe(20_000 + DISCONNECT_GRACE_MS);
   });
 
   it('finalizes when the last member leaves the channel', () => {
     const s = apply(joined(), [
-      [{ type: 'START_RECORDING', userId: A }, T0],
+      [start(A), T0],
       [{ type: 'LEAVE_CHANNEL', userId: A }, T0 + 30_000],
       [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 30_000],
     ]);
     expect(s.status).toBe('ended');
-    expect(s.recording.status).toBe('stopped');
-    expect(recordedMs(s.recording, Infinity)).toBe(30_000);
+    expect(s.recording.status).toBe('idle');
+    expect(s.lastRecording?.durationMs).toBe(30_000);
   });
 });

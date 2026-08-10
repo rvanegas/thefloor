@@ -78,16 +78,23 @@ export function Field({
   autoCapitalize = 'none',
   onSubmit,
   submitLabel = 'done',
+  multiline,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
   keyboardType?: 'default' | 'email-address' | 'number-pad' | 'phone-pad';
   autoFocus?: boolean;
-  autoCapitalize?: 'none' | 'words';
+  autoCapitalize?: 'none' | 'words' | 'sentences';
   /** Return key submits the form this field belongs to. */
   onSubmit?: () => void;
   submitLabel?: 'done' | 'go' | 'send' | 'next';
+  /**
+   * Grows to several lines, and the return key inserts a newline rather than
+   * submitting — which is why `onSubmit` is ignored here: in prose, and
+   * especially in Markdown, a line break is content.
+   */
+  multiline?: boolean;
 }) {
   return (
     <TextInput
@@ -99,12 +106,13 @@ export function Field({
       autoFocus={autoFocus}
       autoCapitalize={autoCapitalize}
       autoCorrect={false}
-      returnKeyType={onSubmit ? submitLabel : undefined}
-      onSubmitEditing={onSubmit}
+      multiline={multiline}
+      returnKeyType={!multiline && onSubmit ? submitLabel : undefined}
+      onSubmitEditing={multiline ? undefined : onSubmit}
       // A number-pad has no return key, so the form would otherwise be
       // unsubmittable from the keyboard alone.
-      submitBehavior="blurAndSubmit"
-      style={styles.field}
+      submitBehavior={multiline ? 'newline' : 'blurAndSubmit'}
+      style={[styles.field, multiline && styles.fieldMultiline]}
     />
   );
 }
@@ -155,6 +163,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     minHeight: 48,
+  },
+  fieldMultiline: {
+    minHeight: 108,
+    paddingTop: spacing(1.5),
+    textAlignVertical: 'top',
   },
   sectionLabel: {
     textTransform: 'uppercase',

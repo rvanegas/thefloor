@@ -1,9 +1,15 @@
 import { isSilenced } from './floor';
-import type { FloorState, RecordingState, UserId } from './types';
+import type {
+  FinishedRun,
+  FloorState,
+  RecordingState,
+  UserId,
+} from './types';
 
 export function initialRecordingState(): RecordingState {
   return {
     status: 'idle',
+    runId: null,
     startedAt: null,
     accumulatedMs: 0,
     segmentStartedAt: null,
@@ -24,6 +30,29 @@ export function isRecordingActive(recording: RecordingState): boolean {
 }
 
 /**
+ * What a run leaves behind, or null if it captured nothing.
+ *
+ * Nothing captured means the run did not happen: no row is filed and the
+ * channel says nothing about it, so a failed start costs the next attempt
+ * nothing.
+ */
+export function finishedRun(
+  recording: RecordingState,
+  now: number,
+  failure: string | null = null
+): FinishedRun | null {
+  const durationMs = recordedMs(recording, now);
+  if (recording.runId === null || durationMs <= 0) return null;
+  return {
+    runId: recording.runId,
+    startedAt: recording.startedAt ?? now,
+    endedAt: now,
+    durationMs,
+    failure: failure ?? recording.failure,
+  };
+}
+
+/**
  * Pause and stop are withheld from a user who is being force-muted, so a
  * silenced party cannot cut off the record while they have no voice in the
  * channel. Outside an active floor claim nobody is silenced, so either user may
@@ -38,10 +67,12 @@ export function canPauseOrStopRecording(
 
 export function startRecording(
   recording: RecordingState,
+  runId: string,
   now: number
 ): RecordingState {
   return {
     status: 'recording',
+    runId,
     startedAt: now,
     accumulatedMs: 0,
     segmentStartedAt: now,
@@ -70,40 +101,34 @@ export function resumeRecording(
   return { ...recording, status: 'recording', segmentStartedAt: now };
 }
 
+/**
+ * Ends a run and returns the channel to idle, ready for the next one.
+ *
+ * What was captured is not thrown away — the caller pairs this with
+ * `finishedRun`, which is what the channel reports and what the server files.
+ */
 export function stopRecording(
   recording: RecordingState,
-  now: number
+  _now: number
 ): RecordingState {
-  return {
-    ...recording,
-    status: 'stopped',
-    accumulatedMs: recordedMs(recording, now),
-    segmentStartedAt: null,
-  };
+  return initialRecordingState();
 }
 
 /**
- * Ends a recording that could not be captured, and says why.
+ * Ends a run that could not be captured, and says why.
  *
- * A capture failure ends the whole recording rather than continuing with
- * whoever did start: a channel recorded with one speaker missing is worse than
- * no recording, because it looks complete.
+ * A capture failure ends the whole run rather than continuing with whoever did
+ * start: a channel recorded with one speaker missing is worse than no
+ * recording, because it looks complete.
  *
- * Where it ends up depends on whether anything was ever captured. A recording
- * that never got going did not happen, so it returns to idle and may be
- * started again — a failed attempt must not consume the channel's one
- * recording. One that had already captured something keeps it, and stops.
+ * Either way the channel returns to idle and may record again. What differs is
+ * whether anything is left behind — see `finishedRun`, which files nothing for
+ * a run that never captured a moment.
  */
 export function failRecording(
   recording: RecordingState,
   reason: string,
-  now: number
+  _now: number
 ): RecordingState {
-  // Time accumulated before this run is the only evidence that capture ever
-  // actually worked; the current segment's elapsed time proves nothing, since
-  // it is measured from the request rather than from any audio arriving.
-  if (recording.accumulatedMs === 0) {
-    return { ...initialRecordingState(), failure: reason };
-  }
-  return { ...stopRecording(recording, now), failure: reason };
+  return { ...initialRecordingState(), failure: reason };
 }

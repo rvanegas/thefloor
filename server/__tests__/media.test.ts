@@ -35,6 +35,24 @@ afterEach(async () => {
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
 /**
+ * The id of the run in progress, which prefixes every object it writes.
+ *
+ * Keys carry the run because the per-identity segment index restarts at 001
+ * for each run: without it, a channel's second recording would overwrite its
+ * first in the bucket while the first row went on pointing at those keys.
+ *
+ * It throws once the run is over, on purpose: `runId` is non-null exactly
+ * while a run is in progress, so a test asserting keys after a stop must have
+ * captured the id while it still existed rather than read a null out of the
+ * channel and quietly build `.../null/...` into its expectation.
+ */
+function runIdOf(channelId: string): string {
+  const runId = app.channels.get(channelId)?.recording.runId;
+  if (!runId) throw new Error('no run in progress');
+  return runId;
+}
+
+/**
  * The only way a channel ends now: every member gives up membership. Tests
  * that used to dispatch END are asserting what happens at the end of a
  * channel's life, and this is how a channel's life ends.
@@ -297,9 +315,10 @@ describe('recording capture', () => {
     expect(media.recordings.map((r) => r.identity).sort()).toEqual(
       [alice.account.id, bob.account.id].sort()
     );
+    const run = runIdOf(channelId);
     for (const r of media.recordings) {
       expect(r.room).toBe(channelId);
-      expect(r.key).toBe(`${channelId}/${r.identity}-001.ogg`);
+      expect(r.key).toBe(`${channelId}/${run}/${r.identity}-001.ogg`);
       expect(r.stopped).toBe(false);
     }
   });
@@ -319,11 +338,14 @@ describe('recording capture', () => {
     await settle();
 
     expect(media.recordings).toHaveLength(4);
+    // Pause and resume are one run, so both segments sit under the same run
+    // prefix — it is the index that distinguishes them, not the run.
+    const run = runIdOf(channelId);
     const second = media.recordings.slice(2);
     expect(second.map((r) => r.key).sort()).toEqual(
       [
-        `${channelId}/${alice.account.id}-002.ogg`,
-        `${channelId}/${second.find((r) => r.identity !== alice.account.id)!.identity}-002.ogg`,
+        `${channelId}/${run}/${alice.account.id}-002.ogg`,
+        `${channelId}/${run}/${second.find((r) => r.identity !== alice.account.id)!.identity}-002.ogg`,
       ].sort()
     );
     expect(second.every((r) => !r.stopped)).toBe(true);
@@ -354,6 +376,10 @@ describe('recording capture', () => {
     const { alice, bob, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
+    // Captured while the run still exists: `runId` is null once it ends, and
+    // the keys are what stop one run overwriting another's audio, so they are
+    // asserted exactly rather than loosely.
+    const run = runIdOf(channelId);
     clock += 8_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     await settle();
@@ -361,12 +387,14 @@ describe('recording capture', () => {
     endChannel(channelId);
     await settle();
 
-    expect(app.channels.get(channelId)!.recording.status).toBe('stopped');
+    // Idle, not stopped: there is no 'stopped' status any more. A stopped run
+    // is simply over, and the channel is ready for the next one.
+    expect(app.channels.get(channelId)!.recording.status).toBe('idle');
     expect(media.recordings.every((r) => r.stopped)).toBe(true);
 
     const row = app.db
-      .prepare('SELECT duration_ms, stems FROM recordings WHERE channel_id = ?')
-      .get(channelId) as { duration_ms: number; stems: string };
+      .prepare('SELECT duration_ms, stems FROM recordings WHERE id = ?')
+      .get(run) as { duration_ms: number; stems: string };
     const stems = JSON.parse(row.stems) as Record<
       string,
       Array<{ key: string; startMs: number }>
@@ -375,7 +403,7 @@ describe('recording capture', () => {
       [alice.account.id, bob.account.id].sort()
     );
     expect(stems[alice.account.id]).toEqual([
-      { key: `${channelId}/${alice.account.id}-001.ogg`, startMs: 0 },
+      { key: `${channelId}/${run}/${alice.account.id}-001.ogg`, startMs: 0 },
     ]);
     expect(row.duration_ms).toBe(8_000);
   });
@@ -394,13 +422,17 @@ describe('recording capture', () => {
     expect(media.recordings[0].stopped).toBe(true);
     const channel = app.channels.get(channelId)!;
     expect(channel.status).toBe('active');
-    expect(channel.recording.status).toBe('stopped');
+    // Back to idle rather than to a terminal 'stopped', so whoever comes back
+    // into the channel can start a second recording in it.
+    expect(channel.recording.status).toBe('idle');
+    expect(channel.recording.runId).toBeNull();
   });
 
   it('records every segment against the finished recording', async () => {
     const { alice, bob, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
+    const run = runIdOf(channelId);
     clock += 10_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     await settle();
@@ -411,8 +443,8 @@ describe('recording capture', () => {
     await settle();
 
     const row = app.db
-      .prepare('SELECT * FROM recordings WHERE channel_id = ?')
-      .get(channelId) as { stems: string; duration_ms: number };
+      .prepare('SELECT * FROM recordings WHERE id = ?')
+      .get(run) as { stems: string; duration_ms: number };
     const stems = JSON.parse(row.stems) as Record<
       string,
       Array<{ key: string; startMs: number }>
@@ -421,8 +453,8 @@ describe('recording capture', () => {
     // and the second segment knows it starts where the first run ended.
     for (const identity of [alice.account.id, bob.account.id]) {
       expect(stems[identity]).toEqual([
-        { key: `${channelId}/${identity}-001.ogg`, startMs: 0 },
-        { key: `${channelId}/${identity}-002.ogg`, startMs: 10_000 },
+        { key: `${channelId}/${run}/${identity}-001.ogg`, startMs: 0 },
+        { key: `${channelId}/${run}/${identity}-002.ogg`, startMs: 10_000 },
       ]);
     }
     // Paused time is excluded, so the duration is the two run segments only.
@@ -438,6 +470,199 @@ describe('recording capture', () => {
       .prepare('SELECT COUNT(*) c FROM recordings WHERE channel_id = ?')
       .get(channelId) as { c: number };
     expect(row.c).toBe(0);
+  });
+});
+
+/**
+ * A channel holds as many recordings as people start in it.
+ *
+ * It used to hold at most one, filed when the channel ended, and a start after
+ * a stop was a no-op. Now a run is a thing of its own with its own id, its own
+ * row, and its own prefix in the bucket — and every piece of state a run
+ * accumulates is drained when it is filed. That draining is the whole risk
+ * here: anything left behind attributes one run's audio or one run's silences
+ * to the next, which makes an export *wrong* rather than missing, and nothing
+ * downstream would report a problem.
+ */
+describe('several recordings in one channel', () => {
+  /**
+   * Every run this channel has filed, oldest first.
+   *
+   * `.all` with an explicit order rather than `.get`: a `.get` on channel_id
+   * silently answers with an arbitrary one of the rows once there are two,
+   * which would let a test about two runs pass while only ever looking at one.
+   */
+  const runsOf = (channelId: string) =>
+    app.db
+      .prepare(
+        `SELECT id, started_at, duration_ms, stems, floor_timeline
+         FROM recordings WHERE channel_id = ? ORDER BY started_at`
+      )
+      .all(channelId) as Array<{
+      id: string;
+      started_at: number;
+      duration_ms: number;
+      stems: string;
+      floor_timeline: string;
+    }>;
+
+  const keysOf = (row: { stems: string }) =>
+    Object.values(
+      JSON.parse(row.stems) as Record<string, Array<{ key: string }>>
+    )
+      .flat()
+      .map((segment) => segment.key)
+      .sort();
+
+  const stemsOf = (row: { stems: string }) =>
+    JSON.parse(row.stems) as Record<
+      string,
+      Array<{ key: string; startMs: number }>
+    >;
+
+  it('files two rows for two runs, with nothing shared between them', async () => {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    const startedFirst = clock;
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    const first = runIdOf(channelId);
+    clock += 6_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    clock += 60_000; // A minute of talking that nobody is recording.
+    const startedSecond = clock;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    const second = runIdOf(channelId);
+    clock += 9_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    expect(second).not.toBe(first);
+    const runs = runsOf(channelId);
+    expect(runs.map((r) => r.id)).toEqual([first, second]);
+    // Each run is timed on its own: the second does not inherit the first's
+    // start, and the minute between them belongs to neither.
+    expect(runs.map((r) => r.started_at)).toEqual([startedFirst, startedSecond]);
+    expect(runs.map((r) => r.duration_ms)).toEqual([6_000, 9_000]);
+
+    // The point of putting the run in the key. Both runs number their stems
+    // from 001, so without the prefix these two sets would be identical and
+    // the second upload would overwrite the first while row one went on
+    // pointing at the keys.
+    const [firstKeys, secondKeys] = runs.map(keysOf);
+    expect(firstKeys).toEqual(
+      [
+        `${channelId}/${first}/${alice.account.id}-001.ogg`,
+        `${channelId}/${first}/${bob.account.id}-001.ogg`,
+      ].sort()
+    );
+    expect(secondKeys).toEqual(
+      [
+        `${channelId}/${second}/${alice.account.id}-001.ogg`,
+        `${channelId}/${second}/${bob.account.id}-001.ogg`,
+      ].sort()
+    );
+    expect(firstKeys.filter((key) => secondKeys.includes(key))).toEqual([]);
+  });
+
+  it('files a run when it is stopped, not when the channel ends', async () => {
+    // This is what makes several recordings possible at all. While filing
+    // happened at the end of a channel's life there could only ever be one,
+    // and a permanent channel might never reach that moment.
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    const run = runIdOf(channelId);
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    // The channel is still going, and its recording is already reachable.
+    const channel = app.channels.get(channelId)!;
+    expect(channel.status).toBe('active');
+    expect(channel.endedAt).toBeNull();
+    expect(runsOf(channelId).map((r) => r.id)).toEqual([run]);
+    expect(channel.lastRecording).toMatchObject({ runId: run, durationMs: 5_000 });
+  });
+
+  it('numbers the second run’s segments from one, under its own prefix', async () => {
+    // The index restarting is exactly why the run has to be in the path. A
+    // pause inside run two writes -001 and -002 again, and those names mean a
+    // different pair of objects than run one's did.
+    const { alice, bob, channelId } = await sessionOfTwo();
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    const first = runIdOf(channelId);
+    clock += 4_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    const second = runIdOf(channelId);
+    clock += 3_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    await settle();
+    clock += 20_000; // Paused, so absent from the audio and from the offsets.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RESUME_RECORDING' });
+    await settle();
+    clock += 2_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    const [runOne, runTwo] = runsOf(channelId);
+    for (const identity of [alice.account.id, bob.account.id]) {
+      expect(stemsOf(runOne)[identity]).toEqual([
+        { key: `${channelId}/${first}/${identity}-001.ogg`, startMs: 0 },
+      ]);
+      expect(stemsOf(runTwo)[identity]).toEqual([
+        { key: `${channelId}/${second}/${identity}-001.ogg`, startMs: 0 },
+        { key: `${channelId}/${second}/${identity}-002.ogg`, startMs: 3_000 },
+      ]);
+    }
+    // Nothing from run two was filed against run one, and nothing under run
+    // one's prefix appears in run two — the segments are drained at filing.
+    expect(keysOf(runOne)).toHaveLength(2);
+    expect(
+      keysOf(runTwo).filter((key) => key.startsWith(`${channelId}/${first}/`))
+    ).toEqual([]);
+    expect(runTwo.duration_ms).toBe(5_000);
+  });
+
+  it('keeps a floor window on the run it happened in', async () => {
+    // The one that matters most. Floor windows are what gate a silenced
+    // speaker out of an export, so a window leaking into the next run would
+    // make a remark audible that the floor was invoked to suppress — and it
+    // would be silently wrong, not missing.
+    const { alice, bob, channelId } = await sessionOfTwo();
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    clock += 3_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    // A second run, with nobody claiming anything in it.
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 7_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    const [runOne, runTwo] = runsOf(channelId);
+    expect(JSON.parse(runOne.floor_timeline)).toEqual([
+      { identity: bob.account.id, fromMs: 5_000, toMs: 8_000 },
+    ]);
+    expect(JSON.parse(runTwo.floor_timeline)).toEqual([]);
   });
 });
 

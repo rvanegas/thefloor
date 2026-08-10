@@ -55,6 +55,7 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'LEAVE_CHANNEL',
   'INVITE',
   'SET_NAME',
+  'SET_DESCRIPTION',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
   'SET_SELF_MUTE',
@@ -387,6 +388,27 @@ export class ChannelRegistry {
       }
     }
 
+    // The reducer trims, caps and treats blank as absent; this only checks the
+    // payload carries a string at all. Note it is *not* validated as Markdown:
+    // there is no such thing as invalid Markdown, and anything the renderer
+    // does not recognise it shows as the characters somebody typed.
+    if (action.type === 'SET_DESCRIPTION') {
+      if (typeof (action as { description?: unknown }).description !== 'string') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+    }
+
+    // A run's id is minted here, never accepted from the client — it becomes
+    // the recordings row's primary key and the prefix of every object the run
+    // writes, so a client naming it could overwrite another run's audio. Same
+    // reasoning as SET_TRACK, which a client cannot send at all.
+    if (action.type === 'START_RECORDING') {
+      return this.apply(channelId, userId, {
+        type: 'START_RECORDING',
+        runId: newId('rec'),
+      } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    }
+
     return this.apply(channelId, userId, action);
   }
 
@@ -711,20 +733,23 @@ export class ChannelRegistry {
     after: ChannelState
   ): void {
     if (!this.media) return;
-    const was = before.recording.status;
-    const now = after.recording.status;
-    if (was === now) return;
 
-    const shouldCapture = now === 'recording';
+    const shouldCapture = after.recording.status === 'recording';
     const isCapturing = this.capturing.has(after.id);
 
     if (shouldCapture && !isCapturing) {
-      this.recordingAudience.set(after.id, new Set(after.present));
       this.capturing.set(after.id, {
         handles: [],
         requested: new Set(),
         retryAt: new Map(),
       });
+      // Seeded only if absent, because this branch is reached by a resume as
+      // well as by a start — pause genuinely stops capture, so resuming looks
+      // identical from here. Overwriting would drop everyone who was in the
+      // first half of the run and gone by the second.
+      if (!this.recordingAudience.has(after.id)) {
+        this.recordingAudience.set(after.id, new Set());
+      }
 
       // The initial cohort is who is *present* — a participant who has never
       // joined has no track, and asking for their egress would kill the whole
@@ -738,10 +763,7 @@ export class ChannelRegistry {
       // is what begins the media stem. This is the first of those two orders;
       // openPlayback handles the other.
       this.startMediaCapture(after.id, after);
-      return;
-    }
-
-    if (!shouldCapture && isCapturing) {
+    } else if (!shouldCapture && isCapturing) {
       const run = this.capturing.get(after.id)!;
       this.capturing.delete(after.id);
       for (const { identity, handle } of run.handles) {
@@ -752,7 +774,16 @@ export class ChannelRegistry {
       }
       this.stopMediaCapture(after.id);
     }
+
+    // A run that has ended is filed now rather than when the channel ends,
+    // which is what lets a channel hold more than one. Capture has already
+    // been torn down above, so the stems are complete by the time this runs.
+    const finished = before.recording.runId;
+    if (finished !== null && finished !== after.recording.runId) {
+      this.fileRun(after, finished);
+    }
   }
+
 
   /**
    * Asks for one participant's egress for the current run and reserves its
@@ -774,7 +805,12 @@ export class ChannelRegistry {
     this.segments.set(state.id, perParticipant);
     const previous = perParticipant.get(identity) ?? [];
     const index = String(previous.length + 1).padStart(3, '0');
-    const key = `${state.id}/${identity}-${index}.ogg`;
+    // The run is in the path because the index restarts at 001 for each run —
+    // `segments` is drained when a run is filed. Without it a channel's second
+    // recording would overwrite its first in the bucket, and the first row
+    // would still point at those keys: an export of run one playing run two's
+    // audio, with nothing anywhere reporting a problem.
+    const key = `${state.id}/${state.recording.runId}/${identity}-${index}.ogg`;
     // Where in the recorded audio this capture begins: zero at a run's start,
     // later for someone who joined partway through one. Reserved before the
     // call returns so a second transition cannot pick the same index, and so
@@ -955,7 +991,7 @@ export class ChannelRegistry {
     this.segments.set(channelId, perParticipant);
     const previous = perParticipant.get(MEDIA_IDENTITY) ?? [];
     const index = String(previous.length + 1).padStart(3, '0');
-    const key = `${channelId}/${MEDIA_IDENTITY}-${index}.ogg`;
+    const key = `${channelId}/${state.recording.runId}/${MEDIA_IDENTITY}-${index}.ogg`;
     // The pump pads the offset with silence, so this stem spans its whole run
     // and its startMs is the run's start regardless of when the track arrived.
     perParticipant.set(MEDIA_IDENTITY, [
@@ -1036,7 +1072,15 @@ export class ChannelRegistry {
     const isRecording = after.recording.status === 'recording';
     if (!wasRecording && !isRecording) return;
 
-    const at = recordedMs(after.recording, this.now());
+    // Where in the recorded audio this transition falls. When a run has just
+    // ended, `after.recording` is already idle and would read zero, so the
+    // run's own final duration is the honest answer — closing every open
+    // window at 0 would gate the whole export instead of one span.
+    const at =
+      after.recording.runId !== null
+        ? recordedMs(after.recording, this.now())
+        : (after.lastRecording?.durationMs ??
+          recordedMs(before.recording, this.now()));
     const windows = this.floorWindows.get(after.id) ?? [];
     this.floorWindows.set(after.id, windows);
 
@@ -1153,23 +1197,41 @@ export class ChannelRegistry {
         // the insert — invites grow the one, renames the other, and leaving
         // shrinks the first. The ended_reason column is left alone: there is
         // now one way a channel ends, so there is nothing to record.
-        'UPDATE channels SET ended_at = ?, participants = ?, name = ? WHERE id = ?'
+        'UPDATE channels SET ended_at = ?, participants = ?, name = ?, description = ? WHERE id = ?'
       )
       .run(
         channel.endedAt,
         JSON.stringify(channel.participants),
         channel.name,
+        channel.description,
         channel.id
       );
 
-    const duration = recordedMs(channel.recording, channel.endedAt ?? this.now());
-    if (channel.recording.status !== 'stopped' || duration <= 0) return;
+  }
 
+  /**
+   * Files a finished run as a recording of its own.
+   *
+   * Called when the run ends rather than when the channel does, which is what
+   * lets one channel hold several recordings. Everything the run accumulated
+   * is drained here: leaving any of it behind would attribute one run's stems
+   * or floor windows to the next, and an export would then be *wrong* rather
+   * than missing — a silenced remark made audible, or the wrong audio played
+   * back — with nothing to signal it.
+   */
+  private fileRun(channel: ChannelState, runId: string): void {
     const present = this.recordingAudience.get(channel.id) ?? new Set<string>();
-    this.recordingAudience.delete(channel.id);
-
     const perParticipant = this.segments.get(channel.id) ?? new Map();
+    const windows = this.floorWindows.get(channel.id) ?? [];
+    this.recordingAudience.delete(channel.id);
     this.segments.delete(channel.id);
+    this.floorWindows.delete(channel.id);
+
+    // `lastRecording` is the reducer's account of the run that just ended; it
+    // is null when nothing was captured, and then there is nothing to file.
+    const run = channel.lastRecording;
+    if (!run || run.runId !== runId || run.durationMs <= 0) return;
+
     const stems = Object.fromEntries(perParticipant) as Record<
       string,
       Array<{ key: string; startMs: number }>
@@ -1177,6 +1239,7 @@ export class ChannelRegistry {
     const flat = Object.values(stems)
       .flat()
       .map((segment) => segment.key);
+    if (flat.length === 0) return;
 
     // Who the recording belongs to: everyone who took part. Presence and
     // stems are unioned rather than one trusted over the other — presence
@@ -1189,43 +1252,34 @@ export class ChannelRegistry {
       ]),
     ];
 
-    // A claim still open when the recording ended runs to the end of it.
-    const windows = this.floorWindows.get(channel.id) ?? [];
-    this.floorWindows.delete(channel.id);
+    // A claim still open when the run ended runs to the end of it.
     for (const window of windows) {
-      if (window.toMs === null) window.toMs = duration;
+      if (window.toMs === null) window.toMs = run.durationMs;
     }
 
-    // Deliberately not INSERT OR IGNORE. That looked like protection against
-    // writing one recording twice, but never was: the id is freshly random on
-    // every call and nothing is unique on channel_id, so a second run would
-    // insert a second row regardless. All it actually did was swallow the one
-    // error worth catching — the key collision this retry exists to handle.
-    insertWithUniqueKey(
-      () => newId('rec'),
-      (candidate) =>
-        this.db
-          .prepare(
-            `INSERT INTO recordings
+    // The run id is the row id. They identify the same thing, and minting a
+    // second identifier for it would only create something to keep in step.
+    this.db
+      .prepare(
+        `INSERT INTO recordings
            (id, channel_id, initiator_id, invitee_id, participants, started_at,
             duration_ms, s3_key, segment_keys, stems, floor_timeline)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .run(
-            candidate,
-            channel.id,
-            channel.initiator,
-            // Legacy anchor columns, NOT NULL and never read back; the
-            // participants JSON is what membership queries use.
-            audience[1] ?? audience[0] ?? channel.initiator,
-            JSON.stringify(audience),
-            channel.recording.startedAt ?? channel.createdAt,
-            duration,
-            flat[0] ?? '',
-            JSON.stringify(flat),
-            JSON.stringify(stems),
-            JSON.stringify(windows)
-          )
-    );
+      )
+      .run(
+        runId,
+        channel.id,
+        channel.initiator,
+        // Legacy anchor columns, NOT NULL and never read back; the
+        // participants JSON is what membership queries use.
+        audience[1] ?? audience[0] ?? channel.initiator,
+        JSON.stringify(audience),
+        run.startedAt,
+        run.durationMs,
+        flat[0] ?? '',
+        JSON.stringify(flat),
+        JSON.stringify(stems),
+        JSON.stringify(windows)
+      );
   }
 }

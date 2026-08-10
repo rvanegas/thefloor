@@ -49,6 +49,16 @@ export const PLAYBACK_DEFAULT_VOLUME = 0.7;
 export const MAX_CHANNEL_NAME_LENGTH = 60;
 
 /**
+ * The most characters a channel's description may hold.
+ *
+ * Roomier than the name because it is prose and may carry links, whose markup
+ * costs characters nobody reads — a single URL can be a third of this. Still
+ * bounded: it sits above the roster on a phone screen, so a description long
+ * enough to need scrolling has stopped being a description.
+ */
+export const MAX_CHANNEL_DESCRIPTION_LENGTH = 1_000;
+
+/**
  * How long a user may be disconnected before they stop being present.
  *
  * Connectivity is not presence. A socket that drops and returns inside this

@@ -117,7 +117,10 @@ CREATE TABLE IF NOT EXISTS channels (
   -- JSON string[]: everyone in the channel, initiator first.
   participants TEXT,
   -- What the participants called it, if they named it. Null means unnamed.
-  name TEXT
+  name TEXT,
+  -- The channel's description, as the Markdown source somebody typed. Null
+  -- means nobody has written one.
+  description TEXT
 );
 
 CREATE TABLE IF NOT EXISTS recordings (
@@ -232,7 +235,7 @@ function migrate(db: Db): void {
   const channelColumns = db
     .prepare('PRAGMA table_info(channels)')
     .all() as Array<{ name: string }>;
-  for (const column of ['participants', 'name']) {
+  for (const column of ['participants', 'name', 'description']) {
     if (!channelColumns.some((c) => c.name === column)) {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);
     }

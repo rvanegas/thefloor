@@ -378,6 +378,10 @@ describe('recording with people joining mid-run', () => {
     expect(media.recordings.map((r) => r.identity).sort()).toEqual(
       [alice.account.id, bob.account.id].sort()
     );
+    // Every object a run writes is prefixed with the run, because the
+    // per-identity index restarts at 001 each time. Read while the run is in
+    // progress: `runId` is null the moment it ends.
+    const run = app.channels.get(channelId)!.recording.runId!;
 
     clock += 20_000;
     app.channels.dispatch(channelId, alice.account.id, {
@@ -397,8 +401,8 @@ describe('recording with people joining mid-run', () => {
     await settle();
 
     const row = app.db
-      .prepare('SELECT stems, participants FROM recordings WHERE channel_id = ?')
-      .get(channelId) as { stems: string; participants: string };
+      .prepare('SELECT stems, participants FROM recordings WHERE id = ?')
+      .get(run) as { stems: string; participants: string };
     const stems = JSON.parse(row.stems) as Record<
       string,
       Array<{ key: string; startMs: number }>
@@ -407,7 +411,7 @@ describe('recording with people joining mid-run', () => {
     // Carol's capture begins 20s into the recorded audio.
     expect(stems[carol.account.id]).toEqual([
       {
-        key: `${channelId}/${carol.account.id}-001.ogg`,
+        key: `${channelId}/${run}/${carol.account.id}-001.ogg`,
         startMs: 20_000,
       },
     ]);
@@ -422,10 +426,13 @@ describe('recording with people joining mid-run', () => {
     // The recording is the conversation, so it is the conversation's. Carol is
     // invited during the run and never comes: no stem, and no claim on it.
     const { alice, bob, carol, channelId } = await pairRecording();
+    // `as never` as everywhere else INVITE is dispatched here: the wire form
+    // names a contact, and `dispatch`'s parameter is the reducer's action type,
+    // which knows only about invitees.
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
       contactId: carol.account.id,
-    });
+    } as never);
     clock += 10_000;
     endChannel(channelId);
     await settle();

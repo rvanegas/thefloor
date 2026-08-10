@@ -19,11 +19,29 @@ export interface FloorState {
   lastReleasedAt: number | null;
 }
 
-export type RecordingStatus = 'idle' | 'recording' | 'paused' | 'stopped';
+/**
+ * There is no 'stopped'. A stopped run is simply over, and the channel returns
+ * to idle so another can begin — which is what makes several recordings in one
+ * channel possible. What was captured is described by `lastRecording`, and the
+ * recording itself is by then a row of its own.
+ *
+ * Dropping the state rather than keeping it as a transient is deliberate: it
+ * makes "`runId` is non-null exactly while a run is in progress" total, and it
+ * made the compiler point at every place that assumed otherwise.
+ */
+export type RecordingStatus = 'idle' | 'recording' | 'paused';
 
 export interface RecordingState {
   status: RecordingStatus;
-  /** When recording first started. Survives pause/resume. */
+  /**
+   * This run's id, and the id of the row it will be filed as. Non-null
+   * exactly while a run is in progress.
+   *
+   * Minted by the server rather than the reducer, which has no business
+   * generating identifiers, and arrives on the action the way a track does.
+   */
+  runId: string | null;
+  /** When this run started. Survives pause/resume. */
   startedAt: number | null;
   /** Recorded milliseconds accumulated across previous run segments. */
   accumulatedMs: number;
@@ -37,6 +55,23 @@ export interface RecordingState {
    * capture is not actually running, saying so is not a nicety; someone may be
    * speaking on the strength of that indicator.
    */
+  failure: string | null;
+}
+
+/**
+ * A recording run that is over, kept so the channel can say what it captured.
+ *
+ * Only the most recent one: the rest are rows in the database and reachable
+ * from the home screen, so holding a history here would be a second copy of
+ * something already durable.
+ */
+export interface FinishedRun {
+  /** The recording's id, so a client could link straight to it. */
+  runId: string;
+  startedAt: number;
+  endedAt: number;
+  durationMs: number;
+  /** Set when the run ended for a reason nobody asked for. */
   failure: string | null;
 }
 
@@ -85,6 +120,16 @@ export interface ChannelState {
    * count — so a name is a replacement for that, never a requirement.
    */
   name: string | null;
+  /**
+   * A description of what the channel is for, as Markdown, or null when nobody
+   * has written one.
+   *
+   * Stored as its source rather than as anything parsed: the markup is what a
+   * person typed and what they will see when they edit it again, and rendering
+   * is the client's business. Only inline formatting is meaningful — this sits
+   * in a header, not in a document.
+   */
+  description: string | null;
   /** The user who created the channel. */
   initiator: UserId;
   /**
@@ -124,6 +169,8 @@ export interface ChannelState {
   floor: FloorState;
   selfMuted: Record<UserId, boolean>;
   recording: RecordingState;
+  /** The most recent run that has finished, or null if none has. */
+  lastRecording: FinishedRun | null;
   playback: PlaybackState;
   /**
    * When each present user's last connection dropped. Absent means connected.
@@ -168,10 +215,18 @@ export type ChannelAction =
    * An empty or whitespace name clears it back to the roster fallback.
    */
   | { type: 'SET_NAME'; userId: UserId; name: string }
+  /**
+   * Writes or rewrites the description. Any participant may, like the name:
+   * both are shared furniture rather than anybody's property.
+   *
+   * An empty or whitespace-only value clears it.
+   */
+  | { type: 'SET_DESCRIPTION'; userId: UserId; description: string }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
   | { type: 'SET_SELF_MUTE'; userId: UserId; muted: boolean }
-  | { type: 'START_RECORDING'; userId: UserId }
+  /** `runId` is minted by the server; a client cannot name one. */
+  | { type: 'START_RECORDING'; userId: UserId; runId: string }
   | { type: 'PAUSE_RECORDING'; userId: UserId }
   | { type: 'RESUME_RECORDING'; userId: UserId }
   | { type: 'STOP_RECORDING'; userId: UserId }

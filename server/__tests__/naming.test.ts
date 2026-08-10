@@ -101,6 +101,44 @@ describe('naming a channel', () => {
     expect(app.channels.get(channelId)?.name).toBeNull();
   });
 
+  it('takes a description, and refuses a payload that is not a string', async () => {
+    const { alice, channelId } = await pair();
+    const ok = app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_DESCRIPTION',
+      description: '  Reading **Dune**, see [notes](https://example.com)  ',
+    } as never);
+    expect(ok.ok).toBe(true);
+    // Trimmed at the ends, and the markup kept exactly as typed.
+    expect(app.channels.get(channelId)?.description).toBe(
+      'Reading **Dune**, see [notes](https://example.com)'
+    );
+
+    const bad = app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_DESCRIPTION',
+      description: { evil: true },
+    } as never);
+    expect(bad).toEqual({
+      ok: false,
+      error: 'Not an action.',
+      code: 'invalid',
+    });
+  });
+
+  it('persists the description on the ended channel row', async () => {
+    const { alice, bob, channelId } = await pair();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_DESCRIPTION',
+      description: 'Tuesdays at eight',
+    } as never);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE_CHANNEL' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
+
+    const row = app.db
+      .prepare('SELECT description FROM channels WHERE id = ?')
+      .get(channelId) as { description: string | null };
+    expect(row.description).toBe('Tuesdays at eight');
+  });
+
   it('persists the name on the ended channel row', async () => {
     const { alice, channelId } = await pair();
     app.channels.dispatch(channelId, alice.account.id, {

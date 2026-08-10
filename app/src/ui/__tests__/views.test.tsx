@@ -105,6 +105,19 @@ function findButton(
     .find((n) => labelOf(n).includes(label));
 }
 
+/**
+ * The text of every rendered link. Host nodes only — `findAll` matches both the
+ * composite component and its host element, so an unfiltered search counts one
+ * link twice.
+ */
+function linksIn(tree: ReactTestRenderer): string[] {
+  return tree.root
+    .findAll(
+      (n) => typeof n.type === 'string' && n.props?.accessibilityRole === 'link'
+    )
+    .map(labelOf);
+}
+
 function render(element: React.ReactElement): ReactTestRenderer {
   let tree!: ReactTestRenderer;
   act(() => {
@@ -420,7 +433,7 @@ describe('Channel', () => {
     let channel = channelOf((s) =>
       reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW)
     );
-    channel = reduce(channel, { type: 'START_RECORDING', userId: THEM }, NOW);
+    channel = reduce(channel, { type: 'START_RECORDING', userId: THEM, runId: 'rec_1' }, NOW);
     showChannel(channel);
 
     const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
@@ -713,6 +726,68 @@ describe('Channel', () => {
     // Under a channel name the status line is the only place the other
     // party's name appears, so it must carry it even in a 1:1.
     expect(text).toContain('Dana Chu · ');
+    act(() => tree.unmount());
+  });
+
+  it('renders the description under the title, above the roster', () => {
+    showChannel(
+      channelOf((s) =>
+        reduce(
+          s,
+          {
+            type: 'SET_DESCRIPTION',
+            userId: THEM,
+            description: 'Reading **Dune**, see [notes](https://example.com).',
+          },
+          NOW
+        )
+      )
+    );
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const text = textOf(tree);
+    // The markup is gone and the words remain.
+    expect(text).toContain('Reading');
+    expect(text).toContain('Dune');
+    expect(text).toContain('notes');
+    expect(text).not.toContain('**Dune**');
+    expect(text).not.toContain('https://example.com');
+
+    // The link is a link, and the roster still follows it. Host nodes only:
+    // findAll matches the composite and the host element for one <Text>.
+    expect(linksIn(tree)).toEqual(['notes']);
+    expect(text).toContain('Dana Chu');
+    act(() => tree.unmount());
+  });
+
+  it('shows nothing where the description would be when there is none', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    expect(linksIn(tree)).toEqual([]);
+    act(() => tree.unmount());
+  });
+
+  it('edits the description in settings, with a preview', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
+    const field = tree.root.findAll(
+      (n) => n.props?.placeholder === 'Links, a reading list, what this is for…'
+    )[0];
+    act(() => field.props.onChangeText('See [notes](https://notes.example)'));
+
+    // The preview renders it, so nobody has to save to find out what it
+    // becomes. A URL of its own, because the card's help text quotes
+    // example.com as an illustration and would match either way.
+    expect(textOf(tree)).toContain('Preview');
+    expect(textOf(tree)).not.toContain('](https://notes.example)');
+    expect(linksIn(tree)).toContain('notes');
+
+    act(() => findButton(tree, 'Save description')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_DESCRIPTION',
+      description: 'See [notes](https://notes.example)',
+    });
     act(() => tree.unmount());
   });
 

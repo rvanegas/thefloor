@@ -1,5 +1,6 @@
 import {
   DISCONNECT_GRACE_MS,
+  MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
 } from './constants';
@@ -24,6 +25,7 @@ import {
 import {
   canPauseOrStopRecording,
   failRecording,
+  finishedRun,
   initialRecordingState,
   isRecordingActive,
   pauseRecording,
@@ -55,6 +57,7 @@ export function createChannel(params: {
   return {
     id,
     name: null,
+    description: null,
     initiator,
     participants,
     invitedBy: Object.fromEntries(invitees.map((i) => [i, initiator])),
@@ -68,6 +71,7 @@ export function createChannel(params: {
     floor: initialFloorState(),
     selfMuted: Object.fromEntries(participants.map((p) => [p, false])),
     recording: initialRecordingState(),
+    lastRecording: null,
     playback: initialPlaybackState(),
     disconnectedAt: {},
   };
@@ -264,6 +268,8 @@ export function reduce(
     return {
       ...state,
       recording: failRecording(state.recording, action.reason, now),
+      lastRecording:
+        finishedRun(state.recording, now, action.reason) ?? state.lastRecording,
     };
   }
 
@@ -348,6 +354,19 @@ export function reduce(
       return { ...state, name };
     }
 
+    case 'SET_DESCRIPTION': {
+      // Trimmed at the ends but not within: the interior of a description is
+      // Markdown, where a blank line separates paragraphs and two trailing
+      // spaces force a break. Collapsing that would rewrite what somebody
+      // wrote.
+      const trimmed = action.description
+        .trim()
+        .slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH);
+      const description = trimmed === '' ? null : trimmed;
+      if (description === state.description) return state;
+      return { ...state, description };
+    }
+
     case 'CLAIM_FLOOR': {
       if (!canClaimFloor(state, action.userId, now)) return state;
       return { ...state, floor: claimFloor(state.floor, action.userId, now) };
@@ -367,7 +386,10 @@ export function reduce(
 
     case 'START_RECORDING': {
       if (!canStartRecording(state, action.userId)) return state;
-      return { ...state, recording: startRecording(state.recording, now) };
+      return {
+        ...state,
+        recording: startRecording(state.recording, action.runId, now),
+      };
     }
 
     case 'PAUSE_RECORDING': {
@@ -382,7 +404,7 @@ export function reduce(
 
     case 'STOP_RECORDING': {
       if (!canStopRecording(state, action.userId)) return state;
-      return { ...state, recording: stopRecording(state.recording, now) };
+      return endRun(state, now);
     }
 
     // Every playback action shares one guard, because they are all the same
@@ -501,7 +523,21 @@ function stepOut(
 function settleEmpty(state: ChannelState, now: number): ChannelState {
   if (state.present.length > 0) return state;
   if (!isRecordingActive(state.recording)) return state;
-  return { ...state, recording: stopRecording(state.recording, now) };
+  return endRun(state, now);
+}
+
+/**
+ * Ends the run in progress and returns the channel to idle, so another may be
+ * started straight away. What was captured becomes `lastRecording`, which is
+ * both what the interface reports and what tells the server there is a run to
+ * file.
+ */
+function endRun(state: ChannelState, now: number): ChannelState {
+  return {
+    ...state,
+    recording: stopRecording(state.recording, now),
+    lastRecording: finishedRun(state.recording, now) ?? state.lastRecording,
+  };
 }
 
 /**
@@ -519,9 +555,10 @@ function endChannel(state: ChannelState, now: number): ChannelState {
     endedAt: now,
     present: [],
     floor: releaseFloor(state.floor, now),
-    recording: isRecordingActive(state.recording)
-      ? stopRecording(state.recording, now)
-      : state.recording,
+    recording: initialRecordingState(),
+    lastRecording: isRecordingActive(state.recording)
+      ? (finishedRun(state.recording, now) ?? state.lastRecording)
+      : state.lastRecording,
     // Playback comes to rest rather than being cleared: the final snapshot is
     // what a watcher sees explaining the channel ended, and a track vanishing
     // from it at the same moment reads as a second, unexplained event.

@@ -86,6 +86,8 @@ export type ClientAction =
   | { type: 'INVITE'; contactId: string }
   /** Names or renames the channel; an empty string clears the name. */
   | { type: 'SET_NAME'; name: string }
+  /** Writes the channel's Markdown description; an empty string clears it. */
+  | { type: 'SET_DESCRIPTION'; description: string }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   | { type: 'SET_SELF_MUTE'; muted: boolean }
