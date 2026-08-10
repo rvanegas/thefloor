@@ -450,3 +450,30 @@ sign of it**, which would be worse than having to step out first. So Home
 carries a bar naming the channel and how many people are in it, tapping it
 returns, and it announces itself as a button rather than being a mystery
 rectangle to anyone using VoiceOver.
+
+---
+
+## Connecting to somebody you met in a channel
+
+Built 2026-08-10. Tap a person in a channel's roster to see their profile,
+and ask them to be a contact from there.
+
+The obstacle was never the interface. Contact requests went by email address,
+and meeting somebody in a channel an acquaintance opened gives you their name
+and their account id and nothing else — so the existing path would have meant
+showing you their address first, which is theirs to give out rather than ours
+to disclose so that a button can work. Hence a by-id request route, sharing its
+whole second half with the by-address one: the difference between them is only
+how the other person is named.
+
+**Sharing a channel is what entitles you to ask.** Account ids travel in every
+roster, so without that check an id would be a way to pester anyone who ever
+appeared in one. Refusals answer 404, identical to a nonexistent id, so the
+route cannot be used to find out which ids are real — the same rule, and the
+same reasoning, as reading a profile.
+
+**Being in a channel together is permission to ask, not consent to be
+anybody's contact.** It sends an ordinary pending request and the other person
+decides, exactly as an emailed one does. Somebody who has already asked you
+gets the existing treatment: the request goes straight through as an
+acceptance, on the grounds that asking somebody who asked you is agreement.

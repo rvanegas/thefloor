@@ -205,3 +205,98 @@ describe('a bio outlives the process', () => {
     expect(row.bio).toBe('Cellist.');
   });
 });
+
+describe('asking somebody in your channel to be a contact', () => {
+  /** Alice knows bob and carol; bob and carol are strangers to each other. */
+  async function strangersInAChannel() {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(alice, carol, 'carol@example.com');
+    const created = app.channels.create(alice.account.id, [
+      bob.account.id,
+      carol.account.id,
+    ]);
+    if (!created.ok) throw new Error(created.error);
+    return { alice, bob, carol };
+  }
+
+  const ask = (from: User, targetId: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${targetId}/request`,
+      headers: auth(from.token),
+    });
+
+  it('lets two strangers in one channel connect', async () => {
+    // The case the feature exists for: you are talking to somebody a mutual
+    // acquaintance brought in, and you have their id but not their address.
+    const { bob, carol } = await strangersInAChannel();
+
+    const response = await ask(bob, carol.account.id);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, accepted: false });
+
+    // Pending, not accepted: being in a channel together is not consent to
+    // be someone's contact, it is only permission to ask.
+    const forCarol = app.accounts
+      .contactsFor(carol.account.id)
+      .find((entry) => entry.account.id === bob.account.id);
+    expect(forCarol?.status).toBe('incoming');
+  });
+
+  it('treats a request from someone who already asked you as accepting', async () => {
+    const { bob, carol } = await strangersInAChannel();
+    await ask(bob, carol.account.id);
+
+    const response = await ask(carol, bob.account.id);
+    expect(response.json()).toEqual({ ok: true, accepted: true });
+    expect(app.accounts.areContacts(bob.account.id, carol.account.id)).toBe(
+      true
+    );
+  });
+
+  it('refuses somebody you share no channel with, as a 404', async () => {
+    // Ids travel in every roster, so an id must not be a way to pester
+    // anybody who happens to hold one. Same answer as a nonexistent id, so
+    // this cannot be used to find out which are real.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const mallory = await signIn('mallory@example.com', 'Mallory');
+
+    const stranger = await ask(mallory, alice.account.id);
+    const missing = await ask(mallory, 'acct_nobody');
+    expect(stranger.statusCode).toBe(404);
+    expect(missing.statusCode).toBe(404);
+    expect(stranger.json()).toEqual(missing.json());
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(0);
+  });
+
+  it('refuses a second request, and yourself', async () => {
+    const { alice, bob, carol } = await strangersInAChannel();
+    await ask(bob, carol.account.id);
+
+    const again = await ask(bob, carol.account.id);
+    expect(again.statusCode).toBe(400);
+    expect((again.json() as { error: string }).error).toBe(
+      'Request already sent.'
+    );
+
+    const self = await ask(bob, bob.account.id);
+    expect(self.statusCode).toBe(400);
+    expect((self.json() as { error: string }).error).toBe('That’s you.');
+
+    // And asking someone who already is one says so rather than duplicating.
+    const known = await ask(bob, alice.account.id);
+    expect((known.json() as { error: string }).error).toBe('Already a contact.');
+  });
+
+  it('refuses an unauthenticated caller', async () => {
+    const { carol } = await strangersInAChannel();
+    const response = await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${carol.account.id}/request`,
+    });
+    expect(response.statusCode).toBe(401);
+  });
+});

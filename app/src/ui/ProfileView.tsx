@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import type { ProfileView as Profile } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
-import { Button, Card } from './components';
+import { Button, Card, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
 import { colors, spacing, type } from './theme';
 
@@ -43,6 +43,14 @@ export function ProfileView({
   const app = useApp();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'refused'>('loading');
+  const [asking, setAsking] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+
+  // Their standing with you, if any. Absent from the list means a stranger —
+  // which, on a profile reached from a channel roster, is the whole point.
+  const contact = (app.home?.contacts ?? []).find(
+    (entry) => entry.account.id === accountId
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +70,18 @@ export function ProfileView({
       cancelled = true;
     };
   }, [accountId]);
+
+  const ask = async () => {
+    setAsking(true);
+    setAskError(null);
+    try {
+      await app.connectWith(accountId);
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAsking(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
@@ -85,6 +105,49 @@ export function ProfileView({
           </Text>
         )}
       </Card>
+
+      {/*
+        Meeting somebody in a channel an acquaintance opened is exactly when
+        you want to keep them, and until now there was no way to: you had their
+        name and their id, and adding a contact needed an address they had not
+        given you.
+
+        Being in a channel together is permission to ask, not consent to be
+        anybody's contact — so this sends a request like any other, and they
+        decide.
+      */}
+      <SectionLabel>Contact</SectionLabel>
+      <Card style={styles.stack}>
+        {contact?.status === 'accepted' ? (
+          <Text style={type.muted}>Already one of your contacts.</Text>
+        ) : contact?.status === 'outgoing' ? (
+          <Text style={type.muted}>
+            Request sent — waiting for them to accept.
+          </Text>
+        ) : contact?.status === 'incoming' ? (
+          <>
+            <Button
+              label={asking ? 'Accepting…' : 'Accept their request'}
+              variant="primary"
+              disabled={asking}
+              onPress={() => void ask()}
+            />
+            <Text style={type.muted}>They asked you first.</Text>
+          </>
+        ) : (
+          <>
+            <Button
+              label={asking ? 'Asking…' : 'Add contact'}
+              disabled={asking || state === 'refused'}
+              onPress={() => void ask()}
+            />
+            <Text style={type.muted}>
+              They will see a request on their home screen and decide.
+            </Text>
+          </>
+        )}
+        {askError ? <Text style={styles.error}>{askError}</Text> : null}
+      </Card>
     </ScrollView>
   );
 }
@@ -101,4 +164,5 @@ const styles = StyleSheet.create({
   },
   stack: { gap: spacing(1) },
   bio: { ...type.muted, lineHeight: 20 },
+  error: { color: colors.danger, fontSize: 13 },
 });

@@ -251,6 +251,33 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true };
   });
 
+  /**
+   * Asks somebody you are in a channel with to be a contact.
+   *
+   * By id rather than address, because that is all you have of a person an
+   * acquaintance brought into a conversation — and their address is theirs to
+   * give out rather than ours to reveal so that this endpoint can work.
+   *
+   * Sharing a channel is what entitles you to ask. Without that, an account id
+   * would be a way to pester anybody whose id you could guess or keep, and ids
+   * travel in every roster. Refusals are a 404, matching the profile route, so
+   * this cannot be used to find out which ids are real either.
+   */
+  fastify.post('/contacts/:id/request', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    if (!channels.shareAChannel(account.id, id)) {
+      return reply.code(404).send({ error: 'No such person.' });
+    }
+
+    const result = accounts.requestContactById(account.id, id, now());
+    if (!result.ok) return reply.code(400).send({ error: result.error });
+    homeNotifier.notify([account.id, id]);
+    return { ok: true, accepted: result.accepted };
+  });
+
   fastify.post('/contacts/:id/accept', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;

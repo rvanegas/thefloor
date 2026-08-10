@@ -48,6 +48,7 @@ const mockApp = {
     bio: 'Cellist. **Bach** mostly.',
   })),
   saveProfile: jest.fn(async () => {}),
+  connectWith: jest.fn(async () => ({ accepted: false })),
   watchChannel: jest.fn(),
   leaveChannelView: jest.fn(),
   act: jest.fn(),
@@ -1313,5 +1314,84 @@ describe('the connection warning', () => {
     expect(textOf(tree)).toContain('Reconnecting');
     act(() => tree.unmount());
     jest.useRealTimers();
+  });
+});
+
+describe('adding a contact you met in a channel', () => {
+  /** Open the roster line for the other person, which is their profile. */
+  async function openTheirProfile() {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const row = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => String(n.props?.accessibilityLabel).includes('Dana Chu'));
+    await act(async () => row!.props.onPress());
+    return tree;
+  }
+
+  it('offers to add a stranger, and asks by id', async () => {
+    // The whole point: you know their name and their account id, and nothing
+    // else. Adding them by address was never possible.
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    const tree = await openTheirProfile();
+
+    expect(textOf(tree)).toContain('They will see a request');
+    await act(async () => findButton(tree, 'Add contact')!.props.onPress());
+    expect(mockApp.connectWith).toHaveBeenCalledWith(THEM);
+    act(() => tree.unmount());
+  });
+
+  it('says nothing to add when they are already a contact', async () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+    const tree = await openTheirProfile();
+    expect(textOf(tree)).toContain('Already one of your contacts');
+    expect(findButton(tree, 'Add contact')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('waits rather than asking twice', async () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'outgoing' },
+      ],
+      recordings: [],
+    };
+    const tree = await openTheirProfile();
+    expect(textOf(tree)).toContain('waiting for them to accept');
+    expect(findButton(tree, 'Add contact')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('offers to accept when they asked first', async () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'incoming' },
+      ],
+      recordings: [],
+    };
+    const tree = await openTheirProfile();
+    const accept = findButton(tree, 'Accept their request');
+    expect(accept).toBeDefined();
+    await act(async () => accept!.props.onPress());
+    expect(mockApp.connectWith).toHaveBeenCalledWith(THEM);
+    act(() => tree.unmount());
   });
 });

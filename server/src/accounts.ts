@@ -497,9 +497,46 @@ export class Accounts {
       return { ok: true, accepted: false, targetId: null };
     }
 
-    if (target.id === from) return { ok: false, error: 'That’s you.' };
+    return this.requestKnown(from, target.id, now);
+  }
 
-    const existing = this.contactState(from, target.id);
+  /**
+   * Asks somebody to be a contact when you already know who they are.
+   *
+   * The point of it existing separately from `requestContact` is that you can
+   * meet somebody in a channel an acquaintance brought you both into, and know
+   * their name and their account id while having no idea of their address.
+   * Requesting them through the by-address path would mean showing you the
+   * address first, which is theirs to give out rather than ours.
+   *
+   * Whether you are entitled to ask at all is the caller's check — sharing a
+   * channel, in practice — because an id you can ask about is otherwise an id
+   * anyone can pester.
+   */
+  requestContactById(
+    from: string,
+    targetId: string,
+    now: number
+  ): { ok: true; accepted: boolean } | { ok: false; error: string } {
+    if (!this.byId(targetId)) return { ok: false, error: 'No such person.' };
+    const result = this.requestKnown(from, targetId, now);
+    return result.ok ? { ok: true, accepted: result.accepted } : result;
+  }
+
+  /**
+   * The half of a request that applies once the other person is known to
+   * exist, shared by both ways of naming them.
+   */
+  private requestKnown(
+    from: string,
+    targetId: string,
+    now: number
+  ):
+    | { ok: true; accepted: boolean; targetId: string }
+    | { ok: false; error: string } {
+    if (targetId === from) return { ok: false, error: 'That’s you.' };
+
+    const existing = this.contactState(from, targetId);
     if (existing?.state === 'accepted') {
       return { ok: false, error: 'Already a contact.' };
     }
@@ -508,17 +545,17 @@ export class Accounts {
         return { ok: false, error: 'Request already sent.' };
       }
       // They asked first; treat this as accepting.
-      this.acceptContact(from, target.id);
-      return { ok: true, accepted: true, targetId: target.id };
+      this.acceptContact(from, targetId);
+      return { ok: true, accepted: true, targetId };
     }
 
-    const [a, b] = pairKey(from, target.id);
+    const [a, b] = pairKey(from, targetId);
     this.db
       .prepare(
         'INSERT INTO contacts (a_id, b_id, state, requester_id, created_at) VALUES (?, ?, ?, ?, ?)'
       )
       .run(a, b, 'pending', from, now);
-    return { ok: true, accepted: false, targetId: target.id };
+    return { ok: true, accepted: false, targetId };
   }
 
   /** Only the recipient may accept — the requester cannot accept their own. */

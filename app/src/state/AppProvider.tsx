@@ -76,6 +76,12 @@ interface AppValue extends AppState {
   declineContact: (contactId: string) => Promise<void>;
   /** Reads a profile. Rejects when it is not yours to see. */
   loadProfile: (accountId: string) => Promise<ProfileView>;
+  /**
+   * Asks somebody you share a channel with to be a contact. Resolves to
+   * whether it went straight through, which happens when they had already
+   * asked you.
+   */
+  connectWith: (accountId: string) => Promise<{ accepted: boolean }>;
   /** Writes your own; whatever is left undefined is left alone. */
   saveProfile: (changes: {
     displayName?: string;
@@ -314,6 +320,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadProfile: async (accountId) => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         return api.profile(state.token, accountId);
+      },
+
+      connectWith: async (accountId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const result = await api.requestContactById(state.token, accountId);
+        // Home is where the request shows up, on both sides.
+        const home = await api.home(state.token);
+        setState((s) => ({ ...s, home }));
+        return { accepted: result.accepted };
       },
 
       saveProfile: async (changes) => {

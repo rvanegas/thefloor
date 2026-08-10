@@ -125,6 +125,16 @@ export const api = {
       token,
     }),
 
+  /**
+   * Asks somebody you share a channel with to be a contact. By id, because
+   * meeting someone in a channel gives you that and not their address.
+   */
+  requestContactById: (token: string, accountId: string) =>
+    request<{ ok: true; accepted: boolean }>(`/contacts/${accountId}/request`, {
+      method: 'POST',
+      token,
+    }),
+
   acceptContact: (token: string, contactId: string) =>
     request<{ ok: true }>(`/contacts/${contactId}/accept`, {
       method: 'POST',
