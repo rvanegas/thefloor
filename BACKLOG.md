@@ -199,12 +199,34 @@ The general lesson: a native dependency added to `package.json` is not a native
 dependency in the build, and nothing between the two fails loudly. The gap is
 only visible in `Podfile.lock`.
 
-**Nothing has been exercised on a device.** The pump, the publisher and the
-live stem encoding are covered by tests against fakes and against
-`MemoryMediaServer`, and the native binding is confirmed to load on the box,
-but no real audio has travelled through `@livekit/rtc-node` in this project.
-The first TestFlight session that plays a file is the first real test of any
-of it.
+**Playback is confirmed working on a device** (2026-08-09, iOS build 3): a file
+uploaded, both parties heard it, and the transport controls behaved.
+
+**The recording half is still unverified.** No session has yet recorded while a
+track was playing, so nothing has confirmed that a media stem is captured,
+uploaded, and mixed into an export. The only recording in the database predates
+the feature by fifteen hours. To test it, one session must start recording,
+play something, claim the floor, then end — and the export checked for the
+track and for the silenced speaker still being gated.
+
+### It was choppy first, and why
+
+The first device test played badly. The pump was paced on
+`AudioSource.captureFrame` resolving when audio had played out, which it does
+not do — it awaits the FFI acknowledgement that the native side took the
+buffer, and the promise it keeps for playout is consumed by `waitForPlayout`
+alone. So the loop ran at ffmpeg's decode speed, many times real time, and
+overran the one-second native queue.
+
+Pacing now comes from the wall clock, and the decoder pauses its pipe past a
+high-water mark rather than accumulating a whole decoded track in memory —
+which the pacing fix would otherwise have made considerably worse. Both are
+pinned by tests.
+
+The lesson worth keeping: **a promise resolving is not evidence of what it
+waited for.** The plan for this feature asserted that `captureFrame` provided
+backpressure, in bold, and built the pacing on it. Nothing checked until a
+person listened.
 
 Either party uploads an audio file; the server decodes it and publishes it into
 the LiveKit room as a third participant, so both hear the same thing at the
@@ -704,6 +726,17 @@ commits record them.
     The server is now the authority, which removed the device-drift problem, but
     a clock change on the server would still skew live countdowns. A monotonic
     source would be sounder.
+4. **`bin/db` cannot show a JSON column.** `recordings.stems` and
+    `floor_timeline` are JSON, and `-column` mode truncates them to the terminal
+    width, so the values that matter most are the ones you cannot read. Working
+    around it means `instr()` or `json_extract` in every query when you wanted
+    to look at the value. A `--json` flag, or `.mode line` for wide results,
+    would fix it. Noted 2026-08-09 while checking whether a media stem reached a
+    recording. `bin/db`.
+5. **`bin/db`'s remote one-shot has no busy timeout.** The interactive and local
+    paths set `.timeout 2000`; the one that runs a single query over SSH does
+    not, so it fails immediately against a locked database instead of waiting
+    the way the others do. `bin/db`.
 
 ---
 

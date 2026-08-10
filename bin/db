@@ -23,13 +23,22 @@ LOCAL_DB="$(cd "$(dirname "$0")/.." && pwd)/server/thefloor.db"
 
 local_mode=false
 readonly_flag="-readonly"
+# Carried separately from the flag because the flag's *empty* value is the
+# dangerous one, and ${readonly_flag:-...} substitutes precisely then — so the
+# banner announced "-readonly" at the one moment production was writable.
+access="read-only"
 sql=""
 
 for arg in "$@"; do
   case "$arg" in
     --local) local_mode=true ;;
-    --write) readonly_flag="" ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --write) readonly_flag=""; access="writable" ;;
+    # The whole comment block, however long it grows. A fixed line range
+    # silently truncated the help the moment the header gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
     *) sql="$arg" ;;
   esac
 done
@@ -43,16 +52,20 @@ if $local_mode; then
   if [ -n "$sql" ]; then
     exec sqlite3 $readonly_flag "${opts[@]}" "$LOCAL_DB" "$sql"
   fi
-  echo "→ local · ${readonly_flag:-writable}"
+  echo "→ local · $access"
   exec sqlite3 $readonly_flag "${opts[@]}" "$LOCAL_DB"
 fi
 
 if [ -n "$sql" ]; then
-  # shellcheck disable=SC2029 — $sql is meant to expand here, on purpose.
+  # The query goes over stdin, never into the command line. Interpolated into
+  # a remote shell it was expanded before sqlite3 ever saw it: `select '$HOME'`
+  # came back as /home/ubuntu. Escaping quotes was not enough and never could
+  # be — $, backticks and backslashes are all live in that position — whereas
+  # stdin is not shell syntax at all, so the whole class of it goes away.
   exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
-    "sqlite3 $readonly_flag -header -column '$REMOTE_DB' \"${sql//\"/\\\"}\""
+    "sqlite3 $readonly_flag -header -column '$REMOTE_DB'" <<<"$sql"
 fi
 
-echo "→ production · ${readonly_flag:--readonly}"
+echo "→ production · $access"
 exec ssh -t -i "$KEY" "$HOST" \
   "sqlite3 $readonly_flag -header -column -cmd '.timeout 2000' '$REMOTE_DB'"
