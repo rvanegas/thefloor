@@ -74,21 +74,33 @@ export class Accounts {
   /**
    * Deletes rows that can no longer do anything, and reports what went.
    *
-   * This changes no behaviour: neither table is honoured past its deadline
-   * anyway — `verify` refuses an expired code and deletes it on sight, and an
-   * invite past its TTL is one nobody should be handed. It exists because
-   * nothing else bounds either table. A code nobody returns to enter, or a
-   * request to an address that never signs up, would otherwise sit there for
-   * the life of the database.
+   * This changes no behaviour: nothing here is honoured past its deadline
+   * anyway — `verifyCode` refuses an expired code and deletes it on sight,
+   * `accountForToken` refuses an expired token, and an invite past its TTL is
+   * one nobody should be handed. It exists because nothing else bounds these
+   * tables. A code nobody returns to enter, a token belonging to a phone that
+   * was reinstalled rather than signed out of, or a request to an address that
+   * never signs up, would otherwise sit there for the life of the database.
    */
-  sweepExpired(now: number): { codes: number; invites: number } {
+  sweepExpired(now: number): {
+    codes: number;
+    invites: number;
+    tokens: number;
+  } {
     const codes = this.db
       .prepare('DELETE FROM otp_codes WHERE expires_at <= ?')
       .run(now).changes;
     const invites = this.db
       .prepare('DELETE FROM pending_invites WHERE created_at <= ?')
       .run(now - INVITE_TTL_MS).changes;
-    return { codes: Number(codes), invites: Number(invites) };
+    const tokens = this.db
+      .prepare('DELETE FROM tokens WHERE expires_at <= ?')
+      .run(now).changes;
+    return {
+      codes: Number(codes),
+      invites: Number(invites),
+      tokens: Number(tokens),
+    };
   }
 
   // --- Lookup -------------------------------------------------------------

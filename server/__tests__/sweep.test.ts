@@ -1,7 +1,12 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Accounts, INVITE_TTL_MS, OTP_TTL_MS } from '../src/accounts';
+import {
+  Accounts,
+  INVITE_TTL_MS,
+  OTP_TTL_MS,
+  TOKEN_TTL_MS,
+} from '../src/accounts';
 import { buildApp } from '../src/app';
 import { openDb } from '../src/db';
 import { MemoryMailer } from '../src/mail';
@@ -64,6 +69,25 @@ describe('expired one-time codes', () => {
     expect(codeCount()).toBe(1);
     // The survivor is still good enough to sign in with.
     expect(accounts.byIdentifier('fresh@example.com')).toBeUndefined();
+  });
+});
+
+describe('expired session tokens', () => {
+  it('are removed once past their deadline', () => {
+    // Signing in issues the token; counting on exactly one is what keeps this
+    // independent of how many sessions an account is allowed to hold.
+    signIn('a@example.com', 'A', T0);
+
+    expect(accounts.sweepExpired(T0 + TOKEN_TTL_MS + 1).tokens).toBe(1);
+    expect(accounts.accountForToken('anything', T0)).toBeUndefined();
+  });
+
+  it('are left alone while they can still sign someone in', () => {
+    const a = signIn('a@example.com', 'A', T0);
+    const token = accounts.issueToken(a.id, T0);
+
+    expect(accounts.sweepExpired(T0 + TOKEN_TTL_MS - 1).tokens).toBe(0);
+    expect(accounts.accountForToken(token, T0 + DAY)?.id).toBe(a.id);
   });
 });
 
@@ -206,7 +230,11 @@ describe('a built app sweeps on its own', () => {
 
 describe('the sweep itself', () => {
   it('reports nothing on an empty database', () => {
-    expect(accounts.sweepExpired(T0)).toEqual({ codes: 0, invites: 0 });
+    expect(accounts.sweepExpired(T0)).toEqual({
+      codes: 0,
+      invites: 0,
+      tokens: 0,
+    });
   });
 
   it('is idempotent — a second pass finds nothing left', () => {
@@ -219,11 +247,20 @@ describe('the sweep itself', () => {
     );
 
     const at = T0 + INVITE_TTL_MS + 1;
-    expect(accounts.sweepExpired(at)).toEqual({ codes: 1, invites: 1 });
-    expect(accounts.sweepExpired(at)).toEqual({ codes: 0, invites: 0 });
+    // The token from signing in is good for ninety days, so it outlives this.
+    expect(accounts.sweepExpired(at)).toEqual({
+      codes: 1,
+      invites: 1,
+      tokens: 0,
+    });
+    expect(accounts.sweepExpired(at)).toEqual({
+      codes: 0,
+      invites: 0,
+      tokens: 0,
+    });
   });
 
-  it('does not touch accounts, contacts, or tokens', () => {
+  it('leaves accounts, contacts, and live tokens alone', () => {
     const a = signIn('a@example.com', 'A', T0);
     const b = signIn('b@example.com', 'B', T0);
     accounts.requestContact(a.id, 'b@example.com', T0);
