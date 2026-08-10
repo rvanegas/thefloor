@@ -158,63 +158,143 @@ the rename that caused it.
 
 ## Shared audio playback during a session
 
-**Status:** raised 2026-08-09, not scheduled. Asked as "can we play YouTube so
-both people hear it, audio only".
+**Status:** built and deployed to the server 2026-08-09. Raised the same day as
+"can we play YouTube so both people hear it, audio only", and answered as
+something narrower: a file the user supplies, played to both parties by the
+server.
 
-Technically straightforward. The obstacle is the source, and specifically the
-audio-only part.
+The client shipped to TestFlight pointed at `https://thefloor.rvanegas.co`.
+TestFlight only — the app has not been submitted for App Store review.
 
-### Two architectures, both viable
+### iOS build 2 did not start at all, and why
 
-**A. The server publishes it as a third participant.** LiveKit permits a
-server-side agent to join a room and publish an audio track, which the SFU
-mixes like any other speaker. In sync by construction, no client work, and it
-records naturally as its own stem — which also means it can be excluded at
-encode time, exactly as the floor windows are.
+**Build 2 rendered a black screen for every tester.** It shipped without
+`expo-document-picker`'s native module, because `bin/release-ios` ran
+`expo prebuild` *without* `--clean` and prebuild reused the existing `ios/`,
+never linking the newly added pod. `ExpoDocumentPicker` appeared nowhere in
+`Podfile.lock`.
 
-**B. Both clients play the same source locally**, with play, pause and seek
-carried over the existing websocket. This is how watch-party features usually
-work. Better quality and less bandwidth, since nothing extra crosses LiveKit,
-but it needs sync correction and client work on both platforms.
+What turned a missing optional module into a dead app is the import graph.
+`expo-document-picker` resolves its native module at module scope —
+`requireNativeModule('ExpoDocumentPicker')`, with no optional variant — and
+`App.tsx` → `SessionView` → `api/upload.ts` reached it at startup. So it threw
+while the bundle was still evaluating: React never mounted, and the root view
+showed the app's own background colour, `#0E1013`. It looked like a rendering
+bug and was a linking failure.
 
-Neither is a rewrite. A is simpler and interacts correctly with recording; B is
-cheaper to run.
+Three things changed as a result:
 
-### Why YouTube specifically does not work
+- **`bin/release-ios` uses `--clean`.** Regenerating costs a couple of minutes;
+  shipping an app that cannot launch costs a build and everyone's time.
+- **It verifies linking before archiving**, comparing `Podfile.lock` against
+  the autolinker's own list. The expected pods come from
+  `expo-modules-autolinking resolve` rather than from guessing pod names off
+  package names — `expo-status-bar` is JS-only and has no pod, so the naive
+  mapping fails the release for a module that was never meant to be there.
+- **The picker loads lazily** (`api/upload.ts`). Choosing a file is one
+  feature, and failing to load it should cost that feature rather than the
+  whole app, however well the linking is guarded.
 
-- **The YouTube API Services Terms require the embedded player to be visible
-  and unobscured, and prohibit separating audio from video.** Architecture B
-  with the video hidden is precisely the thing they forbid — so "never mind the
-  video" is the part that breaks it, not an incidental simplification.
-- **Architecture A would require fetching the audio server-side** — `yt-dlp` or
-  equivalent — which is a clearer violation, and moves the liability from a
-  user's device onto the server.
+The general lesson: a native dependency added to `package.json` is not a native
+dependency in the build, and nothing between the two fails loudly. The gap is
+only visible in `Podfile.lock`.
 
-### Sources that would work
+**Nothing has been exercised on a device.** The pump, the publisher and the
+live stem encoding are covered by tests against fakes and against
+`MemoryMediaServer`, and the native binding is confirmed to load on the box,
+but no real audio has travelled through `@livekit/rtc-node` in this project.
+The first TestFlight session that plays a file is the first real test of any
+of it.
 
-- **Audio the user already owns.** A file they choose. No third-party terms.
-- **Podcasts.** Most RSS feeds point at a plain MP3 anyone may fetch, which
-  architecture A handles by streaming the URL into the room. Probably the best
-  first target: real content, no licensing question, trivial to implement.
-- **Explicitly licensed sources.** Some services offer partner APIs for
-  synchronised playback; none of the large ones offer it casually.
-- **YouTube with the video shown**, using the official embedded player in both
-  clients with playback state synced. Legitimate, but it means building the
-  video interface the question set out to avoid.
+Either party uploads an audio file; the server decodes it and publishes it into
+the LiveKit room as a third participant, so both hear the same thing at the
+same moment. It is included in the recording as its own stem.
 
-### Decide before building, not after
+### What the floor does to it, which is not what the note assumed
 
-Whatever plays, **it lands in the recording**. A stored conversation is one
-thing; a conversation with a copyrighted track mixed into it is another, and
-export redistributes it. Architecture A makes this tractable, since the media
-arrives as its own stem and can be dropped at encode time — the same mechanism
-the floor already uses. Architecture B does not, because the audio never passes
-through the server and would be captured only via each participant's
-microphone, badly.
+The original note asked "does a claim pause it? does it duck? does the silenced
+party still hear it?" — all three framed around protecting a speaker from
+competing sound. That framing was rejected on 2026-08-09.
 
-Worth also deciding what playback does to the floor. Does a claim pause it?
-Does it duck? Does the silenced party still hear it? The mechanic is about
-protecting a speaker, and a track playing underneath changes what that means.
+> **A claim does not pause playback. It grants the claimant exclusive control
+> of it.**
+
+The purpose of the floor is to be in control of what is heard, not merely to be
+heard. So a claim changes nothing about what the track is doing and everything
+about who may change it: while someone holds the floor, only they may load,
+play, pause, seek, re-level or remove it. While nobody holds it, either party
+may.
+
+This is also the cheaper design. It is one guard — `canControlPlayback` in
+`core/session.ts`, derived from `floor.holder` rather than stored — where
+pausing would have been coupled state transitions that every path moving the
+floor had to drive correctly, including expiry and a holder dropping off.
+
+### YouTube is still out, for the reasons already recorded
+
+The YouTube API Services Terms require the embedded player to be visible and
+unobscured, and prohibit separating audio from video; fetching the audio
+server-side is a clearer violation again. Nothing here changes that. What was
+built is the "audio the user already owns" option, which carries no third-party
+terms at all.
+
+### How it works
+
+- **A pump per session** (`server/src/playback.ts`) produces a continuous
+  stream of 10ms frames for as long as a track is loaded: decoded audio while
+  playing, silence otherwise. `ffmpeg` decodes; `@livekit/rtc-node` publishes.
+- **Seeking and resuming are the same operation** — both re-open the decoder at
+  a position. Volume scales the samples in passing, so it lands on the next
+  frame rather than after a respawn.
+- **The recording gets the same frames**, tee'd into a second `ffmpeg` that
+  encodes the stem live. What is stored is what was heard — the seeks, the
+  pauses and the volume are in it because they are the same bytes, not because
+  anything replayed them afterwards.
+- **Alignment is the pump's job.** A track loaded partway through a recording
+  has exactly that much silence prepended to its stem, so the export mixes it
+  against the speakers' stems by plain concatenation. `server/src/export.ts`
+  needed no change at all.
+- **The media participant is not a speaker.** It never claims the floor, is
+  never silenced, and carries no windows in the floor timeline.
+
+### Decisions taken while building, worth knowing
+
+- **The uploaded file lives on the server's local disk** for the session's
+  lifetime and is deleted when it ends. No presigned URL, no new credential.
+  Stems upload with the PutObject-only key LiveKit already has.
+- **100 MB and an ffprobe check.** Duration comes from ffprobe rather than the
+  client, because it drives the scrubber and the end-of-track transition.
+- **One track at a time.** Loading another replaces it, and does *not* re-open
+  the media participant — swapping the file mid-recording would otherwise break
+  the stem in a way the export cannot express.
+- **Default volume is 0.7** (`PLAYBACK_DEFAULT_VOLUME`), on the grounds that
+  shared listening runs underneath a conversation rather than instead of one.
+
+### The risk that was accepted deliberately
+
+**Exports carry whatever was played.** This was chosen with the trade-off
+stated: a conversation with a copyrighted track mixed into it is a different
+thing to redistribute than a conversation. The media is a separate stem, so
+excluding it is a change at encode time rather than a re-architecture — drop
+the `media` key from `stems` in the export route and it is gone.
+
+### Not done
+
+- **No scrubber and no volume slider.** Seeking is ±15s buttons and volume is
+  ±10% buttons, because a draggable control means `@react-native-community/
+  slider`, a native module, and a rebuild. The state supports any position and
+  any level; only the input is coarse.
+- **Nothing has been run on a device.** The pump, the publisher and the live
+  stem encoding are covered by tests against fakes and by integration tests
+  against `MemoryMediaServer`, but no real audio has travelled through
+  `@livekit/rtc-node` in this project. That is the first thing to do when this
+  is picked up, and the most likely place for a surprise.
+- **No back-pressure story if the decoder stalls.** A starved frame is
+  published as silence, which keeps the clock honest but would sound like a
+  dropout. Untested, since a local file decodes far faster than real time.
+- **A second `@livekit/rtc-node`** now sits alongside `livekit-server-sdk`.
+  Both are needed — the latter has no media plane — but it is a second native
+  dependency on the deployment box, with `linux-x64-gnu` bindings.
 
 ---
 

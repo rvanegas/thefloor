@@ -31,8 +31,44 @@ fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
 console.log(`→ build ${next}`);
 JS
 
+# --clean, deliberately. Without it, prebuild reuses the existing ios/ and a
+# newly added native dependency can fail to be linked at all — which is how
+# build 2 shipped without expo-document-picker, throwing at module scope and
+# rendering the app as a black screen for every tester. Regenerating costs a
+# couple of minutes; shipping an app that cannot start costs a build.
+#
+# DEVELOPMENT_TEAM is dropped by --clean and passed back explicitly below.
 echo "→ prebuild"
-(cd app && npx expo prebuild --platform ios >/dev/null)
+(cd app && npx expo prebuild --platform ios --clean >/dev/null)
+
+# Prebuild is not trusted to have done it: the failure being guarded against is
+# silent, and a missing pod is only visible once testers see a black screen.
+#
+# The expected pods come from the autolinker rather than from guessing at
+# package names — expo-status-bar is JS-only and has no pod at all, so a naive
+# name-to-pod mapping fails every release for a module that was never meant to
+# be there.
+echo "→ checking native modules are linked"
+(cd app && npx expo-modules-autolinking resolve --platform ios --json) \
+  > /tmp/thefloor-autolink.json 2>/dev/null
+node - <<'JS'
+const fs = require('fs');
+const lock = fs.readFileSync('app/ios/Podfile.lock', 'utf8');
+const { modules } = JSON.parse(
+  fs.readFileSync('/tmp/thefloor-autolink.json', 'utf8')
+);
+const expected = modules.flatMap((m) =>
+  (m.pods ?? []).map((p) => ({ pod: p.podName, pkg: m.packageName }))
+);
+const missing = expected.filter(({ pod }) => !lock.includes(pod));
+if (missing.length) {
+  console.error('✗ autolinked but absent from Podfile.lock:');
+  for (const { pod, pkg } of missing) console.error(`    ${pkg} → ${pod}`);
+  console.error('  The archive would build and fail at launch. Stopping.');
+  process.exit(1);
+}
+console.log(`  ${expected.length} native modules present in Podfile.lock`);
+JS
 
 echo "→ archive"
 rm -rf "$ARCHIVE"
