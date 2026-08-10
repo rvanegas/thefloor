@@ -2,10 +2,10 @@ import { FLOOR_CLAIM_MS, PLAYBACK_DEFAULT_VOLUME } from '../constants';
 import { playbackPositionMs } from '../playback';
 import {
   canControlPlayback,
-  createSession,
+  createChannel,
   reduce,
-} from '../session';
-import type { PlaybackTrack, SessionAction, SessionState } from '../types';
+} from '../channel';
+import type { PlaybackTrack, ChannelAction, ChannelState } from '../types';
 
 const A = 'user-a';
 const B = 'user-b';
@@ -17,22 +17,22 @@ const TRACK: PlaybackTrack = {
   durationMs: 300_000,
 };
 
-function joined(now = T0): SessionState {
+function joined(now = T0): ChannelState {
   return reduce(
-    createSession({ id: 's1', initiator: A, invitees: [B], now }),
+    createChannel({ id: 's1', initiator: A, invitees: [B], now }),
     { type: 'ENTER', userId: B },
     now
   );
 }
 
 function apply(
-  state: SessionState,
-  steps: Array<[SessionAction, number]>
-): SessionState {
+  state: ChannelState,
+  steps: Array<[ChannelAction, number]>
+): ChannelState {
   return steps.reduce((s, [action, at]) => reduce(s, action, at), state);
 }
 
-function loaded(now = T0): SessionState {
+function loaded(now = T0): ChannelState {
   return reduce(joined(now), { type: 'SET_TRACK', userId: A, track: TRACK }, now);
 }
 
@@ -201,7 +201,7 @@ describe('the floor confers exclusive control, not silence', () => {
       { type: 'SET_VOLUME', userId: B, volume: 0 },
       { type: 'CLEAR_TRACK', userId: B },
       { type: 'SET_TRACK', userId: B, track: { ...TRACK, id: 'trk2' } },
-    ] as SessionAction[]) {
+    ] as ChannelAction[]) {
       expect(reduce(s, action, T0 + 2_000)).toBe(s);
     }
   });
@@ -255,10 +255,10 @@ describe('the floor confers exclusive control, not silence', () => {
   });
 });
 
-describe('playback and the session lifecycle', () => {
+describe('playback and the channel lifecycle', () => {
   it('is refused to someone who is not present', () => {
     const alone = reduce(
-      createSession({ id: 's1', initiator: A, invitees: [B], now: T0 }),
+      createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }),
       { type: 'SET_TRACK', userId: A, track: TRACK },
       T0
     );
@@ -266,7 +266,7 @@ describe('playback and the session lifecycle', () => {
     expect(reduce(alone, { type: 'PLAY', userId: B }, T0 + 1_000)).toBe(alone);
   });
 
-  it('comes to rest when the session ends, keeping the position reached', () => {
+  it('comes to rest when the channel ends, keeping the position reached', () => {
     const s = apply(loaded(), [
       [{ type: 'PLAY', userId: A }, T0],
       [{ type: 'END', userId: B }, T0 + 30_000],

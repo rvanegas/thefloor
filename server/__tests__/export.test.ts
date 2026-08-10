@@ -236,7 +236,7 @@ describe('the export endpoint', () => {
   });
 
   afterEach(async () => {
-    app.sessions.stop();
+    app.channels.stop();
     await app.fastify.close();
   });
 
@@ -250,13 +250,13 @@ describe('the export endpoint', () => {
   ) => {
     app.db
       .prepare(
-        `INSERT INTO sessions (id, initiator_id, invitee_id, created_at, participants)
+        `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
          VALUES (?,?,?,?,?)`
       )
       .run('sess_x', initiator, invitee, clock, JSON.stringify([initiator, invitee]));
     app.db
       .prepare(
-        `INSERT INTO recordings (id, session_id, initiator_id, invitee_id,
+        `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id,
            participants, started_at, duration_ms, s3_key, segment_keys, stems,
            floor_timeline)
          VALUES (?,?,?,?,?,?,?,?,?,?,?)`

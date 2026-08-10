@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  app.sessions.stop();
+  app.channels.stop();
   await app.fastify.close();
 });
 
@@ -63,13 +63,13 @@ async function sessionOfTwo() {
   });
   const created = await app.fastify.inject({
     method: 'POST',
-    url: '/sessions',
+    url: '/channels',
     headers: auth(alice.token),
     payload: { contactId: bob.account.id },
   });
-  const { sessionId } = created.json() as { sessionId: string };
-  app.sessions.dispatch(sessionId, bob.account.id, { type: 'ENTER' });
-  return { alice, bob, sessionId };
+  const { channelId } = created.json() as { channelId: string };
+  app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+  return { alice, bob, channelId };
 }
 
 /** Media calls are fire-and-forget, so let the microtask queue drain. */
@@ -77,13 +77,13 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe('the floor as an actual mute', () => {
   it('mutes the other party when a claim is made', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
+    const { alice, bob, channelId } = await sessionOfTwo();
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(true);
-    expect(media.isMuted(sessionId, alice.account.id)).toBe(false);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(true);
+    expect(media.isMuted(channelId, alice.account.id)).toBe(false);
   });
 
   it('acts on the listener, never on the silenced party', async () => {
@@ -92,22 +92,22 @@ describe('the floor as an actual mute', () => {
     // permission — and both broke them: unpublishing tears down iOS's audio
     // unit, so they lost their microphone and their playback and got neither
     // back. Withholding them from the listener leaves their pipeline alone.
-    const { alice, bob, sessionId } = await sessionOfTwo();
+    const { alice, bob, channelId } = await sessionOfTwo();
     media.subscriptions.length = 0;
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
     // Alice holds the floor, so Alice stops receiving Bob.
     expect(media.subscriptions).toContainEqual({
-      room: sessionId,
+      room: channelId,
       speaker: bob.account.id,
       listener: alice.account.id,
       silenced: true,
     });
     // Bob keeps hearing Alice throughout — silencing him is not deafening him.
     expect(media.subscriptions).toContainEqual({
-      room: sessionId,
+      room: channelId,
       speaker: alice.account.id,
       listener: bob.account.id,
       silenced: false,
@@ -123,83 +123,83 @@ describe('the floor as an actual mute', () => {
     // nobody, so the floor was a one-way door. Muting a track is something a
     // server may do; un-muting one is something LiveKit refuses, so
     // enforcement is publish permission — reversible in both directions.
-    const { alice, bob, sessionId } = await sessionOfTwo();
+    const { alice, bob, channelId } = await sessionOfTwo();
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(true);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(true);
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     await settle();
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(false);
 
     // And it survives a second round: the other party claims, then releases.
     clock += 61_000;
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
-    expect(media.isMuted(sessionId, alice.account.id)).toBe(true);
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
+    expect(media.isMuted(channelId, alice.account.id)).toBe(true);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(false);
 
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'RELEASE_FLOOR' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'RELEASE_FLOOR' });
     await settle();
-    expect(media.isMuted(sessionId, alice.account.id)).toBe(false);
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
+    expect(media.isMuted(channelId, alice.account.id)).toBe(false);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(false);
   });
 
   it('restores both when the claim is released', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     await settle();
 
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
-    expect(media.isMuted(sessionId, alice.account.id)).toBe(false);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(false);
+    expect(media.isMuted(channelId, alice.account.id)).toBe(false);
   });
 
   it('unmutes when the three minutes expire, without anyone acting', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(true);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(true);
 
     clock += 3 * 60 * 1000;
-    app.sessions.tick();
+    app.channels.tick();
     await settle();
 
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(false);
   });
 
   it('unmutes when the holder leaves mid-claim', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'LEAVE' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE' });
     await settle();
 
-    expect(media.isMuted(sessionId, bob.account.id)).toBe(false);
+    expect(media.isMuted(channelId, bob.account.id)).toBe(false);
   });
 
   it('does not touch the media server when a refused claim changes nothing', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
     media.muted.clear();
 
     // Bob is silenced and cannot claim; nothing should reach the media server.
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
     expect(media.muted.size).toBe(0);
   });
 
-  it('closes the room when the session ends', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+  it('closes the room when the channel ends', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
-    expect(media.closed).toContain(sessionId);
+    expect(media.closed).toContain(channelId);
   });
 
   it('keeps the rules working when the media server fails', async () => {
@@ -249,27 +249,27 @@ describe('the floor as an actual mute', () => {
     });
     const created = await broken.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: { authorization: `Bearer ${a.token}` },
       payload: { contactId: b.account.id },
     });
-    const { sessionId } = created.json() as { sessionId: string };
-    broken.sessions.dispatch(sessionId, b.account.id, { type: 'ENTER' });
+    const { channelId } = created.json() as { channelId: string };
+    broken.channels.dispatch(channelId, b.account.id, { type: 'ENTER' });
 
-    // The mute throws, but the session rules must still advance — the reducer
+    // The mute throws, but the channel rules must still advance — the reducer
     // is the authority, and the media server is downstream of it.
-    broken.sessions.dispatch(sessionId, a.account.id, { type: 'CLAIM_FLOOR' });
+    broken.channels.dispatch(channelId, a.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
-    expect(broken.sessions.get(sessionId)!.floor.holder).toBe(a.account.id);
+    expect(broken.channels.get(channelId)!.floor.holder).toBe(a.account.id);
 
     // And the failure must not have escaped as an unhandled rejection.
     clock += 3 * 60 * 1000;
-    broken.sessions.tick();
+    broken.channels.tick();
     await settle();
-    expect(broken.sessions.get(sessionId)!.floor.holder).toBeNull();
+    expect(broken.channels.get(channelId)!.floor.holder).toBeNull();
 
-    broken.sessions.stop();
+    broken.channels.stop();
     await broken.fastify.close();
   });
 });
@@ -277,8 +277,8 @@ describe('the floor as an actual mute', () => {
 describe('recording capture', () => {
   it('captures one isolated stem per participant, not a room mix', async () => {
     // A mix cannot be un-mixed, so the floor could never be applied to it.
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
 
     expect(media.recordings).toHaveLength(2);
@@ -286,75 +286,75 @@ describe('recording capture', () => {
       [alice.account.id, bob.account.id].sort()
     );
     for (const r of media.recordings) {
-      expect(r.room).toBe(sessionId);
-      expect(r.key).toBe(`${sessionId}/${r.identity}-001.ogg`);
+      expect(r.room).toBe(channelId);
+      expect(r.key).toBe(`${channelId}/${r.identity}-001.ogg`);
       expect(r.stopped).toBe(false);
     }
   });
 
   it('stops every stem on pause and starts new segments on resume', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     await settle();
 
     // Pausing must genuinely halt capture, not merely mark a boundary to trim
     // later — nothing said while paused should ever reach storage.
     expect(media.recordings.every((r) => r.stopped)).toBe(true);
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RESUME_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RESUME_RECORDING' });
     await settle();
 
     expect(media.recordings).toHaveLength(4);
     const second = media.recordings.slice(2);
     expect(second.map((r) => r.key).sort()).toEqual(
       [
-        `${sessionId}/${alice.account.id}-002.ogg`,
-        `${sessionId}/${second.find((r) => r.identity !== alice.account.id)!.identity}-002.ogg`,
+        `${channelId}/${alice.account.id}-002.ogg`,
+        `${channelId}/${second.find((r) => r.identity !== alice.account.id)!.identity}-002.ogg`,
       ].sort()
     );
     expect(second.every((r) => !r.stopped)).toBe(true);
   });
 
   it('stops capture when the recording is stopped', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'STOP_RECORDING' });
-    await settle();
-    expect(media.recordings[0].stopped).toBe(true);
-  });
-
-  it('stops capture when the session ends mid-recording', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
-    await settle();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
     await settle();
     expect(media.recordings[0].stopped).toBe(true);
   });
 
-  it('files the recording when the session ends while paused', async () => {
+  it('stops capture when the channel ends mid-recording', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    await settle();
+    expect(media.recordings[0].stopped).toBe(true);
+  });
+
+  it('files the recording when the channel ends while paused', async () => {
     // Ending while paused is the path with nothing left to stop: capture was
     // already halted at the pause. The recording must still be finalised and
     // filed, and no egress may be left running.
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 8_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     await settle();
     clock += 30_000; // A long pause that must not count towards the duration.
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
-    expect(app.sessions.get(sessionId)!.recording.status).toBe('stopped');
+    expect(app.channels.get(channelId)!.recording.status).toBe('stopped');
     expect(media.recordings.every((r) => r.stopped)).toBe(true);
 
     const row = app.db
-      .prepare('SELECT duration_ms, stems FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { duration_ms: number; stems: string };
+      .prepare('SELECT duration_ms, stems FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { duration_ms: number; stems: string };
     const stems = JSON.parse(row.stems) as Record<
       string,
       Array<{ key: string; startMs: number }>
@@ -363,42 +363,42 @@ describe('recording capture', () => {
       [alice.account.id, bob.account.id].sort()
     );
     expect(stems[alice.account.id]).toEqual([
-      { key: `${sessionId}/${alice.account.id}-001.ogg`, startMs: 0 },
+      { key: `${channelId}/${alice.account.id}-001.ogg`, startMs: 0 },
     ]);
     expect(row.duration_ms).toBe(8_000);
   });
 
-  it('stops capture when an empty session times out mid-recording', async () => {
+  it('stops capture when an empty channel times out mid-recording', async () => {
     // Nobody is present to press stop, so only the tick loop can end this.
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'LEAVE' });
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'LEAVE' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE' });
     clock += 60_000;
-    app.sessions.tick();
+    app.channels.tick();
     await settle();
 
-    expect(app.sessions.get(sessionId)!.endedReason).toBe('empty-timeout');
+    expect(app.channels.get(channelId)!.endedReason).toBe('empty-timeout');
     expect(media.recordings[0].stopped).toBe(true);
   });
 
   it('records every segment against the finished recording', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 10_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     await settle();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RESUME_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RESUME_RECORDING' });
     await settle();
     clock += 5_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
     const row = app.db
-      .prepare('SELECT * FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { stems: string; duration_ms: number };
+      .prepare('SELECT * FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { stems: string; duration_ms: number };
     const stems = JSON.parse(row.stems) as Record<
       string,
       Array<{ key: string; startMs: number }>
@@ -407,8 +407,8 @@ describe('recording capture', () => {
     // and the second segment knows it starts where the first run ended.
     for (const identity of [alice.account.id, bob.account.id]) {
       expect(stems[identity]).toEqual([
-        { key: `${sessionId}/${identity}-001.ogg`, startMs: 0 },
-        { key: `${sessionId}/${identity}-002.ogg`, startMs: 10_000 },
+        { key: `${channelId}/${identity}-001.ogg`, startMs: 0 },
+        { key: `${channelId}/${identity}-002.ogg`, startMs: 10_000 },
       ]);
     }
     // Paused time is excluded, so the duration is the two run segments only.
@@ -416,13 +416,13 @@ describe('recording capture', () => {
   });
 
   it('captures nothing when recording was never started', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
     expect(media.recordings).toHaveLength(0);
     const row = app.db
-      .prepare('SELECT COUNT(*) c FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { c: number };
+      .prepare('SELECT COUNT(*) c FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { c: number };
     expect(row.c).toBe(0);
   });
 });
@@ -430,19 +430,19 @@ describe('recording capture', () => {
 describe('when capture cannot start', () => {
   it('ends the recording and says why, rather than counting up in silence', async () => {
     // The failure that hid a completely broken capture path for hours: every
-    // egress refused, the log said so, and the session went on showing
+    // egress refused, the log said so, and the channel went on showing
     // "Recording" while nothing was kept.
-    const { alice, sessionId } = await sessionOfTwo();
+    const { alice, channelId } = await sessionOfTwo();
     media.failStart = {
       reason: 'no supported codec is compatible with all outputs',
     };
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
 
-    const recording = app.sessions.get(sessionId)!.recording;
+    const recording = app.channels.get(channelId)!.recording;
     // Idle, not stopped: nothing was captured, so the recording did not happen
-    // and must not consume the session's one attempt.
+    // and must not consume the channel's one attempt.
     expect(recording.status).toBe('idle');
     expect(recording.failure).toBe(
       'no supported codec is compatible with all outputs'
@@ -452,33 +452,33 @@ describe('when capture cannot start', () => {
   it('claims no stem it did not write', async () => {
     // A recording that lists an object nobody wrote is worse than one that
     // lists none: export fetches it and fails on audio that never existed.
-    const { alice, sessionId } = await sessionOfTwo();
+    const { alice, channelId } = await sessionOfTwo();
     media.failStart = { reason: 'egress refused' };
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 1_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
     const row = app.db
-      .prepare('SELECT stems FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { stems: string } | undefined;
+      .prepare('SELECT stems FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { stems: string } | undefined;
     const stems = row ? JSON.parse(row.stems) : {};
     expect(Object.values(stems).flat()).toEqual([]);
   });
 
   it('fails the whole recording when only one speaker cannot be captured', async () => {
-    // A session recorded with one voice missing is worse than none, because it
+    // A channel recorded with one voice missing is worse than none, because it
     // looks complete. Whichever stem did start is stopped with it.
-    const { alice, bob, sessionId } = await sessionOfTwo();
+    const { alice, bob, channelId } = await sessionOfTwo();
     media.failStart = { reason: 'that track went away', identity: bob.account.id };
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
 
-    expect(app.sessions.get(sessionId)!.recording.status).toBe('idle');
-    expect(app.sessions.get(sessionId)!.recording.failure).toBe(
+    expect(app.channels.get(channelId)!.recording.status).toBe('idle');
+    expect(app.channels.get(channelId)!.recording.failure).toBe(
       'that track went away'
     );
     // Alice's capture did start, and must not be left running.
@@ -486,16 +486,16 @@ describe('when capture cannot start', () => {
   });
 
   it('lets the recording be started again afterwards', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
+    const { alice, channelId } = await sessionOfTwo();
     media.failStart = { reason: 'transient' };
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
-    expect(app.sessions.get(sessionId)!.recording.failure).toBe('transient');
+    expect(app.channels.get(channelId)!.recording.failure).toBe('transient');
 
     media.failStart = null;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
-    const recording = app.sessions.get(sessionId)!.recording;
+    const recording = app.channels.get(channelId)!.recording;
     expect(recording.status).toBe('recording');
     // The old reason must not outlive the recording it belonged to.
     expect(recording.failure).toBeNull();
@@ -503,11 +503,11 @@ describe('when capture cannot start', () => {
 });
 
 describe('the floor timeline', () => {
-  /** The windows persisted for a finished session's recording. */
-  const timelineFor = (sessionId: string) => {
+  /** The windows persisted for a finished channel's recording. */
+  const timelineFor = (channelId: string) => {
     const row = app.db
-      .prepare('SELECT floor_timeline FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { floor_timeline: string } | undefined;
+      .prepare('SELECT floor_timeline FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { floor_timeline: string } | undefined;
     return row ? (JSON.parse(row.floor_timeline) as Array<{
       identity: string;
       fromMs: number;
@@ -516,20 +516,20 @@ describe('the floor timeline', () => {
   };
 
   it('records when each party was silenced, as offsets into the audio', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
 
     clock += 10_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     clock += 8_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     clock += 5_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
     // Alice claimed, so Bob is the one to be dropped from the encode.
-    expect(timelineFor(sessionId)).toEqual([
+    expect(timelineFor(channelId)).toEqual([
       { identity: bob.account.id, fromMs: 10_000, toMs: 18_000 },
     ]);
   });
@@ -537,39 +537,39 @@ describe('the floor timeline', () => {
   it('excludes paused time, so offsets match the recorded audio', async () => {
     // The encoder gates concatenated segments, which contain no paused time.
     // An offset measured against the wall clock would drift past every pause.
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
 
     clock += 5_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     clock += 30_000; // A long pause, absent from the audio entirely.
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RESUME_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RESUME_RECORDING' });
     await settle();
 
     clock += 4_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     clock += 3_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
     // 5s recorded, then 4s more: the claim begins 9s into the audio, not 39s.
-    expect(timelineFor(sessionId)).toEqual([
+    expect(timelineFor(channelId)).toEqual([
       { identity: bob.account.id, fromMs: 9_000, toMs: 12_000 },
     ]);
   });
 
   it('closes a claim that was still open when the recording ended', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 6_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     clock += 4_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
-    expect(timelineFor(sessionId)).toEqual([
+    expect(timelineFor(channelId)).toEqual([
       { identity: bob.account.id, fromMs: 6_000, toMs: 10_000 },
     ]);
   });
@@ -577,89 +577,89 @@ describe('the floor timeline', () => {
   it('opens a window at zero when recording starts mid-claim', async () => {
     // The claim predates the recording, so the silenced party is inaudible from
     // the first sample rather than from whenever the next transition happens.
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     clock += 2_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 7_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
-    expect(timelineFor(sessionId)).toEqual([
+    expect(timelineFor(channelId)).toEqual([
       { identity: bob.account.id, fromMs: 0, toMs: 7_000 },
     ]);
   });
 
   it('records both turns when the floor alternates', async () => {
-    const { alice, bob, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
 
     clock += 3_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     clock += 4_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     clock += 1_000;
     // Bob may claim immediately: the other party claimed last.
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'CLAIM_FLOOR' });
     clock += 5_000;
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'END' });
     await settle();
 
-    expect(timelineFor(sessionId)).toEqual([
+    expect(timelineFor(channelId)).toEqual([
       { identity: bob.account.id, fromMs: 3_000, toMs: 7_000 },
       { identity: alice.account.id, fromMs: 8_000, toMs: 13_000 },
     ]);
   });
 
   it('leaves the timeline empty when nobody claimed', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'START_RECORDING' });
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 9_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
-    expect(timelineFor(sessionId)).toEqual([]);
+    expect(timelineFor(channelId)).toEqual([]);
   });
 });
 
 describe('join credentials', () => {
-  it('issues a token scoped to the session room', async () => {
-    const { alice, sessionId } = await sessionOfTwo();
+  it('issues a token scoped to the channel room', async () => {
+    const { alice, channelId } = await sessionOfTwo();
     const response = await app.fastify.inject({
       method: 'POST',
-      url: `/sessions/${sessionId}/media-token`,
+      url: `/channels/${channelId}/media-token`,
       headers: auth(alice.token),
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
-      token: `token:${sessionId}:${alice.account.id}`,
+      token: `token:${channelId}:${alice.account.id}`,
       url: 'wss://example.livekit.cloud',
     });
   });
 
-  it('refuses anyone outside the session', async () => {
-    const { sessionId } = await sessionOfTwo();
+  it('refuses anyone outside the channel', async () => {
+    const { channelId } = await sessionOfTwo();
     const mallory = await signIn('mallory@example.com', 'Mallory');
     const response = await app.fastify.inject({
       method: 'POST',
-      url: `/sessions/${sessionId}/media-token`,
+      url: `/channels/${channelId}/media-token`,
       headers: auth(mallory.token),
     });
     expect(response.statusCode).toBe(403);
     expect(media.issued).not.toContainEqual({
-      room: sessionId,
+      room: channelId,
       identity: mallory.account.id,
     });
   });
 
   it('refuses an unauthenticated caller', async () => {
-    const { sessionId } = await sessionOfTwo();
+    const { channelId } = await sessionOfTwo();
     const response = await app.fastify.inject({
       method: 'POST',
-      url: `/sessions/${sessionId}/media-token`,
+      url: `/channels/${channelId}/media-token`,
     });
     expect(response.statusCode).toBe(401);
   });
@@ -668,7 +668,7 @@ describe('join credentials', () => {
     const noAudio = buildApp({ dbPath: ':memory:', now: () => clock });
     const health = await noAudio.fastify.inject({ method: 'GET', url: '/healthz' });
     expect(health.json().audio).toBe('none');
-    noAudio.sessions.stop();
+    noAudio.channels.stop();
     await noAudio.fastify.close();
   });
 });

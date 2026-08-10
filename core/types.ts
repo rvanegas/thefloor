@@ -1,6 +1,6 @@
 export type UserId = string;
 
-export type SessionEndReason = 'explicit' | 'empty-timeout';
+export type ChannelEndReason = 'explicit' | 'empty-timeout';
 
 export interface FloorState {
   /** Who holds the floor right now, or null if nobody does. */
@@ -63,7 +63,7 @@ export interface PlaybackState {
   /**
    * Shared, 0..1, applied by the server as it publishes.
    *
-   * Shared rather than per-listener because it is part of what the session
+   * Shared rather than per-listener because it is part of what the channel
    * sounded like: it is applied to the samples before they are published and
    * encoded, so it reaches both parties and the recording alike. A volume each
    * party set for themselves would be their device's business, invisible here.
@@ -79,33 +79,33 @@ export interface PlaybackState {
   failure: string | null;
 }
 
-export interface SessionState {
+export interface ChannelState {
   id: string;
   /**
-   * What the participants call this session, or null when nobody has named
+   * What the participants call this channel, or null when nobody has named
    * it. Display falls back to the roster — the other party's name, or a head
    * count — so a name is a replacement for that, never a requirement.
    */
   name: string | null;
-  /** The user who created the session. */
+  /** The user who created the channel. */
   initiator: UserId;
   /**
-   * Everyone in the session — the initiator first, then the rest in the order
-   * they were invited. Grows on INVITE, never shrinks: leaving a session is
-   * not being removed from it. Capped at MAX_SESSION_PARTICIPANTS.
+   * Everyone in the channel — the initiator first, then the rest in the order
+   * they were invited. Grows on INVITE, never shrinks: leaving a channel is
+   * not being removed from it. Capped at MAX_CHANNEL_PARTICIPANTS.
    */
   participants: UserId[];
   /**
    * Who invited each participant. Absent for the initiator. This is what an
-   * invitation shows as its sender — "X is waiting in a session" should name
-   * whoever actually asked, not whoever happened to create the session.
+   * invitation shows as its sender — "X is waiting in a channel" should name
+   * whoever actually asked, not whoever happened to create the channel.
    */
   invitedBy: Record<UserId, UserId>;
   createdAt: number;
   status: 'active' | 'ended';
   endedAt: number | null;
-  endedReason: SessionEndReason | null;
-  /** Users currently in the session. */
+  endedReason: ChannelEndReason | null;
+  /** Users currently in the channel. */
   present: UserId[];
   /**
    * Users who have entered at least once. Recording may only be started once
@@ -114,8 +114,8 @@ export interface SessionState {
    */
   everPresent: UserId[];
   /**
-   * When the session last became empty, or null while at least one user is
-   * present. Drives the empty-session auto-end timer.
+   * When the channel last became empty, or null while at least one user is
+   * present. Drives the empty-channel auto-end timer.
    */
   emptySince: number | null;
   floor: FloorState;
@@ -126,7 +126,7 @@ export interface SessionState {
    * When each present user's last connection dropped. Absent means connected.
    *
    * Connectivity and presence are deliberately separate. A socket that drops
-   * and returns changes nothing about who is in the session; only staying gone
+   * and returns changes nothing about who is in the channel; only staying gone
    * past DISCONNECT_GRACE_MS removes anyone. Without that separation a moment's
    * bad signal reads as leaving, and — worse — a socket dying after its
    * replacement has already connected can evict someone who is demonstrably
@@ -135,18 +135,18 @@ export interface SessionState {
   disconnectedAt: Partial<Record<UserId, number>>;
 }
 
-export type SessionAction =
+export type ChannelAction =
   | { type: 'ENTER'; userId: UserId }
   | { type: 'LEAVE'; userId: UserId }
   /**
-   * Adds `inviteeId` to the session. Any current participant may invite;
+   * Adds `inviteeId` to the channel. Any current participant may invite;
    * whether the two are contacts is the server's to check, contacts being a
    * server-side concern the reducer knows nothing about.
    */
   | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
   | { type: 'END'; userId: UserId }
   /**
-   * Names or renames the session. Any participant may, at any time — a name
+   * Names or renames the channel. Any participant may, at any time — a name
    * is shared furniture, like the track, and carries no floor restriction.
    * An empty or whitespace name clears it back to the roster fallback.
    */
@@ -183,5 +183,5 @@ export type SessionAction =
    */
   | { type: 'CONNECTED'; userId: UserId }
   | { type: 'DISCONNECTED'; userId: UserId }
-  /** Advances time-driven transitions: floor expiry and empty-session auto-end. */
+  /** Advances time-driven transitions: floor expiry and empty-channel auto-end. */
   | { type: 'TICK' };

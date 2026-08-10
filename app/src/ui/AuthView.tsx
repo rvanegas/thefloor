@@ -83,7 +83,7 @@ export function AuthView() {
         <View style={styles.brand}>
           <Text style={type.title}>The Floor</Text>
           <Text style={[type.muted, styles.tagline]}>
-            Audio sessions where either party can claim uninterrupted time.
+            Audio channels where either party can claim uninterrupted time.
           </Text>
         </View>
 

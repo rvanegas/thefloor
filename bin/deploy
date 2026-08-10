@@ -7,7 +7,7 @@
 # point — node_modules is rebuilt on the far side for that architecture, and
 # .env there holds production secrets this must never overwrite.
 #
-# Live sessions live in memory, so a restart drops every call in progress.
+# Live channels live in memory, so a restart drops every call in progress.
 # There is no way around that yet; see BACKLOG.md.
 set -euo pipefail
 

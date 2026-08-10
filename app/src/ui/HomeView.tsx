@@ -13,60 +13,60 @@ import type {
   RecordingView,
   RejoinableView,
 } from '../../../core/protocol';
-import { MAX_SESSION_PARTICIPANTS } from '../../../core/constants';
+import { MAX_CHANNEL_PARTICIPANTS } from '../../../core/constants';
 import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Field, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 /**
- * Signed in, not in a session. Ordered by priority: live invites, sessions you
+ * Signed in, not in a channel. Ordered by priority: live invites, channels you
  * left and can still re-enter, contacts, adding a contact, then past
  * recordings. Everything here is a server snapshot — nothing is computed
  * locally.
  */
 export function HomeView({
-  onEnterSession,
+  onEnterChannel,
 }: {
-  onEnterSession: (sessionId: string) => void;
+  onEnterChannel: (channelId: string) => void;
 }) {
   const app = useApp();
   const dismissed = app.dismissedInvites;
 
   const home = app.home;
   const invites = (home?.invites ?? []).filter(
-    (i) => !dismissed.includes(i.sessionId)
+    (i) => !dismissed.includes(i.channelId)
   );
   const live = home?.rejoinable ?? [];
   const contacts = home?.contacts ?? [];
   const recordings = home?.recordings ?? [];
 
   /**
-   * A live session *containing* each contact, if there is one. The server
-   * keeps one live session per set of people, so a 1:1 tap on someone already
-   * in a session with you would rejoin it rather than make a second — and the
+   * A live channel *containing* each contact, if there is one. The server
+   * keeps one live channel per set of people, so a 1:1 tap on someone already
+   * in a channel with you would rejoin it rather than make a second — and the
    * contact row must not offer to start what has already begun.
    *
-   * `shown` is whether that session already has its own affordance above, as a
+   * `shown` is whether that channel already has its own affordance above, as a
    * banner or a rejoin row. When it does, the contact row says so and offers
    * nothing; when it does not — a dismissed invite — the row is the only way
    * back, and offers to join rather than to start.
    */
-  const sessionWith = new Map<string, { sessionId: string; shown: boolean }>();
+  const channelWith = new Map<string, { channelId: string; shown: boolean }>();
   for (const invite of home?.invites ?? []) {
-    sessionWith.set(invite.from.id, {
-      sessionId: invite.sessionId,
-      shown: !dismissed.includes(invite.sessionId),
+    channelWith.set(invite.from.id, {
+      channelId: invite.channelId,
+      shown: !dismissed.includes(invite.channelId),
     });
   }
-  for (const session of live) {
-    for (const other of session.others) {
-      sessionWith.set(other.id, { sessionId: session.sessionId, shown: true });
+  for (const channel of live) {
+    for (const other of channel.others) {
+      channelWith.set(other.id, { channelId: channel.channelId, shown: true });
     }
   }
 
   /**
-   * Multi-select for starting a session with several contacts at once. Off by
+   * Multi-select for starting a channel with several contacts at once. Off by
    * default: a plain tap still starts a 1:1 immediately, and this mode only
    * changes what the rows offer, not what they are.
    */
@@ -80,13 +80,13 @@ export function HomeView({
   };
   const startWithSelected = async () => {
     try {
-      const id = await app.startSession(selected);
+      const id = await app.startChannel(selected);
       stopSelecting();
       app.act(id, { type: 'ENTER' });
-      onEnterSession(id);
+      onEnterChannel(id);
     } catch (e) {
       Alert.alert(
-        'Could not start session',
+        'Could not start channel',
         e instanceof Error ? e.message : String(e)
       );
     }
@@ -110,34 +110,34 @@ export function HomeView({
           <Text style={styles.offlineText}>
             {app.status === 'connecting'
               ? 'Reconnecting…'
-              : 'Not connected — invites and sessions will not update.'}
+              : 'Not connected — invites and channels will not update.'}
           </Text>
         </View>
       ) : null}
 
       {invites.map((invite) => (
         <InviteBanner
-          key={invite.sessionId}
+          key={invite.channelId}
           invite={invite}
           onJoin={() => {
-            app.act(invite.sessionId, { type: 'ENTER' });
-            onEnterSession(invite.sessionId);
+            app.act(invite.channelId, { type: 'ENTER' });
+            onEnterChannel(invite.channelId);
           }}
-          onDismiss={() => app.dismissInvite(invite.sessionId)}
+          onDismiss={() => app.dismissInvite(invite.channelId)}
         />
       ))}
 
       {live.length > 0 ? (
         <>
-          <SectionLabel>Live sessions</SectionLabel>
+          <SectionLabel>Live channels</SectionLabel>
           <View style={styles.list}>
-            {live.map((session) => (
+            {live.map((channel) => (
               <RejoinRow
-                key={session.sessionId}
-                session={session}
+                key={channel.channelId}
+                channel={channel}
                 onRejoin={() => {
-                  app.act(session.sessionId, { type: 'ENTER' });
-                  onEnterSession(session.sessionId);
+                  app.act(channel.channelId, { type: 'ENTER' });
+                  onEnterChannel(channel.channelId);
                 }}
               />
             ))}
@@ -161,30 +161,30 @@ export function HomeView({
               // is unique: there cannot be two requests to the same address.
               key={entry.account.id || `sent:${entry.account.displayName}`}
               entry={entry}
-              existing={sessionWith.get(entry.account.id)}
+              existing={channelWith.get(entry.account.id)}
               selecting={selecting}
               selected={selected.includes(entry.account.id)}
               // Room for the initiator plus what is already picked.
               selectable={
                 selected.includes(entry.account.id) ||
-                selected.length < MAX_SESSION_PARTICIPANTS - 1
+                selected.length < MAX_CHANNEL_PARTICIPANTS - 1
               }
               onToggleSelect={() => toggleSelected(entry.account.id)}
-              onStartSession={async () => {
+              onStartChannel={async () => {
                 try {
-                  const id = await app.startSession([entry.account.id]);
+                  const id = await app.startChannel([entry.account.id]);
                   app.act(id, { type: 'ENTER' });
-                  onEnterSession(id);
+                  onEnterChannel(id);
                 } catch (e) {
                   Alert.alert(
-                    'Could not start session',
+                    'Could not start channel',
                     e instanceof Error ? e.message : String(e)
                   );
                 }
               }}
-              onJoinExisting={(sessionId) => {
-                app.act(sessionId, { type: 'ENTER' });
-                onEnterSession(sessionId);
+              onJoinExisting={(channelId) => {
+                app.act(channelId, { type: 'ENTER' });
+                onEnterChannel(channelId);
               }}
             />
           ))}
@@ -207,7 +207,7 @@ export function HomeView({
         </View>
       ) : contacts.filter((c) => c.status === 'accepted').length >= 2 ? (
         <Button
-          label="Start a session with several people"
+          label="Start a channel with several people"
           variant="ghost"
           onPress={() => setSelecting(true)}
         />
@@ -218,7 +218,7 @@ export function HomeView({
 
       <SectionLabel>Past recordings</SectionLabel>
       {recordings.length === 0 ? (
-        <Empty>Recordings you make in a session will appear here.</Empty>
+        <Empty>Recordings you make in a channel will appear here.</Empty>
       ) : (
         <View style={styles.list}>
           {recordings.map((r) => (
@@ -263,7 +263,7 @@ function ExportButton({ recording }: { recording: RecordingView }) {
             app.token,
             recording.id,
             recording.others.map((other) => other.displayName).join(', ') ||
-              'session'
+              'channel'
           );
         } catch (e) {
           Alert.alert(
@@ -284,7 +284,7 @@ function describeStatus(status: string): string {
 
 /**
  * Live invites are in-app only and persist until acted on or the underlying
- * session ends. Several contacts can be inviting at once, so these stack.
+ * channel ends. Several contacts can be inviting at once, so these stack.
  */
 function InviteBanner({
   invite,
@@ -299,7 +299,7 @@ function InviteBanner({
     <Pressable onPress={onJoin} style={styles.banner}>
       <View style={styles.rowMain}>
         <Text style={styles.bannerTitle}>{invite.from.displayName}</Text>
-        <Text style={styles.bannerSub}>is waiting in a session — tap to join</Text>
+        <Text style={styles.bannerSub}>is waiting in a channel — tap to join</Text>
       </View>
       <Pressable
         onPress={onDismiss}
@@ -313,22 +313,22 @@ function InviteBanner({
 }
 
 function RejoinRow({
-  session,
+  channel,
   onRejoin,
 }: {
-  session: RejoinableView;
+  channel: RejoinableView;
   onRejoin: () => void;
 }) {
   return (
     <Card style={styles.row}>
       <View style={styles.rowMain}>
         <Text style={type.body} numberOfLines={1}>
-          {session.name ??
-            session.others.map((other) => other.displayName).join(', ')}
+          {channel.name ??
+            channel.others.map((other) => other.displayName).join(', ')}
         </Text>
         <Text style={type.muted}>
-          {session.presentCount > 0
-            ? `${session.presentCount} present — you left`
+          {channel.presentCount > 0
+            ? `${channel.presentCount} present — you left`
             : 'Empty — ends within a minute'}
         </Text>
       </View>
@@ -344,20 +344,20 @@ function ContactRow({
   selected,
   selectable,
   onToggleSelect,
-  onStartSession,
+  onStartChannel,
   onJoinExisting,
 }: {
   entry: ContactView;
-  /** A live session containing this contact, if one has already begun. */
-  existing?: { sessionId: string; shown: boolean };
+  /** A live channel containing this contact, if one has already begun. */
+  existing?: { channelId: string; shown: boolean };
   /** Whether the list is in multi-select mode. */
   selecting: boolean;
   selected: boolean;
   /** False once the cap leaves no room for another pick. */
   selectable: boolean;
   onToggleSelect: () => void;
-  onStartSession: () => void;
-  onJoinExisting: (sessionId: string) => void;
+  onStartChannel: () => void;
+  onJoinExisting: (channelId: string) => void;
 }) {
   const app = useApp();
   const { account, status } = entry;
@@ -369,7 +369,7 @@ function ContactRow({
           {status !== 'accepted'
             ? 'Pending'
             : existing?.shown && !selecting
-              ? 'Session already open'
+              ? 'Channel already open'
               : ''}
         </Text>
       </View>
@@ -384,11 +384,11 @@ function ContactRow({
       ) : status === 'accepted' ? (
         existing?.shown ? null : existing ? (
           <Button
-            label="Join session"
-            onPress={() => onJoinExisting(existing.sessionId)}
+            label="Join channel"
+            onPress={() => onJoinExisting(existing.channelId)}
           />
         ) : (
-          <Button label="Start session" onPress={onStartSession} />
+          <Button label="Start channel" onPress={onStartChannel} />
         )
       ) : status === 'incoming' ? (
         <View style={styles.rowActions}>

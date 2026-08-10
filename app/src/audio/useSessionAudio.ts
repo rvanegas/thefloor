@@ -38,13 +38,13 @@ export interface SessionAudio {
 }
 
 /**
- * @param sessionId the session to join, or null to stay disconnected
+ * @param channelId the session to join, or null to stay disconnected
  * @param token     the app's own auth token, used to fetch a join credential
  * @param selfMuted the user's own mute, which is theirs alone and unrelated to
  *                  the floor
  */
 export function useSessionAudio(
-  sessionId: string | null,
+  channelId: string | null,
   token: string | null,
   selfMuted: boolean
 ): SessionAudio {
@@ -57,7 +57,7 @@ export function useSessionAudio(
   const roomRef = useRef<Room | null>(null);
 
   useEffect(() => {
-    if (!sessionId || !token) return;
+    if (!channelId || !token) return;
 
     let cancelled = false;
     const room = new Room();
@@ -114,7 +114,7 @@ export function useSessionAudio(
     (async () => {
       update({ status: 'connecting', message: null });
       try {
-        const credential = await api.mediaToken(token, sessionId);
+        const credential = await api.mediaToken(token, channelId);
         if (!credential.url) {
           update({
             status: 'unavailable',
@@ -161,7 +161,7 @@ export function useSessionAudio(
       AudioSession.stopAudioSession().catch(() => {});
       roomRef.current = null;
     };
-  }, [sessionId, token]);
+  }, [channelId, token]);
 
   /**
    * Keeps the published microphone in step with both reasons it may be off.

@@ -1,8 +1,8 @@
 import {
   DISCONNECT_GRACE_MS,
   EMPTY_SESSION_TIMEOUT_MS,
-  MAX_SESSION_NAME_LENGTH,
-  MAX_SESSION_PARTICIPANTS,
+  MAX_CHANNEL_NAME_LENGTH,
+  MAX_CHANNEL_PARTICIPANTS,
 } from './constants';
 import {
   claimFloor,
@@ -33,30 +33,30 @@ import {
   stopRecording,
 } from './recording';
 import type {
-  SessionAction,
-  SessionEndReason,
-  SessionState,
+  ChannelAction,
+  ChannelEndReason,
+  ChannelState,
   UserId,
 } from './types';
 
-export function createSession(params: {
+export function createChannel(params: {
   id: string;
   initiator: UserId;
   invitees: UserId[];
   now: number;
-}): SessionState {
+}): ChannelState {
   const { id, initiator, invitees, now } = params;
   const participants = [initiator, ...invitees];
   // Structural violations, not policy ones: the caller was supposed to have
   // validated the roster, so a bad one here is a bug worth failing loudly on.
   if (invitees.length === 0) {
-    throw new Error('A session needs at least one invitee.');
+    throw new Error('A channel needs at least one invitee.');
   }
   if (new Set(participants).size !== participants.length) {
-    throw new Error('A session cannot hold the same person twice.');
+    throw new Error('A channel cannot hold the same person twice.');
   }
-  if (participants.length > MAX_SESSION_PARTICIPANTS) {
-    throw new Error(`A session holds at most ${MAX_SESSION_PARTICIPANTS} people.`);
+  if (participants.length > MAX_CHANNEL_PARTICIPANTS) {
+    throw new Error(`A channel holds at most ${MAX_CHANNEL_PARTICIPANTS} people.`);
   }
   return {
     id,
@@ -68,7 +68,7 @@ export function createSession(params: {
     status: 'active',
     endedAt: null,
     endedReason: null,
-    // Creating a session is entering it: the initiator is present immediately
+    // Creating a channel is entering it: the initiator is present immediately
     // and waits there for as long as it takes anyone else to join.
     present: [initiator],
     everPresent: [initiator],
@@ -81,31 +81,31 @@ export function createSession(params: {
   };
 }
 
-export function isParticipant(state: SessionState, userId: UserId): boolean {
+export function isParticipant(state: ChannelState, userId: UserId): boolean {
   return state.participants.includes(userId);
 }
 
-/** Everyone in the session except `userId`, in participant order. */
+/** Everyone in the channel except `userId`, in participant order. */
 export function otherParticipants(
-  state: SessionState,
+  state: ChannelState,
   userId: UserId
 ): UserId[] {
   return state.participants.filter((id) => id !== userId);
 }
 
-export function isPresent(state: SessionState, userId: UserId): boolean {
+export function isPresent(state: ChannelState, userId: UserId): boolean {
   return state.present.includes(userId);
 }
 
 /**
  * Whether there is anyone to talk to. The generalisation of "both present":
- * the floor means nothing to someone alone in the session.
+ * the floor means nothing to someone alone in the channel.
  */
-export function atLeastTwoPresent(state: SessionState): boolean {
+export function atLeastTwoPresent(state: ChannelState): boolean {
   return state.present.length >= 2;
 }
 
-export function atLeastTwoEverConnected(state: SessionState): boolean {
+export function atLeastTwoEverConnected(state: ChannelState): boolean {
   return state.everPresent.length >= 2;
 }
 
@@ -115,25 +115,25 @@ export function atLeastTwoEverConnected(state: SessionState): boolean {
 
 /**
  * The full claim precondition: the eligibility rule, plus presence. The claim
- * control is unavailable while a user is alone in the session.
+ * control is unavailable while a user is alone in the channel.
  */
 export function canClaimFloor(
-  state: SessionState,
+  state: ChannelState,
   userId: UserId,
   now: number
 ): boolean {
   if (state.status !== 'active') return false;
   if (!isPresent(state, userId) || !atLeastTwoPresent(state)) return false;
-  // Ranked against who is present, not who is in the session: someone who has
+  // Ranked against who is present, not who is in the channel: someone who has
   // left must not occupy the zero slot they cannot use.
   return satisfiesEligibilityRule(state.floor, state.present, userId, now);
 }
 
-export function canReleaseFloor(state: SessionState, userId: UserId): boolean {
+export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
   return state.status === 'active' && state.floor.holder === userId;
 }
 
-export function canStartRecording(state: SessionState): boolean {
+export function canStartRecording(state: ChannelState): boolean {
   return (
     state.status === 'active' &&
     state.recording.status === 'idle' &&
@@ -142,12 +142,12 @@ export function canStartRecording(state: SessionState): boolean {
 }
 
 /**
- * Whether `userId` may bring `inviteeId` into the session. Any current
+ * Whether `userId` may bring `inviteeId` into the channel. Any current
  * participant may invite, up to the cap; whether the pair are contacts is the
  * server's to check before dispatching this.
  */
 export function canInvite(
-  state: SessionState,
+  state: ChannelState,
   userId: UserId,
   inviteeId: UserId
 ): boolean {
@@ -155,12 +155,12 @@ export function canInvite(
     state.status === 'active' &&
     isParticipant(state, userId) &&
     !isParticipant(state, inviteeId) &&
-    state.participants.length < MAX_SESSION_PARTICIPANTS
+    state.participants.length < MAX_CHANNEL_PARTICIPANTS
   );
 }
 
 export function canPauseRecording(
-  state: SessionState,
+  state: ChannelState,
   userId: UserId
 ): boolean {
   return (
@@ -171,11 +171,11 @@ export function canPauseRecording(
 }
 
 /** Resuming does not cut off the record, so it carries no floor restriction. */
-export function canResumeRecording(state: SessionState): boolean {
+export function canResumeRecording(state: ChannelState): boolean {
   return state.status === 'active' && state.recording.status === 'paused';
 }
 
-export function canStopRecording(state: SessionState, userId: UserId): boolean {
+export function canStopRecording(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&
     isRecordingActive(state.recording) &&
@@ -200,7 +200,7 @@ export function canStopRecording(state: SessionState, userId: UserId): boolean {
  * holder left — with nothing to keep in step.
  */
 export function canControlPlayback(
-  state: SessionState,
+  state: ChannelState,
   userId: UserId
 ): boolean {
   if (state.status !== 'active' || !isPresent(state, userId)) return false;
@@ -214,10 +214,10 @@ export function canControlPlayback(
  * same state object, so callers can treat identity as "nothing happened".
  */
 export function reduce(
-  state: SessionState,
-  action: SessionAction,
+  state: ChannelState,
+  action: ChannelAction,
   now: number
-): SessionState {
+): ChannelState {
   if (action.type === 'TICK') return tick(state, now);
   if (state.status !== 'active') return state;
 
@@ -234,7 +234,7 @@ export function reduce(
   }
 
   if (action.type === 'DISCONNECTED') {
-    // Only meaningful for someone actually in the session, and a second report
+    // Only meaningful for someone actually in the channel, and a second report
     // must not restart the clock — that would make a flapping connection
     // survive indefinitely.
     if (!isPresent(state, action.userId)) return state;
@@ -276,7 +276,7 @@ export function reduce(
         everPresent: state.everPresent.includes(action.userId)
           ? state.everPresent
           : [...state.everPresent, action.userId],
-        // Re-entering while the empty-session timer runs cancels it.
+        // Re-entering while the empty-channel timer runs cancels it.
         emptySince: null,
       };
     }
@@ -285,7 +285,7 @@ export function reduce(
       if (!isPresent(state, action.userId)) return state;
       const present = state.present.filter((id) => id !== action.userId);
       // Whatever they left by — a tap or a grace period running out — they are
-      // no longer in the session, so a pending disconnect clock is moot. Left
+      // no longer in the channel, so a pending disconnect clock is moot. Left
       // behind it would fire again on every tick.
       const { [action.userId]: _left, ...stillConnected } = state.disconnectedAt;
       return {
@@ -313,13 +313,13 @@ export function reduce(
     }
 
     case 'END':
-      // Any participant may end the session at any time, present or not.
-      return endSession(state, 'explicit', now);
+      // Any participant may end the channel at any time, present or not.
+      return endChannel(state, 'explicit', now);
 
     case 'SET_NAME': {
       // Normalised here rather than at the edges so every caller — the server,
       // the UI's optimism, a test — agrees on what a given input names it.
-      const trimmed = action.name.trim().slice(0, MAX_SESSION_NAME_LENGTH);
+      const trimmed = action.name.trim().slice(0, MAX_CHANNEL_NAME_LENGTH);
       const name = trimmed === '' ? null : trimmed;
       if (name === state.name) return state;
       return { ...state, name };
@@ -396,7 +396,7 @@ export function reduce(
   }
 }
 
-function tick(state: SessionState, now: number): SessionState {
+function tick(state: ChannelState, now: number): ChannelState {
   if (state.status !== 'active') return state;
   let next = state;
 
@@ -421,23 +421,23 @@ function tick(state: SessionState, now: number): SessionState {
     next = { ...next, playback: pausePlayback(next.playback, now) };
   }
 
-  // An empty session auto-ends after a minute. This timer only runs while
+  // An empty channel auto-ends after a minute. This timer only runs while
   // nobody is present, so a lone initiator can wait indefinitely.
   if (
     next.emptySince !== null &&
     now - next.emptySince >= EMPTY_SESSION_TIMEOUT_MS
   ) {
-    next = endSession(next, 'empty-timeout', now);
+    next = endChannel(next, 'empty-timeout', now);
   }
 
   return next;
 }
 
-function endSession(
-  state: SessionState,
-  reason: SessionEndReason,
+function endChannel(
+  state: ChannelState,
+  reason: ChannelEndReason,
   now: number
-): SessionState {
+): ChannelState {
   return {
     ...state,
     status: 'ended',
@@ -446,20 +446,20 @@ function endSession(
     present: [],
     emptySince: null,
     floor: releaseFloor(state.floor, now),
-    // Recording runs until the session itself ends, then finalizes.
+    // Recording runs until the channel itself ends, then finalizes.
     recording: isRecordingActive(state.recording)
       ? stopRecording(state.recording, now)
       : state.recording,
     // Playback comes to rest rather than being cleared: the final snapshot is
-    // what a watcher sees explaining the session ended, and a track vanishing
+    // what a watcher sees explaining the channel ended, and a track vanishing
     // from it at the same moment reads as a second, unexplained event.
     playback: pausePlayback(state.playback, now),
   };
 }
 
-/** Milliseconds until an empty session auto-ends, or null if it is not empty. */
+/** Milliseconds until an empty channel auto-ends, or null if it is not empty. */
 export function emptyTimeoutRemainingMs(
-  state: SessionState,
+  state: ChannelState,
   now: number
 ): number | null {
   if (state.status !== 'active' || state.emptySince === null) return null;

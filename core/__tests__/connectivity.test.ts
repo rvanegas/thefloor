@@ -3,14 +3,14 @@ import {
   EMPTY_SESSION_TIMEOUT_MS,
   FLOOR_CLAIM_MS,
 } from '../constants';
-import { createSession, isPresent, reduce } from '../session';
-import type { SessionState } from '../types';
+import { createChannel, isPresent, reduce } from '../channel';
+import type { ChannelState } from '../types';
 
 /**
  * Connectivity is not presence.
  *
  * A socket that drops and returns must change nothing about who is in a
- * session. Conflating the two produced two failures worth remembering: a
+ * channel. Conflating the two produced two failures worth remembering: a
  * moment's bad signal read as leaving, and — the sharper one — a socket dying
  * *after* its replacement had connected evicted a user who was demonstrably
  * back, because a dead connection was still allowed to speak for them.
@@ -20,12 +20,12 @@ const A = 'user-a';
 const B = 'user-b';
 const T0 = 1_700_000_000_000;
 
-function joined(now = T0): SessionState {
-  const session = createSession({ id: 's1', initiator: A, invitees: [B], now });
-  return reduce(session, { type: 'ENTER', userId: B }, now);
+function joined(now = T0): ChannelState {
+  const channel = createChannel({ id: 's1', initiator: A, invitees: [B], now });
+  return reduce(channel, { type: 'ENTER', userId: B }, now);
 }
 
-const tick = (state: SessionState, now: number) =>
+const tick = (state: ChannelState, now: number) =>
   reduce(state, { type: 'TICK' }, now);
 
 describe('disconnecting', () => {
@@ -35,7 +35,7 @@ describe('disconnecting', () => {
     expect(state.disconnectedAt[B]).toBe(T0);
   });
 
-  it('leaves them in the session right up to the grace period', () => {
+  it('leaves them in the channel right up to the grace period', () => {
     let state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
     state = tick(state, T0 + DISCONNECT_GRACE_MS - 1);
     expect(isPresent(state, B)).toBe(true);
@@ -66,8 +66,8 @@ describe('disconnecting', () => {
     expect(isPresent(state, B)).toBe(false);
   });
 
-  it('is ignored for someone who is not in the session', () => {
-    const alone = createSession({ id: 's1', initiator: A, invitees: [B], now: T0 });
+  it('is ignored for someone who is not in the channel', () => {
+    const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
     const state = reduce(alone, { type: 'DISCONNECTED', userId: B }, T0);
     expect(state).toBe(alone);
   });
@@ -134,9 +134,9 @@ describe('a disconnected floor-holder', () => {
 });
 
 describe('when everyone disconnects', () => {
-  it('keeps the session alive for the grace period plus the empty timer', () => {
+  it('keeps the channel alive for the grace period plus the empty timer', () => {
     // Deliberately two minutes total: a minute to come back before anyone is
-    // removed, then the ordinary empty-session minute.
+    // removed, then the ordinary empty-channel minute.
     let state = joined();
     state = reduce(state, { type: 'DISCONNECTED', userId: A }, T0);
     state = reduce(state, { type: 'DISCONNECTED', userId: B }, T0);
@@ -145,7 +145,7 @@ describe('when everyone disconnects', () => {
     expect(state.status).toBe('active');
     expect(state.present).toHaveLength(2);
 
-    // Both removed together, which is what starts the empty-session timer.
+    // Both removed together, which is what starts the empty-channel timer.
     state = tick(state, T0 + DISCONNECT_GRACE_MS);
     expect(state.present).toHaveLength(0);
     expect(state.status).toBe('active');

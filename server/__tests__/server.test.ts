@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  app.sessions.stop();
+  app.channels.stop();
   await app.fastify.close();
 });
 
@@ -270,7 +270,7 @@ describe('authorization', () => {
 });
 
 describe('contacts', () => {
-  it('requires mutual acceptance before a session is possible', async () => {
+  it('requires mutual acceptance before a channel is possible', async () => {
     const alice = await signIn('+15550000001', 'Alice');
     const bob = await signIn('+15550000002', 'Bob');
 
@@ -281,10 +281,10 @@ describe('contacts', () => {
       payload: { identifier: '+15550000002' },
     });
 
-    // Pending, so no session yet.
+    // Pending, so no channel yet.
     const tooSoon = await app.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: auth(alice.token),
       payload: { contactId: bob.account.id },
     });
@@ -299,7 +299,7 @@ describe('contacts', () => {
 
     const now = await app.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: auth(alice.token),
       payload: { contactId: bob.account.id },
     });
@@ -476,102 +476,102 @@ describe('bodyless POSTs', () => {
   });
 });
 
-describe('sessions', () => {
-  it('will not create a duplicate session for the same pair', async () => {
+describe('channels', () => {
+  it('will not create a duplicate channel for the same pair', async () => {
     const { alice, bob } = await twoContacts();
     const first = await app.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: auth(alice.token),
       payload: { contactId: bob.account.id },
     });
     const second = await app.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: auth(alice.token),
       payload: { contactId: bob.account.id },
     });
-    // The gap the mock had: tapping twice stacked sessions and piled up
+    // The gap the mock had: tapping twice stacked channels and piled up
     // banners on the other side.
-    expect(second.json().sessionId).toBe(first.json().sessionId);
+    expect(second.json().channelId).toBe(first.json().channelId);
   });
 
-  it('refuses to act on a session you are not part of', async () => {
+  it('refuses to act on a channel you are not part of', async () => {
     const { alice, bob } = await twoContacts();
     const outsider = await signIn('+15550000099', 'Outsider');
     const created = await app.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: auth(alice.token),
       payload: { contactId: bob.account.id },
     });
-    const { sessionId } = created.json() as { sessionId: string };
+    const { channelId } = created.json() as { channelId: string };
 
-    const result = app.sessions.dispatch(sessionId, outsider.account.id, {
+    const result = app.channels.dispatch(channelId, outsider.account.id, {
       type: 'CLAIM_FLOOR',
     });
     expect(result).toEqual({
       ok: false,
-      error: 'Not your session.',
+      error: 'Not your channel.',
       code: 'forbidden',
     });
-    expect(app.sessions.get(sessionId)!.floor.holder).toBeNull();
+    expect(app.channels.get(channelId)!.floor.holder).toBeNull();
   });
 
   it('enforces the floor rules from core, server-side', async () => {
     const { alice, bob } = await twoContacts();
     const created = await app.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: auth(alice.token),
       payload: { contactId: bob.account.id },
     });
-    const { sessionId } = created.json() as { sessionId: string };
+    const { channelId } = created.json() as { channelId: string };
 
     // Alone, so no claim is possible.
     expect(
-      app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' })
-    ).toEqual({ ok: true, session: expect.anything() });
-    expect(app.sessions.get(sessionId)!.floor.holder).toBeNull();
+      app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' })
+    ).toEqual({ ok: true, channel: expect.anything() });
+    expect(app.channels.get(channelId)!.floor.holder).toBeNull();
 
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'ENTER' });
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
-    expect(app.sessions.get(sessionId)!.floor.holder).toBe(alice.account.id);
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    expect(app.channels.get(channelId)!.floor.holder).toBe(alice.account.id);
 
     // Bob is silenced and cannot claim his way out of it.
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'CLAIM_FLOOR' });
-    expect(app.sessions.get(sessionId)!.floor.holder).toBe(alice.account.id);
+    app.channels.dispatch(channelId, bob.account.id, { type: 'CLAIM_FLOOR' });
+    expect(app.channels.get(channelId)!.floor.holder).toBe(alice.account.id);
 
     // Three minutes pass; the server releases it on tick, not the client.
     clock += 3 * 60 * 1000;
-    app.sessions.tick();
-    expect(app.sessions.get(sessionId)!.floor.holder).toBeNull();
+    app.channels.tick();
+    expect(app.channels.get(channelId)!.floor.holder).toBeNull();
 
     // Alice owes the cooldown; Bob does not.
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
-    expect(app.sessions.get(sessionId)!.floor.holder).toBeNull();
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'CLAIM_FLOOR' });
-    expect(app.sessions.get(sessionId)!.floor.holder).toBe(bob.account.id);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    expect(app.channels.get(channelId)!.floor.holder).toBeNull();
+    app.channels.dispatch(channelId, bob.account.id, { type: 'CLAIM_FLOOR' });
+    expect(app.channels.get(channelId)!.floor.holder).toBe(bob.account.id);
   });
 
-  it('auto-ends an empty session and records it', async () => {
+  it('auto-ends an empty channel and records it', async () => {
     const { alice, bob } = await twoContacts();
     const created = await app.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: auth(alice.token),
       payload: { contactId: bob.account.id },
     });
-    const { sessionId } = created.json() as { sessionId: string };
+    const { channelId } = created.json() as { channelId: string };
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'LEAVE' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE' });
     clock += 60 * 1000;
-    app.sessions.tick();
+    app.channels.tick();
 
-    expect(app.sessions.get(sessionId)!.status).toBe('ended');
+    expect(app.channels.get(channelId)!.status).toBe('ended');
     const row = app.db
-      .prepare('SELECT ended_reason FROM sessions WHERE id = ?')
-      .get(sessionId) as { ended_reason: string };
+      .prepare('SELECT ended_reason FROM channels WHERE id = ?')
+      .get(channelId) as { ended_reason: string };
     expect(row.ended_reason).toBe('empty-timeout');
   });
 });

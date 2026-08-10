@@ -7,7 +7,7 @@ import {
 } from '../../../core/floor';
 import { playbackPositionMs } from '../../../core/playback';
 import { isRecordingActive, recordedMs } from '../../../core/recording';
-import { MAX_SESSION_PARTICIPANTS } from '../../../core/constants';
+import { MAX_CHANNEL_PARTICIPANTS } from '../../../core/constants';
 import {
   atLeastTwoPresent,
   canClaimFloor,
@@ -19,11 +19,11 @@ import {
   canStopRecording,
   emptyTimeoutRemainingMs,
   isPresent,
-} from '../../../core/session';
+} from '../../../core/channel';
 import { useSessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
-import { SessionSettingsView } from './SessionSettingsView';
+import { ChannelSettingsView } from './ChannelSettingsView';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
@@ -32,47 +32,47 @@ const SKIP_MS = 15_000;
 const VOLUME_STEP = 0.1;
 
 /**
- * The in-session screen. Control states come from the same guards the server
+ * The in-channel screen. Control states come from the same guards the server
  * enforces, so a greyed-out button and a refused action cannot disagree — but
  * the server is the authority and this only renders what it has been told.
  */
-export function SessionView({
-  sessionId,
+export function ChannelView({
+  channelId,
   onExit,
 }: {
-  sessionId: string;
+  channelId: string;
   onExit: () => void;
 }) {
   const app = useApp();
-  const view = app.sessionView;
-  const session = view?.session.id === sessionId ? view.session : null;
+  const view = app.channelView;
+  const channel = view?.channel.id === channelId ? view.channel : null;
   const me = app.me?.id ?? '';
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Audio follows presence, not the screen: connect only while actually in the
-  // session, so leaving stops publishing rather than leaving a live microphone
+  // channel, so leaving stops publishing rather than leaving a live microphone
   // open behind a closed view.
-  const present = !!session && session.status === 'active' && session.present.includes(me);
+  const present = !!channel && channel.status === 'active' && channel.present.includes(me);
   const audio = useSessionAudio(
-    present ? sessionId : null,
+    present ? channelId : null,
     app.token,
-    !!session?.selfMuted[me]
+    !!channel?.selfMuted[me]
   );
 
   useEffect(() => {
-    app.watchSession(sessionId);
+    app.watchChannel(channelId);
     // Deliberately not unwatching on unmount: leaving this screen is a separate
-    // decision from leaving the session, and conflating them would silently
+    // decision from leaving the channel, and conflating them would silently
     // drop the user out of a live conversation.
-  }, [sessionId]);
+  }, [channelId]);
 
-  if (!view || !session) {
+  if (!view || !channel) {
     return (
       <View style={styles.centered}>
         <Text style={type.body}>
-          {app.status === 'open' ? 'Loading session…' : 'Reconnecting…'}
+          {app.status === 'open' ? 'Loading channel…' : 'Reconnecting…'}
         </Text>
         <Button label="Back to home" variant="ghost" onPress={onExit} />
       </View>
@@ -80,60 +80,60 @@ export function SessionView({
   }
 
   // Every participant, self included; the name directory for every id the
-  // session state carries.
+  // channel state carries.
   const others = view.participants.filter((p) => p.id !== me);
   const nameOf = (id: string | null) =>
     view.participants.find((p) => p.id === id)?.displayName ?? 'Someone';
   const now = app.serverNow();
 
-  if (session.status === 'ended') {
+  if (channel.status === 'ended') {
     return (
       <View style={styles.centered}>
-        <Text style={type.heading}>Session ended</Text>
+        <Text style={type.heading}>Channel ended</Text>
         <Text style={[type.muted, styles.centeredText]}>
-          {session.endedReason === 'empty-timeout'
-            ? 'Nobody was present for a minute, so the session ended automatically.'
-            : 'The session was ended. Re-entry is not possible — start a new one to continue.'}
+          {channel.endedReason === 'empty-timeout'
+            ? 'Nobody was present for a minute, so the channel ended automatically.'
+            : 'The channel was ended. Re-entry is not possible — start a new one to continue.'}
         </Text>
         <Button label="Back to home" variant="primary" onPress={onExit} />
       </View>
     );
   }
 
-  // Rendered instead of the session, not instead of being in it: the audio
+  // Rendered instead of the channel, not instead of being in it: the audio
   // hook above stays mounted, so opening settings hangs up nothing.
   if (settingsOpen) {
     return (
-      <SessionSettingsView
-        session={session}
+      <ChannelSettingsView
+        channel={channel}
         onBack={() => setSettingsOpen(false)}
       />
     );
   }
 
-  const act = (action: Parameters<typeof app.act>[1]) => app.act(sessionId, action);
+  const act = (action: Parameters<typeof app.act>[1]) => app.act(channelId, action);
 
-  const iHoldFloor = session.floor.holder === me;
-  const theyHoldFloor = session.floor.holder !== null && !iHoldFloor;
-  const holderName = nameOf(session.floor.holder);
-  const iAmSilenced = isSilenced(session.floor, me);
-  const iAmSelfMuted = !!session.selfMuted[me];
-  const claimable = canClaimFloor(session, me, now);
-  const cooldown = cooldownRemainingMs(session.floor, session.present, me, now);
-  const claimRemaining = floorRemainingMs(session.floor, now);
-  const emptyRemaining = emptyTimeoutRemainingMs(session, now);
-  const recordingLive = isRecordingActive(session.recording);
+  const iHoldFloor = channel.floor.holder === me;
+  const theyHoldFloor = channel.floor.holder !== null && !iHoldFloor;
+  const holderName = nameOf(channel.floor.holder);
+  const iAmSilenced = isSilenced(channel.floor, me);
+  const iAmSelfMuted = !!channel.selfMuted[me];
+  const claimable = canClaimFloor(channel, me, now);
+  const cooldown = cooldownRemainingMs(channel.floor, channel.present, me, now);
+  const claimRemaining = floorRemainingMs(channel.floor, now);
+  const emptyRemaining = emptyTimeoutRemainingMs(channel, now);
+  const recordingLive = isRecordingActive(channel.recording);
 
-  const playback = session.playback;
+  const playback = channel.playback;
   const track = playback.track;
   const position = playbackPositionMs(playback, now);
-  const mayControlPlayback = canControlPlayback(session, me);
+  const mayControlPlayback = canControlPlayback(channel, me);
 
   const loadTrack = async () => {
     setUploadError(null);
     setUploading(true);
     try {
-      await pickAndUploadTrack(app.token ?? '', sessionId);
+      await pickAndUploadTrack(app.token ?? '', channelId);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -149,14 +149,14 @@ export function SessionView({
             <View
               style={[
                 styles.recordingDot,
-                session.recording.status === 'paused' && styles.recordingDotPaused,
+                channel.recording.status === 'paused' && styles.recordingDotPaused,
               ]}
             />
             <Text style={styles.recordingLabel}>
-              {session.recording.status === 'paused' ? 'Paused' : 'Recording'}
+              {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
             </Text>
             <Text style={styles.recordingTime}>
-              {formatDuration(recordedMs(session.recording, now))}
+              {formatDuration(recordedMs(channel.recording, now))}
             </Text>
           </View>
         ) : null}
@@ -164,7 +164,7 @@ export function SessionView({
         <View style={styles.presence}>
           <View style={styles.titleRow}>
             <Text style={styles.otherName} numberOfLines={1}>
-              {session.name ??
+              {channel.name ??
                 (others.length === 1
                   ? others[0].displayName
                   : `${others.length + 1} people`)}
@@ -178,31 +178,31 @@ export function SessionView({
           {others.map((participant) => (
             <Text key={participant.id} style={type.muted}>
               {/* When the header is the other party's own name, repeating it
-                  here says nothing; under a session name it is the only place
+                  here says nothing; under a channel name it is the only place
                   their name appears. */}
-              {others.length === 1 && !session.name
+              {others.length === 1 && !channel.name
                 ? ''
                 : `${participant.displayName} · `}
-              {isPresent(session, participant.id)
+              {isPresent(channel, participant.id)
                 ? // Present but unreachable is its own state, not absence:
-                  // they are still in the session and still hold whatever
+                  // they are still in the channel and still hold whatever
                   // they hold. Saying so beats making them vanish and
                   // reappear over a moment's bad signal.
-                  session.disconnectedAt[participant.id] !== undefined
+                  channel.disconnectedAt[participant.id] !== undefined
                   ? 'Present · reconnecting…'
                   : 'Present'
-                : session.everPresent.includes(participant.id)
-                  ? 'Left the session'
+                : channel.everPresent.includes(participant.id)
+                  ? 'Left the channel'
                   : 'Waiting for them to join…'}
-              {session.selfMuted[participant.id] ? ' · muted' : ''}
+              {channel.selfMuted[participant.id] ? ' · muted' : ''}
             </Text>
           ))}
           <Text style={type.muted}>
-            {formatDuration(now - session.createdAt)} elapsed
+            {formatDuration(now - channel.createdAt)} elapsed
           </Text>
           {emptyRemaining !== null ? (
             <Text style={styles.warning}>
-              Session empty — ends in {formatDuration(emptyRemaining)} unless
+              Channel empty — ends in {formatDuration(emptyRemaining)} unless
               someone re-enters.
             </Text>
           ) : null}
@@ -247,7 +247,7 @@ export function SessionView({
                   ? 'You cannot claim the floor while you are silenced.'
                   : cooldown !== null
                     ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
-                    : !atLeastTwoPresent(session)
+                    : !atLeastTwoPresent(channel)
                       ? 'The floor becomes available once at least two people are present.'
                       : 'Speak uninterrupted for up to three minutes.'}
             </Text>
@@ -429,49 +429,49 @@ export function SessionView({
 
         <SectionLabel>Recording</SectionLabel>
         <Card style={styles.stack}>
-          {session.recording.failure ? (
+          {channel.recording.failure ? (
             // Capture stopping for a reason nobody asked for must not read like
             // a recording somebody chose to end. Whoever was speaking on the
             // strength of the indicator needs to know it was not kept.
             <Text style={styles.warning}>
-              Recording failed — {session.recording.failure}
+              Recording failed — {channel.recording.failure}
             </Text>
           ) : null}
 
-          {session.recording.status === 'idle' ? (
+          {channel.recording.status === 'idle' ? (
             <Button
               label={
-                session.recording.failure ? 'Try recording again' : 'Start recording'
+                channel.recording.failure ? 'Try recording again' : 'Start recording'
               }
-              disabled={!canStartRecording(session)}
+              disabled={!canStartRecording(channel)}
               onPress={() => act({ type: 'START_RECORDING' })}
             />
-          ) : session.recording.status === 'stopped' ? (
+          ) : channel.recording.status === 'stopped' ? (
             <Text style={type.muted}>
-              {session.recording.failure ? 'Ended early — ' : 'Stopped — '}
-              {formatDuration(recordedMs(session.recording, now))} captured.
+              {channel.recording.failure ? 'Ended early — ' : 'Stopped — '}
+              {formatDuration(recordedMs(channel.recording, now))} captured.
             </Text>
           ) : (
             <View style={styles.buttonRow}>
-              {session.recording.status === 'paused' ? (
+              {channel.recording.status === 'paused' ? (
                 <Button
                   label="Resume"
                   style={styles.flexButton}
-                  disabled={!canResumeRecording(session)}
+                  disabled={!canResumeRecording(channel)}
                   onPress={() => act({ type: 'RESUME_RECORDING' })}
                 />
               ) : (
                 <Button
                   label="Pause"
                   style={styles.flexButton}
-                  disabled={!canPauseRecording(session, me)}
+                  disabled={!canPauseRecording(channel, me)}
                   onPress={() => act({ type: 'PAUSE_RECORDING' })}
                 />
               )}
               <Button
                 label="Stop"
                 style={styles.flexButton}
-                disabled={!canStopRecording(session, me)}
+                disabled={!canStopRecording(channel, me)}
                 onPress={() => act({ type: 'STOP_RECORDING' })}
               />
             </View>
@@ -481,8 +481,8 @@ export function SessionView({
               Silenced — pause and stop unavailable, and your microphone is
               still being captured.
             </Text>
-          ) : session.recording.status === 'idle' &&
-            !canStartRecording(session) ? (
+          ) : channel.recording.status === 'idle' &&
+            !canStartRecording(channel) ? (
             <Text style={type.muted}>
               Starts once at least two people have connected.
             </Text>
@@ -492,7 +492,7 @@ export function SessionView({
         <SectionLabel>Invite</SectionLabel>
         <Card style={styles.stack}>
           <InviteList
-            session={session}
+            channel={channel}
             me={me}
             onInvite={(contactId) => act({ type: 'INVITE', contactId })}
           />
@@ -506,23 +506,23 @@ export function SessionView({
             style={styles.flexButton}
             onPress={() => {
               act({ type: 'LEAVE' });
-              app.leaveSessionView(sessionId);
+              app.leaveChannelView(channelId);
               onExit();
             }}
           />
           <Button
-            label="End session"
+            label="End channel"
             sublabel="Permanent, for everyone"
             variant="danger"
             style={styles.flexButton}
             onPress={() =>
               Alert.alert(
-                'End this session?',
+                'End this channel?',
                 'This ends it immediately and permanently for everyone. Nobody can re-enter.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
-                    text: 'End session',
+                    text: 'End channel',
                     style: 'destructive',
                     onPress: () => act({ type: 'END' }),
                   },
@@ -538,37 +538,37 @@ export function SessionView({
 
 /**
  * Who can be invited: accepted contacts of *this user* who are not already in
- * the session, the cap permitting. The guard is the same one the server
+ * the channel, the cap permitting. The guard is the same one the server
  * enforces, so a shown button and a refused invite cannot disagree — except on
  * contacts, which are the server's check; the list only offers contacts, so
- * the two disagree only if a contact was dropped mid-session.
+ * the two disagree only if a contact was dropped mid-channel.
  */
 function InviteList({
-  session,
+  channel,
   me,
   onInvite,
 }: {
-  session: NonNullable<ReturnType<typeof useApp>['sessionView']>['session'];
+  channel: NonNullable<ReturnType<typeof useApp>['channelView']>['channel'];
   me: string;
   onInvite: (contactId: string) => void;
 }) {
   const app = useApp();
   const invitable = (app.home?.contacts ?? []).filter(
     (entry) =>
-      entry.status === 'accepted' && canInvite(session, me, entry.account.id)
+      entry.status === 'accepted' && canInvite(channel, me, entry.account.id)
   );
 
-  if (session.participants.length >= MAX_SESSION_PARTICIPANTS) {
+  if (channel.participants.length >= MAX_CHANNEL_PARTICIPANTS) {
     return (
       <Text style={type.muted}>
-        Sessions hold up to {MAX_SESSION_PARTICIPANTS} people.
+        Channels hold up to {MAX_CHANNEL_PARTICIPANTS} people.
       </Text>
     );
   }
   if (invitable.length === 0) {
     return (
       <Text style={type.muted}>
-        Every contact you could invite is already in this session.
+        Every contact you could invite is already in this channel.
       </Text>
     );
   }
@@ -592,7 +592,7 @@ function InviteList({
   );
 }
 
-/** Plain-language audio state, so a silent session is never a mystery. */
+/** Plain-language audio state, so a silent channel is never a mystery. */
 function describeAudio(audio: ReturnType<typeof useSessionAudio>): string {
   switch (audio.status) {
     case 'idle':

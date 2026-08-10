@@ -13,7 +13,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  app.sessions.stop();
+  app.channels.stop();
   await app.fastify.close();
 });
 
@@ -127,7 +127,7 @@ describe('transport failure', () => {
       payload: { identifier: 'someone@example.com' },
     });
     expect(response.statusCode).toBe(502);
-    broken.sessions.stop();
+    broken.channels.stop();
     await broken.fastify.close();
   });
 
@@ -139,7 +139,7 @@ describe('transport failure', () => {
       payload: { identifier: 'someone@example.com' },
     });
     expect(response.statusCode).toBe(503);
-    noMail.sessions.stop();
+    noMail.channels.stop();
     await noMail.fastify.close();
   });
 });

@@ -60,7 +60,7 @@ export interface PlaybackPumpOptions {
   /** Opens a decoder on `file` positioned at `fromMs`. */
   openDecoder: (file: string, fromMs: number) => Decoder;
   volume?: number;
-  /** Reported when decoding fails; the session turns it into a visible failure. */
+  /** Reported when decoding fails; the channel turns it into a visible failure. */
   onFailure?: (error: unknown) => void;
   /** Injectable so the pacing loop is testable without waiting in real time. */
   now?: () => number;
@@ -166,7 +166,7 @@ export class PlaybackPump {
 
     const decoded = await this.decoder.read(SAMPLES_PER_FRAME);
     if (decoded === null) {
-      // The file ran out. The session's own clock decides when the track is
+      // The file ran out. The channel's own clock decides when the track is
       // over; the pump simply has nothing more to contribute.
       this.playing = false;
       await this.stopDecoder();
@@ -335,7 +335,7 @@ export class FfmpegDecoder implements Decoder {
     });
     this.child.on('close', (code) => {
       // A non-zero exit with audio already delivered is not worth failing the
-      // session over; one with nothing delivered means the file was unplayable.
+      // channel over; one with nothing delivered means the file was unplayable.
       if (code !== 0 && this.pendingBytes === 0) {
         this.failure = new Error(
           `Could not decode the track${stderr ? `: ${stderr.trim().slice(0, 200)}` : '.'}`

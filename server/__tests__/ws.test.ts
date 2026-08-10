@@ -27,7 +27,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  app.sessions.stop();
+  app.channels.stop();
   await app.fastify.close();
 });
 
@@ -116,12 +116,12 @@ async function pairInSession() {
   });
   const created = await app.fastify.inject({
     method: 'POST',
-    url: '/sessions',
+    url: '/channels',
     headers: auth(alice.token),
     payload: { contactId: bob.account.id },
   });
-  const { sessionId } = created.json() as { sessionId: string };
-  return { alice, bob, sessionId };
+  const { channelId } = created.json() as { channelId: string };
+  return { alice, bob, channelId };
 }
 
 describe('websocket', () => {
@@ -141,7 +141,7 @@ describe('websocket', () => {
   });
 
   it('pushes a live invite to the other party', async () => {
-    const { bob, sessionId } = await pairInSession();
+    const { bob, channelId } = await pairInSession();
     const bobClient = new Client(bob.token, baseUrl);
     await bobClient.open();
     bobClient.send({ type: 'watch.home' });
@@ -150,7 +150,7 @@ describe('websocket', () => {
       'home',
       (m) => m.home.invites.length > 0
     );
-    expect(home.home.invites[0].sessionId).toBe(sessionId);
+    expect(home.home.invites[0].channelId).toBe(channelId);
     expect(home.home.invites[0].from.displayName).toBe('Alice');
     bobClient.close();
   });
@@ -215,37 +215,37 @@ describe('websocket', () => {
   });
 
   it('pushes a floor claim to the silenced party', async () => {
-    const { alice, bob, sessionId } = await pairInSession();
+    const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
     await Promise.all([a.open(), b.open()]);
 
-    a.send({ type: 'watch.session', sessionId });
-    b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
-    await b.next('session', (m) => m.view.session.present.length === 2);
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
 
-    a.send({ type: 'session.action', sessionId, action: { type: 'CLAIM_FLOOR' } });
+    a.send({ type: 'channel.action', channelId, action: { type: 'CLAIM_FLOOR' } });
 
     // Bob learns he is silenced without asking.
     const pushed = await b.next(
-      'session',
-      (m) => m.view.session.floor.holder === alice.account.id
+      'channel',
+      (m) => m.view.channel.floor.holder === alice.account.id
     );
     expect(pushed.view.serverNow).toBeGreaterThan(0);
     a.close();
     b.close();
   });
 
-  it('refuses an action from someone outside the session', async () => {
-    const { sessionId } = await pairInSession();
+  it('refuses an action from someone outside the channel', async () => {
+    const { channelId } = await pairInSession();
     const mallory = await signIn('+15559999999', 'Mallory');
     const m = new Client(mallory.token, baseUrl);
     await m.open();
 
-    m.send({ type: 'session.action', sessionId, action: { type: 'END' } });
+    m.send({ type: 'channel.action', channelId, action: { type: 'END' } });
     const error = await m.next('error');
-    expect(error.message).toBe('Not your session.');
-    expect(app.sessions.get(sessionId)!.status).toBe('active');
+    expect(error.message).toBe('Not your channel.');
+    expect(app.channels.get(channelId)!.status).toBe('active');
     m.close();
   });
 
@@ -264,78 +264,78 @@ describe('websocket', () => {
   it('starts the grace period for a connection that has gone silent', async () => {
     // A socket can die without either end being told: no close arrives and it
     // sits half-open until the OS gives up, which is hours. Nothing downstream
-    // works in the meantime — nobody is removed, so no session ever empties or
+    // works in the meantime — nobody is removed, so no channel ever empties or
     // auto-ends, and a recording bills against two egresses indefinitely.
-    const { alice, bob, sessionId } = await pairInSession();
+    const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
     await Promise.all([a.open(), b.open()]);
 
-    a.send({ type: 'watch.session', sessionId });
-    b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
-    await b.next('session', (m) => m.view.session.present.length === 2);
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
 
     // Bob's socket stays open but says nothing further. The clock moves past
     // the point where that is survivable.
     clock += HEARTBEAT_TIMEOUT_MS + 1_000;
     await new Promise((r) => setTimeout(r, 6_500));
 
-    const session = app.sessions.get(sessionId)!;
-    expect(session.disconnectedAt[bob.account.id]).toBeDefined();
+    const channel = app.channels.get(channelId)!;
+    expect(channel.disconnectedAt[bob.account.id]).toBeDefined();
     // Still present: silence starts the clock, it does not remove anyone.
-    expect(session.present).toContain(bob.account.id);
+    expect(channel.present).toContain(bob.account.id);
     a.close();
     b.close();
   }, 15_000);
 
-  it('keeps a dropped party in the session, and their floor', async () => {
+  it('keeps a dropped party in the channel, and their floor', async () => {
     // Losing a socket is not leaving. Only staying gone past the grace period
     // is, and that is a timer rather than an event.
-    const { alice, bob, sessionId } = await pairInSession();
+    const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
     await Promise.all([a.open(), b.open()]);
 
-    a.send({ type: 'watch.session', sessionId });
-    b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
-    await b.next('session', (m) => m.view.session.present.length === 2);
-    b.send({ type: 'session.action', sessionId, action: { type: 'CLAIM_FLOOR' } });
-    await a.next('session', (m) => m.view.session.floor.holder === bob.account.id);
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
+    b.send({ type: 'channel.action', channelId, action: { type: 'CLAIM_FLOOR' } });
+    await a.next('channel', (m) => m.view.channel.floor.holder === bob.account.id);
 
     b.close();
     await new Promise((r) => setTimeout(r, 200));
 
-    const session = app.sessions.get(sessionId)!;
-    expect(session.present).toContain(bob.account.id);
-    expect(session.floor.holder).toBe(bob.account.id);
-    expect(session.disconnectedAt[bob.account.id]).toBeDefined();
+    const channel = app.channels.get(channelId)!;
+    expect(channel.present).toContain(bob.account.id);
+    expect(channel.floor.holder).toBe(bob.account.id);
+    expect(channel.disconnectedAt[bob.account.id]).toBeDefined();
     a.close();
   });
 
   it('removes them once the grace period has run out', async () => {
-    const { alice, bob, sessionId } = await pairInSession();
+    const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
     await Promise.all([a.open(), b.open()]);
 
-    a.send({ type: 'watch.session', sessionId });
-    b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
-    await b.next('session', (m) => m.view.session.present.length === 2);
-    b.send({ type: 'session.action', sessionId, action: { type: 'CLAIM_FLOOR' } });
-    await a.next('session', (m) => m.view.session.floor.holder === bob.account.id);
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
+    b.send({ type: 'channel.action', channelId, action: { type: 'CLAIM_FLOOR' } });
+    await a.next('channel', (m) => m.view.channel.floor.holder === bob.account.id);
 
     b.close();
     await new Promise((r) => setTimeout(r, 200));
 
     clock += DISCONNECT_GRACE_MS;
-    app.sessions.tick();
+    app.channels.tick();
 
-    const session = app.sessions.get(sessionId)!;
-    expect(session.present).not.toContain(bob.account.id);
+    const channel = app.channels.get(channelId)!;
+    expect(channel.present).not.toContain(bob.account.id);
     // Removed as any departure removes someone, so the claim is released and
     // the cooldown still records who held it.
-    expect(session.floor.holder).toBeNull();
-    expect(session.floor.lastClaimedAt[bob.account.id]).toBeDefined();
+    expect(channel.floor.holder).toBeNull();
+    expect(channel.floor.lastClaimedAt[bob.account.id]).toBeDefined();
     a.close();
   });
 
@@ -343,65 +343,65 @@ describe('websocket', () => {
     // The race that stranded a phone: iOS delivered a stale socket's close
     // *after* the replacement had connected, and the corpse got a vote. The
     // reconnected socket is a live connection, so the close reports nothing.
-    const { alice, bob, sessionId } = await pairInSession();
+    const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const stale = new Client(bob.token, baseUrl);
     await Promise.all([a.open(), stale.open()]);
 
-    a.send({ type: 'watch.session', sessionId });
-    stale.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
-    await stale.next('session', (m) => m.view.session.present.length === 2);
+    a.send({ type: 'watch.channel', channelId });
+    stale.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await stale.next('channel', (m) => m.view.channel.present.length === 2);
 
     // Bob reconnects on a new socket before the old one's close arrives.
     const fresh = new Client(bob.token, baseUrl);
     await fresh.open();
-    fresh.send({ type: 'watch.session', sessionId });
-    await fresh.next('session');
+    fresh.send({ type: 'watch.channel', channelId });
+    await fresh.next('channel');
 
     stale.close();
     await new Promise((r) => setTimeout(r, 200));
 
-    const session = app.sessions.get(sessionId)!;
-    expect(session.present).toContain(bob.account.id);
+    const channel = app.channels.get(channelId)!;
+    expect(channel.present).toContain(bob.account.id);
     // No grace period started at all: he has a connection.
-    expect(session.disconnectedAt[bob.account.id]).toBeUndefined();
+    expect(channel.disconnectedAt[bob.account.id]).toBeUndefined();
 
     // And he stays put once the grace period would have elapsed.
     clock += DISCONNECT_GRACE_MS;
-    app.sessions.tick();
-    expect(app.sessions.get(sessionId)!.present).toContain(bob.account.id);
+    app.channels.tick();
+    expect(app.channels.get(channelId)!.present).toContain(bob.account.id);
     a.close();
     fresh.close();
   });
 
   it('cancels the grace period when the user comes back', async () => {
-    const { alice, bob, sessionId } = await pairInSession();
+    const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
     await Promise.all([a.open(), b.open()]);
 
-    a.send({ type: 'watch.session', sessionId });
-    b.send({ type: 'session.action', sessionId, action: { type: 'ENTER' } });
-    await b.next('session', (m) => m.view.session.present.length === 2);
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
 
     b.close();
     await new Promise((r) => setTimeout(r, 200));
     expect(
-      app.sessions.get(sessionId)!.disconnectedAt[bob.account.id]
+      app.channels.get(channelId)!.disconnectedAt[bob.account.id]
     ).toBeDefined();
 
     const back = new Client(bob.token, baseUrl);
     await back.open();
-    back.send({ type: 'watch.session', sessionId });
-    await back.next('session');
+    back.send({ type: 'watch.channel', channelId });
+    await back.next('channel');
 
     expect(
-      app.sessions.get(sessionId)!.disconnectedAt[bob.account.id]
+      app.channels.get(channelId)!.disconnectedAt[bob.account.id]
     ).toBeUndefined();
 
     clock += DISCONNECT_GRACE_MS;
-    app.sessions.tick();
-    expect(app.sessions.get(sessionId)!.present).toContain(bob.account.id);
+    app.channels.tick();
+    expect(app.channels.get(channelId)!.present).toContain(bob.account.id);
     a.close();
     back.close();
   });

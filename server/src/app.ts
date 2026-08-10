@@ -10,7 +10,7 @@ import { encodeRecording } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
-import { SessionRegistry, type RefusalCode } from './sessions';
+import { ChannelRegistry, type RefusalCode } from './channels';
 import type { RecordingStore } from './storage';
 import { createHomeNotifier, registerWebsocket } from './ws';
 
@@ -24,7 +24,7 @@ export interface BuildOptions {
   mediaUrl?: string;
   /** Read access to the recordings bucket, for encoding an export. */
   store?: RecordingStore;
-  /** Grace period before an ended session's audio room is torn down. */
+  /** Grace period before an ended channel's audio room is torn down. */
   roomCloseGraceMs?: number;
   now?: () => number;
   logger?: boolean;
@@ -34,13 +34,13 @@ export interface App {
   fastify: FastifyInstance;
   db: Db;
   accounts: Accounts;
-  sessions: SessionRegistry;
+  channels: ChannelRegistry;
 }
 
 /**
  * The largest track anyone may upload.
  *
- * It is held on the server's own disk for the length of one session, so the
+ * It is held on the server's own disk for the length of one channel, so the
  * ceiling is about not filling the box rather than about bandwidth. An hour of
  * ordinary MP3 is comfortably inside it.
  */
@@ -86,7 +86,7 @@ export function buildApp(options: BuildOptions = {}): App {
 
   // Filled in once the websocket plugin loads; a no-op until then.
   const homeNotifier = createHomeNotifier();
-  const sessions = new SessionRegistry(
+  const channels = new ChannelRegistry(
     db,
     accounts,
     now,
@@ -267,9 +267,9 @@ export function buildApp(options: BuildOptions = {}): App {
     return homeFor(account.id);
   });
 
-  // --- Sessions -----------------------------------------------------------
+  // --- Channels -----------------------------------------------------------
 
-  fastify.post('/sessions', async (request, reply) => {
+  fastify.post('/channels', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
     const body = request.body as
@@ -285,23 +285,23 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(400).send({ error: 'contactIds is required' });
     }
 
-    const result = sessions.create(account.id, contactIds);
+    const result = channels.create(account.id, contactIds);
     if (!result.ok) return reply.code(400).send({ error: result.error });
-    return { sessionId: result.session.id };
+    return { channelId: result.channel.id };
   });
 
   /**
-   * A join credential for the session's audio room. Minted per participant and
-   * short-lived, and refused to anyone who is not in the session — the room
-   * name is the session id, so this is the only thing standing between knowing
+   * A join credential for the channel's audio room. Minted per participant and
+   * short-lived, and refused to anyone who is not in the channel — the room
+   * name is the channel id, so this is the only thing standing between knowing
    * an id and listening in.
    */
-  fastify.post('/sessions/:id/media-token', async (request, reply) => {
+  fastify.post('/channels/:id/media-token', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
     const { id } = request.params as { id: string };
 
-    const result = await sessions.mediaToken(id, account.id);
+    const result = await channels.mediaToken(id, account.id);
     if (!result.ok) {
       return reply.code(statusFor(result.code)).send({ error: result.error });
     }
@@ -314,10 +314,10 @@ export function buildApp(options: BuildOptions = {}): App {
    * Over HTTP rather than the websocket because it is bytes, and because the
    * client cannot describe the result: only the server knows where the file
    * landed and — having asked ffprobe rather than the uploader — how long it
-   * actually is. The session is told about the track once both are known.
+   * actually is. The channel is told about the track once both are known.
    */
   fastify.post(
-    '/sessions/:id/track',
+    '/channels/:id/track',
     { bodyLimit: MAX_TRACK_BYTES },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
@@ -331,7 +331,7 @@ export function buildApp(options: BuildOptions = {}): App {
       }
 
       // Under the server's own temp directory, one per track, so removing it
-      // when the session ends takes the file with it and nothing else.
+      // when the channel ends takes the file with it and nothing else.
       const dir = await mkdtemp(join(tmpdir(), 'thefloor-track-'));
       const safe = basename(name ?? '').replace(/[^\w\-. ]/g, '');
       const file = join(dir, `track${extname(safe) || ''}`);
@@ -341,7 +341,7 @@ export function buildApp(options: BuildOptions = {}): App {
         const durationMs = await probeDurationMs(file);
         const title = safe.replace(/\.[^.]+$/, '').trim() || 'Shared audio';
 
-        const result = await sessions.loadTrack(id, account.id, {
+        const result = await channels.loadTrack(id, account.id, {
           file,
           dir,
           title,
@@ -353,10 +353,10 @@ export function buildApp(options: BuildOptions = {}): App {
             .code(statusFor(result.code))
             .send({ error: result.error });
         }
-        return { track: result.session.playback.track };
+        return { track: result.channel.playback.track };
       } catch (error) {
         await rm(dir, { recursive: true, force: true });
-        request.log.error({ err: error, session: id }, 'track upload failed');
+        request.log.error({ err: error, channel: id }, 'track upload failed');
         // A file that cannot be decoded is the user's to fix, and saying so
         // lets them pick another; anything else is ours and says nothing.
         const unreadable = error instanceof UnreadableAudioError;
@@ -432,8 +432,8 @@ export function buildApp(options: BuildOptions = {}): App {
 
   function homeFor(userId: string): HomeView {
     return {
-      invites: sessions.invitesFor(userId),
-      rejoinable: sessions.rejoinableFor(userId),
+      invites: channels.invitesFor(userId),
+      rejoinable: channels.rejoinableFor(userId),
       // contactsFor already returns the public shape, deliberately: an
       // outgoing request carries the address rather than a name, so a request
       // to a real account and one to an address without an account look the
@@ -442,13 +442,13 @@ export function buildApp(options: BuildOptions = {}): App {
         account: entry.account,
         status: entry.status as 'accepted' | 'outgoing' | 'incoming',
       })),
-      recordings: sessions.recordingsFor(userId).map((row) => {
+      recordings: channels.recordingsFor(userId).map((row) => {
         const participants: string[] = row.participants
           ? JSON.parse(row.participants)
           : [row.initiator_id, row.invitee_id];
         return {
           id: row.id,
-          sessionId: row.session_id,
+          channelId: row.channel_id,
           others: participants
             .filter((id) => id !== userId)
             .map((id) => accounts.public(id))
@@ -469,18 +469,18 @@ export function buildApp(options: BuildOptions = {}): App {
     registerWebsocket({
       fastify: instance,
       accounts,
-      sessions,
+      channels,
       homeFor,
       now,
       homeNotifier,
     });
   });
 
-  return { fastify, db, accounts, sessions };
+  return { fastify, db, accounts, channels };
 }
 
 /**
- * The HTTP status for a refusal from the session registry.
+ * The HTTP status for a refusal from the channel registry.
  *
  * The registry says *why* and this decides what that is worth over HTTP. The
  * two used to be one thing — the routes compared the error message — so the

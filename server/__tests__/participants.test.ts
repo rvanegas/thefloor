@@ -4,8 +4,8 @@ import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
 
 /**
- * Sessions holding more than two people: creation with several invitees,
- * mid-session invites, the N-way silencing matrix, and stems for people who
+ * Channels holding more than two people: creation with several invitees,
+ * mid-channel invites, the N-way silencing matrix, and stems for people who
  * join a recording partway through.
  */
 
@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  app.sessions.stop();
+  app.channels.stop();
   await app.fastify.close();
 });
 
@@ -77,7 +77,7 @@ async function circle() {
 async function createSessionWith(initiator: User, contactIds: string[]) {
   const created = await app.fastify.inject({
     method: 'POST',
-    url: '/sessions',
+    url: '/channels',
     headers: auth(initiator.token),
     payload: { contactIds },
   });
@@ -87,24 +87,24 @@ async function createSessionWith(initiator: User, contactIds: string[]) {
 /** Media calls are fire-and-forget, so let the microtask queue drain. */
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
-describe('creating a session with several people', () => {
-  it('creates one session whose roster is everyone named', async () => {
+describe('creating a channel with several people', () => {
+  it('creates one channel whose roster is everyone named', async () => {
     const { alice, bob, carol } = await circle();
     const response = await createSessionWith(alice, [
       bob.account.id,
       carol.account.id,
     ]);
     expect(response.statusCode).toBe(200);
-    const { sessionId } = response.json() as { sessionId: string };
-    const session = app.sessions.get(sessionId)!;
-    expect(session.participants).toEqual([
+    const { channelId } = response.json() as { channelId: string };
+    const channel = app.channels.get(channelId)!;
+    expect(channel.participants).toEqual([
       alice.account.id,
       bob.account.id,
       carol.account.id,
     ]);
     // Both invitees see an invitation from the initiator.
     for (const user of [bob, carol]) {
-      const invites = app.sessions.invitesFor(user.account.id);
+      const invites = app.channels.invitesFor(user.account.id);
       expect(invites).toHaveLength(1);
       expect(invites[0].from.id).toBe(alice.account.id);
     }
@@ -114,7 +114,7 @@ describe('creating a session with several people', () => {
     const { alice, bob } = await circle();
     const response = await app.fastify.inject({
       method: 'POST',
-      url: '/sessions',
+      url: '/channels',
       headers: auth(alice.token),
       payload: { contactId: bob.account.id },
     });
@@ -138,55 +138,55 @@ describe('creating a session with several people', () => {
     expect(empty.statusCode).toBe(400);
   });
 
-  it('rejoins the existing session for the same set, not for a subset', async () => {
+  it('rejoins the existing channel for the same set, not for a subset', async () => {
     const { alice, bob, carol } = await circle();
     const trio = (await createSessionWith(alice, [
       bob.account.id,
       carol.account.id,
-    ]).then((r) => r.json())) as { sessionId: string };
+    ]).then((r) => r.json())) as { channelId: string };
     const trioAgain = (await createSessionWith(alice, [
       carol.account.id,
       bob.account.id,
-    ]).then((r) => r.json())) as { sessionId: string };
-    expect(trioAgain.sessionId).toBe(trio.sessionId);
+    ]).then((r) => r.json())) as { channelId: string };
+    expect(trioAgain.channelId).toBe(trio.channelId);
 
     // The same people minus one is a different conversation.
     const pair = (await createSessionWith(alice, [bob.account.id]).then((r) =>
       r.json()
-    )) as { sessionId: string };
-    expect(pair.sessionId).not.toBe(trio.sessionId);
+    )) as { channelId: string };
+    expect(pair.channelId).not.toBe(trio.channelId);
   });
 });
 
-describe('mid-session invites', () => {
+describe('mid-channel invites', () => {
   it('adds a contact of the inviter, who then joins like any invitee', async () => {
     const { alice, bob, carol } = await circle();
-    const { sessionId } = (await createSessionWith(alice, [bob.account.id]).then(
+    const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(
       (r) => r.json()
-    )) as { sessionId: string };
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'ENTER' });
+    )) as { channelId: string };
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
 
-    const result = app.sessions.dispatch(sessionId, alice.account.id, {
+    const result = app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
       contactId: carol.account.id,
     } as never);
     expect(result.ok).toBe(true);
 
-    const session = app.sessions.get(sessionId)!;
-    expect(session.participants).toContain(carol.account.id);
+    const channel = app.channels.get(channelId)!;
+    expect(channel.participants).toContain(carol.account.id);
     // The invitation names whoever asked.
-    const invites = app.sessions.invitesFor(carol.account.id);
+    const invites = app.channels.invitesFor(carol.account.id);
     expect(invites).toHaveLength(1);
     expect(invites[0].from.id).toBe(alice.account.id);
 
     // The invited person may enter and may fetch a media token.
-    const entered = app.sessions.dispatch(sessionId, carol.account.id, {
+    const entered = app.channels.dispatch(channelId, carol.account.id, {
       type: 'ENTER',
     });
     expect(entered.ok).toBe(true);
     const token = await app.fastify.inject({
       method: 'POST',
-      url: `/sessions/${sessionId}/media-token`,
+      url: `/channels/${channelId}/media-token`,
       headers: auth(carol.token),
     });
     expect(token.statusCode).toBe(200);
@@ -194,13 +194,13 @@ describe('mid-session invites', () => {
 
   it('refuses an invitee who is not the inviter’s contact', async () => {
     const { alice, bob, carol } = await circle();
-    const { sessionId } = (await createSessionWith(alice, [bob.account.id]).then(
+    const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(
       (r) => r.json()
-    )) as { sessionId: string };
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'ENTER' });
+    )) as { channelId: string };
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
 
     // Carol is alice's contact, not bob's — bob cannot bring her in.
-    const result = app.sessions.dispatch(sessionId, bob.account.id, {
+    const result = app.channels.dispatch(channelId, bob.account.id, {
       type: 'INVITE',
       contactId: carol.account.id,
     } as never);
@@ -213,17 +213,17 @@ describe('mid-session invites', () => {
 
   it('refuses a duplicate and enforces the cap', async () => {
     const { alice, bob, carol } = await circle();
-    const { sessionId } = (await createSessionWith(alice, [bob.account.id]).then(
+    const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(
       (r) => r.json()
-    )) as { sessionId: string };
+    )) as { channelId: string };
 
-    const dup = app.sessions.dispatch(sessionId, alice.account.id, {
+    const dup = app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
       contactId: bob.account.id,
     } as never);
     expect(dup).toEqual({
       ok: false,
-      error: 'Already in this session.',
+      error: 'Already in this channel.',
       code: 'conflict',
     });
 
@@ -236,20 +236,20 @@ describe('mid-session invites', () => {
       extras.push(extra);
     }
     for (const extra of extras.slice(0, 4)) {
-      const added = app.sessions.dispatch(sessionId, alice.account.id, {
+      const added = app.channels.dispatch(channelId, alice.account.id, {
         type: 'INVITE',
         contactId: extra.account.id,
       } as never);
       expect(added.ok).toBe(true);
     }
-    expect(app.sessions.get(sessionId)!.participants).toHaveLength(6);
-    const overCap = app.sessions.dispatch(sessionId, alice.account.id, {
+    expect(app.channels.get(channelId)!.participants).toHaveLength(6);
+    const overCap = app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
       contactId: extras[4].account.id,
     } as never);
     expect(overCap).toEqual({
       ok: false,
-      error: 'Sessions hold up to 6 people.',
+      error: 'Channels hold up to 6 people.',
       code: 'conflict',
     });
     void carol;
@@ -259,20 +259,20 @@ describe('mid-session invites', () => {
 describe('the silencing matrix with three people', () => {
   async function trioAllPresent() {
     const { alice, bob, carol } = await circle();
-    const { sessionId } = (await createSessionWith(alice, [
+    const { channelId } = (await createSessionWith(alice, [
       bob.account.id,
       carol.account.id,
-    ]).then((r) => r.json())) as { sessionId: string };
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'ENTER' });
-    app.sessions.dispatch(sessionId, carol.account.id, { type: 'ENTER' });
-    return { alice, bob, carol, sessionId };
+    ]).then((r) => r.json())) as { channelId: string };
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
+    return { alice, bob, carol, channelId };
   }
 
   it('withholds every non-holder from every listener on a claim', async () => {
-    const { alice, bob, carol, sessionId } = await trioAllPresent();
+    const { alice, bob, carol, channelId } = await trioAllPresent();
     media.subscriptions.length = 0;
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
     const ids = [alice.account.id, bob.account.id, carol.account.id];
@@ -282,7 +282,7 @@ describe('the silencing matrix with three people', () => {
       for (const speaker of ids) {
         if (speaker === listener) continue;
         expect(media.subscriptions).toContainEqual({
-          room: sessionId,
+          room: channelId,
           speaker,
           listener,
           silenced: speaker !== alice.account.id,
@@ -291,7 +291,7 @@ describe('the silencing matrix with three people', () => {
     }
     // In particular the two silenced people cannot hear each other.
     expect(media.subscriptions).toContainEqual({
-      room: sessionId,
+      room: channelId,
       speaker: bob.account.id,
       listener: carol.account.id,
       silenced: true,
@@ -299,29 +299,29 @@ describe('the silencing matrix with three people', () => {
   });
 
   it('opens everyone when the claim is released', async () => {
-    const { alice, sessionId } = await trioAllPresent();
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    const { alice, channelId } = await trioAllPresent();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
     media.subscriptions.length = 0;
 
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     await settle();
     expect(media.subscriptions).toHaveLength(6);
     expect(media.subscriptions.every((s) => !s.silenced)).toBe(true);
   });
 
   it('silences a mid-claim joiner once their track exists', async () => {
-    const { alice, bob, carol, sessionId } = await trioAllPresent();
+    const { alice, bob, carol, channelId } = await trioAllPresent();
     void bob;
-    app.sessions.dispatch(sessionId, carol.account.id, { type: 'LEAVE' });
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, carol.account.id, { type: 'LEAVE' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
     // Carol re-enters during the claim, before publishing anything: the
     // silence cannot land yet, and must not be forgotten.
-    media.unpublished.add(`${sessionId}/${carol.account.id}`);
+    media.unpublished.add(`${channelId}/${carol.account.id}`);
     media.subscriptions.length = 0;
-    app.sessions.dispatch(sessionId, carol.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
     await settle();
     expect(
       media.subscriptions.filter((s) => s.speaker === carol.account.id)
@@ -330,16 +330,16 @@ describe('the silencing matrix with three people', () => {
     // She publishes; the next tick re-states her silencing.
     media.unpublished.clear();
     clock += 500;
-    app.sessions.tick();
+    app.channels.tick();
     await settle();
     expect(media.subscriptions).toContainEqual({
-      room: sessionId,
+      room: channelId,
       speaker: carol.account.id,
       listener: alice.account.id,
       silenced: true,
     });
     expect(media.subscriptions).toContainEqual({
-      room: sessionId,
+      room: channelId,
       speaker: carol.account.id,
       listener: bob.account.id,
       silenced: true,
@@ -350,29 +350,29 @@ describe('the silencing matrix with three people', () => {
 describe('recording with people joining mid-run', () => {
   async function pairRecording() {
     const { alice, bob, carol } = await circle();
-    const { sessionId } = (await createSessionWith(alice, [bob.account.id]).then(
+    const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(
       (r) => r.json()
-    )) as { sessionId: string };
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'ENTER' });
-    app.sessions.dispatch(sessionId, alice.account.id, {
+    )) as { channelId: string };
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.account.id, {
       type: 'START_RECORDING',
     });
     await settle();
-    return { alice, bob, carol, sessionId };
+    return { alice, bob, carol, channelId };
   }
 
   it('starts egress only for the present, then adds a joiner’s stem at its offset', async () => {
-    const { alice, bob, carol, sessionId } = await pairRecording();
+    const { alice, bob, carol, channelId } = await pairRecording();
     expect(media.recordings.map((r) => r.identity).sort()).toEqual(
       [alice.account.id, bob.account.id].sort()
     );
 
     clock += 20_000;
-    app.sessions.dispatch(sessionId, alice.account.id, {
+    app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
       contactId: carol.account.id,
     } as never);
-    app.sessions.dispatch(sessionId, carol.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
     await settle();
 
     const hers = media.recordings.filter(
@@ -381,12 +381,12 @@ describe('recording with people joining mid-run', () => {
     expect(hers).toHaveLength(1);
 
     clock += 10_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
     const row = app.db
-      .prepare('SELECT stems, participants FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { stems: string; participants: string };
+      .prepare('SELECT stems, participants FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { stems: string; participants: string };
     const stems = JSON.parse(row.stems) as Record<
       string,
       Array<{ key: string; startMs: number }>
@@ -395,7 +395,7 @@ describe('recording with people joining mid-run', () => {
     // Carol's capture begins 20s into the recorded audio.
     expect(stems[carol.account.id]).toEqual([
       {
-        key: `${sessionId}/${carol.account.id}-001.ogg`,
+        key: `${channelId}/${carol.account.id}-001.ogg`,
         startMs: 20_000,
       },
     ]);
@@ -407,23 +407,23 @@ describe('recording with people joining mid-run', () => {
   });
 
   it('does not end the recording when a late joiner’s egress cannot start', async () => {
-    const { alice, carol, sessionId } = await pairRecording();
-    app.sessions.dispatch(sessionId, alice.account.id, {
+    const { alice, carol, channelId } = await pairRecording();
+    app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
       contactId: carol.account.id,
     } as never);
 
     // Her egress fails — she has not published yet.
     media.failStart = { reason: 'not publishing', identity: carol.account.id };
-    app.sessions.dispatch(sessionId, carol.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
     await settle();
-    expect(app.sessions.get(sessionId)!.recording.status).toBe('recording');
-    expect(app.sessions.get(sessionId)!.recording.failure).toBeNull();
+    expect(app.channels.get(channelId)!.recording.status).toBe('recording');
+    expect(app.channels.get(channelId)!.recording.failure).toBeNull();
 
     // Once she publishes, a later tick starts her stem.
     media.failStart = null;
     clock += 6_000;
-    app.sessions.tick();
+    app.channels.tick();
     await settle();
     expect(
       media.recordings.filter((r) => r.identity === carol.account.id)
@@ -431,25 +431,25 @@ describe('recording with people joining mid-run', () => {
   });
 
   it('records a silenced window per non-holder in the floor timeline', async () => {
-    const { alice, bob, carol, sessionId } = await pairRecording();
-    app.sessions.dispatch(sessionId, alice.account.id, {
+    const { alice, bob, carol, channelId } = await pairRecording();
+    app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
       contactId: carol.account.id,
     } as never);
-    app.sessions.dispatch(sessionId, carol.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
     await settle();
 
     clock += 5_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     clock += 10_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'RELEASE_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     clock += 5_000;
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     await settle();
 
     const row = app.db
-      .prepare('SELECT floor_timeline FROM recordings WHERE session_id = ?')
-      .get(sessionId) as { floor_timeline: string };
+      .prepare('SELECT floor_timeline FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { floor_timeline: string };
     const windows = JSON.parse(row.floor_timeline) as Array<{
       identity: string;
       fromMs: number;

@@ -23,7 +23,7 @@ export async function exportRecording(
   const directory = `${FileSystem.cacheDirectory}exports/`;
   await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
 
-  const safeName = otherName.replace(/[^\w\- ]/g, '').trim() || 'session';
+  const safeName = otherName.replace(/[^\w\- ]/g, '').trim() || 'channel';
   const target = `${directory}The Floor — ${safeName}.ogg`;
 
   let result: FileSystem.FileSystemDownloadResult;

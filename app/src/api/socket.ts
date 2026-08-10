@@ -7,7 +7,7 @@ import type {
   ClientMessage,
   HomeView,
   ServerMessage,
-  SessionView,
+  ChannelView,
 } from '../../../core/protocol';
 import { WS_URL } from './config';
 import { reportSignedOut } from './http';
@@ -24,8 +24,8 @@ export interface RealtimeHandlers {
   /** Identifies who this connection belongs to, per the server. */
   onHello?: (account: { id: string; displayName: string }) => void;
   onHome?: (home: HomeView) => void;
-  onSession?: (view: SessionView) => void;
-  onSessionGone?: (sessionId: string) => void;
+  onChannel?: (view: ChannelView) => void;
+  onChannelGone?: (channelId: string) => void;
   onStatus?: (status: ConnectionStatus) => void;
   onError?: (message: string) => void;
   /** Server time at the moment of the snapshot, for clock alignment. */
@@ -36,13 +36,13 @@ const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
 
 /**
- * The session channel. Everything the client shows is pushed from the server;
- * nothing here computes session state.
+ * The channel channel. Everything the client shows is pushed from the server;
+ * nothing here computes channel state.
  *
  * Reconnection matters more than it looks. The server treats a dropped socket
  * as a leave, which force-releases the floor — correct per the spec, and it
  * means a phone that backgrounds for a moment has genuinely left. So on
- * reconnect this re-establishes what it was watching and re-enters the session
+ * reconnect this re-establishes what it was watching and re-enters the channel
  * it was in, rather than silently showing a stale screen.
  */
 export class Realtime {
@@ -50,9 +50,9 @@ export class Realtime {
   private token: string | null = null;
   private handlers: RealtimeHandlers = {};
   private watchingHome = false;
-  private watchedSession: string | null = null;
-  /** Sessions this client considers itself present in, to restore on reconnect. */
-  private enteredSession: string | null = null;
+  private watchedChannel: string | null = null;
+  /** Channels this client considers itself present in, to restore on reconnect. */
+  private enteredChannel: string | null = null;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -82,14 +82,14 @@ export class Realtime {
       this.handlers.onStatus?.('open');
       // Restore whatever this client was doing before the drop.
       if (this.watchingHome) this.send({ type: 'watch.home' });
-      if (this.watchedSession) {
-        this.send({ type: 'watch.session', sessionId: this.watchedSession });
+      if (this.watchedChannel) {
+        this.send({ type: 'watch.channel', channelId: this.watchedChannel });
       }
-      if (this.enteredSession) {
+      if (this.enteredChannel) {
         // The server removed us on disconnect, so this is a genuine re-entry.
         this.send({
-          type: 'session.action',
-          sessionId: this.enteredSession,
+          type: 'channel.action',
+          channelId: this.enteredChannel,
           action: { type: 'ENTER' },
         });
       }
@@ -118,13 +118,13 @@ export class Realtime {
         case 'home':
           this.handlers.onHome?.(message.home);
           break;
-        case 'session':
+        case 'channel':
           this.handlers.onServerTime?.(message.view.serverNow);
-          this.handlers.onSession?.(message.view);
+          this.handlers.onChannel?.(message.view);
           break;
-        case 'session.gone':
-          if (this.enteredSession === message.sessionId) this.enteredSession = null;
-          this.handlers.onSessionGone?.(message.sessionId);
+        case 'channel.gone':
+          if (this.enteredChannel === message.channelId) this.enteredChannel = null;
+          this.handlers.onChannelGone?.(message.channelId);
           break;
         case 'error':
           this.handlers.onError?.(message.message);
@@ -207,24 +207,24 @@ export class Realtime {
     this.send({ type: 'watch.home' });
   }
 
-  watchSession(sessionId: string): void {
-    this.watchedSession = sessionId;
-    this.send({ type: 'watch.session', sessionId });
+  watchChannel(channelId: string): void {
+    this.watchedChannel = channelId;
+    this.send({ type: 'watch.channel', channelId });
   }
 
-  unwatchSession(sessionId: string): void {
-    if (this.watchedSession === sessionId) this.watchedSession = null;
-    this.send({ type: 'unwatch.session', sessionId });
+  unwatchChannel(channelId: string): void {
+    if (this.watchedChannel === channelId) this.watchedChannel = null;
+    this.send({ type: 'unwatch.channel', channelId });
   }
 
-  act(sessionId: string, action: ClientAction): void {
+  act(channelId: string, action: ClientAction): void {
     // Track presence locally so a reconnect can restore it.
-    if (action.type === 'ENTER') this.enteredSession = sessionId;
+    if (action.type === 'ENTER') this.enteredChannel = channelId;
     if (action.type === 'LEAVE' || action.type === 'END') {
-      if (this.enteredSession === sessionId) this.enteredSession = null;
+      if (this.enteredChannel === channelId) this.enteredChannel = null;
     }
-    this.watchedSession = sessionId;
-    this.send({ type: 'session.action', sessionId, action });
+    this.watchedChannel = channelId;
+    this.send({ type: 'channel.action', channelId, action });
   }
 
   disconnect(): void {
@@ -236,8 +236,8 @@ export class Realtime {
     this.socket?.close();
     this.socket = null;
     this.watchingHome = false;
-    this.watchedSession = null;
-    this.enteredSession = null;
+    this.watchedChannel = null;
+    this.enteredChannel = null;
     this.reconnectAttempt = 0;
   }
 }

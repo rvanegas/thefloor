@@ -26,7 +26,7 @@ export function isRecordingActive(recording: RecordingState): boolean {
 /**
  * Pause and stop are withheld from a user who is being force-muted, so a
  * silenced party cannot cut off the record while they have no voice in the
- * session. Outside an active floor claim nobody is silenced, so either user may
+ * channel. Outside an active floor claim nobody is silenced, so either user may
  * pause or stop freely.
  */
 export function canPauseOrStopRecording(
@@ -86,12 +86,12 @@ export function stopRecording(
  * Ends a recording that could not be captured, and says why.
  *
  * A capture failure ends the whole recording rather than continuing with
- * whoever did start: a session recorded with one speaker missing is worse than
+ * whoever did start: a channel recorded with one speaker missing is worse than
  * no recording, because it looks complete.
  *
  * Where it ends up depends on whether anything was ever captured. A recording
  * that never got going did not happen, so it returns to idle and may be
- * started again — a failed attempt must not consume the session's one
+ * started again — a failed attempt must not consume the channel's one
  * recording. One that had already captured something keeps it, and stops.
  */
 export function failRecording(

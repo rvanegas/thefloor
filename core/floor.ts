@@ -52,7 +52,7 @@ export function claimDelayMs(
 }
 
 /**
- * Whether `userId` may claim, in isolation from presence and session status.
+ * Whether `userId` may claim, in isolation from presence and channel status.
  *
  * Two conditions: nobody holds the floor, and enough time has passed since it
  * was released for this user's delay to have elapsed.

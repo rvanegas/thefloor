@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# A SQLite shell on the session database.
+# A SQLite shell on the channel database.
 #
 #   bin/db                          interactive, on the deployed server
 #   bin/db "select * from accounts" one query, then exit
@@ -11,9 +11,9 @@
 # and dropping a table by accident is not, so the destructive case is the one
 # you have to ask for.
 #
-# Note the live picture is not in here. Sessions are held in memory until they
+# Note the live picture is not in here. Channels are held in memory until they
 # end, so an active call has no row anywhere — `accounts`, `contacts` and
-# `recordings` are the durable state, and `sessions` only fills in afterwards.
+# `recordings` are the durable state, and `channels` only fills in afterwards.
 set -euo pipefail
 
 HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}

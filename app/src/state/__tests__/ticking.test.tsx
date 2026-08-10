@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { createSession, reduce } from '../../../../core/session';
+import { createChannel, reduce } from '../../../../core/channel';
 import type { RealtimeHandlers } from '../../api/socket';
 import { AppProvider, useApp } from '../AppProvider';
 
@@ -49,8 +49,8 @@ jest.mock('../../api/socket', () => ({
       handlers = h;
     }
     watchHome() {}
-    watchSession() {}
-    unwatchSession() {}
+    watchChannel() {}
+    unwatchChannel() {}
     act() {}
     disconnect() {}
   },
@@ -96,16 +96,16 @@ describe('countdown ticking', () => {
       );
     });
 
-    // A session on screen is what starts the local tick.
-    const session = reduce(
-      createSession({ id: 'sess_1', initiator: ME, invitees: [THEM], now: T0 }),
+    // A channel on screen is what starts the local tick.
+    const channel = reduce(
+      createChannel({ id: 'sess_1', initiator: ME, invitees: [THEM], now: T0 }),
       { type: 'ENTER', userId: THEM },
       T0
     );
     await act(async () => {
       handlers.onServerTime?.(T0);
-      handlers.onSession?.({
-        session,
+      handlers.onChannel?.({
+        channel,
         participants: [
           { id: ME, displayName: 'Me' },
           { id: THEM, displayName: 'Dana' },
@@ -129,7 +129,7 @@ describe('countdown ticking', () => {
     await act(async () => tree.unmount());
   });
 
-  it('stops ticking once the session is gone', async () => {
+  it('stops ticking once the channel is gone', async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(
@@ -139,7 +139,7 @@ describe('countdown ticking', () => {
       );
     });
 
-    const session = createSession({
+    const channel = createChannel({
       id: 'sess_1',
       initiator: ME,
       invitees: [THEM],
@@ -147,8 +147,8 @@ describe('countdown ticking', () => {
     });
     await act(async () => {
       handlers.onServerTime?.(T0);
-      handlers.onSession?.({
-        session,
+      handlers.onChannel?.({
+        channel,
         participants: [
           { id: ME, displayName: 'Me' },
           { id: THEM, displayName: 'Dana' },
@@ -157,7 +157,7 @@ describe('countdown ticking', () => {
       });
     });
     await act(async () => {
-      handlers.onSessionGone?.('sess_1');
+      handlers.onChannelGone?.('sess_1');
     });
 
     const before = textOf(tree);

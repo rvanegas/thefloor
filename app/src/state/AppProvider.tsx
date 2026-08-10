@@ -13,7 +13,7 @@ import type {
   ClientAction,
   HomeView,
   PublicAccount,
-  SessionView,
+  ChannelView,
 } from '../../../core/protocol';
 import { api, ApiError, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
@@ -53,7 +53,7 @@ interface AppState {
   token: string | null;
   me: PublicAccount | null;
   home: HomeView | null;
-  sessionView: SessionView | null;
+  channelView: ChannelView | null;
   status: ConnectionStatus;
   lastError: string | null;
 }
@@ -73,14 +73,14 @@ interface AppValue extends AppState {
   withdrawContact: (identifier: string) => Promise<void>;
   acceptContact: (contactId: string) => Promise<void>;
   declineContact: (contactId: string) => Promise<void>;
-  startSession: (contactIds: string[]) => Promise<string>;
-  watchSession: (sessionId: string) => void;
-  leaveSessionView: (sessionId: string) => void;
-  act: (sessionId: string, action: ClientAction) => void;
+  startChannel: (contactIds: string[]) => Promise<string>;
+  watchChannel: (channelId: string) => void;
+  leaveChannelView: (channelId: string) => void;
+  act: (channelId: string, action: ClientAction) => void;
   clearError: () => void;
-  /** Invites this user has dismissed, by session id. */
+  /** Invites this user has dismissed, by channel id. */
   dismissedInvites: string[];
-  dismissInvite: (sessionId: string) => void;
+  dismissInvite: (channelId: string) => void;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -93,16 +93,16 @@ export function useApp(): AppValue {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   /**
-   * Dismissed invites, by session id. Held here rather than in the view
+   * Dismissed invites, by channel id. Held here rather than in the view
    * because a dismissal is an action, and one that forgets itself the moment
    * you navigate away is not really a dismissal.
    *
-   * Keyed by session, so it is permanent for that invitation and no longer:
-   * there is only ever one live session per set of people, so being invited
-   * again means a new session with a new id, which raises a new banner. That
+   * Keyed by channel, so it is permanent for that invitation and no longer:
+   * there is only ever one live channel per set of people, so being invited
+   * again means a new channel with a new id, which raises a new banner. That
    * gives both halves of what a dismissal should mean without a second rule.
    *
-   * It does not survive relaunching the app. Sessions are short-lived, and
+   * It does not survive relaunching the app. Channels are short-lived, and
    * reopening to see what is currently live is reasonable rather than a fault.
    */
   const [dismissedInvites, setDismissedInvites] = useState<string[]>([]);
@@ -111,7 +111,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     token: null,
     me: null,
     home: null,
-    sessionView: null,
+    channelView: null,
     status: 'closed',
     lastError: null,
   });
@@ -146,11 +146,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // — the whole floor mechanic — silently compares against nothing.
         onHello: (account) => setState((s) => ({ ...s, me: account })),
         onHome: (home) => setState((s) => ({ ...s, home })),
-        onSession: (view) => setState((s) => ({ ...s, sessionView: view })),
-        onSessionGone: (sessionId) =>
+        onChannel: (view) => setState((s) => ({ ...s, channelView: view })),
+        onChannelGone: (channelId) =>
           setState((s) =>
-            s.sessionView?.session.id === sessionId
-              ? { ...s, sessionView: null }
+            s.channelView?.channel.id === channelId
+              ? { ...s, channelView: null }
               : s
           ),
         onStatus: (status) => setState((s) => ({ ...s, status })),
@@ -197,12 +197,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [connect]);
 
-  // Drives countdowns while a session is on screen.
+  // Drives countdowns while a channel is on screen.
   useEffect(() => {
-    if (!state.sessionView) return;
+    if (!state.channelView) return;
     const timer = setInterval(() => forceTick((n) => n + 1), 500);
     return () => clearInterval(timer);
-  }, [state.sessionView !== null]);
+  }, [state.channelView !== null]);
 
   /**
    * Turns a refused credential — from any request, any file transfer, or a
@@ -223,10 +223,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         token: null,
         me: null,
         home: null,
-        sessionView: null,
+        channelView: null,
         status: 'closed',
         lastError:
-          'You were signed out. Signing in on another device ends the session here.',
+          'You were signed out. Signing in on another device ends the channel here.',
       });
     });
     return () => onSignedOut(null);
@@ -240,9 +240,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       serverNow,
       dismissedInvites,
 
-      dismissInvite: (sessionId) => {
+      dismissInvite: (channelId) => {
         setDismissedInvites((d) =>
-          d.includes(sessionId) ? d : [...d, sessionId]
+          d.includes(channelId) ? d : [...d, channelId]
         );
       },
 
@@ -266,11 +266,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           token: null,
           me: null,
           home: null,
-          sessionView: null,
+          channelView: null,
           status: 'closed',
           lastError: null,
         });
-        // Best effort: the local session is already gone either way.
+        // Best effort: the local channel is already gone either way.
         if (token) await api.signOut(token).catch(() => {});
       },
 
@@ -303,21 +303,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState((s) => ({ ...s, home }));
       },
 
-      startSession: async (contactIds) => {
+      startChannel: async (contactIds) => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
-        const { sessionId } = await api.startSession(state.token, contactIds);
-        realtime.watchSession(sessionId);
-        return sessionId;
+        const { channelId } = await api.startChannel(state.token, contactIds);
+        realtime.watchChannel(channelId);
+        return channelId;
       },
 
-      watchSession: (sessionId) => realtime.watchSession(sessionId),
+      watchChannel: (channelId) => realtime.watchChannel(channelId),
 
-      leaveSessionView: (sessionId) => {
-        realtime.unwatchSession(sessionId);
-        setState((s) => ({ ...s, sessionView: null }));
+      leaveChannelView: (channelId) => {
+        realtime.unwatchChannel(channelId);
+        setState((s) => ({ ...s, channelView: null }));
       },
 
-      act: (sessionId, action) => realtime.act(sessionId, action),
+      act: (channelId, action) => realtime.act(channelId, action),
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),
     }),

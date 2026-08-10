@@ -12,7 +12,7 @@ import type { PlaybackState, PlaybackTrack } from './types';
  * What this does *not* contain is any record of why playback is where it is —
  * no note of who paused it or whether the floor was involved. A floor claim
  * does not pause anything; it decides who may act, which is a guard in
- * session.ts and not state here. See `canControlPlayback`.
+ * channel.ts and not state here. See `canControlPlayback`.
  */
 
 export function initialPlaybackState(): PlaybackState {

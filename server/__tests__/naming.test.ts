@@ -2,8 +2,8 @@ import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 
 /**
- * Session names over the wire: the SET_NAME action, the Home view carrying it,
- * and the ended session's row keeping it.
+ * Channel names over the wire: the SET_NAME action, the Home view carrying it,
+ * and the ended channel's row keeping it.
  */
 
 let app: App;
@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  app.sessions.stop();
+  app.channels.stop();
   await app.fastify.close();
 });
 
@@ -52,32 +52,32 @@ async function pair() {
     url: `/contacts/${alice.account.id}/accept`,
     headers: auth(bob.token),
   });
-  const created = app.sessions.create(alice.account.id, [bob.account.id]);
+  const created = app.channels.create(alice.account.id, [bob.account.id]);
   if (!created.ok) throw new Error(created.error);
-  return { alice, bob, sessionId: created.session.id };
+  return { alice, bob, channelId: created.channel.id };
 }
 
-describe('naming a session', () => {
+describe('naming a channel', () => {
   it('any participant may set it, and it reaches the rejoinable view', async () => {
-    const { alice, bob, sessionId } = await pair();
-    const named = app.sessions.dispatch(sessionId, bob.account.id, {
+    const { alice, bob, channelId } = await pair();
+    const named = app.channels.dispatch(channelId, bob.account.id, {
       type: 'SET_NAME',
       name: '  Book club  ',
     } as never);
     expect(named.ok).toBe(true);
-    expect(app.sessions.get(sessionId)?.name).toBe('Book club');
+    expect(app.channels.get(channelId)?.name).toBe('Book club');
 
-    // Alice leaves with Bob still there, making the session rejoinable for her.
-    app.sessions.dispatch(sessionId, bob.account.id, { type: 'ENTER' });
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'LEAVE' });
-    const rejoinable = app.sessions.rejoinableFor(alice.account.id);
+    // Alice leaves with Bob still there, making the channel rejoinable for her.
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE' });
+    const rejoinable = app.channels.rejoinableFor(alice.account.id);
     expect(rejoinable).toHaveLength(1);
     expect(rejoinable[0].name).toBe('Book club');
   });
 
   it('refuses a payload whose name is not a string', async () => {
-    const { alice, sessionId } = await pair();
-    const result = app.sessions.dispatch(sessionId, alice.account.id, {
+    const { alice, channelId } = await pair();
+    const result = app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_NAME',
       name: 42,
     } as never);
@@ -86,19 +86,19 @@ describe('naming a session', () => {
       error: 'Not an action.',
       code: 'invalid',
     });
-    expect(app.sessions.get(sessionId)?.name).toBeNull();
+    expect(app.channels.get(channelId)?.name).toBeNull();
   });
 
-  it('persists the name on the ended session row', async () => {
-    const { alice, sessionId } = await pair();
-    app.sessions.dispatch(sessionId, alice.account.id, {
+  it('persists the name on the ended channel row', async () => {
+    const { alice, channelId } = await pair();
+    app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_NAME',
       name: 'Book club',
     } as never);
-    app.sessions.dispatch(sessionId, alice.account.id, { type: 'END' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
     const row = app.db
-      .prepare('SELECT name FROM sessions WHERE id = ?')
-      .get(sessionId) as { name: string | null };
+      .prepare('SELECT name FROM channels WHERE id = ?')
+      .get(channelId) as { name: string | null };
     expect(row.name).toBe('Book club');
   });
 });

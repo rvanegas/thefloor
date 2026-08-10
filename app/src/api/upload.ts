@@ -8,7 +8,7 @@ import { ApiError, reportSignedOut } from './http';
  * Deliberately not a top-level import. `expo-document-picker` resolves its
  * native module at module scope — `requireNativeModule('ExpoDocumentPicker')`,
  * with no optional variant — so it throws on import if the native side is
- * missing from the build. This file is reached from SessionView, which App.tsx
+ * missing from the build. This file is reached from ChannelView, which App.tsx
  * imports at startup, so that throw happened while the bundle was still
  * evaluating: React never mounted and the app rendered as a black screen with
  * no way to tell why.
@@ -30,11 +30,11 @@ async function loadPicker(): Promise<typeof import('expo-document-picker')> {
 }
 
 /**
- * Picks an audio file and gives it to the session for both parties to hear.
+ * Picks an audio file and gives it to the channel for both parties to hear.
  *
  * The legacy FileSystem entry point again, for the reason download.ts gives:
  * it reports the HTTP status, and the newer File API does not. A refusal here
- * — the wrong session, or someone else holding the floor — has to reach the
+ * — the wrong channel, or someone else holding the floor — has to reach the
  * user as itself rather than as a silent no-op.
  *
  * The bytes go up raw rather than as multipart. There is one file and no
@@ -47,7 +47,7 @@ export const MAX_TRACK_BYTES = 100 * 1024 * 1024;
 
 export async function pickAndUploadTrack(
   token: string,
-  sessionId: string
+  channelId: string
 ): Promise<{ cancelled: boolean }> {
   if (!API_URL) throw new ApiError('No server configured.', 0);
 
@@ -76,7 +76,7 @@ export async function pickAndUploadTrack(
   }
 
   const url =
-    `${API_URL}/sessions/${sessionId}/track` +
+    `${API_URL}/channels/${channelId}/track` +
     `?name=${encodeURIComponent(asset.name ?? 'track')}`;
 
   let result: FileSystem.FileSystemUploadResult;

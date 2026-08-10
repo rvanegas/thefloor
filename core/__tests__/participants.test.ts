@@ -1,13 +1,13 @@
-import { FLOOR_CLAIM_DELAY_STEP_MS, MAX_SESSION_PARTICIPANTS } from '../constants';
+import { FLOOR_CLAIM_DELAY_STEP_MS, MAX_CHANNEL_PARTICIPANTS } from '../constants';
 import {
   canClaimFloor,
   canInvite,
-  createSession,
+  createChannel,
   isParticipant,
   otherParticipants,
   reduce,
-} from '../session';
-import type { SessionState } from '../types';
+} from '../channel';
+import type { ChannelState } from '../types';
 
 const A = 'usr_a';
 const B = 'usr_b';
@@ -15,15 +15,15 @@ const C = 'usr_c';
 const D = 'usr_d';
 const T0 = 1_000_000;
 
-/** A three-person session with everyone present. */
-function trio(now = T0): SessionState {
-  let s = createSession({ id: 's1', initiator: A, invitees: [B, C], now });
+/** A three-person channel with everyone present. */
+function trio(now = T0): ChannelState {
+  let s = createChannel({ id: 's1', initiator: A, invitees: [B, C], now });
   s = reduce(s, { type: 'ENTER', userId: B }, now);
   s = reduce(s, { type: 'ENTER', userId: C }, now);
   return s;
 }
 
-describe('createSession with several invitees', () => {
+describe('createChannel with several invitees', () => {
   it('lists every participant, initiator first', () => {
     const s = trio();
     expect(s.participants).toEqual([A, B, C]);
@@ -36,16 +36,16 @@ describe('createSession with several invitees', () => {
 
   it('rejects a structurally invalid roster', () => {
     expect(() =>
-      createSession({ id: 's1', initiator: A, invitees: [], now: T0 })
+      createChannel({ id: 's1', initiator: A, invitees: [], now: T0 })
     ).toThrow();
     expect(() =>
-      createSession({ id: 's1', initiator: A, invitees: [A], now: T0 })
+      createChannel({ id: 's1', initiator: A, invitees: [A], now: T0 })
     ).toThrow();
     expect(() =>
-      createSession({ id: 's1', initiator: A, invitees: [B, B], now: T0 })
+      createChannel({ id: 's1', initiator: A, invitees: [B, B], now: T0 })
     ).toThrow();
     expect(() =>
-      createSession({
+      createChannel({
         id: 's1',
         initiator: A,
         invitees: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'],
@@ -73,10 +73,10 @@ describe('INVITE', () => {
     expect(reduce(s, { type: 'INVITE', userId: D, inviteeId: 'usr_e' }, T0)).toBe(s);
     expect(reduce(s, { type: 'INVITE', userId: A, inviteeId: B }, T0)).toBe(s);
 
-    for (let i = s.participants.length; i < MAX_SESSION_PARTICIPANTS; i++) {
+    for (let i = s.participants.length; i < MAX_CHANNEL_PARTICIPANTS; i++) {
       s = reduce(s, { type: 'INVITE', userId: A, inviteeId: `usr_extra${i}` }, T0);
     }
-    expect(s.participants).toHaveLength(MAX_SESSION_PARTICIPANTS);
+    expect(s.participants).toHaveLength(MAX_CHANNEL_PARTICIPANTS);
     expect(canInvite(s, A, 'usr_more')).toBe(false);
     expect(reduce(s, { type: 'INVITE', userId: A, inviteeId: 'usr_more' }, T0)).toBe(s);
   });

@@ -29,12 +29,12 @@ import {
  * simply keep sending, or keep playing. So the cut is made here, by the same
  * authority that decides who holds the floor.
  *
- * Behind an interface for the same reason delivery is: it keeps the session
+ * Behind an interface for the same reason delivery is: it keeps the channel
  * rules testable without a media server, and it keeps the choice of provider
  * from spreading through the codebase.
  */
 export interface MediaServer {
-  /** A join credential for one participant in one session's room. */
+  /** A join credential for one participant in one channel's room. */
   issueToken(params: {
     room: string;
     identity: string;
@@ -67,7 +67,7 @@ export interface MediaServer {
     silenced: boolean;
   }): Promise<boolean>;
 
-  /** Tears the room down when the session ends. */
+  /** Tears the room down when the channel ends. */
   closeRoom(room: string): Promise<void>;
 
   /**
@@ -108,11 +108,11 @@ export interface MediaServer {
   }): Promise<PlaybackSession>;
 }
 
-/** One session's shared playback, for as long as a track is loaded. */
+/** One channel's shared playback, for as long as a track is loaded. */
 export interface PlaybackSession {
   /**
    * Swaps in a different file. Loading another track does not re-open the
-   * session, so the recording stem stays continuous across the change.
+   * channel, so the recording stem stays continuous across the change.
    */
   setFile(file: string): Promise<void>;
   /** Plays from `fromMs`. Resuming and seeking are the same call. */
@@ -135,7 +135,7 @@ export interface RecordingStorage {
   region: string;
   accessKey: string;
   secret: string;
-  /** Key prefix inside the bucket, e.g. "sessions". */
+  /** Key prefix inside the bucket, e.g. "channels". */
   prefix?: string;
 }
 
@@ -442,7 +442,7 @@ export class MemoryMediaServer implements MediaServer {
   }> = [];
   readonly issued: Array<{ room: string; identity: string }> = [];
   readonly closed: string[] = [];
-  /** Playback sessions opened, in order, live or closed. */
+  /** Playback channels opened, in order, live or closed. */
   readonly playbacks: MemoryPlaybackSession[] = [];
   /**
    * While set, startRecording rejects — for every participant, or just one when
@@ -452,7 +452,7 @@ export class MemoryMediaServer implements MediaServer {
   /**
    * Identities (`room/identity`) treated as having no published track:
    * setSilenced against them is a no-op returning false, as it is against a
-   * participant who has joined the session but not the room yet.
+   * participant who has joined the channel but not the room yet.
    */
   readonly unpublished = new Set<string>();
 
@@ -517,16 +517,16 @@ export class MemoryMediaServer implements MediaServer {
     identity: string;
     file: string;
   }) {
-    const session = new MemoryPlaybackSession(room, identity, file);
-    this.playbacks.push(session);
-    return session;
+    const channel = new MemoryPlaybackSession(room, identity, file);
+    this.playbacks.push(channel);
+    return channel;
   }
 
   isMuted(room: string, identity: string): boolean | undefined {
     return this.muted.get(`${room}/${identity}`);
   }
 
-  /** The playback session for a room, if one was ever opened. */
+  /** The playback channel for a room, if one was ever opened. */
   playbackFor(room: string): MemoryPlaybackSession | undefined {
     return this.playbacks.find((p) => p.room === room);
   }

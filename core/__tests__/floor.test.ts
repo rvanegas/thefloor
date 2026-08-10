@@ -9,26 +9,26 @@ import {
   floorRemainingMs,
   isSilenced,
 } from '../floor';
-import { canClaimFloor, createSession, reduce } from '../session';
-import type { SessionAction, SessionState } from '../types';
+import { canClaimFloor, createChannel, reduce } from '../channel';
+import type { ChannelAction, ChannelState } from '../types';
 
 const A = 'user-a';
 const B = 'user-b';
 const T0 = 1_700_000_000_000;
 
-function newSession(now = T0): SessionState {
-  return createSession({ id: 's1', initiator: A, invitees: [B], now });
+function newSession(now = T0): ChannelState {
+  return createChannel({ id: 's1', initiator: A, invitees: [B], now });
 }
 
 /** Both parties present and idle, the normal starting point for floor tests. */
-function joined(now = T0): SessionState {
+function joined(now = T0): ChannelState {
   return reduce(newSession(now), { type: 'ENTER', userId: B }, now);
 }
 
 function apply(
-  state: SessionState,
-  steps: Array<[SessionAction, number]>
-): SessionState {
+  state: ChannelState,
+  steps: Array<[ChannelAction, number]>
+): ChannelState {
   return steps.reduce((s, [action, at]) => reduce(s, action, at), state);
 }
 
@@ -232,8 +232,8 @@ describe('leaving and the floor', () => {
   });
 });
 
-describe('session lifecycle', () => {
-  it('does not run the empty-session timer while anyone is present', () => {
+describe('channel lifecycle', () => {
+  it('does not run the empty-channel timer while anyone is present', () => {
     const alone = newSession();
     const muchLater = reduce(alone, { type: 'TICK' }, T0 + 60 * 60 * 1000);
     expect(muchLater.status).toBe('active');
@@ -256,7 +256,7 @@ describe('session lifecycle', () => {
     expect(at.endedReason).toBe('empty-timeout');
   });
 
-  it('cancels the empty-session timer on re-entry', () => {
+  it('cancels the empty-channel timer on re-entry', () => {
     const s = apply(newSession(), [
       [{ type: 'LEAVE', userId: A }, T0 + 1_000],
       [{ type: 'ENTER', userId: A }, T0 + 30_000],
@@ -289,7 +289,7 @@ describe('session lifecycle', () => {
 
 describe('the claim delay with more than two people', () => {
   /**
-   * Sessions still hold exactly two, but the rule does not. Testing it against
+   * Channels still hold exactly two, but the rule does not. Testing it against
    * a synthetic set of participants proves the design before the data model
    * changes to allow a third — which is the expensive part, and the wrong place
    * to discover the rule was wrong.

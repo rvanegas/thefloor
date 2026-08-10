@@ -5,18 +5,18 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
-import { SessionView } from './src/ui/SessionView';
+import { ChannelView } from './src/ui/ChannelView';
 import { colors } from './src/ui/theme';
 
 /**
- * Three views: Auth when signed out, Session when in one, Home otherwise.
- * Sessions outlive presence, so leaving the Session screen returns to Home
- * without ending anything — the session keeps running on the server until it
+ * Three views: Auth when signed out, Channel when in one, Home otherwise.
+ * Channels outlive presence, so leaving the Channel screen returns to Home
+ * without ending anything — the channel keeps running on the server until it
  * ends or times out.
  */
 function Root() {
   const { ready, token } = useApp();
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [channelId, setSessionId] = useState<string | null>(null);
 
   if (!ready) {
     return (
@@ -28,10 +28,10 @@ function Root() {
 
   if (!token) return <AuthView />;
 
-  return sessionId ? (
-    <SessionView sessionId={sessionId} onExit={() => setSessionId(null)} />
+  return channelId ? (
+    <ChannelView channelId={channelId} onExit={() => setSessionId(null)} />
   ) : (
-    <HomeView onEnterSession={setSessionId} />
+    <HomeView onEnterChannel={setSessionId} />
   );
 }
 

@@ -25,10 +25,10 @@ export interface ContactRow {
 
 export interface RecordingRow {
   id: string;
-  session_id: string;
+  channel_id: string;
   initiator_id: string;
   invitee_id: string;
-  /** JSON: string[] — every participant of the recorded session, in order. */
+  /** JSON: string[] — every participant of the recorded channel, in order. */
   participants: string | null;
   started_at: number;
   duration_ms: number;
@@ -37,7 +37,7 @@ export interface RecordingRow {
   /**
    * JSON: { [identity]: Array<{ key, startMs }> } — each participant's
    * segments in order, with where in the recorded audio each begins. Rows
-   * written before mid-session joins existed hold { [identity]: string[] };
+   * written before mid-channel joins existed hold { [identity]: string[] };
    * the export accepts both.
    */
   stems: string | null;
@@ -101,20 +101,20 @@ CREATE TABLE IF NOT EXISTS pending_invites (
   PRIMARY KEY (requester_id, identifier)
 );
 
--- Sessions are held in memory while live; this is the record written when one
+-- Channels are held in memory while live; this is the record written when one
 -- ends, for history and to anchor recordings.
--- initiator_id/invitee_id predate sessions holding more than two people.
+-- initiator_id/invitee_id predate channels holding more than two people.
 -- They are kept (and written with the initiator and first invitee) because
 -- dropping a NOT NULL column means rebuilding the table for no gain; the
 -- participants JSON is what is read.
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE IF NOT EXISTS channels (
   id           TEXT PRIMARY KEY,
   initiator_id TEXT NOT NULL REFERENCES accounts(id),
   invitee_id   TEXT NOT NULL REFERENCES accounts(id),
   created_at   INTEGER NOT NULL,
   ended_at     INTEGER,
   ended_reason TEXT,
-  -- JSON string[]: everyone in the session, initiator first.
+  -- JSON string[]: everyone in the channel, initiator first.
   participants TEXT,
   -- What the participants called it, if they named it. Null means unnamed.
   name TEXT
@@ -122,10 +122,10 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE TABLE IF NOT EXISTS recordings (
   id           TEXT PRIMARY KEY,
-  session_id   TEXT NOT NULL REFERENCES sessions(id),
+  channel_id   TEXT NOT NULL REFERENCES channels(id),
   initiator_id TEXT NOT NULL,
   invitee_id   TEXT NOT NULL,
-  -- JSON string[], as on sessions. Membership queries go through json_each.
+  -- JSON string[], as on channels. Membership queries go through json_each.
   participants TEXT,
   started_at   INTEGER NOT NULL,
   duration_ms  INTEGER NOT NULL,
@@ -151,10 +151,71 @@ export type Db = DatabaseSync;
 export function openDb(path: string): Db {
   const db = new DatabaseSync(path);
   db.exec('PRAGMA journal_mode = WAL');
+  // Before SCHEMA, deliberately: see renameLegacyTables. Foreign keys are off
+  // here (the default), which is what keeps the rename out of the enforcement
+  // path; they are turned on immediately afterwards.
+  renameLegacyTables(db);
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA);
   migrate(db);
   return db;
+}
+
+/** Whether a table of this name exists. */
+function hasTable(db: Db, name: string): boolean {
+  return !!db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(name);
+}
+
+function hasColumn(db: Db, table: string, column: string): boolean {
+  if (!hasTable(db, table)) return false;
+  const columns = db
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as Array<{ name: string }>;
+  return columns.some((c) => c.name === column);
+}
+
+/**
+ * Sessions became channels. This renames the tables a pre-existing database
+ * still calls by the old names.
+ *
+ * **It has to run before `SCHEMA`.** Every statement there is
+ * `CREATE TABLE IF NOT EXISTS`, so against an un-renamed database it would
+ * cheerfully create an empty `channels` table beside the real `sessions` one,
+ * after which the rename is impossible and every existing conversation is
+ * stranded where nothing will ever look for it.
+ *
+ * Idempotent, so reopening a database that has already been renamed — or one
+ * created fresh under the new names — does nothing.
+ */
+function renameLegacyTables(db: Db): void {
+  if (hasTable(db, 'sessions') && !hasTable(db, 'channels')) {
+    db.exec('ALTER TABLE sessions RENAME TO channels');
+  }
+  if (
+    hasColumn(db, 'recordings', 'session_id') &&
+    !hasColumn(db, 'recordings', 'channel_id')
+  ) {
+    db.exec('ALTER TABLE recordings RENAME COLUMN session_id TO channel_id');
+  }
+
+  // SQLite rewrites a child's REFERENCES clause when the parent is renamed,
+  // so `recordings` should now point at `channels`. Verified against 3.50.4,
+  // but asserted rather than assumed: this is the one irreversible step in the
+  // migration, and a silent failure here would surface much later as an insert
+  // rejected by a foreign key naming a table that no longer exists.
+  if (hasTable(db, 'recordings') && hasTable(db, 'channels')) {
+    const ddl = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'recordings'")
+      .get() as { sql?: string } | undefined;
+    if (ddl?.sql && /REFERENCES\s+"?sessions"?/i.test(ddl.sql)) {
+      throw new Error(
+        'recordings still references a sessions table after the rename; ' +
+          'the database needs rebuilding by hand before this server can run.'
+      );
+    }
+  }
 }
 
 /** Additive migrations for databases created before a column existed. */
@@ -168,19 +229,19 @@ function migrate(db: Db): void {
     }
   }
 
-  const sessionColumns = db
-    .prepare('PRAGMA table_info(sessions)')
+  const channelColumns = db
+    .prepare('PRAGMA table_info(channels)')
     .all() as Array<{ name: string }>;
   for (const column of ['participants', 'name']) {
-    if (!sessionColumns.some((c) => c.name === column)) {
-      db.exec(`ALTER TABLE sessions ADD COLUMN ${column} TEXT`);
+    if (!channelColumns.some((c) => c.name === column)) {
+      db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);
     }
   }
 
   // Backfill: every row written before the column existed was a two-party
-  // session, so its roster is exactly the legacy columns. Runs before any
+  // channel, so its roster is exactly the legacy columns. Runs before any
   // query, which is what lets membership checks read participants alone.
-  db.exec(`UPDATE sessions SET participants = json_array(initiator_id, invitee_id)
+  db.exec(`UPDATE channels SET participants = json_array(initiator_id, invitee_id)
            WHERE participants IS NULL`);
   db.exec(`UPDATE recordings SET participants = json_array(initiator_id, invitee_id)
            WHERE participants IS NULL`);

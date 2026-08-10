@@ -11,7 +11,7 @@ import type {
   ServerMessage,
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
-import type { SessionRegistry } from './sessions';
+import type { ChannelRegistry } from './channels';
 
 interface Connection {
   socket: WebSocket;
@@ -27,7 +27,7 @@ interface Connection {
    */
   token: string;
   watchingHome: boolean;
-  watchingSessions: Set<string>;
+  watchingChannels: Set<string>;
   /** When anything was last heard from this client. */
   lastSeen: number;
 }
@@ -36,7 +36,7 @@ interface Connection {
 const UNAUTHORIZED_CLOSE = 4401;
 
 /**
- * Lets non-session code (contact changes, which arrive over HTTP) push Home to
+ * Lets non-channel code (contact changes, which arrive over HTTP) push Home to
  * the people affected. Created before the websocket plugin has loaded, so it
  * starts as a no-op and is filled in when the socket layer registers.
  */
@@ -49,19 +49,19 @@ export function createHomeNotifier(): HomeNotifier {
 }
 
 /**
- * Realtime fan-out. Clients never compute session state — they watch it. Every
+ * Realtime fan-out. Clients never compute channel state — they watch it. Every
  * snapshot carries the server's clock, so countdowns run against one authority
  * rather than each device's own idea of the time.
  */
 export function registerWebsocket(deps: {
   fastify: FastifyInstance;
   accounts: Accounts;
-  sessions: SessionRegistry;
+  channels: ChannelRegistry;
   homeFor: (userId: string) => HomeView;
   now: () => number;
   homeNotifier: HomeNotifier;
 }): void {
-  const { fastify, accounts, sessions, homeFor, now, homeNotifier } = deps;
+  const { fastify, accounts, channels, homeFor, now, homeNotifier } = deps;
   const connections = new Set<Connection>();
 
   /** Whether this user still has any live socket. */
@@ -74,7 +74,7 @@ export function registerWebsocket(deps: {
    * A TCP connection can die without either end being told — no close arrives,
    * and the socket sits half-open until the OS gives up, which is hours by
    * default. Left to that, nothing downstream works: the grace period never
-   * starts, so nobody is removed, so a session never empties, never auto-ends,
+   * starts, so nobody is removed, so a channel never empties, never auto-ends,
    * and a recording bills indefinitely against two egresses.
    *
    * Closing the socket is enough; its close handler does the reporting, which
@@ -111,21 +111,21 @@ export function registerWebsocket(deps: {
     }
   }
 
-  function pushSession(connection: Connection, sessionId: string): void {
-    const session = sessions.viewableBy(sessionId, connection.userId);
-    if (!session) {
-      send(connection, { type: 'session.gone', sessionId });
-      connection.watchingSessions.delete(sessionId);
+  function pushChannel(connection: Connection, channelId: string): void {
+    const channel = channels.viewableBy(channelId, connection.userId);
+    if (!channel) {
+      send(connection, { type: 'channel.gone', channelId });
+      connection.watchingChannels.delete(channelId);
       return;
     }
     // Per id rather than all-or-nothing: one unresolvable account must not
     // cost everyone else their snapshot.
-    const participants = session.participants
+    const participants = channel.participants
       .map((id) => accounts.public(id))
       .filter((account): account is PublicAccount => !!account);
     send(connection, {
-      type: 'session',
-      view: { session, participants, serverNow: now() },
+      type: 'channel',
+      view: { channel, participants, serverNow: now() },
     });
   }
 
@@ -144,13 +144,13 @@ export function registerWebsocket(deps: {
     }
   };
 
-  // Any session change can alter both parties' Home (an invite appears, a
-  // rejoinable session shows up), so both views refresh together.
-  sessions.onChange((changedIds) => {
+  // Any channel change can alter both parties' Home (an invite appears, a
+  // rejoinable channel shows up), so both views refresh together.
+  channels.onChange((changedIds) => {
     for (const connection of connections) {
-      for (const sessionId of changedIds) {
-        if (connection.watchingSessions.has(sessionId)) {
-          pushSession(connection, sessionId);
+      for (const channelId of changedIds) {
+        if (connection.watchingChannels.has(channelId)) {
+          pushChannel(connection, channelId);
         }
       }
       if (connection.watchingHome) pushHome(connection);
@@ -185,15 +185,15 @@ export function registerWebsocket(deps: {
       userId: account.id,
       token,
       watchingHome: false,
-      watchingSessions: new Set(),
+      watchingChannels: new Set(),
       lastSeen: now(),
     };
     connections.add(connection);
 
-    // Any session this user is already in now has a live connection again,
+    // Any channel this user is already in now has a live connection again,
     // cancelling a grace period they may be part-way through.
-    for (const session of sessions.sessionsFor(account.id)) {
-      sessions.report(session, account.id, 'CONNECTED');
+    for (const channel of channels.channelsFor(account.id)) {
+      channels.report(channel, account.id, 'CONNECTED');
     }
 
     send(connection, {
@@ -224,24 +224,24 @@ export function registerWebsocket(deps: {
           pushHome(connection);
           return;
 
-        case 'watch.session':
-          connection.watchingSessions.add(message.sessionId);
-          // Watching is itself proof of a connection to this session, which
+        case 'watch.channel':
+          connection.watchingChannels.add(message.channelId);
+          // Watching is itself proof of a connection to this channel, which
           // matters on a reconnect: the socket is new, so nothing has told the
-          // session its owner is reachable again.
-          sessions.report(message.sessionId, connection.userId, 'CONNECTED');
-          pushSession(connection, message.sessionId);
+          // channel its owner is reachable again.
+          channels.report(message.channelId, connection.userId, 'CONNECTED');
+          pushChannel(connection, message.channelId);
           return;
 
-        case 'unwatch.session':
-          connection.watchingSessions.delete(message.sessionId);
+        case 'unwatch.channel':
+          connection.watchingChannels.delete(message.channelId);
           return;
 
-        case 'session.action': {
+        case 'channel.action': {
           // The actor comes from the authenticated connection, never the
           // payload — a client cannot act as the other party.
-          const result = sessions.dispatch(
-            message.sessionId,
+          const result = channels.dispatch(
+            message.channelId,
             connection.userId,
             message.action
           );
@@ -249,8 +249,8 @@ export function registerWebsocket(deps: {
             send(connection, { type: 'error', message: result.error });
             return;
           }
-          connection.watchingSessions.add(message.sessionId);
-          pushSession(connection, message.sessionId);
+          connection.watchingChannels.add(message.channelId);
+          pushChannel(connection, message.channelId);
           return;
         }
 
@@ -261,7 +261,7 @@ export function registerWebsocket(deps: {
 
     socket.on('close', () => {
       connections.delete(connection);
-      // Losing a socket is not leaving a session. It starts the grace period,
+      // Losing a socket is not leaving a channel. It starts the grace period,
       // and reconnecting inside that minute cancels it — so a tunnel, a lift
       // or a backgrounded app costs nobody their place.
       //
@@ -269,9 +269,9 @@ export function registerWebsocket(deps: {
       // the one that is closing. And a socket that dies *after* its
       // replacement has connected reports nothing at all, which is what stops
       // a dead connection evicting a user who is demonstrably back.
-      for (const sessionId of connection.watchingSessions) {
+      for (const channelId of connection.watchingChannels) {
         if (!hasConnection(connection.userId)) {
-          sessions.report(sessionId, connection.userId, 'DISCONNECTED');
+          channels.report(channelId, connection.userId, 'DISCONNECTED');
         }
       }
     });

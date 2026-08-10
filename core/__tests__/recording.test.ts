@@ -5,27 +5,27 @@ import {
   canResumeRecording,
   canStartRecording,
   canStopRecording,
-  createSession,
+  createChannel,
   reduce,
-} from '../session';
-import type { SessionAction, SessionState } from '../types';
+} from '../channel';
+import type { ChannelAction, ChannelState } from '../types';
 
 const A = 'user-a';
 const B = 'user-b';
 const T0 = 1_700_000_000_000;
 
-function joined(now = T0): SessionState {
+function joined(now = T0): ChannelState {
   return reduce(
-    createSession({ id: 's1', initiator: A, invitees: [B], now }),
+    createChannel({ id: 's1', initiator: A, invitees: [B], now }),
     { type: 'ENTER', userId: B },
     now
   );
 }
 
 function apply(
-  state: SessionState,
-  steps: Array<[SessionAction, number]>
-): SessionState {
+  state: ChannelState,
+  steps: Array<[ChannelAction, number]>
+): ChannelState {
   return steps.reduce((s, [action, at]) => reduce(s, action, at), state);
 }
 
@@ -35,7 +35,7 @@ describe('starting a recording', () => {
   });
 
   it('waits until both parties have connected', () => {
-    const alone = createSession({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
     expect(canStartRecording(alone)).toBe(false);
     expect(canStartRecording(joined())).toBe(true);
   });
@@ -70,7 +70,7 @@ describe('pause, resume, and stop', () => {
     expect(recordedMs(stopped.recording, T0 + 99_000)).toBe(15_000);
   });
 
-  it('does not end the session', () => {
+  it('does not end the channel', () => {
     const s = apply(joined(), [
       [{ type: 'START_RECORDING', userId: A }, T0],
       [{ type: 'STOP_RECORDING', userId: A }, T0 + 10_000],
@@ -126,7 +126,7 @@ describe('floor restriction on recording controls', () => {
 });
 
 describe('recording and presence', () => {
-  it('keeps running while the session sits empty', () => {
+  it('keeps running while the channel sits empty', () => {
     const s = apply(joined(), [
       [{ type: 'START_RECORDING', userId: A }, T0],
       [{ type: 'LEAVE', userId: A }, T0 + 10_000],
@@ -138,7 +138,7 @@ describe('recording and presence', () => {
     expect(recordedMs(s.recording, T0 + 40_000)).toBe(40_000);
   });
 
-  it('finalizes when the empty session auto-ends', () => {
+  it('finalizes when the empty channel auto-ends', () => {
     const emptyAt = T0 + 20_000;
     const s = apply(joined(), [
       [{ type: 'START_RECORDING', userId: A }, T0],
@@ -152,7 +152,7 @@ describe('recording and presence', () => {
     expect(recordedMs(s.recording, Infinity)).toBe(20_000 + EMPTY_SESSION_TIMEOUT_MS);
   });
 
-  it('finalizes when the session is ended explicitly', () => {
+  it('finalizes when the channel is ended explicitly', () => {
     const s = apply(joined(), [
       [{ type: 'START_RECORDING', userId: A }, T0],
       [{ type: 'END', userId: B }, T0 + 30_000],

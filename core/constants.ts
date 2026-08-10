@@ -1,5 +1,5 @@
 /**
- * Timing constants for the floor mechanic and session lifecycle.
+ * Timing constants for the floor mechanic and channel lifecycle.
  * All durations in milliseconds.
  */
 
@@ -21,14 +21,14 @@ export const FLOOR_CLAIM_DELAY_STEP_MS = 10_000;
 export const FLOOR_CLAIM_DELAY_MAX_STEPS = 2;
 
 /**
- * The most people a session may hold, counting the initiator.
+ * The most people a channel may hold, counting the initiator.
  *
  * A cap keeps the claim-delay ladder meaningful — beyond four, everyone
  * outside the two most recent speakers ties at zero and races — and bounds
- * what one session costs in egress and per-pair subscription changes. It is a
+ * what one channel costs in egress and per-pair subscription changes. It is a
  * constant precisely so it can be raised without touching any rule.
  */
-export const MAX_SESSION_PARTICIPANTS = 6;
+export const MAX_CHANNEL_PARTICIPANTS = 6;
 
 /**
  * The level a newly loaded track starts at, 0..1.
@@ -41,22 +41,22 @@ export const MAX_SESSION_PARTICIPANTS = 6;
 export const PLAYBACK_DEFAULT_VOLUME = 0.7;
 
 /**
- * The most characters a session name may hold.
+ * The most characters a channel name may hold.
  *
  * Long enough for "Tuesday planning with the cousins", short enough that the
  * header it replaces cannot be scrolled off by its own title.
  */
-export const MAX_SESSION_NAME_LENGTH = 60;
+export const MAX_CHANNEL_NAME_LENGTH = 60;
 
-/** How long a session may sit with nobody present before it auto-ends. */
+/** How long a channel may sit with nobody present before it auto-ends. */
 export const EMPTY_SESSION_TIMEOUT_MS = 60 * 1000;
 
 /**
- * How long a user may be disconnected before they are removed from a session.
+ * How long a user may be disconnected before they are removed from a channel.
  *
  * Connectivity is not presence. A socket that drops and returns inside this
  * window changes nothing; only staying gone past it counts as leaving. It
- * stacks with EMPTY_SESSION_TIMEOUT_MS, so a session survives up to two
+ * stacks with EMPTY_SESSION_TIMEOUT_MS, so a channel survives up to two
  * minutes with nobody connected — deliberately, that being the interval in
  * which a tunnel or a lift is survivable.
  */
@@ -68,7 +68,7 @@ export const DISCONNECT_GRACE_MS = 60_000;
  *
  * Deliberately aggressive. Detection latency adds to DISCONNECT_GRACE_MS, so a
  * slow check delays every timer that depends on knowing someone has gone — a
- * user is not removed, a session never empties, and a recording keeps billing.
+ * user is not removed, a channel never empties, and a recording keeps billing.
  * Being wrong is cheap by comparison: a false positive shows "reconnecting…"
  * for a moment and then clears, because a disconnect no longer removes anyone.
  */

@@ -4,11 +4,11 @@ import renderer, {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
-import { createSession, reduce } from '../../../../core/session';
-import type { SessionState } from '../../../../core/types';
+import { createChannel, reduce } from '../../../../core/channel';
+import type { ChannelState } from '../../../../core/types';
 import type { HomeView as HomeViewData } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
-import { SessionView } from '../SessionView';
+import { ChannelView } from '../ChannelView';
 
 /**
  * The views now render server snapshots rather than driving a local model, so
@@ -26,7 +26,7 @@ const mockApp = {
   token: 'token',
   me: { id: ME, displayName: 'Me' },
   home: null as HomeViewData | null,
-  sessionView: null as { session: SessionState; participants: Array<{ id: string; displayName: string }>; serverNow: number } | null,
+  channelView: null as { channel: ChannelState; participants: Array<{ id: string; displayName: string }>; serverNow: number } | null,
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -36,14 +36,14 @@ const mockApp = {
   requestContact: jest.fn(),
   acceptContact: jest.fn(),
   declineContact: jest.fn(),
-  startSession: jest.fn(),
-  watchSession: jest.fn(),
-  leaveSessionView: jest.fn(),
+  startChannel: jest.fn(),
+  watchChannel: jest.fn(),
+  leaveChannelView: jest.fn(),
   act: jest.fn(),
   clearError: jest.fn(),
   dismissedInvites: [] as string[],
-  dismissInvite: jest.fn((sessionId: string) => {
-    mockApp.dismissedInvites = [...mockApp.dismissedInvites, sessionId];
+  dismissInvite: jest.fn((channelId: string) => {
+    mockApp.dismissedInvites = [...mockApp.dismissedInvites, channelId];
   }),
 };
 
@@ -113,8 +113,8 @@ function render(element: React.ReactElement): ReactTestRenderer {
   return tree;
 }
 
-function sessionOf(mutate: (s: SessionState) => SessionState = (s) => s) {
-  const base = createSession({
+function channelOf(mutate: (s: ChannelState) => ChannelState = (s) => s) {
+  const base = createChannel({
     id: 'sess_1',
     initiator: ME,
     invitees: [THEM],
@@ -123,16 +123,16 @@ function sessionOf(mutate: (s: SessionState) => SessionState = (s) => s) {
   return mutate(reduce(base, { type: 'ENTER', userId: THEM }, NOW));
 }
 
-function showSession(session: SessionState) {
+function showChannel(channel: ChannelState) {
   const names: Record<string, string> = {
     [ME]: 'Me',
     [THEM]: 'Dana Chu',
     acct_3: 'Miro Okafor',
     acct_4: 'Priya Raman',
   };
-  mockApp.sessionView = {
-    session,
-    participants: session.participants.map((id) => ({
+  mockApp.channelView = {
+    channel,
+    participants: channel.participants.map((id) => ({
       id,
       displayName: names[id] ?? id,
     })),
@@ -142,25 +142,25 @@ function showSession(session: SessionState) {
 
 beforeEach(() => {
   mockApp.home = null;
-  mockApp.sessionView = null;
+  mockApp.channelView = null;
   mockApp.status = 'open';
   mockApp.dismissedInvites = [];
   jest.clearAllMocks();
 });
 
 describe('Home', () => {
-  it('renders contacts, invites and rejoinable sessions from a snapshot', () => {
+  it('renders contacts, invites and rejoinable channels from a snapshot', () => {
     mockApp.home = {
       invites: [
         {
-          sessionId: 'sess_a',
+          channelId: 'sess_a',
           from: { id: THEM, displayName: 'Dana Chu' },
           createdAt: NOW,
         },
       ],
       rejoinable: [
         {
-          sessionId: 'sess_b',
+          channelId: 'sess_b',
           name: null,
           others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
           presentCount: 1,
@@ -174,7 +174,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterSession={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('tap to join');
     expect(text).toContain('Miro Okafor');
@@ -182,7 +182,7 @@ describe('Home', () => {
     expect(text).toContain('Priya Raman');
     expect(text).toContain('Accept');
     expect(text).toContain('Quinn Ito');
-    expect(text).toContain('Start session');
+    expect(text).toContain('Start channel');
     act(() => tree.unmount());
   });
 
@@ -195,7 +195,7 @@ describe('Home', () => {
       recordings: [
         {
           id: 'rec_1',
-          sessionId: 'sess_1',
+          channelId: 'sess_1',
           others: [{ id: THEM, displayName: 'Dana Chu' }],
           startedAt: NOW,
           durationMs: 92_000,
@@ -203,7 +203,7 @@ describe('Home', () => {
       ],
     };
 
-    const tree = render(<HomeView onEnterSession={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
     expect(textOf(tree)).toContain('1:32');
 
     const button = findButton(tree, 'Export');
@@ -213,13 +213,13 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
-  it('does not offer to start a session that has already begun', () => {
-    // A pair has at most one session. When it exists, the invite above is the
+  it('does not offer to start a channel that has already begun', () => {
+    // A pair has at most one channel. When it exists, the invite above is the
     // way in, and the contact row must not offer to start a second.
     mockApp.home = {
       invites: [
         {
-          sessionId: 'sess_a',
+          channelId: 'sess_a',
           from: { id: THEM, displayName: 'Dana Chu' },
           createdAt: NOW,
         },
@@ -231,9 +231,9 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterSession={() => {}} />);
-    expect(findButton(tree, 'Start session')).toBeUndefined();
-    expect(textOf(tree)).toContain('Session already open');
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    expect(findButton(tree, 'Start channel')).toBeUndefined();
+    expect(textOf(tree)).toContain('Channel already open');
     expect(textOf(tree)).toContain('tap to join');
     act(() => tree.unmount());
   });
@@ -243,7 +243,7 @@ describe('Home', () => {
       invites: [],
       rejoinable: [
         {
-          sessionId: 'sess_b',
+          channelId: 'sess_b',
           name: null,
           others: [{ id: THEM, displayName: 'Dana Chu' }],
           presentCount: 1,
@@ -256,19 +256,19 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterSession={() => {}} />);
-    expect(findButton(tree, 'Start session')).toBeUndefined();
-    expect(textOf(tree)).toContain('Session already open');
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    expect(findButton(tree, 'Start channel')).toBeUndefined();
+    expect(textOf(tree)).toContain('Channel already open');
     act(() => tree.unmount());
   });
 
   it('offers to join, not start, once the invite has been dismissed', () => {
     // Dismissing the banner removes the only other way in. Suppressing the
-    // contact row as well would leave no route to a session that still exists.
+    // contact row as well would leave no route to a channel that still exists.
     mockApp.home = {
       invites: [
         {
-          sessionId: 'sess_a',
+          channelId: 'sess_a',
           from: { id: THEM, displayName: 'Dana Chu' },
           createdAt: NOW,
         },
@@ -280,7 +280,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterSession={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
     const [dismiss] = tree.root.findAll(
       (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
@@ -289,13 +289,13 @@ describe('Home', () => {
     expect(mockApp.dismissInvite).toHaveBeenCalledWith('sess_a');
 
     // Dismissal lives in the provider now, so re-render with it applied.
-    act(() => tree.update(<HomeView onEnterSession={() => {}} />));
-    expect(findButton(tree, 'Start session')).toBeUndefined();
-    expect(findButton(tree, 'Join session')).toBeDefined();
+    act(() => tree.update(<HomeView onEnterChannel={() => {}} />));
+    expect(findButton(tree, 'Start channel')).toBeUndefined();
+    expect(findButton(tree, 'Join channel')).toBeDefined();
     act(() => tree.unmount());
   });
 
-  it('still offers to start when there is no session yet', () => {
+  it('still offers to start when there is no channel yet', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -304,20 +304,20 @@ describe('Home', () => {
       ],
       recordings: [],
     };
-    const tree = render(<HomeView onEnterSession={() => {}} />);
-    expect(findButton(tree, 'Start session')).toBeDefined();
-    expect(textOf(tree)).not.toContain('Session already open');
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    expect(findButton(tree, 'Start channel')).toBeDefined();
+    expect(textOf(tree)).not.toContain('Channel already open');
     act(() => tree.unmount());
   });
 
   it('keeps an invite dismissed across leaving Home and coming back', () => {
     // The defect: the dismissed list was component state, so navigating into a
-    // session and back re-raised a banner the user had already acted on. A
+    // channel and back re-raised a banner the user had already acted on. A
     // dismissal that forgets itself is not a dismissal.
     mockApp.home = {
       invites: [
         {
-          sessionId: 'sess_a',
+          channelId: 'sess_a',
           from: { id: THEM, displayName: 'Dana Chu' },
           createdAt: NOW,
         },
@@ -327,27 +327,27 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const first = render(<HomeView onEnterSession={() => {}} />);
+    const first = render(<HomeView onEnterChannel={() => {}} />);
     const [dismiss] = first.root.findAll(
       (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
     act(() => dismiss.props.onPress());
     act(() => first.unmount());
 
-    // Home is mounted afresh, as it is on returning from a session.
-    const second = render(<HomeView onEnterSession={() => {}} />);
+    // Home is mounted afresh, as it is on returning from a channel.
+    const second = render(<HomeView onEnterChannel={() => {}} />);
     expect(textOf(second)).not.toContain('tap to join');
     act(() => second.unmount());
   });
 
   it('raises a new banner when the same contact invites again', () => {
     // Dismissal is permanent for that invitation and no longer. A pair has at
-    // most one live session, so a fresh invite is a different session id.
+    // most one live channel, so a fresh invite is a different channel id.
     mockApp.dismissedInvites = ['sess_a'];
     mockApp.home = {
       invites: [
         {
-          sessionId: 'sess_b',
+          channelId: 'sess_b',
           from: { id: THEM, displayName: 'Dana Chu' },
           createdAt: NOW,
         },
@@ -357,7 +357,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterSession={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
     expect(textOf(tree)).toContain('tap to join');
     act(() => tree.unmount());
   });
@@ -375,13 +375,13 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterSession={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('nobody@example.com');
     expect(text).toContain('real@example.com');
     expect(text).toContain('Sent');
-    // Neither offers a session, and neither can be accepted.
-    expect(findButton(tree, 'Start session')).toBeUndefined();
+    // Neither offers a channel, and neither can be accepted.
+    expect(findButton(tree, 'Start channel')).toBeUndefined();
     expect(findButton(tree, 'Accept')).toBeUndefined();
     act(() => tree.unmount());
   });
@@ -389,23 +389,23 @@ describe('Home', () => {
   it('says so when the connection is down', () => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     mockApp.status = 'closed';
-    const tree = render(<HomeView onEnterSession={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} />);
     expect(textOf(tree)).toContain('Not connected');
     act(() => tree.unmount());
   });
 });
 
-describe('Session', () => {
+describe('Channel', () => {
   it('waits rather than rendering a stale screen before the first snapshot', () => {
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
-    expect(textOf(tree)).toContain('Loading session');
-    expect(mockApp.watchSession).toHaveBeenCalledWith('sess_1');
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    expect(textOf(tree)).toContain('Loading channel');
+    expect(mockApp.watchChannel).toHaveBeenCalledWith('sess_1');
     act(() => tree.unmount());
   });
 
   it('shows the claim control when eligible', () => {
-    showSession(sessionOf());
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('Dana Chu');
     expect(text).toContain('Nobody has the floor');
@@ -417,13 +417,13 @@ describe('Session', () => {
     // Being unheard is easily mistaken for being unrecorded, and someone might
     // speak freely on that assumption. The capture is complete; only the export
     // omits them.
-    let session = sessionOf((s) =>
+    let channel = channelOf((s) =>
       reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW)
     );
-    session = reduce(session, { type: 'START_RECORDING', userId: THEM }, NOW);
-    showSession(session);
+    channel = reduce(channel, { type: 'START_RECORDING', userId: THEM }, NOW);
+    showChannel(channel);
 
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('still being recorded');
     expect(text).toContain('left out of the exported recording');
@@ -433,44 +433,44 @@ describe('Session', () => {
   it('says a recording failed rather than showing it as never started', () => {
     // Silence about this is the specific fault: the indicator promised audio
     // was being kept while nothing was captured at all.
-    let session = sessionOf();
-    session = {
-      ...session,
+    let channel = channelOf();
+    channel = {
+      ...channel,
       recording: {
-        ...session.recording,
+        ...channel.recording,
         failure: 'no supported codec is compatible with all outputs',
       },
     };
-    showSession(session);
+    showChannel(channel);
 
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('Recording failed');
     expect(text).toContain('no supported codec');
-    // And it can be attempted again — a failure must not consume the session's
+    // And it can be attempted again — a failure must not consume the channel's
     // one recording.
     expect(findButton(tree, 'Try recording again')).toBeDefined();
     act(() => tree.unmount());
   });
 
   it('shows a disconnected party as present but reconnecting', () => {
-    // Not "left": they are still in the session, still hold whatever they
+    // Not "left": they are still in the channel, still hold whatever they
     // hold, and have a minute to come back.
-    const session = sessionOf();
-    showSession({ ...session, disconnectedAt: { [THEM]: NOW - 5_000 } });
+    const channel = channelOf();
+    showChannel({ ...channel, disconnectedAt: { [THEM]: NOW - 5_000 } });
 
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('Present · reconnecting…');
-    expect(text).not.toContain('Left the session');
+    expect(text).not.toContain('Left the channel');
     act(() => tree.unmount());
   });
 
   it('reflects being silenced by the other party', () => {
-    showSession(
-      sessionOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('Dana Chu has the floor — your mic is cut');
     expect(text).toContain('cannot claim the floor while you are silenced');
@@ -478,21 +478,21 @@ describe('Session', () => {
   });
 
   it('counts down against the server clock, not the device clock', () => {
-    const claimed = sessionOf((s) =>
+    const claimed = channelOf((s) =>
       reduce(s, { type: 'CLAIM_FLOOR', userId: ME }, NOW)
     );
-    showSession(claimed);
+    showChannel(claimed);
     // Device clock is irrelevant; serverNow decides. 40s into a 3:00 claim.
     mockApp.serverNow = () => NOW + 40_000;
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     expect(textOf(tree)).toContain('2:20');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });
 
   it('dispatches a claim rather than mutating anything locally', () => {
-    showSession(sessionOf());
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const claim = findButton(tree, 'Claim the floor');
     expect(claim).toBeDefined();
     expect(claim!.props.accessibilityState.disabled).toBe(false);
@@ -502,15 +502,15 @@ describe('Session', () => {
   });
 
   it('offers to load a track when there is none', () => {
-    showSession(sessionOf());
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     expect(findButton(tree, 'Play something together')).toBeDefined();
     act(() => tree.unmount());
   });
 
   it('shows the track and its position against the server clock', () => {
-    showSession(
-      sessionOf((s) => {
+    showChannel(
+      channelOf((s) => {
         const withTrack = reduce(
           s,
           {
@@ -524,7 +524,7 @@ describe('Session', () => {
       })
     );
     mockApp.serverNow = () => NOW + 30_000;
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('Kind of Blue');
     expect(text).toContain('0:30');
@@ -539,8 +539,8 @@ describe('Session', () => {
    * takes the controls away without taking the music away.
    */
   it('disables the controls, but not playback, while they hold the floor', () => {
-    showSession(
-      sessionOf((s) => {
+    showChannel(
+      channelOf((s) => {
         const withTrack = reduce(
           s,
           {
@@ -554,7 +554,7 @@ describe('Session', () => {
         return reduce(playing, { type: 'CLAIM_FLOOR', userId: THEM }, NOW);
       })
     );
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
 
     expect(textOf(tree)).toContain('Dana Chu has the floor, so they decide what plays');
     expect(findButton(tree, 'Pause')!.props.accessibilityState.disabled).toBe(
@@ -570,8 +570,8 @@ describe('Session', () => {
   });
 
   it('seeks by dispatching a position rather than moving anything locally', () => {
-    showSession(
-      sessionOf((s) =>
+    showChannel(
+      channelOf((s) =>
         reduce(
           s,
           {
@@ -583,7 +583,7 @@ describe('Session', () => {
         )
       )
     );
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     act(() => findButton(tree, '+15s')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SEEK',
@@ -593,26 +593,26 @@ describe('Session', () => {
   });
 
   it('warns that a dropped connection counts as leaving', () => {
-    showSession(sessionOf());
+    showChannel(channelOf());
     mockApp.status = 'connecting';
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     expect(textOf(tree)).toContain('dropped connection counts as leaving');
     act(() => tree.unmount());
   });
 
   it('renders a roster and generalised copy with four people', () => {
-    let session = createSession({
+    let channel = createChannel({
       id: 'sess_1',
       initiator: ME,
       invitees: [THEM, 'acct_3', 'acct_4'],
       now: NOW,
     });
-    session = reduce(session, { type: 'ENTER', userId: THEM }, NOW);
-    session = reduce(session, { type: 'ENTER', userId: 'acct_3' }, NOW);
-    session = reduce(session, { type: 'CLAIM_FLOOR', userId: 'acct_3' }, NOW);
-    showSession(session);
+    channel = reduce(channel, { type: 'ENTER', userId: THEM }, NOW);
+    channel = reduce(channel, { type: 'ENTER', userId: 'acct_3' }, NOW);
+    channel = reduce(channel, { type: 'CLAIM_FLOOR', userId: 'acct_3' }, NOW);
+    showChannel(channel);
 
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('4 people');
     expect(text).toContain('Dana Chu');
@@ -626,7 +626,7 @@ describe('Session', () => {
     act(() => tree.unmount());
   });
 
-  it('offers to invite an accepted contact who is not in the session', () => {
+  it('offers to invite an accepted contact who is not in the channel', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -635,8 +635,8 @@ describe('Session', () => {
         { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],
     };
-    showSession(sessionOf());
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const invite = findButton(tree, 'Invite');
     expect(invite).toBeDefined();
     act(() => invite!.props.onPress());
@@ -648,38 +648,38 @@ describe('Session', () => {
   });
 
   it('renders the ended state', () => {
-    showSession(sessionOf((s) => reduce(s, { type: 'END', userId: THEM }, NOW)));
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
-    expect(textOf(tree)).toContain('Session ended');
+    showChannel(channelOf((s) => reduce(s, { type: 'END', userId: THEM }, NOW)));
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    expect(textOf(tree)).toContain('Channel ended');
     act(() => tree.unmount());
   });
 
-  it('shows the session name as the header, with the roster kept below', () => {
-    showSession(
-      sessionOf((s) =>
+  it('shows the channel name as the header, with the roster kept below', () => {
+    showChannel(
+      channelOf((s) =>
         reduce(s, { type: 'SET_NAME', userId: THEM, name: 'Book club' }, NOW)
       )
     );
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('Book club');
-    // Under a session name the status line is the only place the other
+    // Under a channel name the status line is the only place the other
     // party's name appears, so it must carry it even in a 1:1.
     expect(text).toContain('Dana Chu · ');
     act(() => tree.unmount());
   });
 
   it('opens settings, and saving a name dispatches SET_NAME', () => {
-    showSession(sessionOf());
-    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
 
     const settings = findButton(tree, 'Settings');
     expect(settings).toBeDefined();
     act(() => settings!.props.onPress());
-    expect(textOf(tree)).toContain('Session settings');
+    expect(textOf(tree)).toContain('Channel settings');
 
     const field = tree.root.findAll(
-      (n) => n.props?.placeholder === 'What is this session about?'
+      (n) => n.props?.placeholder === 'What is this channel about?'
     )[0];
     act(() => field.props.onChangeText('Book club'));
     act(() => findButton(tree, 'Save')!.props.onPress());
@@ -687,7 +687,7 @@ describe('Session', () => {
       type: 'SET_NAME',
       name: 'Book club',
     });
-    // Saving returns to the session.
+    // Saving returns to the channel.
     expect(textOf(tree)).toContain('The floor');
     act(() => tree.unmount());
   });

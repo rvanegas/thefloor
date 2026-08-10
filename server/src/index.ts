@@ -31,7 +31,7 @@ const mailer: Mailer = mailFrom
 /**
  * Audio is optional: without LiveKit credentials the whole app still runs and
  * every rule is enforced, there is simply nothing to hear. That keeps the
- * session mechanics testable without a media server.
+ * channel mechanics testable without a media server.
  */
 const liveKitUrl = process.env.LIVEKIT_URL;
 const liveKitKey = process.env.LIVEKIT_API_KEY;
@@ -81,7 +81,7 @@ const app = buildApp({
   store,
   logger: true,
 });
-app.sessions.start();
+app.channels.start();
 
 app.fastify
   .listen({ port, host })
@@ -97,7 +97,7 @@ app.fastify
     );
     if (!media) {
       app.fastify.log.warn(
-        'LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET are unset — sessions run with no audio.'
+        'LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET are unset — channels run with no audio.'
       );
     }
     if (media && !storage) {
@@ -118,7 +118,7 @@ app.fastify
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    app.sessions.stop();
+    app.channels.stop();
     app.fastify.close().finally(() => process.exit(0));
   });
 }

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 /**
- * Turns a session's isolated stems into the single recording a user receives,
+ * Turns a channel's isolated stems into the single recording a user receives,
  * with the floor applied.
  *
  * This is where being silenced becomes a fact about the artefact rather than a
@@ -28,7 +28,7 @@ export interface StemSegment {
 
 export interface ExportRequest {
   /**
-   * Each participant's segments, in order. Recordings made since sessions
+   * Each participant's segments, in order. Recordings made since channels
    * could gain people mid-run carry a start offset per segment, so a late
    * joiner's audio lands where it happened; older rows are plain key lists
    * whose segments all abut, and are concatenated as they always were.

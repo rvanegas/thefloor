@@ -124,16 +124,16 @@ export const api = {
       token,
     }),
 
-  startSession: (token: string, contactIds: string[]) =>
-    request<{ sessionId: string }>('/sessions', {
+  startChannel: (token: string, contactIds: string[]) =>
+    request<{ channelId: string }>('/channels', {
       method: 'POST',
       body: { contactIds },
       token,
     }),
 
-  mediaToken: (token: string, sessionId: string) =>
+  mediaToken: (token: string, channelId: string) =>
     request<{ token: string; url?: string }>(
-      `/sessions/${sessionId}/media-token`,
+      `/channels/${channelId}/media-token`,
       { method: 'POST', token }
     ),
 };
