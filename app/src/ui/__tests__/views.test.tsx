@@ -205,7 +205,7 @@ describe('Home', () => {
     const text = textOf(tree);
     expect(text).toContain('tap to join');
     expect(text).toContain('Miro Okafor');
-    expect(text).toContain('1 present — you left');
+    expect(text).toContain('1 present');
     expect(text).toContain('Priya Raman');
     expect(text).toContain('Accept');
     expect(text).toContain('Quinn Ito');
@@ -1217,6 +1217,36 @@ describe('reading somebody else’s profile', () => {
     const text = textOf(tree);
     expect(text).toContain('no profile here to show you');
     expect(text).toContain('Dana Chu');
+    act(() => tree.unmount());
+  });
+});
+
+describe('a channel with nobody in it', () => {
+  it('is described as resting, not as expiring', () => {
+    // It used to say "Empty — ends within a minute", which was true when a
+    // channel was a session and self-destructed. A permanent channel with
+    // nobody in it is simply quiet, and saying otherwise sends someone
+    // hurrying back to save something that was never at risk.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name: 'Book club',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 0,
+          createdAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Nobody here right now');
+    expect(text).not.toContain('ends within a minute');
     act(() => tree.unmount());
   });
 });

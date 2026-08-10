@@ -255,5 +255,9 @@ export type ChannelAction =
    */
   | { type: 'CONNECTED'; userId: UserId }
   | { type: 'DISCONNECTED'; userId: UserId }
-  /** Advances time-driven transitions: floor expiry and empty-channel auto-end. */
+  /**
+   * Advances time-driven transitions: floor expiry, a track reaching its end,
+   * and a dropped connection outlasting the grace period. Nothing here ends a
+   * channel — only its last member leaving does that.
+   */
   | { type: 'TICK' };

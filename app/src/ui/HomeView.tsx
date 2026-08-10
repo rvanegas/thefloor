@@ -194,7 +194,7 @@ export function HomeView({
 
       {live.length > 0 ? (
         <>
-          <SectionLabel>Live channels</SectionLabel>
+          <SectionLabel>Your channels</SectionLabel>
           <View style={styles.list}>
             {live.map((channel) => (
               <RejoinRow
@@ -392,9 +392,15 @@ function RejoinRow({
             channel.others.map((other) => other.displayName).join(', ')}
         </Text>
         <Text style={type.muted}>
+          {/*
+            An empty channel used to be sixty seconds from destruction, and
+            saying so was a reason to hurry back. Channels are permanent now:
+            nobody being in one is a resting state, not a countdown, and the
+            old line was the app promising something that could not happen.
+          */}
           {channel.presentCount > 0
-            ? `${channel.presentCount} present — you left`
-            : 'Empty — ends within a minute'}
+            ? `${channel.presentCount} present`
+            : 'Nobody here right now'}
         </Text>
       </View>
       <Button label="Rejoin" variant="primary" onPress={onRejoin} />

@@ -116,11 +116,15 @@ export interface Refused {
  * this class owns *when* the reducer runs and *who* is allowed to act, not what
  * the rules are.
  *
- * Channels live in memory while active and are written to SQLite when they end.
- * That trade is deliberate: they are short-lived by construction (an empty one
- * self-destructs in a minute), and keeping the tick loop in memory avoids a
- * write every 500ms. A server restart drops live channels, which is a real
- * limitation and the first thing to revisit if restarts become routine.
+ * Channels live in memory and are written to SQLite as they change, so they
+ * survive a restart. What is written is a durable projection rather than the
+ * whole state — see `durableOf` for what is deliberately left out, all of it
+ * describing the process rather than the channel.
+ *
+ * The write is compared before it is made, which is what keeps this cheap: a
+ * claim, a seek, a connection flap or a tick produces an identical projection
+ * and no write at all, so the rate is bounded by how often people do things
+ * that ought to outlive the server.
  */
 export class ChannelRegistry {
   private channels = new Map<string, ChannelState>();
