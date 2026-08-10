@@ -414,11 +414,19 @@ describe('Home', () => {
   });
 
   it('says so when the connection is down', () => {
+    // After a grace period, deliberately — see "the connection warning"
+    // below. The banner is about a connection that failed, not about one
+    // that has not finished being made.
+    jest.useFakeTimers();
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     mockApp.status = 'closed';
     const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    act(() => {
+      jest.advanceTimersByTime(3_000);
+    });
     expect(textOf(tree)).toContain('Not connected');
     act(() => tree.unmount());
+    jest.useRealTimers();
   });
 });
 
@@ -1248,5 +1256,62 @@ describe('a channel with nobody in it', () => {
     expect(text).toContain('Nobody here right now');
     expect(text).not.toContain('ends within a minute');
     act(() => tree.unmount());
+  });
+});
+
+describe('the connection warning', () => {
+  const empty = () => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+  };
+
+  it('stays quiet while the first connection is being made', () => {
+    // The socket opens a moment after this screen does. A warning that
+    // resolves itself before it can be read teaches people to ignore
+    // warnings, and this one is in the colour reserved for trouble.
+    empty();
+    mockApp.status = 'connecting';
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    expect(textOf(tree)).not.toContain('Reconnecting');
+    act(() => tree.unmount());
+  });
+
+  it('speaks up once the connection has had its chance', () => {
+    jest.useFakeTimers();
+    empty();
+    mockApp.status = 'closed';
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    expect(textOf(tree)).not.toContain('Not connected');
+
+    act(() => {
+      jest.advanceTimersByTime(3_000);
+    });
+    expect(textOf(tree)).toContain('Not connected');
+    act(() => tree.unmount());
+    jest.useRealTimers();
+  });
+
+  it('reports a drop immediately, having been connected once', () => {
+    jest.useFakeTimers();
+    empty();
+    mockApp.status = 'open';
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    expect(textOf(tree)).not.toContain('Reconnecting');
+
+    // A real drop, after a real connection: no grace this time.
+    mockApp.status = 'connecting';
+    act(() => {
+      tree.update(
+        <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      );
+    });
+    expect(textOf(tree)).toContain('Reconnecting');
+    act(() => tree.unmount());
+    jest.useRealTimers();
   });
 });

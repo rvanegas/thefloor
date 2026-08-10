@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -86,6 +86,21 @@ export function HomeView({
    * default: a plain tap still starts a 1:1 immediately, and this mode only
    * changes what the rows offer, not what they are.
    */
+  /**
+   * Whether the connection has had its chance. True as soon as it opens, or
+   * after a couple of seconds if it has not — so a device that genuinely
+   * cannot reach the server still finds out.
+   */
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (app.status === 'open') {
+      setSettled(true);
+      return;
+    }
+    const timer = setTimeout(() => setSettled(true), 2_500);
+    return () => clearTimeout(timer);
+  }, [app.status]);
+
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const toggleSelected = (id: string) =>
@@ -170,7 +185,16 @@ export function HomeView({
         </Pressable>
       ) : null}
 
-      {app.status !== 'open' ? (
+      {/*
+        Not shown while the first connection is still being made. The socket
+        opens a moment after this screen does, so saying "not connected" then
+        is true, useless, and alarming in that order — a warning that resolves
+        itself before it can be read teaches people to ignore warnings.
+
+        Once we have been connected, or once long enough has passed that
+        failing to connect is real news, it says so immediately.
+      */}
+      {app.status !== 'open' && settled ? (
         <View style={styles.offline}>
           <Text style={styles.offlineText}>
             {app.status === 'connecting'
