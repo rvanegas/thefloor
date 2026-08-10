@@ -638,9 +638,40 @@ development can read codes off the server console by leaving `MAIL_FROM` unset
 
 ---
 
-## Multiple auth per user
+## Multiple auth per user — done server-side, unfinished in the app
 
-Signing in as a user who is already signed in elsewhere, should sign the user out of other location.
+**Status:** the server enforces one session per account as of 2026-08-09.
+`issueToken` revokes every existing token for the account before minting a new
+one, so signing in anywhere ends the session everywhere else. `Accounts.
+revokeAllForAccount` is the operation behind it, and the only one that can
+reach a session whose token you do not hold — signing out on the device in your
+hand cannot revoke the one you lost.
+
+That was the point. A token is good for ninety days, and nothing in the product
+lists or cancels a session, so signing in elsewhere is the only signal
+available that a device may have left the owner's hands. The accepted cost is
+that a genuine second device signs the first one out.
+
+### What the app still does badly with it
+
+The server is right; the client has not caught up, and this is now reachable
+rather than theoretical — any second sign-in produces it.
+
+- **A revoked token is only noticed at launch.** `AppProvider` handles a 401
+  when restoring a stored token, and nowhere else. Mid-session, a revoked
+  device's next HTTP call surfaces the raw error instead of signing out.
+- **An open websocket is never re-checked.** `ws.ts` authenticates once at
+  connect, so the kicked device keeps its live conversation — microphone
+  included — until something makes it reconnect.
+
+Neither is dangerous: the revoked token cannot start anything new, and the
+session it is still in was already one it was entitled to. But the experience
+is a stale screen and a confusing error rather than "you signed in on another
+device."
+
+When picked up: treat a 401 from any call as a sign-out (`api/http.ts` is the
+one place all of them pass through), and have the server close sockets whose
+token has been revoked. Both need a TestFlight build to reach anyone.
 
 ---
 

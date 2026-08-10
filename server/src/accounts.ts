@@ -250,7 +250,18 @@ export class Accounts {
 
   // --- Tokens -------------------------------------------------------------
 
+  /**
+   * Issues a session token, ending every session this account already had.
+   *
+   * One session per account, deliberately. Signing in elsewhere is the only
+   * signal available that a device may no longer be in the owner's hands — a
+   * lost phone cannot be revoked any other way, since nothing else in the
+   * product lists or cancels a session, and the token would otherwise stay
+   * good for ninety days. The cost is that a genuine second device signs the
+   * first one out, which is the trade named in BACKLOG and accepted.
+   */
   issueToken(accountId: string, now: number): string {
+    this.revokeAllForAccount(accountId);
     // The token itself is what is minted, so a retry hands the caller a fresh
     // secret rather than reusing one whose hash is already stored against
     // somebody else's account.
@@ -277,6 +288,21 @@ export class Accounts {
 
   revokeToken(token: string): void {
     this.db.prepare('DELETE FROM tokens WHERE token_hash = ?').run(sha256(token));
+  }
+
+  /**
+   * Ends every session for one account, and says how many there were.
+   *
+   * This is what `tokens_account` was indexed for. It is the only operation
+   * that can reach a session whose token you do not hold — signing out from
+   * the device you have cannot revoke the one you lost.
+   */
+  revokeAllForAccount(accountId: string): number {
+    return Number(
+      this.db
+        .prepare('DELETE FROM tokens WHERE account_id = ?')
+        .run(accountId).changes
+    );
   }
 
   // --- Contacts -----------------------------------------------------------
