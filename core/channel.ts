@@ -122,21 +122,28 @@ export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
- * Recording needs at least two people **present**, not merely two who have
- * ever connected.
+ * Recording needs the person starting it to be **present**, and nothing more.
  *
- * It used to read `everPresent`, which was harmless while a channel lasted
- * minutes: "has ever connected" and "is here now" were nearly the same claim.
- * In a permanent channel they diverge completely — `everPresent` never decays,
- * so a lone member could start recording themselves months later in a channel
- * that once had somebody else in it. Presence is also what stops a run, so
- * gating the start on it makes the two ends of a recording agree.
+ * One person alone may record — a channel is a place you can talk into before
+ * anyone else arrives, and a note to yourself is a use rather than a mistake.
+ *
+ * Presence, though, is required, and it is the same condition at both ends: a
+ * run starts only while somebody is here and stops the moment nobody is. It
+ * used to read `everPresent` — "have two ever connected" — which was nearly
+ * the same claim as "are two here" while a channel lasted minutes, but which
+ * never decays, so in a permanent channel it would let someone record an empty
+ * room months later on the strength of a conversation that once happened in
+ * it. Requiring the actor rather than merely a head count also means nobody
+ * can start recording a room they are not in.
  */
-export function canStartRecording(state: ChannelState): boolean {
+export function canStartRecording(
+  state: ChannelState,
+  userId: UserId
+): boolean {
   return (
     state.status === 'active' &&
     state.recording.status === 'idle' &&
-    atLeastTwoPresent(state)
+    isPresent(state, userId)
   );
 }
 
@@ -359,7 +366,7 @@ export function reduce(
       };
 
     case 'START_RECORDING': {
-      if (!canStartRecording(state)) return state;
+      if (!canStartRecording(state, action.userId)) return state;
       return { ...state, recording: startRecording(state.recording, now) };
     }
 

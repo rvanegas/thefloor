@@ -34,23 +34,34 @@ describe('starting a recording', () => {
     expect(joined().recording.status).toBe('idle');
   });
 
-  it('waits until both parties are present', () => {
+  it('is available to one person alone in the channel', () => {
+    // A channel is a place you can talk into before anyone else arrives.
     const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
-    expect(canStartRecording(alone)).toBe(false);
-    expect(canStartRecording(joined())).toBe(true);
+    expect(alone.present).toEqual([A]);
+    expect(canStartRecording(alone, A)).toBe(true);
+
+    const s = reduce(alone, { type: 'START_RECORDING', userId: A }, T0);
+    expect(s.recording.status).toBe('recording');
   });
 
-  it('becomes unavailable again once someone is alone', () => {
-    // This used to read `everPresent` — "have both ever connected" — which was
-    // indistinguishable from "are both here" while a channel lasted minutes.
-    // In a permanent channel it is not: everPresent never decays, so that rule
-    // would let a lone member record themselves months later in a channel that
-    // once had somebody else in it. Presence is also what stops a run, so
-    // gating the start on it makes both ends of a recording agree.
-    const s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0 + 1_000);
-    expect(canStartRecording(s)).toBe(false);
-    const back = reduce(s, { type: 'ENTER', userId: B }, T0 + 2_000);
-    expect(canStartRecording(back)).toBe(true);
+  it('requires the person starting it to be present', () => {
+    // Not merely a head count: nobody starts a recording of a room they are
+    // not in. B is a member here and has never entered.
+    const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    expect(canStartRecording(alone, B)).toBe(false);
+    expect(reduce(alone, { type: 'START_RECORDING', userId: B }, T0)).toBe(alone);
+  });
+
+  it('is unavailable once the channel is empty', () => {
+    // The same condition at both ends: a run starts only while somebody is
+    // here, and stops the moment nobody is.
+    const empty = reduce(joined(), { type: 'STEP_OUT', userId: A }, T0);
+    const alsoEmpty = reduce(empty, { type: 'STEP_OUT', userId: B }, T0 + 1);
+    expect(alsoEmpty.present).toEqual([]);
+    expect(canStartRecording(alsoEmpty, A)).toBe(false);
+
+    const back = reduce(alsoEmpty, { type: 'ENTER', userId: A }, T0 + 2);
+    expect(canStartRecording(back, A)).toBe(true);
   });
 
   it('can be initiated by either user', () => {

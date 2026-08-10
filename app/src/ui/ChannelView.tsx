@@ -434,7 +434,7 @@ export function ChannelView({
               label={
                 channel.recording.failure ? 'Try recording again' : 'Start recording'
               }
-              disabled={!canStartRecording(channel)}
+              disabled={!canStartRecording(channel, me)}
               onPress={() => act({ type: 'START_RECORDING' })}
             />
           ) : channel.recording.status === 'stopped' ? (
@@ -473,9 +473,9 @@ export function ChannelView({
               still being captured.
             </Text>
           ) : channel.recording.status === 'idle' &&
-            !canStartRecording(channel) ? (
+            !canStartRecording(channel, me) ? (
             <Text style={type.muted}>
-              Starts once at least two people have connected.
+              Step in to record. A recording stops when the last person leaves.
             </Text>
           ) : null}
         </Card>
