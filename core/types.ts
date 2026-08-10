@@ -1,7 +1,5 @@
 export type UserId = string;
 
-export type ChannelEndReason = 'explicit' | 'empty-timeout';
-
 export interface FloorState {
   /** Who holds the floor right now, or null if nobody does. */
   holder: UserId | null;
@@ -90,9 +88,13 @@ export interface ChannelState {
   /** The user who created the channel. */
   initiator: UserId;
   /**
-   * Everyone in the channel — the initiator first, then the rest in the order
-   * they were invited. Grows on INVITE, never shrinks: leaving a channel is
-   * not being removed from it. Capped at MAX_CHANNEL_PARTICIPANTS.
+   * Everyone who belongs to this channel — the initiator first, then the rest
+   * in the order they were invited. Grows on INVITE and shrinks only on
+   * LEAVE_CHANNEL. Capped at MAX_CHANNEL_PARTICIPANTS.
+   *
+   * Membership is not presence. Stepping out empties your place in `present`
+   * and leaves this untouched; only leaving the channel outright removes you
+   * from here, and the channel ends when the last person does.
    */
   participants: UserId[];
   /**
@@ -103,21 +105,22 @@ export interface ChannelState {
   invitedBy: Record<UserId, UserId>;
   createdAt: number;
   status: 'active' | 'ended';
+  /**
+   * When the last member left, or null while the channel exists. There is
+   * exactly one way a channel ends, so nothing records a reason.
+   */
   endedAt: number | null;
-  endedReason: ChannelEndReason | null;
-  /** Users currently in the channel. */
+  /**
+   * Users currently in the channel — able to hear and be heard. A subset of
+   * `participants`, and the thing stepping out changes.
+   */
   present: UserId[];
   /**
-   * Users who have entered at least once. Recording may only be started once
-   * at least two people have connected; leaving afterwards does not revoke
-   * that.
+   * Users who have entered at least once. What distinguishes a channel
+   * somebody has opened from one they were merely added to, which is how an
+   * invitation is expressed now that there is no separate invite object.
    */
   everPresent: UserId[];
-  /**
-   * When the channel last became empty, or null while at least one user is
-   * present. Drives the empty-channel auto-end timer.
-   */
-  emptySince: number | null;
   floor: FloorState;
   selfMuted: Record<UserId, boolean>;
   recording: RecordingState;
@@ -137,14 +140,28 @@ export interface ChannelState {
 
 export type ChannelAction =
   | { type: 'ENTER'; userId: UserId }
-  | { type: 'LEAVE'; userId: UserId }
+  /**
+   * Stop being present: audio unsubscribed, place in `present` given up,
+   * membership untouched. Named for its button rather than as LEAVE, because
+   * an action still called LEAVE would let every existing call site keep
+   * compiling while quietly meaning something far more destructive.
+   */
+  | { type: 'STEP_OUT'; userId: UserId }
   /**
    * Adds `inviteeId` to the channel. Any current participant may invite;
    * whether the two are contacts is the server's to check, contacts being a
    * server-side concern the reducer knows nothing about.
    */
   | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
-  | { type: 'END'; userId: UserId }
+  /**
+   * Give up membership: removed from the roster, and the channel disappears
+   * from this user's Home. Implies stepping out, necessarily — `present` must
+   * never hold someone who is not a participant.
+   *
+   * When the last member leaves, the channel ends. That is the only way a
+   * channel ends; nobody can destroy one that other people still belong to.
+   */
+  | { type: 'LEAVE_CHANNEL'; userId: UserId }
   /**
    * Names or renames the channel. Any participant may, at any time — a name
    * is shared furniture, like the track, and carries no floor restriction.

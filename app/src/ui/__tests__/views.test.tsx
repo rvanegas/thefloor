@@ -647,8 +647,55 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  it('offers stepping out and leaving as two different acts', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+
+    const stepOut = findButton(tree, 'Step out');
+    expect(stepOut).toBeDefined();
+    expect(labelOf(stepOut!)).toContain('You stay a member');
+    act(() => stepOut!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
+
+    // Leaving is behind a confirmation, so the tap alone dispatches nothing.
+    const leave = findButton(tree, 'Leave channel');
+    expect(leave).toBeDefined();
+    expect(labelOf(leave!)).toContain('Removes it from Home');
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
+      type: 'LEAVE_CHANNEL',
+    });
+    act(() => tree.unmount());
+  });
+
+  it('warns the last member that leaving deletes the channel', () => {
+    // With two people it merely removes you. Alone, the same tap destroys it,
+    // and nothing else on screen would say so.
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'LEAVE_CHANNEL', userId: THEM }, NOW))
+    );
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    expect(labelOf(findButton(tree, 'Leave channel')!)).toContain(
+      'Deletes this channel'
+    );
+    act(() => tree.unmount());
+  });
+
+  it('no longer counts elapsed time', () => {
+    // A channel is permanent, so time since it was created says nothing.
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    expect(textOf(tree)).not.toContain('elapsed');
+    act(() => tree.unmount());
+  });
+
   it('renders the ended state', () => {
-    showChannel(channelOf((s) => reduce(s, { type: 'END', userId: THEM }, NOW)));
+    // Both members leave, which is the only thing that ends a channel.
+    showChannel(
+      channelOf((s) => {
+        const half = reduce(s, { type: 'LEAVE_CHANNEL', userId: THEM }, NOW);
+        return reduce(half, { type: 'LEAVE_CHANNEL', userId: ME }, NOW);
+      })
+    );
     const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
     expect(textOf(tree)).toContain('Channel ended');
     act(() => tree.unmount());

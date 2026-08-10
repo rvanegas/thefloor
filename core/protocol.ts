@@ -74,8 +74,10 @@ export interface ChannelView {
 /** Channel mutations. The server supplies the actor. */
 export type ClientAction =
   | { type: 'ENTER' }
-  | { type: 'LEAVE' }
-  | { type: 'END' }
+  /** Give up presence, keep membership. */
+  | { type: 'STEP_OUT' }
+  /** Give up membership; ends the channel if you were the last member. */
+  | { type: 'LEAVE_CHANNEL' }
   /**
    * Brings a contact of the sender into the channel. Carries a contact id
    * rather than the reducer's inviteeId because whether the two are contacts

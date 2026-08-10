@@ -1,5 +1,4 @@
 import {
-  EMPTY_SESSION_TIMEOUT_MS,
   FLOOR_CLAIM_MS,
   FLOOR_CLAIM_DELAY_STEP_MS,
 } from '../constants';
@@ -124,7 +123,7 @@ describe('presence gating', () => {
     const together = reduce(alone, { type: 'ENTER', userId: B }, T0 + 1000);
     expect(canClaimFloor(together, A, T0 + 1000)).toBe(true);
 
-    const bLeft = reduce(together, { type: 'LEAVE', userId: B }, T0 + 2000);
+    const bLeft = reduce(together, { type: 'STEP_OUT', userId: B }, T0 + 2000);
     expect(canClaimFloor(bLeft, A, T0 + 2000)).toBe(false);
   });
 });
@@ -203,7 +202,7 @@ describe('intended emergent behavior', () => {
 describe('leaving and the floor', () => {
   it('force-releases the departing holder’s claim', () => {
     const claimed = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
-    const left = reduce(claimed, { type: 'LEAVE', userId: A }, T0 + 10_000);
+    const left = reduce(claimed, { type: 'STEP_OUT', userId: A }, T0 + 10_000);
     expect(left.floor.holder).toBeNull();
     expect(left.floor.lastClaimedAt[A]).toBeDefined();
     expect(left.floor.lastReleasedAt).toBe(T0 + 10_000);
@@ -215,7 +214,7 @@ describe('leaving and the floor', () => {
   it('applies the ordinary eligibility rule to whoever re-enters', () => {
     const s = apply(joined(), [
       [{ type: 'CLAIM_FLOOR', userId: A }, T0],
-      [{ type: 'LEAVE', userId: A }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
       [{ type: 'ENTER', userId: A }, T0 + 12_000],
     ]);
     // A's own claim was the most recent, so A still owes the cooldown.
@@ -226,64 +225,81 @@ describe('leaving and the floor', () => {
   it('leaves the other party’s claim untouched', () => {
     const s = apply(joined(), [
       [{ type: 'CLAIM_FLOOR', userId: A }, T0],
-      [{ type: 'LEAVE', userId: B }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
     ]);
     expect(s.floor.holder).toBe(A);
   });
 });
 
 describe('channel lifecycle', () => {
-  it('does not run the empty-channel timer while anyone is present', () => {
-    const alone = newSession();
-    const muchLater = reduce(alone, { type: 'TICK' }, T0 + 60 * 60 * 1000);
-    expect(muchLater.status).toBe('active');
-    expect(muchLater.emptySince).toBeNull();
+  it('outlives an empty channel indefinitely', () => {
+    // The whole point of a channel: nobody present is not a countdown to
+    // anything. This used to end sixty seconds after the last person left.
+    const empty = reduce(newSession(), { type: 'STEP_OUT', userId: A }, T0 + 1_000);
+    expect(empty.present).toEqual([]);
+
+    const aDayLater = reduce(empty, { type: 'TICK' }, T0 + 24 * 60 * 60 * 1000);
+    expect(aDayLater.status).toBe('active');
+
+    // And it can still be walked back into.
+    const back = reduce(aDayLater, { type: 'ENTER', userId: A }, T0 + 25 * 60 * 60 * 1000);
+    expect(back.present).toEqual([A]);
   });
 
-  it('auto-ends one minute after becoming empty', () => {
-    const empty = reduce(newSession(), { type: 'LEAVE', userId: A }, T0 + 1_000);
-    expect(empty.emptySince).toBe(T0 + 1_000);
-
-    const justBefore = reduce(
-      empty,
-      { type: 'TICK' },
-      T0 + 1_000 + EMPTY_SESSION_TIMEOUT_MS - 1
-    );
-    expect(justBefore.status).toBe('active');
-
-    const at = reduce(empty, { type: 'TICK' }, T0 + 1_000 + EMPTY_SESSION_TIMEOUT_MS);
-    expect(at.status).toBe('ended');
-    expect(at.endedReason).toBe('empty-timeout');
-  });
-
-  it('cancels the empty-channel timer on re-entry', () => {
-    const s = apply(newSession(), [
-      [{ type: 'LEAVE', userId: A }, T0 + 1_000],
-      [{ type: 'ENTER', userId: A }, T0 + 30_000],
-    ]);
-    expect(s.emptySince).toBeNull();
-    const later = reduce(s, { type: 'TICK' }, T0 + 120_000);
-    expect(later.status).toBe('active');
-  });
-
-  it('continues with one party after the other leaves', () => {
-    const s = reduce(joined(), { type: 'LEAVE', userId: B }, T0 + 5_000);
+  it('continues with one party after the other steps out', () => {
+    const s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0 + 5_000);
     expect(s.status).toBe('active');
     expect(s.present).toEqual([A]);
-    expect(s.emptySince).toBeNull();
+    expect(s.participants).toEqual([A, B]);
   });
 
-  it('ends explicitly and irreversibly, from either party, present or not', () => {
+  it('keeps a member on the roster when they step out', () => {
+    const s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0 + 5_000);
+    // Presence and membership are different things: B is gone from the room
+    // and still belongs to the channel, which is what puts it on their Home.
+    expect(s.present).not.toContain(B);
+    expect(s.participants).toContain(B);
+    expect(s.everPresent).toContain(B);
+  });
+
+  it('does not end while anyone still belongs to it', () => {
+    const s = reduce(joined(), { type: 'LEAVE_CHANNEL', userId: B }, T0 + 5_000);
+    expect(s.status).toBe('active');
+    expect(s.participants).toEqual([A]);
+    expect(s.present).toEqual([A]);
+    // B is gone from every map that named them.
+    expect(s.everPresent).not.toContain(B);
+    expect(s.selfMuted).not.toHaveProperty(B);
+    expect(s.invitedBy).not.toHaveProperty(B);
+  });
+
+  it('ends when the last member leaves, and irreversibly', () => {
     const s = apply(joined(), [
-      [{ type: 'LEAVE', userId: B }, T0 + 5_000],
-      [{ type: 'END', userId: B }, T0 + 6_000],
+      [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 5_000],
+      [{ type: 'LEAVE_CHANNEL', userId: A }, T0 + 6_000],
     ]);
     expect(s.status).toBe('ended');
-    expect(s.endedReason).toBe('explicit');
+    expect(s.endedAt).toBe(T0 + 6_000);
+    expect(s.participants).toEqual([]);
+
     // Re-entry is no longer possible.
     const attempted = reduce(s, { type: 'ENTER', userId: A }, T0 + 7_000);
     expect(attempted.present).toEqual([]);
     expect(attempted).toBe(s);
+  });
+
+  it('releases the floor when its holder leaves the channel', () => {
+    const s = apply(joined(), [
+      [{ type: 'CLAIM_FLOOR', userId: B }, T0 + 1_000],
+      [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 2_000],
+    ]);
+    expect(s.floor.holder).toBeNull();
+    expect(s.status).toBe('active');
+  });
+
+  it('is inert for someone who is not a member', () => {
+    const s = joined();
+    expect(reduce(s, { type: 'LEAVE_CHANNEL', userId: 'user-x' }, T0)).toBe(s);
   });
 });
 

@@ -245,7 +245,7 @@ describe('the floor confers exclusive control, not silence', () => {
   it('returns control to the other party when the holder leaves', () => {
     const s = apply(loaded(), [
       [{ type: 'CLAIM_FLOOR', userId: A }, T0 + 1_000],
-      [{ type: 'LEAVE', userId: A }, T0 + 2_000],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 2_000],
     ]);
     expect(s.floor.holder).toBeNull();
     expect(canControlPlayback(s, B)).toBe(true);
@@ -269,7 +269,8 @@ describe('playback and the channel lifecycle', () => {
   it('comes to rest when the channel ends, keeping the position reached', () => {
     const s = apply(loaded(), [
       [{ type: 'PLAY', userId: A }, T0],
-      [{ type: 'END', userId: B }, T0 + 30_000],
+      [{ type: 'LEAVE_CHANNEL', userId: A }, T0 + 30_000],
+      [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 30_000],
     ]);
     expect(s.playback.status).toBe('paused');
     expect(s.playback.positionMs).toBe(30_000);

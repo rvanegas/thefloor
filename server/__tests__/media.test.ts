@@ -34,6 +34,18 @@ afterEach(async () => {
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
+/**
+ * The only way a channel ends now: every member gives up membership. Tests
+ * that used to dispatch END are asserting what happens at the end of a
+ * channel's life, and this is how a channel's life ends.
+ */
+function endChannel(channelId: string): void {
+  const members = [...(app.channels.get(channelId)?.participants ?? [])];
+  for (const id of members) {
+    app.channels.dispatch(channelId, id, { type: 'LEAVE_CHANNEL' });
+  }
+}
+
 async function signIn(identifier: string, displayName: string) {
   const code = app.accounts.issueCode(identifier, clock)!;
   const verified = await app.fastify.inject({
@@ -176,7 +188,7 @@ describe('the floor as an actual mute', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
-    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     await settle();
 
     expect(media.isMuted(channelId, bob.account.id)).toBe(false);
@@ -197,7 +209,7 @@ describe('the floor as an actual mute', () => {
 
   it('closes the room when the channel ends', async () => {
     const { alice, channelId } = await sessionOfTwo();
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
     expect(media.closed).toContain(channelId);
   });
@@ -330,7 +342,7 @@ describe('recording capture', () => {
     const { alice, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
     expect(media.recordings[0].stopped).toBe(true);
   });
@@ -346,7 +358,7 @@ describe('recording capture', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     await settle();
     clock += 30_000; // A long pause that must not count towards the duration.
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     expect(app.channels.get(channelId)!.recording.status).toBe('stopped');
@@ -368,19 +380,21 @@ describe('recording capture', () => {
     expect(row.duration_ms).toBe(8_000);
   });
 
-  it('stops capture when an empty channel times out mid-recording', async () => {
-    // Nobody is present to press stop, so only the tick loop can end this.
+  it('stops capture the moment the channel empties', async () => {
+    // Nobody is present to press stop. This used to be handled by the channel
+    // ending a minute later; now emptying is itself what stops the run, and
+    // the channel carries on existing with nothing being captured in it.
     const { alice, bob, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
-    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE' });
-    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE' });
-    clock += 60_000;
-    app.channels.tick();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
     await settle();
 
-    expect(app.channels.get(channelId)!.endedReason).toBe('empty-timeout');
     expect(media.recordings[0].stopped).toBe(true);
+    const channel = app.channels.get(channelId)!;
+    expect(channel.status).toBe('active');
+    expect(channel.recording.status).toBe('stopped');
   });
 
   it('records every segment against the finished recording', async () => {
@@ -393,7 +407,7 @@ describe('recording capture', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'RESUME_RECORDING' });
     await settle();
     clock += 5_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     const row = app.db
@@ -417,7 +431,7 @@ describe('recording capture', () => {
 
   it('captures nothing when recording was never started', async () => {
     const { alice, channelId } = await sessionOfTwo();
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
     expect(media.recordings).toHaveLength(0);
     const row = app.db
@@ -458,7 +472,7 @@ describe('when capture cannot start', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 1_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     const row = app.db
@@ -525,7 +539,7 @@ describe('the floor timeline', () => {
     clock += 8_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     clock += 5_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     // Alice claimed, so Bob is the one to be dropped from the encode.
@@ -550,7 +564,7 @@ describe('the floor timeline', () => {
     clock += 4_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     clock += 3_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     // 5s recorded, then 4s more: the claim begins 9s into the audio, not 39s.
@@ -566,7 +580,7 @@ describe('the floor timeline', () => {
     clock += 6_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     clock += 4_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     expect(timelineFor(channelId)).toEqual([
@@ -583,7 +597,7 @@ describe('the floor timeline', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 7_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     expect(timelineFor(channelId)).toEqual([
@@ -604,7 +618,7 @@ describe('the floor timeline', () => {
     // Bob may claim immediately: the other party claimed last.
     app.channels.dispatch(channelId, bob.account.id, { type: 'CLAIM_FLOOR' });
     clock += 5_000;
-    app.channels.dispatch(channelId, bob.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     expect(timelineFor(channelId)).toEqual([
@@ -618,7 +632,7 @@ describe('the floor timeline', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 9_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     expect(timelineFor(channelId)).toEqual([]);

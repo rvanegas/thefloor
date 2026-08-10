@@ -242,7 +242,11 @@ describe('websocket', () => {
     const m = new Client(mallory.token, baseUrl);
     await m.open();
 
-    m.send({ type: 'channel.action', channelId, action: { type: 'END' } });
+    m.send({
+      type: 'channel.action',
+      channelId,
+      action: { type: 'LEAVE_CHANNEL' },
+    });
     const error = await m.next('error');
     expect(error.message).toBe('Not your channel.');
     expect(app.channels.get(channelId)!.status).toBe('active');

@@ -17,7 +17,6 @@ import {
   canResumeRecording,
   canStartRecording,
   canStopRecording,
-  emptyTimeoutRemainingMs,
   isPresent,
 } from '../../../core/channel';
 import { useSessionAudio } from '../audio/useSessionAudio';
@@ -91,9 +90,8 @@ export function ChannelView({
       <View style={styles.centered}>
         <Text style={type.heading}>Channel ended</Text>
         <Text style={[type.muted, styles.centeredText]}>
-          {channel.endedReason === 'empty-timeout'
-            ? 'Nobody was present for a minute, so the channel ended automatically.'
-            : 'The channel was ended. Re-entry is not possible — start a new one to continue.'}
+          Everyone left this channel, so it no longer exists. Start a new one
+          to talk again.
         </Text>
         <Button label="Back to home" variant="primary" onPress={onExit} />
       </View>
@@ -121,8 +119,10 @@ export function ChannelView({
   const claimable = canClaimFloor(channel, me, now);
   const cooldown = cooldownRemainingMs(channel.floor, channel.present, me, now);
   const claimRemaining = floorRemainingMs(channel.floor, now);
-  const emptyRemaining = emptyTimeoutRemainingMs(channel, now);
   const recordingLive = isRecordingActive(channel.recording);
+  // Leaving is ordinary until you are the last one, at which point the same
+  // tap destroys the channel. Nothing else in the interface would say so.
+  const lastMember = channel.participants.length === 1;
 
   const playback = channel.playback;
   const track = playback.track;
@@ -197,15 +197,6 @@ export function ChannelView({
               {channel.selfMuted[participant.id] ? ' · muted' : ''}
             </Text>
           ))}
-          <Text style={type.muted}>
-            {formatDuration(now - channel.createdAt)} elapsed
-          </Text>
-          {emptyRemaining !== null ? (
-            <Text style={styles.warning}>
-              Channel empty — ends in {formatDuration(emptyRemaining)} unless
-              someone re-enters.
-            </Text>
-          ) : null}
           {app.status !== 'open' ? (
             <Text style={styles.warning}>
               Reconnecting — a dropped connection counts as leaving.
@@ -498,33 +489,44 @@ export function ChannelView({
           />
         </Card>
 
+        {/*
+          Two different acts, deliberately not two intensities of one. Stepping
+          out is about this conversation; leaving is about the channel. Naming
+          the first "Leave" as well is what would make them read as a pair.
+        */}
         <SectionLabel>Leaving</SectionLabel>
         <View style={styles.buttonRow}>
           <Button
-            label="Leave"
-            sublabel="You can re-enter"
+            label="Step out"
+            sublabel="You stay a member"
             style={styles.flexButton}
             onPress={() => {
-              act({ type: 'LEAVE' });
+              act({ type: 'STEP_OUT' });
               app.leaveChannelView(channelId);
               onExit();
             }}
           />
           <Button
-            label="End channel"
-            sublabel="Permanent, for everyone"
+            label="Leave channel"
+            sublabel={lastMember ? 'Deletes this channel' : 'Removes it from Home'}
             variant="danger"
             style={styles.flexButton}
             onPress={() =>
               Alert.alert(
-                'End this channel?',
-                'This ends it immediately and permanently for everyone. Nobody can re-enter.',
+                lastMember ? 'Delete this channel?' : 'Leave this channel?',
+                lastMember
+                  ? 'You are its last member, so leaving deletes it. Its recordings are kept.'
+                  : 'It disappears from your home screen and you will need a fresh invitation to come back. Everyone else keeps it.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
-                    text: 'End channel',
+                    text: lastMember ? 'Delete' : 'Leave',
                     style: 'destructive',
-                    onPress: () => act({ type: 'END' }),
+                    onPress: () => {
+                      act({ type: 'LEAVE_CHANNEL' });
+                      app.leaveChannelView(channelId);
+                      onExit();
+                    },
                   },
                 ]
               )

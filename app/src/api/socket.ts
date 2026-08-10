@@ -220,7 +220,8 @@ export class Realtime {
   act(channelId: string, action: ClientAction): void {
     // Track presence locally so a reconnect can restore it.
     if (action.type === 'ENTER') this.enteredChannel = channelId;
-    if (action.type === 'LEAVE' || action.type === 'END') {
+    // Both give up presence, so neither should be re-entered on a reconnect.
+    if (action.type === 'STEP_OUT' || action.type === 'LEAVE_CHANNEL') {
       if (this.enteredChannel === channelId) this.enteredChannel = null;
     }
     this.watchedChannel = channelId;

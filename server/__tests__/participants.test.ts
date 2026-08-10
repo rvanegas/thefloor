@@ -33,6 +33,18 @@ afterEach(async () => {
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
+/**
+ * The only way a channel ends now: every member gives up membership. Tests
+ * that used to dispatch END are asserting what happens at the end of a
+ * channel's life, and this is how a channel's life ends.
+ */
+function endChannel(channelId: string): void {
+  const members = [...(app.channels.get(channelId)?.participants ?? [])];
+  for (const id of members) {
+    app.channels.dispatch(channelId, id, { type: 'LEAVE_CHANNEL' });
+  }
+}
+
 async function signIn(identifier: string, displayName: string) {
   const code = app.accounts.issueCode(identifier, clock)!;
   const verified = await app.fastify.inject({
@@ -313,7 +325,7 @@ describe('the silencing matrix with three people', () => {
   it('silences a mid-claim joiner once their track exists', async () => {
     const { alice, bob, carol, channelId } = await trioAllPresent();
     void bob;
-    app.channels.dispatch(channelId, carol.account.id, { type: 'LEAVE' });
+    app.channels.dispatch(channelId, carol.account.id, { type: 'STEP_OUT' });
     app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();
 
@@ -381,7 +393,7 @@ describe('recording with people joining mid-run', () => {
     expect(hers).toHaveLength(1);
 
     clock += 10_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     const row = app.db
@@ -444,7 +456,7 @@ describe('recording with people joining mid-run', () => {
     clock += 10_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     clock += 5_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     const row = app.db

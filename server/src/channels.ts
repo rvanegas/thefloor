@@ -51,10 +51,10 @@ export const mediaRoomIdentity = (channelId: string) => `media:${channelId}`;
  */
 const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'ENTER',
-  'LEAVE',
+  'STEP_OUT',
+  'LEAVE_CHANNEL',
   'INVITE',
   'SET_NAME',
-  'END',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
   'SET_SELF_MUTE',
@@ -133,6 +133,16 @@ export class ChannelRegistry {
     string,
     Map<string, Array<{ key: string; startMs: number }>>
   >();
+  /**
+   * Who belonged to the channel when each recording run started.
+   *
+   * A recording is of the people who were in it, and membership is no longer
+   * fixed for a channel's life: anyone may leave, and the last one leaving is
+   * what ends the channel — by which point `participants` is empty. Reading
+   * the roster at filing time would therefore write a recording belonging to
+   * nobody, which nobody could authorise an export of.
+   */
+  private recordingRoster = new Map<string, string[]>();
   /**
    * Speakers whose silencing has been decided but not yet applied — they had
    * no published track when it was asserted. Retried each tick while the
@@ -570,6 +580,15 @@ export class ChannelRegistry {
     this.channels.set(after.id, after);
     this.applyFloorToMedia(before, after);
     this.applyRecordingToMedia(before, after);
+    // A run's roster only ever grows. Someone invited mid-recording is in that
+    // recording and must be able to reach it afterwards; someone who leaves
+    // the channel mid-run was still in it, so they are not taken back out.
+    const roster = this.recordingRoster.get(after.id);
+    if (roster) {
+      for (const id of after.participants) {
+        if (!roster.includes(id)) roster.push(id);
+      }
+    }
     this.applyPlaybackToMedia(before, after);
     this.trackFloorWindows(before, after);
 
@@ -695,6 +714,7 @@ export class ChannelRegistry {
     const isCapturing = this.capturing.has(after.id);
 
     if (shouldCapture && !isCapturing) {
+      this.recordingRoster.set(after.id, [...after.participants]);
       this.capturing.set(after.id, {
         handles: [],
         requested: new Set(),
@@ -1125,12 +1145,13 @@ export class ChannelRegistry {
     this.db
       .prepare(
         // participants and name are re-stated because both can change after
-        // the insert — invites grow the one, renames the other.
-        'UPDATE channels SET ended_at = ?, ended_reason = ?, participants = ?, name = ? WHERE id = ?'
+        // the insert — invites grow the one, renames the other, and leaving
+        // shrinks the first. The ended_reason column is left alone: there is
+        // now one way a channel ends, so there is nothing to record.
+        'UPDATE channels SET ended_at = ?, participants = ?, name = ? WHERE id = ?'
       )
       .run(
         channel.endedAt,
-        channel.endedReason,
         JSON.stringify(channel.participants),
         channel.name,
         channel.id
@@ -1138,6 +1159,10 @@ export class ChannelRegistry {
 
     const duration = recordedMs(channel.recording, channel.endedAt ?? this.now());
     if (channel.recording.status !== 'stopped' || duration <= 0) return;
+
+    // Who was in it when it was recorded, not who is left now.
+    const roster = this.recordingRoster.get(channel.id) ?? channel.participants;
+    this.recordingRoster.delete(channel.id);
 
     const perParticipant = this.segments.get(channel.id) ?? new Map();
     this.segments.delete(channel.id);
@@ -1175,9 +1200,10 @@ export class ChannelRegistry {
             candidate,
             channel.id,
             channel.initiator,
-            // Legacy anchor columns; participants is what is read back.
-            channel.participants[1],
-            JSON.stringify(channel.participants),
+            // Legacy anchor columns, NOT NULL and never read back; the
+            // participants JSON is what membership queries use.
+            roster[1] ?? roster[0] ?? channel.initiator,
+            JSON.stringify(roster),
             channel.recording.startedAt ?? channel.createdAt,
             duration,
             flat[0] ?? '',

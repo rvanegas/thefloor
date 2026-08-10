@@ -140,22 +140,34 @@ describe('the floor among three', () => {
   it('releases a departing holder and leaves the other two talking', () => {
     let s = trio();
     s = reduce(s, { type: 'CLAIM_FLOOR', userId: B }, T0);
-    s = reduce(s, { type: 'LEAVE', userId: B }, T0 + 1_000);
+    s = reduce(s, { type: 'STEP_OUT', userId: B }, T0 + 1_000);
     expect(s.floor.holder).toBeNull();
     expect(s.present).toEqual([A, C]);
     expect(s.status).toBe('active');
-    expect(s.emptySince).toBeNull();
   });
 
-  it('starts the empty timer only when the last of them leaves', () => {
+  it('empties without ending when the last of them steps out', () => {
     let s = trio();
-    s = reduce(s, { type: 'LEAVE', userId: A }, T0);
-    s = reduce(s, { type: 'LEAVE', userId: B }, T0 + 1_000);
-    expect(s.emptySince).toBeNull();
-    s = reduce(s, { type: 'LEAVE', userId: C }, T0 + 2_000);
-    expect(s.emptySince).toBe(T0 + 2_000);
-    // One re-entry cancels it.
+    s = reduce(s, { type: 'STEP_OUT', userId: A }, T0);
+    s = reduce(s, { type: 'STEP_OUT', userId: B }, T0 + 1_000);
+    s = reduce(s, { type: 'STEP_OUT', userId: C }, T0 + 2_000);
+    expect(s.present).toEqual([]);
+    expect(s.status).toBe('active');
+    // All three still belong to it, and any of them can walk back in.
+    expect(s.participants).toEqual([A, B, C]);
     s = reduce(s, { type: 'ENTER', userId: B }, T0 + 3_000);
-    expect(s.emptySince).toBeNull();
+    expect(s.present).toEqual([B]);
+  });
+
+  it('ends only when the third and last member leaves the channel', () => {
+    let s = trio();
+    s = reduce(s, { type: 'LEAVE_CHANNEL', userId: A }, T0);
+    expect(s.status).toBe('active');
+    s = reduce(s, { type: 'LEAVE_CHANNEL', userId: B }, T0 + 1_000);
+    expect(s.status).toBe('active');
+    expect(s.participants).toEqual([C]);
+    s = reduce(s, { type: 'LEAVE_CHANNEL', userId: C }, T0 + 2_000);
+    expect(s.status).toBe('ended');
+    expect(s.endedAt).toBe(T0 + 2_000);
   });
 });

@@ -1,4 +1,4 @@
-import { EMPTY_SESSION_TIMEOUT_MS, FLOOR_CLAIM_MS } from '../constants';
+import { DISCONNECT_GRACE_MS, FLOOR_CLAIM_MS } from '../constants';
 import { recordedMs } from '../recording';
 import {
   canPauseRecording,
@@ -34,15 +34,23 @@ describe('starting a recording', () => {
     expect(joined().recording.status).toBe('idle');
   });
 
-  it('waits until both parties have connected', () => {
+  it('waits until both parties are present', () => {
     const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
     expect(canStartRecording(alone)).toBe(false);
     expect(canStartRecording(joined())).toBe(true);
   });
 
-  it('stays available after one party leaves, once both have connected', () => {
-    const s = reduce(joined(), { type: 'LEAVE', userId: B }, T0 + 1_000);
-    expect(canStartRecording(s)).toBe(true);
+  it('becomes unavailable again once someone is alone', () => {
+    // This used to read `everPresent` — "have both ever connected" — which was
+    // indistinguishable from "are both here" while a channel lasted minutes.
+    // In a permanent channel it is not: everPresent never decays, so that rule
+    // would let a lone member record themselves months later in a channel that
+    // once had somebody else in it. Presence is also what stops a run, so
+    // gating the start on it makes both ends of a recording agree.
+    const s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0 + 1_000);
+    expect(canStartRecording(s)).toBe(false);
+    const back = reduce(s, { type: 'ENTER', userId: B }, T0 + 2_000);
+    expect(canStartRecording(back)).toBe(true);
   });
 
   it('can be initiated by either user', () => {
@@ -126,37 +134,51 @@ describe('floor restriction on recording controls', () => {
 });
 
 describe('recording and presence', () => {
-  it('keeps running while the channel sits empty', () => {
+  it('keeps running while one person is still there alone', () => {
     const s = apply(joined(), [
       [{ type: 'START_RECORDING', userId: A }, T0],
-      [{ type: 'LEAVE', userId: A }, T0 + 10_000],
-      [{ type: 'LEAVE', userId: B }, T0 + 20_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
       [{ type: 'TICK' }, T0 + 40_000],
     ]);
-    expect(s.status).toBe('active');
     expect(s.recording.status).toBe('recording');
     expect(recordedMs(s.recording, T0 + 40_000)).toBe(40_000);
   });
 
-  it('finalizes when the empty channel auto-ends', () => {
-    const emptyAt = T0 + 20_000;
+  it('stops the moment the last person steps out', () => {
+    // The channel no longer ends when it empties, so this is what bounds a
+    // recording: capture needs somebody to capture. It used to come for free,
+    // via the empty-channel timer ending the channel a minute later — which
+    // is why the old assertion here was 20s plus that whole extra minute.
     const s = apply(joined(), [
       [{ type: 'START_RECORDING', userId: A }, T0],
-      [{ type: 'LEAVE', userId: A }, T0 + 10_000],
-      [{ type: 'LEAVE', userId: B }, emptyAt],
-      [{ type: 'TICK' }, emptyAt + EMPTY_SESSION_TIMEOUT_MS],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 20_000],
     ]);
-    expect(s.status).toBe('ended');
-    expect(s.endedReason).toBe('empty-timeout');
+    expect(s.status).toBe('active');
     expect(s.recording.status).toBe('stopped');
-    expect(recordedMs(s.recording, Infinity)).toBe(20_000 + EMPTY_SESSION_TIMEOUT_MS);
+    expect(recordedMs(s.recording, Infinity)).toBe(20_000);
   });
 
-  it('finalizes when the channel is ended explicitly', () => {
+  it('stops when the last person is dropped by the grace period', () => {
     const s = apply(joined(), [
       [{ type: 'START_RECORDING', userId: A }, T0],
-      [{ type: 'END', userId: B }, T0 + 30_000],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+      [{ type: 'DISCONNECTED', userId: B }, T0 + 20_000],
+      [{ type: 'TICK' }, T0 + 20_000 + DISCONNECT_GRACE_MS],
     ]);
+    expect(s.recording.status).toBe('stopped');
+    // The grace period is inside the recording: an abrupt end leaves up to a
+    // minute of silence on the tail.
+    expect(recordedMs(s.recording, Infinity)).toBe(20_000 + DISCONNECT_GRACE_MS);
+  });
+
+  it('finalizes when the last member leaves the channel', () => {
+    const s = apply(joined(), [
+      [{ type: 'START_RECORDING', userId: A }, T0],
+      [{ type: 'LEAVE_CHANNEL', userId: A }, T0 + 30_000],
+      [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 30_000],
+    ]);
+    expect(s.status).toBe('ended');
     expect(s.recording.status).toBe('stopped');
     expect(recordedMs(s.recording, Infinity)).toBe(30_000);
   });

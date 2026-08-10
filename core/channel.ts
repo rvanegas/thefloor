@@ -1,6 +1,5 @@
 import {
   DISCONNECT_GRACE_MS,
-  EMPTY_SESSION_TIMEOUT_MS,
   MAX_CHANNEL_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
 } from './constants';
@@ -32,12 +31,7 @@ import {
   startRecording,
   stopRecording,
 } from './recording';
-import type {
-  ChannelAction,
-  ChannelEndReason,
-  ChannelState,
-  UserId,
-} from './types';
+import type { ChannelAction, ChannelState, UserId } from './types';
 
 export function createChannel(params: {
   id: string;
@@ -67,12 +61,10 @@ export function createChannel(params: {
     createdAt: now,
     status: 'active',
     endedAt: null,
-    endedReason: null,
     // Creating a channel is entering it: the initiator is present immediately
     // and waits there for as long as it takes anyone else to join.
     present: [initiator],
     everPresent: [initiator],
-    emptySince: null,
     floor: initialFloorState(),
     selfMuted: Object.fromEntries(participants.map((p) => [p, false])),
     recording: initialRecordingState(),
@@ -105,10 +97,6 @@ export function atLeastTwoPresent(state: ChannelState): boolean {
   return state.present.length >= 2;
 }
 
-export function atLeastTwoEverConnected(state: ChannelState): boolean {
-  return state.everPresent.length >= 2;
-}
-
 // --- Guards -----------------------------------------------------------------
 // The UI uses these directly to enable/disable controls, so a disabled control
 // and a rejected action can never disagree.
@@ -133,12 +121,31 @@ export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
   return state.status === 'active' && state.floor.holder === userId;
 }
 
+/**
+ * Recording needs at least two people **present**, not merely two who have
+ * ever connected.
+ *
+ * It used to read `everPresent`, which was harmless while a channel lasted
+ * minutes: "has ever connected" and "is here now" were nearly the same claim.
+ * In a permanent channel they diverge completely — `everPresent` never decays,
+ * so a lone member could start recording themselves months later in a channel
+ * that once had somebody else in it. Presence is also what stops a run, so
+ * gating the start on it makes the two ends of a recording agree.
+ */
 export function canStartRecording(state: ChannelState): boolean {
   return (
     state.status === 'active' &&
     state.recording.status === 'idle' &&
-    atLeastTwoEverConnected(state)
+    atLeastTwoPresent(state)
   );
+}
+
+/**
+ * Whether `userId` may give up membership. Anyone in the channel may, at any
+ * time, present or not — and when the last one does, the channel ends.
+ */
+export function canLeaveChannel(state: ChannelState, userId: UserId): boolean {
+  return state.status === 'active' && isParticipant(state, userId);
 }
 
 /**
@@ -276,31 +283,11 @@ export function reduce(
         everPresent: state.everPresent.includes(action.userId)
           ? state.everPresent
           : [...state.everPresent, action.userId],
-        // Re-entering while the empty-channel timer runs cancels it.
-        emptySince: null,
       };
     }
 
-    case 'LEAVE': {
-      if (!isPresent(state, action.userId)) return state;
-      const present = state.present.filter((id) => id !== action.userId);
-      // Whatever they left by — a tap or a grace period running out — they are
-      // no longer in the channel, so a pending disconnect clock is moot. Left
-      // behind it would fire again on every tick.
-      const { [action.userId]: _left, ...stillConnected } = state.disconnectedAt;
-      return {
-        ...state,
-        present,
-        disconnectedAt: stillConnected,
-        // A departing floor-holder's claim is force-released, exactly as if
-        // released voluntarily. Dropped connections take this same path.
-        floor:
-          state.floor.holder === action.userId
-            ? releaseFloor(state.floor, now)
-            : state.floor,
-        emptySince: present.length === 0 ? now : null,
-      };
-    }
+    case 'STEP_OUT':
+      return stepOut(state, action.userId, now);
 
     case 'INVITE': {
       if (!canInvite(state, action.userId, action.inviteeId)) return state;
@@ -312,9 +299,38 @@ export function reduce(
       };
     }
 
-    case 'END':
-      // Any participant may end the channel at any time, present or not.
-      return endChannel(state, 'explicit', now);
+    case 'LEAVE_CHANNEL': {
+      if (!canLeaveChannel(state, action.userId)) return state;
+
+      // Stepping out first, through the same path a tap takes, so a departing
+      // floor-holder releases the floor and an emptied channel stops its
+      // recording — one route rather than two that have to agree. It also
+      // settles the ordering hazard: the last member leaving mid-recording
+      // ends the *run* before the channel ends.
+      const gone = stepOut(state, action.userId, now);
+
+      const participants = gone.participants.filter(
+        (id) => id !== action.userId
+      );
+      const { [action.userId]: _muted, ...selfMuted } = gone.selfMuted;
+      const { [action.userId]: _invited, ...invitedBy } = gone.invitedBy;
+      const { [action.userId]: _claimed, ...lastClaimedAt } =
+        gone.floor.lastClaimedAt;
+
+      const next: ChannelState = {
+        ...gone,
+        participants,
+        selfMuted,
+        invitedBy,
+        everPresent: gone.everPresent.filter((id) => id !== action.userId),
+        // Dropped for tidiness rather than necessity: claimDelayMs ranks only
+        // people who are present, so a stale entry could never strand the
+        // floor. Removing it keeps the record honest.
+        floor: { ...gone.floor, lastClaimedAt },
+      };
+
+      return participants.length === 0 ? endChannel(next, now) : next;
+    }
 
     case 'SET_NAME': {
       // Normalised here rather than at the edges so every caller — the server,
@@ -405,7 +421,7 @@ function tick(state: ChannelState, now: number): ChannelState {
   // departure would release it.
   for (const [userId, since] of Object.entries(next.disconnectedAt)) {
     if (since !== undefined && now - since >= DISCONNECT_GRACE_MS) {
-      next = reduce(next, { type: 'LEAVE', userId }, now);
+      next = reduce(next, { type: 'STEP_OUT', userId }, now);
     }
   }
 
@@ -421,32 +437,81 @@ function tick(state: ChannelState, now: number): ChannelState {
     next = { ...next, playback: pausePlayback(next.playback, now) };
   }
 
-  // An empty channel auto-ends after a minute. This timer only runs while
-  // nobody is present, so a lone initiator can wait indefinitely.
-  if (
-    next.emptySince !== null &&
-    now - next.emptySince >= EMPTY_SESSION_TIMEOUT_MS
-  ) {
-    next = endChannel(next, 'empty-timeout', now);
-  }
-
+  // Nothing here ends a channel. A channel outlives every silence in it and
+  // is destroyed only when the last member leaves.
   return next;
 }
 
-function endChannel(
+/**
+ * Gives up presence without giving up membership.
+ *
+ * Shared by the tap, by a grace period running out, and by LEAVE_CHANNEL,
+ * which is what stops those three drifting apart.
+ */
+function stepOut(
   state: ChannelState,
-  reason: ChannelEndReason,
+  userId: UserId,
   now: number
 ): ChannelState {
+  if (!isPresent(state, userId)) return state;
+  const present = state.present.filter((id) => id !== userId);
+  // However they went — a tap or a grace period running out — they are no
+  // longer present, so a pending disconnect clock is moot. Left behind it
+  // would fire again on every tick.
+  const { [userId]: _left, ...stillConnected } = state.disconnectedAt;
+
+  return settleEmpty(
+    {
+      ...state,
+      present,
+      disconnectedAt: stillConnected,
+      // A departing floor-holder's claim is force-released, exactly as if
+      // released voluntarily. Dropped connections take this same path.
+      floor:
+        state.floor.holder === userId
+          ? releaseFloor(state.floor, now)
+          : state.floor,
+    },
+    now
+  );
+}
+
+/**
+ * What being empty costs, applied wherever `present` may have just emptied.
+ *
+ * **A recording stops when the last person leaves.** Capture needs somebody
+ * to capture, and until channels became permanent this happened for free —
+ * the empty-channel timer ended the channel a minute later and `endChannel`
+ * stopped the recording on its way out. With no such timer, a run left going
+ * would record silence until somebody came back, billing an egress per
+ * speaker per minute the whole time.
+ *
+ * It lives in the reducer rather than the registry so that a guard and a
+ * control cannot disagree: the interface reads `recording.status` to decide
+ * what to show, and a stop applied only on the media plane would leave the
+ * screen asserting a recording that had already stopped.
+ */
+function settleEmpty(state: ChannelState, now: number): ChannelState {
+  if (state.present.length > 0) return state;
+  if (!isRecordingActive(state.recording)) return state;
+  return { ...state, recording: stopRecording(state.recording, now) };
+}
+
+/**
+ * The end of a channel, reached only by its last member leaving.
+ *
+ * Note what this is *not*: it does not delete anything. The channel keeps its
+ * row and its recordings keep pointing at it — `recordings.channel_id` is a
+ * real foreign key — so "the channel is destroyed" means it stops being
+ * anyone's, not that it stops existing.
+ */
+function endChannel(state: ChannelState, now: number): ChannelState {
   return {
     ...state,
     status: 'ended',
     endedAt: now,
-    endedReason: reason,
     present: [],
-    emptySince: null,
     floor: releaseFloor(state.floor, now),
-    // Recording runs until the channel itself ends, then finalizes.
     recording: isRecordingActive(state.recording)
       ? stopRecording(state.recording, now)
       : state.recording,
@@ -455,13 +520,4 @@ function endChannel(
     // from it at the same moment reads as a second, unexplained event.
     playback: pausePlayback(state.playback, now),
   };
-}
-
-/** Milliseconds until an empty channel auto-ends, or null if it is not empty. */
-export function emptyTimeoutRemainingMs(
-  state: ChannelState,
-  now: number
-): number | null {
-  if (state.status !== 'active' || state.emptySince === null) return null;
-  return Math.max(0, EMPTY_SESSION_TIMEOUT_MS - (now - state.emptySince));
 }

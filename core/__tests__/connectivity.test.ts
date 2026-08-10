@@ -1,6 +1,5 @@
 import {
   DISCONNECT_GRACE_MS,
-  EMPTY_SESSION_TIMEOUT_MS,
   FLOOR_CLAIM_MS,
 } from '../constants';
 import { createChannel, isPresent, reduce } from '../channel';
@@ -74,7 +73,7 @@ describe('disconnecting', () => {
 
   it('is cancelled by entering, which proves a connection', () => {
     let state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
-    state = reduce(state, { type: 'LEAVE', userId: B }, T0 + 1_000);
+    state = reduce(state, { type: 'STEP_OUT', userId: B }, T0 + 1_000);
     state = reduce(state, { type: 'ENTER', userId: B }, T0 + 2_000);
     state = tick(state, T0 + DISCONNECT_GRACE_MS + 5_000);
     expect(isPresent(state, B)).toBe(true);
@@ -134,9 +133,10 @@ describe('a disconnected floor-holder', () => {
 });
 
 describe('when everyone disconnects', () => {
-  it('keeps the channel alive for the grace period plus the empty timer', () => {
-    // Deliberately two minutes total: a minute to come back before anyone is
-    // removed, then the ordinary empty-channel minute.
+  it('empties the channel after the grace period, and leaves it standing', () => {
+    // This used to run to an end: a minute of grace, then the empty-channel
+    // minute, then gone. Only the first half survives — losing everyone is
+    // now just an empty channel, which is a thing a channel is allowed to be.
     let state = joined();
     state = reduce(state, { type: 'DISCONNECTED', userId: A }, T0);
     state = reduce(state, { type: 'DISCONNECTED', userId: B }, T0);
@@ -145,20 +145,15 @@ describe('when everyone disconnects', () => {
     expect(state.status).toBe('active');
     expect(state.present).toHaveLength(2);
 
-    // Both removed together, which is what starts the empty-channel timer.
     state = tick(state, T0 + DISCONNECT_GRACE_MS);
     expect(state.present).toHaveLength(0);
     expect(state.status).toBe('active');
 
-    state = tick(
-      state,
-      T0 + DISCONNECT_GRACE_MS + EMPTY_SESSION_TIMEOUT_MS - 1
-    );
+    // No later tick ends it, however long anyone waits.
+    state = tick(state, T0 + DISCONNECT_GRACE_MS + 24 * 60 * 60 * 1000);
     expect(state.status).toBe('active');
-
-    state = tick(state, T0 + DISCONNECT_GRACE_MS + EMPTY_SESSION_TIMEOUT_MS);
-    expect(state.status).toBe('ended');
-    expect(state.endedReason).toBe('empty-timeout');
+    // And both are still members, so it is still on both their Home screens.
+    expect(state.participants).toEqual([A, B]);
   });
 
   it('survives if one of them returns inside the window', () => {

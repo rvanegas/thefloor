@@ -25,6 +25,18 @@ afterEach(async () => {
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
+/**
+ * The only way a channel ends now: every member gives up membership. Tests
+ * that used to dispatch END are asserting what happens at the end of a
+ * channel's life, and this is how a channel's life ends.
+ */
+function endChannel(channelId: string): void {
+  const members = [...(app.channels.get(channelId)?.participants ?? [])];
+  for (const id of members) {
+    app.channels.dispatch(channelId, id, { type: 'LEAVE_CHANNEL' });
+  }
+}
+
 async function signIn(identifier: string, displayName: string) {
   const code = app.accounts.issueCode(identifier, clock)!;
   const verified = await app.fastify.inject({
@@ -69,7 +81,7 @@ describe('naming a channel', () => {
 
     // Alice leaves with Bob still there, making the channel rejoinable for her.
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
-    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     const rejoinable = app.channels.rejoinableFor(alice.account.id);
     expect(rejoinable).toHaveLength(1);
     expect(rejoinable[0].name).toBe('Book club');
@@ -95,7 +107,7 @@ describe('naming a channel', () => {
       type: 'SET_NAME',
       name: 'Book club',
     } as never);
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     const row = app.db
       .prepare('SELECT name FROM channels WHERE id = ?')
       .get(channelId) as { name: string | null };

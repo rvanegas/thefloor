@@ -48,17 +48,18 @@ export const PLAYBACK_DEFAULT_VOLUME = 0.7;
  */
 export const MAX_CHANNEL_NAME_LENGTH = 60;
 
-/** How long a channel may sit with nobody present before it auto-ends. */
-export const EMPTY_SESSION_TIMEOUT_MS = 60 * 1000;
-
 /**
- * How long a user may be disconnected before they are removed from a channel.
+ * How long a user may be disconnected before they stop being present.
  *
  * Connectivity is not presence. A socket that drops and returns inside this
- * window changes nothing; only staying gone past it counts as leaving. It
- * stacks with EMPTY_SESSION_TIMEOUT_MS, so a channel survives up to two
- * minutes with nobody connected — deliberately, that being the interval in
- * which a tunnel or a lift is survivable.
+ * window changes nothing; only staying gone past it counts as stepping out —
+ * deliberately generous, that being the interval in which a tunnel or a lift
+ * is survivable.
+ *
+ * Note it is also what bounds a forgotten recording, now that nothing else
+ * does: a run stops when the channel empties, and the channel empties this
+ * long after the last connection dies. So an abrupt end to a conversation
+ * leaves up to a minute of silence on the tail of the recording.
  */
 export const DISCONNECT_GRACE_MS = 60_000;
 

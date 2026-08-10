@@ -45,6 +45,18 @@ afterEach(async () => {
 });
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
+
+/**
+ * The only way a channel ends now: every member gives up membership. Tests
+ * that used to dispatch END are asserting what happens at the end of a
+ * channel's life, and this is how a channel's life ends.
+ */
+function endChannel(channelId: string): void {
+  const members = [...(app.channels.get(channelId)?.participants ?? [])];
+  for (const id of members) {
+    app.channels.dispatch(channelId, id, { type: 'LEAVE_CHANNEL' });
+  }
+}
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 /** A real audio file, since the server asks ffprobe how long it is. */
@@ -270,7 +282,7 @@ describe('what was played reaches the recording', () => {
     clock += 2_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'RELEASE_FLOOR' });
     clock += 1_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     const row = app.db
@@ -297,7 +309,7 @@ describe('what was played reaches the recording', () => {
     await upload(alice.token, channelId);
     await settle();
 
-    app.channels.dispatch(channelId, alice.account.id, { type: 'END' });
+    endChannel(channelId);
     await settle();
 
     expect(media.playbackFor(channelId)!.closed).toBe(true);

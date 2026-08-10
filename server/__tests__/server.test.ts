@@ -554,7 +554,7 @@ describe('channels', () => {
     expect(app.channels.get(channelId)!.floor.holder).toBe(bob.account.id);
   });
 
-  it('auto-ends an empty channel and records it', async () => {
+  it('outlives an empty channel, and records its end when the last member leaves', async () => {
     const { alice, bob } = await twoContacts();
     const created = await app.fastify.inject({
       method: 'POST',
@@ -564,14 +564,21 @@ describe('channels', () => {
     });
     const { channelId } = created.json() as { channelId: string };
 
-    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE' });
-    clock += 60 * 1000;
+    // Empty, and no amount of ticking ends it. This used to end here.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    clock += 60 * 60 * 1000;
     app.channels.tick();
+    expect(app.channels.get(channelId)!.status).toBe('active');
 
+    // Only membership ends it, and only the last member's.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE_CHANNEL' });
+    expect(app.channels.get(channelId)!.status).toBe('active');
+    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
     expect(app.channels.get(channelId)!.status).toBe('ended');
+
     const row = app.db
-      .prepare('SELECT ended_reason FROM channels WHERE id = ?')
-      .get(channelId) as { ended_reason: string };
-    expect(row.ended_reason).toBe('empty-timeout');
+      .prepare('SELECT ended_at FROM channels WHERE id = ?')
+      .get(channelId) as { ended_at: number };
+    expect(row.ended_at).toBe(clock);
   });
 });
