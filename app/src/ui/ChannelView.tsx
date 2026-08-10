@@ -106,6 +106,10 @@ export function ChannelView({
       <ChannelSettingsView
         channel={channel}
         onBack={() => setSettingsOpen(false)}
+        onLeft={() => {
+          app.leaveChannelView(channelId);
+          onExit();
+        }}
       />
     );
   }
@@ -510,49 +514,22 @@ export function ChannelView({
         </Card>
 
         {/*
-          Two different acts, deliberately not two intensities of one. Stepping
-          out is about this conversation; leaving is about the channel. Naming
-          the first "Leave" as well is what would make them read as a pair.
+          Stepping out is the ordinary way to finish talking, so it is the only
+          departure offered here. Leaving the channel outright lives in
+          settings: it is rare, it is close to irreversible, and putting it
+          beside this one in the colour reserved for danger drew the eye
+          straight to the action least likely to be wanted.
         */}
         <SectionLabel>Leaving</SectionLabel>
-        <View style={styles.buttonRow}>
-          <Button
-            label="Step out"
-            sublabel="You stay a member"
-            style={styles.flexButton}
-            onPress={() => {
-              act({ type: 'STEP_OUT' });
-              app.leaveChannelView(channelId);
-              onExit();
-            }}
-          />
-          <Button
-            label="Leave channel"
-            sublabel={lastMember ? 'Deletes this channel' : 'Removes it from Home'}
-            variant="danger"
-            style={styles.flexButton}
-            onPress={() =>
-              Alert.alert(
-                lastMember ? 'Delete this channel?' : 'Leave this channel?',
-                lastMember
-                  ? 'You are its last member, so leaving deletes it. Its recordings are kept.'
-                  : 'It disappears from your home screen and you will need a fresh invitation to come back. Everyone else keeps it.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: lastMember ? 'Delete' : 'Leave',
-                    style: 'destructive',
-                    onPress: () => {
-                      act({ type: 'LEAVE_CHANNEL' });
-                      app.leaveChannelView(channelId);
-                      onExit();
-                    },
-                  },
-                ]
-              )
-            }
-          />
-        </View>
+        <Button
+          label="Step out"
+          sublabel="You stay a member — the channel keeps going without you"
+          onPress={() => {
+            act({ type: 'STEP_OUT' });
+            app.leaveChannelView(channelId);
+            onExit();
+          }}
+        />
       </ScrollView>
     </View>
   );

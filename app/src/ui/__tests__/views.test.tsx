@@ -666,20 +666,32 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('offers stepping out and leaving as two different acts', () => {
+  it('offers only stepping out on the channel screen', () => {
+    // Leaving lives in settings. Beside Step out, in the colour reserved for
+    // danger, it drew the eye straight to the least likely action.
     showChannel(channelOf());
     const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
 
     const stepOut = findButton(tree, 'Step out');
     expect(stepOut).toBeDefined();
     expect(labelOf(stepOut!)).toContain('You stay a member');
+    expect(findButton(tree, 'Leave channel')).toBeUndefined();
+
     act(() => stepOut!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
+    act(() => tree.unmount());
+  });
 
-    // Leaving is behind a confirmation, so the tap alone dispatches nothing.
+  it('keeps leaving in settings, plain rather than alarming', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
     const leave = findButton(tree, 'Leave channel');
     expect(leave).toBeDefined();
-    expect(labelOf(leave!)).toContain('Removes it from Home');
+    expect(labelOf(leave!)).toContain('Removes it from your home screen');
+    // Behind a confirmation, so the tap alone dispatches nothing.
+    act(() => leave!.props.onPress());
     expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
       type: 'LEAVE_CHANNEL',
     });
@@ -687,14 +699,16 @@ describe('Channel', () => {
   });
 
   it('warns the last member that leaving deletes the channel', () => {
-    // With two people it merely removes you. Alone, the same tap destroys it,
-    // and nothing else on screen would say so.
+    // With somebody else there it merely removes you. Alone, the same tap
+    // destroys the channel, and that is when the colour is telling the truth.
     showChannel(
       channelOf((s) => reduce(s, { type: 'LEAVE_CHANNEL', userId: THEM }, NOW))
     );
     const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
     expect(labelOf(findButton(tree, 'Leave channel')!)).toContain(
-      'Deletes this channel'
+      'this deletes the channel'
     );
     act(() => tree.unmount());
   });

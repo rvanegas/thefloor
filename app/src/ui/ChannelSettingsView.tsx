@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
@@ -19,11 +19,17 @@ import { colors, spacing, type } from './theme';
 export function ChannelSettingsView({
   channel,
   onBack,
+  onLeft,
 }: {
   channel: ChannelState;
   onBack: () => void;
+  /** Called once membership is given up, to get off this channel's screens. */
+  onLeft: () => void;
 }) {
   const app = useApp();
+  // Alone, the same tap destroys the channel rather than merely removing you
+  // from it. Nothing else on screen would say so.
+  const lastMember = channel.participants.length === 1;
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
 
@@ -96,6 +102,48 @@ export function ChannelSettingsView({
         </Text>
         <Text style={styles.count}>
           {description.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
+        </Text>
+      </Card>
+
+      {/*
+        Last, and plain. The confirmation carries the weight — colouring the
+        button itself would put the loudest thing on the screen on the rarest
+        action. The exception is being the last member, where the tap really
+        does destroy something, and the colour is then telling the truth.
+      */}
+      <SectionLabel>Leaving</SectionLabel>
+      <Card style={styles.stack}>
+        <Button
+          label="Leave channel"
+          sublabel={
+            lastMember
+              ? 'You are the last member — this deletes the channel'
+              : 'Removes it from your home screen'
+          }
+          variant={lastMember ? 'danger' : 'default'}
+          onPress={() =>
+            Alert.alert(
+              lastMember ? 'Delete this channel?' : 'Leave this channel?',
+              lastMember
+                ? 'You are its last member, so leaving deletes it. Its recordings are kept.'
+                : 'It disappears from your home screen and you will need a fresh invitation to come back. Everyone else keeps it.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: lastMember ? 'Delete' : 'Leave',
+                  style: 'destructive',
+                  onPress: () => {
+                    app.act(channel.id, { type: 'LEAVE_CHANNEL' });
+                    onLeft();
+                  },
+                },
+              ]
+            )
+          }
+        />
+        <Text style={type.muted}>
+          Stepping out is on the channel screen and is probably what you want:
+          it keeps your place here.
         </Text>
       </Card>
     </ScrollView>
