@@ -12,6 +12,30 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Told whenever the server refuses our credentials.
+ *
+ * A 401 can reach the app from three places — this module, the two file
+ * transfers that bypass `fetch`, and a websocket closed with 4401 — and none
+ * of them can reach React state on their own. A single listener, registered by
+ * AppProvider, is what turns any of them into one sign-out.
+ *
+ * It matters more since signing in on a second device began revoking the
+ * first: before that, a token only died by expiring after ninety days, so a
+ * live app meeting a 401 was hardly possible. Now it is ordinary.
+ */
+type SignedOutListener = () => void;
+let signedOutListener: SignedOutListener | null = null;
+
+export function onSignedOut(listener: SignedOutListener | null): void {
+  signedOutListener = listener;
+}
+
+/** Reports a refused credential from wherever it was noticed. */
+export function reportSignedOut(): void {
+  signedOutListener?.();
+}
+
 async function request<T>(
   path: string,
   options: { method?: string; body?: unknown; token?: string } = {}
@@ -46,6 +70,7 @@ async function request<T>(
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     const body = payload as { error?: string; code?: string } | null;
+    if (response.status === 401) reportSignedOut();
     throw new ApiError(
       body?.error ?? `Request failed (${response.status}).`,
       response.status,

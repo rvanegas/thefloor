@@ -30,6 +30,9 @@ jest.mock('expo-secure-store', () => ({
 jest.mock('../../api/http', () => ({
   // A bare class is enough: the provider only uses it for instanceof checks.
   ApiError: class ApiError extends Error {},
+  // The provider registers a sign-out listener on mount; these tests never
+  // exercise it, so accepting the registration is all that is needed.
+  onSignedOut: jest.fn(),
   api: {
     home: jest.fn(async () => ({
       invites: [],

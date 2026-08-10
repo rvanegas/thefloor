@@ -19,7 +19,7 @@ import { colors, spacing, type } from './theme';
  * name gets corrected. Left blank, the current name stands.
  */
 export function AuthView() {
-  const { requestCode, verify } = useApp();
+  const { requestCode, verify, lastError, clearError } = useApp();
   const [step, setStep] = useState<'identify' | 'verify'>('identify');
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
@@ -36,6 +36,8 @@ export function AuthView() {
     }
     setBusy(true);
     setError(null);
+    // Acting on the sign-out notice is what retires it.
+    clearError();
     try {
       await requestCode(identifier.trim());
       setStep('verify');
@@ -53,6 +55,7 @@ export function AuthView() {
     }
     setBusy(true);
     setError(null);
+    clearError();
     try {
       await verify(identifier.trim(), code.trim(), displayName.trim() || undefined);
     } catch (e) {
@@ -142,7 +145,15 @@ export function AuthView() {
           </>
         )}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {/*
+          Whatever this attempt just went wrong with wins; the sign-out notice
+          is what got the user here and stays until they act on it. Before
+          this, `lastError` was set in several places and rendered in none, so
+          being told why you were signed out was impossible.
+        */}
+        {error ?? lastError ? (
+          <Text style={styles.error}>{error ?? lastError}</Text>
+        ) : null}
 
         <Text style={styles.hint}>Server: {API_URL}</Text>
       </ScrollView>

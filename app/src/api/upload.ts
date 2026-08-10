@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { API_URL } from './config';
-import { ApiError } from './http';
+import { ApiError, reportSignedOut } from './http';
 
 /**
  * Loads the document picker only when somebody actually picks something.
@@ -94,6 +94,7 @@ export async function pickAndUploadTrack(
   }
 
   if (result.status !== 200) {
+    if (result.status === 401) reportSignedOut();
     let message = `The track could not be uploaded (${result.status}).`;
     try {
       const body = JSON.parse(result.body);

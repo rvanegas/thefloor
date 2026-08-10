@@ -4,6 +4,7 @@ import {
   DISCONNECT_GRACE_MS,
   HEARTBEAT_TIMEOUT_MS,
 } from '../../core/constants';
+import { OTP_RESEND_INTERVAL_MS } from '../src/accounts';
 import type { ClientMessage, ServerMessage } from '../../core/protocol';
 
 /**
@@ -405,5 +406,56 @@ describe('websocket', () => {
     back.close();
   });
 
+
+
+  /**
+   * Signing in elsewhere revokes the token this socket was accepted on. The
+   * socket has to go with it: it is not merely stale, it is a live
+   * conversation with an open microphone belonging to a device the account
+   * holder may no longer have.
+   */
+  it('closes a socket whose token was revoked by a sign-in elsewhere', async () => {
+    const alice = await signIn('+15550000001', 'Alice');
+    const bob = await signIn('+15550000002', 'Bob');
+
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+    await Promise.all([a.next('hello'), b.next('hello')]);
+
+    const aClosed = a.closed;
+
+    // A second device for Alice. The resend interval refuses a second code
+    // this soon, so the code is issued as of a minute from now — moving the
+    // shared clock instead would trip the heartbeat timeout and close both
+    // sockets for staleness, which is the other sweep entirely.
+    const secondCode = app.accounts.issueCode(
+      '+15550000001',
+      clock + OTP_RESEND_INTERVAL_MS + 1_000
+    )!;
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/auth/verify',
+      payload: { identifier: '+15550000001', code: secondCode },
+    });
+
+    // The sweep runs on a real interval, so this waits rather than steps.
+    await new Promise((r) => setTimeout(r, 6_500));
+
+    await expect(aClosed).resolves.toBe(4401);
+    // Told why before being cut off, so the app has something to show.
+    expect(
+      a.received.some((m) => m.type === 'error' && m.code === 'unauthorized')
+    ).toBe(true);
+
+    // Bob is untouched — revocation is per account, and so is the close.
+    expect(
+      b.received.some((m) => m.type === 'error' && m.code === 'unauthorized')
+    ).toBe(false);
+    b.send({ type: 'ping' });
+    await b.next('pong');
+
+    b.close();
+  }, 20_000);
 
 });

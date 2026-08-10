@@ -16,11 +16,24 @@ import type { SessionRegistry } from './sessions';
 interface Connection {
   socket: WebSocket;
   userId: string;
+  /**
+   * The credential this socket was accepted on, kept so it can be re-checked.
+   *
+   * Authenticating once at connect was enough while a token only died by
+   * expiring after ninety days. Now that signing in elsewhere revokes it, a
+   * socket can outlive its own authorisation — and this one holds a live
+   * conversation with an open microphone, so it is not something to leave
+   * running until the client happens to reconnect.
+   */
+  token: string;
   watchingHome: boolean;
   watchingSessions: Set<string>;
   /** When anything was last heard from this client. */
   lastSeen: number;
 }
+
+/** Close code for a credential the server will not accept. */
+const UNAUTHORIZED_CLOSE = 4401;
 
 /**
  * Lets non-session code (contact changes, which arrive over HTTP) push Home to
@@ -70,7 +83,23 @@ export function registerWebsocket(deps: {
   const sweep = setInterval(() => {
     const cutoff = now() - HEARTBEAT_TIMEOUT_MS;
     for (const connection of connections) {
-      if (connection.lastSeen < cutoff) connection.socket.close();
+      if (connection.lastSeen < cutoff) {
+        connection.socket.close();
+        continue;
+      }
+      // Re-checked here rather than pushed from the revocation, so there is
+      // one place that decides a socket is no longer authorised and no wiring
+      // between accounts and transport. The client is told before the close:
+      // 4401 alone is enough for it to stop reconnecting, but the message is
+      // what it can put on screen.
+      if (!accounts.accountForToken(connection.token, now())) {
+        send(connection, {
+          type: 'error',
+          message: 'Signed in on another device.',
+          code: 'unauthorized',
+        });
+        connection.socket.close(UNAUTHORIZED_CLOSE, 'Unauthorized');
+      }
     }
   }, HEARTBEAT_INTERVAL_MS);
   sweep.unref?.();
@@ -134,7 +163,9 @@ export function registerWebsocket(deps: {
         : undefined);
 
     const account = token ? accounts.accountForToken(token, now()) : undefined;
-    if (!account) {
+    // `!token` is redundant — no token means no account — but it is what lets
+    // the connection below keep the credential as a plain string.
+    if (!token || !account) {
       socket.send(
         JSON.stringify({
           type: 'error',
@@ -142,13 +173,14 @@ export function registerWebsocket(deps: {
           code: 'unauthorized',
         } satisfies ServerMessage)
       );
-      socket.close(4401, 'Unauthorized');
+      socket.close(UNAUTHORIZED_CLOSE, 'Unauthorized');
       return;
     }
 
     const connection: Connection = {
       socket,
       userId: account.id,
+      token,
       watchingHome: false,
       watchingSessions: new Set(),
       lastSeen: now(),

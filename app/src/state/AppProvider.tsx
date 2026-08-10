@@ -15,7 +15,7 @@ import type {
   PublicAccount,
   SessionView,
 } from '../../../core/protocol';
-import { api, ApiError } from '../api/http';
+import { api, ApiError, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
 
 const TOKEN_KEY = 'thefloor.token';
@@ -201,6 +201,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const timer = setInterval(() => forceTick((n) => n + 1), 500);
     return () => clearInterval(timer);
   }, [state.sessionView !== null]);
+
+  /**
+   * Turns a refused credential — from any request, any file transfer, or a
+   * socket closed with 4401 — into a clean sign-out.
+   *
+   * Deliberately does not call `/auth/sign-out`: the token the server would
+   * want is the one it has just told us it no longer honours, so the only
+   * thing left to do is forget it here. The notice is worded for the cause
+   * that now produces this almost every time, without claiming to know which
+   * of the three it was.
+   */
+  useEffect(() => {
+    onSignedOut(() => {
+      realtime.disconnect();
+      void storage.remove(TOKEN_KEY);
+      setState({
+        ready: true,
+        token: null,
+        me: null,
+        home: null,
+        sessionView: null,
+        status: 'closed',
+        lastError:
+          'You were signed out. Signing in on another device ends the session here.',
+      });
+    });
+    return () => onSignedOut(null);
+  }, [realtime]);
 
   useEffect(() => () => realtime.disconnect(), [realtime]);
 

@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { API_URL } from './config';
-import { ApiError } from './http';
+import { ApiError, reportSignedOut } from './http';
 
 /**
  * Fetches a finished recording and hands it to the system share sheet.
@@ -38,6 +38,7 @@ export async function exportRecording(
   }
 
   if (result.status !== 200) {
+    if (result.status === 401) reportSignedOut();
     // The body is the server's JSON error, which downloadAsync has already
     // written to disk. Read it back so the user sees the actual reason.
     let message = `Could not download the recording (${result.status}).`;

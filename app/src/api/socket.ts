@@ -10,8 +10,15 @@ import type {
   SessionView,
 } from '../../../core/protocol';
 import { WS_URL } from './config';
+import { reportSignedOut } from './http';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
+
+/**
+ * The close code the server uses when it will not accept our token. Chosen
+ * from the 4000–4999 range, which is reserved for the application.
+ */
+const UNAUTHORIZED_CLOSE = 4401;
 
 export interface RealtimeHandlers {
   /** Identifies who this connection belongs to, per the server. */
@@ -125,11 +132,21 @@ export class Realtime {
       }
     };
 
-    socket.onclose = () => {
+    socket.onclose = (event?: { code?: number }) => {
       this.socket = null;
       this.stopHeartbeat();
       this.handlers.onStatus?.('closed');
-      if (!this.closedByUs) this.scheduleReconnect();
+      if (this.closedByUs) return;
+
+      // 4401 is the server refusing the credential we connected with, which
+      // now happens whenever this account signs in somewhere else. Reconnecting
+      // would loop against a token that can never work again, so this is the
+      // one close worth treating as final.
+      if (event?.code === UNAUTHORIZED_CLOSE) {
+        reportSignedOut();
+        return;
+      }
+      this.scheduleReconnect();
     };
 
     socket.onerror = () => {
