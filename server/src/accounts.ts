@@ -494,6 +494,50 @@ export class Accounts {
       .run(a, b);
     return true;
   }
+
+  /**
+   * Takes back a request the caller sent, identified by the address it was
+   * sent to.
+   *
+   * The address rather than a row id, on purpose: outgoing rows carry an empty
+   * account id so that a request to a stranger and one to a real user look the
+   * same, and an id-based withdrawal would hand back the very distinction that
+   * emptiness exists to withhold. The address is also the one thing the sender
+   * already knows. Whichever form the request took — a `pending_invites` row
+   * for an address with no account, or a pending `contacts` row for one with —
+   * the same call removes it, and the answer does not say which it was.
+   *
+   * Only the requester's own request: the recipient of a pending contact has
+   * `declineContact`, and an accepted contact is not a request any more.
+   */
+  withdrawRequest(
+    from: string,
+    identifier: string
+  ): { withdrawn: boolean; targetId: string | null } {
+    const id = normalize(identifier);
+    const invites = this.db
+      .prepare(
+        'DELETE FROM pending_invites WHERE requester_id = ? AND identifier = ? COLLATE NOCASE'
+      )
+      .run(from, id);
+    if (invites.changes > 0) return { withdrawn: true, targetId: null };
+
+    const target = this.byIdentifier(id);
+    if (!target) return { withdrawn: false, targetId: null };
+    const existing = this.contactState(from, target.id);
+    if (
+      !existing ||
+      existing.state !== 'pending' ||
+      existing.requester !== from
+    ) {
+      return { withdrawn: false, targetId: null };
+    }
+    const [a, b] = pairKey(from, target.id);
+    this.db
+      .prepare('DELETE FROM contacts WHERE a_id = ? AND b_id = ?')
+      .run(a, b);
+    return { withdrawn: true, targetId: target.id };
+  }
 }
 
 function normalize(identifier: string): string {

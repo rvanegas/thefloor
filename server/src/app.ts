@@ -217,6 +217,28 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true, accepted: result.accepted };
   });
 
+  // Withdrawal goes by address, not row id — see Accounts.withdrawRequest for
+  // why an id would give away what the empty outgoing id exists to hide.
+  fastify.post('/contacts/withdraw', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as { identifier?: string } | undefined;
+    if (!body?.identifier) {
+      return reply.code(400).send({ error: 'identifier is required' });
+    }
+
+    const result = accounts.withdrawRequest(account.id, body.identifier);
+    if (!result.withdrawn) {
+      return reply.code(400).send({ error: 'No pending request to that address.' });
+    }
+    // The recipient, if there is one, has a request vanishing from their Home.
+    homeNotifier.notify(
+      result.targetId ? [account.id, result.targetId] : [account.id]
+    );
+    return { ok: true };
+  });
+
   fastify.post('/contacts/:id/accept', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;

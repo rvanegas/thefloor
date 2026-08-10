@@ -322,7 +322,25 @@ function ContactRow({
           />
         </View>
       ) : (
-        <Text style={styles.pendingTag}>Sent</Text>
+        <View style={styles.rowActions}>
+          <Text style={styles.pendingTag}>Sent</Text>
+          {/*
+            Identified by the address, which is what displayName holds for
+            outgoing rows — these have no account id to cancel by, on purpose.
+          */}
+          <Button
+            label="Withdraw"
+            variant="ghost"
+            onPress={() =>
+              app.withdrawContact(account.displayName).catch((e) => {
+                Alert.alert(
+                  'Could not withdraw',
+                  e instanceof Error ? e.message : String(e)
+                );
+              })
+            }
+          />
+        </View>
       )}
     </Card>
   );

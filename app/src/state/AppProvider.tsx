@@ -69,6 +69,8 @@ interface AppValue extends AppState {
   ) => Promise<void>;
   signOut: () => Promise<void>;
   requestContact: (identifier: string) => Promise<{ accepted: boolean }>;
+  /** Takes back a sent request, by the address it went to. */
+  withdrawContact: (identifier: string) => Promise<void>;
   acceptContact: (contactId: string) => Promise<void>;
   declineContact: (contactId: string) => Promise<void>;
   startSession: (contactId: string) => Promise<string>;
@@ -278,6 +280,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const home = await api.home(state.token);
         setState((s) => ({ ...s, home }));
         return { accepted: result.accepted };
+      },
+
+      withdrawContact: async (identifier) => {
+        if (!state.token) return;
+        await api.withdrawContact(state.token, identifier);
+        const home = await api.home(state.token);
+        setState((s) => ({ ...s, home }));
       },
 
       acceptContact: async (contactId) => {

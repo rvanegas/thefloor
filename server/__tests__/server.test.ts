@@ -341,6 +341,89 @@ describe('contacts', () => {
     });
     expect(home.json().contacts[0].status).toBe('outgoing');
   });
+
+  /**
+   * Withdrawal goes by address on purpose: outgoing rows carry an empty
+   * account id so a request to a stranger and one to a real user look the
+   * same, and the address is the one handle that keeps them that way.
+   */
+  it('withdraws a request to an address with no account', async () => {
+    const alice = await signIn('+15550000001', 'Alice');
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: 'nobody@example.com' },
+    });
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(1);
+
+    const withdrawn = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/withdraw',
+      headers: auth(alice.token),
+      payload: { identifier: 'nobody@example.com' },
+    });
+    expect(withdrawn.statusCode).toBe(200);
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(0);
+
+    // Gone means gone: a second withdrawal has nothing to act on.
+    const again = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/withdraw',
+      headers: auth(alice.token),
+      payload: { identifier: 'nobody@example.com' },
+    });
+    expect(again.statusCode).toBe(400);
+  });
+
+  it('withdraws a pending request to a real account, and only its own', async () => {
+    const alice = await signIn('+15550000001', 'Alice');
+    const bob = await signIn('+15550000002', 'Bob');
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: '+15550000002' },
+    });
+
+    // The recipient cannot withdraw what they did not send — declining is
+    // their move, and it is a different endpoint.
+    const notYours = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/withdraw',
+      headers: auth(bob.token),
+      payload: { identifier: '+15550000001' },
+    });
+    expect(notYours.statusCode).toBe(400);
+    expect(app.accounts.contactState(alice.account.id, bob.account.id)).not.toBeNull();
+
+    const withdrawn = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/withdraw',
+      headers: auth(alice.token),
+      payload: { identifier: '+15550000002' },
+    });
+    expect(withdrawn.statusCode).toBe(200);
+    expect(app.accounts.contactState(alice.account.id, bob.account.id)).toBeNull();
+    // And Bob no longer sees an incoming request.
+    expect(app.accounts.contactsFor(bob.account.id)).toHaveLength(0);
+  });
+
+  it('cannot withdraw an accepted contact', async () => {
+    const { alice } = await twoContacts();
+
+    const refused = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/withdraw',
+      headers: auth(alice.token),
+      payload: { identifier: '+15550000002' },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(app.accounts.contactsFor(alice.account.id)[0].status).toBe('accepted');
+  });
+
 });
 
 describe('bodyless POSTs', () => {
