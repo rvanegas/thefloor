@@ -30,6 +30,8 @@ export interface InviteView {
 
 export interface RejoinableView {
   sessionId: string;
+  /** The session's name, if anyone has given it one. */
+  name: string | null;
   /** The other participants, in session order. */
   others: PublicAccount[];
   /** How many participants are currently present. */
@@ -80,6 +82,8 @@ export type ClientAction =
    * is the server's check to make before the reducer ever sees it.
    */
   | { type: 'INVITE'; contactId: string }
+  /** Names or renames the session; an empty string clears the name. */
+  | { type: 'SET_NAME'; name: string }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   | { type: 'SET_SELF_MUTE'; muted: boolean }

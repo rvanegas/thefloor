@@ -53,6 +53,7 @@ const CLIENT_ACTIONS = new Set<SessionAction['type']>([
   'ENTER',
   'LEAVE',
   'INVITE',
+  'SET_NAME',
   'END',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
@@ -77,6 +78,23 @@ const CLIENT_ACTIONS = new Set<SessionAction['type']>([
  * open until the client noticed.
  */
 export const ROOM_CLOSE_GRACE_MS = 5_000;
+
+/**
+ * Why an operation was refused, for callers that must map it onto something
+ * else — an HTTP status, today.
+ *
+ * It exists because the routes used to choose 403 versus 400 by comparing the
+ * error *message*, which made the wording of a sentence load-bearing: rewording
+ * it downgraded a permission failure to a bad request, silently and with
+ * nothing failing. A code says what the message only implied.
+ */
+export type RefusalCode = 'not_found' | 'forbidden' | 'conflict' | 'invalid';
+
+export interface Refused {
+  ok: false;
+  error: string;
+  code: RefusalCode;
+}
 
 /**
  * The authority for live sessions. Every rule it enforces comes from core/ —
@@ -219,19 +237,20 @@ export class SessionRegistry {
   create(
     initiator: string,
     invitees: string[]
-  ): { ok: true; session: SessionState } | { ok: false; error: string } {
+  ): { ok: true; session: SessionState } | Refused {
     const unique = [...new Set(invitees)];
-    if (unique.length === 0) return { ok: false, error: 'Nobody to invite.' };
-    if (unique.includes(initiator)) return { ok: false, error: 'That’s you.' };
+    if (unique.length === 0) return { ok: false, error: 'Nobody to invite.', code: 'invalid' };
+    if (unique.includes(initiator)) return { ok: false, error: 'That’s you.', code: 'invalid' };
     if (unique.length + 1 > MAX_SESSION_PARTICIPANTS) {
       return {
         ok: false,
         error: `Sessions hold up to ${MAX_SESSION_PARTICIPANTS} people.`,
+        code: 'conflict',
       };
     }
     for (const invitee of unique) {
       if (!this.accounts.areContacts(initiator, invitee)) {
-        return { ok: false, error: 'Not a contact.' };
+        return { ok: false, error: 'Not a contact.', code: 'forbidden' };
       }
     }
 
@@ -302,14 +321,14 @@ export class SessionRegistry {
     sessionId: string,
     userId: string,
     action: Omit<SessionAction, 'userId'> & { type: SessionAction['type'] }
-  ): { ok: true; session: SessionState } | { ok: false; error: string } {
+  ): { ok: true; session: SessionState } | Refused {
     const session = this.sessions.get(sessionId);
-    if (!session) return { ok: false, error: 'No such session.' };
+    if (!session) return { ok: false, error: 'No such session.', code: 'not_found' };
     if (!isParticipant(session, userId)) {
-      return { ok: false, error: 'Not your session.' };
+      return { ok: false, error: 'Not your session.', code: 'forbidden' };
     }
     if (!CLIENT_ACTIONS.has(action.type)) {
-      return { ok: false, error: 'Not an action.' };
+      return { ok: false, error: 'Not an action.', code: 'invalid' };
     }
 
     // The wire form of INVITE names a contact; the reducer's names an invitee.
@@ -320,24 +339,34 @@ export class SessionRegistry {
     if (action.type === 'INVITE') {
       const contactId = (action as { contactId?: unknown }).contactId;
       if (typeof contactId !== 'string' || !contactId) {
-        return { ok: false, error: 'Not an action.' };
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
       }
       if (isParticipant(session, contactId)) {
-        return { ok: false, error: 'Already in this session.' };
+        return { ok: false, error: 'Already in this session.', code: 'conflict' };
       }
       if (session.participants.length >= MAX_SESSION_PARTICIPANTS) {
         return {
           ok: false,
           error: `Sessions hold up to ${MAX_SESSION_PARTICIPANTS} people.`,
+          code: 'conflict',
         };
       }
       if (!this.accounts.areContacts(userId, contactId)) {
-        return { ok: false, error: 'Not a contact.' };
+        return { ok: false, error: 'Not a contact.', code: 'forbidden' };
       }
       return this.apply(sessionId, userId, {
         type: 'INVITE',
         inviteeId: contactId,
       } as Omit<SessionAction, 'userId'> & { type: SessionAction['type'] });
+    }
+
+    // The reducer trims, caps and treats empty as unnamed; all that is checked
+    // here is that the payload carries a string at all, the wire giving no
+    // guarantee of even that.
+    if (action.type === 'SET_NAME') {
+      if (typeof (action as { name?: unknown }).name !== 'string') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
     }
 
     return this.apply(sessionId, userId, action);
@@ -352,9 +381,9 @@ export class SessionRegistry {
     sessionId: string,
     userId: string,
     action: Omit<SessionAction, 'userId'> & { type: SessionAction['type'] }
-  ): { ok: true; session: SessionState } | { ok: false; error: string } {
+  ): { ok: true; session: SessionState } | Refused {
     const session = this.sessions.get(sessionId);
-    if (!session) return { ok: false, error: 'No such session.' };
+    if (!session) return { ok: false, error: 'No such session.', code: 'not_found' };
 
     const next = reduce(
       session,
@@ -382,21 +411,29 @@ export class SessionRegistry {
     sessionId: string,
     userId: string,
     upload: { file: string; dir: string; title: string; durationMs: number }
-  ): Promise<{ ok: true; session: SessionState } | { ok: false; error: string }> {
+  ): Promise<{ ok: true; session: SessionState } | Refused> {
     const session = this.sessions.get(sessionId);
     if (!session || session.status !== 'active') {
-      return { ok: false, error: 'No such session.' };
+      return { ok: false, error: 'No such session.', code: 'not_found' };
     }
     if (!isParticipant(session, userId)) {
-      return { ok: false, error: 'Not your session.' };
+      return { ok: false, error: 'Not your session.', code: 'forbidden' };
     }
     if (!canControlPlayback(session, userId)) {
-      return {
-        ok: false,
-        error: session.floor.holder
-          ? 'Whoever has the floor decides what plays.'
-          : 'You are not in this session.',
-      };
+      return session.floor.holder
+        ? {
+            ok: false,
+            error: 'Whoever has the floor decides what plays.',
+            code: 'conflict',
+          }
+        : {
+            // A participant who is not *present*. Deliberately `invalid`
+            // rather than `forbidden`: they are entitled to the session, they
+            // are simply not in it right now, and it has always answered 400.
+            ok: false,
+            error: 'You are not in this session.',
+            code: 'invalid',
+          };
     }
 
     const previous = this.trackFiles.get(sessionId);
@@ -503,6 +540,7 @@ export class SessionRegistry {
       if (others.length === 0) continue;
       rejoinable.push({
         sessionId: session.id,
+        name: session.name,
         others,
         presentCount: session.present.length,
         createdAt: session.createdAt,
@@ -1063,17 +1101,17 @@ export class SessionRegistry {
   async mediaToken(
     sessionId: string,
     userId: string
-  ): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
-    if (!this.media) return { ok: false, error: 'Audio is not configured.' };
+  ): Promise<{ ok: true; token: string } | Refused> {
+    if (!this.media) return { ok: false, error: 'Audio is not configured.', code: 'invalid' };
     const session = this.sessions.get(sessionId);
     if (!session || session.status !== 'active') {
-      return { ok: false, error: 'No such session.' };
+      return { ok: false, error: 'No such session.', code: 'not_found' };
     }
     if (!isParticipant(session, userId)) {
-      return { ok: false, error: 'Not your session.' };
+      return { ok: false, error: 'Not your session.', code: 'forbidden' };
     }
     const account = this.accounts.public(userId);
-    if (!account) return { ok: false, error: 'No such account.' };
+    if (!account) return { ok: false, error: 'No such account.', code: 'not_found' };
 
     const token = await this.media.issueToken({
       room: sessionId,
@@ -1086,13 +1124,15 @@ export class SessionRegistry {
   private persistEnded(session: SessionState): void {
     this.db
       .prepare(
-        // participants is re-stated because invites grow it after the insert.
-        'UPDATE sessions SET ended_at = ?, ended_reason = ?, participants = ? WHERE id = ?'
+        // participants and name are re-stated because both can change after
+        // the insert — invites grow the one, renames the other.
+        'UPDATE sessions SET ended_at = ?, ended_reason = ?, participants = ?, name = ? WHERE id = ?'
       )
       .run(
         session.endedAt,
         session.endedReason,
         JSON.stringify(session.participants),
+        session.name,
         session.id
       );
 

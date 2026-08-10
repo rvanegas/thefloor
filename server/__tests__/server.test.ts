@@ -510,7 +510,11 @@ describe('sessions', () => {
     const result = app.sessions.dispatch(sessionId, outsider.account.id, {
       type: 'CLAIM_FLOOR',
     });
-    expect(result).toEqual({ ok: false, error: 'Not your session.' });
+    expect(result).toEqual({
+      ok: false,
+      error: 'Not your session.',
+      code: 'forbidden',
+    });
     expect(app.sessions.get(sessionId)!.floor.holder).toBeNull();
   });
 

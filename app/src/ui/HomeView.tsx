@@ -323,7 +323,8 @@ function RejoinRow({
     <Card style={styles.row}>
       <View style={styles.rowMain}>
         <Text style={type.body} numberOfLines={1}>
-          {session.others.map((other) => other.displayName).join(', ')}
+          {session.name ??
+            session.others.map((other) => other.displayName).join(', ')}
         </Text>
         <Text style={type.muted}>
           {session.presentCount > 0

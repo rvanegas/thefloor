@@ -1,6 +1,7 @@
 import {
   DISCONNECT_GRACE_MS,
   EMPTY_SESSION_TIMEOUT_MS,
+  MAX_SESSION_NAME_LENGTH,
   MAX_SESSION_PARTICIPANTS,
 } from './constants';
 import {
@@ -59,6 +60,7 @@ export function createSession(params: {
   }
   return {
     id,
+    name: null,
     initiator,
     participants,
     invitedBy: Object.fromEntries(invitees.map((i) => [i, initiator])),
@@ -313,6 +315,15 @@ export function reduce(
     case 'END':
       // Any participant may end the session at any time, present or not.
       return endSession(state, 'explicit', now);
+
+    case 'SET_NAME': {
+      // Normalised here rather than at the edges so every caller — the server,
+      // the UI's optimism, a test — agrees on what a given input names it.
+      const trimmed = action.name.trim().slice(0, MAX_SESSION_NAME_LENGTH);
+      const name = trimmed === '' ? null : trimmed;
+      if (name === state.name) return state;
+      return { ...state, name };
+    }
 
     case 'CLAIM_FLOOR': {
       if (!canClaimFloor(state, action.userId, now)) return state;

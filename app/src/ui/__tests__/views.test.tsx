@@ -161,6 +161,7 @@ describe('Home', () => {
       rejoinable: [
         {
           sessionId: 'sess_b',
+          name: null,
           others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
           presentCount: 1,
           createdAt: NOW,
@@ -243,6 +244,7 @@ describe('Home', () => {
       rejoinable: [
         {
           sessionId: 'sess_b',
+          name: null,
           others: [{ id: THEM, displayName: 'Dana Chu' }],
           presentCount: 1,
           createdAt: NOW,
@@ -649,6 +651,44 @@ describe('Session', () => {
     showSession(sessionOf((s) => reduce(s, { type: 'END', userId: THEM }, NOW)));
     const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
     expect(textOf(tree)).toContain('Session ended');
+    act(() => tree.unmount());
+  });
+
+  it('shows the session name as the header, with the roster kept below', () => {
+    showSession(
+      sessionOf((s) =>
+        reduce(s, { type: 'SET_NAME', userId: THEM, name: 'Book club' }, NOW)
+      )
+    );
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('Book club');
+    // Under a session name the status line is the only place the other
+    // party's name appears, so it must carry it even in a 1:1.
+    expect(text).toContain('Dana Chu · ');
+    act(() => tree.unmount());
+  });
+
+  it('opens settings, and saving a name dispatches SET_NAME', () => {
+    showSession(sessionOf());
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+
+    const settings = findButton(tree, 'Settings');
+    expect(settings).toBeDefined();
+    act(() => settings!.props.onPress());
+    expect(textOf(tree)).toContain('Session settings');
+
+    const field = tree.root.findAll(
+      (n) => n.props?.placeholder === 'What is this session about?'
+    )[0];
+    act(() => field.props.onChangeText('Book club'));
+    act(() => findButton(tree, 'Save')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_NAME',
+      name: 'Book club',
+    });
+    // Saving returns to the session.
+    expect(textOf(tree)).toContain('The floor');
     act(() => tree.unmount());
   });
 });

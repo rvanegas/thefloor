@@ -81,6 +81,12 @@ export interface PlaybackState {
 
 export interface SessionState {
   id: string;
+  /**
+   * What the participants call this session, or null when nobody has named
+   * it. Display falls back to the roster — the other party's name, or a head
+   * count — so a name is a replacement for that, never a requirement.
+   */
+  name: string | null;
   /** The user who created the session. */
   initiator: UserId;
   /**
@@ -139,6 +145,12 @@ export type SessionAction =
    */
   | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
   | { type: 'END'; userId: UserId }
+  /**
+   * Names or renames the session. Any participant may, at any time — a name
+   * is shared furniture, like the track, and carries no floor restriction.
+   * An empty or whitespace name clears it back to the roster fallback.
+   */
+  | { type: 'SET_NAME'; userId: UserId; name: string }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
   | { type: 'SET_SELF_MUTE'; userId: UserId; muted: boolean }

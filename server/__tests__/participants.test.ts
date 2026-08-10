@@ -204,7 +204,11 @@ describe('mid-session invites', () => {
       type: 'INVITE',
       contactId: carol.account.id,
     } as never);
-    expect(result).toEqual({ ok: false, error: 'Not a contact.' });
+    expect(result).toEqual({
+      ok: false,
+      error: 'Not a contact.',
+      code: 'forbidden',
+    });
   });
 
   it('refuses a duplicate and enforces the cap', async () => {
@@ -217,7 +221,11 @@ describe('mid-session invites', () => {
       type: 'INVITE',
       contactId: bob.account.id,
     } as never);
-    expect(dup).toEqual({ ok: false, error: 'Already in this session.' });
+    expect(dup).toEqual({
+      ok: false,
+      error: 'Already in this session.',
+      code: 'conflict',
+    });
 
     // Fill the roster to six, then one more must be refused. The extras only
     // need to exist as contacts of alice.
@@ -242,6 +250,7 @@ describe('mid-session invites', () => {
     expect(overCap).toEqual({
       ok: false,
       error: 'Sessions hold up to 6 people.',
+      code: 'conflict',
     });
     void carol;
   });

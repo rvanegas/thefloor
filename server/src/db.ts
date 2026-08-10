@@ -115,7 +115,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   ended_at     INTEGER,
   ended_reason TEXT,
   -- JSON string[]: everyone in the session, initiator first.
-  participants TEXT
+  participants TEXT,
+  -- What the participants called it, if they named it. Null means unnamed.
+  name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS recordings (
@@ -169,8 +171,10 @@ function migrate(db: Db): void {
   const sessionColumns = db
     .prepare('PRAGMA table_info(sessions)')
     .all() as Array<{ name: string }>;
-  if (!sessionColumns.some((c) => c.name === 'participants')) {
-    db.exec('ALTER TABLE sessions ADD COLUMN participants TEXT');
+  for (const column of ['participants', 'name']) {
+    if (!sessionColumns.some((c) => c.name === column)) {
+      db.exec(`ALTER TABLE sessions ADD COLUMN ${column} TEXT`);
+    }
   }
 
   // Backfill: every row written before the column existed was a two-party

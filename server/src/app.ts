@@ -10,7 +10,7 @@ import { encodeRecording } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
-import { SessionRegistry } from './sessions';
+import { SessionRegistry, type RefusalCode } from './sessions';
 import type { RecordingStore } from './storage';
 import { createHomeNotifier, registerWebsocket } from './ws';
 
@@ -303,9 +303,7 @@ export function buildApp(options: BuildOptions = {}): App {
 
     const result = await sessions.mediaToken(id, account.id);
     if (!result.ok) {
-      return reply.code(result.error === 'Not your session.' ? 403 : 400).send({
-        error: result.error,
-      });
+      return reply.code(statusFor(result.code)).send({ error: result.error });
     }
     return { token: result.token, url: options.mediaUrl };
   });
@@ -351,13 +349,9 @@ export function buildApp(options: BuildOptions = {}): App {
         });
         if (!result.ok) {
           await rm(dir, { recursive: true, force: true });
-          const code =
-            result.error === 'Not your session.'
-              ? 403
-              : result.error.startsWith('Whoever has the floor')
-                ? 409
-                : 400;
-          return reply.code(code).send({ error: result.error });
+          return reply
+            .code(statusFor(result.code))
+            .send({ error: result.error });
         }
         return { track: result.session.playback.track };
       } catch (error) {
@@ -483,6 +477,25 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   return { fastify, db, accounts, sessions };
+}
+
+/**
+ * The HTTP status for a refusal from the session registry.
+ *
+ * The registry says *why* and this decides what that is worth over HTTP. The
+ * two used to be one thing — the routes compared the error message — so the
+ * wording of a sentence silently decided whether a caller got 403 or 400.
+ */
+function statusFor(code: RefusalCode): number {
+  switch (code) {
+    case 'forbidden':
+      return 403;
+    case 'conflict':
+      return 409;
+    case 'not_found':
+    case 'invalid':
+      return 400;
+  }
 }
 
 export function toPublic(row: AccountRow): PublicAccount {

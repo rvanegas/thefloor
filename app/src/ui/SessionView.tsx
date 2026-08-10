@@ -23,6 +23,7 @@ import {
 import { useSessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
+import { SessionSettingsView } from './SessionSettingsView';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
@@ -48,6 +49,7 @@ export function SessionView({
   const me = app.me?.id ?? '';
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Audio follows presence, not the screen: connect only while actually in the
   // session, so leaving stops publishing rather than leaving a live microphone
@@ -95,6 +97,17 @@ export function SessionView({
         </Text>
         <Button label="Back to home" variant="primary" onPress={onExit} />
       </View>
+    );
+  }
+
+  // Rendered instead of the session, not instead of being in it: the audio
+  // hook above stays mounted, so opening settings hangs up nothing.
+  if (settingsOpen) {
+    return (
+      <SessionSettingsView
+        session={session}
+        onBack={() => setSettingsOpen(false)}
+      />
     );
   }
 
@@ -149,14 +162,27 @@ export function SessionView({
         ) : null}
 
         <View style={styles.presence}>
-          <Text style={styles.otherName}>
-            {others.length === 1
-              ? others[0].displayName
-              : `${others.length + 1} people`}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.otherName} numberOfLines={1}>
+              {session.name ??
+                (others.length === 1
+                  ? others[0].displayName
+                  : `${others.length + 1} people`)}
+            </Text>
+            <Button
+              label="Settings"
+              variant="ghost"
+              onPress={() => setSettingsOpen(true)}
+            />
+          </View>
           {others.map((participant) => (
             <Text key={participant.id} style={type.muted}>
-              {others.length === 1 ? '' : `${participant.displayName} · `}
+              {/* When the header is the other party's own name, repeating it
+                  here says nothing; under a session name it is the only place
+                  their name appears. */}
+              {others.length === 1 && !session.name
+                ? ''
+                : `${participant.displayName} · `}
               {isPresent(session, participant.id)
                 ? // Present but unreachable is its own state, not absence:
                   // they are still in the session and still hold whatever
@@ -596,7 +622,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   audioMuted: { ...type.muted, color: colors.textFaint },
   audioBad: { ...type.muted, color: colors.danger },
-  otherName: { fontSize: 24, fontWeight: '700', color: colors.text },
+  otherName: { flexShrink: 1, fontSize: 24, fontWeight: '700', color: colors.text },
   scroll: { flex: 1 },
   container: { padding: spacing(2), paddingBottom: spacing(2) },
   centered: {
@@ -608,6 +634,12 @@ const styles = StyleSheet.create({
   },
   centeredText: { textAlign: 'center', lineHeight: 20 },
   presence: { gap: 2, marginBottom: spacing(0.5) },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1),
+  },
   warning: { color: colors.silenced, fontSize: 13, marginTop: spacing(0.5) },
   recordingIndicator: {
     flexDirection: 'row',

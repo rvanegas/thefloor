@@ -40,6 +40,14 @@ export const MAX_SESSION_PARTICIPANTS = 6;
  */
 export const PLAYBACK_DEFAULT_VOLUME = 0.7;
 
+/**
+ * The most characters a session name may hold.
+ *
+ * Long enough for "Tuesday planning with the cousins", short enough that the
+ * header it replaces cannot be scrolled off by its own title.
+ */
+export const MAX_SESSION_NAME_LENGTH = 60;
+
 /** How long a session may sit with nobody present before it auto-ends. */
 export const EMPTY_SESSION_TIMEOUT_MS = 60 * 1000;
 
