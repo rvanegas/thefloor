@@ -7,6 +7,14 @@ and the implementation had to choose.
 Ordered roughly by size — the substantial pieces first, then individual
 defects, then the reference material.
 
+**On vocabulary.** What this document used to call a session is now a channel,
+renamed on 2026-08-10 when it stopped being a short-lived conversation and
+became a permanent place. Historical passages still name types and files as they
+were at the time — `SessionView`, `SessionState` — and those are now
+`ChannelView` and `ChannelState`. Two other things in this codebase are also
+called sessions and are unrelated: the auth session behind a bearer token, and
+LiveKit's `AudioSession`. Neither was renamed.
+
 ---
 
 ## Backgrounding: real failures, not currently reproducible
@@ -19,7 +27,7 @@ has explained why.
 
 On 2026-08-07, on a real iPhone: backgrounding the app dropped the phone from
 the LiveKit room within seconds, it did not rejoin, and it did not recover on
-returning to the foreground. On 2026-08-08 a foregrounded session dropped after
+returning to the foreground. On 2026-08-08 a foregrounded channel dropped after
 85 seconds with auto-lock disabled.
 
 Each of those was seen once.
@@ -32,14 +40,14 @@ of device log there were zero suspensions and zero releases of the audio
 assertion.
 
 The app holds `com.apple.mediaexperience:MediaPlayback` from `audiomxd` — the
-assertion the `audio` background mode exists to grant. **The audio session is
+assertion the `audio` background mode exists to grant. **The audio channel is
 configured correctly.** That was the leading hypothesis for the whole problem
 and it is wrong.
 
 ### What is not explained
 
 Nothing in the app changed between the failing runs and the working ones. The
-audio-session commit (c63726f, removing a duplicate owner) was already in place
+audio-channel commit (c63726f, removing a duplicate owner) was already in place
 during the 85-second foreground failure. The only changes after that were
 server-side — the track egress fix and a restart — and neither touches the
 phone's audio.
@@ -60,7 +68,7 @@ The instrumentation is set up and works without a cable:
 
 The device is paired for network access ("Show this iPhone when on Wi-Fi" in
 Finder). `server/dev-guest.mjs --status` reads LiveKit room membership and
-`server/dev-session.mjs` reads the server's own view; both are gitignored.
+`server/dev-channel.mjs` reads the server's own view; both are gitignored.
 
 Useful greps once a drop is caught: `MediaPlayback` for the audio assertion,
 `suspend` for the decision, and the app's bundle id for its lifecycle.
@@ -84,10 +92,37 @@ or hearing".
 
 ## Deployment
 
-Deployed 2026-08-09 to **https://thefloor.rvanegas.co**.
+Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09 and most
+recently on 2026-08-10 with the channels rework.
 
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
 runs the tests first and refuses to continue if they fail.
+
+### The 2026-08-10 deploy broke every installed client, on purpose
+
+The Channel → Channel rename changed the wire protocol, and the two ends were
+shipped separately because they cannot be shipped together: the server deploys
+in a minute and a new iOS build reaches a phone via App Store Connect
+processing plus whenever a tester updates. So build 5 stopped working the
+instant the server restarted, and stayed broken until build 6 landed.
+
+What broke, concretely — an old client talks and the new server does not answer:
+
+| Build 5 sends | Server now expects |
+| --- | --- |
+| `watch.channel`, `unwatch.channel`, `channel.action` | `watch.channel`, `unwatch.channel`, `channel.action` |
+| `POST /sessions`, `/sessions/:id/media-token`, `/sessions/:id/track` | the same under `/channels` |
+| `LEAVE`, `END` | `STEP_OUT`, `LEAVE_CHANNEL` |
+
+Accepted knowingly because the only installs were the author's. **It is not a
+choice that survives having users.** The way to avoid it next time is to teach
+the server the old names as aliases, deploy that first, ship the client, and
+remove the aliases a release later — the ordinary two-step, which costs a
+compatibility layer to carry and then delete.
+
+The database migration in that deploy renamed `channels` to `channels` in place
+and repointed the `recordings` foreign key. Verified against production
+afterwards: 15 channels, 2 recordings, both still joining, ids unchanged.
 
 ### What is where
 
@@ -128,7 +163,8 @@ sync so a deploy cannot overwrite it.
 
 ### Known rough edges
 
-- **A deploy drops every live session.** Sessions are in memory; see below.
+- **A deploy destroys every channel.** Channels are in memory, and they are
+  now permanent as far as the interface is concerned; see below.
 - **The 380-day-uptime box is not this one.** dianoia runs on a separate
   instance and was deliberately left alone — it owns ports 80 and 443 there
   with its own nginx and certbot.
@@ -156,7 +192,7 @@ the rename that caused it.
 
 ---
 
-## Shared audio playback during a session
+## Shared audio playback during a channel
 
 **Status:** built and deployed to the server 2026-08-09. Raised the same day as
 "can we play YouTube so both people hear it, audio only", and answered as
@@ -202,10 +238,10 @@ only visible in `Podfile.lock`.
 **Playback is confirmed working on a device** (2026-08-09, iOS build 3): a file
 uploaded, both parties heard it, and the transport controls behaved.
 
-**The recording half is still unverified.** No session has yet recorded while a
+**The recording half is still unverified.** No channel has yet recorded while a
 track was playing, so nothing has confirmed that a media stem is captured,
 uploaded, and mixed into an export. The only recording in the database predates
-the feature by fifteen hours. To test it, one session must start recording,
+the feature by fifteen hours. To test it, one channel must start recording,
 play something, claim the floor, then end — and the export checked for the
 track and for the silenced speaker still being gated.
 
@@ -248,7 +284,7 @@ play, pause, seek, re-level or remove it. While nobody holds it, either party
 may.
 
 This is also the cheaper design. It is one guard — `canControlPlayback` in
-`core/session.ts`, derived from `floor.holder` rather than stored — where
+`core/channel.ts`, derived from `floor.holder` rather than stored — where
 pausing would have been coupled state transitions that every path moving the
 floor had to drive correctly, including expiry and a holder dropping off.
 
@@ -262,7 +298,7 @@ terms at all.
 
 ### How it works
 
-- **A pump per session** (`server/src/playback.ts`) produces a continuous
+- **A pump per channel** (`server/src/playback.ts`) produces a continuous
   stream of 10ms frames for as long as a track is loaded: decoded audio while
   playing, silence otherwise. `ffmpeg` decodes; `@livekit/rtc-node` publishes.
 - **Seeking and resuming are the same operation** — both re-open the decoder at
@@ -281,7 +317,7 @@ terms at all.
 
 ### Decisions taken while building, worth knowing
 
-- **The uploaded file lives on the server's local disk** for the session's
+- **The uploaded file lives on the server's local disk** for the channel's
   lifetime and is deleted when it ends. No presigned URL, no new credential.
   Stems upload with the PutObject-only key LiveKit already has.
 - **100 MB and an ffprobe check.** Duration comes from ffprobe rather than the
@@ -361,41 +397,63 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
 
 ---
 
-## Live sessions do not survive a server restart
+## Channels do not survive a server restart — and now they promise to
 
-**Status:** known, not scheduled. Becomes urgent on deployment.
+**Status:** known, shipped anyway on 2026-08-10, deliberately. This is now the
+largest gap in the product and the one to close first.
 
-`SessionRegistry` holds live sessions in memory and writes only ended ones to
-SQLite. Restarting the server therefore drops every conversation in progress:
-participants keep their websockets briefly, then find the session gone.
+`ChannelRegistry` holds channels in memory and writes a row only when one ends.
+Restarting the server therefore destroys every channel — its name, its
+description, its roster, who had ever entered it. Recordings survive, because
+they are rows of their own.
 
-The trade was deliberate. Sessions are short-lived by construction, and keeping
-the tick loop in memory avoids writing to disk every 500ms. It costs nothing
-while the server is restarted by hand between tests.
+**What changed is the promise, not the mechanism.** When these were channels,
+losing them on restart cost a conversation in progress; channels were
+short-lived by construction and an empty one self-destructed in a minute, so
+keeping the tick loop in memory to avoid writing every 500ms was a fair trade.
+A channel is a permanent place. It sits on the home screen with a name somebody
+chose and a description somebody wrote, it never expires, and the interface
+gives every reason to expect it to be there tomorrow. So the same behaviour
+that used to be a limitation is now the app breaking its word.
 
-It stops being free once the server is deployed, because then a routine deploy
-drops live calls. Two directions:
+Every deploy triggers it. `bin/deploy` restarts the service.
 
-1. **Persist on transition.** Write the session row whenever the reducer
-   produces a new state, and rehydrate on boot. Simple, and the write rate is
-   bounded by how often people actually act — the 500ms tick only matters when
-   it changes something.
-2. **Drain before exit.** Refuse new sessions, wait for existing ones to end,
-   then stop. Avoids persistence entirely but makes deploys slow and unbounded,
-   since a session can legitimately run for hours.
+### The way in, which is now easier than it was
 
-The first is probably right.
+**Persist on transition**: write the channel whenever the reducer produces a new
+state, and rehydrate on boot. The write rate is bounded by how often people
+actually act, since a tick that changes nothing produces no new state. Storing
+the durable projection as one JSON blob beside a few queryable columns avoids a
+migration every time a field is added.
 
-Two things a rehydration would have to decide, neither obvious:
+Two objections used to make this awkward. One has evaporated:
 
-- **Presence.** A dropped socket is a leave, so on boot nobody is present and
-  the empty-session timer would end every restored session within a minute
-  unless clients reconnect first. Restoring `present` verbatim would be wrong
-  for anyone who never comes back.
-- **Recordings in flight.** Egress handles live in the same memory. A restart
-  mid-recording orphans them: LiveKit keeps capturing, the server no longer
-  knows the handle, and nothing ever calls `stopRecording`. That bills until
-  the room closes and leaves a stem the recording row does not reference.
+- **Presence.** The old worry was that restoring with nobody present would let
+  the empty-channel timer end every restored channel within a minute. That timer
+  no longer exists, so `present: []` on boot is simply the truth, and an empty
+  restored channel sitting there is now the correct behaviour rather than a
+  problem to work around. Removing the auto-end is what made rehydration viable.
+- **Recordings in flight.** Still real. Egress handles live in the same memory,
+  so a restart mid-run orphans them: LiveKit keeps capturing, nothing calls
+  `stopRecording`, and it bills until the room closes. The lever that does not
+  need the handles is calling `closeRoom` for every unended channel at boot —
+  nobody is present by construction, so the room holds only ghosts. Filing the
+  `recordings` row when a run *starts* rather than when it ends would also let
+  an interrupted run be recovered instead of lost.
+
+### Two more things that ship unbounded
+
+Both follow from channels being permanent and neither is fixed:
+
+- **Home grows without limit.** `invitesFor` and `rejoinableFor` still partition
+  channels into "invited, never entered" and "entered, then left". Nothing ever
+  removes a channel from the second list, so it accumulates every channel you
+  have ever stepped out of, for ever. The replacement is one persistent channel
+  list, sorted by presence then recent activity.
+- **The tick loop walks every channel ever created**, every 500ms, as do
+  `invitesFor`, `rejoinableFor` and `channelsFor`. It wants an active set — the
+  channels with a live floor claim, playing playback, an active recording or a
+  pending disconnect — and lazy residency for the rest.
 
 ---
 
@@ -417,7 +475,7 @@ against iOS's rules:
 - **Background audio** was chased for two days through `UIBackgroundModes`,
   AVAudioSession ownership and CallKit. Android's foreground-service model is
   different in every particular, and the work does not transfer.
-- **The audio session** is started explicitly through
+- **The audio channel** is started explicitly through
   `@livekit/react-native`'s `AudioSession`, whose behaviour differs by
   platform — `AndroidAudioTypeOptions` exists precisely because the two need
   configuring differently.
@@ -435,7 +493,7 @@ first one baked in.
 
 1. `npx expo prebuild --platform android`, and confirm the WebRTC and
    file-system config plugins produce a working build at all.
-2. Get a session running between an Android device and an iPhone, which is the
+2. Get a channel running between an Android device and an iPhone, which is the
    first real test of whether the media layer is as portable as assumed.
 3. Only then background audio, where the work genuinely diverges.
 
@@ -447,7 +505,7 @@ first one baked in.
 to keep the development loop short. Not a defect, and the spec stands as
 written.
 
-The spec is explicit (§Session Lifecycle):
+The spec is explicit (§Session Lifecycle — the spec predates the rename):
 
 > sends an **in-app live invite notification** to that contact — visible only
 > if their app is open (foreground or backgrounded but running); there is no
@@ -459,8 +517,8 @@ nothing arrives.
 
 ### What it costs while deferred
 
-Both parties must already have the app open for a session to begin, so testing
-means arranging that by some other means. An empty session self-destructs after
+Both parties must already have the app open for a channel to begin, so testing
+means arranging that by some other means. An empty channel self-destructs after
 a minute, so an initiator who starts one and waits gets nothing unless the
 other party happens to be looking.
 
@@ -471,7 +529,7 @@ as the app being broken rather than as a deliberate scope decision.
 ### What it needs
 
 - **APNs**, and a registry of device tokens per account.
-- **A push on session creation**, to the invitee, deep-linking to the session.
+- **A push on channel creation**, to the invitee, deep-linking to the channel.
 - An **Apple Developer account** — already needed for TestFlight.
 - For a genuinely call-like experience, **PushKit** to wake a closed app, which
   in turn requires **CallKit** — Apple requires a PushKit VoIP push to report an
@@ -482,7 +540,7 @@ as the app being broken rather than as a deliberate scope decision.
 
 ### When it is picked up
 
-A plain APNs alert — a notification you tap to open the app into the session —
+A plain APNs alert — a notification you tap to open the app into the channel —
 needs no CallKit or PushKit and covers most of the value. Full call semantics
 (ringing, answering from the lock screen) is the larger version.
 
@@ -508,7 +566,7 @@ it is cheaper to answer before there are recordings of other people than after.
 
 ### What exists today
 
-- A persistent red dot and "Recording" label in the Session view, visible to
+- A persistent red dot and "Recording" label in the Channel view, visible to
   both parties whenever capture is running.
 - Either party may stop the recording at any time, except the silenced party
   during an active claim.
@@ -530,7 +588,7 @@ ordinarily implies.
 
 ### Likely shapes of an answer
 
-- **Explicit consent at session start**, from both parties, before recording is
+- **Explicit consent at channel start**, from both parties, before recording is
   offered at all.
 - **Consent per recording**, with the other party able to refuse.
 - **Restrict by jurisdiction**, which requires knowing where users are.
@@ -635,9 +693,9 @@ token has been revoked. Both need a TestFlight build to reach anyone.
 
 ---
 
-## Multiple users in a session
+## Multiple users in a channel
 
-**Status:** implemented 2026-08-09. Sessions hold up to six people
+**Status:** implemented 2026-08-09. Channels hold up to six people
 (`MAX_SESSION_PARTICIPANTS`); the roster is chosen at creation (`POST
 /sessions` takes `contactIds`) and any participant may invite more mid-session
 (the `INVITE` action — the invitee must be a contact of the *inviter* only). A
@@ -645,7 +703,7 @@ claim silences every other participant to every listener, the silenced from
 each other included. Stems now carry a per-segment `startMs`, so someone who
 joins mid-recording is placed at the right offset by the export; legacy plain
 key lists still export by concatenation. The DB gained a `participants` JSON
-column on `sessions` and `recordings`, backfilled from the legacy two-party
+column on `channels` and `recordings`, backfilled from the legacy two-party
 columns at open. Wire compat broke deliberately (`SessionView.participants`,
 `RejoinableView.others` etc.); build 4 needs replacing alongside the server
 deploy.
@@ -655,7 +713,7 @@ the two most recent speakers ties at zero delay and races.
 
 The design that was implemented:
 
-The original note said the session does not display who you are speaking with.
+The original note said the channel does not display who you are speaking with.
 It does — the other party's name is the largest thing on the screen — so that
 step is done and the work is the rest.
 
@@ -707,7 +765,7 @@ is per identity, so neither needs changing.
 
 ### Decided at implementation
 
-- People are added at creation *and* during a session, by any participant.
+- People are added at creation *and* during a channel, by any participant.
 - The maximum is six.
 - A claim silences everyone else, present or not — and pairwise: two silenced
   people do not hear each other either, so the full matrix is N×(N−1)
@@ -745,7 +803,7 @@ what was published, not what any one listener chose to hear.
 ## Interaction with phonecalls
 
 There ought to be a proper co-existence with phone calls and equivalents, modeled after the
-functionality of Facetime and Zoom sessions.
+functionality of Facetime and Zoom channels.
 
 ---
 
@@ -800,7 +858,7 @@ to the model.
 
 ### Not a defect: recording has no maximum duration
 
-Considered and declined (decision, 2026-08-08). A session with someone present
+Considered and declined (decision, 2026-08-08). A channel with someone present
 records until stopped, and nothing caps it.
 
 Running away with it requires a phone left foregrounded and unattended — and
@@ -808,12 +866,12 @@ note that a screen lock does not reliably prevent this, since the app survived
 five minutes backgrounded with its connection intact, and capture is
 server-side egress that does not care what the phone is doing. It ends only
 once the socket actually dies — now detected within about twelve seconds by the
-heartbeat, then a minute of grace, then the empty-session minute. Before the
+heartbeat, then a minute of grace, then the empty-channel minute. Before the
 heartbeat existed that bound was theoretical: a half-open socket went unnoticed
 for hours, so nothing was ever removed and a forgotten recording really could
 run indefinitely.
 
-Against a cap: the spec puts no bound on session length, and cutting off a long
+Against a cap: the spec puts no bound on channel length, and cutting off a long
 conversation mid-sentence is a poor trade for an app whose premise is
 protecting someone's speaking time. Both parties also see a persistent red dot
 throughout, which is the answer the spec already gives to this question.
@@ -828,9 +886,9 @@ reducer.
 No assertions exist for these. Ordered by how likely they are to be wrong.
 
 1. **Two time-driven transitions in one tick.** If a claim's 3:00 expiry and the
-   empty-session 60s deadline fall in the same `TICK`, `reduce` handles floor
+   empty-channel 60s deadline fall in the same `TICK`, `reduce` handles floor
    expiry first, then the auto-end. Worth confirming that ordering is intended.
-2. **A claim in the same instant the session auto-ends.** The guard checks
+2. **A claim in the same instant the channel auto-ends.** The guard checks
    `status === 'active'`, but the interleaving of a tap against the 500ms tick
    is untested.
 3. **Chained alternation with early voluntary releases.** The alternation test
@@ -846,7 +904,7 @@ No assertions exist for these. Ordered by how likely they are to be wrong.
    `LEAVE`, so someone who leaves muted returns muted. Probably right; the spec
    does not say.
 7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
-   reducer returns early on non-active sessions — but untested.
+   reducer returns early on non-active channels — but untested.
 
 ---
 
@@ -866,12 +924,12 @@ for "actually, do the other thing."
    `everPresent` in `core/types.ts`.
 3. **Resume carries no floor restriction.** The spec names only pause and stop.
    Resuming does not cut off the record, so a silenced party may resume.
-   `canResumeRecording` in `core/session.ts`.
+   `canResumeRecording` in `core/channel.ts`.
 4. **Cooldown is strictly greater than one minute.** "More than one minute has
    elapsed" is `> 60_000`, so reclaiming at exactly 60.000s is refused. The
    off-by-one in the user's favour would be `>=`.
-5. **The initiator is present from creation**, so the empty-session timer never
-   runs before the first join. Matches "the initiator lands in the Session view
+5. **The initiator is present from creation**, so the empty-channel timer never
+   runs before the first join. Matches "the initiator lands in the Channel view
    immediately."
 6. **The floor is cut at the listener, not the speaker.** The spec calls it "a
    hard cut at the transport/mic level". It still is — LiveKit stops forwarding
