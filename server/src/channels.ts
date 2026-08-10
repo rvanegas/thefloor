@@ -1,4 +1,7 @@
+import { readdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MAX_CHANNEL_PARTICIPANTS } from '../../core/constants';
 import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
@@ -9,6 +12,9 @@ import {
   otherParticipants,
   reduce,
 } from '../../core/channel';
+import { initialFloorState } from '../../core/floor';
+import { initialPlaybackState } from '../../core/playback';
+import { initialRecordingState } from '../../core/recording';
 import type {
   PlaybackTrack,
   ChannelAction,
@@ -79,6 +85,14 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
  * open until the client noticed.
  */
 export const ROOM_CLOSE_GRACE_MS = 5_000;
+
+/**
+ * How often a live run's row is brought up to date. What it bounds is loss of
+ * *bookkeeping* on a crash — the run is finalized at boot with whatever the
+ * last checkpoint knew, so its recovered duration is understated by at most
+ * this much.
+ */
+export const RUN_CHECKPOINT_MS = 5_000;
 
 /**
  * Why an operation was refused, for callers that must map it onto something
@@ -181,6 +195,16 @@ export class ChannelRegistry {
   private trackFiles = new Map<string, { file: string; dir: string }>();
   private listeners = new Set<(channelIds: string[]) => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * The durable projection last written per channel, as its JSON. What makes
+   * writing on every commit affordable: a transition that changes only
+   * volatile state — a claim, a seek, a connection flap, a tick — produces the
+   * same projection and is not written. The write rate is bounded by how often
+   * people do things that ought to survive a restart.
+   */
+  private persisted = new Map<string, string>();
+  /** When each live run's row was last checkpointed. Keyed by run id. */
+  private checkpointedAt = new Map<string, number>();
 
   constructor(
     private db: Db,
@@ -232,7 +256,10 @@ export class ChannelRegistry {
     }
     for (const id of this.capturing.keys()) {
       const channel = this.channels.get(id);
-      if (channel) this.ensureEgress(channel);
+      if (channel) {
+        this.ensureEgress(channel);
+        this.checkpointRun(channel, now);
+      }
     }
   }
 
@@ -327,6 +354,9 @@ export class ChannelRegistry {
       now: createdAt,
     });
     this.channels.set(channel.id, channel);
+    // Written immediately so a live row always carries its projection — that
+    // invariant is what lets the migration tell a ghost from a channel.
+    this.persistChannel(channel);
     this.emit([channel.id]);
     return { ok: true, channel };
   }
@@ -594,11 +624,14 @@ export class ChannelRegistry {
     // every pre-existing row, so the legacy two-party columns need no OR here.
     return this.db
       .prepare(
+        // Finished runs only: an in-flight row exists for crash recovery and
+        // is not yet a recording anyone can play.
         `SELECT * FROM recordings
-         WHERE EXISTS (
-           SELECT 1 FROM json_each(recordings.participants)
-           WHERE json_each.value = ?
-         )
+         WHERE ended_at IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM json_each(recordings.participants)
+             WHERE json_each.value = ?
+           )
          ORDER BY started_at DESC`
       )
       .all(userId) as unknown as RecordingRow[];
@@ -608,6 +641,7 @@ export class ChannelRegistry {
 
   private commit(before: ChannelState, after: ChannelState): void {
     this.channels.set(after.id, after);
+    this.persistChannel(after);
     this.applyFloorToMedia(before, after);
     this.applyRecordingToMedia(before, after);
     // A run's audience only ever grows. Someone who arrives mid-recording is
@@ -650,7 +684,6 @@ export class ChannelRegistry {
 
     if (before.status === 'active' && after.status === 'ended') {
       this.closePlayback(after.id);
-      this.persistEnded(after);
       // A backstop, not the mechanism: participants leave on their own once
       // told the channel ended. This guarantees the room does not outlive it.
       setTimeout(() => {
@@ -658,7 +691,10 @@ export class ChannelRegistry {
       }, this.roomCloseGraceMs).unref?.();
       // Keep it briefly so watchers get a final snapshot explaining why it
       // ended, rather than the channel vanishing from under them.
-      setTimeout(() => this.channels.delete(after.id), 30_000).unref?.();
+      setTimeout(() => {
+        this.channels.delete(after.id);
+        this.persisted.delete(after.id);
+      }, 30_000).unref?.();
     }
   }
 
@@ -733,6 +769,16 @@ export class ChannelRegistry {
     after: ChannelState
   ): void {
     if (!this.media) return;
+
+    // A new run gets its row now, not when it ends. An open row is what makes
+    // the run survivable: if this process dies mid-capture, the next boot
+    // finds the row, keeps the audio it references, and marks it failed —
+    // where a row written only at the end would leave nothing to find and the
+    // bucket holding audio no recording admits to.
+    const runId = after.recording.runId;
+    if (runId !== null && runId !== before.recording.runId) {
+      this.openRun(after, runId);
+    }
 
     const shouldCapture = after.recording.status === 'recording';
     const isCapturing = this.capturing.has(after.id);
@@ -1190,23 +1236,227 @@ export class ChannelRegistry {
     return { ok: true, token };
   }
 
-  private persistEnded(channel: ChannelState): void {
+  /**
+   * The part of a channel that means anything after a restart.
+   *
+   * Everything absent is absent on purpose, because it describes the process
+   * rather than the channel: `present` and `disconnectedAt` are sockets that
+   * died with the server; the floor orders a live conversation and there is no
+   * live conversation to order; playback points at a temp file the dead
+   * process owned; the recording's egress handles are gone. `selfMuted` is
+   * volatile by decision rather than necessity — restoring a mute somebody set
+   * and forgot is a trap, so everyone comes back audible.
+   */
+  private durableOf(channel: ChannelState): string {
+    return JSON.stringify({
+      name: channel.name,
+      description: channel.description,
+      initiator: channel.initiator,
+      participants: channel.participants,
+      invitedBy: channel.invitedBy,
+      everPresent: channel.everPresent,
+      status: channel.status,
+      endedAt: channel.endedAt,
+      lastRecording: channel.lastRecording,
+    });
+  }
+
+  /** Writes the channel's durable projection, if it has changed. */
+  private persistChannel(channel: ChannelState): void {
+    const durable = this.durableOf(channel);
+    if (this.persisted.get(channel.id) === durable) return;
+    this.persisted.set(channel.id, durable);
     this.db
       .prepare(
-        // participants and name are re-stated because both can change after
-        // the insert — invites grow the one, renames the other, and leaving
-        // shrinks the first. The ended_reason column is left alone: there is
-        // now one way a channel ends, so there is nothing to record.
-        'UPDATE channels SET ended_at = ?, participants = ?, name = ?, description = ? WHERE id = ?'
+        // The queryable columns are re-stated beside the blob because SQL
+        // filters on them — membership via participants, liveness via
+        // ended_at — while the blob is only ever read whole, at boot.
+        `UPDATE channels SET ended_at = ?, participants = ?, name = ?,
+                description = ?, state = ? WHERE id = ?`
       )
       .run(
         channel.endedAt,
         JSON.stringify(channel.participants),
         channel.name,
         channel.description,
+        durable,
         channel.id
       );
+  }
 
+  /**
+   * Brings the durable channels back after a restart, and squares everything
+   * else with the fact of one.
+   *
+   * Order matters here and it is: finalize interrupted runs, revive channels,
+   * close their rooms, sweep dead upload files. The run finalization reads
+   * rows the previous process last checkpointed; closing the rooms is what
+   * actually terminates that process's orphaned egresses, since their handles
+   * died with it — nobody is present in a revived channel by construction, so
+   * every room is empty and closing it costs nothing. LiveKit recreates a room
+   * when the first client rejoins.
+   */
+  restore(): void {
+    const now = this.now();
+
+    // Runs the previous process never finished. Kept rather than deleted —
+    // the audio LiveKit wrote is real and the row's last checkpoint references
+    // it — unless nothing was ever captured, in which case the run did not
+    // happen. The duration is understated by up to one checkpoint interval,
+    // which is the safe direction.
+    const strays = this.db
+      .prepare(
+        'SELECT id, duration_ms, stems, floor_timeline FROM recordings WHERE ended_at IS NULL'
+      )
+      .all() as unknown as Array<{
+      id: string;
+      duration_ms: number;
+      stems: string | null;
+      floor_timeline: string | null;
+    }>;
+    for (const stray of strays) {
+      const stems = stray.stems
+        ? (JSON.parse(stray.stems) as Record<string, unknown[]>)
+        : {};
+      const hasAudio =
+        stray.duration_ms > 0 &&
+        Object.values(stems).some((segments) => segments.length > 0);
+      if (!hasAudio) {
+        this.db.prepare('DELETE FROM recordings WHERE id = ?').run(stray.id);
+        continue;
+      }
+      // A claim that was open at the crash runs to the end of what was kept.
+      const windows = (
+        stray.floor_timeline
+          ? (JSON.parse(stray.floor_timeline) as Array<{
+              identity: string;
+              fromMs: number;
+              toMs: number | null;
+            }>)
+          : []
+      ).map((w) => ({ ...w, toMs: w.toMs ?? stray.duration_ms }));
+      this.db
+        .prepare(
+          'UPDATE recordings SET ended_at = ?, failure = ?, floor_timeline = ? WHERE id = ?'
+        )
+        .run(
+          now,
+          'The server restarted while this was recording.',
+          JSON.stringify(windows),
+          stray.id
+        );
+    }
+
+    const rows = this.db
+      .prepare('SELECT * FROM channels WHERE ended_at IS NULL')
+      .all() as unknown as Array<{
+      id: string;
+      initiator_id: string;
+      created_at: number;
+      participants: string | null;
+      name: string | null;
+      description: string | null;
+      state: string | null;
+    }>;
+    for (const row of rows) {
+      // No blob means pre-persistence, and the migration closes those; one
+      // surviving anyway is a row this code cannot honestly revive.
+      if (!row.state) {
+        this.db
+          .prepare('UPDATE channels SET ended_at = ? WHERE id = ?')
+          .run(row.created_at, row.id);
+        continue;
+      }
+      const channel = this.revive(row);
+      this.channels.set(channel.id, channel);
+      this.persisted.set(channel.id, this.durableOf(channel));
+      this.run(() => this.media?.closeRoom(row.id), `closeRoom ${row.id}`);
+    }
+
+    // An uploaded track belongs to one channel of one process, and dies with
+    // it. Nothing else ever removes these, so a server that crashed mid-call
+    // leaves somebody's audio file on disk indefinitely.
+    //
+    // The sweep therefore has to answer "whose is this?", and it answers it by
+    // pid: the upload route stamps its own into the directory name, so a
+    // directory is safe to delete only when its owner is neither this process
+    // nor any process still running. Deleting by prefix alone is not good
+    // enough and the difference is not academic — with several servers sharing
+    // a tmpdir, which is every jest worker in this suite, a boot would delete
+    // a *live* upload out from under a peer. That failed as an unreadable-audio
+    // 415 from a route that should have said 403, because the probe found
+    // nothing where the file had just been written.
+    //
+    // A recycled pid can make this skip a sweep it could have done. Leaving a
+    // dead file for one more boot is the cheaper mistake.
+    const mine = process.pid;
+    const orphans = readdirSync(tmpdir()).filter((entry) => {
+      const owner = /^thefloor-track-(\d+)-/.exec(entry)?.[1];
+      if (owner === undefined) return false;
+      const pid = Number(owner);
+      if (pid === mine) return false;
+      try {
+        // Signal 0 checks for existence without delivering anything.
+        process.kill(pid, 0);
+        return false;
+      } catch (error) {
+        // ESRCH is the only answer meaning "no such process". EPERM means it
+        // exists and belongs to someone else — a server running as another
+        // user — and sweeping that would delete a live upload rather than a
+        // dead one.
+        return (error as { code?: string }).code === 'ESRCH';
+      }
+    });
+    if (orphans.length > 0) {
+      this.run(async () => {
+        for (const entry of orphans) {
+          await rm(join(tmpdir(), entry), { recursive: true, force: true });
+        }
+      }, 'sweepTrackFiles');
+    }
+  }
+
+  /** A stored channel, made live again with everything volatile reset. */
+  private revive(row: {
+    id: string;
+    initiator_id: string;
+    created_at: number;
+    participants: string | null;
+    name: string | null;
+    description: string | null;
+    state: string | null;
+  }): ChannelState {
+    const durable = JSON.parse(row.state!) as {
+      name?: string | null;
+      description?: string | null;
+      initiator?: string;
+      participants?: string[];
+      invitedBy?: Record<string, string>;
+      everPresent?: string[];
+      lastRecording?: ChannelState['lastRecording'];
+    };
+    const participants =
+      durable.participants ??
+      (row.participants ? (JSON.parse(row.participants) as string[]) : []);
+    return {
+      id: row.id,
+      name: durable.name ?? row.name ?? null,
+      description: durable.description ?? row.description ?? null,
+      initiator: durable.initiator ?? row.initiator_id,
+      participants,
+      invitedBy: durable.invitedBy ?? {},
+      createdAt: row.created_at,
+      status: 'active',
+      endedAt: null,
+      present: [],
+      everPresent: durable.everPresent ?? [],
+      floor: initialFloorState(),
+      selfMuted: Object.fromEntries(participants.map((id) => [id, false])),
+      recording: initialRecordingState(),
+      lastRecording: durable.lastRecording ?? null,
+      playback: initialPlaybackState(),
+      disconnectedAt: {},
+    };
   }
 
   /**
@@ -1227,11 +1477,13 @@ export class ChannelRegistry {
     this.segments.delete(channel.id);
     this.floorWindows.delete(channel.id);
 
-    // `lastRecording` is the reducer's account of the run that just ended; it
-    // is null when nothing was captured, and then there is nothing to file.
-    const run = channel.lastRecording;
-    if (!run || run.runId !== runId || run.durationMs <= 0) return;
+    this.checkpointedAt.delete(runId);
 
+    // `lastRecording` is the reducer's account of the run that just ended; it
+    // is null when nothing was captured, and then the run did not happen —
+    // its open row goes with it, or the boot sweep would one day mark a
+    // non-event as a failed recording.
+    const run = channel.lastRecording;
     const stems = Object.fromEntries(perParticipant) as Record<
       string,
       Array<{ key: string; startMs: number }>
@@ -1239,7 +1491,10 @@ export class ChannelRegistry {
     const flat = Object.values(stems)
       .flat()
       .map((segment) => segment.key);
-    if (flat.length === 0) return;
+    if (!run || run.runId !== runId || run.durationMs <= 0 || flat.length === 0) {
+      this.db.prepare('DELETE FROM recordings WHERE id = ?').run(runId);
+      return;
+    }
 
     // Who the recording belongs to: everyone who took part. Presence and
     // stems are unioned rather than one trusted over the other — presence
@@ -1257,29 +1512,92 @@ export class ChannelRegistry {
       if (window.toMs === null) window.toMs = run.durationMs;
     }
 
-    // The run id is the row id. They identify the same thing, and minting a
-    // second identifier for it would only create something to keep in step.
+    // Finalizes the row openRun wrote. Setting ended_at is what moves the
+    // recording from "in flight" to "exists": the home screen only lists
+    // finished ones, and the boot sweep only touches unfinished ones.
+    this.db
+      .prepare(
+        `UPDATE recordings SET participants = ?, duration_ms = ?, s3_key = ?,
+                segment_keys = ?, stems = ?, floor_timeline = ?, ended_at = ?,
+                failure = ? WHERE id = ?`
+      )
+      .run(
+        JSON.stringify(audience),
+        run.durationMs,
+        flat[0] ?? '',
+        JSON.stringify(flat),
+        JSON.stringify(stems),
+        JSON.stringify(windows),
+        run.endedAt,
+        run.failure,
+        runId
+      );
+  }
+
+  /**
+   * Opens a run's row, empty of audio, null ended_at marking it in flight.
+   *
+   * The run id is the row id. They identify the same thing, and minting a
+   * second identifier would only create something to keep in step. Inserted
+   * directly rather than through insertWithUniqueKey because the id already
+   * exists in channel state — a retry could not change it — and a collision at
+   * 72 random bits is a broken RNG, which should fail loudly here.
+   */
+  private openRun(channel: ChannelState, runId: string): void {
     this.db
       .prepare(
         `INSERT INTO recordings
            (id, channel_id, initiator_id, invitee_id, participants, started_at,
-            duration_ms, s3_key, segment_keys, stems, floor_timeline)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            duration_ms, s3_key, ended_at)
+         VALUES (?, ?, ?, ?, ?, ?, 0, '', NULL)`
       )
       .run(
         runId,
         channel.id,
         channel.initiator,
         // Legacy anchor columns, NOT NULL and never read back; the
-        // participants JSON is what membership queries use.
-        audience[1] ?? audience[0] ?? channel.initiator,
-        JSON.stringify(audience),
-        run.startedAt,
-        run.durationMs,
+        // participants JSON written at finalization is what membership uses.
+        channel.participants[1] ?? channel.initiator,
+        JSON.stringify(channel.participants),
+        channel.recording.startedAt ?? this.now()
+      );
+  }
+
+  /**
+   * Keeps a live run's row roughly current, so a crash loses at most a few
+   * seconds of bookkeeping rather than the whole run. The audio itself is
+   * LiveKit's to write and is not at risk here — this is about the row knowing
+   * which keys exist and how long the run had got.
+   */
+  private checkpointRun(channel: ChannelState, now: number): void {
+    const runId = channel.recording.runId;
+    if (runId === null) return;
+    if (now - (this.checkpointedAt.get(runId) ?? 0) < RUN_CHECKPOINT_MS) return;
+    this.checkpointedAt.set(runId, now);
+
+    const perParticipant = this.segments.get(channel.id) ?? new Map();
+    const stems = Object.fromEntries(perParticipant) as Record<
+      string,
+      Array<{ key: string; startMs: number }>
+    >;
+    const flat = Object.values(stems)
+      .flat()
+      .map((segment) => segment.key);
+    this.db
+      .prepare(
+        // Guarded on ended_at so a checkpoint racing a finalization cannot
+        // reopen a finished row. Open floor windows are stored with toMs null;
+        // the boot sweep closes them if this run never gets to.
+        `UPDATE recordings SET duration_ms = ?, s3_key = ?, segment_keys = ?,
+                stems = ?, floor_timeline = ? WHERE id = ? AND ended_at IS NULL`
+      )
+      .run(
+        recordedMs(channel.recording, now),
         flat[0] ?? '',
         JSON.stringify(flat),
         JSON.stringify(stems),
-        JSON.stringify(windows)
+        JSON.stringify(this.floorWindows.get(channel.id) ?? []),
+        runId
       );
   }
 }

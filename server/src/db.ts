@@ -43,6 +43,10 @@ export interface RecordingRow {
   stems: string | null;
   /** JSON: Array<{ identity, fromMs, toMs }> — when each party was silenced. */
   floor_timeline: string | null;
+  /** Null while the run is still capturing; restore() finalizes strays. */
+  ended_at: number | null;
+  /** Why the run ended early, when it did not end by anyone's choice. */
+  failure: string | null;
 }
 
 const SCHEMA = `
@@ -120,7 +124,13 @@ CREATE TABLE IF NOT EXISTS channels (
   name TEXT,
   -- The channel's description, as the Markdown source somebody typed. Null
   -- means nobody has written one.
-  description TEXT
+  description TEXT,
+  -- The durable projection of the live ChannelState, as JSON, rewritten on
+  -- every transition that changes it. One blob rather than a column per field,
+  -- because the reducer owns the shape and grows it freely; normalising would
+  -- mean a migration per field for a value only ever read whole, at boot.
+  -- Null only on rows that predate persistence, all of which are ended.
+  state TEXT
 );
 
 CREATE TABLE IF NOT EXISTS recordings (
@@ -143,7 +153,15 @@ CREATE TABLE IF NOT EXISTS recordings (
   -- JSON Array<{ identity, fromMs, toMs }>, offsets into the *recorded* audio
   -- rather than wall clock, so paused time is already excluded. This is what
   -- the encoder gates on.
-  floor_timeline TEXT
+  floor_timeline TEXT,
+  -- Null while the run is still capturing. The row is written when a run
+  -- starts and finalized when it ends, which is what lets a run interrupted by
+  -- a server restart be recovered — kept, marked failed — instead of leaving
+  -- unreferenced audio in the bucket. A null here after a boot means exactly
+  -- that, and the registry's restore() finalizes it.
+  ended_at INTEGER,
+  -- Why the run ended early, when it did not end by anyone's choice.
+  failure TEXT
 );
 CREATE INDEX IF NOT EXISTS recordings_participants
   ON recordings(initiator_id, invitee_id);
@@ -235,11 +253,34 @@ function migrate(db: Db): void {
   const channelColumns = db
     .prepare('PRAGMA table_info(channels)')
     .all() as Array<{ name: string }>;
-  for (const column of ['participants', 'name', 'description']) {
+  for (const column of ['participants', 'name', 'description', 'state']) {
     if (!channelColumns.some((c) => c.name === column)) {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);
     }
   }
+
+  // Recording rows written before runs were filed at start were all complete —
+  // the old code inserted only finished runs — so they get the end time their
+  // duration implies. Gated inside the ADD COLUMN branch, deliberately: run
+  // every boot, this UPDATE would stamp a genuinely interrupted run as clean
+  // before restore() could mark it failed.
+  const recordingColumns = db
+    .prepare('PRAGMA table_info(recordings)')
+    .all() as Array<{ name: string }>;
+  if (!recordingColumns.some((c) => c.name === 'ended_at')) {
+    db.exec('ALTER TABLE recordings ADD COLUMN ended_at INTEGER');
+    db.exec('ALTER TABLE recordings ADD COLUMN failure TEXT');
+    db.exec('UPDATE recordings SET ended_at = started_at + duration_ms');
+  }
+
+  // Channels from before persistence whose ended_at is null are ghosts: the
+  // old server held live channels in memory only, so a null here means the
+  // process died with the channel in it, not that the channel is live.
+  // Resurrecting one would put a roster nobody remembers back on their home
+  // screens. Live channels always carry a state blob — create() writes it —
+  // so "no blob" is what distinguishes a ghost, and makes this idempotent.
+  db.exec(`UPDATE channels SET ended_at = created_at
+           WHERE ended_at IS NULL AND state IS NULL`);
 
   // Backfill: every row written before the column existed was a two-party
   // channel, so its roster is exactly the legacy columns. Runs before any

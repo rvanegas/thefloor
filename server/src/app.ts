@@ -96,6 +96,18 @@ export function buildApp(options: BuildOptions = {}): App {
     options.roomCloseGraceMs
   );
 
+  // Channels outlive the process that was holding them, so the first thing a
+  // new one does is pick them up again — along with squaring the books on
+  // whatever the old process left mid-flight: a recording still capturing, a
+  // LiveKit room with nobody in it, an upload directory belonging to a channel
+  // this process has never heard of.
+  //
+  // Here rather than in index.ts so that every test harness exercises it too.
+  // Rehydration is the kind of thing that works until the one path nobody
+  // tried, and a server that only rehydrates in production has no path anybody
+  // tried.
+  channels.restore();
+
   // Expired one-time codes and invitations are dead the moment their deadline
   // passes, and nothing else ever removes them. Sweeping belongs to the
   // application rather than to any one entry point, so it starts here — a
@@ -332,7 +344,10 @@ export function buildApp(options: BuildOptions = {}): App {
 
       // Under the server's own temp directory, one per track, so removing it
       // when the channel ends takes the file with it and nothing else.
-      const dir = await mkdtemp(join(tmpdir(), 'thefloor-track-'));
+      // The pid is in the name so that a later boot can tell which of these
+      // directories are orphans and which belong to a process that is still
+      // using them — see ChannelRegistry.restore, which sweeps the dead ones.
+      const dir = await mkdtemp(join(tmpdir(), `thefloor-track-${process.pid}-`));
       const safe = basename(name ?? '').replace(/[^\w\-. ]/g, '');
       const file = join(dir, `track${extname(safe) || ''}`);
 

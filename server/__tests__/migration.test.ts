@@ -221,6 +221,67 @@ it('migrates the deployed schema without disturbing rosters or names', () => {
   db.close();
 });
 
+it('gives historical recordings an end time', () => {
+  // `ended_at` distinguishes a finished recording from one still capturing,
+  // and the boot sweep finalizes everything null. Rows written before the
+  // column existed were all complete — the old code inserted a recording only
+  // once it had finished — so without this backfill the first boot after the
+  // upgrade would adopt every recording ever made as interrupted and stamp a
+  // failure on it.
+  const path = join(dir, 'ended.db');
+  const old = new DatabaseSync(path);
+  old.exec(ORIGINAL);
+  seedAccounts(old);
+  old
+    .prepare(
+      'INSERT INTO sessions (id, initiator_id, invitee_id, created_at, ended_at) VALUES (?,?,?,?,?)'
+    )
+    .run('sess_1', 'acct_a', 'acct_b', 1, 2);
+  old
+    .prepare(
+      `INSERT INTO recordings
+       (id, session_id, initiator_id, invitee_id, started_at, duration_ms, s3_key)
+       VALUES (?,?,?,?,?,?,?)`
+    )
+    .run('rec_1', 'sess_1', 'acct_a', 'acct_b', 1_000, 5_000, 'k');
+  old.close();
+
+  const db = openDb(path);
+  const row = db
+    .prepare('SELECT ended_at, failure FROM recordings WHERE id = ?')
+    .get('rec_1') as { ended_at: number; failure: string | null };
+  expect(row.ended_at).toBe(6_000);
+  expect(row.failure).toBeNull();
+  db.close();
+});
+
+it('closes a channel left open by a server that predates persistence', () => {
+  // Before channels were persisted, a live one lived in memory alone, so a row
+  // with no end time meant the process had died holding it — not that the
+  // channel was still going. Under the new rules that same row reads as live
+  // and would be revived, putting a roster nobody remembers back on their home
+  // screens. A live row always carries a state blob, so its absence is what
+  // identifies the ghosts, and that also makes this safe to run on every boot.
+  const path = join(dir, 'ghost.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_RENAME);
+  seedAccounts(old);
+  old
+    .prepare(
+      `INSERT INTO sessions (id, initiator_id, invitee_id, created_at, ended_at, participants)
+       VALUES (?,?,?,?,NULL,?)`
+    )
+    .run('sess_live', 'acct_a', 'acct_b', 4_000, JSON.stringify(['acct_a', 'acct_b']));
+  old.close();
+
+  const db = openDb(path);
+  const row = db
+    .prepare('SELECT ended_at FROM channels WHERE id = ?')
+    .get('sess_live') as { ended_at: number | null };
+  expect(row.ended_at).toBe(4_000);
+  db.close();
+});
+
 it('is idempotent across reopenings', () => {
   const path = join(dir, 'new.db');
   const first = openDb(path);
