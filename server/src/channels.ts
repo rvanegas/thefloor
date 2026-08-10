@@ -654,7 +654,11 @@ export class ChannelRegistry {
       const others = otherParticipants(channel, userId)
         .map((id) => this.accounts.public(id))
         .filter((account): account is NonNullable<typeof account> => !!account);
-      if (others.length === 0) continue;
+      // Deliberately not skipped when nobody else is left. A channel everyone
+      // else has walked out of is still yours — it has your name for it, your
+      // description, and your recordings hanging off it — and dropping it from
+      // this list was the only place it appeared, so it became live, permanent
+      // and unreachable at once.
       rejoinable.push({
         channelId: channel.id,
         name: channel.name,

@@ -674,3 +674,43 @@ describe('presence is exclusive', () => {
     expect(app.channels.channelsFor(alice.account.id)).toEqual([first]);
   });
 });
+
+describe('a channel everybody else has left', () => {
+  it('is still listed for whoever remains', async () => {
+    // It used to be dropped from the only list it appeared in, on the
+    // reasoning that a channel with nobody else in it is not worth offering.
+    // That was survivable when channels expired. Now it leaves a live,
+    // permanent channel that its last member cannot reach — with their name
+    // for it, their description, and their recordings hanging off it.
+    const { alice, bob } = await circle();
+    const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(
+      (r) => r.json()
+    )) as { channelId: string };
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
+
+    const channel = app.channels.get(channelId)!;
+    expect(channel.participants).toEqual([alice.account.id]);
+    expect(channel.status).toBe('active');
+
+    const listed = app.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === channelId);
+    expect(listed).toBeDefined();
+    // Nobody else to name it by, which the client renders as "Just you".
+    expect(listed!.others).toEqual([]);
+  });
+
+  it('still ends when that last member leaves it too', async () => {
+    const { alice, bob } = await circle();
+    const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(
+      (r) => r.json()
+    )) as { channelId: string };
+    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE_CHANNEL' });
+
+    expect(app.channels.get(channelId)!.status).toBe('ended');
+    expect(app.channels.rejoinableFor(alice.account.id)).toEqual([]);
+  });
+});

@@ -221,10 +221,10 @@ export function HomeView({
           <SectionLabel>Your channels</SectionLabel>
           <View style={styles.list}>
             {live.map((channel) => (
-              <RejoinRow
+              <ChannelRow
                 key={channel.channelId}
                 channel={channel}
-                onRejoin={() => {
+                onStepIn={() => {
                   app.act(channel.channelId, { type: 'ENTER' });
                   onEnterChannel(channel.channelId);
                 }}
@@ -401,19 +401,22 @@ function InviteBanner({
   );
 }
 
-function RejoinRow({
+function ChannelRow({
   channel,
-  onRejoin,
+  onStepIn,
 }: {
   channel: RejoinableView;
-  onRejoin: () => void;
+  /** Presence, not membership — you never stopped belonging to it. */
+  onStepIn: () => void;
 }) {
   return (
     <Card style={styles.row}>
       <View style={styles.rowMain}>
         <Text style={type.body} numberOfLines={1}>
           {channel.name ??
-            channel.others.map((other) => other.displayName).join(', ')}
+            (channel.others.length > 0
+              ? channel.others.map((other) => other.displayName).join(', ')
+              : 'Just you')}
         </Text>
         <Text style={type.muted}>
           {/*
@@ -427,7 +430,7 @@ function RejoinRow({
             : 'Nobody here right now'}
         </Text>
       </View>
-      <Button label="Rejoin" variant="primary" onPress={onRejoin} />
+      <Button label="Step in" variant="primary" onPress={onStepIn} />
     </Card>
   );
 }
