@@ -1,5 +1,12 @@
+import { spawn } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
+  FfmpegDecoder,
+  FRAME_MS,
   PlaybackPump,
+  SAMPLE_RATE,
   SAMPLES_PER_FRAME,
   msToSamples,
   type Decoder,
@@ -91,6 +98,71 @@ function build(options: { volume?: number; frames?: number; value?: number } = {
 async function pump(times: number, p: PlaybackPump) {
   for (let i = 0; i < times; i += 1) await p.pumpOnce();
 }
+
+/**
+ * The bug that made the first version choppy: the loop was paced on
+ * `AudioSource.captureFrame` resolving when the audio played out. It does not
+ * — it resolves when the FFI accepts the buffer — so the pump ran as fast as
+ * ffmpeg could decode and overran the native queue.
+ *
+ * These pin the pacing to the clock, with a fake one so they cost no real time.
+ */
+describe('pacing', () => {
+  function paced(frames: number) {
+    const sink = new RecordingSink();
+    let clock = 0;
+    let clockAtTarget = -1;
+    const slept: number[] = [];
+    let reached!: () => void;
+    const target = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const p = new PlaybackPump({
+      sink,
+      volume: 1,
+      openDecoder: (_f, from) => new ConstantDecoder(from),
+      now: () => clock,
+      sleep: async (ms) => {
+        slept.push(ms);
+        clock += ms;
+        if (slept.length === frames) {
+          clockAtTarget = clock;
+          reached();
+        }
+      },
+    });
+    return { pump: p, sink, slept, target, elapsed: () => clockAtTarget };
+  }
+
+  /** Runs the real loop until it has paced `frames` frames, then stops it. */
+  async function runFor(frames: number) {
+    const h = paced(frames);
+    await h.pump.setFile('track.mp3');
+    await h.pump.play(0);
+    h.pump.start();
+    await h.target;
+    await h.pump.close();
+    return h;
+  }
+
+  it('waits a frame between frames instead of running flat out', async () => {
+    const { slept } = await runFor(5);
+
+    expect(slept.length).toBeGreaterThanOrEqual(5);
+    // Every wait is one frame: the loop is not sprinting through the track.
+    for (const ms of slept.slice(0, 5)) expect(ms).toBe(FRAME_MS);
+  });
+
+  it('produces a second of audio per second of clock, not per decode', async () => {
+    const { sink, elapsed } = await runFor(100);
+
+    // 100 frames of 10ms is one second of audio, and the clock had to advance
+    // a second to deliver it. Real time, not decode speed — the decoder here
+    // would happily have supplied all of it at once.
+    expect(elapsed()).toBe(100 * FRAME_MS);
+    expect(sink.frames.length).toBeGreaterThanOrEqual(100);
+  });
+});
 
 describe('producing frames', () => {
   it('publishes silence when nothing is playing, rather than nothing at all', async () => {
@@ -285,5 +357,77 @@ describe('the recorded stem', () => {
     expect(encoder.finished).toBe(true);
     expect(samplesOf(encoder.written)).toBe(2 * SAMPLES_PER_FRAME);
     expect(sink.frames).toHaveLength(5);
+  });
+});
+
+/**
+ * The real decoder against real ffmpeg output.
+ *
+ * Everything above runs on fakes, which is right for the arithmetic but means
+ * the chunk splicing here — reassembling frames across the boundaries a pipe
+ * happens to deliver — is otherwise never exercised. It is also the code that
+ * had to be rewritten to stop the whole track accumulating in memory, so it is
+ * exactly the code most worth pinning down.
+ */
+describe('FfmpegDecoder against a real file', () => {
+  let dir: string;
+  let file: string;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'thefloor-decode-'));
+    file = join(dir, 'tone.wav');
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn('ffmpeg', [
+        '-v', 'error', '-f', 'lavfi',
+        '-i', `sine=frequency=440:duration=1:sample_rate=${SAMPLE_RATE}`,
+        '-ac', '1', '-y', file,
+      ]);
+      child.on('error', reject);
+      child.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`))
+      );
+    });
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('delivers whole frames, then runs out exactly once', async () => {
+    const decoder = new FfmpegDecoder(file, 0, 'ffmpeg');
+    let frames = 0;
+    let audible = 0;
+
+    for (;;) {
+      const got = await decoder.read(SAMPLES_PER_FRAME);
+      if (got === null) break;
+      expect(got).toHaveLength(SAMPLES_PER_FRAME);
+      frames += 1;
+      if (got.some((s) => s !== 0)) audible += 1;
+      if (frames > 200) break;
+    }
+
+    // One second at 10ms a frame, allowing a frame either side for the tail.
+    expect(frames).toBeGreaterThanOrEqual(99);
+    expect(frames).toBeLessThanOrEqual(101);
+    // A sine wave, so essentially all of it should carry signal — proof the
+    // samples survived reassembly rather than arriving as zeros.
+    expect(audible).toBeGreaterThan(95);
+    await decoder.stop();
+  });
+
+  it('seeks, so a later start yields less audio', async () => {
+    const decoder = new FfmpegDecoder(file, 600, 'ffmpeg');
+    let frames = 0;
+    for (;;) {
+      const got = await decoder.read(SAMPLES_PER_FRAME);
+      if (got === null) break;
+      frames += 1;
+      if (frames > 200) break;
+    }
+    // 600ms into a 1s file leaves roughly 400ms.
+    expect(frames).toBeGreaterThan(30);
+    expect(frames).toBeLessThan(50);
+    await decoder.stop();
   });
 });

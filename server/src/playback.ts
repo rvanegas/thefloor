@@ -62,7 +62,19 @@ export interface PlaybackPumpOptions {
   volume?: number;
   /** Reported when decoding fails; the session turns it into a visible failure. */
   onFailure?: (error: unknown) => void;
+  /** Injectable so the pacing loop is testable without waiting in real time. */
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
 }
+
+/**
+ * How far behind schedule the loop may fall before it stops trying to catch up.
+ *
+ * Past this, the frames it owes are worth less than the delay of delivering
+ * them late in a burst, so it resynchronises to now and carries on. Under it,
+ * small overruns are absorbed by not sleeping the difference.
+ */
+const RESYNC_AFTER_MS = 200;
 
 export class PlaybackPump {
   private file: string | null = null;
@@ -89,7 +101,30 @@ export class PlaybackPump {
     this.loop = this.run();
   }
 
+  /**
+   * Paces the loop against the wall clock, one frame every FRAME_MS.
+   *
+   * **The pacing has to be here, because nothing downstream provides it.**
+   * `AudioSource.captureFrame` awaits only the FFI acknowledgement that the
+   * native side took the buffer — it does not wait for the audio to play out,
+   * and the promise it keeps for that is consumed by `waitForPlayout` alone.
+   *
+   * Relying on it as backpressure is what made the first version choppy: the
+   * loop ran as fast as ffmpeg could decode, which for a local file is many
+   * times real time, so a whole track was pushed into a one-second native
+   * queue in a fraction of the time it takes to play. The queue cannot hold
+   * that and the overflow is audible.
+   *
+   * Scheduling from a running deadline rather than sleeping FRAME_MS after
+   * each frame means the work done per frame does not accumulate as drift.
+   */
   private async run(): Promise<void> {
+    const now = this.options.now ?? (() => Date.now());
+    const sleep =
+      this.options.sleep ??
+      ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
+    let due = now();
     while (!this.closed) {
       try {
         await this.pumpOnce();
@@ -99,6 +134,16 @@ export class PlaybackPump {
         // producing silence, or the stem loses its place in the recording.
         this.playing = false;
         await this.stopDecoder();
+      }
+
+      due += FRAME_MS;
+      const delay = due - now();
+      if (delay > 0) {
+        await sleep(delay);
+      } else if (delay < -RESYNC_AFTER_MS) {
+        // Something stalled the loop badly — a long GC, a slow disk. Deliver
+        // the next frame now rather than sprinting through the backlog.
+        due = now();
       }
     }
   }
@@ -229,9 +274,32 @@ function clampSample(value: number): number {
  * discarding everything up to the mark, which for a long file is the difference
  * between instant and several seconds.
  */
+/**
+ * How much decoded audio to hold before making ffmpeg wait.
+ *
+ * ffmpeg decodes a local file far faster than real time, and the pump consumes
+ * it at exactly real time, so without a limit the entire track accumulates in
+ * memory — around 17MB for three minutes at 48kHz mono, on a 2GB box, with the
+ * copying that goes with it. Pausing the pipe pushes the buffering back onto
+ * the operating system, where it costs nothing.
+ *
+ * Two seconds is comfortably more than the jitter the pump can suffer and far
+ * less than any track.
+ */
+const DECODE_HIGH_WATER_BYTES = SAMPLE_RATE * CHANNELS * 2 * 2;
+const DECODE_LOW_WATER_BYTES = DECODE_HIGH_WATER_BYTES / 2;
+
 export class FfmpegDecoder implements Decoder {
   private child: ChildProcess;
-  private pending: Buffer = Buffer.alloc(0);
+  /**
+   * Held as arriving chunks rather than one joined buffer. Concatenating on
+   * every chunk copies everything received so far, which is quadratic in the
+   * length of the track and produced exactly the GC pressure that stalls a
+   * loop with a 10ms budget.
+   */
+  private chunks: Buffer[] = [];
+  private pendingBytes = 0;
+  private paused = false;
   private ended = false;
   private failure: Error | null = null;
   private waiting: (() => void) | null = null;
@@ -248,7 +316,12 @@ export class FfmpegDecoder implements Decoder {
     ]);
 
     this.child.stdout?.on('data', (chunk: Buffer) => {
-      this.pending = Buffer.concat([this.pending, chunk]);
+      this.chunks.push(chunk);
+      this.pendingBytes += chunk.length;
+      if (this.pendingBytes >= DECODE_HIGH_WATER_BYTES && !this.paused) {
+        this.paused = true;
+        this.child.stdout?.pause();
+      }
       this.wake();
     });
     let stderr = '';
@@ -263,7 +336,7 @@ export class FfmpegDecoder implements Decoder {
     this.child.on('close', (code) => {
       // A non-zero exit with audio already delivered is not worth failing the
       // session over; one with nothing delivered means the file was unplayable.
-      if (code !== 0 && this.pending.length === 0) {
+      if (code !== 0 && this.pendingBytes === 0) {
         this.failure = new Error(
           `Could not decode the track${stderr ? `: ${stderr.trim().slice(0, 200)}` : '.'}`
         );
@@ -275,29 +348,48 @@ export class FfmpegDecoder implements Decoder {
 
   async read(samples: number): Promise<Int16Array | null> {
     const wanted = samples * 2;
-    while (this.pending.length < wanted && !this.ended) {
+    while (this.pendingBytes < wanted && !this.ended) {
       await new Promise<void>((resolve) => {
         this.waiting = resolve;
       });
     }
     if (this.failure) throw this.failure;
 
-    if (this.pending.length === 0) return this.ended ? null : new Int16Array(samples);
+    if (this.pendingBytes === 0) {
+      return this.ended ? null : new Int16Array(samples);
+    }
 
-    const take = Math.min(wanted, this.pending.length);
-    const chunk = this.pending.subarray(0, take);
-    this.pending = this.pending.subarray(take);
+    const take = Math.min(wanted, this.pendingBytes);
+    const frame = Buffer.allocUnsafe(take);
+    let filled = 0;
+    while (filled < take) {
+      const head = this.chunks[0];
+      const n = Math.min(head.length, take - filled);
+      head.copy(frame, filled, 0, n);
+      filled += n;
+      if (n === head.length) this.chunks.shift();
+      else this.chunks[0] = head.subarray(n);
+    }
+    this.pendingBytes -= take;
+
+    // Let ffmpeg run again once the backlog has been worked down. The gap
+    // between the marks stops this flapping pause/resume on every frame.
+    if (this.paused && this.pendingBytes <= DECODE_LOW_WATER_BYTES) {
+      this.paused = false;
+      this.child.stdout?.resume();
+    }
 
     // Zero-padded when the file ends mid-frame, so the final frame is still a
     // whole frame and the stem's length stays a multiple of the frame size.
     const out = new Int16Array(samples);
-    for (let i = 0; i * 2 + 1 < take; i += 1) out[i] = chunk.readInt16LE(i * 2);
+    for (let i = 0; i * 2 + 1 < take; i += 1) out[i] = frame.readInt16LE(i * 2);
     return out;
   }
 
   async stop(): Promise<void> {
     if (!this.ended) this.child.kill('SIGKILL');
-    this.pending = Buffer.alloc(0);
+    this.chunks = [];
+    this.pendingBytes = 0;
     this.wake();
   }
 
