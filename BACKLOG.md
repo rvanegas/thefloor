@@ -1,19 +1,77 @@
 # Backlog
 
 Everything known and not done: work deliberately deferred, defects found and
-left, behaviour nobody has tested, and the places where the spec was ambiguous
-and the implementation had to choose.
+left, behaviour nobody has tested. Every entry here is outstanding — if it has
+shipped, it has moved to DECISIONS.md, and if it is about how to operate the
+thing, it is in AGENTS.md.
 
-Ordered roughly by size — the substantial pieces first, then individual
-defects, then the reference material.
+Ordered roughly by size: the substantial pieces first, then individual defects.
 
-**On vocabulary.** What this document used to call a session is now a channel,
-renamed on 2026-08-10 when it stopped being a short-lived conversation and
-became a permanent place. Historical passages still name types and files as they
-were at the time — `SessionView`, `SessionState` — and those are now
-`ChannelView` and `ChannelState`. Two other things in this codebase are also
-called sessions and are unrelated: the auth session behind a bearer token, and
-LiveKit's `AudioSession`. Neither was renamed.
+Two neighbours worth knowing about. **FEATURES.md** holds wanted features that
+nobody has designed yet, which is a different question from work that is
+specified and pending. **DECISIONS.md** holds what was built and why, including
+the choices that were considered and declined — several of which read like
+missing features until you find the reasoning.
+
+---
+
+## Channels do not survive a server restart — and now they promise to
+
+**Status:** known, shipped anyway on 2026-08-10, deliberately. This is now the
+largest gap in the product and the one to close first.
+
+`ChannelRegistry` holds channels in memory and writes a row only when one ends.
+Restarting the server therefore destroys every channel — its name, its
+description, its roster, who had ever entered it. Recordings survive, because
+they are rows of their own.
+
+**What changed is the promise, not the mechanism.** When these were sessions,
+losing one on restart cost a conversation in progress; sessions were
+short-lived by construction and an empty one self-destructed in a minute, so
+keeping the tick loop in memory to avoid writing every 500ms was a fair trade.
+A channel is a permanent place. It sits on the home screen with a name somebody
+chose and a description somebody wrote, it never expires, and the interface
+gives every reason to expect it to be there tomorrow. So the same behaviour
+that used to be a limitation is now the app breaking its word.
+
+Every deploy triggers it. `bin/deploy` restarts the service.
+
+### The way in, which is now easier than it was
+
+**Persist on transition**: write the channel whenever the reducer produces a new
+state, and rehydrate on boot. The write rate is bounded by how often people
+actually act, since a tick that changes nothing produces no new state. Storing
+the durable projection as one JSON blob beside a few queryable columns avoids a
+migration every time a field is added.
+
+Two objections used to make this awkward. One has evaporated:
+
+- **Presence.** The old worry was that restoring with nobody present would let
+  the empty-channel timer end every restored channel within a minute. That timer
+  no longer exists, so `present: []` on boot is simply the truth, and an empty
+  restored channel sitting there is now the correct behaviour rather than a
+  problem to work around. Removing the auto-end is what made rehydration viable.
+- **Recordings in flight.** Still real. Egress handles live in the same memory,
+  so a restart mid-run orphans them: LiveKit keeps capturing, nothing calls
+  `stopRecording`, and it bills until the room closes. The lever that does not
+  need the handles is calling `closeRoom` for every unended channel at boot —
+  nobody is present by construction, so the room holds only ghosts. Filing the
+  `recordings` row when a run *starts* rather than when it ends would also let
+  an interrupted run be recovered instead of lost.
+
+### Two more things that ship unbounded
+
+Both follow from channels being permanent and neither is fixed:
+
+- **Home grows without limit.** `invitesFor` and `rejoinableFor` still partition
+  channels into "invited, never entered" and "entered, then left". Nothing ever
+  removes a channel from the second list, so it accumulates every channel you
+  have ever stepped out of, for ever. The replacement is one persistent channel
+  list, sorted by presence then recent activity.
+- **The tick loop walks every channel ever created**, every 500ms, as do
+  `invitesFor`, `rejoinableFor` and `channelsFor`. It wants an active set — the
+  channels with a live floor claim, playing playback, an active recording or a
+  pending disconnect — and lazy residency for the rest.
 
 ---
 
@@ -87,373 +145,6 @@ Presence is derived from the app's websocket; participation is what happens in
 the LiveKit room. These can disagree for a long time in either direction.
 Presence probably ought to follow room membership — that is exactly "speaking
 or hearing".
-
----
-
-## Deployment
-
-Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09 and most
-recently on 2026-08-10 with the channels rework.
-
-`bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
-runs the tests first and refuses to continue if they fail.
-
-### The 2026-08-10 deploy broke every installed client, on purpose
-
-The Channel → Channel rename changed the wire protocol, and the two ends were
-shipped separately because they cannot be shipped together: the server deploys
-in a minute and a new iOS build reaches a phone via App Store Connect
-processing plus whenever a tester updates. So build 5 stopped working the
-instant the server restarted, and stayed broken until build 6 landed.
-
-What broke, concretely — an old client talks and the new server does not answer:
-
-| Build 5 sends | Server now expects |
-| --- | --- |
-| `watch.channel`, `unwatch.channel`, `channel.action` | `watch.channel`, `unwatch.channel`, `channel.action` |
-| `POST /sessions`, `/sessions/:id/media-token`, `/sessions/:id/track` | the same under `/channels` |
-| `LEAVE`, `END` | `STEP_OUT`, `LEAVE_CHANNEL` |
-
-Accepted knowingly because the only installs were the author's. **It is not a
-choice that survives having users.** The way to avoid it next time is to teach
-the server the old names as aliases, deploy that first, ship the client, and
-remove the aliases a release later — the ordinary two-step, which costs a
-compatibility layer to carry and then delete.
-
-The database migration in that deploy renamed `channels` to `channels` in place
-and repointed the `recordings` foreign key. Verified against production
-afterwards: 15 channels, 2 recordings, both still joining, ids unchanged.
-
-### What is where
-
-| | |
-| --- | --- |
-| Instance | Lightsail `thefloor`, us-west-2a, Ubuntu 24.04, 2GB, $12/mo |
-| Static IP | `44.241.121.49` |
-| DNS | Namecheap, A record `thefloor` → that IP |
-| TLS | Caddy, automatic Let's Encrypt, renews itself |
-| Service | systemd `thefloor`, restarts on failure and on boot |
-| Node | 22, required for the built-in `node:sqlite` |
-| Database | `/home/ubuntu/thefloor-data/thefloor.db`, outside the synced tree |
-| Logs | `journalctl -u thefloor` and `-u caddy` |
-
-Node binds to loopback only; nothing reaches it except through Caddy.
-
-### Credentials
-
-Three, deliberately separate, so no single leak is worse than it has to be:
-
-- **LiveKit** — media, held by the server.
-- **`thefloor-egress`** — PutObject only, and it travels to LiveKit. It cannot
-  read the bucket back, so a leak of the key a third party holds does not
-  expose anyone's conversations.
-- **`thefloor-server`** — `ses:SendEmail` on the rvanegas.co identity and
-  `s3:GetObject` on the recordings bucket. Nothing else. Created for this
-  deployment because Lightsail instances get no IAM role, so the default
-  credential chain has nothing to find.
-
-  It also needs the **configuration set** in its resource list, not only the
-  identity. The rvanegas.co identity has `my-first-configuration-set` attached
-  as its default, so SES applies it to every send and checks permission on it —
-  which failed with a message naming a resource nothing in this codebase asks
-  for. Worth knowing before scoping an SES policy anywhere else.
-
-`server/.env` on the box holds all of it, mode 600, and is excluded from the
-sync so a deploy cannot overwrite it.
-
-### Known rough edges
-
-- **A deploy destroys every channel.** Channels are in memory, and they are
-  now permanent as far as the interface is concerned; see below.
-- **The 380-day-uptime box is not this one.** dianoia runs on a separate
-  instance and was deliberately left alone — it owns ports 80 and 443 there
-  with its own nginx and certbot.
-- **`tsx` runs TypeScript directly in production.** Fine at this scale and it
-  keeps the cross-package `core/` imports working without a build step, but a
-  compile step would start faster and use less memory if that ever matters.
-
----
-
-## `prebuild --clean` drops the signing team
-
-`expo prebuild --platform ios --clean` regenerates `ios/` from scratch, which
-discards `DEVELOPMENT_TEAM` and leaves the next archive failing with "Signing
-for TheFloor requires a development team".
-
-Pass it explicitly until something better exists:
-
-    xcodebuild ... DEVELOPMENT_TEAM=9946JKHZUJ CODE_SIGN_STYLE=Automatic
-
-Note too that changing `expo.name` renames the whole native project. It became
-`TheFloor` when the display name did, so the workspace, scheme and source
-directory all moved from `thefloor` to `TheFloor`. Anything with those paths
-hard-coded breaks silently, and the error names a missing scheme rather than
-the rename that caused it.
-
----
-
-## Shared audio playback during a channel
-
-**Status:** built and deployed to the server 2026-08-09. Raised the same day as
-"can we play YouTube so both people hear it, audio only", and answered as
-something narrower: a file the user supplies, played to both parties by the
-server.
-
-The client shipped to TestFlight pointed at `https://thefloor.rvanegas.co`.
-TestFlight only — the app has not been submitted for App Store review.
-
-### iOS build 2 did not start at all, and why
-
-**Build 2 rendered a black screen for every tester.** It shipped without
-`expo-document-picker`'s native module, because `bin/release-ios` ran
-`expo prebuild` *without* `--clean` and prebuild reused the existing `ios/`,
-never linking the newly added pod. `ExpoDocumentPicker` appeared nowhere in
-`Podfile.lock`.
-
-What turned a missing optional module into a dead app is the import graph.
-`expo-document-picker` resolves its native module at module scope —
-`requireNativeModule('ExpoDocumentPicker')`, with no optional variant — and
-`App.tsx` → `SessionView` → `api/upload.ts` reached it at startup. So it threw
-while the bundle was still evaluating: React never mounted, and the root view
-showed the app's own background colour, `#0E1013`. It looked like a rendering
-bug and was a linking failure.
-
-Three things changed as a result:
-
-- **`bin/release-ios` uses `--clean`.** Regenerating costs a couple of minutes;
-  shipping an app that cannot launch costs a build and everyone's time.
-- **It verifies linking before archiving**, comparing `Podfile.lock` against
-  the autolinker's own list. The expected pods come from
-  `expo-modules-autolinking resolve` rather than from guessing pod names off
-  package names — `expo-status-bar` is JS-only and has no pod, so the naive
-  mapping fails the release for a module that was never meant to be there.
-- **The picker loads lazily** (`api/upload.ts`). Choosing a file is one
-  feature, and failing to load it should cost that feature rather than the
-  whole app, however well the linking is guarded.
-
-The general lesson: a native dependency added to `package.json` is not a native
-dependency in the build, and nothing between the two fails loudly. The gap is
-only visible in `Podfile.lock`.
-
-**Playback is confirmed working on a device** (2026-08-09, iOS build 3): a file
-uploaded, both parties heard it, and the transport controls behaved.
-
-**The recording half is still unverified.** No channel has yet recorded while a
-track was playing, so nothing has confirmed that a media stem is captured,
-uploaded, and mixed into an export. The only recording in the database predates
-the feature by fifteen hours. To test it, one channel must start recording,
-play something, claim the floor, then end — and the export checked for the
-track and for the silenced speaker still being gated.
-
-### It was choppy first, and why
-
-The first device test played badly. The pump was paced on
-`AudioSource.captureFrame` resolving when audio had played out, which it does
-not do — it awaits the FFI acknowledgement that the native side took the
-buffer, and the promise it keeps for playout is consumed by `waitForPlayout`
-alone. So the loop ran at ffmpeg's decode speed, many times real time, and
-overran the one-second native queue.
-
-Pacing now comes from the wall clock, and the decoder pauses its pipe past a
-high-water mark rather than accumulating a whole decoded track in memory —
-which the pacing fix would otherwise have made considerably worse. Both are
-pinned by tests.
-
-The lesson worth keeping: **a promise resolving is not evidence of what it
-waited for.** The plan for this feature asserted that `captureFrame` provided
-backpressure, in bold, and built the pacing on it. Nothing checked until a
-person listened.
-
-Either party uploads an audio file; the server decodes it and publishes it into
-the LiveKit room as a third participant, so both hear the same thing at the
-same moment. It is included in the recording as its own stem.
-
-### What the floor does to it, which is not what the note assumed
-
-The original note asked "does a claim pause it? does it duck? does the silenced
-party still hear it?" — all three framed around protecting a speaker from
-competing sound. That framing was rejected on 2026-08-09.
-
-> **A claim does not pause playback. It grants the claimant exclusive control
-> of it.**
-
-The purpose of the floor is to be in control of what is heard, not merely to be
-heard. So a claim changes nothing about what the track is doing and everything
-about who may change it: while someone holds the floor, only they may load,
-play, pause, seek, re-level or remove it. While nobody holds it, either party
-may.
-
-This is also the cheaper design. It is one guard — `canControlPlayback` in
-`core/channel.ts`, derived from `floor.holder` rather than stored — where
-pausing would have been coupled state transitions that every path moving the
-floor had to drive correctly, including expiry and a holder dropping off.
-
-### YouTube is still out, for the reasons already recorded
-
-The YouTube API Services Terms require the embedded player to be visible and
-unobscured, and prohibit separating audio from video; fetching the audio
-server-side is a clearer violation again. Nothing here changes that. What was
-built is the "audio the user already owns" option, which carries no third-party
-terms at all.
-
-### How it works
-
-- **A pump per channel** (`server/src/playback.ts`) produces a continuous
-  stream of 10ms frames for as long as a track is loaded: decoded audio while
-  playing, silence otherwise. `ffmpeg` decodes; `@livekit/rtc-node` publishes.
-- **Seeking and resuming are the same operation** — both re-open the decoder at
-  a position. Volume scales the samples in passing, so it lands on the next
-  frame rather than after a respawn.
-- **The recording gets the same frames**, tee'd into a second `ffmpeg` that
-  encodes the stem live. What is stored is what was heard — the seeks, the
-  pauses and the volume are in it because they are the same bytes, not because
-  anything replayed them afterwards.
-- **Alignment is the pump's job.** A track loaded partway through a recording
-  has exactly that much silence prepended to its stem, so the export mixes it
-  against the speakers' stems by plain concatenation. `server/src/export.ts`
-  needed no change at all.
-- **The media participant is not a speaker.** It never claims the floor, is
-  never silenced, and carries no windows in the floor timeline.
-
-### Decisions taken while building, worth knowing
-
-- **The uploaded file lives on the server's local disk** for the channel's
-  lifetime and is deleted when it ends. No presigned URL, no new credential.
-  Stems upload with the PutObject-only key LiveKit already has.
-- **100 MB and an ffprobe check.** Duration comes from ffprobe rather than the
-  client, because it drives the scrubber and the end-of-track transition.
-- **One track at a time.** Loading another replaces it, and does *not* re-open
-  the media participant — swapping the file mid-recording would otherwise break
-  the stem in a way the export cannot express.
-- **Default volume is 0.7** (`PLAYBACK_DEFAULT_VOLUME`), on the grounds that
-  shared listening runs underneath a conversation rather than instead of one.
-
-### The risk that was accepted deliberately
-
-**Exports carry whatever was played.** This was chosen with the trade-off
-stated: a conversation with a copyrighted track mixed into it is a different
-thing to redistribute than a conversation. The media is a separate stem, so
-excluding it is a change at encode time rather than a re-architecture — drop
-the `media` key from `stems` in the export route and it is gone.
-
-### Not done
-
-- **No scrubber and no volume slider.** Seeking is ±15s buttons and volume is
-  ±10% buttons, because a draggable control means `@react-native-community/
-  slider`, a native module, and a rebuild. The state supports any position and
-  any level; only the input is coarse.
-- **Nothing has been run on a device.** The pump, the publisher and the live
-  stem encoding are covered by tests against fakes and by integration tests
-  against `MemoryMediaServer`, but no real audio has travelled through
-  `@livekit/rtc-node` in this project. That is the first thing to do when this
-  is picked up, and the most likely place for a surprise.
-- **No back-pressure story if the decoder stalls.** A starved frame is
-  published as silence, which keeps the clock honest but would sound like a
-  dropout. Untested, since a local file decodes far faster than real time.
-- **A second `@livekit/rtc-node`** now sits alongside `livekit-server-sdk`.
-  Both are needed — the latter has no media plane — but it is a second native
-  dependency on the deployment box, with `linux-x64-gnu` bindings.
-
----
-
-## Names, which are three different things
-
-- **`The Floor`** — what appears under the icon. `CFBundleDisplayName`, set in
-  `app.json`. Nine characters, inside the dozen or so iOS shows before
-  truncating.
-- **`The Floor Uninterrupted`** — the App Store listing name, registered
-  2026-08-09. Both `The Floor` and `TheFloor` were already taken; listing names
-  are unique across the whole store, and this one never reaches a device.
-- **`co.rvanegas.thefloor`** — the bundle identifier, which is permanent once
-  registered and is what actually identifies the app to Apple.
-
-Worth writing down because only the first is in the codebase. The other two live
-in App Store Connect, and a future reader finding "The Floor" everywhere in the
-repo has no way to know the store calls it something else.
-
----
-
-## Before the first TestFlight build
-
-Configuration decided 2026-08-09 and worth knowing the reasons for.
-
-- **`supportsTablet` is now false.** Nothing in the layout adapts to a larger
-  screen and nobody has opened it on an iPad. Claiming support invites App
-  Review to test there, on a layout built for a phone. Turn it back on after
-  actually looking at one.
-- **`voip` removed from `UIBackgroundModes`.** It does nothing without PushKit,
-  and reviewers have objected to apps declaring it unused. It becomes load
-  bearing again if push notification is ever picked up.
-- **`userInterfaceStyle` is `dark`,** matching the interface. It said `light`,
-  which left system surfaces — alerts, the keyboard, the status bar — rendering
-  pale against a `#0E1013` app.
-- **`ITSAppUsesNonExemptEncryption: false`.** All traffic is HTTPS and WebRTC,
-  which is the standard exemption. Declaring it stops App Store Connect asking
-  on every single upload.
-- **Icons are still the Expo defaults.** A build will upload, and every tester
-  gets a generic square.
-
-`buildNumber` must increase for each upload, even when the version does not.
-
----
-
-## Channels do not survive a server restart — and now they promise to
-
-**Status:** known, shipped anyway on 2026-08-10, deliberately. This is now the
-largest gap in the product and the one to close first.
-
-`ChannelRegistry` holds channels in memory and writes a row only when one ends.
-Restarting the server therefore destroys every channel — its name, its
-description, its roster, who had ever entered it. Recordings survive, because
-they are rows of their own.
-
-**What changed is the promise, not the mechanism.** When these were channels,
-losing them on restart cost a conversation in progress; channels were
-short-lived by construction and an empty one self-destructed in a minute, so
-keeping the tick loop in memory to avoid writing every 500ms was a fair trade.
-A channel is a permanent place. It sits on the home screen with a name somebody
-chose and a description somebody wrote, it never expires, and the interface
-gives every reason to expect it to be there tomorrow. So the same behaviour
-that used to be a limitation is now the app breaking its word.
-
-Every deploy triggers it. `bin/deploy` restarts the service.
-
-### The way in, which is now easier than it was
-
-**Persist on transition**: write the channel whenever the reducer produces a new
-state, and rehydrate on boot. The write rate is bounded by how often people
-actually act, since a tick that changes nothing produces no new state. Storing
-the durable projection as one JSON blob beside a few queryable columns avoids a
-migration every time a field is added.
-
-Two objections used to make this awkward. One has evaporated:
-
-- **Presence.** The old worry was that restoring with nobody present would let
-  the empty-channel timer end every restored channel within a minute. That timer
-  no longer exists, so `present: []` on boot is simply the truth, and an empty
-  restored channel sitting there is now the correct behaviour rather than a
-  problem to work around. Removing the auto-end is what made rehydration viable.
-- **Recordings in flight.** Still real. Egress handles live in the same memory,
-  so a restart mid-run orphans them: LiveKit keeps capturing, nothing calls
-  `stopRecording`, and it bills until the room closes. The lever that does not
-  need the handles is calling `closeRoom` for every unended channel at boot —
-  nobody is present by construction, so the room holds only ghosts. Filing the
-  `recordings` row when a run *starts* rather than when it ends would also let
-  an interrupted run be recovered instead of lost.
-
-### Two more things that ship unbounded
-
-Both follow from channels being permanent and neither is fixed:
-
-- **Home grows without limit.** `invitesFor` and `rejoinableFor` still partition
-  channels into "invited, never entered" and "entered, then left". Nothing ever
-  removes a channel from the second list, so it accumulates every channel you
-  have ever stepped out of, for ever. The replacement is one persistent channel
-  list, sorted by presence then recent activity.
-- **The tick loop walks every channel ever created**, every 500ms, as do
-  `invitesFor`, `rejoinableFor` and `channelsFor`. It wants an active set — the
-  channels with a live floor claim, playing playback, an active recording or a
-  pending disconnect — and lazy residency for the rest.
 
 ---
 
@@ -649,130 +340,6 @@ development can read codes off the server console by leaving `MAIL_FROM` unset
 
 ---
 
-## Multiple auth per user — done
-
-**Status:** complete as of 2026-08-09, both sides. The server enforces one
-session per account, and the client catches up: `api/http.ts` turns any 401
-into a sign-out via the `onSignedOut` listener, and `ws.ts` re-checks each
-socket's token on the heartbeat sweep, closing revoked ones with 4401 — which
-`api/socket.ts` treats as terminal. (Commit `12e35bc` fixed exactly the two
-items below; they are kept for the reasoning.)
-
-The server enforces one session per account as of 2026-08-09.
-`issueToken` revokes every existing token for the account before minting a new
-one, so signing in anywhere ends the session everywhere else. `Accounts.
-revokeAllForAccount` is the operation behind it, and the only one that can
-reach a session whose token you do not hold — signing out on the device in your
-hand cannot revoke the one you lost.
-
-That was the point. A token is good for ninety days, and nothing in the product
-lists or cancels a session, so signing in elsewhere is the only signal
-available that a device may have left the owner's hands. The accepted cost is
-that a genuine second device signs the first one out.
-
-### What the app still does badly with it
-
-The server is right; the client has not caught up, and this is now reachable
-rather than theoretical — any second sign-in produces it.
-
-- **A revoked token is only noticed at launch.** `AppProvider` handles a 401
-  when restoring a stored token, and nowhere else. Mid-session, a revoked
-  device's next HTTP call surfaces the raw error instead of signing out.
-- **An open websocket is never re-checked.** `ws.ts` authenticates once at
-  connect, so the kicked device keeps its live conversation — microphone
-  included — until something makes it reconnect.
-
-Neither is dangerous: the revoked token cannot start anything new, and the
-session it is still in was already one it was entitled to. But the experience
-is a stale screen and a confusing error rather than "you signed in on another
-device."
-
-When picked up: treat a 401 from any call as a sign-out (`api/http.ts` is the
-one place all of them pass through), and have the server close sockets whose
-token has been revoked. Both need a TestFlight build to reach anyone.
-
----
-
-## Multiple users in a channel
-
-**Status:** implemented 2026-08-09. Channels hold up to six people
-(`MAX_SESSION_PARTICIPANTS`); the roster is chosen at creation (`POST
-/sessions` takes `contactIds`) and any participant may invite more mid-session
-(the `INVITE` action — the invitee must be a contact of the *inviter* only). A
-claim silences every other participant to every listener, the silenced from
-each other included. Stems now carry a per-segment `startMs`, so someone who
-joins mid-recording is placed at the right offset by the export; legacy plain
-key lists still export by concatenation. The DB gained a `participants` JSON
-column on `channels` and `recordings`, backfilled from the legacy two-party
-columns at open. Wire compat broke deliberately (`SessionView.participants`,
-`RejoinableView.others` etc.); build 4 needs replacing alongside the server
-deploy.
-
-Deliberately deferred, as designed below: with four or more, everyone outside
-the two most recent speakers ties at zero delay and races.
-
-The design that was implemented:
-
-The original note said the channel does not display who you are speaking with.
-It does — the other party's name is the largest thing on the screen — so that
-step is done and the work is the rest.
-
-### The eligibility rule, generalised
-
-> **Whoever spoke longest ago may claim immediately. Everyone else waits ten
-> seconds for each person who spoke longer ago than they did, up to twenty.**
-
-Anyone who has never claimed counts as having spoken longest ago.
-
-The invariant that shapes it: **someone must always be able to claim without
-delay.** Since somebody is always last in that ordering, somebody is always at
-zero, and the floor can never sit free and unclaimable. An earlier draft ranked
-by the last two claims and gave 20s / 10s / 0s by class — which left two people
-at 10s and 20s with nobody at zero, and so produced dead time.
-
-What it yields:
-
-| | |
-| --- | --- |
-| Two people, both eager | Gapless alternation — the original guarantee, intact |
-| Three, all eager | Gapless rotation; the least-recent speaker is always free |
-| Two eager, one quiet | The pair are held 10s and 20s while the quiet one is at zero |
-
-That third row is the point. The gap is not a pause added for fairness; it is
-the pair being held back while the person who has not spoken has the floor to
-themselves, should they want it. If they do not take it, the pair resumes ten
-seconds later and nothing is lost.
-
-### Known limitation, deliberately deferred
-
-**With four or more, everyone outside the two most recent speakers is at zero
-together, so they race.** Whoever taps first wins. The rule bounds how often any
-one person can hold the floor, but does not order the people waiting. To be
-addressed as a later feature — noted here so it is not mistaken for an
-oversight.
-
-### What it costs in state
-
-`floor.lastClaimant: UserId | null` becomes a timestamp per person —
-`lastClaimedAt: Record<UserId, number>` — from which the ordering is derived, so
-nothing needs maintaining separately. `FLOOR_SAME_USER_COOLDOWN_MS` is replaced
-by a ten-second step with a twenty-second cap.
-
-`SessionState.initiator` / `invitee` become a participant list, and
-`otherParty`, `bothPresent` and the protocol's singular `other` all follow.
-Recording already generalises: stems are per participant and the floor timeline
-is per identity, so neither needs changing.
-
-### Decided at implementation
-
-- People are added at creation *and* during a channel, by any participant.
-- The maximum is six.
-- A claim silences everyone else, present or not — and pairwise: two silenced
-  people do not hear each other either, so the full matrix is N×(N−1)
-  subscription statements per transition rather than one.
-
----
-
 ## Per-speaker volume
 
 **Status:** not started. Noted 2026-08-10.
@@ -839,48 +406,6 @@ commits record them.
 
 ---
 
-### Not a defect: requesting someone who already requested you
-
-Considered and declined (decision, 2026-08-08). `requestContact` treats an
-inbound pending request as an acceptance, so the pair goes straight to
-`accepted` with no confirmation.
-
-That reads intent correctly — requesting someone who has requested you is
-consent to be their contact — and reaching it means walking past the obvious
-affordance to find an obscure one: incoming requests sort to the top of the
-contact list with Accept and Decline beside them, while this path requires
-scrolling to Add Contact and typing their address instead.
-
-The only cost is silence: the user learns of it by noticing the person is now
-accepted. If it ever wants improving, the fix is a sentence rather than a rule
-— "they had already requested you, so you are now contacts" — and not a change
-to the model.
-
-### Not a defect: recording has no maximum duration
-
-Considered and declined (decision, 2026-08-08). A channel with someone present
-records until stopped, and nothing caps it.
-
-Running away with it requires a phone left foregrounded and unattended — and
-note that a screen lock does not reliably prevent this, since the app survived
-five minutes backgrounded with its connection intact, and capture is
-server-side egress that does not care what the phone is doing. It ends only
-once the socket actually dies — now detected within about twelve seconds by the
-heartbeat, then a minute of grace, then the empty-channel minute. Before the
-heartbeat existed that bound was theoretical: a half-open socket went unnoticed
-for hours, so nothing was ever removed and a forgotten recording really could
-run indefinitely.
-
-Against a cap: the spec puts no bound on channel length, and cutting off a long
-conversation mid-sentence is a poor trade for an app whose premise is
-protecting someone's speaking time. Both parties also see a persistent red dot
-throughout, which is the answer the spec already gives to this question.
-
-Worth knowing operationally rather than fixing in code: **egress is billed per
-minute per stem, and per-speaker capture runs two**, so a recording costs twice
-what a room mix would. Watch it on the LiveKit dashboard rather than in the
-reducer.
-
 ## Untested behaviour
 
 No assertions exist for these. Ordered by how likely they are to be wrong.
@@ -905,57 +430,3 @@ No assertions exist for these. Ordered by how likely they are to be wrong.
    does not say.
 7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
    reducer returns early on non-active channels — but untested.
-
----
-
-## Spec interpretations open to review
-
-Places the spec was ambiguous and the implementation chose. Each is a candidate
-for "actually, do the other thing."
-
-1. **"Silenced" vs. "does not hold the floor"** (§Recording, control
-   restriction). The spec equates them, but when nobody holds the floor neither
-   party is silenced. Implemented per the clarifying sentence that follows:
-   pause/stop are withheld **only** from the non-holder **during an active
-   claim**. `canPauseOrStopRecording` in `core/recording.ts`.
-2. **"After both users have connected"** (§Recording). Read as *ever* connected,
-   not *currently* present, so a party left alone can still start a recording.
-   Consistent with the spec's insistence that recording survives leaving.
-   `everPresent` in `core/types.ts`.
-3. **Resume carries no floor restriction.** The spec names only pause and stop.
-   Resuming does not cut off the record, so a silenced party may resume.
-   `canResumeRecording` in `core/channel.ts`.
-4. **Cooldown is strictly greater than one minute.** "More than one minute has
-   elapsed" is `> 60_000`, so reclaiming at exactly 60.000s is refused. The
-   off-by-one in the user's favour would be `>=`.
-5. **The initiator is present from creation**, so the empty-channel timer never
-   runs before the first join. Matches "the initiator lands in the Channel view
-   immediately."
-6. **The floor is cut at the listener, not the speaker.** The spec calls it "a
-   hard cut at the transport/mic level". It still is — LiveKit stops forwarding
-   those packets, so the audio never reaches the other device — but it is made
-   by unsubscribing the listener rather than silencing the speaker. Acting on
-   the speaker was tried twice and both ways broke them: a server cannot un-mute
-   a track it muted, and revoking publish permission tears down iOS's audio
-   unit. `setSilenced` in `server/src/media.ts`.
-7. **Capture is not the privacy boundary; the export is.** Stems contain what a
-   silenced speaker said, and the floor is applied when the recording is
-   encoded. The bucket is server-only and stems never reach a client, so the two
-   conditions that matter — not heard live, not heard in an export — both hold.
-
----
-
-## Running the suite
-
-From the repo root, across all three packages:
-
-```bash
-npm test           # core + app + server
-npm run typecheck
-```
-
-Or one at a time: `npm test --prefix core`, `--prefix app`, `--prefix server`.
-
-The per-behaviour table of which test covers what has been dropped: it
-duplicated the suite and went stale faster than the code did. The tests are the
-record.
