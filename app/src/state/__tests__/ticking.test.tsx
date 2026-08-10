@@ -98,7 +98,7 @@ describe('countdown ticking', () => {
 
     // A session on screen is what starts the local tick.
     const session = reduce(
-      createSession({ id: 'sess_1', initiator: ME, invitee: THEM, now: T0 }),
+      createSession({ id: 'sess_1', initiator: ME, invitees: [THEM], now: T0 }),
       { type: 'ENTER', userId: THEM },
       T0
     );
@@ -106,7 +106,10 @@ describe('countdown ticking', () => {
       handlers.onServerTime?.(T0);
       handlers.onSession?.({
         session,
-        other: { id: THEM, displayName: 'Dana' },
+        participants: [
+          { id: ME, displayName: 'Me' },
+          { id: THEM, displayName: 'Dana' },
+        ],
         serverNow: T0,
       });
     });
@@ -139,14 +142,17 @@ describe('countdown ticking', () => {
     const session = createSession({
       id: 'sess_1',
       initiator: ME,
-      invitee: THEM,
+      invitees: [THEM],
       now: T0,
     });
     await act(async () => {
       handlers.onServerTime?.(T0);
       handlers.onSession?.({
         session,
-        other: { id: THEM, displayName: 'Dana' },
+        participants: [
+          { id: ME, displayName: 'Me' },
+          { id: THEM, displayName: 'Dana' },
+        ],
         serverNow: T0,
       });
     });

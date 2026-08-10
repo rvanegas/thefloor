@@ -13,6 +13,7 @@ import type {
   RecordingView,
   RejoinableView,
 } from '../../../core/protocol';
+import { MAX_SESSION_PARTICIPANTS } from '../../../core/constants';
 import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Field, SectionLabel } from './components';
@@ -41,9 +42,10 @@ export function HomeView({
   const recordings = home?.recordings ?? [];
 
   /**
-   * The one live session with each contact, if there is one. A pair has at most
-   * one — the server returns the existing session rather than making a second —
-   * so a contact row must not offer to start what has already begun.
+   * A live session *containing* each contact, if there is one. The server
+   * keeps one live session per set of people, so a 1:1 tap on someone already
+   * in a session with you would rejoin it rather than make a second — and the
+   * contact row must not offer to start what has already begun.
    *
    * `shown` is whether that session already has its own affordance above, as a
    * banner or a rejoin row. When it does, the contact row says so and offers
@@ -58,11 +60,37 @@ export function HomeView({
     });
   }
   for (const session of live) {
-    sessionWith.set(session.other.id, {
-      sessionId: session.sessionId,
-      shown: true,
-    });
+    for (const other of session.others) {
+      sessionWith.set(other.id, { sessionId: session.sessionId, shown: true });
+    }
   }
+
+  /**
+   * Multi-select for starting a session with several contacts at once. Off by
+   * default: a plain tap still starts a 1:1 immediately, and this mode only
+   * changes what the rows offer, not what they are.
+   */
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggleSelected = (id: string) =>
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected([]);
+  };
+  const startWithSelected = async () => {
+    try {
+      const id = await app.startSession(selected);
+      stopSelecting();
+      app.act(id, { type: 'ENTER' });
+      onEnterSession(id);
+    } catch (e) {
+      Alert.alert(
+        'Could not start session',
+        e instanceof Error ? e.message : String(e)
+      );
+    }
+  };
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
@@ -134,9 +162,17 @@ export function HomeView({
               key={entry.account.id || `sent:${entry.account.displayName}`}
               entry={entry}
               existing={sessionWith.get(entry.account.id)}
+              selecting={selecting}
+              selected={selected.includes(entry.account.id)}
+              // Room for the initiator plus what is already picked.
+              selectable={
+                selected.includes(entry.account.id) ||
+                selected.length < MAX_SESSION_PARTICIPANTS - 1
+              }
+              onToggleSelect={() => toggleSelected(entry.account.id)}
               onStartSession={async () => {
                 try {
-                  const id = await app.startSession(entry.account.id);
+                  const id = await app.startSession([entry.account.id]);
                   app.act(id, { type: 'ENTER' });
                   onEnterSession(id);
                 } catch (e) {
@@ -155,6 +191,28 @@ export function HomeView({
         </View>
       )}
 
+      {selecting ? (
+        <View style={styles.selectBar}>
+          <Button
+            label={
+              selected.length === 0
+                ? 'Pick people above'
+                : `Start with ${selected.length}`
+            }
+            variant="primary"
+            disabled={selected.length === 0}
+            onPress={startWithSelected}
+          />
+          <Button label="Cancel" variant="ghost" onPress={stopSelecting} />
+        </View>
+      ) : contacts.filter((c) => c.status === 'accepted').length >= 2 ? (
+        <Button
+          label="Start a session with several people"
+          variant="ghost"
+          onPress={() => setSelecting(true)}
+        />
+      ) : null}
+
       <SectionLabel>Add contact</SectionLabel>
       <AddContact />
 
@@ -166,7 +224,10 @@ export function HomeView({
           {recordings.map((r) => (
             <Card key={r.id} style={styles.row}>
               <View style={styles.rowMain}>
-                <Text style={type.body}>{r.other?.displayName ?? 'Unknown'}</Text>
+                <Text style={type.body} numberOfLines={1}>
+                  {r.others.map((other) => other.displayName).join(', ') ||
+                    'Unknown'}
+                </Text>
                 <Text style={type.muted}>
                   {new Date(r.startedAt).toLocaleString()} ·{' '}
                   {formatDuration(r.durationMs)}
@@ -201,7 +262,8 @@ function ExportButton({ recording }: { recording: RecordingView }) {
           await exportRecording(
             app.token,
             recording.id,
-            recording.other?.displayName ?? 'session'
+            recording.others.map((other) => other.displayName).join(', ') ||
+              'session'
           );
         } catch (e) {
           Alert.alert(
@@ -260,10 +322,12 @@ function RejoinRow({
   return (
     <Card style={styles.row}>
       <View style={styles.rowMain}>
-        <Text style={type.body}>{session.other.displayName}</Text>
+        <Text style={type.body} numberOfLines={1}>
+          {session.others.map((other) => other.displayName).join(', ')}
+        </Text>
         <Text style={type.muted}>
-          {session.otherPresent
-            ? 'Still there — you left'
+          {session.presentCount > 0
+            ? `${session.presentCount} present — you left`
             : 'Empty — ends within a minute'}
         </Text>
       </View>
@@ -275,12 +339,22 @@ function RejoinRow({
 function ContactRow({
   entry,
   existing,
+  selecting,
+  selected,
+  selectable,
+  onToggleSelect,
   onStartSession,
   onJoinExisting,
 }: {
   entry: ContactView;
-  /** The live session with this contact, if one has already begun. */
+  /** A live session containing this contact, if one has already begun. */
   existing?: { sessionId: string; shown: boolean };
+  /** Whether the list is in multi-select mode. */
+  selecting: boolean;
+  selected: boolean;
+  /** False once the cap leaves no room for another pick. */
+  selectable: boolean;
+  onToggleSelect: () => void;
   onStartSession: () => void;
   onJoinExisting: (sessionId: string) => void;
 }) {
@@ -293,13 +367,20 @@ function ContactRow({
         <Text style={type.muted}>
           {status !== 'accepted'
             ? 'Pending'
-            : existing?.shown
+            : existing?.shown && !selecting
               ? 'Session already open'
               : ''}
         </Text>
       </View>
 
-      {status === 'accepted' ? (
+      {status === 'accepted' && selecting ? (
+        <Button
+          label={selected ? 'Picked ✓' : 'Pick'}
+          variant={selected ? 'primary' : 'ghost'}
+          disabled={!selectable}
+          onPress={onToggleSelect}
+        />
+      ) : status === 'accepted' ? (
         existing?.shown ? null : existing ? (
           <Button
             label="Join session"
@@ -446,4 +527,5 @@ const styles = StyleSheet.create({
   bannerDismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
   addContact: { gap: spacing(1) },
   message: { fontSize: 13 },
+  selectBar: { flexDirection: 'row', gap: spacing(1), marginTop: spacing(1) },
 });

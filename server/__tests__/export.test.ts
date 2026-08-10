@@ -250,17 +250,20 @@ describe('the export endpoint', () => {
   ) => {
     app.db
       .prepare(
-        'INSERT INTO sessions (id, initiator_id, invitee_id, created_at) VALUES (?,?,?,?)'
+        `INSERT INTO sessions (id, initiator_id, invitee_id, created_at, participants)
+         VALUES (?,?,?,?,?)`
       )
-      .run('sess_x', initiator, invitee, clock);
+      .run('sess_x', initiator, invitee, clock, JSON.stringify([initiator, invitee]));
     app.db
       .prepare(
         `INSERT INTO recordings (id, session_id, initiator_id, invitee_id,
-           started_at, duration_ms, s3_key, segment_keys, stems, floor_timeline)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`
+           participants, started_at, duration_ms, s3_key, segment_keys, stems,
+           floor_timeline)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`
       )
       .run(
-        id, 'sess_x', initiator, invitee, clock, 5_000, '', '[]',
+        id, 'sess_x', initiator, invitee,
+        JSON.stringify([initiator, invitee]), clock, 5_000, '', '[]',
         JSON.stringify(stems), JSON.stringify(timeline)
       );
   };

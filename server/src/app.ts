@@ -272,12 +272,20 @@ export function buildApp(options: BuildOptions = {}): App {
   fastify.post('/sessions', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
-    const body = request.body as { contactId?: string } | undefined;
-    if (!body?.contactId) {
-      return reply.code(400).send({ error: 'contactId is required' });
+    const body = request.body as
+      | { contactIds?: string[]; contactId?: string }
+      | undefined;
+    // The singular form is what pre-multi-user builds send; costs one line.
+    const contactIds =
+      body?.contactIds ?? (body?.contactId ? [body.contactId] : undefined);
+    if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+      return reply.code(400).send({ error: 'contactIds is required' });
+    }
+    if (contactIds.some((id) => typeof id !== 'string')) {
+      return reply.code(400).send({ error: 'contactIds is required' });
     }
 
-    const result = sessions.create(account.id, body.contactId);
+    const result = sessions.create(account.id, contactIds);
     if (!result.ok) return reply.code(400).send({ error: result.error });
     return { sessionId: result.session.id };
   });
@@ -384,19 +392,19 @@ export function buildApp(options: BuildOptions = {}): App {
       .prepare('SELECT * FROM recordings WHERE id = ?')
       .get(id) as
       | {
-          initiator_id: string;
-          invitee_id: string;
+          participants: string | null;
           stems: string | null;
           floor_timeline: string | null;
         }
       | undefined;
 
     // Absent and not-yours are the same answer: knowing a recording exists is
-    // itself something only its participants should learn.
-    if (
-      !row ||
-      (row.initiator_id !== account.id && row.invitee_id !== account.id)
-    ) {
+    // itself something only its participants should learn. The migration
+    // backfills participants for every old row, so membership reads it alone.
+    const participants: string[] = row?.participants
+      ? JSON.parse(row.participants)
+      : [];
+    if (!row || !participants.includes(account.id)) {
       return reply.code(404).send({ error: 'No such recording.' });
     }
     if (!options.store) {
@@ -441,12 +449,16 @@ export function buildApp(options: BuildOptions = {}): App {
         status: entry.status as 'accepted' | 'outgoing' | 'incoming',
       })),
       recordings: sessions.recordingsFor(userId).map((row) => {
-        const otherId =
-          row.initiator_id === userId ? row.invitee_id : row.initiator_id;
+        const participants: string[] = row.participants
+          ? JSON.parse(row.participants)
+          : [row.initiator_id, row.invitee_id];
         return {
           id: row.id,
           sessionId: row.session_id,
-          other: accounts.public(otherId),
+          others: participants
+            .filter((id) => id !== userId)
+            .map((id) => accounts.public(id))
+            .filter((account): account is PublicAccount => !!account),
           startedAt: row.started_at,
           durationMs: row.duration_ms,
         };

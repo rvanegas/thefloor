@@ -16,7 +16,7 @@ const T0 = 1_700_000_000_000;
 
 function joined(now = T0): SessionState {
   return reduce(
-    createSession({ id: 's1', initiator: A, invitee: B, now }),
+    createSession({ id: 's1', initiator: A, invitees: [B], now }),
     { type: 'ENTER', userId: B },
     now
   );
@@ -35,7 +35,7 @@ describe('starting a recording', () => {
   });
 
   it('waits until both parties have connected', () => {
-    const alone = createSession({ id: 's1', initiator: A, invitee: B, now: T0 });
+    const alone = createSession({ id: 's1', initiator: A, invitees: [B], now: T0 });
     expect(canStartRecording(alone)).toBe(false);
     expect(canStartRecording(joined())).toBe(true);
   });

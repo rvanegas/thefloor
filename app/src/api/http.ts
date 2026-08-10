@@ -124,10 +124,10 @@ export const api = {
       token,
     }),
 
-  startSession: (token: string, contactId: string) =>
+  startSession: (token: string, contactIds: string[]) =>
     request<{ sessionId: string }>('/sessions', {
       method: 'POST',
-      body: { contactId },
+      body: { contactIds },
       token,
     }),
 

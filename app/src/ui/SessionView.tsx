@@ -7,9 +7,11 @@ import {
 } from '../../../core/floor';
 import { playbackPositionMs } from '../../../core/playback';
 import { isRecordingActive, recordedMs } from '../../../core/recording';
+import { MAX_SESSION_PARTICIPANTS } from '../../../core/constants';
 import {
-  bothPresent,
+  atLeastTwoPresent,
   canClaimFloor,
+  canInvite,
   canControlPlayback,
   canPauseRecording,
   canResumeRecording,
@@ -75,7 +77,11 @@ export function SessionView({
     );
   }
 
-  const { other } = view;
+  // Every participant, self included; the name directory for every id the
+  // session state carries.
+  const others = view.participants.filter((p) => p.id !== me);
+  const nameOf = (id: string | null) =>
+    view.participants.find((p) => p.id === id)?.displayName ?? 'Someone';
   const now = app.serverNow();
 
   if (session.status === 'ended') {
@@ -95,7 +101,8 @@ export function SessionView({
   const act = (action: Parameters<typeof app.act>[1]) => app.act(sessionId, action);
 
   const iHoldFloor = session.floor.holder === me;
-  const theyHoldFloor = session.floor.holder === other.id;
+  const theyHoldFloor = session.floor.holder !== null && !iHoldFloor;
+  const holderName = nameOf(session.floor.holder);
   const iAmSilenced = isSilenced(session.floor, me);
   const iAmSelfMuted = !!session.selfMuted[me];
   const claimable = canClaimFloor(session, me, now);
@@ -142,20 +149,29 @@ export function SessionView({
         ) : null}
 
         <View style={styles.presence}>
-          <Text style={styles.otherName}>{other.displayName}</Text>
+          <Text style={styles.otherName}>
+            {others.length === 1
+              ? others[0].displayName
+              : `${others.length + 1} people`}
+          </Text>
+          {others.map((participant) => (
+            <Text key={participant.id} style={type.muted}>
+              {others.length === 1 ? '' : `${participant.displayName} · `}
+              {isPresent(session, participant.id)
+                ? // Present but unreachable is its own state, not absence:
+                  // they are still in the session and still hold whatever
+                  // they hold. Saying so beats making them vanish and
+                  // reappear over a moment's bad signal.
+                  session.disconnectedAt[participant.id] !== undefined
+                  ? 'Present · reconnecting…'
+                  : 'Present'
+                : session.everPresent.includes(participant.id)
+                  ? 'Left the session'
+                  : 'Waiting for them to join…'}
+              {session.selfMuted[participant.id] ? ' · muted' : ''}
+            </Text>
+          ))}
           <Text style={type.muted}>
-            {isPresent(session, other.id)
-              ? // Present but unreachable is its own state, not absence: they
-                // are still in the session and still hold whatever they hold.
-                // Saying so beats making them vanish and reappear over a
-                // moment's bad signal.
-                session.disconnectedAt[other.id] !== undefined
-                ? 'Present · reconnecting…'
-                : 'Present'
-              : session.everPresent.includes(other.id)
-                ? 'Left the session'
-                : 'Waiting for them to join…'}
-            {' · '}
             {formatDuration(now - session.createdAt)} elapsed
           </Text>
           {emptyRemaining !== null ? (
@@ -183,7 +199,7 @@ export function SessionView({
             {iHoldFloor
               ? 'You have the floor'
               : theyHoldFloor
-                ? `${other.displayName} has the floor — your mic is cut`
+                ? `${holderName} has the floor — your mic is cut`
                 : 'Nobody has the floor'}
           </Text>
 
@@ -198,13 +214,15 @@ export function SessionView({
           {claimRemaining !== null && iHoldFloor ? null : (
             <Text style={styles.floorHint}>
               {iHoldFloor
-                ? `${other.displayName} is muted until you release, up to three minutes.`
+                ? others.length === 1
+                  ? `${others[0].displayName} is muted until you release, up to three minutes.`
+                  : 'Everyone else is muted until you release, up to three minutes.'
                 : theyHoldFloor
                   ? 'You cannot claim the floor while you are silenced.'
                   : cooldown !== null
-                    ? 'You claimed last — you can claim again after this cooldown, or as soon as they claim and release.'
-                    : !bothPresent(session)
-                      ? 'The floor becomes available once both of you are present.'
+                    ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
+                    : !atLeastTwoPresent(session)
+                      ? 'The floor becomes available once at least two people are present.'
                       : 'Speak uninterrupted for up to three minutes.'}
             </Text>
           )}
@@ -233,7 +251,7 @@ export function SessionView({
           />
           <Text style={type.muted}>
             {iAmSilenced
-              ? `Silenced by ${other.displayName}'s floor claim.`
+              ? `Silenced by ${holderName}'s floor claim.`
               : iAmSelfMuted
                 ? 'Muted by you. This is separate from the floor and costs you nothing.'
                 : 'Open. Self-mute never affects floor eligibility.'}
@@ -243,9 +261,9 @@ export function SessionView({
             // be easy to assume otherwise. Say it plainly rather than let
             // someone speak freely on that assumption.
             <Text style={styles.warning}>
-              You are still being recorded. {other.displayName} cannot hear you,
-              but your microphone is captured; it is left out of the exported
-              recording, not out of the capture.
+              You are still being recorded. Nobody can hear you, but your
+              microphone is captured; it is left out of the exported recording,
+              not out of the capture.
             </Text>
           ) : null}
           <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
@@ -374,12 +392,12 @@ export function SessionView({
             {theyHoldFloor
               ? // The point of the mechanic, stated where it bites: the track
                 // does not stop, but it stops being yours to change.
-                `${other.displayName} has the floor, so they decide what plays.`
+                `${holderName} has the floor, so they decide what plays.`
               : iHoldFloor
                 ? 'You have the floor — only you can change what plays.'
                 : track
-                  ? 'Both of you hear this, and either of you can change it.'
-                  : 'Whatever you play, you both hear — and it is kept in the recording.'}
+                  ? 'Everyone hears this, and anyone present can change it.'
+                  : 'Whatever you play, everyone hears — and it is kept in the recording.'}
           </Text>
         </Card>
 
@@ -439,8 +457,19 @@ export function SessionView({
             </Text>
           ) : session.recording.status === 'idle' &&
             !canStartRecording(session) ? (
-            <Text style={type.muted}>Starts once both of you have connected.</Text>
+            <Text style={type.muted}>
+              Starts once at least two people have connected.
+            </Text>
           ) : null}
+        </Card>
+
+        <SectionLabel>Invite</SectionLabel>
+        <Card style={styles.stack}>
+          <InviteList
+            session={session}
+            me={me}
+            onInvite={(contactId) => act({ type: 'INVITE', contactId })}
+          />
         </Card>
 
         <SectionLabel>Leaving</SectionLabel>
@@ -457,13 +486,13 @@ export function SessionView({
           />
           <Button
             label="End session"
-            sublabel="Permanent, for both"
+            sublabel="Permanent, for everyone"
             variant="danger"
             style={styles.flexButton}
             onPress={() =>
               Alert.alert(
                 'End this session?',
-                'This ends it immediately and permanently for both of you. Neither party can re-enter.',
+                'This ends it immediately and permanently for everyone. Nobody can re-enter.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
@@ -481,6 +510,62 @@ export function SessionView({
   );
 }
 
+/**
+ * Who can be invited: accepted contacts of *this user* who are not already in
+ * the session, the cap permitting. The guard is the same one the server
+ * enforces, so a shown button and a refused invite cannot disagree — except on
+ * contacts, which are the server's check; the list only offers contacts, so
+ * the two disagree only if a contact was dropped mid-session.
+ */
+function InviteList({
+  session,
+  me,
+  onInvite,
+}: {
+  session: NonNullable<ReturnType<typeof useApp>['sessionView']>['session'];
+  me: string;
+  onInvite: (contactId: string) => void;
+}) {
+  const app = useApp();
+  const invitable = (app.home?.contacts ?? []).filter(
+    (entry) =>
+      entry.status === 'accepted' && canInvite(session, me, entry.account.id)
+  );
+
+  if (session.participants.length >= MAX_SESSION_PARTICIPANTS) {
+    return (
+      <Text style={type.muted}>
+        Sessions hold up to {MAX_SESSION_PARTICIPANTS} people.
+      </Text>
+    );
+  }
+  if (invitable.length === 0) {
+    return (
+      <Text style={type.muted}>
+        Every contact you could invite is already in this session.
+      </Text>
+    );
+  }
+  return (
+    <>
+      {invitable.map((entry) => (
+        <View key={entry.account.id} style={styles.inviteRow}>
+          <Text style={[type.body, styles.inviteName]} numberOfLines={1}>
+            {entry.account.displayName}
+          </Text>
+          <Button
+            label="Invite"
+            onPress={() => onInvite(entry.account.id)}
+          />
+        </View>
+      ))}
+      <Text style={type.muted}>
+        They see the invitation on their home screen and join when they like.
+      </Text>
+    </>
+  );
+}
+
 /** Plain-language audio state, so a silent session is never a mystery. */
 function describeAudio(audio: ReturnType<typeof useSessionAudio>): string {
   switch (audio.status) {
@@ -489,9 +574,9 @@ function describeAudio(audio: ReturnType<typeof useSessionAudio>): string {
     case 'connecting':
       return 'Connecting audio…';
     case 'connected':
-      return audio.otherAudible
+      return audio.othersAudible > 0
         ? 'Audio connected.'
-        : 'Audio connected — waiting for them to be audible.';
+        : 'Audio connected — waiting for anyone else to be audible.';
     case 'denied':
       return audio.message ?? 'Microphone access refused.';
     case 'unavailable':
@@ -579,4 +664,11 @@ const styles = StyleSheet.create({
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   flexButton: { flex: 1 },
+  inviteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1.5),
+  },
+  inviteName: { flex: 1 },
 });

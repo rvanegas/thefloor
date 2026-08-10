@@ -73,7 +73,7 @@ interface AppValue extends AppState {
   withdrawContact: (identifier: string) => Promise<void>;
   acceptContact: (contactId: string) => Promise<void>;
   declineContact: (contactId: string) => Promise<void>;
-  startSession: (contactId: string) => Promise<string>;
+  startSession: (contactIds: string[]) => Promise<string>;
   watchSession: (sessionId: string) => void;
   leaveSessionView: (sessionId: string) => void;
   act: (sessionId: string, action: ClientAction) => void;
@@ -98,9 +98,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * you navigate away is not really a dismissal.
    *
    * Keyed by session, so it is permanent for that invitation and no longer:
-   * there is only ever one live session per pair, so being invited again means
-   * a new session with a new id, which raises a new banner. That gives both
-   * halves of what a dismissal should mean without a second rule.
+   * there is only ever one live session per set of people, so being invited
+   * again means a new session with a new id, which raises a new banner. That
+   * gives both halves of what a dismissal should mean without a second rule.
    *
    * It does not survive relaunching the app. Sessions are short-lived, and
    * reopening to see what is currently live is reasonable rather than a fault.
@@ -303,9 +303,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState((s) => ({ ...s, home }));
       },
 
-      startSession: async (contactId) => {
+      startSession: async (contactIds) => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
-        const { sessionId } = await api.startSession(state.token, contactId);
+        const { sessionId } = await api.startSession(state.token, contactIds);
         realtime.watchSession(sessionId);
         return sessionId;
       },

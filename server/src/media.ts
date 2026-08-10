@@ -53,6 +53,10 @@ export interface MediaServer {
    * Unsubscribing the listener is still a transport-level cut — the audio never
    * reaches their device — but it leaves the silenced person's audio pipeline
    * completely undisturbed, which is what makes it survivable and reversible.
+   *
+   * Returns whether anything was acted on: false means the speaker had no
+   * published track yet, so the caller must re-state this once they do —
+   * whoever publishes next is subscribed to by default.
    */
   setSilenced(params: {
     room: string;
@@ -61,7 +65,7 @@ export interface MediaServer {
     /** Who stops receiving it. */
     listener: string;
     silenced: boolean;
-  }): Promise<void>;
+  }): Promise<boolean>;
 
   /** Tears the room down when the session ends. */
   closeRoom(room: string): Promise<void>;
@@ -247,15 +251,16 @@ export class LiveKitMediaServer implements MediaServer {
     speaker: string;
     listener: string;
     silenced: boolean;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const publisher = await this.rooms.getParticipant(room, speaker);
     const audio = publisher.tracks
       .filter((track) => track.type === TrackType.AUDIO)
       .map((track) => track.sid);
     // Nothing published yet: whoever publishes next is subscribed to by
-    // default, so a later claim reapplies this against a real track.
-    if (audio.length === 0) return;
+    // default, so the caller re-states this against a real track later.
+    if (audio.length === 0) return false;
     await this.rooms.updateSubscriptions(room, listener, audio, !silenced);
+    return true;
   }
 
   async closeRoom(room: string): Promise<void> {
@@ -444,6 +449,12 @@ export class MemoryMediaServer implements MediaServer {
    * an identity is given, which is how a partial failure is exercised.
    */
   failStart: { reason: string; identity?: string } | null = null;
+  /**
+   * Identities (`room/identity`) treated as having no published track:
+   * setSilenced against them is a no-op returning false, as it is against a
+   * participant who has joined the session but not the room yet.
+   */
+  readonly unpublished = new Set<string>();
 
   async issueToken({ room, identity }: { room: string; identity: string }) {
     this.issued.push({ room, identity });
@@ -461,9 +472,11 @@ export class MemoryMediaServer implements MediaServer {
     listener: string;
     silenced: boolean;
   }) {
+    if (this.unpublished.has(`${room}/${speaker}`)) return false;
     // Keyed by who is being withheld, which is what callers ask about.
     this.muted.set(`${room}/${speaker}`, silenced);
     this.subscriptions.push({ room, speaker, listener, silenced });
+    return true;
   }
 
   async closeRoom(room: string) {

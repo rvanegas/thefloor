@@ -30,15 +30,18 @@ export interface InviteView {
 
 export interface RejoinableView {
   sessionId: string;
-  other: PublicAccount;
-  otherPresent: boolean;
+  /** The other participants, in session order. */
+  others: PublicAccount[];
+  /** How many participants are currently present. */
+  presentCount: number;
   createdAt: number;
 }
 
 export interface RecordingView {
   id: string;
   sessionId: string;
-  other: PublicAccount | null;
+  /** The other participants of the recorded session, in session order. */
+  others: PublicAccount[];
   startedAt: number;
   durationMs: number;
 }
@@ -58,7 +61,11 @@ export interface HomeView {
  */
 export interface SessionView {
   session: SessionState;
-  other: PublicAccount;
+  /**
+   * Every participant, the viewer included — the name directory for the ids
+   * in `session.participants`, `present`, `floor.holder` and `selfMuted`.
+   */
+  participants: PublicAccount[];
   serverNow: number;
 }
 
@@ -67,6 +74,12 @@ export type ClientAction =
   | { type: 'ENTER' }
   | { type: 'LEAVE' }
   | { type: 'END' }
+  /**
+   * Brings a contact of the sender into the session. Carries a contact id
+   * rather than the reducer's inviteeId because whether the two are contacts
+   * is the server's check to make before the reducer ever sees it.
+   */
+  | { type: 'INVITE'; contactId: string }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   | { type: 'SET_SELF_MUTE'; muted: boolean }

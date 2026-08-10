@@ -4,10 +4,10 @@ import {
   HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_TIMEOUT_MS,
 } from '../../core/constants';
-import { otherParty } from '../../core/session';
 import type {
   ClientMessage,
   HomeView,
+  PublicAccount,
   ServerMessage,
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
@@ -118,11 +118,14 @@ export function registerWebsocket(deps: {
       connection.watchingSessions.delete(sessionId);
       return;
     }
-    const other = accounts.public(otherParty(session, connection.userId));
-    if (!other) return;
+    // Per id rather than all-or-nothing: one unresolvable account must not
+    // cost everyone else their snapshot.
+    const participants = session.participants
+      .map((id) => accounts.public(id))
+      .filter((account): account is PublicAccount => !!account);
     send(connection, {
       type: 'session',
-      view: { session, other, serverNow: now() },
+      view: { session, participants, serverNow: now() },
     });
   }
 

@@ -19,7 +19,7 @@ const TRACK: PlaybackTrack = {
 
 function joined(now = T0): SessionState {
   return reduce(
-    createSession({ id: 's1', initiator: A, invitee: B, now }),
+    createSession({ id: 's1', initiator: A, invitees: [B], now }),
     { type: 'ENTER', userId: B },
     now
   );
@@ -258,7 +258,7 @@ describe('the floor confers exclusive control, not silence', () => {
 describe('playback and the session lifecycle', () => {
   it('is refused to someone who is not present', () => {
     const alone = reduce(
-      createSession({ id: 's1', initiator: A, invitee: B, now: T0 }),
+      createSession({ id: 's1', initiator: A, invitees: [B], now: T0 }),
       { type: 'SET_TRACK', userId: A, track: TRACK },
       T0
     );

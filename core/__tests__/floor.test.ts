@@ -17,7 +17,7 @@ const B = 'user-b';
 const T0 = 1_700_000_000_000;
 
 function newSession(now = T0): SessionState {
-  return createSession({ id: 's1', initiator: A, invitee: B, now });
+  return createSession({ id: 's1', initiator: A, invitees: [B], now });
 }
 
 /** Both parties present and idle, the normal starting point for floor tests. */

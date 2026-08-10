@@ -21,6 +21,16 @@ export const FLOOR_CLAIM_DELAY_STEP_MS = 10_000;
 export const FLOOR_CLAIM_DELAY_MAX_STEPS = 2;
 
 /**
+ * The most people a session may hold, counting the initiator.
+ *
+ * A cap keeps the claim-delay ladder meaningful — beyond four, everyone
+ * outside the two most recent speakers ties at zero and races — and bounds
+ * what one session costs in egress and per-pair subscription changes. It is a
+ * constant precisely so it can be raised without touching any rule.
+ */
+export const MAX_SESSION_PARTICIPANTS = 6;
+
+/**
  * The level a newly loaded track starts at, 0..1.
  *
  * Below full deliberately. Shared playback runs underneath a conversation

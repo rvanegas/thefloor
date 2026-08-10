@@ -33,8 +33,8 @@ export interface SessionAudio {
   message: string | null;
   /** Whether the server currently has our published track muted. */
   mutedByServer: boolean;
-  /** Whether the other participant is publishing audio we can hear. */
-  otherAudible: boolean;
+  /** How many other participants are publishing audio we can hear. */
+  othersAudible: number;
 }
 
 /**
@@ -52,7 +52,7 @@ export function useSessionAudio(
     status: 'idle',
     message: null,
     mutedByServer: false,
-    otherAudible: false,
+    othersAudible: 0,
   });
   const roomRef = useRef<Room | null>(null);
 
@@ -82,11 +82,26 @@ export function useSessionAudio(
     const onUnmuted = (_pub: TrackPublication, participant: Participant) => {
       if (isLocal(participant)) update({ mutedByServer: false });
     };
-    const onSubscribed = (track: RemoteTrack) => {
-      if (track.kind === Track.Kind.Audio) update({ otherAudible: true });
+    // Counted by who, not merely whether: with several people, one track
+    // arriving or leaving says nothing about the rest.
+    const audible = new Set<string>();
+    const onSubscribed = (
+      track: RemoteTrack,
+      _pub: TrackPublication,
+      participant: Participant
+    ) => {
+      if (track.kind !== Track.Kind.Audio) return;
+      audible.add(participant.identity);
+      update({ othersAudible: audible.size });
     };
-    const onUnsubscribed = (track: RemoteTrack) => {
-      if (track.kind === Track.Kind.Audio) update({ otherAudible: false });
+    const onUnsubscribed = (
+      track: RemoteTrack,
+      _pub: TrackPublication,
+      participant: Participant
+    ) => {
+      if (track.kind !== Track.Kind.Audio) return;
+      audible.delete(participant.identity);
+      update({ othersAudible: audible.size });
     };
 
     room

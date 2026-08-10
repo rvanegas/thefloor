@@ -1,11 +1,12 @@
 import { rm } from 'node:fs/promises';
+import { MAX_SESSION_PARTICIPANTS } from '../../core/constants';
 import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
 import {
   canControlPlayback,
   createSession,
   isParticipant,
-  otherParty,
+  otherParticipants,
   reduce,
 } from '../../core/session';
 import type {
@@ -51,6 +52,7 @@ export const mediaRoomIdentity = (sessionId: string) => `media:${sessionId}`;
 const CLIENT_ACTIONS = new Set<SessionAction['type']>([
   'ENTER',
   'LEAVE',
+  'INVITE',
   'END',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
@@ -89,10 +91,36 @@ export const ROOM_CLOSE_GRACE_MS = 5_000;
  */
 export class SessionRegistry {
   private sessions = new Map<string, SessionState>();
-  /** Live egress handles per session, one per participant, while capturing. */
-  private capturing = new Map<string, Array<{ identity: string; handle: string }>>();
-  /** Object keys written so far, in order, per participant, per session. */
-  private segments = new Map<string, Map<string, string[]>>();
+  /**
+   * One recording run's live capture. `requested` is who an egress has been
+   * asked for this run — filled before the call returns, so a second
+   * transition or tick cannot ask twice. `retryAt` throttles the retries for
+   * a late joiner whose egress could not start yet.
+   */
+  private capturing = new Map<
+    string,
+    {
+      handles: Array<{ identity: string; handle: string }>;
+      requested: Set<string>;
+      retryAt: Map<string, number>;
+    }
+  >();
+  /**
+   * Object keys written so far, in order, per participant, per session — each
+   * with where in the *recorded* audio its capture began. Zero for anyone
+   * there when a run starts; later for someone who joined partway through a
+   * run, which is what lets the export place their audio correctly.
+   */
+  private segments = new Map<
+    string,
+    Map<string, Array<{ key: string; startMs: number }>>
+  >();
+  /**
+   * Speakers whose silencing has been decided but not yet applied — they had
+   * no published track when it was asserted. Retried each tick while the
+   * claim lasts, because whoever publishes next is subscribed to by default.
+   */
+  private pendingSilence = new Map<string, Set<string>>();
   /**
    * When each participant was silenced, as offsets into the *recorded* audio
    * rather than wall clock — so paused time is already excluded and the
@@ -152,6 +180,23 @@ export class SessionRegistry {
       }
     }
     if (changed.length > 0) this.emit(changed);
+
+    // The media plane's self-correction. Both of these exist for the same
+    // race: someone can enter a session before their track exists, so a mute
+    // or an egress asked for at that moment lands on nothing and must be
+    // asked for again once there is something to act on.
+    for (const [id, speakers] of this.pendingSilence) {
+      const session = this.sessions.get(id);
+      if (!session || session.status !== 'active' || !session.floor.holder) {
+        this.pendingSilence.delete(id);
+        continue;
+      }
+      if (speakers.size > 0) this.assertSilence(session, [...speakers]);
+    }
+    for (const id of this.capturing.keys()) {
+      const session = this.sessions.get(id);
+      if (session) this.ensureEgress(session);
+    }
   }
 
   onChange(listener: (sessionIds: string[]) => void): () => void {
@@ -166,25 +211,40 @@ export class SessionRegistry {
   // --- Commands -----------------------------------------------------------
 
   /**
-   * Creates a session and places the initiator in it. Requires an accepted
-   * contact: you cannot open a channel to someone who has not agreed to one.
+   * Creates a session and places the initiator in it. Every invitee must be
+   * an accepted contact of the initiator — of the initiator only: you cannot
+   * open a channel to someone who has not agreed to one, but two people the
+   * initiator brings together need not know each other.
    */
   create(
     initiator: string,
-    invitee: string
+    invitees: string[]
   ): { ok: true; session: SessionState } | { ok: false; error: string } {
-    if (initiator === invitee) return { ok: false, error: 'That’s you.' };
-    if (!this.accounts.areContacts(initiator, invitee)) {
-      return { ok: false, error: 'Not a contact.' };
+    const unique = [...new Set(invitees)];
+    if (unique.length === 0) return { ok: false, error: 'Nobody to invite.' };
+    if (unique.includes(initiator)) return { ok: false, error: 'That’s you.' };
+    if (unique.length + 1 > MAX_SESSION_PARTICIPANTS) {
+      return {
+        ok: false,
+        error: `Sessions hold up to ${MAX_SESSION_PARTICIPANTS} people.`,
+      };
+    }
+    for (const invitee of unique) {
+      if (!this.accounts.areContacts(initiator, invitee)) {
+        return { ok: false, error: 'Not a contact.' };
+      }
     }
 
-    // One live session per pair. Without this, repeated taps stack duplicate
-    // sessions and the invitee sees a pile of banners from one person.
+    // One live session per *set* of people. Without this, repeated taps stack
+    // duplicate sessions and the invitees see a pile of banners from one
+    // person. Same people plus or minus one is a different session — that is
+    // what invites are for.
+    const want = new Set([initiator, ...unique]);
     const existing = [...this.sessions.values()].find(
       (s) =>
         s.status === 'active' &&
-        isParticipant(s, initiator) &&
-        isParticipant(s, invitee)
+        s.participants.length === want.size &&
+        s.participants.every((id) => want.has(id))
     );
     if (existing) {
       const rejoined = reduce(
@@ -203,17 +263,31 @@ export class SessionRegistry {
       (candidate) =>
         this.db
           .prepare(
-            'INSERT INTO sessions (id, initiator_id, invitee_id, created_at) VALUES (?, ?, ?, ?)'
+            `INSERT INTO sessions (id, initiator_id, invitee_id, created_at, participants)
+             VALUES (?, ?, ?, ?, ?)`
           )
-          .run(candidate, initiator, invitee, createdAt)
+          .run(
+            candidate,
+            initiator,
+            // The legacy two-party columns are anchors for old rows and are
+            // never read for new ones; participants is the truth.
+            unique[0],
+            createdAt,
+            JSON.stringify([initiator, ...unique])
+          )
     );
 
     // Held in memory only once the row exists. The other order looks harmless
     // but is not: a failed insert — a locked database, a full disk — would
-    // leave a live session with nothing behind it, and the one-session-per-pair
+    // leave a live session with nothing behind it, and the one-session-per-set
     // guard above would then adopt that orphan on every retry, so the row could
     // never be written and the conversation would go unrecorded.
-    const session = createSession({ id, initiator, invitee, now: createdAt });
+    const session = createSession({
+      id,
+      initiator,
+      invitees: unique,
+      now: createdAt,
+    });
     this.sessions.set(session.id, session);
     this.emit([session.id]);
     return { ok: true, session };
@@ -237,6 +311,35 @@ export class SessionRegistry {
     if (!CLIENT_ACTIONS.has(action.type)) {
       return { ok: false, error: 'Not an action.' };
     }
+
+    // The wire form of INVITE names a contact; the reducer's names an invitee.
+    // The distinction is the check made here: contacts are the server's
+    // concern, and the reducer must not be reachable with someone the sender
+    // has no channel to. The refusals mirror `create`'s, they being the same
+    // policy applied mid-session.
+    if (action.type === 'INVITE') {
+      const contactId = (action as { contactId?: unknown }).contactId;
+      if (typeof contactId !== 'string' || !contactId) {
+        return { ok: false, error: 'Not an action.' };
+      }
+      if (isParticipant(session, contactId)) {
+        return { ok: false, error: 'Already in this session.' };
+      }
+      if (session.participants.length >= MAX_SESSION_PARTICIPANTS) {
+        return {
+          ok: false,
+          error: `Sessions hold up to ${MAX_SESSION_PARTICIPANTS} people.`,
+        };
+      }
+      if (!this.accounts.areContacts(userId, contactId)) {
+        return { ok: false, error: 'Not a contact.' };
+      }
+      return this.apply(sessionId, userId, {
+        type: 'INVITE',
+        inviteeId: contactId,
+      } as Omit<SessionAction, 'userId'> & { type: SessionAction['type'] });
+    }
+
     return this.apply(sessionId, userId, action);
   }
 
@@ -366,14 +469,18 @@ export class SessionRegistry {
     return session;
   }
 
-  /** A session the invitee has never entered. */
+  /** A session this user was invited into and has never entered. */
   invitesFor(userId: string): InviteView[] {
     const invites: InviteView[] = [];
     for (const session of this.sessions.values()) {
       if (session.status !== 'active') continue;
-      if (session.invitee !== userId) continue;
+      if (!isParticipant(session, userId)) continue;
       if (session.everPresent.includes(userId)) continue;
-      const from = this.accounts.public(session.initiator);
+      // Named after whoever actually asked, which for a mid-session invite is
+      // not necessarily the initiator.
+      const from = this.accounts.public(
+        session.invitedBy[userId] ?? session.initiator
+      );
       if (from) {
         invites.push({ sessionId: session.id, from, createdAt: session.createdAt });
       }
@@ -390,13 +497,14 @@ export class SessionRegistry {
       if (session.present.includes(userId)) continue;
       if (!session.everPresent.includes(userId)) continue;
 
-      const otherId = otherParty(session, userId);
-      const other = this.accounts.public(otherId);
-      if (!other) continue;
+      const others = otherParticipants(session, userId)
+        .map((id) => this.accounts.public(id))
+        .filter((account): account is NonNullable<typeof account> => !!account);
+      if (others.length === 0) continue;
       rejoinable.push({
         sessionId: session.id,
-        other,
-        otherPresent: session.present.includes(otherId),
+        others,
+        presentCount: session.present.length,
         createdAt: session.createdAt,
       });
     }
@@ -404,13 +512,18 @@ export class SessionRegistry {
   }
 
   recordingsFor(userId: string): RecordingRow[] {
+    // Membership via the participants JSON, which the migration backfills for
+    // every pre-existing row, so the legacy two-party columns need no OR here.
     return this.db
       .prepare(
         `SELECT * FROM recordings
-         WHERE initiator_id = ? OR invitee_id = ?
+         WHERE EXISTS (
+           SELECT 1 FROM json_each(recordings.participants)
+           WHERE json_each.value = ?
+         )
          ORDER BY started_at DESC`
       )
-      .all(userId, userId) as unknown as RecordingRow[];
+      .all(userId) as unknown as RecordingRow[];
   }
 
   // --- Persistence --------------------------------------------------------
@@ -421,6 +534,36 @@ export class SessionRegistry {
     this.applyRecordingToMedia(before, after);
     this.applyPlaybackToMedia(before, after);
     this.trackFloorWindows(before, after);
+
+    // Someone arriving mid-claim must come back silenced, and someone arriving
+    // mid-recording must get a stem. Both are re-stated on arrival because the
+    // original statements were made against a roster that did not include them.
+    const arrived =
+      after.participants.length > before.participants.length ||
+      after.present.some((id) => !before.present.includes(id));
+    if (after.status === 'active' && arrived) {
+      if (after.floor.holder !== null) this.assertSilence(after);
+      this.ensureEgress(after);
+    }
+    // Someone leaving mid-run ends their stem, so a rejoin starts a fresh
+    // segment rather than silently capturing nothing — their egress dies with
+    // the unpublished track either way; this makes the books say so.
+    const run = this.capturing.get(after.id);
+    if (run) {
+      for (const identity of before.present) {
+        if (after.present.includes(identity)) continue;
+        if (!run.requested.delete(identity)) continue;
+        const live = run.handles.findIndex((h) => h.identity === identity);
+        if (live >= 0) {
+          const [{ handle }] = run.handles.splice(live, 1);
+          this.run(
+            () => this.media?.stopRecording(handle),
+            `stopRecording ${after.id}/${identity}`
+          );
+        }
+      }
+    }
+
     if (before.status === 'active' && after.status === 'ended') {
       this.closePlayback(after.id);
       this.persistEnded(after);
@@ -436,9 +579,10 @@ export class SessionRegistry {
   }
 
   /**
-   * Turns a change of floor-holder into an actual mute. Whoever does not hold
-   * the floor while someone does is silenced at the media server; when nobody
-   * holds it, both are open.
+   * Turns a change of floor-holder into an actual mute. While someone holds
+   * the floor, only they are heard by anyone — every other speaker is
+   * withheld from every listener, the silenced from each other included; when
+   * nobody holds it, everyone is open.
    *
    * Note this reacts to the *committed* state, so it cannot disagree with what
    * the reducer decided or with what the clients were told.
@@ -446,25 +590,50 @@ export class SessionRegistry {
   private applyFloorToMedia(before: SessionState, after: SessionState): void {
     if (!this.media) return;
     if (before.floor.holder === after.floor.holder) return;
+    this.assertSilence(after);
+  }
 
-    // Both directions are stated explicitly on every transition rather than
-    // only the one that changed, so the media plane is told the whole truth and
-    // cannot drift out of step with the reducer.
-    for (const listener of [after.initiator, after.invitee]) {
-      const speaker = otherParty(after, listener);
-      // Whoever holds the floor stops receiving the other party. Nothing is
-      // done to the silenced person's own publishing.
-      const silenced = after.floor.holder === listener;
-      this.run(
-        () =>
-          this.media?.setSilenced({
-            room: after.id,
-            speaker,
-            listener,
-            silenced,
-          }),
-        `setSilenced ${after.id} ${listener}<-${speaker}=${silenced}`
-      );
+  /**
+   * States every listener–speaker pair's subscription, in full rather than as
+   * a delta, so the media plane is told the whole truth on every transition
+   * and cannot drift out of step with the reducer. Nothing is ever done to a
+   * silenced person's own publishing.
+   *
+   * A speaker with no published track cannot be acted on yet; they are noted
+   * in `pendingSilence` and re-stated each tick until it lands, because
+   * whoever publishes next is subscribed to by default.
+   */
+  private assertSilence(
+    state: SessionState,
+    speakers: string[] = state.participants
+  ): void {
+    if (!this.media || state.status !== 'active') return;
+    const holder = state.floor.holder;
+    for (const speaker of speakers) {
+      this.pendingSilence.get(state.id)?.delete(speaker);
+      for (const listener of state.participants) {
+        if (listener === speaker) continue;
+        const silenced = holder !== null && speaker !== holder;
+        const context = `setSilenced ${state.id} ${listener}<-${speaker}=${silenced}`;
+        const note = () => {
+          const pending = this.pendingSilence.get(state.id) ?? new Set<string>();
+          this.pendingSilence.set(state.id, pending);
+          pending.add(speaker);
+        };
+        this.media
+          .setSilenced({ room: state.id, speaker, listener, silenced })
+          .then(
+            // Only an unapplied *silence* needs retrying: an unapplied
+            // un-silence means there was nothing subscribed to restore.
+            (applied) => {
+              if (!applied && silenced) note();
+            },
+            (error) => {
+              this.onMediaError(error, context);
+              if (silenced) note();
+            }
+          );
+      }
     }
   }
 
@@ -488,40 +657,18 @@ export class SessionRegistry {
     const isCapturing = this.capturing.has(after.id);
 
     if (shouldCapture && !isCapturing) {
-      const perParticipant = this.segments.get(after.id) ?? new Map();
-      this.segments.set(after.id, perParticipant);
-      const started: Array<{ identity: string; handle: string }> = [];
-      this.capturing.set(after.id, started);
+      this.capturing.set(after.id, {
+        handles: [],
+        requested: new Set(),
+        retryAt: new Map(),
+      });
 
-      for (const identity of [after.initiator, after.invitee]) {
-        const previous = perParticipant.get(identity) ?? [];
-        const index = String(previous.length + 1).padStart(3, '0');
-        const key = `${after.id}/${identity}-${index}.ogg`;
-        // Reserved before the call returns so a second transition cannot pick
-        // the same index, and so a failed start leaves a visible gap rather
-        // than silently reusing a key.
-        perParticipant.set(identity, [...previous, key]);
-
-        this.run(
-          async () => {
-            const handle = await this.media!.startRecording({
-              room: after.id,
-              identity,
-              key,
-            });
-            // The recording may have moved on while the call was in flight.
-            if (
-              this.sessions.get(after.id)?.recording.status === 'recording' &&
-              this.capturing.get(after.id) === started
-            ) {
-              started.push({ identity, handle });
-            } else {
-              await this.media!.stopRecording(handle);
-            }
-          },
-          `startRecording ${key}`,
-          (error) => this.captureFailed(after.id, identity, key, error)
-        );
+      // The initial cohort is who is *present* — a participant who has never
+      // joined has no track, and asking for their egress would kill the whole
+      // recording over someone who is not even in the room. Anyone else gets
+      // a stem the moment they arrive, via ensureEgress.
+      for (const identity of after.present) {
+        this.startEgress(after, identity, { fatal: true });
       }
 
       // Whichever of "recording starts" and "a track is loaded" happens second
@@ -532,9 +679,9 @@ export class SessionRegistry {
     }
 
     if (!shouldCapture && isCapturing) {
-      const handles = this.capturing.get(after.id)!;
+      const run = this.capturing.get(after.id)!;
       this.capturing.delete(after.id);
-      for (const { identity, handle } of handles) {
+      for (const { identity, handle } of run.handles) {
         this.run(
           () => this.media?.stopRecording(handle),
           `stopRecording ${after.id}/${identity}`
@@ -542,6 +689,92 @@ export class SessionRegistry {
       }
       this.stopMediaCapture(after.id);
     }
+  }
+
+  /**
+   * Asks for one participant's egress for the current run and reserves its
+   * key. For the initial cohort a failure ends the recording — a missing
+   * speaker makes a recording that looks complete and is not. For a late
+   * joiner it must not: their track may simply not exist yet, so the key is
+   * released and the tick retries once `retryAt` allows.
+   */
+  private startEgress(
+    state: SessionState,
+    identity: string,
+    { fatal }: { fatal: boolean }
+  ): void {
+    const run = this.capturing.get(state.id);
+    if (!run || run.requested.has(identity)) return;
+    run.requested.add(identity);
+
+    const perParticipant = this.segments.get(state.id) ?? new Map();
+    this.segments.set(state.id, perParticipant);
+    const previous = perParticipant.get(identity) ?? [];
+    const index = String(previous.length + 1).padStart(3, '0');
+    const key = `${state.id}/${identity}-${index}.ogg`;
+    // Where in the recorded audio this capture begins: zero at a run's start,
+    // later for someone who joined partway through one. Reserved before the
+    // call returns so a second transition cannot pick the same index, and so
+    // a failed fatal start leaves a visible gap rather than reusing a key.
+    const startMs = recordedMs(state.recording, this.now());
+    perParticipant.set(identity, [...previous, { key, startMs }]);
+
+    this.run(
+      async () => {
+        const handle = await this.media!.startRecording({
+          room: state.id,
+          identity,
+          key,
+        });
+        // The recording may have moved on while the call was in flight.
+        const current = this.sessions.get(state.id);
+        if (
+          current?.recording.status === 'recording' &&
+          this.capturing.get(state.id) === run &&
+          run.requested.has(identity)
+        ) {
+          run.handles.push({ identity, handle });
+        } else {
+          await this.media!.stopRecording(handle);
+        }
+      },
+      `startRecording ${key}`,
+      (error) => {
+        if (fatal) {
+          this.captureFailed(state.id, identity, key, error);
+        } else {
+          this.releaseSegment(state.id, identity, key);
+          run.requested.delete(identity);
+          run.retryAt.set(identity, this.now() + 5_000);
+        }
+      }
+    );
+  }
+
+  /** Starts a stem for anyone present in a running recording without one. */
+  private ensureEgress(state: SessionState): void {
+    if (!this.media || state.status !== 'active') return;
+    const run = this.capturing.get(state.id);
+    if (!run || state.recording.status !== 'recording') return;
+    for (const identity of state.present) {
+      if (run.requested.has(identity)) continue;
+      if (this.now() < (run.retryAt.get(identity) ?? 0)) continue;
+      this.startEgress(state, identity, { fatal: false });
+    }
+  }
+
+  /** Takes back a reserved key whose capture never began. */
+  private releaseSegment(
+    sessionId: string,
+    identity: string,
+    key: string
+  ): void {
+    const perParticipant = this.segments.get(sessionId);
+    const entries = perParticipant?.get(identity);
+    if (!entries) return;
+    const remaining = entries.filter((segment) => segment.key !== key);
+    if (remaining.length > 0) perParticipant!.set(identity, remaining);
+    else perParticipant!.delete(identity);
   }
 
   /**
@@ -660,7 +893,12 @@ export class SessionRegistry {
     const previous = perParticipant.get(MEDIA_IDENTITY) ?? [];
     const index = String(previous.length + 1).padStart(3, '0');
     const key = `${sessionId}/${MEDIA_IDENTITY}-${index}.ogg`;
-    perParticipant.set(MEDIA_IDENTITY, [...previous, key]);
+    // The pump pads the offset with silence, so this stem spans its whole run
+    // and its startMs is the run's start regardless of when the track arrived.
+    perParticipant.set(MEDIA_IDENTITY, [
+      ...previous,
+      { key, startMs: state.recording.accumulatedMs },
+    ]);
 
     const offsetMs = state.recording.segmentStartedAt
       ? Math.max(0, this.now() - state.recording.segmentStartedAt)
@@ -673,12 +911,7 @@ export class SessionRegistry {
       // recording that looks complete and is not, which is why that ends the
       // whole thing; a missing track leaves the conversation itself intact, so
       // it is reported as a playback failure and the key is released.
-      () => {
-        const keys = perParticipant.get(MEDIA_IDENTITY) ?? [];
-        const remaining = keys.filter((k: string) => k !== key);
-        if (remaining.length > 0) perParticipant.set(MEDIA_IDENTITY, remaining);
-        else perParticipant.delete(MEDIA_IDENTITY);
-      }
+      () => this.releaseSegment(sessionId, MEDIA_IDENTITY, key)
     );
   }
 
@@ -743,20 +976,26 @@ export class SessionRegistry {
     const at = recordedMs(after.recording, this.now());
     const windows = this.floorWindows.get(after.id) ?? [];
     this.floorWindows.set(after.id, windows);
-    const open = windows.find((w) => w.toMs === null);
 
-    // Who is silenced now: the party who does not hold the floor, while
-    // someone does and the recording is running.
-    const silenced =
+    // Who is silenced now: everyone but the holder, while someone holds the
+    // floor and the recording is running. One open window per silenced person
+    // — a mid-claim joiner gets theirs opened the moment they are added,
+    // because this runs on every committed transition, roster growth included.
+    const silenced = new Set(
       isRecording && after.floor.holder
-        ? otherParty(after, after.floor.holder)
-        : null;
+        ? otherParticipants(after, after.floor.holder)
+        : []
+    );
 
-    if (open && open.identity !== silenced) {
-      open.toMs = at;
+    for (const window of windows) {
+      if (window.toMs === null && !silenced.has(window.identity)) {
+        window.toMs = at;
+      }
     }
-    if (silenced && !windows.some((w) => w.toMs === null)) {
-      windows.push({ identity: silenced, fromMs: at, toMs: null });
+    for (const identity of silenced) {
+      if (!windows.some((w) => w.toMs === null && w.identity === identity)) {
+        windows.push({ identity, fromMs: at, toMs: null });
+      }
     }
   }
 
@@ -801,13 +1040,7 @@ export class SessionRegistry {
     key: string,
     error: unknown
   ): void {
-    const perParticipant = this.segments.get(sessionId);
-    const keys = perParticipant?.get(identity);
-    if (keys) {
-      const remaining = keys.filter((k) => k !== key);
-      if (remaining.length > 0) perParticipant!.set(identity, remaining);
-      else perParticipant!.delete(identity);
-    }
+    this.releaseSegment(sessionId, identity, key);
 
     const session = this.sessions.get(sessionId);
     if (!session) return;
@@ -852,16 +1085,29 @@ export class SessionRegistry {
 
   private persistEnded(session: SessionState): void {
     this.db
-      .prepare('UPDATE sessions SET ended_at = ?, ended_reason = ? WHERE id = ?')
-      .run(session.endedAt, session.endedReason, session.id);
+      .prepare(
+        // participants is re-stated because invites grow it after the insert.
+        'UPDATE sessions SET ended_at = ?, ended_reason = ?, participants = ? WHERE id = ?'
+      )
+      .run(
+        session.endedAt,
+        session.endedReason,
+        JSON.stringify(session.participants),
+        session.id
+      );
 
     const duration = recordedMs(session.recording, session.endedAt ?? this.now());
     if (session.recording.status !== 'stopped' || duration <= 0) return;
 
     const perParticipant = this.segments.get(session.id) ?? new Map();
     this.segments.delete(session.id);
-    const stems = Object.fromEntries(perParticipant);
-    const flat = Object.values(stems).flat() as string[];
+    const stems = Object.fromEntries(perParticipant) as Record<
+      string,
+      Array<{ key: string; startMs: number }>
+    >;
+    const flat = Object.values(stems)
+      .flat()
+      .map((segment) => segment.key);
 
     // A claim still open when the recording ended runs to the end of it.
     const windows = this.floorWindows.get(session.id) ?? [];
@@ -881,15 +1127,17 @@ export class SessionRegistry {
         this.db
           .prepare(
             `INSERT INTO recordings
-           (id, session_id, initiator_id, invitee_id, started_at, duration_ms,
-            s3_key, segment_keys, stems, floor_timeline)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (id, session_id, initiator_id, invitee_id, participants, started_at,
+            duration_ms, s3_key, segment_keys, stems, floor_timeline)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .run(
             candidate,
             session.id,
             session.initiator,
-            session.invitee,
+            // Legacy anchor columns; participants is what is read back.
+            session.participants[1],
+            JSON.stringify(session.participants),
             session.recording.startedAt ?? session.createdAt,
             duration,
             flat[0] ?? '',

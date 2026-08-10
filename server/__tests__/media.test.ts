@@ -355,12 +355,15 @@ describe('recording capture', () => {
     const row = app.db
       .prepare('SELECT duration_ms, stems FROM recordings WHERE session_id = ?')
       .get(sessionId) as { duration_ms: number; stems: string };
-    const stems = JSON.parse(row.stems) as Record<string, string[]>;
+    const stems = JSON.parse(row.stems) as Record<
+      string,
+      Array<{ key: string; startMs: number }>
+    >;
     expect(Object.keys(stems).sort()).toEqual(
       [alice.account.id, bob.account.id].sort()
     );
     expect(stems[alice.account.id]).toEqual([
-      `${sessionId}/${alice.account.id}-001.ogg`,
+      { key: `${sessionId}/${alice.account.id}-001.ogg`, startMs: 0 },
     ]);
     expect(row.duration_ms).toBe(8_000);
   });
@@ -396,12 +399,16 @@ describe('recording capture', () => {
     const row = app.db
       .prepare('SELECT * FROM recordings WHERE session_id = ?')
       .get(sessionId) as { stems: string; duration_ms: number };
-    const stems = JSON.parse(row.stems) as Record<string, string[]>;
-    // Each participant's stem is split by the pause, and only by the pause.
+    const stems = JSON.parse(row.stems) as Record<
+      string,
+      Array<{ key: string; startMs: number }>
+    >;
+    // Each participant's stem is split by the pause, and only by the pause —
+    // and the second segment knows it starts where the first run ended.
     for (const identity of [alice.account.id, bob.account.id]) {
       expect(stems[identity]).toEqual([
-        `${sessionId}/${identity}-001.ogg`,
-        `${sessionId}/${identity}-002.ogg`,
+        { key: `${sessionId}/${identity}-001.ogg`, startMs: 0 },
+        { key: `${sessionId}/${identity}-002.ogg`, startMs: 10_000 },
       ]);
     }
     // Paused time is excluded, so the duration is the two run segments only.

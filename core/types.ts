@@ -83,8 +83,18 @@ export interface SessionState {
   id: string;
   /** The user who created the session. */
   initiator: UserId;
-  /** The contact who was invited. */
-  invitee: UserId;
+  /**
+   * Everyone in the session — the initiator first, then the rest in the order
+   * they were invited. Grows on INVITE, never shrinks: leaving a session is
+   * not being removed from it. Capped at MAX_SESSION_PARTICIPANTS.
+   */
+  participants: UserId[];
+  /**
+   * Who invited each participant. Absent for the initiator. This is what an
+   * invitation shows as its sender — "X is waiting in a session" should name
+   * whoever actually asked, not whoever happened to create the session.
+   */
+  invitedBy: Record<UserId, UserId>;
   createdAt: number;
   status: 'active' | 'ended';
   endedAt: number | null;
@@ -93,7 +103,8 @@ export interface SessionState {
   present: UserId[];
   /**
    * Users who have entered at least once. Recording may only be started once
-   * both parties have connected; leaving afterwards does not revoke that.
+   * at least two people have connected; leaving afterwards does not revoke
+   * that.
    */
   everPresent: UserId[];
   /**
@@ -121,6 +132,12 @@ export interface SessionState {
 export type SessionAction =
   | { type: 'ENTER'; userId: UserId }
   | { type: 'LEAVE'; userId: UserId }
+  /**
+   * Adds `inviteeId` to the session. Any current participant may invite;
+   * whether the two are contacts is the server's to check, contacts being a
+   * server-side concern the reducer knows nothing about.
+   */
+  | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
   | { type: 'END'; userId: UserId }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }

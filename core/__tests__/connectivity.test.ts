@@ -21,7 +21,7 @@ const B = 'user-b';
 const T0 = 1_700_000_000_000;
 
 function joined(now = T0): SessionState {
-  const session = createSession({ id: 's1', initiator: A, invitee: B, now });
+  const session = createSession({ id: 's1', initiator: A, invitees: [B], now });
   return reduce(session, { type: 'ENTER', userId: B }, now);
 }
 
@@ -67,7 +67,7 @@ describe('disconnecting', () => {
   });
 
   it('is ignored for someone who is not in the session', () => {
-    const alone = createSession({ id: 's1', initiator: A, invitee: B, now: T0 });
+    const alone = createSession({ id: 's1', initiator: A, invitees: [B], now: T0 });
     const state = reduce(alone, { type: 'DISCONNECTED', userId: B }, T0);
     expect(state).toBe(alone);
   });

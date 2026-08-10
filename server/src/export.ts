@@ -20,13 +20,32 @@ export interface FloorWindow {
   toMs: number;
 }
 
+/** One captured object and where in the recorded audio it begins. */
+export interface StemSegment {
+  key: string;
+  startMs: number;
+}
+
 export interface ExportRequest {
-  /** Each participant's segments, in order. Concatenated before gating. */
-  stems: Record<string, string[]>;
+  /**
+   * Each participant's segments, in order. Recordings made since sessions
+   * could gain people mid-run carry a start offset per segment, so a late
+   * joiner's audio lands where it happened; older rows are plain key lists
+   * whose segments all abut, and are concatenated as they always were.
+   */
+  stems: Record<string, StemSegment[] | string[]>;
   timeline: FloorWindow[];
 }
 
 const ms = (value: number) => (value / 1000).toFixed(3);
+
+const segmentKey = (segment: StemSegment | string): string =>
+  typeof segment === 'string' ? segment : segment.key;
+
+/** Every object key referenced by a request, in stem order. */
+export function stemKeys(request: ExportRequest): string[] {
+  return Object.values(request.stems).flat().map(segmentKey);
+}
 
 /**
  * Builds the ffmpeg filter graph. Kept pure and separate from running anything,
@@ -50,19 +69,42 @@ export function buildFilterGraph(
   identities.forEach((identity, n) => {
     const files = request.stems[identity];
     const label = `s${n}`;
-    const indexes = files.map((f) => inputIndex.get(f));
+    const indexes = files.map((f) => inputIndex.get(segmentKey(f)));
     if (indexes.some((i) => i === undefined)) {
       throw new Error(`Missing input for a segment of ${identity}`);
     }
 
-    // Pausing splits a stem, so its segments are joined back into one timeline
-    // before anything is gated — the window offsets are positions in the joined
-    // audio, which is exactly what recordedMs measured.
-    if (files.length === 1) {
-      parts.push(`[${indexes[0]}:a]anull[${label}_j]`);
+    // The segments are rejoined into one timeline before anything is gated —
+    // the window offsets are positions in the recorded audio, which is exactly
+    // what recordedMs measured.
+    if (typeof files[0] === 'string') {
+      // Legacy rows: no offsets, every segment abuts the last, so
+      // concatenation reconstructs the timeline as it always did.
+      if (files.length === 1) {
+        parts.push(`[${indexes[0]}:a]anull[${label}_j]`);
+      } else {
+        const ins = indexes.map((i) => `[${i}:a]`).join('');
+        parts.push(`${ins}concat=n=${files.length}:v=0:a=1[${label}_j]`);
+      }
     } else {
-      const ins = indexes.map((i) => `[${i}:a]`).join('');
-      parts.push(`${ins}concat=n=${files.length}:v=0:a=1[${label}_j]`);
+      // Each segment is delayed to where its capture began, then the segments
+      // are mixed. They never overlap — one person cannot be captured twice at
+      // once — so the mix is a join, and normalize=0 keeps their level.
+      const segments = files as StemSegment[];
+      const placed = segments.map((segment, s) => {
+        const part = `${label}_p${s}`;
+        parts.push(
+          `[${indexes[s]}:a]adelay=${Math.round(segment.startMs)}:all=1[${part}]`
+        );
+        return `[${part}]`;
+      });
+      if (placed.length === 1) {
+        parts.push(`${placed[0]}anull[${label}_j]`);
+      } else {
+        parts.push(
+          `${placed.join('')}amix=inputs=${placed.length}:normalize=0:duration=longest[${label}_j]`
+        );
+      }
     }
 
     // One volume filter per window, chained. A single combined expression
@@ -113,7 +155,7 @@ export async function encodeRecording(
   fetchObject: FetchObject,
   ffmpegPath = process.env.FFMPEG_PATH ?? 'ffmpeg'
 ): Promise<EncodeResult> {
-  const files = Object.values(request.stems).flat();
+  const files = stemKeys(request);
   if (files.length === 0) throw new Error('This recording has no audio.');
 
   const dir = await mkdtemp(join(tmpdir(), 'thefloor-export-'));

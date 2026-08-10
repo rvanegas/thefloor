@@ -26,7 +26,7 @@ const mockApp = {
   token: 'token',
   me: { id: ME, displayName: 'Me' },
   home: null as HomeViewData | null,
-  sessionView: null as { session: SessionState; other: { id: string; displayName: string }; serverNow: number } | null,
+  sessionView: null as { session: SessionState; participants: Array<{ id: string; displayName: string }>; serverNow: number } | null,
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -59,7 +59,7 @@ jest.mock('../../audio/useSessionAudio', () => ({
     status: 'idle',
     message: null,
     mutedByServer: false,
-    otherAudible: false,
+    othersAudible: 0,
   }),
 }));
 
@@ -117,16 +117,25 @@ function sessionOf(mutate: (s: SessionState) => SessionState = (s) => s) {
   const base = createSession({
     id: 'sess_1',
     initiator: ME,
-    invitee: THEM,
+    invitees: [THEM],
     now: NOW,
   });
   return mutate(reduce(base, { type: 'ENTER', userId: THEM }, NOW));
 }
 
 function showSession(session: SessionState) {
+  const names: Record<string, string> = {
+    [ME]: 'Me',
+    [THEM]: 'Dana Chu',
+    acct_3: 'Miro Okafor',
+    acct_4: 'Priya Raman',
+  };
   mockApp.sessionView = {
     session,
-    other: { id: THEM, displayName: 'Dana Chu' },
+    participants: session.participants.map((id) => ({
+      id,
+      displayName: names[id] ?? id,
+    })),
     serverNow: NOW,
   };
 }
@@ -152,8 +161,8 @@ describe('Home', () => {
       rejoinable: [
         {
           sessionId: 'sess_b',
-          other: { id: 'acct_x', displayName: 'Miro Okafor' },
-          otherPresent: true,
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 1,
           createdAt: NOW,
         },
       ],
@@ -168,7 +177,7 @@ describe('Home', () => {
     const text = textOf(tree);
     expect(text).toContain('tap to join');
     expect(text).toContain('Miro Okafor');
-    expect(text).toContain('Still there — you left');
+    expect(text).toContain('1 present — you left');
     expect(text).toContain('Priya Raman');
     expect(text).toContain('Accept');
     expect(text).toContain('Quinn Ito');
@@ -186,7 +195,7 @@ describe('Home', () => {
         {
           id: 'rec_1',
           sessionId: 'sess_1',
-          other: { id: THEM, displayName: 'Dana Chu' },
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
           startedAt: NOW,
           durationMs: 92_000,
         },
@@ -234,8 +243,8 @@ describe('Home', () => {
       rejoinable: [
         {
           sessionId: 'sess_b',
-          other: { id: THEM, displayName: 'Dana Chu' },
-          otherPresent: true,
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 1,
           createdAt: NOW,
         },
       ],
@@ -586,6 +595,53 @@ describe('Session', () => {
     mockApp.status = 'connecting';
     const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
     expect(textOf(tree)).toContain('dropped connection counts as leaving');
+    act(() => tree.unmount());
+  });
+
+  it('renders a roster and generalised copy with four people', () => {
+    let session = createSession({
+      id: 'sess_1',
+      initiator: ME,
+      invitees: [THEM, 'acct_3', 'acct_4'],
+      now: NOW,
+    });
+    session = reduce(session, { type: 'ENTER', userId: THEM }, NOW);
+    session = reduce(session, { type: 'ENTER', userId: 'acct_3' }, NOW);
+    session = reduce(session, { type: 'CLAIM_FLOOR', userId: 'acct_3' }, NOW);
+    showSession(session);
+
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('4 people');
+    expect(text).toContain('Dana Chu');
+    expect(text).toContain('Miro Okafor');
+    expect(text).toContain('Priya Raman');
+    // acct_4 was invited and has never entered.
+    expect(text).toContain('Waiting for them to join…');
+    // The holder is named wherever the claim bites.
+    expect(text).toContain('Miro Okafor has the floor — your mic is cut');
+    expect(text).toContain("Silenced by Miro Okafor's floor claim.");
+    act(() => tree.unmount());
+  });
+
+  it('offers to invite an accepted contact who is not in the session', () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [
+        { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
+      ],
+    };
+    showSession(sessionOf());
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const invite = findButton(tree, 'Invite');
+    expect(invite).toBeDefined();
+    act(() => invite!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'INVITE',
+      contactId: 'acct_3',
+    });
     act(() => tree.unmount());
   });
 

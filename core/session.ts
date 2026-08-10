@@ -1,4 +1,8 @@
-import { DISCONNECT_GRACE_MS, EMPTY_SESSION_TIMEOUT_MS } from './constants';
+import {
+  DISCONNECT_GRACE_MS,
+  EMPTY_SESSION_TIMEOUT_MS,
+  MAX_SESSION_PARTICIPANTS,
+} from './constants';
 import {
   claimFloor,
   hasExpired,
@@ -37,25 +41,38 @@ import type {
 export function createSession(params: {
   id: string;
   initiator: UserId;
-  invitee: UserId;
+  invitees: UserId[];
   now: number;
 }): SessionState {
-  const { id, initiator, invitee, now } = params;
+  const { id, initiator, invitees, now } = params;
+  const participants = [initiator, ...invitees];
+  // Structural violations, not policy ones: the caller was supposed to have
+  // validated the roster, so a bad one here is a bug worth failing loudly on.
+  if (invitees.length === 0) {
+    throw new Error('A session needs at least one invitee.');
+  }
+  if (new Set(participants).size !== participants.length) {
+    throw new Error('A session cannot hold the same person twice.');
+  }
+  if (participants.length > MAX_SESSION_PARTICIPANTS) {
+    throw new Error(`A session holds at most ${MAX_SESSION_PARTICIPANTS} people.`);
+  }
   return {
     id,
     initiator,
-    invitee,
+    participants,
+    invitedBy: Object.fromEntries(invitees.map((i) => [i, initiator])),
     createdAt: now,
     status: 'active',
     endedAt: null,
     endedReason: null,
     // Creating a session is entering it: the initiator is present immediately
-    // and waits there for as long as it takes the other party to join.
+    // and waits there for as long as it takes anyone else to join.
     present: [initiator],
     everPresent: [initiator],
     emptySince: null,
     floor: initialFloorState(),
-    selfMuted: { [initiator]: false, [invitee]: false },
+    selfMuted: Object.fromEntries(participants.map((p) => [p, false])),
     recording: initialRecordingState(),
     playback: initialPlaybackState(),
     disconnectedAt: {},
@@ -63,23 +80,31 @@ export function createSession(params: {
 }
 
 export function isParticipant(state: SessionState, userId: UserId): boolean {
-  return userId === state.initiator || userId === state.invitee;
+  return state.participants.includes(userId);
 }
 
-export function otherParty(state: SessionState, userId: UserId): UserId {
-  return userId === state.initiator ? state.invitee : state.initiator;
+/** Everyone in the session except `userId`, in participant order. */
+export function otherParticipants(
+  state: SessionState,
+  userId: UserId
+): UserId[] {
+  return state.participants.filter((id) => id !== userId);
 }
 
 export function isPresent(state: SessionState, userId: UserId): boolean {
   return state.present.includes(userId);
 }
 
-export function bothPresent(state: SessionState): boolean {
-  return state.present.length === 2;
+/**
+ * Whether there is anyone to talk to. The generalisation of "both present":
+ * the floor means nothing to someone alone in the session.
+ */
+export function atLeastTwoPresent(state: SessionState): boolean {
+  return state.present.length >= 2;
 }
 
-export function bothEverConnected(state: SessionState): boolean {
-  return state.everPresent.length === 2;
+export function atLeastTwoEverConnected(state: SessionState): boolean {
+  return state.everPresent.length >= 2;
 }
 
 // --- Guards -----------------------------------------------------------------
@@ -96,7 +121,7 @@ export function canClaimFloor(
   now: number
 ): boolean {
   if (state.status !== 'active') return false;
-  if (!isPresent(state, userId) || !bothPresent(state)) return false;
+  if (!isPresent(state, userId) || !atLeastTwoPresent(state)) return false;
   // Ranked against who is present, not who is in the session: someone who has
   // left must not occupy the zero slot they cannot use.
   return satisfiesEligibilityRule(state.floor, state.present, userId, now);
@@ -110,7 +135,25 @@ export function canStartRecording(state: SessionState): boolean {
   return (
     state.status === 'active' &&
     state.recording.status === 'idle' &&
-    bothEverConnected(state)
+    atLeastTwoEverConnected(state)
+  );
+}
+
+/**
+ * Whether `userId` may bring `inviteeId` into the session. Any current
+ * participant may invite, up to the cap; whether the pair are contacts is the
+ * server's to check before dispatching this.
+ */
+export function canInvite(
+  state: SessionState,
+  userId: UserId,
+  inviteeId: UserId
+): boolean {
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    !isParticipant(state, inviteeId) &&
+    state.participants.length < MAX_SESSION_PARTICIPANTS
   );
 }
 
@@ -257,8 +300,18 @@ export function reduce(
       };
     }
 
+    case 'INVITE': {
+      if (!canInvite(state, action.userId, action.inviteeId)) return state;
+      return {
+        ...state,
+        participants: [...state.participants, action.inviteeId],
+        invitedBy: { ...state.invitedBy, [action.inviteeId]: action.userId },
+        selfMuted: { ...state.selfMuted, [action.inviteeId]: false },
+      };
+    }
+
     case 'END':
-      // Either user may end the session at any time, present or not.
+      // Any participant may end the session at any time, present or not.
       return endSession(state, 'explicit', now);
 
     case 'CLAIM_FLOOR': {

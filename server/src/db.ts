@@ -28,11 +28,18 @@ export interface RecordingRow {
   session_id: string;
   initiator_id: string;
   invitee_id: string;
+  /** JSON: string[] — every participant of the recorded session, in order. */
+  participants: string | null;
   started_at: number;
   duration_ms: number;
   s3_key: string;
   segment_keys: string | null;
-  /** JSON: { [identity]: string[] } — each participant's segments, in order. */
+  /**
+   * JSON: { [identity]: Array<{ key, startMs }> } — each participant's
+   * segments in order, with where in the recorded audio each begins. Rows
+   * written before mid-session joins existed hold { [identity]: string[] };
+   * the export accepts both.
+   */
   stems: string | null;
   /** JSON: Array<{ identity, fromMs, toMs }> — when each party was silenced. */
   floor_timeline: string | null;
@@ -96,13 +103,19 @@ CREATE TABLE IF NOT EXISTS pending_invites (
 
 -- Sessions are held in memory while live; this is the record written when one
 -- ends, for history and to anchor recordings.
+-- initiator_id/invitee_id predate sessions holding more than two people.
+-- They are kept (and written with the initiator and first invitee) because
+-- dropping a NOT NULL column means rebuilding the table for no gain; the
+-- participants JSON is what is read.
 CREATE TABLE IF NOT EXISTS sessions (
   id           TEXT PRIMARY KEY,
   initiator_id TEXT NOT NULL REFERENCES accounts(id),
   invitee_id   TEXT NOT NULL REFERENCES accounts(id),
   created_at   INTEGER NOT NULL,
   ended_at     INTEGER,
-  ended_reason TEXT
+  ended_reason TEXT,
+  -- JSON string[]: everyone in the session, initiator first.
+  participants TEXT
 );
 
 CREATE TABLE IF NOT EXISTS recordings (
@@ -110,6 +123,8 @@ CREATE TABLE IF NOT EXISTS recordings (
   session_id   TEXT NOT NULL REFERENCES sessions(id),
   initiator_id TEXT NOT NULL,
   invitee_id   TEXT NOT NULL,
+  -- JSON string[], as on sessions. Membership queries go through json_each.
+  participants TEXT,
   started_at   INTEGER NOT NULL,
   duration_ms  INTEGER NOT NULL,
   s3_key       TEXT NOT NULL,
@@ -145,11 +160,26 @@ function migrate(db: Db): void {
   const columns = db
     .prepare('PRAGMA table_info(recordings)')
     .all() as Array<{ name: string }>;
-  for (const column of ['segment_keys', 'stems', 'floor_timeline']) {
+  for (const column of ['segment_keys', 'stems', 'floor_timeline', 'participants']) {
     if (!columns.some((c) => c.name === column)) {
       db.exec(`ALTER TABLE recordings ADD COLUMN ${column} TEXT`);
     }
   }
+
+  const sessionColumns = db
+    .prepare('PRAGMA table_info(sessions)')
+    .all() as Array<{ name: string }>;
+  if (!sessionColumns.some((c) => c.name === 'participants')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN participants TEXT');
+  }
+
+  // Backfill: every row written before the column existed was a two-party
+  // session, so its roster is exactly the legacy columns. Runs before any
+  // query, which is what lets membership checks read participants alone.
+  db.exec(`UPDATE sessions SET participants = json_array(initiator_id, invitee_id)
+           WHERE participants IS NULL`);
+  db.exec(`UPDATE recordings SET participants = json_array(initiator_id, invitee_id)
+           WHERE participants IS NULL`);
 }
 
 export function sha256(value: string): string {

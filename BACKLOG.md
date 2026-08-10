@@ -591,9 +591,16 @@ development can read codes off the server console by leaving `MAIL_FROM` unset
 
 ---
 
-## Multiple auth per user — done server-side, unfinished in the app
+## Multiple auth per user — done
 
-**Status:** the server enforces one session per account as of 2026-08-09.
+**Status:** complete as of 2026-08-09, both sides. The server enforces one
+session per account, and the client catches up: `api/http.ts` turns any 401
+into a sign-out via the `onSignedOut` listener, and `ws.ts` re-checks each
+socket's token on the heartbeat sweep, closing revoked ones with 4401 — which
+`api/socket.ts` treats as terminal. (Commit `12e35bc` fixed exactly the two
+items below; they are kept for the reasoning.)
+
+The server enforces one session per account as of 2026-08-09.
 `issueToken` revokes every existing token for the account before minting a new
 one, so signing in anywhere ends the session everywhere else. `Accounts.
 revokeAllForAccount` is the operation behind it, and the only one that can
@@ -630,9 +637,23 @@ token has been revoked. Both need a TestFlight build to reach anyone.
 
 ## Multiple users in a session
 
-**Status:** designed 2026-08-09, not started. The largest remaining change:
-roughly 78 references assume exactly two people, across nine files, heaviest in
-`server/src/sessions.ts` and `core/session.ts`.
+**Status:** implemented 2026-08-09. Sessions hold up to six people
+(`MAX_SESSION_PARTICIPANTS`); the roster is chosen at creation (`POST
+/sessions` takes `contactIds`) and any participant may invite more mid-session
+(the `INVITE` action — the invitee must be a contact of the *inviter* only). A
+claim silences every other participant to every listener, the silenced from
+each other included. Stems now carry a per-segment `startMs`, so someone who
+joins mid-recording is placed at the right offset by the export; legacy plain
+key lists still export by concatenation. The DB gained a `participants` JSON
+column on `sessions` and `recordings`, backfilled from the legacy two-party
+columns at open. Wire compat broke deliberately (`SessionView.participants`,
+`RejoinableView.others` etc.); build 4 needs replacing alongside the server
+deploy.
+
+Deliberately deferred, as designed below: with four or more, everyone outside
+the two most recent speakers ties at zero delay and races.
+
+The design that was implemented:
 
 The original note said the session does not display who you are speaking with.
 It does — the other party's name is the largest thing on the screen — so that
@@ -684,12 +705,13 @@ by a ten-second step with a twenty-second cap.
 Recording already generalises: stems are per participant and the floor timeline
 is per identity, so neither needs changing.
 
-### Still to decide
+### Decided at implementation
 
-- How people are added: all at creation, or during a session?
-- Is there a maximum?
-- Does a claim silence everyone else, or only those present? (Almost certainly
-  everyone else — but it is N-1 unsubscribes per claim rather than one.)
+- People are added at creation *and* during a session, by any participant.
+- The maximum is six.
+- A claim silences everyone else, present or not — and pairwise: two silenced
+  people do not hear each other either, so the full matrix is N×(N−1)
+  subscription statements per transition rather than one.
 
 ---
 
