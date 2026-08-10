@@ -1,22 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../../core/constants';
-import type { ProfileView as Profile } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
 import { colors, spacing, type } from './theme';
 
 /**
- * Your own profile: the name everyone else sees you by, and a description of
- * yourself in the same Markdown a channel's description uses.
+ * Everything about you rather than about a conversation: the name people see,
+ * what you say about yourself, and the way out.
  *
- * Editable only for yourself — `ProfilePreview` below is how somebody else's
- * is read. The two are separate components rather than one with a flag,
- * because an editor that is sometimes read-only accumulates conditionals in
- * every field it holds.
+ * The counterpart to ChannelSettingsView, and named to match — one settings
+ * screen reached from Home, one reached from a channel, each holding what its
+ * own scope owns.
  */
-export function ProfileView({ onBack }: { onBack: () => void }) {
+export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const app = useApp();
   const [displayName, setDisplayName] = useState(app.me?.displayName ?? '');
   const [bio, setBio] = useState('');
@@ -64,7 +69,7 @@ export function ProfileView({ onBack }: { onBack: () => void }) {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading}>Your profile</Text>
+        <Text style={type.heading}>Settings</Text>
         <Button label="Done" variant="ghost" onPress={onBack} />
       </View>
 
@@ -117,6 +122,31 @@ export function ProfileView({ onBack }: { onBack: () => void }) {
             </Text>
           </Card>
 
+          <SectionLabel>Account</SectionLabel>
+          <Card style={styles.stack}>
+            <Button
+              label="Sign out"
+              onPress={() =>
+                Alert.alert(
+                  'Sign out?',
+                  'You will need a fresh code by email to sign back in. Your channels and recordings are kept.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Sign out',
+                      style: 'destructive',
+                      onPress: () => void app.signOut(),
+                    },
+                  ]
+                )
+              }
+            />
+            <Text style={type.muted}>
+              Signing in elsewhere signs you out here, so this is only for the
+              device in your hand.
+            </Text>
+          </Card>
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <View style={styles.actions}>
@@ -135,55 +165,6 @@ export function ProfileView({ onBack }: { onBack: () => void }) {
         </>
       )}
     </ScrollView>
-  );
-}
-
-/**
- * Somebody else's profile, read-only.
- *
- * Fetched rather than passed in, because the server decides who may see one —
- * a contact, or somebody in a channel with you — and a 404 is the honest
- * answer for both "no such person" and "not yours to read".
- */
-export function ProfilePreview({
-  accountId,
-  fallbackName,
-}: {
-  accountId: string;
-  fallbackName: string;
-}) {
-  const app = useApp();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [missing, setMissing] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const found = await app.loadProfile(accountId);
-        if (!cancelled) setProfile(found);
-      } catch {
-        if (!cancelled) setMissing(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [accountId]);
-
-  return (
-    <Card style={styles.stack}>
-      <Text style={type.heading}>
-        {profile?.account.displayName ?? fallbackName}
-      </Text>
-      {profile?.bio ? (
-        <InlineMarkdown text={profile.bio} style={styles.previewText} />
-      ) : (
-        <Text style={type.muted}>
-          {missing ? 'No profile to show.' : 'They have not written one yet.'}
-        </Text>
-      )}
-    </Card>
   );
 }
 

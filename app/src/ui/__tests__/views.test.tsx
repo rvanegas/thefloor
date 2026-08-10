@@ -9,7 +9,7 @@ import type { ChannelState } from '../../../../core/types';
 import type { HomeView as HomeViewData } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
-import { ProfileView } from '../ProfileView';
+import { HomeSettingsView } from '../HomeSettingsView';
 
 /**
  * The views now render server snapshots rather than driving a local model, so
@@ -196,7 +196,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('tap to join');
     expect(text).toContain('Miro Okafor');
@@ -225,7 +225,7 @@ describe('Home', () => {
       ],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     expect(textOf(tree)).toContain('1:32');
 
     const button = findButton(tree, 'Export');
@@ -253,7 +253,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     expect(findButton(tree, 'Start channel')).toBeUndefined();
     expect(textOf(tree)).toContain('Channel already open');
     expect(textOf(tree)).toContain('tap to join');
@@ -278,7 +278,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     expect(findButton(tree, 'Start channel')).toBeUndefined();
     expect(textOf(tree)).toContain('Channel already open');
     act(() => tree.unmount());
@@ -302,7 +302,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     const [dismiss] = tree.root.findAll(
       (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
@@ -311,7 +311,7 @@ describe('Home', () => {
     expect(mockApp.dismissInvite).toHaveBeenCalledWith('sess_a');
 
     // Dismissal lives in the provider now, so re-render with it applied.
-    act(() => tree.update(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />));
+    act(() => tree.update(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />));
     expect(findButton(tree, 'Start channel')).toBeUndefined();
     expect(findButton(tree, 'Join channel')).toBeDefined();
     act(() => tree.unmount());
@@ -326,7 +326,7 @@ describe('Home', () => {
       ],
       recordings: [],
     };
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     expect(findButton(tree, 'Start channel')).toBeDefined();
     expect(textOf(tree)).not.toContain('Channel already open');
     act(() => tree.unmount());
@@ -349,7 +349,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const first = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const first = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     const [dismiss] = first.root.findAll(
       (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
@@ -357,7 +357,7 @@ describe('Home', () => {
     act(() => first.unmount());
 
     // Home is mounted afresh, as it is on returning from a channel.
-    const second = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const second = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     expect(textOf(second)).not.toContain('tap to join');
     act(() => second.unmount());
   });
@@ -379,7 +379,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     expect(textOf(tree)).toContain('tap to join');
     act(() => tree.unmount());
   });
@@ -397,7 +397,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('nobody@example.com');
     expect(text).toContain('real@example.com');
@@ -411,7 +411,7 @@ describe('Home', () => {
   it('says so when the connection is down', () => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     mockApp.status = 'closed';
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     expect(textOf(tree)).toContain('Not connected');
     act(() => tree.unmount());
   });
@@ -988,18 +988,18 @@ describe('Channel', () => {
   });
 });
 
-describe('Profile', () => {
+describe('Home settings', () => {
   /** The view fetches on mount, so every case has to let that settle. */
-  async function openProfile() {
+  async function openSettings() {
     let tree!: ReactTestRenderer;
     await act(async () => {
-      tree = renderer.create(<ProfileView onBack={() => {}} />);
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
     });
     return tree;
   }
 
   it('loads the current profile into the fields', async () => {
-    const tree = await openProfile();
+    const tree = await openSettings();
     expect(mockApp.loadProfile).toHaveBeenCalledWith(ME);
     // The bio renders as markdown in the preview, not as markup.
     const text = textOf(tree);
@@ -1010,7 +1010,7 @@ describe('Profile', () => {
   });
 
   it('saves both fields together', async () => {
-    const tree = await openProfile();
+    const tree = await openSettings();
     const name = tree.root.findAll(
       (n) => n.props?.placeholder === 'What people should call you'
     )[0];
@@ -1027,7 +1027,7 @@ describe('Profile', () => {
   it('will not save an empty name, and says why', async () => {
     // The server refuses this too; the point of refusing it here as well is
     // that a disabled control and a rejected request cannot disagree.
-    const tree = await openProfile();
+    const tree = await openSettings();
     const name = tree.root.findAll(
       (n) => n.props?.placeholder === 'What people should call you'
     )[0];
@@ -1040,8 +1040,28 @@ describe('Profile', () => {
     act(() => tree.unmount());
   });
 
+  it('holds signing out, which is no longer on Home', () => {
+    // It sat in the header beside a dozen harmless taps. Here it is among the
+    // other things that are about the account rather than about a channel.
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    expect(findButton(tree, 'Sign out')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('signs out behind a confirmation', async () => {
+    const tree = await openSettings();
+    const signOut = findButton(tree, 'Sign out');
+    expect(signOut).toBeDefined();
+    act(() => signOut!.props.onPress());
+    // The alert carries it; the tap alone must not.
+    expect(mockApp.signOut).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
   it('opens from Home', () => {
-    const onOpenProfile = jest.fn();
+    const onOpenSettings = jest.fn();
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -1049,10 +1069,10 @@ describe('Profile', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenProfile={onOpenProfile} />
+      <HomeView onEnterChannel={() => {}} onOpenSettings={onOpenSettings} />
     );
-    act(() => findButton(tree, 'Profile')!.props.onPress());
-    expect(onOpenProfile).toHaveBeenCalled();
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+    expect(onOpenSettings).toHaveBeenCalled();
     act(() => tree.unmount());
   });
 });
@@ -1075,8 +1095,13 @@ describe('Home while still in a channel', () => {
     const tree = render(
       <HomeView
         onEnterChannel={() => {}}
-        onOpenProfile={() => {}}
-        liveChannel={{ channelId: 'sess_1', title: 'Book club', present: 2 }}
+        onOpenSettings={() => {}}
+        liveChannel={{
+          channelId: 'sess_1',
+          title: 'Book club',
+          present: 2,
+          muted: false,
+        }}
         onReturnToChannel={onReturn}
       />
     );
@@ -1085,7 +1110,6 @@ describe('Home while still in a channel', () => {
     // by a preposition glued to the front of the name.
     expect(text).toContain('Book club');
     expect(text).not.toContain('In Book club');
-    expect(text).toContain('You’re here');
     expect(text).toContain('2 present');
     expect(text).toContain('tap to go back');
 
@@ -1105,14 +1129,18 @@ describe('Home while still in a channel', () => {
     const tree = render(
       <HomeView
         onEnterChannel={() => {}}
-        onOpenProfile={() => {}}
-        liveChannel={{ channelId: 'sess_1', title: 'Dana Chu', present: 1 }}
+        onOpenSettings={() => {}}
+        liveChannel={{
+          channelId: 'sess_1',
+          title: 'Dana Chu',
+          present: 1,
+          muted: false,
+        }}
         onReturnToChannel={() => {}}
       />
     );
     const text = textOf(tree).replace(/\s+/g, ' ');
     expect(text).toContain('Dana Chu');
-    expect(text).toContain('You’re here');
     expect(text).toContain('Nobody else is here yet');
     // No preposition dressing up the title.
     expect(text).not.toContain('In Dana Chu');
@@ -1122,10 +1150,9 @@ describe('Home while still in a channel', () => {
   it('shows nothing when you are not in one', () => {
     home();
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
     );
     expect(textOf(tree)).not.toContain('tap to go back');
-    expect(textOf(tree)).not.toContain('You’re here');
     act(() => tree.unmount());
   });
 });

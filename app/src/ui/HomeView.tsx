@@ -27,17 +27,23 @@ import { colors, formatDuration, radius, spacing, type } from './theme';
  */
 export function HomeView({
   onEnterChannel,
-  onOpenProfile,
+  onOpenSettings,
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
   onEnterChannel: (channelId: string) => void;
-  onOpenProfile: () => void;
+  onOpenSettings: () => void;
   /**
    * The channel you are present in right now, if you walked back here without
    * stepping out. Null when you are not in one.
    */
-  liveChannel?: { channelId: string; title: string; present: number } | null;
+  liveChannel?: {
+    channelId: string;
+    title: string;
+    present: number;
+    /** Muted by your own choice — not the floor, which is a different thing. */
+    muted: boolean;
+  } | null;
   onReturnToChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
@@ -112,10 +118,12 @@ export function HomeView({
             {app.status !== 'open' ? ` · ${describeStatus(app.status)}` : ''}
           </Text>
         </View>
-        <View style={styles.headerActions}>
-          <Button label="Profile" variant="ghost" onPress={onOpenProfile} />
-          <Button label="Sign out" variant="ghost" onPress={() => app.signOut()} />
-        </View>
+        {/*
+          One way off this screen that is not a channel. Signing out moved in
+          there with it: it is about the account rather than about the list,
+          and it sat beside a dozen taps that are not remotely destructive.
+        */}
+        <Button label="Settings" variant="ghost" onPress={onOpenSettings} />
       </View>
 
       {/*
@@ -127,24 +135,31 @@ export function HomeView({
       {liveChannel ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Return to the channel you are in"
+          accessibilityLabel={`${liveChannel.title}, ${
+            liveChannel.muted ? 'your microphone is muted' : 'you are here'
+          }. Tap to return.`}
           onPress={() => onReturnToChannel(liveChannel.channelId)}
           style={styles.liveBar}
         >
           <View style={styles.rowMain}>
             {/*
-              The same idiom the channel screen uses for "recording": a dot and
-              a word. What it has to convey is that you are *in* here right now
-              with an open microphone, which a channel name alone does not say,
-              and which a preposition bolted onto the title said badly.
+              A dot, and nothing else. That you are in here is not a sentence
+              worth spending on a screen that is mostly a list of names — but
+              it is worth a mark, and the mark can carry a second fact for
+              free: filled means your microphone is open, hollow and grey
+              means you muted yourself.
+
+              Nothing to a screen reader, though, which is why the whole bar
+              carries a label saying it in words.
             */}
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveBadgeLabel}>You’re here</Text>
+            <View style={styles.liveTitleRow}>
+              <View
+                style={[styles.liveDot, liveChannel.muted && styles.liveDotMuted]}
+              />
+              <Text style={styles.liveTitle} numberOfLines={1}>
+                {liveChannel.title}
+              </Text>
             </View>
-            <Text style={styles.liveTitle} numberOfLines={1}>
-              {liveChannel.title}
-            </Text>
             <Text style={styles.liveSub}>
               {liveChannel.present === 1
                 ? 'Nobody else is here yet'
@@ -543,7 +558,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing(1),
   },
   headerMain: { flex: 1 },
-  headerActions: { alignItems: 'flex-end' },
   liveBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -555,27 +569,28 @@ const styles = StyleSheet.create({
     padding: spacing(1.75),
     marginBottom: spacing(1),
   },
-  liveBadge: {
+  liveTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing(0.75),
-    marginBottom: spacing(0.5),
+    gap: spacing(1),
   },
-  liveBadgeLabel: {
-    color: colors.floor,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  liveTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
+  liveTitle: { flexShrink: 1, fontSize: 17, fontWeight: '600', color: colors.text },
   liveSub: { fontSize: 13, color: colors.textMuted },
   liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
     backgroundColor: colors.floor,
+  },
+  /**
+   * Hollow and grey rather than a second bright colour. Muting yourself is not
+   * an alarm and it is not the floor silencing you — which has its own colour
+   * — so it reads as absence of transmission rather than as a warning.
+   */
+  liveDotMuted: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.textFaint,
   },
   offline: {
     backgroundColor: colors.surface,

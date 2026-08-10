@@ -6,13 +6,13 @@ import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
-import { ProfileView } from './src/ui/ProfileView';
+import { HomeSettingsView } from './src/ui/HomeSettingsView';
 import { ChannelView } from './src/ui/ChannelView';
 import { colors } from './src/ui/theme';
 
 /**
  * Four screens: Auth when signed out, Channel when you are looking at one,
- * your Profile when you open it, Home otherwise.
+ * Settings when you open them, Home otherwise.
  *
  * **Presence is not a screen.** The audio connection is held here rather than
  * inside the channel screen, so walking back to Home leaves you in the
@@ -28,7 +28,7 @@ function Root() {
   const app = useApp();
   const { ready, token } = app;
   const [channelId, setChannelId] = useState<string | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const view = app.channelView;
   const me = app.me?.id ?? '';
@@ -67,14 +67,16 @@ function Root() {
     );
   }
 
-  // Reached from Home rather than from a channel: a profile is about you, not
-  // about whichever conversation you happen to be in.
-  if (profileOpen) return <ProfileView onBack={() => setProfileOpen(false)} />;
+  // Reached from Home rather than from a channel, because what is in here is
+  // about you rather than about whichever conversation you happen to be in.
+  if (settingsOpen) {
+    return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
+  }
 
   return (
     <HomeView
       onEnterChannel={setChannelId}
-      onOpenProfile={() => setProfileOpen(true)}
+      onOpenSettings={() => setSettingsOpen(true)}
       // What Home needs to show that a conversation is still going without you
       // looking at it. An open microphone behind a screen that gives no sign of
       // it is the one thing this change could plausibly make worse.
@@ -84,6 +86,7 @@ function Root() {
               channelId: live.id,
               title: titleOf(live.name, view!.participants, me),
               present: live.present.length,
+              muted: !!live.selfMuted[me],
             }
           : null
       }
