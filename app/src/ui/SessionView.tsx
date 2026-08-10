@@ -1,14 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   cooldownRemainingMs,
   floorRemainingMs,
   isSilenced,
 } from '../../../core/floor';
+import { playbackPositionMs } from '../../../core/playback';
 import { isRecordingActive, recordedMs } from '../../../core/recording';
 import {
   bothPresent,
   canClaimFloor,
+  canControlPlayback,
   canPauseRecording,
   canResumeRecording,
   canStartRecording,
@@ -17,9 +19,14 @@ import {
   isPresent,
 } from '../../../core/session';
 import { useSessionAudio } from '../audio/useSessionAudio';
+import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
+
+/** How far the skip buttons move, there being no scrubber to drag. */
+const SKIP_MS = 15_000;
+const VOLUME_STEP = 0.1;
 
 /**
  * The in-session screen. Control states come from the same guards the server
@@ -37,6 +44,8 @@ export function SessionView({
   const view = app.sessionView;
   const session = view?.session.id === sessionId ? view.session : null;
   const me = app.me?.id ?? '';
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Audio follows presence, not the screen: connect only while actually in the
   // session, so leaving stops publishing rather than leaving a live microphone
@@ -94,6 +103,23 @@ export function SessionView({
   const claimRemaining = floorRemainingMs(session.floor, now);
   const emptyRemaining = emptyTimeoutRemainingMs(session, now);
   const recordingLive = isRecordingActive(session.recording);
+
+  const playback = session.playback;
+  const track = playback.track;
+  const position = playbackPositionMs(playback, now);
+  const mayControlPlayback = canControlPlayback(session, me);
+
+  const loadTrack = async () => {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      await pickAndUploadTrack(app.token ?? '', sessionId);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -223,6 +249,138 @@ export function SessionView({
             </Text>
           ) : null}
           <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
+        </Card>
+
+        <SectionLabel>Shared audio</SectionLabel>
+        <Card style={styles.stack}>
+          {playback.failure ? (
+            <Text style={styles.warning}>
+              Playback stopped — {playback.failure}
+            </Text>
+          ) : null}
+          {uploadError ? <Text style={styles.warning}>{uploadError}</Text> : null}
+
+          {track ? (
+            <>
+              <Text style={type.heading} numberOfLines={1}>
+                {track.title}
+              </Text>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.min(
+                        100,
+                        (position / Math.max(1, track.durationMs)) * 100
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <View style={styles.progressLabels}>
+                <Text style={styles.progressTime}>
+                  {formatDuration(position)}
+                </Text>
+                <Text style={styles.progressTime}>
+                  {formatDuration(track.durationMs)}
+                </Text>
+              </View>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label="−15s"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback}
+                  onPress={() =>
+                    act({ type: 'SEEK', positionMs: position - SKIP_MS })
+                  }
+                />
+                <Button
+                  label={playback.status === 'playing' ? 'Pause' : 'Play'}
+                  variant="primary"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback}
+                  onPress={() =>
+                    act({ type: playback.status === 'playing' ? 'PAUSE' : 'PLAY' })
+                  }
+                />
+                <Button
+                  label="+15s"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback}
+                  onPress={() =>
+                    act({ type: 'SEEK', positionMs: position + SKIP_MS })
+                  }
+                />
+              </View>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label="Quieter"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback || playback.volume <= 0}
+                  onPress={() =>
+                    act({
+                      type: 'SET_VOLUME',
+                      volume: playback.volume - VOLUME_STEP,
+                    })
+                  }
+                />
+                <View style={styles.volumeReadout}>
+                  <Text style={styles.progressTime}>
+                    {Math.round(playback.volume * 100)}%
+                  </Text>
+                </View>
+                <Button
+                  label="Louder"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback || playback.volume >= 1}
+                  onPress={() =>
+                    act({
+                      type: 'SET_VOLUME',
+                      volume: playback.volume + VOLUME_STEP,
+                    })
+                  }
+                />
+              </View>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label={uploading ? 'Uploading…' : 'Change track'}
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback || uploading}
+                  onPress={loadTrack}
+                />
+                <Button
+                  label="Remove"
+                  variant="ghost"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback}
+                  onPress={() => act({ type: 'CLEAR_TRACK' })}
+                />
+              </View>
+            </>
+          ) : (
+            <Button
+              label={uploading ? 'Uploading…' : 'Play something together'}
+              sublabel="An audio file from this phone"
+              disabled={!mayControlPlayback || uploading}
+              onPress={loadTrack}
+            />
+          )}
+
+          <Text style={type.muted}>
+            {theyHoldFloor
+              ? // The point of the mechanic, stated where it bites: the track
+                // does not stop, but it stops being yours to change.
+                `${other.displayName} has the floor, so they decide what plays.`
+              : iHoldFloor
+                ? 'You have the floor — only you can change what plays.'
+                : track
+                  ? 'Both of you hear this, and either of you can change it.'
+                  : 'Whatever you play, you both hear — and it is kept in the recording.'}
+          </Text>
         </Card>
 
         <SectionLabel>Recording</SectionLabel>
@@ -404,6 +562,20 @@ const styles = StyleSheet.create({
   },
   countdownMuted: { fontSize: 24, color: colors.textMuted },
   floorHint: { ...type.muted, lineHeight: 19 },
+  progressTrack: {
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceRaised,
+    overflow: 'hidden',
+  },
+  progressFill: { height: 6, backgroundColor: colors.floor },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressTime: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+  },
+  volumeReadout: { justifyContent: 'center', minWidth: 44, alignItems: 'center' },
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   flexButton: { flex: 1 },

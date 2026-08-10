@@ -42,6 +42,43 @@ export interface RecordingState {
   failure: string | null;
 }
 
+/** A file one party supplied for both to listen to. */
+export interface PlaybackTrack {
+  id: string;
+  /** What to call it on screen. Taken from the uploaded file's name. */
+  title: string;
+  durationMs: number;
+}
+
+export type PlaybackStatus = 'idle' | 'playing' | 'paused';
+
+export interface PlaybackState {
+  /** The loaded track, or null when there is none. Null iff status is 'idle'. */
+  track: PlaybackTrack | null;
+  status: PlaybackStatus;
+  /** Position banked at the last transition, in ms into the track. */
+  positionMs: number;
+  /** When the current run began; null unless status is 'playing'. */
+  startedAt: number | null;
+  /**
+   * Shared, 0..1, applied by the server as it publishes.
+   *
+   * Shared rather than per-listener because it is part of what the session
+   * sounded like: it is applied to the samples before they are published and
+   * encoded, so it reaches both parties and the recording alike. A volume each
+   * party set for themselves would be their device's business, invisible here.
+   */
+  volume: number;
+  /**
+   * Why playback stopped, when it stopped for a reason nobody asked for.
+   *
+   * Same reasoning as RecordingState.failure: the interface says audio is
+   * playing, and silence that contradicts it needs an explanation rather than
+   * leaving the pair to wonder which of them broke it.
+   */
+  failure: string | null;
+}
+
 export interface SessionState {
   id: string;
   /** The user who created the session. */
@@ -67,6 +104,7 @@ export interface SessionState {
   floor: FloorState;
   selfMuted: Record<UserId, boolean>;
   recording: RecordingState;
+  playback: PlaybackState;
   /**
    * When each present user's last connection dropped. Absent means connected.
    *
@@ -96,6 +134,19 @@ export type SessionAction =
    * media plane reports it — so it carries no userId and no guard.
    */
   | { type: 'RECORDING_FAILED'; reason: string }
+  /**
+   * Shared playback. All of these are gated by `canControlPlayback`, which
+   * hands the floor-holder exclusive control while a claim is active — a claim
+   * is about governing what is heard, and this is part of what is heard.
+   */
+  | { type: 'SET_TRACK'; userId: UserId; track: PlaybackTrack }
+  | { type: 'CLEAR_TRACK'; userId: UserId }
+  | { type: 'PLAY'; userId: UserId }
+  | { type: 'PAUSE'; userId: UserId }
+  | { type: 'SEEK'; userId: UserId; positionMs: number }
+  | { type: 'SET_VOLUME'; userId: UserId; volume: number }
+  /** Reported by the media plane, like RECORDING_FAILED: no actor, no guard. */
+  | { type: 'PLAYBACK_FAILED'; reason: string }
   /**
    * Transport, not intent: reported by whatever holds the connection rather
    * than performed by anyone. Neither changes presence directly — DISCONNECTED

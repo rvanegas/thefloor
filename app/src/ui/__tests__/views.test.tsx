@@ -490,6 +490,97 @@ describe('Session', () => {
     act(() => tree.unmount());
   });
 
+  it('offers to load a track when there is none', () => {
+    showSession(sessionOf());
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    expect(findButton(tree, 'Play something together')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('shows the track and its position against the server clock', () => {
+    showSession(
+      sessionOf((s) => {
+        const withTrack = reduce(
+          s,
+          {
+            type: 'SET_TRACK',
+            userId: ME,
+            track: { id: 'trk_1', title: 'Kind of Blue', durationMs: 120_000 },
+          },
+          NOW
+        );
+        return reduce(withTrack, { type: 'PLAY', userId: ME }, NOW);
+      })
+    );
+    mockApp.serverNow = () => NOW + 30_000;
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('Kind of Blue');
+    expect(text).toContain('0:30');
+    expect(text).toContain('2:00');
+    expect(findButton(tree, 'Pause')).toBeDefined();
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The mechanic, at the point where it is visible: the other party's claim
+   * takes the controls away without taking the music away.
+   */
+  it('disables the controls, but not playback, while they hold the floor', () => {
+    showSession(
+      sessionOf((s) => {
+        const withTrack = reduce(
+          s,
+          {
+            type: 'SET_TRACK',
+            userId: ME,
+            track: { id: 'trk_1', title: 'Kind of Blue', durationMs: 120_000 },
+          },
+          NOW
+        );
+        const playing = reduce(withTrack, { type: 'PLAY', userId: ME }, NOW);
+        return reduce(playing, { type: 'CLAIM_FLOOR', userId: THEM }, NOW);
+      })
+    );
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+
+    expect(textOf(tree)).toContain('Dana Chu has the floor, so they decide what plays');
+    expect(findButton(tree, 'Pause')!.props.accessibilityState.disabled).toBe(
+      true
+    );
+    expect(findButton(tree, '+15s')!.props.accessibilityState.disabled).toBe(
+      true
+    );
+    expect(findButton(tree, 'Louder')!.props.accessibilityState.disabled).toBe(
+      true
+    );
+    act(() => tree.unmount());
+  });
+
+  it('seeks by dispatching a position rather than moving anything locally', () => {
+    showSession(
+      sessionOf((s) =>
+        reduce(
+          s,
+          {
+            type: 'SET_TRACK',
+            userId: ME,
+            track: { id: 'trk_1', title: 'Kind of Blue', durationMs: 120_000 },
+          },
+          NOW
+        )
+      )
+    );
+    const tree = render(<SessionView sessionId="sess_1" onExit={() => {}} />);
+    act(() => findButton(tree, '+15s')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SEEK',
+      positionMs: 15_000,
+    });
+    act(() => tree.unmount());
+  });
+
   it('warns that a dropped connection counts as leaving', () => {
     showSession(sessionOf());
     mockApp.status = 'connecting';

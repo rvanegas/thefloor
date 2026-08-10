@@ -7,6 +7,17 @@ import {
   satisfiesEligibilityRule,
 } from './floor';
 import {
+  clearTrack,
+  failPlayback,
+  hasReachedEnd,
+  initialPlaybackState,
+  pause as pausePlayback,
+  play as playPlayback,
+  seek as seekPlayback,
+  setTrack,
+  setVolume,
+} from './playback';
+import {
   canPauseOrStopRecording,
   failRecording,
   initialRecordingState,
@@ -46,6 +57,7 @@ export function createSession(params: {
     floor: initialFloorState(),
     selfMuted: { [initiator]: false, [invitee]: false },
     recording: initialRecordingState(),
+    playback: initialPlaybackState(),
     disconnectedAt: {},
   };
 }
@@ -126,6 +138,30 @@ export function canStopRecording(state: SessionState, userId: UserId): boolean {
   );
 }
 
+/**
+ * Whether `userId` may load, play, pause, seek, re-level or clear the shared
+ * track.
+ *
+ * **A claim does not pause playback. It confers exclusive control of it.**
+ *
+ * The floor is not a device for hearing yourself over competing sound; it is
+ * for being in control of what is heard, and a track playing to both parties is
+ * squarely part of that. So a claim changes nothing about what the media is
+ * doing and everything about who may change it.
+ *
+ * Being derived from `floor.holder` rather than stored is what makes it
+ * self-correcting: control returns to both parties the instant a claim ends,
+ * however it ends — released, run out after three minutes, or dropped when the
+ * holder left — with nothing to keep in step.
+ */
+export function canControlPlayback(
+  state: SessionState,
+  userId: UserId
+): boolean {
+  if (state.status !== 'active' || !isPresent(state, userId)) return false;
+  return state.floor.holder === null || state.floor.holder === userId;
+}
+
 // --- Reducer ----------------------------------------------------------------
 
 /**
@@ -169,6 +205,14 @@ export function reduce(
     return {
       ...state,
       recording: failRecording(state.recording, action.reason, now),
+    };
+  }
+
+  if (action.type === 'PLAYBACK_FAILED') {
+    if (!state.playback.track) return state;
+    return {
+      ...state,
+      playback: failPlayback(state.playback, action.reason, now),
     };
   }
 
@@ -254,6 +298,35 @@ export function reduce(
       return { ...state, recording: stopRecording(state.recording, now) };
     }
 
+    // Every playback action shares one guard, because they are all the same
+    // kind of act: changing what the pair are listening to.
+    case 'SET_TRACK':
+    case 'CLEAR_TRACK':
+    case 'PLAY':
+    case 'PAUSE':
+    case 'SEEK':
+    case 'SET_VOLUME': {
+      if (!canControlPlayback(state, action.userId)) return state;
+      const playback = state.playback;
+      switch (action.type) {
+        case 'SET_TRACK':
+          return { ...state, playback: setTrack(playback, action.track) };
+        case 'CLEAR_TRACK':
+          return { ...state, playback: clearTrack(playback) };
+        case 'PLAY':
+          return { ...state, playback: playPlayback(playback, now) };
+        case 'PAUSE':
+          return { ...state, playback: pausePlayback(playback, now) };
+        case 'SEEK':
+          return {
+            ...state,
+            playback: seekPlayback(playback, action.positionMs, now),
+          };
+        case 'SET_VOLUME':
+          return { ...state, playback: setVolume(playback, action.volume) };
+      }
+    }
+
     default:
       return state;
   }
@@ -275,6 +348,13 @@ function tick(state: SessionState, now: number): SessionState {
   // A claim that has run its three minutes releases automatically.
   if (hasExpired(next.floor, now)) {
     next = { ...next, floor: releaseFloor(next.floor, now) };
+  }
+
+  // A track that has run out comes to rest at its end. Without this the derived
+  // position stays pinned at the duration while the status still says playing,
+  // and the interface shows a track for ever playing its final instant.
+  if (hasReachedEnd(next.playback, now)) {
+    next = { ...next, playback: pausePlayback(next.playback, now) };
   }
 
   // An empty session auto-ends after a minute. This timer only runs while
@@ -306,6 +386,10 @@ function endSession(
     recording: isRecordingActive(state.recording)
       ? stopRecording(state.recording, now)
       : state.recording,
+    // Playback comes to rest rather than being cleared: the final snapshot is
+    // what a watcher sees explaining the session ended, and a track vanishing
+    // from it at the same moment reads as a second, unexplained event.
+    playback: pausePlayback(state.playback, now),
   };
 }
 

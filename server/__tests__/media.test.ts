@@ -219,6 +219,9 @@ describe('the floor as an actual mute', () => {
           return 'egress_x';
         },
         async stopRecording() {},
+        async openPlayback() {
+          throw new Error('livekit unreachable');
+        },
       },
     });
 

@@ -73,7 +73,18 @@ export type ClientAction =
   | { type: 'START_RECORDING' }
   | { type: 'PAUSE_RECORDING' }
   | { type: 'RESUME_RECORDING' }
-  | { type: 'STOP_RECORDING' };
+  | { type: 'STOP_RECORDING' }
+  /**
+   * Shared playback. Loading a track is absent by design — it arrives as an
+   * upload over HTTP, and the server dispatches SET_TRACK itself once the file
+   * is on disk and its duration is known. A client naming its own track would
+   * be naming a file the server has never seen.
+   */
+  | { type: 'CLEAR_TRACK' }
+  | { type: 'PLAY' }
+  | { type: 'PAUSE' }
+  | { type: 'SEEK'; positionMs: number }
+  | { type: 'SET_VOLUME'; volume: number };
 
 export type ClientMessage =
   /** Start receiving Home snapshots. */

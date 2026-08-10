@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, extname, join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import websocket from '@fastify/websocket';
 import type { HomeView, PublicAccount } from '../../core/protocol';
@@ -6,6 +9,7 @@ import { openDb, type AccountRow, type Db } from './db';
 import { encodeRecording } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
+import { probeDurationMs, UnreadableAudioError } from './playback';
 import { SessionRegistry } from './sessions';
 import type { RecordingStore } from './storage';
 import { createHomeNotifier, registerWebsocket } from './ws';
@@ -33,6 +37,15 @@ export interface App {
   sessions: SessionRegistry;
 }
 
+/**
+ * The largest track anyone may upload.
+ *
+ * It is held on the server's own disk for the length of one session, so the
+ * ceiling is about not filling the box rather than about bandwidth. An hour of
+ * ordinary MP3 is comfortably inside it.
+ */
+export const MAX_TRACK_BYTES = 100 * 1024 * 1024;
+
 export function buildApp(options: BuildOptions = {}): App {
   const now = options.now ?? Date.now;
   const db = openDb(options.dbPath ?? ':memory:');
@@ -54,6 +67,21 @@ export function buildApp(options: BuildOptions = {}): App {
         done(error as Error, undefined);
       }
     }
+  );
+
+  // Uploaded tracks arrive as raw bytes rather than multipart: there is exactly
+  // one file and no fields, so a multipart parser would be a dependency earning
+  // nothing. The body is kept as a Buffer for the one route that wants it.
+  const rawAudio = (
+    _request: FastifyRequest,
+    body: Buffer,
+    done: (error: Error | null, body?: unknown) => void
+  ) => done(null, body);
+  fastify.addContentTypeParser(/^audio\//, { parseAs: 'buffer' }, rawAudio);
+  fastify.addContentTypeParser(
+    'application/octet-stream',
+    { parseAs: 'buffer' },
+    rawAudio
   );
 
   // Filled in once the websocket plugin loads; a no-op until then.
@@ -243,6 +271,71 @@ export function buildApp(options: BuildOptions = {}): App {
     }
     return { token: result.token, url: options.mediaUrl };
   });
+
+  /**
+   * Uploads a file for both parties to listen to.
+   *
+   * Over HTTP rather than the websocket because it is bytes, and because the
+   * client cannot describe the result: only the server knows where the file
+   * landed and — having asked ffprobe rather than the uploader — how long it
+   * actually is. The session is told about the track once both are known.
+   */
+  fastify.post(
+    '/sessions/:id/track',
+    { bodyLimit: MAX_TRACK_BYTES },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      const { id } = request.params as { id: string };
+      const { name } = request.query as { name?: string };
+
+      const body = request.body;
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        return reply.code(400).send({ error: 'No audio was uploaded.' });
+      }
+
+      // Under the server's own temp directory, one per track, so removing it
+      // when the session ends takes the file with it and nothing else.
+      const dir = await mkdtemp(join(tmpdir(), 'thefloor-track-'));
+      const safe = basename(name ?? '').replace(/[^\w\-. ]/g, '');
+      const file = join(dir, `track${extname(safe) || ''}`);
+
+      try {
+        await writeFile(file, body);
+        const durationMs = await probeDurationMs(file);
+        const title = safe.replace(/\.[^.]+$/, '').trim() || 'Shared audio';
+
+        const result = await sessions.loadTrack(id, account.id, {
+          file,
+          dir,
+          title,
+          durationMs,
+        });
+        if (!result.ok) {
+          await rm(dir, { recursive: true, force: true });
+          const code =
+            result.error === 'Not your session.'
+              ? 403
+              : result.error.startsWith('Whoever has the floor')
+                ? 409
+                : 400;
+          return reply.code(code).send({ error: result.error });
+        }
+        return { track: result.session.playback.track };
+      } catch (error) {
+        await rm(dir, { recursive: true, force: true });
+        request.log.error({ err: error, session: id }, 'track upload failed');
+        // A file that cannot be decoded is the user's to fix, and saying so
+        // lets them pick another; anything else is ours and says nothing.
+        const unreadable = error instanceof UnreadableAudioError;
+        return reply.code(unreadable ? 415 : 500).send({
+          error: unreadable
+            ? 'That file could not be played as audio.'
+            : 'The track could not be prepared.',
+        });
+      }
+    }
+  );
 
   /**
    * The finished recording, with the floor applied.

@@ -20,6 +20,16 @@ export const FLOOR_CLAIM_MS = 3 * 60 * 1000;
 export const FLOOR_CLAIM_DELAY_STEP_MS = 10_000;
 export const FLOOR_CLAIM_DELAY_MAX_STEPS = 2;
 
+/**
+ * The level a newly loaded track starts at, 0..1.
+ *
+ * Below full deliberately. Shared playback runs underneath a conversation
+ * rather than instead of one, and a track that arrives at full volume the
+ * moment it is loaded talks over whoever was mid-sentence. Either party can
+ * raise it; nobody has to rush to lower it.
+ */
+export const PLAYBACK_DEFAULT_VOLUME = 0.7;
+
 /** How long a session may sit with nobody present before it auto-ends. */
 export const EMPTY_SESSION_TIMEOUT_MS = 60 * 1000;
 

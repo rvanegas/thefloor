@@ -1,5 +1,26 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { DirectFileOutput, S3Upload, TrackType } from '@livekit/protocol';
+import {
+  AudioFrame,
+  AudioSource,
+  LocalAudioTrack,
+  Room as RtcRoom,
+  TrackPublishOptions,
+  TrackSource,
+} from '@livekit/rtc-node';
 import { AccessToken, EgressClient, RoomServiceClient } from 'livekit-server-sdk';
+import {
+  CHANNELS,
+  FfmpegDecoder,
+  FfmpegStemEncoder,
+  PlaybackPump,
+  SAMPLE_RATE,
+  type FrameSink,
+} from './playback';
 
 /**
  * The media plane. The spec calls the floor "a hard cut at the transport/mic
@@ -65,6 +86,44 @@ export interface MediaServer {
   }): Promise<string>;
 
   stopRecording(handle: string): Promise<void>;
+
+  /**
+   * Joins the room as the media participant and holds the shared track.
+   *
+   * Returns a handle rather than taking one command at a time because playback
+   * is a running thing, not a series of requests: there is a live connection, a
+   * published track and a decoder behind it, and they outlive any one action.
+   */
+  openPlayback(params: {
+    room: string;
+    identity: string;
+    displayName: string;
+    /** The uploaded file, on the server's own disk. */
+    file: string;
+    onFailure?: (error: unknown) => void;
+  }): Promise<PlaybackSession>;
+}
+
+/** One session's shared playback, for as long as a track is loaded. */
+export interface PlaybackSession {
+  /**
+   * Swaps in a different file. Loading another track does not re-open the
+   * session, so the recording stem stays continuous across the change.
+   */
+  setFile(file: string): Promise<void>;
+  /** Plays from `fromMs`. Resuming and seeking are the same call. */
+  play(fromMs: number): Promise<void>;
+  pause(): Promise<void>;
+  setVolume(volume: number): void;
+  /**
+   * Starts recording what is being played to `key`, `offsetMs` into the
+   * recording. The offset is padded with silence so the stem lines up with the
+   * speakers' without the export having to know when the track arrived.
+   */
+  startCapture(key: string, offsetMs: number): Promise<void>;
+  /** Finishes the current stem and stores it. */
+  stopCapture(): Promise<void>;
+  close(): Promise<void>;
 }
 
 export interface RecordingStorage {
@@ -85,6 +144,8 @@ export interface LiveKitOptions {
   tokenTtlSeconds?: number;
   /** Where recordings are written. Without it, recording cannot start. */
   storage?: RecordingStorage;
+  /** Decodes and encodes shared playback. Defaults to FFMPEG_PATH, then PATH. */
+  ffmpegPath?: string;
 }
 
 export class LiveKitMediaServer implements MediaServer {
@@ -200,6 +261,161 @@ export class LiveKitMediaServer implements MediaServer {
   async closeRoom(room: string): Promise<void> {
     await this.rooms.deleteRoom(room);
   }
+
+  async openPlayback({
+    room,
+    identity,
+    displayName,
+    file,
+    onFailure,
+  }: {
+    room: string;
+    identity: string;
+    displayName: string;
+    file: string;
+    onFailure?: (error: unknown) => void;
+  }): Promise<PlaybackSession> {
+    const ffmpegPath =
+      this.options.ffmpegPath ?? process.env.FFMPEG_PATH ?? 'ffmpeg';
+    const token = await this.issueToken({ room, identity, displayName });
+
+    const rtc = new RtcRoom();
+    // Nothing is subscribed: the media participant publishes and never
+    // listens, and subscribing it to two people would pull both conversations
+    // down to the server for nobody to hear.
+    await rtc.connect(this.options.url, token, {
+      autoSubscribe: false,
+      dynacast: false,
+    });
+
+    const local = rtc.localParticipant;
+    if (!local) {
+      await rtc.disconnect();
+      throw new Error('Joined the room but could not publish the track.');
+    }
+
+    const source = new AudioSource(SAMPLE_RATE, CHANNELS);
+    const track = LocalAudioTrack.createAudioTrack('playback', source);
+    await local.publishTrack(
+      track,
+      new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE })
+    );
+
+    const pump = new PlaybackPump({
+      sink: new AudioSourceSink(source),
+      openDecoder: (path, fromMs) => new FfmpegDecoder(path, fromMs, ffmpegPath),
+      onFailure,
+    });
+    await pump.setFile(file);
+    pump.start();
+
+    return new LiveKitPlaybackSession(
+      pump,
+      rtc,
+      ffmpegPath,
+      this.options.storage
+    );
+  }
+}
+
+/** Publishes the pump's frames into the room. */
+class AudioSourceSink implements FrameSink {
+  constructor(private source: AudioSource) {}
+
+  async capture(samples: Int16Array): Promise<void> {
+    await this.source.captureFrame(
+      new AudioFrame(samples, SAMPLE_RATE, CHANNELS, samples.length)
+    );
+  }
+
+  async close(): Promise<void> {
+    await this.source.close();
+  }
+}
+
+class LiveKitPlaybackSession implements PlaybackSession {
+  private encoder: FfmpegStemEncoder | null = null;
+  private capture: { key: string; dir: string; path: string } | null = null;
+
+  constructor(
+    private pump: PlaybackPump,
+    private rtc: RtcRoom,
+    private ffmpegPath: string,
+    private storage?: RecordingStorage
+  ) {}
+
+  setFile(file: string): Promise<void> {
+    return this.pump.setFile(file);
+  }
+
+  play(fromMs: number): Promise<void> {
+    return this.pump.play(fromMs);
+  }
+
+  pause(): Promise<void> {
+    return this.pump.pause();
+  }
+
+  setVolume(volume: number): void {
+    this.pump.setVolume(volume);
+  }
+
+  async startCapture(key: string, offsetMs: number): Promise<void> {
+    if (!this.storage) throw new Error('No recording storage configured.');
+    if (this.encoder) await this.stopCapture();
+
+    const dir = await mkdtemp(join(tmpdir(), 'thefloor-playback-'));
+    const path = join(dir, 'stem.ogg');
+    this.encoder = new FfmpegStemEncoder(path, this.ffmpegPath);
+    this.capture = { key, dir, path };
+    this.pump.startCapture(this.encoder, offsetMs);
+  }
+
+  /**
+   * Finishes the stem and puts it in the bucket.
+   *
+   * Uses the same PutObject-only credentials LiveKit is given, which is exactly
+   * the permission this needs. Reading the bucket stays the server's own
+   * privilege, as storage.ts intends — nothing here gains the ability to read
+   * anyone's conversation back.
+   */
+  async stopCapture(): Promise<void> {
+    const capture = this.capture;
+    this.capture = null;
+    this.encoder = null;
+    if (!capture) return;
+
+    try {
+      await this.pump.stopCapture();
+      if (this.storage) {
+        const client = new S3Client({
+          region: this.storage.region,
+          credentials: {
+            accessKeyId: this.storage.accessKey,
+            secretAccessKey: this.storage.secret,
+          },
+        });
+        await client.send(
+          new PutObjectCommand({
+            Bucket: this.storage.bucket,
+            Key: capture.key,
+            Body: await readFile(capture.path),
+            ContentType: 'audio/ogg',
+          })
+        );
+      }
+    } finally {
+      // The conversation must not be left lying on the disk after it has been
+      // stored, for the reason encodeRecording gives about its own temp files.
+      await rm(capture.dir, { recursive: true, force: true });
+    }
+  }
+
+  async close(): Promise<void> {
+    await this.stopCapture().catch(() => {});
+    await this.pump.close();
+    await this.rtc.disconnect();
+  }
 }
 
 /** Records what would have been asked of a media server. For tests. */
@@ -221,6 +437,8 @@ export class MemoryMediaServer implements MediaServer {
   }> = [];
   readonly issued: Array<{ room: string; identity: string }> = [];
   readonly closed: string[] = [];
+  /** Playback sessions opened, in order, live or closed. */
+  readonly playbacks: MemoryPlaybackSession[] = [];
   /**
    * While set, startRecording rejects — for every participant, or just one when
    * an identity is given, which is how a partial failure is exercised.
@@ -277,7 +495,75 @@ export class MemoryMediaServer implements MediaServer {
     if (found) found.stopped = true;
   }
 
+  async openPlayback({
+    room,
+    identity,
+    file,
+  }: {
+    room: string;
+    identity: string;
+    file: string;
+  }) {
+    const session = new MemoryPlaybackSession(room, identity, file);
+    this.playbacks.push(session);
+    return session;
+  }
+
   isMuted(room: string, identity: string): boolean | undefined {
     return this.muted.get(`${room}/${identity}`);
+  }
+
+  /** The playback session for a room, if one was ever opened. */
+  playbackFor(room: string): MemoryPlaybackSession | undefined {
+    return this.playbacks.find((p) => p.room === room);
+  }
+}
+
+/** Records what would have been asked of the pump. For tests. */
+export class MemoryPlaybackSession implements PlaybackSession {
+  readonly commands: Array<
+    | { type: 'file'; file: string }
+    | { type: 'play'; fromMs: number }
+    | { type: 'pause' }
+    | { type: 'volume'; volume: number }
+  > = [];
+  readonly captures: Array<{ key: string; offsetMs: number; stopped: boolean }> =
+    [];
+  closed = false;
+
+  constructor(
+    readonly room: string,
+    readonly identity: string,
+    public file: string
+  ) {}
+
+  async setFile(file: string) {
+    this.file = file;
+    this.commands.push({ type: 'file', file });
+  }
+
+  async play(fromMs: number) {
+    this.commands.push({ type: 'play', fromMs });
+  }
+
+  async pause() {
+    this.commands.push({ type: 'pause' });
+  }
+
+  setVolume(volume: number) {
+    this.commands.push({ type: 'volume', volume });
+  }
+
+  async startCapture(key: string, offsetMs: number) {
+    this.captures.push({ key, offsetMs, stopped: false });
+  }
+
+  async stopCapture() {
+    const open = this.captures.find((c) => !c.stopped);
+    if (open) open.stopped = true;
+  }
+
+  async close() {
+    this.closed = true;
   }
 }

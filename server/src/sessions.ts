@@ -1,17 +1,65 @@
+import { rm } from 'node:fs/promises';
+import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
 import {
+  canControlPlayback,
   createSession,
   isParticipant,
   otherParty,
   reduce,
 } from '../../core/session';
-import type { SessionAction, SessionState } from '../../core/types';
+import type {
+  PlaybackTrack,
+  SessionAction,
+  SessionState,
+} from '../../core/types';
 import type { InviteView, RejoinableView } from '../../core/protocol';
 import type { Accounts } from './accounts';
 import { newId, type Db, type RecordingRow } from './db';
-import type { MediaServer } from './media';
+import type { MediaServer, PlaybackSession } from './media';
 
 export const TICK_INTERVAL_MS = 500;
+
+/**
+ * The stem key for shared playback, and the room identity it publishes under.
+ *
+ * A name rather than a user id, because it is not a user: it never claims the
+ * floor, is never silenced, and so never appears in the floor timeline. User
+ * ids are minted with a `usr_` prefix, so this cannot collide with one.
+ */
+export const MEDIA_IDENTITY = 'media';
+export const mediaRoomIdentity = (sessionId: string) => `media:${sessionId}`;
+
+/**
+ * The actions a client is allowed to send, as opposed to the ones the server
+ * raises about itself.
+ *
+ * An allowlist rather than a denylist. The websocket hands `message.action`
+ * through as it arrives — the type says ClientAction, but nothing at runtime
+ * makes that true — so anything the reducer understands is reachable from a
+ * client unless it is named here. That matters for the actions carrying no
+ * actor and no guard: RECORDING_FAILED and PLAYBACK_FAILED exist for the media
+ * plane to admit something broke, and a client able to send them could stop a
+ * recording it is forbidden to stop. SET_TRACK is excluded too, since a track
+ * names a file only the server can put there.
+ */
+const CLIENT_ACTIONS = new Set<SessionAction['type']>([
+  'ENTER',
+  'LEAVE',
+  'END',
+  'CLAIM_FLOOR',
+  'RELEASE_FLOOR',
+  'SET_SELF_MUTE',
+  'START_RECORDING',
+  'PAUSE_RECORDING',
+  'RESUME_RECORDING',
+  'STOP_RECORDING',
+  'CLEAR_TRACK',
+  'PLAY',
+  'PAUSE',
+  'SEEK',
+  'SET_VOLUME',
+]);
 
 /**
  * How long to leave the audio room standing after a session ends. Clients drop
@@ -49,6 +97,18 @@ export class SessionRegistry {
     string,
     Array<{ identity: string; fromMs: number; toMs: number | null }>
   >();
+  /**
+   * The live playback participant per session, once a track has been loaded.
+   *
+   * Opened on the first load and kept until the session ends, rather than
+   * per track: it publishes silence between tracks, and that silence is what
+   * holds the recording stem in step with the speakers'.
+   */
+  private playback = new Map<string, PlaybackSession>();
+  /** Sessions whose playback participant is being opened, to avoid two. */
+  private openingPlayback = new Set<string>();
+  /** The uploaded file per session, and the directory to remove with it. */
+  private trackFiles = new Map<string, { file: string; dir: string }>();
   private listeners = new Set<(sessionIds: string[]) => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -163,7 +223,24 @@ export class SessionRegistry {
     if (!isParticipant(session, userId)) {
       return { ok: false, error: 'Not your session.' };
     }
-    if (action.type === 'TICK') return { ok: false, error: 'Not an action.' };
+    if (!CLIENT_ACTIONS.has(action.type)) {
+      return { ok: false, error: 'Not an action.' };
+    }
+    return this.apply(sessionId, userId, action);
+  }
+
+  /**
+   * Runs an action that has already been authorised. The server's own commands
+   * come through here, having established their right to act some other way
+   * than by being a client message.
+   */
+  private apply(
+    sessionId: string,
+    userId: string,
+    action: Omit<SessionAction, 'userId'> & { type: SessionAction['type'] }
+  ): { ok: true; session: SessionState } | { ok: false; error: string } {
+    const session = this.sessions.get(sessionId);
+    if (!session) return { ok: false, error: 'No such session.' };
 
     const next = reduce(
       session,
@@ -175,6 +252,60 @@ export class SessionRegistry {
       this.emit([sessionId]);
     }
     return { ok: true, session: this.sessions.get(sessionId) ?? next };
+  }
+
+  /**
+   * Takes an uploaded file as the session's shared track.
+   *
+   * Separate from `dispatch` because the client cannot name a track: the file
+   * arrives over HTTP, and only the server knows where it landed and how long
+   * it is. So the route hands the facts over and this makes it the track.
+   *
+   * The floor rule applies here as to every other playback action — while
+   * someone holds it, only they may change what the pair are listening to.
+   */
+  async loadTrack(
+    sessionId: string,
+    userId: string,
+    upload: { file: string; dir: string; title: string; durationMs: number }
+  ): Promise<{ ok: true; session: SessionState } | { ok: false; error: string }> {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.status !== 'active') {
+      return { ok: false, error: 'No such session.' };
+    }
+    if (!isParticipant(session, userId)) {
+      return { ok: false, error: 'Not your session.' };
+    }
+    if (!canControlPlayback(session, userId)) {
+      return {
+        ok: false,
+        error: session.floor.holder
+          ? 'Whoever has the floor decides what plays.'
+          : 'You are not in this session.',
+      };
+    }
+
+    const previous = this.trackFiles.get(sessionId);
+    this.trackFiles.set(sessionId, { file: upload.file, dir: upload.dir });
+    // Replacing the track replaces the file; the old one has nothing left to
+    // play for. Removed after the swap so a failure cannot leave the session
+    // pointing at a file that is already gone.
+    if (previous) {
+      this.run(
+        () => rm(previous.dir, { recursive: true, force: true }),
+        `removeTrack ${sessionId}`
+      );
+    }
+
+    const track: PlaybackTrack = {
+      id: newId('trk'),
+      title: upload.title,
+      durationMs: upload.durationMs,
+    };
+    return this.apply(sessionId, userId, { type: 'SET_TRACK', track } as Omit<
+      SessionAction,
+      'userId'
+    > & { type: SessionAction['type'] });
   }
 
   /**
@@ -277,8 +408,10 @@ export class SessionRegistry {
     this.sessions.set(after.id, after);
     this.applyFloorToMedia(before, after);
     this.applyRecordingToMedia(before, after);
+    this.applyPlaybackToMedia(before, after);
     this.trackFloorWindows(before, after);
     if (before.status === 'active' && after.status === 'ended') {
+      this.closePlayback(after.id);
       this.persistEnded(after);
       // A backstop, not the mechanism: participants leave on their own once
       // told the session ended. This guarantees the room does not outlive it.
@@ -379,6 +512,11 @@ export class SessionRegistry {
           (error) => this.captureFailed(after.id, identity, key, error)
         );
       }
+
+      // Whichever of "recording starts" and "a track is loaded" happens second
+      // is what begins the media stem. This is the first of those two orders;
+      // openPlayback handles the other.
+      this.startMediaCapture(after.id, after);
       return;
     }
 
@@ -391,6 +529,189 @@ export class SessionRegistry {
           `stopRecording ${after.id}/${identity}`
         );
       }
+      this.stopMediaCapture(after.id);
+    }
+  }
+
+  /**
+   * Turns playback state into what the media participant is actually doing.
+   *
+   * Reacts to committed state for the same reason the floor does: it cannot
+   * then disagree with what the reducer decided or with what the clients were
+   * shown. Note there is nothing here about the floor — a claim does not touch
+   * playback, it only decides who was allowed to cause these transitions, and
+   * that was settled by the guard before this ran.
+   */
+  private applyPlaybackToMedia(before: SessionState, after: SessionState): void {
+    if (!this.media) return;
+
+    const had = before.playback.track?.id ?? null;
+    const has = after.playback.track?.id ?? null;
+    const session = this.playback.get(after.id);
+
+    // The first track opens the participant; it stays for the session's life,
+    // publishing silence between tracks so the recording stem keeps its place.
+    if (has && !session) {
+      this.openPlayback(after.id);
+      return;
+    }
+    if (!session) return;
+
+    if (has && has !== had) {
+      const file = this.trackFiles.get(after.id)?.file;
+      if (file) {
+        this.run(() => session.setFile(file), `setFile ${after.id}`);
+      }
+    }
+
+    if (before.playback.volume !== after.playback.volume) {
+      session.setVolume(after.playback.volume);
+    }
+
+    const was = before.playback.status === 'playing';
+    const is = after.playback.status === 'playing';
+    // A seek while playing is a play from the new position: same call, because
+    // decoding has to restart either way.
+    const moved = before.playback.positionMs !== after.playback.positionMs;
+    if (is && (!was || moved)) {
+      this.run(
+        () => session.play(after.playback.positionMs),
+        `play ${after.id}@${after.playback.positionMs}`
+      );
+    } else if (!is && was) {
+      this.run(() => session.pause(), `pause ${after.id}`);
+    }
+  }
+
+  /**
+   * Joins the room as the media participant, then catches up with whatever the
+   * session says is true by now — the call takes a moment, and someone may have
+   * pressed play, moved the volume or started recording while it was in flight.
+   */
+  private openPlayback(sessionId: string): void {
+    if (!this.media || this.playback.has(sessionId)) return;
+    if (this.openingPlayback.has(sessionId)) return;
+    const entry = this.trackFiles.get(sessionId);
+    if (!entry) return;
+
+    this.openingPlayback.add(sessionId);
+    this.run(
+      async () => {
+        try {
+          const session = await this.media!.openPlayback({
+            room: sessionId,
+            identity: mediaRoomIdentity(sessionId),
+            displayName: 'Shared audio',
+            file: entry.file,
+            onFailure: (error) => this.playbackFailed(sessionId, error),
+          });
+
+          const live = this.sessions.get(sessionId);
+          if (!live || live.status !== 'active') {
+            await session.close();
+            return;
+          }
+          this.playback.set(sessionId, session);
+
+          session.setVolume(live.playback.volume);
+          const current = this.trackFiles.get(sessionId)?.file;
+          if (current && current !== entry.file) await session.setFile(current);
+          if (live.playback.status === 'playing') {
+            await session.play(playbackPositionMs(live.playback, this.now()));
+          }
+          if (live.recording.status === 'recording') {
+            this.startMediaCapture(sessionId, live);
+          }
+        } finally {
+          this.openingPlayback.delete(sessionId);
+        }
+      },
+      `openPlayback ${sessionId}`,
+      (error) => this.playbackFailed(sessionId, error)
+    );
+  }
+
+  /**
+   * Begins the media stem for the current recording run.
+   *
+   * The offset is the distance into *this run*, which is zero whenever capture
+   * and the run begin together and non-zero only when a track is loaded partway
+   * through one. The pump pads it with silence, which is what lets the export
+   * concatenate this stem alongside the speakers' without knowing a track
+   * arrived late.
+   */
+  private startMediaCapture(sessionId: string, state: SessionState): void {
+    const session = this.playback.get(sessionId);
+    if (!session) return;
+
+    const perParticipant = this.segments.get(sessionId) ?? new Map();
+    this.segments.set(sessionId, perParticipant);
+    const previous = perParticipant.get(MEDIA_IDENTITY) ?? [];
+    const index = String(previous.length + 1).padStart(3, '0');
+    const key = `${sessionId}/${MEDIA_IDENTITY}-${index}.ogg`;
+    perParticipant.set(MEDIA_IDENTITY, [...previous, key]);
+
+    const offsetMs = state.recording.segmentStartedAt
+      ? Math.max(0, this.now() - state.recording.segmentStartedAt)
+      : 0;
+
+    this.run(
+      () => session.startCapture(key, offsetMs),
+      `startCapture ${key}`,
+      // Deliberately not a recording failure. A missing speaker makes a
+      // recording that looks complete and is not, which is why that ends the
+      // whole thing; a missing track leaves the conversation itself intact, so
+      // it is reported as a playback failure and the key is released.
+      () => {
+        const keys = perParticipant.get(MEDIA_IDENTITY) ?? [];
+        const remaining = keys.filter((k: string) => k !== key);
+        if (remaining.length > 0) perParticipant.set(MEDIA_IDENTITY, remaining);
+        else perParticipant.delete(MEDIA_IDENTITY);
+      }
+    );
+  }
+
+  private stopMediaCapture(sessionId: string): void {
+    const session = this.playback.get(sessionId);
+    if (!session) return;
+    this.run(() => session.stopCapture(), `stopCapture ${sessionId}`);
+  }
+
+  /** Ends the media participant and removes the file it was playing. */
+  private closePlayback(sessionId: string): void {
+    const session = this.playback.get(sessionId);
+    this.playback.delete(sessionId);
+    if (session) {
+      this.run(() => session.close(), `closePlayback ${sessionId}`);
+    }
+
+    const entry = this.trackFiles.get(sessionId);
+    this.trackFiles.delete(sessionId);
+    if (entry) {
+      // Somebody's audio file, uploaded for one conversation. It has no reason
+      // to outlive the session, and every reason not to.
+      this.run(
+        () => rm(entry.dir, { recursive: true, force: true }),
+        `removeTrack ${sessionId}`
+      );
+    }
+  }
+
+  private playbackFailed(sessionId: string, error: unknown): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    const next = reduce(
+      session,
+      {
+        type: 'PLAYBACK_FAILED',
+        reason:
+          error instanceof Error ? error.message : 'Playback could not continue.',
+      },
+      this.now()
+    );
+    if (next !== session) {
+      this.commit(session, next);
+      this.emit([sessionId]);
     }
   }
 
