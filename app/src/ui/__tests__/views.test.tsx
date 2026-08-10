@@ -1081,8 +1081,11 @@ describe('Home while still in a channel', () => {
       />
     );
     const text = textOf(tree).replace(/\s+/g, ' ');
+    // The title is a title. That you are inside it is said by the badge, not
+    // by a preposition glued to the front of the name.
     expect(text).toContain('Book club');
     expect(text).not.toContain('In Book club');
+    expect(text).toContain('You’re here');
     expect(text).toContain('2 present');
     expect(text).toContain('tap to go back');
 
@@ -1109,7 +1112,8 @@ describe('Home while still in a channel', () => {
     );
     const text = textOf(tree).replace(/\s+/g, ' ');
     expect(text).toContain('Dana Chu');
-    expect(text).toContain('You are the only one here');
+    expect(text).toContain('You’re here');
+    expect(text).toContain('Nobody else is here yet');
     // No preposition dressing up the title.
     expect(text).not.toContain('In Dana Chu');
     act(() => tree.unmount());
@@ -1121,6 +1125,7 @@ describe('Home while still in a channel', () => {
       <HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />
     );
     expect(textOf(tree)).not.toContain('tap to go back');
+    expect(textOf(tree)).not.toContain('You’re here');
     act(() => tree.unmount());
   });
 });

@@ -132,17 +132,26 @@ export function HomeView({
           style={styles.liveBar}
         >
           <View style={styles.rowMain}>
+            {/*
+              The same idiom the channel screen uses for "recording": a dot and
+              a word. What it has to convey is that you are *in* here right now
+              with an open microphone, which a channel name alone does not say,
+              and which a preposition bolted onto the title said badly.
+            */}
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveBadgeLabel}>You’re here</Text>
+            </View>
             <Text style={styles.liveTitle} numberOfLines={1}>
               {liveChannel.title}
             </Text>
             <Text style={styles.liveSub}>
               {liveChannel.present === 1
-                ? 'You are the only one here'
+                ? 'Nobody else is here yet'
                 : `${liveChannel.present} present`}{' '}
               · tap to go back
             </Text>
           </View>
-          <View style={styles.liveDot} />
         </Pressable>
       ) : null}
 
@@ -546,12 +555,26 @@ const styles = StyleSheet.create({
     padding: spacing(1.75),
     marginBottom: spacing(1),
   },
-  liveTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing(0.75),
+    marginBottom: spacing(0.5),
+  },
+  liveBadgeLabel: {
+    color: colors.floor,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  liveTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
   liveSub: { fontSize: 13, color: colors.textMuted },
   liveDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: colors.floor,
   },
   offline: {
