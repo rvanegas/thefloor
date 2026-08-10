@@ -273,6 +273,79 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true };
   });
 
+  // --- Profiles -----------------------------------------------------------
+
+  /**
+   * Your own profile, and the only way to change it.
+   *
+   * A partial write: a field left out is left alone, so saving a bio cannot
+   * blank a name the client did not happen to send.
+   */
+  fastify.post('/me', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as
+      | { displayName?: unknown; bio?: unknown }
+      | undefined;
+    const changes: { displayName?: string; bio?: string } = {};
+    if (body?.displayName !== undefined) {
+      if (typeof body.displayName !== 'string') {
+        return reply.code(400).send({ error: 'displayName must be text.' });
+      }
+      // Refused rather than trimmed away to nothing: somebody with no name is
+      // an empty space in every roster they appear in.
+      if (body.displayName.trim() === '') {
+        return reply.code(400).send({ error: 'A name cannot be empty.' });
+      }
+      changes.displayName = body.displayName;
+    }
+    if (body?.bio !== undefined) {
+      if (typeof body.bio !== 'string') {
+        return reply.code(400).send({ error: 'bio must be text.' });
+      }
+      changes.bio = body.bio;
+    }
+
+    const updated = accounts.updateProfile(account.id, changes);
+    if (!updated) return reply.code(404).send({ error: 'No such account.' });
+    // Contacts see the name, so a rename has to reach their home screens.
+    // An outgoing request to an address with no account yet carries an empty
+    // id by design, so those are dropped rather than notified.
+    homeNotifier.notify([
+      account.id,
+      ...accounts
+        .contactsFor(account.id)
+        .map((entry) => entry.account.id)
+        .filter(Boolean),
+    ]);
+    return accounts.profile(account.id);
+  });
+
+  /**
+   * Somebody's profile.
+   *
+   * Readable by a contact, by anyone who shares a live channel with them, and
+   * by yourself. Not by an arbitrary id: a profile is prose a person wrote for
+   * people they have some relationship with, and leaving it open would also
+   * turn account ids into a directory anyone could walk.
+   */
+  fastify.get('/profiles/:id', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    const allowed =
+      id === account.id ||
+      accounts.areContacts(account.id, id) ||
+      channels.shareAChannel(account.id, id);
+    // Absent and not-allowed answer the same way, so this cannot be used to
+    // discover which ids exist.
+    const profile = allowed ? accounts.profile(id) : null;
+    if (!profile) return reply.code(404).send({ error: 'No such profile.' });
+    return profile;
+  });
+
   fastify.get('/home', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;

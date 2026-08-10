@@ -59,6 +59,24 @@ export const MAX_CHANNEL_NAME_LENGTH = 60;
 export const MAX_CHANNEL_DESCRIPTION_LENGTH = 1_000;
 
 /**
+ * The most characters a person's display name may hold.
+ *
+ * Names appear as the channel header when nobody has named the channel, and
+ * beside every line of the roster, so an unbounded one would push everything
+ * else off a phone screen.
+ */
+export const MAX_DISPLAY_NAME_LENGTH = 40;
+
+/**
+ * The most characters a profile bio may hold.
+ *
+ * Twice a channel's description, because this is the one place a person gets
+ * to say who they are and it is read on its own screen rather than squeezed
+ * above a roster.
+ */
+export const MAX_BIO_LENGTH = 2_000;
+
+/**
  * How long a user may be disconnected before they stop being present.
  *
  * Connectivity is not presence. A socket that drops and returns inside this

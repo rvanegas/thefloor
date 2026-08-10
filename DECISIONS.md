@@ -389,3 +389,36 @@ Worth knowing operationally rather than fixing in code: **egress is billed per
 minute per stem, and per-speaker capture runs two**, so a recording costs twice
 what a room mix would. Watch it on the LiveKit dashboard rather than in the
 reducer.
+
+---
+
+## Profiles, and why a bio is not on every account
+
+Built 2026-08-10. A person has a display name they can change and a Markdown
+bio, edited on their own screen, reached from Home.
+
+**The bio is deliberately not on `PublicAccount`.** That type is embedded in
+every roster, every invitation and every recording row that crosses the wire,
+so putting a paragraph on it would repeat that paragraph per participant per
+snapshot, to be displayed in none of them. A profile is its own type, fetched
+when somebody asks to see one.
+
+**Who may read one:** yourself, a contact, or anyone who shares a live channel
+with you. The third case is the point of the feature — you are talking to
+somebody an acquaintance brought in, and you want to know who they are. It is
+membership rather than presence, so it survives either of you stepping out.
+
+Anyone else gets a 404, identical to the answer for an id that does not exist.
+Without that, the endpoint would be a directory anyone could walk to discover
+which account ids are real.
+
+**Writes are partial.** A field left out of the request is left alone, so
+saving a bio cannot blank a name the client did not happen to send. An empty
+name is refused outright rather than trimmed to nothing: somebody with no name
+is an empty space in every roster they appear in, which is worse than a failed
+request. A blank bio does clear it, because having nothing to say is a
+legitimate thing to mean.
+
+The Markdown is the same subset a channel description uses, rendered by the
+same `InlineMarkdown` and stored as the source somebody typed — see the
+description work for why the renderer is written here rather than depended on.

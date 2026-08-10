@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import type { PublicAccount } from '../../core/protocol';
+import type { ProfileView, PublicAccount } from '../../core/protocol';
+import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import {
   insertWithUniqueKey,
   newId,
@@ -119,6 +120,55 @@ export class Accounts {
     return this.db
       .prepare('SELECT * FROM accounts WHERE identifier = ? COLLATE NOCASE')
       .get(normalize(identifier)) as AccountRow | undefined;
+  }
+
+  /**
+   * Writes a person's own profile.
+   *
+   * Both fields are optional and absent means unchanged, so the client can
+   * save one without having to send the other and without a blank field
+   * silently erasing something.
+   *
+   * Normalised the same way a channel's name and description are: a display
+   * name is trimmed and capped, and a blank one is refused rather than
+   * accepted, because a person with no name at all appears as an empty space
+   * in every roster. A bio is trimmed at the ends only — its interior is
+   * Markdown, where a blank line is a paragraph break — and blank clears it.
+   */
+  updateProfile(
+    accountId: string,
+    changes: { displayName?: string; bio?: string }
+  ): AccountRow | undefined {
+    const account = this.byId(accountId);
+    if (!account) return undefined;
+
+    if (changes.displayName !== undefined) {
+      const name = changes.displayName.trim().slice(0, MAX_DISPLAY_NAME_LENGTH);
+      if (name !== '') {
+        this.db
+          .prepare('UPDATE accounts SET display_name = ? WHERE id = ?')
+          .run(name, accountId);
+      }
+    }
+
+    if (changes.bio !== undefined) {
+      const bio = changes.bio.trim().slice(0, MAX_BIO_LENGTH);
+      this.db
+        .prepare('UPDATE accounts SET bio = ? WHERE id = ?')
+        .run(bio === '' ? null : bio, accountId);
+    }
+
+    return this.byId(accountId);
+  }
+
+  /** A person's profile, for anyone entitled to see it. */
+  profile(id: string): ProfileView | null {
+    const row = this.byId(id);
+    if (!row) return null;
+    return {
+      account: { id: row.id, displayName: row.display_name },
+      bio: row.bio ?? null,
+    };
   }
 
   public(id: string): PublicAccount | null {

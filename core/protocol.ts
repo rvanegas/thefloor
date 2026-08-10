@@ -15,6 +15,21 @@ export interface PublicAccount {
   displayName: string;
 }
 
+/**
+ * A person's profile: what they choose to say about themselves.
+ *
+ * Separate from `PublicAccount` rather than folded into it, because
+ * PublicAccount is embedded in every roster, invitation and recording row that
+ * crosses the wire, and a bio on each of those would be a paragraph repeated
+ * per participant per snapshot to be shown in none of them. A profile is
+ * fetched when somebody asks to see one.
+ */
+export interface ProfileView {
+  account: PublicAccount;
+  /** Markdown, as typed. Null when they have not written one. */
+  bio: string | null;
+}
+
 export type ContactStatus = 'accepted' | 'outgoing' | 'incoming';
 
 export interface ContactView {

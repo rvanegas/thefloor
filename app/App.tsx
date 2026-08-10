@@ -5,18 +5,22 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
+import { ProfileView } from './src/ui/ProfileView';
 import { ChannelView } from './src/ui/ChannelView';
 import { colors } from './src/ui/theme';
 
 /**
- * Three views: Auth when signed out, Channel when in one, Home otherwise.
+ * Four views: Auth when signed out, Channel when in one, your Profile when you
+ * open it, Home otherwise.
+ *
  * Channels outlive presence, so leaving the Channel screen returns to Home
- * without ending anything — the channel keeps running on the server until it
- * ends or times out.
+ * without ending anything — the channel keeps running on the server until its
+ * last member leaves it.
  */
 function Root() {
   const { ready, token } = useApp();
-  const [channelId, setSessionId] = useState<string | null>(null);
+  const [channelId, setChannelId] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   if (!ready) {
     return (
@@ -28,10 +32,21 @@ function Root() {
 
   if (!token) return <AuthView />;
 
-  return channelId ? (
-    <ChannelView channelId={channelId} onExit={() => setSessionId(null)} />
-  ) : (
-    <HomeView onEnterChannel={setSessionId} />
+  if (channelId) {
+    return (
+      <ChannelView channelId={channelId} onExit={() => setChannelId(null)} />
+    );
+  }
+
+  // Reached from Home rather than from a channel: a profile is about you, not
+  // about whichever conversation you happen to be in.
+  if (profileOpen) return <ProfileView onBack={() => setProfileOpen(false)} />;
+
+  return (
+    <HomeView
+      onEnterChannel={setChannelId}
+      onOpenProfile={() => setProfileOpen(true)}
+    />
   );
 }
 

@@ -9,6 +9,7 @@ import type { ChannelState } from '../../../../core/types';
 import type { HomeView as HomeViewData } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
+import { ProfileView } from '../ProfileView';
 
 /**
  * The views now render server snapshots rather than driving a local model, so
@@ -37,6 +38,11 @@ const mockApp = {
   acceptContact: jest.fn(),
   declineContact: jest.fn(),
   startChannel: jest.fn(),
+  loadProfile: jest.fn(async () => ({
+    account: { id: ME, displayName: 'Me' },
+    bio: 'Cellist. **Bach** mostly.',
+  })),
+  saveProfile: jest.fn(async () => {}),
   watchChannel: jest.fn(),
   leaveChannelView: jest.fn(),
   act: jest.fn(),
@@ -187,7 +193,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('tap to join');
     expect(text).toContain('Miro Okafor');
@@ -216,7 +222,7 @@ describe('Home', () => {
       ],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     expect(textOf(tree)).toContain('1:32');
 
     const button = findButton(tree, 'Export');
@@ -244,7 +250,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     expect(findButton(tree, 'Start channel')).toBeUndefined();
     expect(textOf(tree)).toContain('Channel already open');
     expect(textOf(tree)).toContain('tap to join');
@@ -269,7 +275,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     expect(findButton(tree, 'Start channel')).toBeUndefined();
     expect(textOf(tree)).toContain('Channel already open');
     act(() => tree.unmount());
@@ -293,7 +299,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     const [dismiss] = tree.root.findAll(
       (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
@@ -302,7 +308,7 @@ describe('Home', () => {
     expect(mockApp.dismissInvite).toHaveBeenCalledWith('sess_a');
 
     // Dismissal lives in the provider now, so re-render with it applied.
-    act(() => tree.update(<HomeView onEnterChannel={() => {}} />));
+    act(() => tree.update(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />));
     expect(findButton(tree, 'Start channel')).toBeUndefined();
     expect(findButton(tree, 'Join channel')).toBeDefined();
     act(() => tree.unmount());
@@ -317,7 +323,7 @@ describe('Home', () => {
       ],
       recordings: [],
     };
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     expect(findButton(tree, 'Start channel')).toBeDefined();
     expect(textOf(tree)).not.toContain('Channel already open');
     act(() => tree.unmount());
@@ -340,7 +346,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const first = render(<HomeView onEnterChannel={() => {}} />);
+    const first = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     const [dismiss] = first.root.findAll(
       (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
@@ -348,7 +354,7 @@ describe('Home', () => {
     act(() => first.unmount());
 
     // Home is mounted afresh, as it is on returning from a channel.
-    const second = render(<HomeView onEnterChannel={() => {}} />);
+    const second = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     expect(textOf(second)).not.toContain('tap to join');
     act(() => second.unmount());
   });
@@ -370,7 +376,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     expect(textOf(tree)).toContain('tap to join');
     act(() => tree.unmount());
   });
@@ -388,7 +394,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('nobody@example.com');
     expect(text).toContain('real@example.com');
@@ -402,7 +408,7 @@ describe('Home', () => {
   it('says so when the connection is down', () => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     mockApp.status = 'closed';
-    const tree = render(<HomeView onEnterChannel={() => {}} />);
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />);
     expect(textOf(tree)).toContain('Not connected');
     act(() => tree.unmount());
   });
@@ -811,6 +817,75 @@ describe('Channel', () => {
     });
     // Saving returns to the channel.
     expect(textOf(tree)).toContain('The floor');
+    act(() => tree.unmount());
+  });
+});
+
+describe('Profile', () => {
+  /** The view fetches on mount, so every case has to let that settle. */
+  async function openProfile() {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<ProfileView onBack={() => {}} />);
+    });
+    return tree;
+  }
+
+  it('loads the current profile into the fields', async () => {
+    const tree = await openProfile();
+    expect(mockApp.loadProfile).toHaveBeenCalledWith(ME);
+    // The bio renders as markdown in the preview, not as markup.
+    const text = textOf(tree);
+    expect(text).toContain('Preview');
+    expect(text).toContain('Bach');
+    expect(text).not.toContain('**Bach**');
+    act(() => tree.unmount());
+  });
+
+  it('saves both fields together', async () => {
+    const tree = await openProfile();
+    const name = tree.root.findAll(
+      (n) => n.props?.placeholder === 'What people should call you'
+    )[0];
+    act(() => name.props.onChangeText('Alice Nkemdirim'));
+
+    await act(async () => findButton(tree, 'Save')!.props.onPress());
+    expect(mockApp.saveProfile).toHaveBeenCalledWith({
+      displayName: 'Alice Nkemdirim',
+      bio: 'Cellist. **Bach** mostly.',
+    });
+    act(() => tree.unmount());
+  });
+
+  it('will not save an empty name, and says why', async () => {
+    // The server refuses this too; the point of refusing it here as well is
+    // that a disabled control and a rejected request cannot disagree.
+    const tree = await openProfile();
+    const name = tree.root.findAll(
+      (n) => n.props?.placeholder === 'What people should call you'
+    )[0];
+    act(() => name.props.onChangeText('   '));
+
+    expect(findButton(tree, 'Save')!.props.accessibilityState.disabled).toBe(
+      true
+    );
+    expect(textOf(tree)).toContain('A name cannot be empty');
+    act(() => tree.unmount());
+  });
+
+  it('opens from Home', () => {
+    const onOpenProfile = jest.fn();
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenProfile={onOpenProfile} />
+    );
+    act(() => findButton(tree, 'Profile')!.props.onPress());
+    expect(onOpenProfile).toHaveBeenCalled();
     act(() => tree.unmount());
   });
 });

@@ -27,8 +27,10 @@ import { colors, formatDuration, radius, spacing, type } from './theme';
  */
 export function HomeView({
   onEnterChannel,
+  onOpenProfile,
 }: {
   onEnterChannel: (channelId: string) => void;
+  onOpenProfile: () => void;
 }) {
   const app = useApp();
   const dismissed = app.dismissedInvites;
@@ -102,7 +104,10 @@ export function HomeView({
             {app.status !== 'open' ? ` · ${describeStatus(app.status)}` : ''}
           </Text>
         </View>
-        <Button label="Sign out" variant="ghost" onPress={() => app.signOut()} />
+        <View style={styles.headerActions}>
+          <Button label="Profile" variant="ghost" onPress={onOpenProfile} />
+          <Button label="Sign out" variant="ghost" onPress={() => app.signOut()} />
+        </View>
       </View>
 
       {app.status !== 'open' ? (
@@ -493,6 +498,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing(1),
   },
   headerMain: { flex: 1 },
+  headerActions: { alignItems: 'flex-end' },
   offline: {
     backgroundColor: colors.surface,
     borderColor: colors.silenced,

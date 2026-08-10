@@ -552,6 +552,21 @@ export class ChannelRegistry {
     }
   }
 
+  /**
+   * Whether two people are in any live channel together.
+   *
+   * Membership rather than presence: being in a channel with somebody is a
+   * relationship that survives either of you stepping out of the room, and it
+   * is what entitles you to look at their profile.
+   */
+  shareAChannel(a: string, b: string): boolean {
+    for (const channel of this.channels.values()) {
+      if (channel.status !== 'active') continue;
+      if (isParticipant(channel, a) && isParticipant(channel, b)) return true;
+    }
+    return false;
+  }
+
   /** Live channels this user is currently in. */
   channelsFor(userId: string): string[] {
     const ids: string[] = [];

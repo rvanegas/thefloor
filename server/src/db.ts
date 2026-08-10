@@ -13,6 +13,8 @@ export interface AccountRow {
   identifier: string;
   display_name: string;
   created_at: number;
+  /** Markdown, as typed. Null until they write one. */
+  bio: string | null;
 }
 
 export interface ContactRow {
@@ -54,7 +56,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   id           TEXT PRIMARY KEY,
   identifier   TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
-  created_at   INTEGER NOT NULL
+  created_at   INTEGER NOT NULL,
+  -- What this person says about themselves, as the Markdown source they
+  -- typed. Null until they write one.
+  bio          TEXT
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -271,6 +276,13 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE recordings ADD COLUMN ended_at INTEGER');
     db.exec('ALTER TABLE recordings ADD COLUMN failure TEXT');
     db.exec('UPDATE recordings SET ended_at = started_at + duration_ms');
+  }
+
+  const accountColumns = db
+    .prepare('PRAGMA table_info(accounts)')
+    .all() as Array<{ name: string }>;
+  if (!accountColumns.some((c) => c.name === 'bio')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN bio TEXT');
   }
 
   // Channels from before persistence whose ended_at is null are ghosts: the

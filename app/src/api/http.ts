@@ -1,4 +1,4 @@
-import type { HomeView, PublicAccount } from '../../../core/protocol';
+import type { HomeView, PublicAccount, ProfileView } from '../../../core/protocol';
 import { API_URL } from './config';
 
 export class ApiError extends Error {
@@ -97,6 +97,19 @@ export const api = {
     request<void>('/auth/sign-out', { method: 'POST', token }),
 
   home: (token: string) => request<HomeView>('/home', { token }),
+
+  /** Reads a profile. Refused as a 404 unless you are entitled to see it. */
+  profile: (token: string, accountId: string) =>
+    request<ProfileView>(`/profiles/${accountId}`, { token }),
+
+  /**
+   * Writes your own profile. A partial write: whatever is left undefined is
+   * left alone, so saving one field cannot blank the other.
+   */
+  saveProfile: (
+    token: string,
+    changes: { displayName?: string; bio?: string }
+  ) => request<ProfileView>('/me', { method: 'POST', body: changes, token }),
 
   requestContact: (token: string, identifier: string) =>
     request<{ ok: true; accepted: boolean }>('/contacts/request', {

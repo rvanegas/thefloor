@@ -12,6 +12,7 @@ import { Platform } from 'react-native';
 import type {
   ClientAction,
   HomeView,
+  ProfileView,
   PublicAccount,
   ChannelView,
 } from '../../../core/protocol';
@@ -73,6 +74,13 @@ interface AppValue extends AppState {
   withdrawContact: (identifier: string) => Promise<void>;
   acceptContact: (contactId: string) => Promise<void>;
   declineContact: (contactId: string) => Promise<void>;
+  /** Reads a profile. Rejects when it is not yours to see. */
+  loadProfile: (accountId: string) => Promise<ProfileView>;
+  /** Writes your own; whatever is left undefined is left alone. */
+  saveProfile: (changes: {
+    displayName?: string;
+    bio?: string;
+  }) => Promise<void>;
   startChannel: (contactIds: string[]) => Promise<string>;
   watchChannel: (channelId: string) => void;
   leaveChannelView: (channelId: string) => void;
@@ -301,6 +309,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await api.declineContact(state.token, contactId);
         const home = await api.home(state.token);
         setState((s) => ({ ...s, home }));
+      },
+
+      loadProfile: async (accountId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        return api.profile(state.token, accountId);
+      },
+
+      saveProfile: async (changes) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const profile = await api.saveProfile(state.token, changes);
+        // `me` is what every screen compares against to decide what is yours,
+        // so a rename has to land here rather than waiting for a reconnect.
+        setState((s) => ({ ...s, me: profile.account }));
       },
 
       startChannel: async (contactIds) => {

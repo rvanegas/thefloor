@@ -89,18 +89,11 @@ afterEach(() => {
 });
 
 function seedAccounts(db: DatabaseSync): void {
-  db.prepare('INSERT INTO accounts VALUES (?,?,?,?)').run(
-    'acct_a',
-    'a@example.com',
-    'A',
-    1
+  const insert = db.prepare(
+    'INSERT INTO accounts (id, identifier, display_name, created_at) VALUES (?,?,?,?)'
   );
-  db.prepare('INSERT INTO accounts VALUES (?,?,?,?)').run(
-    'acct_b',
-    'b@example.com',
-    'B',
-    1
-  );
+  insert.run('acct_a', 'a@example.com', 'A', 1);
+  insert.run('acct_b', 'b@example.com', 'B', 1);
 }
 
 function tableNames(db: DatabaseSync): string[] {
@@ -286,7 +279,9 @@ it('is idempotent across reopenings', () => {
   const path = join(dir, 'new.db');
   const first = openDb(path);
   first
-    .prepare('INSERT INTO accounts VALUES (?,?,?,?)')
+    .prepare(
+      'INSERT INTO accounts (id, identifier, display_name, created_at) VALUES (?,?,?,?)'
+    )
     .run('acct_a', 'a@example.com', 'A', 1);
   first
     .prepare(
