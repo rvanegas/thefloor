@@ -7,10 +7,6 @@ These are new items on the roadmap.
 
 It should be possible to connect to a user one sees in a channel.
 
-## Access to Home View During a Call
-
-It should be possible to navigate to Home View without stepping out of the room.
-
 ## Dark Mode
 
 Currently all is in Dark Mode. Support Light Mode too.

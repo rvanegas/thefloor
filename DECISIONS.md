@@ -422,3 +422,31 @@ legitimate thing to mean.
 The Markdown is the same subset a channel description uses, rendered by the
 same `InlineMarkdown` and stored as the source somebody typed — see the
 description work for why the renderer is written here rather than depended on.
+
+---
+
+## Presence is not a screen
+
+Built 2026-08-10. You can walk back to Home from a channel without leaving the
+conversation: look up a contact, read a profile, start a second channel, and the
+first one is still in your ear.
+
+The reducer has always treated presence and navigation as unrelated — `present`
+changes only on ENTER, STEP_OUT, LEAVE_CHANNEL or a grace period running out,
+and never on anything the client renders. The app was the only place the two
+were conflated, and only by accident of structure: `useSessionAudio` was called
+inside the channel screen, so unmounting that screen tore down the LiveKit
+connection. A plain back button would have looked like navigation and silently
+ended the call.
+
+The connection now lives in `App.tsx`, above the screen switch, and follows the
+channel the *server* says you are present in rather than the channel whose
+screen is mounted. Going Home dispatches nothing and does not unwatch — the
+snapshot has to keep arriving, since it is what reports that you are still
+present.
+
+**The risk this introduces is a live microphone behind a screen that gives no
+sign of it**, which would be worse than having to step out first. So Home
+carries a bar naming the channel and how many people are in it, tapping it
+returns, and it announces itself as a button rather than being a mystery
+rectangle to anyone using VoiceOver.

@@ -60,14 +60,17 @@ jest.mock('../../api/download', () => ({
   exportRecording: jest.fn(async () => {}),
 }));
 
-jest.mock('../../audio/useSessionAudio', () => ({
-  useSessionAudio: () => ({
-    status: 'idle',
-    message: null,
-    mutedByServer: false,
-    othersAudible: 0,
-  }),
-}));
+/**
+ * The audio connection is held in App.tsx now, so these screens receive it
+ * rather than opening it. That is the point of the change: a render test has
+ * no business opening a microphone, and neither does navigating to Home.
+ */
+const AUDIO = {
+  status: 'idle' as const,
+  message: null,
+  mutedByServer: false,
+  othersAudible: 0,
+};
 
 jest.mock('../../state/AppProvider', () => ({
   useApp: () => mockApp,
@@ -416,7 +419,12 @@ describe('Home', () => {
 
 describe('Channel', () => {
   it('waits rather than rendering a stale screen before the first snapshot', () => {
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     expect(textOf(tree)).toContain('Loading channel');
     expect(mockApp.watchChannel).toHaveBeenCalledWith('sess_1');
     act(() => tree.unmount());
@@ -424,7 +432,12 @@ describe('Channel', () => {
 
   it('shows the claim control when eligible', () => {
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     expect(text).toContain('Dana Chu');
     expect(text).toContain('Nobody has the floor');
@@ -442,7 +455,12 @@ describe('Channel', () => {
     channel = reduce(channel, { type: 'START_RECORDING', userId: THEM, runId: 'rec_1' }, NOW);
     showChannel(channel);
 
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     expect(text).toContain('still being recorded');
     expect(text).toContain('left out of the exported recording');
@@ -462,7 +480,12 @@ describe('Channel', () => {
     };
     showChannel(channel);
 
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     expect(text).toContain('Recording failed');
     expect(text).toContain('no supported codec');
@@ -478,7 +501,12 @@ describe('Channel', () => {
     const channel = channelOf();
     showChannel({ ...channel, disconnectedAt: { [THEM]: NOW - 5_000 } });
 
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     expect(text).toContain('Present · reconnecting…');
     expect(text).not.toContain('Left the channel');
@@ -489,7 +517,12 @@ describe('Channel', () => {
     showChannel(
       channelOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     expect(text).toContain('Dana Chu has the floor — your mic is cut');
     expect(text).toContain('cannot claim the floor while you are silenced');
@@ -503,7 +536,12 @@ describe('Channel', () => {
     showChannel(claimed);
     // Device clock is irrelevant; serverNow decides. 40s into a 3:00 claim.
     mockApp.serverNow = () => NOW + 40_000;
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     expect(textOf(tree)).toContain('2:20');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
@@ -511,7 +549,12 @@ describe('Channel', () => {
 
   it('dispatches a claim rather than mutating anything locally', () => {
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const claim = findButton(tree, 'Claim the floor');
     expect(claim).toBeDefined();
     expect(claim!.props.accessibilityState.disabled).toBe(false);
@@ -522,7 +565,12 @@ describe('Channel', () => {
 
   it('offers to load a track when there is none', () => {
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     expect(findButton(tree, 'Play something together')).toBeDefined();
     act(() => tree.unmount());
   });
@@ -543,7 +591,12 @@ describe('Channel', () => {
       })
     );
     mockApp.serverNow = () => NOW + 30_000;
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     expect(text).toContain('Kind of Blue');
     expect(text).toContain('0:30');
@@ -573,7 +626,12 @@ describe('Channel', () => {
         return reduce(playing, { type: 'CLAIM_FLOOR', userId: THEM }, NOW);
       })
     );
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
 
     expect(textOf(tree)).toContain('Dana Chu has the floor, so they decide what plays');
     expect(findButton(tree, 'Pause')!.props.accessibilityState.disabled).toBe(
@@ -602,7 +660,12 @@ describe('Channel', () => {
         )
       )
     );
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     act(() => findButton(tree, '+15s')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SEEK',
@@ -614,7 +677,12 @@ describe('Channel', () => {
   it('warns that a dropped connection counts as leaving', () => {
     showChannel(channelOf());
     mockApp.status = 'connecting';
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     expect(textOf(tree)).toContain('dropped connection counts as leaving');
     act(() => tree.unmount());
   });
@@ -631,7 +699,12 @@ describe('Channel', () => {
     channel = reduce(channel, { type: 'CLAIM_FLOOR', userId: 'acct_3' }, NOW);
     showChannel(channel);
 
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     expect(text).toContain('4 people');
     expect(text).toContain('Dana Chu');
@@ -655,7 +728,12 @@ describe('Channel', () => {
       ],
     };
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const invite = findButton(tree, 'Invite');
     expect(invite).toBeDefined();
     act(() => invite!.props.onPress());
@@ -666,11 +744,41 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  it('goes Home without giving up presence or the connection', () => {
+    // The whole point of the change. Stepping out dispatches STEP_OUT and
+    // unwatches; going Home must do neither, or the snapshot that proves you
+    // are still present disappears and the connection above goes with it.
+    const onHome = jest.fn();
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={onHome}
+        onExit={() => {}}
+      />
+    );
+
+    const home = findButton(tree, 'Home');
+    expect(home).toBeDefined();
+    act(() => home!.props.onPress());
+
+    expect(onHome).toHaveBeenCalled();
+    expect(mockApp.act).not.toHaveBeenCalled();
+    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
   it('offers only stepping out on the channel screen', () => {
     // Leaving lives in settings. Beside Step out, in the colour reserved for
     // danger, it drew the eye straight to the least likely action.
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
 
     const stepOut = findButton(tree, 'Step out');
     expect(stepOut).toBeDefined();
@@ -684,7 +792,12 @@ describe('Channel', () => {
 
   it('keeps leaving in settings, plain rather than alarming', () => {
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
 
     const leave = findButton(tree, 'Leave channel');
@@ -704,7 +817,12 @@ describe('Channel', () => {
     showChannel(
       channelOf((s) => reduce(s, { type: 'LEAVE_CHANNEL', userId: THEM }, NOW))
     );
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
 
     expect(labelOf(findButton(tree, 'Leave channel')!)).toContain(
@@ -716,7 +834,12 @@ describe('Channel', () => {
   it('no longer counts elapsed time', () => {
     // A channel is permanent, so time since it was created says nothing.
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     expect(textOf(tree)).not.toContain('elapsed');
     act(() => tree.unmount());
   });
@@ -729,7 +852,12 @@ describe('Channel', () => {
         return reduce(half, { type: 'LEAVE_CHANNEL', userId: ME }, NOW);
       })
     );
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     expect(textOf(tree)).toContain('Channel ended');
     act(() => tree.unmount());
   });
@@ -740,7 +868,12 @@ describe('Channel', () => {
         reduce(s, { type: 'SET_NAME', userId: THEM, name: 'Book club' }, NOW)
       )
     );
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     expect(text).toContain('Book club');
     // Under a channel name the status line is the only place the other
@@ -763,7 +896,12 @@ describe('Channel', () => {
         )
       )
     );
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     const text = textOf(tree);
     // The markup is gone and the words remain.
     expect(text).toContain('Reading');
@@ -781,14 +919,24 @@ describe('Channel', () => {
 
   it('shows nothing where the description would be when there is none', () => {
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     expect(linksIn(tree)).toEqual([]);
     act(() => tree.unmount());
   });
 
   it('edits the description in settings, with a preview', () => {
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
 
     const field = tree.root.findAll(
@@ -813,7 +961,12 @@ describe('Channel', () => {
 
   it('opens settings, and saving a name dispatches SET_NAME', () => {
     showChannel(channelOf());
-    const tree = render(<ChannelView channelId="sess_1" onExit={() => {}} />);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
 
     const settings = findButton(tree, 'Settings');
     expect(settings).toBeDefined();
@@ -900,6 +1053,69 @@ describe('Profile', () => {
     );
     act(() => findButton(tree, 'Profile')!.props.onPress());
     expect(onOpenProfile).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+});
+
+describe('Home while still in a channel', () => {
+  const home = () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+  };
+
+  it('says so, and offers the way back', () => {
+    // An open microphone behind a screen that gives no sign of it is the one
+    // way this could be worse than having to step out first.
+    home();
+    const onReturn = jest.fn();
+    const tree = render(
+      <HomeView
+        onEnterChannel={() => {}}
+        onOpenProfile={() => {}}
+        liveChannel={{ channelId: 'sess_1', name: 'Book club', present: 2 }}
+        onReturnToChannel={onReturn}
+      />
+    );
+    const text = textOf(tree).replace(/\s+/g, ' ');
+    expect(text).toContain('In Book club');
+    expect(text).toContain('2 present');
+    expect(text).toContain('tap to go back');
+
+    // Found the way a person using VoiceOver would: the bar announces itself
+    // as a button, which it should have done regardless of this test.
+    const bar = findButton(tree, 'Book club');
+    expect(bar).toBeDefined();
+    act(() => bar!.props.onPress());
+    expect(onReturn).toHaveBeenCalledWith('sess_1');
+    act(() => tree.unmount());
+  });
+
+  it('names an unnamed channel without pretending it has a name', () => {
+    home();
+    const tree = render(
+      <HomeView
+        onEnterChannel={() => {}}
+        onOpenProfile={() => {}}
+        liveChannel={{ channelId: 'sess_1', name: null, present: 1 }}
+        onReturnToChannel={() => {}}
+      />
+    );
+    const text = textOf(tree).replace(/\s+/g, ' ');
+    expect(text).toContain('In a channel');
+    expect(text).toContain('You are the only one here');
+    act(() => tree.unmount());
+  });
+
+  it('shows nothing when you are not in one', () => {
+    home();
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenProfile={() => {}} />
+    );
+    expect(textOf(tree)).not.toContain('tap to go back');
     act(() => tree.unmount());
   });
 });

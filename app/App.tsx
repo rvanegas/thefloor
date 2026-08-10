@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
@@ -10,17 +11,37 @@ import { ChannelView } from './src/ui/ChannelView';
 import { colors } from './src/ui/theme';
 
 /**
- * Four views: Auth when signed out, Channel when in one, your Profile when you
- * open it, Home otherwise.
+ * Four screens: Auth when signed out, Channel when you are looking at one,
+ * your Profile when you open it, Home otherwise.
  *
- * Channels outlive presence, so leaving the Channel screen returns to Home
- * without ending anything — the channel keeps running on the server until its
- * last member leaves it.
+ * **Presence is not a screen.** The audio connection is held here rather than
+ * inside the channel screen, so walking back to Home leaves you in the
+ * conversation — you can look up who else is around, or read a contact's
+ * profile, without hanging up. The reducer has always treated presence and
+ * navigation as different things; until this moved, the app was the only place
+ * that conflated them, and a back button would silently have ended the call.
+ *
+ * What the connection follows is the channel you are *present in*, which the
+ * server reports, rather than the channel whose screen happens to be mounted.
  */
 function Root() {
-  const { ready, token } = useApp();
+  const app = useApp();
+  const { ready, token } = app;
   const [channelId, setChannelId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const view = app.channelView;
+  const me = app.me?.id ?? '';
+  const live =
+    view && view.channel.status === 'active' && view.channel.present.includes(me)
+      ? view.channel
+      : null;
+
+  const audio = useSessionAudio(
+    live ? live.id : null,
+    token,
+    !!live?.selfMuted[me]
+  );
 
   if (!ready) {
     return (
@@ -34,7 +55,15 @@ function Root() {
 
   if (channelId) {
     return (
-      <ChannelView channelId={channelId} onExit={() => setChannelId(null)} />
+      <ChannelView
+        channelId={channelId}
+        audio={audio}
+        // Off this screen without leaving the channel. Deliberately not
+        // `leaveChannelView`: that unwatches, and the snapshot it drops is
+        // what tells this component you are still present.
+        onHome={() => setChannelId(null)}
+        onExit={() => setChannelId(null)}
+      />
     );
   }
 
@@ -46,6 +75,15 @@ function Root() {
     <HomeView
       onEnterChannel={setChannelId}
       onOpenProfile={() => setProfileOpen(true)}
+      // What Home needs to show that a conversation is still going without you
+      // looking at it. An open microphone behind a screen that gives no sign of
+      // it is the one thing this change could plausibly make worse.
+      liveChannel={
+        live
+          ? { channelId: live.id, name: live.name, present: live.present.length }
+          : null
+      }
+      onReturnToChannel={setChannelId}
     />
   );
 }

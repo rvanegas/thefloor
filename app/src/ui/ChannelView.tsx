@@ -19,7 +19,7 @@ import {
   canStopRecording,
   isPresent,
 } from '../../../core/channel';
-import { useSessionAudio } from '../audio/useSessionAudio';
+import type { SessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
 import { ChannelSettingsView } from './ChannelSettingsView';
@@ -38,9 +38,19 @@ const VOLUME_STEP = 0.1;
  */
 export function ChannelView({
   channelId,
+  audio,
+  onHome,
   onExit,
 }: {
   channelId: string;
+  /**
+   * Held above this screen, because the connection outlives it: walking back
+   * to Home must not hang up. See App.tsx.
+   */
+  audio: SessionAudio;
+  /** Back to Home, still present, still connected. */
+  onHome: () => void;
+  /** Off this screen having given up presence or membership. */
   onExit: () => void;
 }) {
   const app = useApp();
@@ -50,16 +60,6 @@ export function ChannelView({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Audio follows presence, not the screen: connect only while actually in the
-  // channel, so leaving stops publishing rather than leaving a live microphone
-  // open behind a closed view.
-  const present = !!channel && channel.status === 'active' && channel.present.includes(me);
-  const audio = useSessionAudio(
-    present ? channelId : null,
-    app.token,
-    !!channel?.selfMuted[me]
-  );
 
   useEffect(() => {
     app.watchChannel(channelId);
@@ -174,11 +174,18 @@ export function ChannelView({
                   ? others[0].displayName
                   : `${others.length + 1} people`)}
             </Text>
-            <Button
-              label="Settings"
-              variant="ghost"
-              onPress={() => setSettingsOpen(true)}
-            />
+            <View style={styles.titleActions}>
+              {/*
+                Back to Home without hanging up. The audio connection lives
+                above this screen, so this is navigation and nothing else.
+              */}
+              <Button label="Home" variant="ghost" onPress={onHome} />
+              <Button
+                label="Settings"
+                variant="ghost"
+                onPress={() => setSettingsOpen(true)}
+              />
+            </View>
           </View>
           {channel.description ? (
             <InlineMarkdown
@@ -592,7 +599,7 @@ function InviteList({
 }
 
 /** Plain-language audio state, so a silent channel is never a mystery. */
-function describeAudio(audio: ReturnType<typeof useSessionAudio>): string {
+function describeAudio(audio: SessionAudio): string {
   switch (audio.status) {
     case 'idle':
       return 'Audio not connected.';
@@ -639,6 +646,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(0.5),
     marginBottom: spacing(0.5),
   },
+  titleActions: { flexDirection: 'row', alignItems: 'center' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',

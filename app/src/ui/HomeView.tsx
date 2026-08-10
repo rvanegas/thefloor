@@ -28,9 +28,17 @@ import { colors, formatDuration, radius, spacing, type } from './theme';
 export function HomeView({
   onEnterChannel,
   onOpenProfile,
+  liveChannel = null,
+  onReturnToChannel = () => {},
 }: {
   onEnterChannel: (channelId: string) => void;
   onOpenProfile: () => void;
+  /**
+   * The channel you are present in right now, if you walked back here without
+   * stepping out. Null when you are not in one.
+   */
+  liveChannel?: { channelId: string; name: string | null; present: number } | null;
+  onReturnToChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
   const dismissed = app.dismissedInvites;
@@ -109,6 +117,34 @@ export function HomeView({
           <Button label="Sign out" variant="ghost" onPress={() => app.signOut()} />
         </View>
       </View>
+
+      {/*
+        You can now be in a conversation while looking at this screen, which
+        means the app has to say so. An open microphone behind a screen giving
+        no sign of it is the one way this could be worse than having to step
+        out first.
+      */}
+      {liveChannel ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Return to the channel you are in"
+          onPress={() => onReturnToChannel(liveChannel.channelId)}
+          style={styles.liveBar}
+        >
+          <View style={styles.rowMain}>
+            <Text style={styles.liveTitle}>
+              In {liveChannel.name ?? 'a channel'}
+            </Text>
+            <Text style={styles.liveSub}>
+              {liveChannel.present === 1
+                ? 'You are the only one here'
+                : `${liveChannel.present} present`}{' '}
+              · tap to go back
+            </Text>
+          </View>
+          <View style={styles.liveDot} />
+        </Pressable>
+      ) : null}
 
       {app.status !== 'open' ? (
         <View style={styles.offline}>
@@ -499,6 +535,25 @@ const styles = StyleSheet.create({
   },
   headerMain: { flex: 1 },
   headerActions: { alignItems: 'flex-end' },
+  liveBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1.5),
+    backgroundColor: colors.floorDim,
+    borderColor: colors.floor,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing(1.75),
+    marginBottom: spacing(1),
+  },
+  liveTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+  liveSub: { fontSize: 13, color: colors.textMuted },
+  liveDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.floor,
+  },
   offline: {
     backgroundColor: colors.surface,
     borderColor: colors.silenced,
