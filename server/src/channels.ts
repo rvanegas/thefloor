@@ -134,15 +134,23 @@ export class ChannelRegistry {
     Map<string, Array<{ key: string; startMs: number }>>
   >();
   /**
-   * Who belonged to the channel when each recording run started.
+   * Who a recording run belongs to: everyone who took part in it.
    *
-   * A recording is of the people who were in it, and membership is no longer
-   * fixed for a channel's life: anyone may leave, and the last one leaving is
-   * what ends the channel — by which point `participants` is empty. Reading
-   * the roster at filing time would therefore write a recording belonging to
-   * nobody, which nobody could authorise an export of.
+   * Stored per run rather than read off the channel at filing time, because
+   * membership is no longer fixed for a channel's life. Anyone may leave, and
+   * the last one leaving is what ends the channel — so by the time a run is
+   * filed the roster can be empty, and a recording written against it would
+   * belong to nobody and be openable by nobody.
+   *
+   * The rule is *took part*, which has two halves that mostly coincide and
+   * are kept separate because they can disagree: everyone present at any point
+   * during the run, and everyone who actually produced audio. Presence covers
+   * a speaker whose capture failed — they were in the conversation even though
+   * no stem exists — and the stems cover anyone presence tracking missed. What
+   * neither covers, deliberately, is a member who was invited and never came:
+   * they were not in the conversation, so the recording is not theirs.
    */
-  private recordingRoster = new Map<string, string[]>();
+  private recordingAudience = new Map<string, Set<string>>();
   /**
    * Speakers whose silencing has been decided but not yet applied — they had
    * no published track when it was asserted. Retried each tick while the
@@ -580,15 +588,12 @@ export class ChannelRegistry {
     this.channels.set(after.id, after);
     this.applyFloorToMedia(before, after);
     this.applyRecordingToMedia(before, after);
-    // A run's roster only ever grows. Someone invited mid-recording is in that
-    // recording and must be able to reach it afterwards; someone who leaves
-    // the channel mid-run was still in it, so they are not taken back out.
-    const roster = this.recordingRoster.get(after.id);
-    if (roster) {
-      for (const id of after.participants) {
-        if (!roster.includes(id)) roster.push(id);
-      }
-    }
+    // A run's audience only ever grows. Someone who arrives mid-recording is
+    // in that recording and must be able to reach it afterwards; someone who
+    // leaves — the channel or merely the room — was still in it, so they are
+    // never taken back out.
+    const audience = this.recordingAudience.get(after.id);
+    if (audience) for (const id of after.present) audience.add(id);
     this.applyPlaybackToMedia(before, after);
     this.trackFloorWindows(before, after);
 
@@ -714,7 +719,7 @@ export class ChannelRegistry {
     const isCapturing = this.capturing.has(after.id);
 
     if (shouldCapture && !isCapturing) {
-      this.recordingRoster.set(after.id, [...after.participants]);
+      this.recordingAudience.set(after.id, new Set(after.present));
       this.capturing.set(after.id, {
         handles: [],
         requested: new Set(),
@@ -1160,9 +1165,8 @@ export class ChannelRegistry {
     const duration = recordedMs(channel.recording, channel.endedAt ?? this.now());
     if (channel.recording.status !== 'stopped' || duration <= 0) return;
 
-    // Who was in it when it was recorded, not who is left now.
-    const roster = this.recordingRoster.get(channel.id) ?? channel.participants;
-    this.recordingRoster.delete(channel.id);
+    const present = this.recordingAudience.get(channel.id) ?? new Set<string>();
+    this.recordingAudience.delete(channel.id);
 
     const perParticipant = this.segments.get(channel.id) ?? new Map();
     this.segments.delete(channel.id);
@@ -1173,6 +1177,17 @@ export class ChannelRegistry {
     const flat = Object.values(stems)
       .flat()
       .map((segment) => segment.key);
+
+    // Who the recording belongs to: everyone who took part. Presence and
+    // stems are unioned rather than one trusted over the other — presence
+    // covers a speaker whose capture failed, stems cover anyone presence
+    // missed, and the media participant is not a person, so it is dropped.
+    const audience = [
+      ...new Set([
+        ...present,
+        ...Object.keys(stems).filter((id) => id !== MEDIA_IDENTITY),
+      ]),
+    ];
 
     // A claim still open when the recording ended runs to the end of it.
     const windows = this.floorWindows.get(channel.id) ?? [];
@@ -1202,8 +1217,8 @@ export class ChannelRegistry {
             channel.initiator,
             // Legacy anchor columns, NOT NULL and never read back; the
             // participants JSON is what membership queries use.
-            roster[1] ?? roster[0] ?? channel.initiator,
-            JSON.stringify(roster),
+            audience[1] ?? audience[0] ?? channel.initiator,
+            JSON.stringify(audience),
             channel.recording.startedAt ?? channel.createdAt,
             duration,
             flat[0] ?? '',

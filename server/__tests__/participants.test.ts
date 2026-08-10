@@ -418,6 +418,51 @@ describe('recording with people joining mid-run', () => {
     ]);
   });
 
+  it('belongs to whoever took part, not to whoever was merely invited', async () => {
+    // The recording is the conversation, so it is the conversation's. Carol is
+    // invited during the run and never comes: no stem, and no claim on it.
+    const { alice, bob, carol, channelId } = await pairRecording();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'INVITE',
+      contactId: carol.account.id,
+    });
+    clock += 10_000;
+    endChannel(channelId);
+    await settle();
+
+    const row = app.db
+      .prepare('SELECT participants FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { participants: string };
+    const audience = JSON.parse(row.participants) as string[];
+    expect(audience.sort()).toEqual([alice.account.id, bob.account.id].sort());
+    expect(audience).not.toContain(carol.account.id);
+  });
+
+  it('keeps a departed member’s claim on a recording they were in', async () => {
+    // Leaving a channel gives up the channel, not the conversations you were
+    // part of before you left. This is also the case that broke: at the moment
+    // the last member leaves the roster is empty, so filing against it wrote a
+    // recording nobody could open.
+    const { alice, bob, channelId } = await pairRecording();
+    clock += 10_000;
+    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE_CHANNEL' });
+    await settle();
+
+    expect(app.channels.get(channelId)!.status).toBe('ended');
+    const row = app.db
+      .prepare('SELECT participants FROM recordings WHERE channel_id = ?')
+      .get(channelId) as { participants: string };
+    expect((JSON.parse(row.participants) as string[]).sort()).toEqual(
+      [alice.account.id, bob.account.id].sort()
+    );
+
+    // And both still find it on Home after the channel is gone.
+    for (const user of [alice, bob]) {
+      expect(app.channels.recordingsFor(user.account.id)).toHaveLength(1);
+    }
+  });
+
   it('does not end the recording when a late joiner’s egress cannot start', async () => {
     const { alice, carol, channelId } = await pairRecording();
     app.channels.dispatch(channelId, alice.account.id, {
