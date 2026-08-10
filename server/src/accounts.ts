@@ -1,6 +1,13 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { PublicAccount } from '../../core/protocol';
-import { newId, pairKey, sha256, type AccountRow, type Db } from './db';
+import {
+  insertWithUniqueKey,
+  newId,
+  pairKey,
+  sha256,
+  type AccountRow,
+  type Db,
+} from './db';
 
 export const OTP_TTL_MS = 10 * 60 * 1000;
 /**
@@ -136,12 +143,18 @@ export class Accounts {
     let account = this.byIdentifier(id);
 
     if (!account) {
-      const accountId = newId('acct');
-      this.db
-        .prepare(
-          'INSERT INTO accounts (id, identifier, display_name, created_at) VALUES (?, ?, ?, ?)'
-        )
-        .run(accountId, id, name || id, now);
+      // A second signup on one address collides on `identifier`, not on the
+      // primary key, so it still fails here rather than looping — which is
+      // right, since another account id would not make the address free.
+      const accountId = insertWithUniqueKey(
+        () => newId('acct'),
+        (candidate) =>
+          this.db
+            .prepare(
+              'INSERT INTO accounts (id, identifier, display_name, created_at) VALUES (?, ?, ?, ?)'
+            )
+            .run(candidate, id, name || id, now)
+      );
       account = this.byId(accountId)!;
       this.resolveInvitesFor(account);
     } else if (name && name !== account.display_name) {
@@ -157,13 +170,18 @@ export class Accounts {
   // --- Tokens -------------------------------------------------------------
 
   issueToken(accountId: string, now: number): string {
-    const token = randomBytes(32).toString('base64url');
-    this.db
-      .prepare(
-        'INSERT INTO tokens (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
-      )
-      .run(sha256(token), accountId, now, now + TOKEN_TTL_MS);
-    return token;
+    // The token itself is what is minted, so a retry hands the caller a fresh
+    // secret rather than reusing one whose hash is already stored against
+    // somebody else's account.
+    return insertWithUniqueKey(
+      () => randomBytes(32).toString('base64url'),
+      (token) =>
+        this.db
+          .prepare(
+            'INSERT INTO tokens (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
+          )
+          .run(sha256(token), accountId, now, now + TOKEN_TTL_MS)
+    );
   }
 
   accountForToken(token: string, now: number): AccountRow | undefined {

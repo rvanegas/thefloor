@@ -15,7 +15,12 @@ import type {
 } from '../../core/types';
 import type { InviteView, RejoinableView } from '../../core/protocol';
 import type { Accounts } from './accounts';
-import { newId, type Db, type RecordingRow } from './db';
+import {
+  insertWithUniqueKey,
+  newId,
+  type Db,
+  type RecordingRow,
+} from './db';
 import type { MediaServer, PlaybackSession } from './media';
 
 export const TICK_INTERVAL_MS = 500;
@@ -192,18 +197,24 @@ export class SessionRegistry {
       return { ok: true, session: this.sessions.get(existing.id)! };
     }
 
-    const session = createSession({
-      id: newId('sess'),
-      initiator,
-      invitee,
-      now: this.now(),
-    });
+    const createdAt = this.now();
+    const id = insertWithUniqueKey(
+      () => newId('sess'),
+      (candidate) =>
+        this.db
+          .prepare(
+            'INSERT INTO sessions (id, initiator_id, invitee_id, created_at) VALUES (?, ?, ?, ?)'
+          )
+          .run(candidate, initiator, invitee, createdAt)
+    );
+
+    // Held in memory only once the row exists. The other order looks harmless
+    // but is not: a failed insert — a locked database, a full disk — would
+    // leave a live session with nothing behind it, and the one-session-per-pair
+    // guard above would then adopt that orphan on every retry, so the row could
+    // never be written and the conversation would go unrecorded.
+    const session = createSession({ id, initiator, invitee, now: createdAt });
     this.sessions.set(session.id, session);
-    this.db
-      .prepare(
-        'INSERT INTO sessions (id, initiator_id, invitee_id, created_at) VALUES (?, ?, ?, ?)'
-      )
-      .run(session.id, initiator, invitee, session.createdAt);
     this.emit([session.id]);
     return { ok: true, session };
   }
@@ -859,24 +870,33 @@ export class SessionRegistry {
       if (window.toMs === null) window.toMs = duration;
     }
 
-    this.db
-      .prepare(
-        `INSERT OR IGNORE INTO recordings
+    // Deliberately not INSERT OR IGNORE. That looked like protection against
+    // writing one recording twice, but never was: the id is freshly random on
+    // every call and nothing is unique on session_id, so a second run would
+    // insert a second row regardless. All it actually did was swallow the one
+    // error worth catching — the key collision this retry exists to handle.
+    insertWithUniqueKey(
+      () => newId('rec'),
+      (candidate) =>
+        this.db
+          .prepare(
+            `INSERT INTO recordings
            (id, session_id, initiator_id, invitee_id, started_at, duration_ms,
             s3_key, segment_keys, stems, floor_timeline)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        newId('rec'),
-        session.id,
-        session.initiator,
-        session.invitee,
-        session.recording.startedAt ?? session.createdAt,
-        duration,
-        flat[0] ?? '',
-        JSON.stringify(flat),
-        JSON.stringify(stems),
-        JSON.stringify(windows)
-      );
+          )
+          .run(
+            candidate,
+            session.id,
+            session.initiator,
+            session.invitee,
+            session.recording.startedAt ?? session.createdAt,
+            duration,
+            flat[0] ?? '',
+            JSON.stringify(flat),
+            JSON.stringify(stems),
+            JSON.stringify(windows)
+          )
+    );
   }
 }

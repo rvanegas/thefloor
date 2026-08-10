@@ -160,6 +160,65 @@ export function newId(prefix: string): string {
   return `${prefix}_${randomBytes(9).toString('base64url')}`;
 }
 
+/**
+ * SQLITE_CONSTRAINT_PRIMARYKEY — the row's primary key is already taken.
+ *
+ * The extended result code is the only reliable discriminator. SQLite reports
+ * *every* uniqueness failure with the message "UNIQUE constraint failed: …",
+ * so a primary-key collision and a genuine duplicate (a second signup on one
+ * email address) are indistinguishable by text. They differ only here:
+ * SQLITE_CONSTRAINT_UNIQUE is 2067 and must never be retried, because a fresh
+ * key does nothing about the column that actually clashed.
+ */
+const SQLITE_CONSTRAINT_PRIMARYKEY = 1555;
+
+function isPrimaryKeyCollision(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { errcode?: unknown }).errcode === SQLITE_CONSTRAINT_PRIMARYKEY
+  );
+}
+
+/**
+ * How many keys to try before giving up.
+ *
+ * A generated key carries 72 bits, so one collision is already beyond
+ * plausible and five in a row cannot happen by chance. The cap exists so that
+ * a mistake which makes collisions *systematic* — a duplicated RNG seed after
+ * a VM snapshot, a mint function that stops varying — fails loudly in
+ * milliseconds instead of spinning forever.
+ */
+const KEY_ATTEMPTS = 5;
+
+/**
+ * Inserts a row whose primary key is randomly generated, minting a new key and
+ * trying again if that key is somehow already present. Returns the key that
+ * succeeded.
+ *
+ * `insert` must do the insert and nothing else. Anything the caller does with
+ * the new key — reading the row back, resolving invitations — belongs after
+ * this returns, or a retry would run it more than once.
+ *
+ * Only a primary-key collision is retried. Every other failure, including a
+ * uniqueness violation on some other column and any foreign-key error,
+ * propagates unchanged on the first attempt.
+ */
+export function insertWithUniqueKey<T>(
+  mint: () => T,
+  insert: (key: T) => void
+): T {
+  for (let attempt = 1; ; attempt += 1) {
+    const key = mint();
+    try {
+      insert(key);
+      return key;
+    } catch (error) {
+      if (attempt >= KEY_ATTEMPTS || !isPrimaryKeyCollision(error)) throw error;
+    }
+  }
+}
+
 /** Canonical ordering so a pair has one row whichever way round it is asked. */
 export function pairKey(x: string, y: string): [string, string] {
   return x < y ? [x, y] : [y, x];
