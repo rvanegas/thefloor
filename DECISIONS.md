@@ -892,3 +892,56 @@ ChannelView is not in tension with this: its "Your microphone" card is prose
 with room to say the microphone is closed and why, where the dot is one bit.
 Self-mute still takes precedence in that copy — muting yourself is a decision,
 a closed microphone is housekeeping.
+
+### Light mode is resolved by UIKit, not by a theme context
+
+Every colour already came from one object — fourteen semantic tokens in
+`theme.ts`, with exactly two hard-coded values anywhere else. So this was never
+a hunt for stray colours; it was one question: how does a value in that object
+become two.
+
+The idiomatic React answer is a context, a `useTheme()`, and
+`useMemo(() => makeStyles(c), [c])` in every component. That rewrites eight
+module-scope `StyleSheet.create` blocks and their call sites to add a re-render
+path for something the platform re-renders by itself. `DynamicColorIOS` returns
+an opaque colour UIKit resolves against the current trait collection at *draw*
+time, which means the style blocks stay exactly as they were and the `type`
+scale goes on capturing `colors.text` at import and stays correct — nothing in
+JavaScript ever knew the colour.
+
+The trade is that this is iOS-only. `DynamicColorIOS` throws on Android, so the
+export is guarded and Android gets the dark palette; nobody builds it. One
+typing consequence, which turned out to be invisible: `colors.x` is now
+`ColorValue` rather than `string`.
+
+**The light palette is not an inversion**, in two places that decide whether it
+looks native. `surface` is white and sits *above* the page, the opposite of the
+dark arrangement where surfaces lighten as they come forward — so `bg` is a
+tinted grey, white cards on a white page being invisible. And `surfaceRaised`
+is the default Button fill, so it cannot follow `surface` to white or every
+default button dissolves into the card behind it.
+
+The rest are pinned by contrast. Four tokens are saturated colours used as
+*text* — `silenced`, `success`, `danger` — and each fails on a light ground at
+its dark value: `#32D583` on white is under 2:1.
+
+**Light, Dark or System** is in Home settings. `Appearance.setColorScheme` sets
+the window's override, which is the same trait collection the colours already
+resolve against — so the choice needs nothing else in the app to know about it.
+System is `null` rather than a third scheme, which is what keeps the phone free
+to go on changing its mind afterwards; the stored value and the platform call
+use the same three words so there is no third representation to convert. It is
+kept on the phone, beside the token: it is about this device, and two phones
+signed in as you may reasonably disagree.
+
+**None of this is verified by the suite.** The colours resolve below anything
+JavaScript observes. What is tested is that the palettes name the same tokens,
+that no token was left identical in both, and that "system" clears the override
+rather than pinning the current scheme. The rest needs a phone with the
+appearance toggled, screen by screen, with attention to the states that are
+awkward to reach: a held floor, a silenced party, the offline notice, disabled
+buttons.
+
+**It cannot ship over the air.** `userInterfaceStyle` is written into
+`Info.plist` at prebuild, so light mode reaches a phone only through a new
+build. Nothing here touches the wire protocol, `core/`, or the server.

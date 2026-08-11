@@ -11,6 +11,7 @@ import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
 import { colors, spacing, type } from './theme';
+import type { ColorSchemePreference } from './appearance';
 
 /**
  * Everything about you rather than about a conversation: the name people see,
@@ -89,6 +90,37 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             <Text style={type.muted}>
               Shown wherever you appear — the roster of a channel, a contact
               list, an invitation.
+            </Text>
+          </Card>
+
+          {/*
+            Above "About you" and below the name: this is about the phone
+            rather than about you, but it is the setting somebody opens this
+            screen to change on a whim, and burying it under a bio nobody
+            edits twice would be the wrong order.
+          */}
+          <SectionLabel>Appearance</SectionLabel>
+          <Card style={styles.stack}>
+            <View style={styles.choices}>
+              {(
+                [
+                  ['light', 'Light'],
+                  ['dark', 'Dark'],
+                  ['system', 'System'],
+                ] as Array<[ColorSchemePreference, string]>
+              ).map(([value, label]) => (
+                <Button
+                  key={value}
+                  label={label}
+                  style={styles.choice}
+                  variant={app.appearance === value ? 'primary' : 'default'}
+                  onPress={() => app.setAppearance(value)}
+                />
+              ))}
+            </View>
+            <Text style={type.muted}>
+              System follows the phone, and changes with it — including on a
+              schedule, if you have one set.
             </Text>
           </Card>
 
@@ -176,6 +208,8 @@ const styles = StyleSheet.create({
   },
   loading: { marginTop: spacing(4) },
   stack: { gap: spacing(1) },
+  choices: { flexDirection: 'row', gap: spacing(1) },
+  choice: { flex: 1 },
   preview: {
     gap: spacing(0.5),
     borderLeftWidth: 2,

@@ -60,6 +60,10 @@ const mockApp = {
   dismissInvite: jest.fn((channelId: string) => {
     mockApp.dismissedInvites = [...mockApp.dismissedInvites, channelId];
   }),
+  appearance: 'system' as 'light' | 'dark' | 'system',
+  setAppearance: jest.fn((preference: 'light' | 'dark' | 'system') => {
+    mockApp.appearance = preference;
+  }),
 };
 
 // The views are rendered without a native audio stack: @livekit/react-native
@@ -177,6 +181,7 @@ beforeEach(() => {
   mockApp.channelView = null;
   mockApp.status = 'open';
   mockApp.dismissedInvites = [];
+  mockApp.appearance = 'system';
   jest.clearAllMocks();
 });
 
@@ -1900,6 +1905,58 @@ describe('being alone in a channel', () => {
     );
     expect(textOf(tree)).toContain('Muted by you.');
     expect(textOf(tree)).not.toContain('Closed until somebody else is here');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * Choosing a colour scheme.
+ *
+ * What the choice *looks* like cannot be asserted here — the colours resolve
+ * in UIKit, below anything JavaScript observes. What can be asserted is that
+ * the screen offers the three choices, marks the current one, and reports a
+ * change upward rather than keeping it to itself.
+ */
+describe('the appearance setting', () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  it('offers light, dark and following the phone', async () => {
+    const tree = await openSettings();
+    expect(findButton(tree, 'Light')).toBeDefined();
+    expect(findButton(tree, 'Dark')).toBeDefined();
+    expect(findButton(tree, 'System')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('reports a choice rather than keeping it', async () => {
+    const tree = await openSettings();
+    act(() => findButton(tree, 'Light')!.props.onPress());
+    expect(mockApp.setAppearance).toHaveBeenCalledWith('light');
+    act(() => tree.unmount());
+  });
+
+  it('marks which one is in force', async () => {
+    // Three buttons that all look alike would leave the current scheme
+    // guessable only by looking at the screen it is describing.
+    mockApp.appearance = 'dark';
+    const tree = await openSettings();
+    // Button's style is a function of press state, not an array.
+    const styleOf = (label: string) =>
+      StyleSheet.flatten(
+        findButton(tree, label)!.props.style({ pressed: false })
+      ) as { backgroundColor?: unknown };
+    expect(styleOf('Dark').backgroundColor).not.toBe(
+      styleOf('Light').backgroundColor
+    );
+    expect(styleOf('Light').backgroundColor).toBe(
+      styleOf('System').backgroundColor
+    );
     act(() => tree.unmount());
   });
 });

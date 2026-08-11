@@ -163,7 +163,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-        <StatusBar style="light" />
+        <StatusBar style="auto" />
         <AppProvider>
           <Root />
         </AppProvider>

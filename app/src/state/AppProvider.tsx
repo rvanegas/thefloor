@@ -20,6 +20,12 @@ import type {
 import { api, ApiError, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
 import { onNotificationTap, registerForPush } from '../push';
+import {
+  APPEARANCE_KEY,
+  applyPreference,
+  isPreference,
+  type ColorSchemePreference,
+} from '../ui/appearance';
 
 const TOKEN_KEY = 'thefloor.token';
 
@@ -106,6 +112,9 @@ interface AppValue extends AppState {
   /** Invites this user has dismissed, by channel id. */
   dismissedInvites: string[];
   dismissInvite: (channelId: string) => void;
+  /** Light, dark, or follow the phone. Applied to the window immediately. */
+  appearance: ColorSchemePreference;
+  setAppearance: (preference: ColorSchemePreference) => void;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -132,6 +141,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    */
   const [dismissedInvites, setDismissedInvites] = useState<string[]>([]);
   const [pendingChannelId, setPendingChannelId] = useState<string | null>(null);
+  /**
+   * Read before anything is drawn, so a chosen scheme does not arrive as a
+   * flash of the other one. Kept alongside the token rather than on the
+   * server: it is about this phone, not about the account, and two phones
+   * signed in as you may reasonably disagree about it.
+   */
+  const [appearance, setAppearanceState] =
+    useState<ColorSchemePreference>('system');
+  useEffect(() => {
+    void (async () => {
+      const stored = await storage.get(APPEARANCE_KEY);
+      if (!isPreference(stored)) return;
+      setAppearanceState(stored);
+      applyPreference(stored);
+    })();
+  }, []);
   /**
    * The address this install is registered at, kept so sign-out can hand it
    * back. Without it the row survives, and a phone that has been signed out of
@@ -321,6 +346,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pendingChannelId,
       clearPendingChannel: () => setPendingChannelId(null),
 
+      appearance,
+      setAppearance: (preference) => {
+        // Applied first: the window override is what the colours actually
+        // resolve against, and storing is only so it survives a relaunch.
+        applyPreference(preference);
+        setAppearanceState(preference);
+        void storage.set(APPEARANCE_KEY, preference);
+      },
+
       dismissInvite: (channelId) => {
         setDismissedInvites((d) =>
           d.includes(channelId) ? d : [...d, channelId]
@@ -436,6 +470,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tick,
       dismissedInvites,
       pendingChannelId,
+      appearance,
     ]
   );
 
