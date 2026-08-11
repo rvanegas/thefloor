@@ -35,3 +35,21 @@ export function describeChannel(others: string[]): string {
     rest === 1 ? '' : 's'
   }`;
 }
+
+/**
+ * What a recording is called, from the names of everyone who took part.
+ *
+ * Everyone, including whoever is reading — which is the difference from
+ * `describeChannel` and the whole point. A channel is labelled from the
+ * viewer's side because it is a place you are in; a recording is an artefact,
+ * one thing that exists once, and two people discussing it have to be
+ * discussing the same thing by the same name.
+ *
+ * Decided when the run stops and stored, never recomputed. See DECISIONS.md.
+ */
+export function nameRecording(participants: string[]): string {
+  // Never empty in practice — a run with nobody in it is discarded rather than
+  // filed — but a label is a poor place to throw.
+  if (participants.length === 0) return 'Nobody';
+  return describeChannel(participants);
+}

@@ -911,3 +911,209 @@ describe('join credentials', () => {
     await noAudio.fastify.close();
   });
 });
+
+/**
+ * What a recording is labelled by, once the channel that made it is gone or
+ * the people in it have renamed themselves.
+ *
+ * The participant ids on a recording row never change. What they *resolve to*
+ * does, and that is what the label is made of — so the names are frozen with
+ * the roster rather than looked up when the list is read.
+ */
+describe('who a recording says was there', () => {
+  const rowFor = (channelId: string) =>
+    app.db
+      .prepare(
+        `SELECT participants, participant_names, name FROM recordings
+         WHERE channel_id = ?`
+      )
+      .get(channelId) as {
+      participants: string;
+      participant_names: string | null;
+      name: string | null;
+    };
+
+  const recordingsFor = async (token: string) => {
+    const reply = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(token),
+    });
+    return (
+      reply.json() as {
+        recordings: Array<{
+          name: string;
+          others: Array<{ displayName: string }>;
+        }>;
+      }
+    ).recordings;
+  };
+
+  async function recorded() {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+    return { alice, bob, channelId };
+  }
+
+  it('writes the names down when the run is filed', async () => {
+    const { alice, bob, channelId } = await recorded();
+    const row = rowFor(channelId);
+    expect(JSON.parse(row.participants).sort()).toEqual(
+      [alice.account.id, bob.account.id].sort()
+    );
+    expect(JSON.parse(row.participant_names!)).toEqual({
+      [alice.account.id]: 'Alice',
+      [bob.account.id]: 'Bob',
+    });
+  });
+
+  it('keeps the name somebody had, when they change it afterwards', async () => {
+    // A recording is a record of something that happened. Relabelling it
+    // because somebody has since renamed themselves rewrites that record.
+    const { alice, bob } = await recorded();
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/me',
+      headers: auth(bob.token),
+      payload: { displayName: 'Robert' },
+    });
+
+    const [recording] = await recordingsFor(alice.token);
+    expect(recording.others.map((o) => o.displayName)).toEqual(['Bob']);
+  });
+
+  it('names a participant with no account row at all', async () => {
+    // Guarding the read path rather than a live failure: accounts cannot
+    // currently be deleted — foreign keys refuse it — so no id in a recording
+    // is unresolvable today. What is being pinned is that the label comes
+    // from the snapshot and not from a lookup, because a lookup that finds
+    // nothing *drops* the participant rather than reporting it, and a
+    // recording of two people would read as though nobody else was there.
+    const { alice, channelId } = await recorded();
+    const row = rowFor(channelId);
+    app.db
+      .prepare(
+        'UPDATE recordings SET participants = ?, participant_names = ? WHERE channel_id = ?'
+      )
+      .run(
+        JSON.stringify([...JSON.parse(row.participants), 'acct_vanished']),
+        JSON.stringify({
+          ...JSON.parse(row.participant_names!),
+          acct_vanished: 'Someone Who Left',
+        }),
+        channelId
+      );
+
+    const [recording] = await recordingsFor(alice.token);
+    expect(recording.others.map((o) => o.displayName)).toContain(
+      'Someone Who Left'
+    );
+  });
+
+  it('resolves live for a row written before names were recorded', async () => {
+    const { alice, bob, channelId } = await recorded();
+    app.db
+      .prepare('UPDATE recordings SET participant_names = NULL WHERE channel_id = ?')
+      .run(channelId);
+
+    const [recording] = await recordingsFor(alice.token);
+    expect(recording.others.map((o) => o.displayName)).toEqual([
+      bob.account.displayName,
+    ]);
+  });
+});
+
+/**
+ * The name of a recording, which is settled rather than derived.
+ *
+ * Decided when the run stops, the same for everybody who was in it, and never
+ * changed after. A channel is labelled from the viewer's side — it is a place
+ * you are in — but a recording is one artefact that exists once, and two
+ * people discussing it must be discussing it by the same name.
+ */
+describe('naming a recording', () => {
+  const nameFor = (channelId: string) =>
+    (
+      app.db
+        .prepare('SELECT name FROM recordings WHERE channel_id = ?')
+        .get(channelId) as { name: string | null }
+    ).name;
+
+  const homeRecordings = async (token: string) => {
+    const reply = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(token),
+    });
+    return (reply.json() as { recordings: Array<{ name: string }> }).recordings;
+  };
+
+  async function recorded() {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+    return { alice, bob, channelId };
+  }
+
+  it('names everyone who took part, the reader included', async () => {
+    const { channelId } = await recorded();
+    expect(nameFor(channelId)).toBe('Alice and Bob');
+  });
+
+  it('reads the same to both of them', async () => {
+    // The property the whole design is for. A viewer-relative label would
+    // give Alice "Bob" and Bob "Alice" for one and the same recording.
+    const { alice, bob } = await recorded();
+    const [forAlice] = await homeRecordings(alice.token);
+    const [forBob] = await homeRecordings(bob.token);
+    expect(forAlice.name).toBe(forBob.name);
+    expect(forAlice.name).toBe('Alice and Bob');
+  });
+
+  it('is fixed at the stop, so a later rename does not reach it', async () => {
+    const { alice, bob, channelId } = await recorded();
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/me',
+      headers: auth(bob.token),
+      payload: { displayName: 'Robert' },
+    });
+
+    expect(nameFor(channelId)).toBe('Alice and Bob');
+    const [recording] = await homeRecordings(alice.token);
+    expect(recording.name).toBe('Alice and Bob');
+  });
+
+  it('is not disturbed by what the channel does afterwards', async () => {
+    // Naming the channel, or leaving it, or another run starting — none of it
+    // touches a name that was settled when this run stopped.
+    const { alice, bob, channelId } = await recorded();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Thursday rehearsal',
+    } as never);
+    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
+    await settle();
+
+    expect(nameFor(channelId)).toBe('Alice and Bob');
+  });
+
+  it('falls back for a row that predates the decision', async () => {
+    const { alice, channelId } = await recorded();
+    app.db
+      .prepare('UPDATE recordings SET name = NULL WHERE channel_id = ?')
+      .run(channelId);
+
+    // Nothing was written down, so the old viewer-relative label is the only
+    // honest answer: Alice sees who else was there.
+    const [recording] = await homeRecordings(alice.token);
+    expect(recording.name).toBe('Bob');
+  });
+});

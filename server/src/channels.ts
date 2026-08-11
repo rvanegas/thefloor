@@ -13,7 +13,7 @@ import {
   reduce,
 } from '../../core/channel';
 import { initialFloorState } from '../../core/floor';
-import { describeChannel } from '../../core/naming';
+import { describeChannel, nameRecording } from '../../core/naming';
 import { initialPlaybackState } from '../../core/playback';
 import { initialRecordingState } from '../../core/recording';
 import type {
@@ -1690,14 +1690,34 @@ export class ChannelRegistry {
     // Finalizes the row openRun wrote. Setting ended_at is what moves the
     // recording from "in flight" to "exists": the home screen only lists
     // finished ones, and the boot sweep only touches unfinished ones.
+    // Frozen with the roster rather than resolved when the list is read. The
+    // ids never change, but what they resolve to does — and an id that stops
+    // resolving is dropped rather than reported, which would quietly turn a
+    // recording of two people into one that looks like it was nobody.
+    const names = Object.fromEntries(
+      audience.map((id) => [id, this.displayName(id)])
+    );
+
+    // Roster order rather than the order people happened to be captured in, so
+    // the name reads the way the channel does. Anyone in the audience but not
+    // in the roster — left the channel mid-run — goes on the end.
+    const ordered = [
+      ...channel.participants.filter((id) => audience.includes(id)),
+      ...audience.filter((id) => !channel.participants.includes(id)),
+    ];
+    const name = nameRecording(ordered.map((id) => names[id]));
+
     this.db
       .prepare(
-        `UPDATE recordings SET participants = ?, duration_ms = ?, s3_key = ?,
+        `UPDATE recordings SET participants = ?, participant_names = ?,
+                name = ?, duration_ms = ?, s3_key = ?,
                 segment_keys = ?, stems = ?, floor_timeline = ?, ended_at = ?,
                 failure = ? WHERE id = ?`
       )
       .run(
-        JSON.stringify(audience),
+        JSON.stringify(ordered),
+        JSON.stringify(names),
+        name,
         run.durationMs,
         flat[0] ?? '',
         JSON.stringify(flat),

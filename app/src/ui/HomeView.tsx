@@ -307,9 +307,14 @@ export function HomeView({
           {recordings.map((r) => (
             <Card key={r.id} style={styles.row}>
               <View style={styles.rowMain}>
-                <Text style={type.body} numberOfLines={1}>
-                  {r.others.map((other) => other.displayName).join(', ') ||
-                    'Unknown'}
+                {/*
+                  Decided when the run stopped and the same for everybody who
+                  was in it, so two people can talk about one recording by one
+                  name. 'Unknown' used to appear here whenever the roster
+                  resolved to nothing, which reads as data loss.
+                */}
+                <Text style={styles.described} numberOfLines={1}>
+                  {r.name}
                 </Text>
                 <Text style={type.muted}>
                   {new Date(r.startedAt).toLocaleString()} ·{' '}
@@ -345,8 +350,9 @@ function ExportButton({ recording }: { recording: RecordingView }) {
           await exportRecording(
             app.token,
             recording.id,
-            recording.others.map((other) => other.displayName).join(', ') ||
-              'channel'
+            // Same label as the row it came from, so the file that lands in
+            // the share sheet is recognisable as the thing that was tapped.
+            recording.name
           );
         } catch (e) {
           Alert.alert(

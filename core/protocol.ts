@@ -59,6 +59,12 @@ export interface RejoinableView {
 export interface RecordingView {
   id: string;
   channelId: string;
+  /**
+   * What to call it. Fixed when the run stopped, identical for everybody who
+   * was in it, and never recomputed — so two people can talk about the same
+   * recording by the same name.
+   */
+  name: string;
   /** The other participants of the recorded channel, in channel order. */
   others: PublicAccount[];
   startedAt: number;

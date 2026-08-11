@@ -4,6 +4,7 @@ import { basename, extname, join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import websocket from '@fastify/websocket';
 import type { HomeView, PublicAccount } from '../../core/protocol';
+import { describeChannel } from '../../core/naming';
 import { Accounts } from './accounts';
 import { openDb, type AccountRow, type Db } from './db';
 import { Devices, type DevicePlatform } from './devices';
@@ -684,13 +685,25 @@ export function buildApp(options: BuildOptions = {}): App {
         const participants: string[] = row.participants
           ? JSON.parse(row.participants)
           : [row.initiator_id, row.invitee_id];
+        // Names as they were when the run was filed. Rows written before that
+        // was recorded resolve live, which is what they did all along.
+        const frozen: Record<string, string> = row.participant_names
+          ? JSON.parse(row.participant_names)
+          : {};
+        const others = participants
+            .filter((id) => id !== userId)
+            .map((id) =>
+              frozen[id] ? { id, displayName: frozen[id] } : accounts.public(id)
+            )
+          .filter((account): account is PublicAccount => !!account);
         return {
           id: row.id,
           channelId: row.channel_id,
-          others: participants
-            .filter((id) => id !== userId)
-            .map((id) => accounts.public(id))
-            .filter((account): account is PublicAccount => !!account),
+          // Rows written before the name was decided at stop time have none to
+          // read; they fall back to the viewer-relative label they always had.
+          name:
+            row.name ?? describeChannel(others.map((o) => o.displayName)),
+          others,
           startedAt: row.started_at,
           durationMs: row.duration_ms,
         };

@@ -40,6 +40,25 @@ export interface RecordingRow {
   invitee_id: string;
   /** JSON: string[] — every participant of the recorded channel, in order. */
   participants: string | null;
+  /**
+   * JSON: { [id]: displayName } — what each of them was called at the moment
+   * the run was filed.
+   *
+   * The ids alone are not enough to label a recording that outlives things.
+   * Resolving them live means an old recording relabels itself when somebody
+   * renames themselves, and — worse — an id that no longer resolves is
+   * silently dropped, so a recording of two people can come to read as though
+   * nobody else was there. Null on rows written before this existed, which
+   * fall back to resolving live.
+   */
+  participant_names: string | null;
+  /**
+   * What the recording is called: decided when the run stopped, the same for
+   * everybody in it, never recomputed. Null on rows written before it existed,
+   * which fall back to a label derived at read time — the old behaviour, and
+   * viewer-relative, because there is nothing recorded to do better with.
+   */
+  name: string | null;
   started_at: number;
   duration_ms: number;
   s3_key: string;
@@ -280,7 +299,14 @@ function migrate(db: Db): void {
   const columns = db
     .prepare('PRAGMA table_info(recordings)')
     .all() as Array<{ name: string }>;
-  for (const column of ['segment_keys', 'stems', 'floor_timeline', 'participants']) {
+  for (const column of [
+    'segment_keys',
+    'stems',
+    'floor_timeline',
+    'participants',
+    'participant_names',
+    'name',
+  ]) {
     if (!columns.some((c) => c.name === column)) {
       db.exec(`ALTER TABLE recordings ADD COLUMN ${column} TEXT`);
     }

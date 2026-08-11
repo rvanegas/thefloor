@@ -228,6 +228,7 @@ describe('Home', () => {
         {
           id: 'rec_1',
           channelId: 'sess_1',
+          name: 'Dana Chu and Me',
           others: [{ id: THEM, displayName: 'Dana Chu' }],
           startedAt: NOW,
           durationMs: 92_000,
@@ -241,7 +242,13 @@ describe('Home', () => {
     const button = findButton(tree, 'Export');
     expect(button).toBeDefined();
     await act(async () => button!.props.onPress());
-    expect(exportRecording).toHaveBeenCalledWith('token', 'rec_1', 'Dana Chu');
+    // The recording's own name, which the server fixed when the run stopped —
+    // not a label rebuilt here from the roster.
+    expect(exportRecording).toHaveBeenCalledWith(
+      'token',
+      'rec_1',
+      'Dana Chu and Me'
+    );
     act(() => tree.unmount());
   });
 

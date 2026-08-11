@@ -788,3 +788,39 @@ While here: `App.tsx` held a **fourth** copy of the naming fallback, still
 saying "3 people" after the other three had been unified. The live bar and
 Home's list disagreed about what the same channel was called. It now shares
 `describeChannel` with everything else.
+
+### A recording's name is settled when it stops, and never moves
+
+Three rules, and they are a spec rather than an implementation detail:
+
+1. **The name is decided when the recording stops.** Computed in `fileRun`
+   from the display names of everyone who took part, and written to the row.
+2. **It is the same for every user.** Everyone who was in it is named,
+   including whoever is reading — `nameRecording`, not `describeChannel`.
+3. **It never changes after that.** Not when somebody renames themselves, not
+   when the channel is renamed, not when people leave, not when the channel is
+   deleted out from under it.
+
+The second rule is where this parts company with how a channel is labelled,
+and the reason is what the two things *are*. A channel is a place you are in,
+so naming it from your side — "Dana Chu", meaning the channel with Dana in it
+— is right, and it is fine that Dana reads something different. A recording is
+an artefact: one thing, existing once, that two people may want to talk about.
+A label that reads "Bob" to Alice and "Alice" to Bob gives them no shared way
+to refer to it.
+
+The third rule needed the *inputs* frozen, not just the output. Participant ids
+never change, but what they resolve to does, and a lookup that finds nothing
+drops the participant rather than reporting it — so a recording of two people
+could come to read as though nobody else had been there. `participant_names`
+snapshots what each was called, alongside the name itself.
+
+**What is deliberately not used: the channel's own name.** One channel makes
+many recordings, so its name is identical across all of them and distinguishes
+none of them from each other — the timestamp does that. Worse, renaming a
+channel would split its recordings across two labels with nothing to say they
+came from the same place. The roster does not have that failure.
+
+Rows written before this fall back to the old viewer-relative label. There is
+nothing to recover: the names at the time were never written down, and the
+channel's present name would be the wrong answer even where it still exists.
