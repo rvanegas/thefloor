@@ -64,7 +64,9 @@ record.
 ## Deployment
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09 and most
-recently on 2026-08-10 with the channels rework.
+recently on 2026-08-10 — twice that day: the channels rework, and later the
+empty-channel playback pause and the shared channel-description fallback. That
+second one changed no wire format, so build 14 kept working across it.
 
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
 runs the tests first and refuses to continue if they fail.
