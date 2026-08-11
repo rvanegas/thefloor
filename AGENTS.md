@@ -160,10 +160,23 @@ talking to. Set `APNS_ENV=sandbox` when testing against a locally built app.
 
 Two more things that fail quietly and are worth checking before anything else:
 
-- **The entitlement comes from the `expo-notifications` config plugin**, which
-  gets development-versus-production right per build configuration. Do not
-  hand-write `aps-environment` into `app.json`; a hard-coded `production` there
-  breaks push against `expo run:ios` and nothing says so.
+- **`aps-environment` is static, and its default is wrong for us.** The
+  `expo-notifications` config plugin writes the entitlement once at prebuild
+  time — it does *not* vary by build configuration, and its default is
+  `development`. `app.json` therefore passes `{ "mode": "production" }`, which
+  is what a build headed for TestFlight needs.
+
+  Build 13 shipped before this was noticed, archived with `development`. The
+  symptom would have been every token from TestFlight being a sandbox token
+  against a production server: `BadDeviceToken`, blaming the token.
+
+  The cost is that `expo run:ios` now produces production entitlements too. To
+  test push against a locally built app, flip `mode` to `development` and set
+  `APNS_ENV=sandbox` on whichever server it talks to — both, or neither.
+
+  Check it after every `prebuild`, since that is what regenerates the file:
+
+      grep -A1 aps-environment app/ios/TheFloor/TheFloor.entitlements
 - **The App ID needs the Push Notifications capability** enabled in the
   developer portal, or signing refuses the entitlement. It is registered
   against `co.rvanegas.thefloor`, which survives `prebuild --clean` even though

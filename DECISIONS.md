@@ -580,6 +580,20 @@ keeps the address Apple gave it, so the row has to *move*; a second row would
 put one person's conversations on another person's lock screen. That is the
 defect the registry test exists for.
 
+### The entitlement is pinned to production
+
+`app.json` passes `{ "mode": "production" }` to the `expo-notifications` plugin
+rather than taking its default. The plugin writes `aps-environment` into the
+entitlements once, at prebuild, with no knowledge of Debug versus Release — so
+the default of `development` would have every TestFlight build minting sandbox
+tokens against a production server, which APNs refuses with a `BadDeviceToken`
+that blames the token.
+
+Pinning it means a locally built app is also production-entitled, so testing
+push against `expo run:ios` takes flipping `mode` and setting `APNS_ENV=sandbox`
+together. That is the right way round: the build that reaches people is the one
+that should work without anybody remembering a setting.
+
 ### `voip` and `remote-notification` stay out of UIBackgroundModes
 
 A visible alert needs neither. `remote-notification` is for silent
