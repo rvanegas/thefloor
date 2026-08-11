@@ -1514,6 +1514,20 @@ export class ChannelRegistry {
       const channel = this.revive(row);
       this.channels.set(channel.id, channel);
       this.persisted.set(channel.id, this.durableOf(channel));
+      // Every restored channel counts as having just announced itself, which
+      // is what stops a deploy notifying everybody.
+      //
+      // A restart drops every socket and revives every channel with nobody
+      // present, so the clients that reconnect a second later each produce a
+      // nobody-to-somebody transition — indistinguishable, to `announceActive`,
+      // from somebody walking in. Two people mid-conversation would each be
+      // told the other had stepped into the channel they were already in.
+      //
+      // The cost is that a genuine arrival in the first few minutes after a
+      // deploy goes unannounced. That is the right way round: a missed
+      // notification is quiet, and the alternative is every phone lighting up
+      // every time the server is restarted.
+      this.lastAnnouncedAt.set(channel.id, now);
       this.run(() => this.media?.closeRoom(row.id), `closeRoom ${row.id}`);
     }
 

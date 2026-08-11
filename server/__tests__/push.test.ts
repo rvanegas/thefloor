@@ -381,3 +381,46 @@ describe('the provider token', () => {
     ).toBe(true);
   });
 });
+
+describe('a restart', () => {
+  /**
+   * A deploy drops every socket and revives every channel with nobody present,
+   * so the clients that reconnect a second later each produce a
+   * nobody-to-somebody transition. Without this, two people mid-conversation
+   * would each be told the other had stepped into the channel they were
+   * already in — an operational event dressed up as somebody arriving.
+   */
+  it('does not announce a channel that was only restored', async () => {
+    const { alice, bob } = await twoContacts();
+    const channelId = await createChannel(alice.token, [bob.account.id]);
+    await registerDevice(bob.token, 'bob-phone');
+    await settle();
+
+    // What a restart does to this registry: every channel read back from its
+    // row, with nobody present.
+    pusher.sent.length = 0;
+    app.channels.restore();
+
+    // The reconnect that follows, a second later.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')).toEqual([]);
+  });
+
+  it('announces normally once the quiet window has passed', async () => {
+    const { alice, bob } = await twoContacts();
+    const channelId = await createChannel(alice.token, [bob.account.id]);
+    await registerDevice(bob.token, 'bob-phone');
+    await settle();
+
+    pusher.sent.length = 0;
+    app.channels.restore();
+    clock += ANNOUNCE_INTERVAL_MS;
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+  });
+});
