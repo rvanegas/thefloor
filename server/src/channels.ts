@@ -1705,7 +1705,11 @@ export class ChannelRegistry {
       ...channel.participants.filter((id) => audience.includes(id)),
       ...audience.filter((id) => !channel.participants.includes(id)),
     ];
-    const name = nameRecording(ordered.map((id) => names[id]));
+    // A named channel lends its name to what it records. Several recordings
+    // then share one name, which is fine — they are distinguished by when they
+    // happened, and the name is there to say where they came from.
+    const name =
+      channel.name ?? nameRecording(ordered.map((id) => names[id]));
 
     this.db
       .prepare(

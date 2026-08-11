@@ -352,7 +352,8 @@ function ExportButton({ recording }: { recording: RecordingView }) {
             recording.id,
             // Same label as the row it came from, so the file that lands in
             // the share sheet is recognisable as the thing that was tapped.
-            recording.name
+            recording.name,
+            recording.endedAt
           );
         } catch (e) {
           Alert.alert(

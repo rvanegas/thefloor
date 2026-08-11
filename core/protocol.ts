@@ -68,6 +68,11 @@ export interface RecordingView {
   /** The other participants of the recorded channel, in channel order. */
   others: PublicAccount[];
   startedAt: number;
+  /**
+   * When capture stopped. Not `startedAt + durationMs`: a run that was paused
+   * ran for longer than it recorded, and this is the wall-clock end.
+   */
+  endedAt: number;
   durationMs: number;
 }
 

@@ -231,6 +231,7 @@ describe('Home', () => {
           name: 'Dana Chu and Me',
           others: [{ id: THEM, displayName: 'Dana Chu' }],
           startedAt: NOW,
+          endedAt: NOW + 92_000,
           durationMs: 92_000,
         },
       ],
@@ -247,7 +248,8 @@ describe('Home', () => {
     expect(exportRecording).toHaveBeenCalledWith(
       'token',
       'rec_1',
-      'Dana Chu and Me'
+      'Dana Chu and Me',
+      NOW + 92_000
     );
     act(() => tree.unmount());
   });

@@ -14,7 +14,8 @@ import { ApiError, reportSignedOut } from './http';
 export async function exportRecording(
   token: string,
   recordingId: string,
-  otherName: string
+  name: string,
+  endedAt: number
 ): Promise<void> {
   if (!API_URL) throw new ApiError('No server configured.', 0);
 
@@ -23,8 +24,12 @@ export async function exportRecording(
   const directory = `${FileSystem.cacheDirectory}exports/`;
   await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
 
-  const safeName = otherName.replace(/[^\w\- ]/g, '').trim() || 'channel';
-  const target = `${directory}The Floor — ${safeName}.ogg`;
+  // A name alone is not unique: a named channel lends its name to every
+  // recording made in it, so several files would collide in the share sheet
+  // and in whatever folder they land in. When it ended is what tells them
+  // apart, and it is the thing a person would look for anyway.
+  const safeName = name.replace(/[^\w\- ]/g, '').trim() || 'channel';
+  const target = `${directory}The Floor — ${safeName} — ${stamp(endedAt)}.ogg`;
 
   let result: FileSystem.FileSystemDownloadResult;
   try {
@@ -60,6 +65,23 @@ export async function exportRecording(
   await Sharing.shareAsync(result.uri, {
     mimeType: 'audio/ogg',
     UTI: 'public.audio',
-    dialogTitle: `Recording with ${otherName}`,
+    dialogTitle: `Recording — ${name}`,
   });
+}
+
+/**
+ * `2026-08-11 1437`, in the reader's own timezone.
+ *
+ * Local rather than UTC because this becomes a filename somebody reads, and
+ * sorts lexicographically because the fields run largest to smallest. No
+ * colon: it is legal on iOS but shows as a slash in Finder and is refused
+ * outright on Windows, where an exported file may well end up.
+ */
+function stamp(at: number): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}${pad(d.getMinutes())}`
+  );
 }

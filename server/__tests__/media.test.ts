@@ -1091,6 +1091,75 @@ describe('naming a recording', () => {
     expect(recording.name).toBe('Alice and Bob');
   });
 
+  it('takes the channel name when the channel has one', async () => {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Thursday rehearsal',
+    } as never);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    expect(nameFor(channelId)).toBe('Thursday rehearsal');
+    const [forBob] = await homeRecordings(bob.token);
+    expect(forBob.name).toBe('Thursday rehearsal');
+  });
+
+  it('gives every run in a named channel the same name', async () => {
+    // Deliberate. A name says where a recording came from; when it happened
+    // is what tells two of them apart.
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Thursday rehearsal',
+    } as never);
+    for (const _ of [1, 2]) {
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'START_RECORDING',
+      });
+      await settle();
+      clock += 5_000;
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'STOP_RECORDING',
+      });
+      await settle();
+      clock += 1_000;
+    }
+
+    const names = app.db
+      .prepare('SELECT name, ended_at FROM recordings WHERE channel_id = ?')
+      .all(channelId) as Array<{ name: string; ended_at: number }>;
+    expect(names).toHaveLength(2);
+    expect(names.map((r) => r.name)).toEqual([
+      'Thursday rehearsal',
+      'Thursday rehearsal',
+    ]);
+    // Distinguished by when they ended, which is what the export filename uses.
+    expect(names[0].ended_at).not.toBe(names[1].ended_at);
+  });
+
+  it('keeps the name the channel had, not the one it has now', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Thursday rehearsal',
+    } as never);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Something else',
+    } as never);
+    expect(nameFor(channelId)).toBe('Thursday rehearsal');
+  });
+
   it('is not disturbed by what the channel does afterwards', async () => {
     // Naming the channel, or leaving it, or another run starting — none of it
     // touches a name that was settled when this run stopped.

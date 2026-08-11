@@ -705,6 +705,9 @@ export function buildApp(options: BuildOptions = {}): App {
             row.name ?? describeChannel(others.map((o) => o.displayName)),
           others,
           startedAt: row.started_at,
+          // Rows old enough to predate the column were backfilled this way by
+          // the migration, so it is the same answer rather than a guess.
+          endedAt: row.ended_at ?? row.started_at + row.duration_ms,
           durationMs: row.duration_ms,
         };
       }),

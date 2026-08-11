@@ -793,8 +793,9 @@ Home's list disagreed about what the same channel was called. It now shares
 
 Three rules, and they are a spec rather than an implementation detail:
 
-1. **The name is decided when the recording stops.** Computed in `fileRun`
-   from the display names of everyone who took part, and written to the row.
+1. **The name is decided when the recording stops.** Written to the row in
+   `fileRun`: the channel's name if it has one, otherwise the display names of
+   everyone who took part.
 2. **It is the same for every user.** Everyone who was in it is named,
    including whoever is reading — `nameRecording`, not `describeChannel`.
 3. **It never changes after that.** Not when somebody renames themselves, not
@@ -815,11 +816,21 @@ drops the participant rather than reporting it — so a recording of two people
 could come to read as though nobody else had been there. `participant_names`
 snapshots what each was called, alongside the name itself.
 
-**What is deliberately not used: the channel's own name.** One channel makes
-many recordings, so its name is identical across all of them and distinguishes
-none of them from each other — the timestamp does that. Worse, renaming a
-channel would split its recordings across two labels with nothing to say they
-came from the same place. The roster does not have that failure.
+**A named channel lends its name to what it records**, so several recordings
+can share one name. That is not a collision to be broken — a name says where a
+recording came from, and *when it ended* is what tells two of them apart. It
+follows the same freeze as everything else here: a recording keeps the name the
+channel had when it stopped, not whatever the channel is called now, so
+renaming a channel splits its recordings across two labels. That is the honest
+outcome, the old ones being records of a thing that was called something else.
+
+This is why the export filename carries the end time:
+`The Floor — Thursday rehearsal — 2026-08-11 1437.ogg`. Without it, every
+recording from a named channel would write to the same path and they would
+collide in the share sheet and wherever they land. Local time rather than UTC,
+because a person reads it; largest field first, so a folder sorts correctly;
+and no colon, which is legal on iOS but reads as a slash in Finder and is
+refused outright on Windows.
 
 Rows written before this fall back to the old viewer-relative label. There is
 nothing to recover: the names at the time were never written down, and the
