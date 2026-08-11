@@ -168,9 +168,22 @@ Two more things that fail quietly and are worth checking before anything else:
   `development`. `app.json` therefore passes `{ "mode": "production" }`, which
   is what a build headed for TestFlight needs.
 
-  The cost is that `expo run:ios` now produces production entitlements too. To
-  test push against a locally built app, flip `mode` to `development` and set
-  `APNS_ENV=sandbox` on whichever server it talks to — both, or neither.
+  The cost is that `expo run:ios` now *requests* production too. Requests, not
+  gets: the entitlements file only asks, the provisioning profile decides what
+  may be claimed, and what APNs reads is the entitlement in the **signature of
+  the installed binary**. A local run is signed against a Development profile,
+  which permits only `development` — so the phone holds a sandbox token however
+  `app.json` is set. Same three-way split as the table below, seen from the
+  other end.
+
+  To test push against a locally built app, point it at a server running
+  `APNS_ENV=sandbox` — a local one. Not the deployed server: its testers hold
+  production tokens, and flipping it breaks push for all of them at once.
+  Flipping `mode` to `development` is then only housekeeping, making the file
+  agree with what signing was going to do anyway.
+
+  `codesign -d --entitlements - ` on the installed `.app` settles what a phone
+  actually has, the file being no evidence.
 
 - **Check the exported IPA, not the entitlements file and not the archive.**
   There are three artifacts and they disagree, which makes this easy to get
