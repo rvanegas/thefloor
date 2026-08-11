@@ -10,6 +10,7 @@ import { HomeSettingsView } from './src/ui/HomeSettingsView';
 import { ChannelView } from './src/ui/ChannelView';
 import { ProfileView } from './src/ui/ProfileView';
 import { describeChannel } from '../core/naming';
+import { microphoneNeeded } from './src/audio/micNeeded';
 import { colors } from './src/ui/theme';
 
 /**
@@ -43,10 +44,13 @@ function Root() {
       ? view.channel
       : null;
 
+  const micNeeded = !!live && microphoneNeeded(live, me);
+
   const audio = useSessionAudio(
     live ? live.id : null,
     token,
-    !!live?.selfMuted[me]
+    !!live?.selfMuted[me],
+    micNeeded
   );
 
   /**

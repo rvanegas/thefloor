@@ -327,7 +327,13 @@ export function ChannelView({
               ? `Silenced by ${holderName}'s floor claim.`
               : iAmSelfMuted
                 ? 'Muted by you. This is separate from the floor and costs you nothing.'
-                : 'Open. Self-mute never affects floor eligibility.'}
+                : audio.micOpen
+                  ? 'Open. Self-mute never affects floor eligibility.'
+                  : // Closed because nobody is here to hear it, which is worth
+                    // saying: a microphone the screen calls open and is not is
+                    // exactly the kind of silence this codebase keeps
+                    // apologising for elsewhere.
+                    'Closed until somebody else is here — so your other apps keep the speakers.'}
           </Text>
           {recordingLive && iAmSilenced ? (
             // Being unheard is not the same as being unrecorded, and it would
@@ -644,9 +650,10 @@ function describeAudio(audio: SessionAudio): string {
     case 'connecting':
       return 'Connecting audio…';
     case 'connected':
-      return audio.othersAudible > 0
-        ? 'Audio connected.'
-        : 'Audio connected — waiting for anyone else to be audible.';
+      if (audio.othersAudible > 0) return 'Audio connected.';
+      return audio.micOpen
+        ? 'Audio connected — waiting for anyone else to be audible.'
+        : 'Audio connected — microphone closed until somebody else is here.';
     case 'denied':
       return audio.message ?? 'Microphone access refused.';
     case 'unavailable':

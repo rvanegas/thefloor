@@ -160,8 +160,14 @@ export function HomeView({
               A dot, and nothing else. That you are in here is not a sentence
               worth spending on a screen that is mostly a list of names — but
               it is worth a mark, and the mark can carry a second fact for
-              free: filled means your microphone is open, hollow and grey
+              free: filled means you are available to talk, hollow and grey
               means you muted yourself.
+
+              Availability rather than "the microphone is open", which stopped
+              being the same thing when the microphone began closing while you
+              are alone. That closing is invisible to everyone else — it opens
+              by itself the moment somebody arrives — so it leaves you no less
+              reachable, and one bit should spend itself on intent.
 
               Nothing to a screen reader, though, which is why the whole bar
               carries a label saying it in words.

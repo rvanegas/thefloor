@@ -835,3 +835,60 @@ refused outright on Windows.
 Rows written before this fall back to the old viewer-relative label. There is
 nothing to recover: the names at the time were never written down, and the
 channel's present name would be the wrong answer even where it still exists.
+
+### The microphone stays closed while you are alone in a channel
+
+Joining a channel used to take the AVAudioSession as a *call*, unconditionally.
+That drags a Bluetooth speaker from A2DP — stereo, music-grade — down to HFP,
+the mono ~16 kHz hands-free profile, and makes every other app's audio unusable
+for as long as you are in the channel. Sitting in an empty channel waiting for
+somebody should not cost you your speakers.
+
+Two lines did it, both in `useSessionAudio`: `startAudioSession()`, which
+activates with whatever category WebRTC defaults to, and
+`setMicrophoneEnabled(true)`, which starts the recording engine and makes the
+native policy apply `playAndRecord`. Alone, neither buys anything — there is
+nobody to hear the microphone.
+
+So the session is now `playback` + `mixWithOthers` + `spokenAudio` until the
+microphone is actually needed, which is the library's own playout-only policy.
+Nothing has to be applied on the way back up: the native policy installs the
+recording configuration when capture starts. Handing it *back* on the way down
+does have to be explicit — stopping capture does not by itself restore A2DP.
+
+**Recording is the exception, and it is why this is a tested function rather
+than a condition inline.** `core/channel.ts` lets one person alone record; a
+note to yourself is a use rather than a mistake. Written as "alone means
+closed", this would have recorded silence and reported success. `microphoneNeeded`
+covers a paused run too, so resuming does not wait on retaking the session.
+
+**The session is still taken explicitly**, rather than skipping activation
+while alone. The comment in `useSessionAudio` records what leaving that to the
+automatic path cost once before: after somebody left and rejoined, the other
+side's playback never resumed — subscribed, healthy, silent. An active session
+in the `playback` category is invisible to a Bluetooth speaker, so that
+ordering survives at no cost.
+
+**Two people is still a call.** Once anybody else is present the session is
+`playAndRecord` again and Bluetooth drops to HFP. That is unavoidable while
+capturing and playing at once.
+
+**It cannot be verified here.** Neither the simulator nor the suite shows a
+profile switch. On a phone with a real speaker: play something from another
+app, enter an empty channel, confirm the music neither stops nor degrades, then
+have somebody join and confirm the microphone opens.
+
+#### Home's dot means availability, not an open microphone
+
+`liveChannel.muted` stays self-mute alone. A closed microphone opens by itself
+the moment somebody arrives, so being alone leaves you no less reachable — the
+closing is invisible to the other end and always was. Self-mute is the only
+state that says you have chosen not to be heard, and one bit should spend
+itself on intent. The comment in HomeView that spelled the dot out as "your
+microphone is open" now says availability, that having stopped being the same
+thing.
+
+ChannelView is not in tension with this: its "Your microphone" card is prose
+with room to say the microphone is closed and why, where the dot is one bit.
+Self-mute still takes precedence in that copy — muting yourself is a decision,
+a closed microphone is housekeeping.

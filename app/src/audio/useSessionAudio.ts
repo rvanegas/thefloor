@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import {
   Room,
   RoomEvent,
@@ -7,7 +8,10 @@ import {
   type RemoteTrack,
   type TrackPublication,
 } from 'livekit-client';
-import { AudioSession } from '@livekit/react-native';
+import {
+  AudioSession,
+  type AppleAudioConfiguration,
+} from '@livekit/react-native';
 import { api } from '../api/http';
 
 /**
@@ -35,6 +39,35 @@ export interface SessionAudio {
   mutedByServer: boolean;
   /** How many other participants are publishing audio we can hear. */
   othersAudible: number;
+  /**
+   * Whether the microphone is actually capturing.
+   *
+   * False while you are alone in a channel and not recording, which is a state
+   * worth reporting rather than leaving to be discovered: the screen otherwise
+   * says the microphone is open when it is not.
+   */
+  micOpen: boolean;
+}
+
+/**
+ * What the audio session asks of the system when nothing needs capturing.
+ *
+ * The library's own playout-only policy. `playback` rather than
+ * `playAndRecord` is the whole point: taking the session as a call drags a
+ * Bluetooth speaker from A2DP down to HFP — mono, roughly 16 kHz — and makes
+ * every other app's audio unusable for as long as you are in the channel.
+ * `mixWithOthers` is what lets that other app keep playing.
+ */
+const PLAYBACK_ONLY: AppleAudioConfiguration = {
+  audioCategory: 'playback',
+  audioCategoryOptions: ['mixWithOthers'],
+  audioMode: 'spokenAudio',
+};
+
+/** Apple-only; on Android the category model does not apply. */
+async function applyPlaybackOnly(): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await AudioSession.setAppleAudioConfiguration(PLAYBACK_ONLY).catch(() => {});
 }
 
 /**
@@ -42,19 +75,34 @@ export interface SessionAudio {
  * @param token     the app's own auth token, used to fetch a join credential
  * @param selfMuted the user's own mute, which is theirs alone and unrelated to
  *                  the floor
+ * @param micNeeded whether anything is listening: somebody else present, or a
+ *                  recording running. Told rather than worked out here — this
+ *                  hook has never decided anything about who may speak.
  */
 export function useSessionAudio(
   channelId: string | null,
   token: string | null,
-  selfMuted: boolean
+  selfMuted: boolean,
+  micNeeded: boolean
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
     message: null,
     mutedByServer: false,
     othersAudible: 0,
+    micOpen: false,
   });
   const roomRef = useRef<Room | null>(null);
+  /** Same reason as `micNeededRef`: read at connect, acted on below. */
+  const selfMutedRef = useRef(selfMuted);
+  selfMutedRef.current = selfMuted;
+  /**
+   * Read through a ref inside the connect effect so that somebody arriving
+   * does not tear the room down and rebuild it. The effect below is what acts
+   * on a change.
+   */
+  const micNeededRef = useRef(micNeeded);
+  micNeededRef.current = micNeeded;
 
   useEffect(() => {
     if (!channelId || !token) return;
@@ -124,6 +172,10 @@ export function useSessionAudio(
         }
         if (cancelled) return;
 
+        // Playout-only until there is something to capture for. Applied
+        // before the session is taken, so it is never briefly a call.
+        if (!micNeededRef.current) await applyPlaybackOnly();
+
         // Started explicitly, despite registerGlobals() also installing
         // automatic management. Leaving it to the automatic path alone meant
         // that after a party left and rejoined, the other side's playback never
@@ -137,8 +189,11 @@ export function useSessionAudio(
           return;
         }
 
-        await room.localParticipant.setMicrophoneEnabled(true);
-        update({ status: 'connected' });
+        // Nothing to apply on the way up: the native policy installs the
+        // recording configuration when the engine starts capturing.
+        const open = micNeededRef.current && !selfMutedRef.current;
+        await room.localParticipant.setMicrophoneEnabled(open);
+        update({ status: 'connected', micOpen: open });
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : String(error);
@@ -181,8 +236,15 @@ export function useSessionAudio(
   useEffect(() => {
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-    room.localParticipant.setMicrophoneEnabled(!selfMuted).catch(() => {});
-  }, [selfMuted, state.status]);
+    const open = micNeeded && !selfMuted;
+    room.localParticipant
+      .setMicrophoneEnabled(open)
+      // Handing the session back to `playback` is the half that matters for a
+      // speaker: stopping capture does not by itself restore A2DP.
+      .then(() => (open ? undefined : applyPlaybackOnly()))
+      .catch(() => {});
+    setState((s) => (s.micOpen === open ? s : { ...s, micOpen: open }));
+  }, [selfMuted, micNeeded, state.status]);
 
   return state;
 }

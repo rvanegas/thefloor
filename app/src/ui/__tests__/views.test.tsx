@@ -79,6 +79,7 @@ const AUDIO = {
   message: null,
   mutedByServer: false,
   othersAudible: 0,
+  micOpen: true,
 };
 
 jest.mock('../../state/AppProvider', () => ({
@@ -1831,6 +1832,74 @@ describe('channels you share with somebody', () => {
     });
 
     expect(textOf(tree)).not.toContain('Channels with them');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * A microphone that is closed because nobody is there to hear it.
+ *
+ * Being alone in a channel no longer takes the audio session as a call, which
+ * is what leaves a Bluetooth speaker on A2DP and other apps audible. The
+ * screen has to say so: a microphone the interface calls open and is not is
+ * precisely the silent state this app keeps writing warnings about.
+ */
+describe('being alone in a channel', () => {
+  const showAudio = (micOpen: boolean) => ({ ...AUDIO, micOpen });
+
+  const renderAlone = (micOpen: boolean) => {
+    showChannel(channelOf());
+    return render(
+      <ChannelView
+        channelId="sess_1"
+        audio={{ ...showAudio(micOpen), status: 'connected' as const }}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+  };
+
+  it('says the microphone is closed, and why', () => {
+    const tree = renderAlone(false);
+    const text = textOf(tree);
+    expect(text).toContain('Closed until somebody else is here');
+    expect(text).toContain('your other apps keep the speakers');
+    expect(text).not.toContain('Open. Self-mute never affects');
+    act(() => tree.unmount());
+  });
+
+  it('says so in the audio line too, rather than only waiting', () => {
+    expect(textOf(renderAlone(false))).toContain(
+      'microphone closed until somebody else is here'
+    );
+  });
+
+  it('goes back to plain open copy once it is capturing', () => {
+    const tree = renderAlone(true);
+    const text = textOf(tree);
+    expect(text).toContain('Open. Self-mute never affects floor eligibility.');
+    expect(text).not.toContain('Closed until somebody else is here');
+    act(() => tree.unmount());
+  });
+
+  it('still reports self-mute ahead of it, that being a choice', () => {
+    // Muting yourself while alone is a decision; the microphone being closed
+    // is housekeeping. The decision is what a person needs told back.
+    showChannel(
+      channelOf((s) =>
+        reduce(s, { type: 'SET_SELF_MUTE', userId: ME, muted: true }, NOW)
+      )
+    );
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={{ ...showAudio(false), status: 'connected' as const }}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).toContain('Muted by you.');
+    expect(textOf(tree)).not.toContain('Closed until somebody else is here');
     act(() => tree.unmount());
   });
 });
