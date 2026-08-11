@@ -1,4 +1,8 @@
-import { FLOOR_CLAIM_MS, PLAYBACK_DEFAULT_VOLUME } from '../constants';
+import {
+  DISCONNECT_GRACE_MS,
+  FLOOR_CLAIM_MS,
+  PLAYBACK_DEFAULT_VOLUME,
+} from '../constants';
 import { playbackPositionMs } from '../playback';
 import {
   canControlPlayback,
@@ -294,5 +298,68 @@ describe('playback and the channel lifecycle', () => {
       [{ type: 'PLAY', userId: A }, T0 + 2_000],
     ]);
     expect(s.playback.failure).toBeNull();
+  });
+});
+
+describe('an empty channel', () => {
+  it('pauses when the last person steps out, banking where it got to', () => {
+    // Music nobody is there to hear is not shared listening. Left running, a
+    // track runs itself out, and whoever comes back finds it minutes further
+    // along than they left it.
+    const s = apply(loaded(), [
+      [{ type: 'PLAY', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 20_000],
+    ]);
+    expect(s.playback.status).toBe('paused');
+    expect(s.playback.positionMs).toBe(20_000);
+    expect(s.playback.track).toEqual(TRACK);
+  });
+
+  it('keeps playing while anyone is still there', () => {
+    const s = apply(loaded(), [
+      [{ type: 'PLAY', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+    ]);
+    expect(s.playback.status).toBe('playing');
+    expect(playbackPositionMs(s.playback, T0 + 30_000)).toBe(30_000);
+  });
+
+  it('pauses when everyone is dropped rather than gone', () => {
+    // The grace period running out empties the channel by the same route a
+    // tap does, so it has to settle the same way.
+    let s = apply(loaded(), [
+      [{ type: 'PLAY', userId: A }, T0],
+      [{ type: 'DISCONNECTED', userId: A }, T0 + 1_000],
+      [{ type: 'DISCONNECTED', userId: B }, T0 + 1_000],
+    ]);
+    s = reduce(s, { type: 'TICK' }, T0 + 1_000 + DISCONNECT_GRACE_MS);
+    expect(s.present).toHaveLength(0);
+    expect(s.playback.status).toBe('paused');
+  });
+
+  it('does not start again when somebody steps back in', () => {
+    // Resuming would take remembering why it paused, which playback state
+    // deliberately does not record — and a channel that starts making noise
+    // at whoever walks in is worse than a press of Play.
+    const s = apply(loaded(), [
+      [{ type: 'PLAY', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 20_000],
+      [{ type: 'ENTER', userId: A }, T0 + 60_000],
+    ]);
+    expect(s.playback.status).toBe('paused');
+    expect(s.playback.positionMs).toBe(20_000);
+  });
+
+  it('leaves a track that was already paused exactly where it was', () => {
+    const s = apply(loaded(), [
+      [{ type: 'PLAY', userId: A }, T0],
+      [{ type: 'PAUSE', userId: A }, T0 + 5_000],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 20_000],
+    ]);
+    expect(s.playback.status).toBe('paused');
+    expect(s.playback.positionMs).toBe(5_000);
   });
 });

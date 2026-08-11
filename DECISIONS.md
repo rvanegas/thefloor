@@ -626,3 +626,25 @@ It lives in `app/src/ui/volume.ts`, not in `core/`. This is how the controls
 behave, not a rule anyone is held to: the reducer accepts any volume and only
 clamps it to 0–1, so a client offering a slider instead would be no less
 correct.
+
+### Playback pauses when the channel empties, and does not resume
+
+`settleEmpty` already stopped a recording when the last person stepped out. It
+now pauses playback on the same trigger, for a weaker reason: a recording left
+running bills an egress a minute, while a track left running only costs the
+position. But music nobody is in the room to hear is not shared listening — it
+is a file running itself out, so that whoever comes back finds it minutes
+further along than they left it.
+
+One trigger covers all three ways a channel empties — the tap, `LEAVE_CHANNEL`,
+and a disconnect grace period running out — because all three go through
+`stepOut`. The server needed no change: `applyPlaybackToMedia` reacts to
+committed state, so the encoder pauses on any playing→paused transition
+whatever caused it.
+
+**Nothing resumes on the way back in.** Resuming would mean distinguishing a
+track paused because the room emptied from one somebody paused on purpose, and
+`playback.ts` deliberately records no reason for a pause — adding one would put
+a second account of why playback is where it is next to the position itself. It
+is also the worse behaviour: a channel that starts playing at whoever steps in
+is a surprise, and a press of Play is not.

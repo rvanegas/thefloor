@@ -315,3 +315,27 @@ describe('what was played reaches the recording', () => {
     expect(media.playbackFor(channelId)!.closed).toBe(true);
   });
 });
+
+describe('an empty channel stops making noise', () => {
+  it('pauses the pump when the last person steps out', async () => {
+    // The reducer pauses; this is the half that matters to anyone standing
+    // outside — the encoder has to actually stop, or the channel goes on
+    // publishing a track to a room with nobody in it.
+    const { alice, bob, channelId } = await sessionOfTwo();
+    await upload(alice.token, channelId);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PLAY' });
+    await settle();
+
+    const playback = media.playbackFor(channelId)!;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    await settle();
+    expect(playback.commands).not.toContainEqual({ type: 'pause' });
+
+    clock += 5_000;
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    await settle();
+
+    expect(app.channels.get(channelId)!.playback.status).toBe('paused');
+    expect(playback.commands).toContainEqual({ type: 'pause' });
+  });
+});

@@ -19,10 +19,6 @@ Can't scroll up.
 
 Needs better fallback.
 
-## Media Playback in Empty Channel
-
-When everyone has stepped out, media should pause.
-
 ## Dark Mode
 
 Currently all is in Dark Mode. Support Light Mode too.

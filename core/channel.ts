@@ -515,15 +515,33 @@ function stepOut(
  * would record silence until somebody came back, billing an egress per
  * speaker per minute the whole time.
  *
+ * **Playback pauses too**, for the weaker reason that music nobody is in the
+ * room to hear is not shared listening — it is a track running itself out, so
+ * that whoever comes back finds it minutes further along than they left it.
+ * Paused rather than cleared: the position survives, and Play picks up where
+ * the music was.
+ *
+ * Nothing resumes on the way back in. That would take remembering *why*
+ * playback paused, which `playback.ts` deliberately does not record, and a
+ * channel that starts making noise at whoever steps in is worse than a press
+ * of Play. Coming back to a paused track is the same thing anyone leaving the
+ * track paused would have left behind.
+ *
  * It lives in the reducer rather than the registry so that a guard and a
  * control cannot disagree: the interface reads `recording.status` to decide
  * what to show, and a stop applied only on the media plane would leave the
- * screen asserting a recording that had already stopped.
+ * screen asserting a recording that had already stopped. The same holds for
+ * playback, where the server's media plane follows committed state — see
+ * `applyPlaybackToMedia`.
  */
 function settleEmpty(state: ChannelState, now: number): ChannelState {
   if (state.present.length > 0) return state;
-  if (!isRecordingActive(state.recording)) return state;
-  return endRun(state, now);
+  const settled =
+    state.playback.status === 'playing'
+      ? { ...state, playback: pausePlayback(state.playback, now) }
+      : state;
+  if (!isRecordingActive(settled.recording)) return settled;
+  return endRun(settled, now);
 }
 
 /**
