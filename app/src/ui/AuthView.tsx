@@ -1,15 +1,8 @@
 import React, { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL, describeMissingConfig } from '../api/config';
 import { useApp } from '../state/AppProvider';
-import { Button, Field } from './components';
+import { Button, Field, Screen } from './components';
 import { colors, spacing, type } from './theme';
 
 /**
@@ -75,11 +68,7 @@ export function AuthView() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
+    <Screen contentStyle={styles.container}>
         <View style={styles.brand}>
           <Text style={type.title}>The Floor</Text>
           <Text style={[type.muted, styles.tagline]}>
@@ -156,13 +145,11 @@ export function AuthView() {
         ) : null}
 
         <Text style={styles.hint}>Server: {API_URL}</Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   container: {
     flexGrow: 1,
     justifyContent: 'center',

@@ -9,6 +9,7 @@ import type { ChannelState } from '../../../../core/types';
 import type { HomeView as HomeViewData } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
+import { ProfileView } from '../ProfileView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { StyleSheet } from 'react-native';
 import { colors } from '../theme';
@@ -1607,6 +1608,220 @@ describe('the order of your channels', () => {
       'Priya Raman',
       'Dana Chu',
     ]);
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * Rows you tap.
+ *
+ * A profile used to be reachable only from a channel roster, which meant you
+ * had to already be in a channel with somebody to read who they were. Contact
+ * rows are now the way in, and a channel row is a single target rather than a
+ * button on the end of one.
+ */
+describe('tapping a row', () => {
+  /** The pressable whose accessibility label starts with `prefix`. */
+  const pressableFor = (tree: ReactTestRenderer, prefix: string) =>
+    tree.root.findAll(
+      (n) =>
+        n.props?.accessibilityRole === 'button' &&
+        typeof n.props?.accessibilityLabel === 'string' &&
+        n.props.accessibilityLabel.startsWith(prefix)
+    )[0];
+
+  it('opens a profile from a contact, naming who to fetch', () => {
+    const onOpenProfile = jest.fn();
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        {
+          account: { id: 'acct_q', displayName: 'Quinn Ito' },
+          status: 'accepted',
+        },
+      ],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView
+        onEnterChannel={() => {}}
+        onOpenSettings={() => {}}
+        onOpenProfile={onOpenProfile}
+      />
+    );
+
+    act(() => pressableFor(tree, 'Quinn Ito').props.onPress());
+    expect(onOpenProfile).toHaveBeenCalledWith('acct_q', 'Quinn Ito');
+    act(() => tree.unmount());
+  });
+
+  it('leaves a sent request alone, there being no account behind it yet', () => {
+    // `displayName` holds the address for these rows, and there is no profile
+    // to open — pressing one would fetch a person who does not exist.
+    const onOpenProfile = jest.fn();
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        {
+          account: { id: '', displayName: 'nobody@example.com' },
+          status: 'outgoing',
+        },
+      ],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView
+        onEnterChannel={() => {}}
+        onOpenSettings={() => {}}
+        onOpenProfile={onOpenProfile}
+      />
+    );
+
+    expect(pressableFor(tree, 'nobody@example.com')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('steps into a channel from anywhere on its row, there being no button', () => {
+    const onEnterChannel = jest.fn();
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name: 'Thursday rehearsal',
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 1,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView
+        onEnterChannel={onEnterChannel}
+        onOpenSettings={() => {}}
+      />
+    );
+
+    expect(findButton(tree, 'Step in')).toBeUndefined();
+    act(() => pressableFor(tree, 'Thursday rehearsal').props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_b', { type: 'ENTER' });
+    expect(onEnterChannel).toHaveBeenCalledWith('sess_b');
+    act(() => tree.unmount());
+  });
+
+  it('picks rather than navigating while choosing several people', () => {
+    // Opening a profile mid-selection would lose the selection to a
+    // navigation nobody asked for.
+    const onOpenProfile = jest.fn();
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        {
+          account: { id: 'acct_q', displayName: 'Quinn Ito' },
+          status: 'accepted',
+        },
+        {
+          account: { id: 'acct_p', displayName: 'Priya Raman' },
+          status: 'accepted',
+        },
+      ],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView
+        onEnterChannel={() => {}}
+        onOpenSettings={() => {}}
+        onOpenProfile={onOpenProfile}
+      />
+    );
+
+    act(() => findButton(tree, 'Start a channel with several people')!.props.onPress());
+    act(() => pressableFor(tree, 'Quinn Ito').props.onPress());
+
+    expect(onOpenProfile).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain('Picked');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * A profile now says what you already share with somebody, not only who they
+ * are. The list is drawn from Home's own channels, which is exactly the set
+ * you can step into.
+ */
+describe('channels you share with somebody', () => {
+  const withChannels = (rejoinable: HomeViewData['rejoinable']) => {
+    mockApp.home = { invites: [], rejoinable, contacts: [], recordings: [] };
+  };
+
+  const channel = (id: string, name: string | null, otherId: string) => ({
+    channelId: id,
+    name,
+    others: [{ id: otherId, displayName: 'Dana Chu' }],
+    presentCount: 0,
+    createdAt: NOW,
+    lastActiveAt: NOW,
+  });
+
+  it('lists only the ones they are in, and steps into the one tapped', async () => {
+    const onEnterChannel = jest.fn();
+    withChannels([
+      channel('sess_shared', 'Thursday rehearsal', THEM),
+      channel('sess_other', 'Someone else entirely', 'acct_stranger'),
+    ]);
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView
+          accountId={THEM}
+          fallbackName="Dana Chu"
+          onBack={() => {}}
+          onEnterChannel={onEnterChannel}
+        />
+      );
+    });
+
+    const text = textOf(tree);
+    expect(text).toContain('Thursday rehearsal');
+    expect(text).not.toContain('Someone else entirely');
+
+    const row = tree.root.findAll(
+      (n) =>
+        n.props?.accessibilityRole === 'button' &&
+        typeof n.props?.accessibilityLabel === 'string' &&
+        n.props.accessibilityLabel.startsWith('Thursday rehearsal')
+    )[0];
+    act(() => row.props.onPress());
+
+    expect(mockApp.act).toHaveBeenCalledWith('sess_shared', { type: 'ENTER' });
+    expect(onEnterChannel).toHaveBeenCalledWith('sess_shared');
+    act(() => tree.unmount());
+  });
+
+  it('says nothing at all when there is nowhere to send you', async () => {
+    // Reached from inside a channel, there is no `onEnterChannel` and the
+    // section is left out rather than shown dead.
+    withChannels([channel('sess_shared', 'Thursday rehearsal', THEM)]);
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView
+          accountId={THEM}
+          fallbackName="Dana Chu"
+          onBack={() => {}}
+        />
+      );
+    });
+
+    expect(textOf(tree)).not.toContain('Channels with them');
     act(() => tree.unmount());
   });
 });

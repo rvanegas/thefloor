@@ -8,6 +8,8 @@ import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
 import { ChannelView } from './src/ui/ChannelView';
+import { ProfileView } from './src/ui/ProfileView';
+import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
 
 /**
@@ -29,6 +31,10 @@ function Root() {
   const { ready, token } = app;
   const [channelId, setChannelId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Somebody's profile, opened from a contact row. */
+  const [profile, setProfile] = useState<{ id: string; name: string } | null>(
+    null
+  );
 
   const view = app.channelView;
   const me = app.me?.id ?? '';
@@ -93,10 +99,25 @@ function Root() {
     return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
   }
 
+  if (profile) {
+    return (
+      <ProfileView
+        accountId={profile.id}
+        fallbackName={profile.name}
+        onBack={() => setProfile(null)}
+        onEnterChannel={(id) => {
+          setProfile(null);
+          setChannelId(id);
+        }}
+      />
+    );
+  }
+
   return (
     <HomeView
       onEnterChannel={setChannelId}
       onOpenSettings={() => setSettingsOpen(true)}
+      onOpenProfile={(id, name) => setProfile({ id, name })}
       // What Home needs to show that a conversation is still going without you
       // looking at it. An open microphone behind a screen that gives no sign of
       // it is the one thing this change could plausibly make worse.
@@ -117,10 +138,11 @@ function Root() {
 
 /**
  * What to call a channel on screen: its name if it has one, otherwise the
- * roster — the other person, or a head count.
+ * roster.
  *
- * The same fallback the channel's own header uses, so a channel does not
- * answer to one thing in one place and another somewhere else.
+ * Shares `describeChannel` with every other surface, which it did not when it
+ * was written out longhand here — this was a fourth copy of the fallback, and
+ * it still said "3 people" after the others had stopped.
  */
 function titleOf(
   name: string | null,
@@ -128,10 +150,9 @@ function titleOf(
   me: string
 ): string {
   if (name) return name;
-  const others = participants.filter((p) => p.id !== me);
-  return others.length === 1
-    ? others[0].displayName
-    : `${others.length + 1} people`;
+  return describeChannel(
+    participants.filter((p) => p.id !== me).map((p) => p.displayName)
+  );
 }
 
 export default function App() {

@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../../core/constants';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Field, SectionLabel } from './components';
+import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
 import { colors, spacing, type } from './theme';
 
@@ -67,7 +66,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const named = displayName.trim() !== '';
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+    <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Settings</Text>
         <Button label="Done" variant="ghost" onPress={onBack} />
@@ -164,12 +163,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           </View>
         </>
       )}
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
   container: { padding: spacing(2), paddingBottom: spacing(4) },
   header: {
     flexDirection: 'row',

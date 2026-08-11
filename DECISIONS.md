@@ -753,3 +753,38 @@ It rides in the durable JSON blob rather than a new column, so there is no
 migration; rows written before it existed fall back to `created_at`, which is
 the order they already had. The grouping itself lives in the app, being a
 display decision — the server sorts by recency and Home groups on top of that.
+
+### Rows are the target, and a profile is reachable from Home
+
+Three changes with one shape: the thing you want to tap is the row, not a
+control parked on the end of it.
+
+**A contact row opens their profile.** Until now `ProfileView` was rendered
+from exactly one place — the roster inside a channel — so reading who somebody
+is required already being in a channel with them. That is close to
+unreachable for the case it was written for, which is meeting somebody in a
+channel an acquaintance opened. The whole row is the target now.
+
+Two rows are excluded, for reasons rather than tidiness. An outgoing request
+has no account behind it — `displayName` holds the address, deliberately, so a
+request to an address without an account is indistinguishable from one to a
+user — so there is no profile to fetch. And in multi-select the row picks
+instead, because navigating away mid-selection would silently discard the
+selection.
+
+**A channel row lost its Step in button** and became one press. There is only
+one thing to do with a channel you are not in, so a target the size of the row
+is the honest shape for it. The live bar above has always worked this way.
+
+**A profile lists the channels you share**, each stepping in when tapped. The
+list comes from Home's own `rejoinable` rather than a new endpoint, because
+that list already *is* "channels you belong to and are not currently in" — the
+exact set for which "step in" is the right verb. A channel you are presently
+inside is therefore absent, which is correct: you are already there. Reached
+from inside a channel, `onEnterChannel` is omitted and the section is left out
+rather than shown dead.
+
+While here: `App.tsx` held a **fourth** copy of the naming fallback, still
+saying "3 people" after the other three had been unified. The live bar and
+Home's list disagreed about what the same channel was called. It now shares
+`describeChannel` with everything else.

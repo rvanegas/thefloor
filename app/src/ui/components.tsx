@@ -1,6 +1,9 @@
 import React from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -117,6 +120,51 @@ export function Field({
   );
 }
 
+/**
+ * A scrolling screen that the keyboard cannot sit on top of.
+ *
+ * Every screen here is a form somewhere down its length, and the button that
+ * commits an edit is under the field it belongs to. A plain ScrollView does
+ * not shrink when the keyboard opens, so that button ended up behind it, with
+ * nothing to scroll into view because as far as the ScrollView is concerned
+ * there is no more content — the space is there, the keyboard is merely
+ * covering it. `padding` gives the ScrollView a real bottom to scroll to.
+ *
+ * `keyboardShouldPersistTaps="handled"` is the other half, and the part that
+ * is easy to miss: by default the first tap outside a focused field only
+ * dismisses the keyboard. Saving would take two taps — one swallowed, one
+ * heard — which reads as the button not working.
+ *
+ * `keyboardDismissMode="on-drag"` because scrolling a long form is how you go
+ * looking for something else, and arriving with the keyboard still up would
+ * mean it covering whatever you scrolled to.
+ */
+export function Screen({
+  children,
+  contentStyle,
+}: {
+  children: React.ReactNode;
+  contentStyle?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      // Android resizes the window itself, so asking for padding as well
+      // double-counts the keyboard and leaves a gap the height of it.
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={contentStyle}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return <Text style={[type.label, styles.sectionLabel]}>{children}</Text>;
 }
@@ -136,6 +184,7 @@ export function Empty({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   button: {
     paddingVertical: spacing(1.5),
     paddingHorizontal: spacing(2),

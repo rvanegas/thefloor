@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  ScrollView,
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import type { ProfileView as Profile } from '../../../core/protocol';
+import { describeChannel } from '../../../core/naming';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, SectionLabel } from './components';
+import { Button, Card, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
-import { colors, spacing, type } from './theme';
+import { colors, radius, spacing, type } from './theme';
 
 /**
  * Somebody else's profile.
@@ -28,6 +29,7 @@ export function ProfileView({
   accountId,
   fallbackName,
   onBack,
+  onEnterChannel,
 }: {
   accountId: string;
   /**
@@ -39,6 +41,12 @@ export function ProfileView({
    */
   fallbackName: string;
   onBack: () => void;
+  /**
+   * Opens a channel the two of you share. Omitted where entering one would be
+   * wrong — from inside a channel, which is the other way this screen is
+   * reached — and the section is then left out rather than shown dead.
+   */
+  onEnterChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -71,6 +79,17 @@ export function ProfileView({
     };
   }, [accountId]);
 
+  /**
+   * Channels the two of you are both in. Drawn from Home's own list rather
+   * than fetched, because that list already *is* "channels you belong to and
+   * are not currently in" — the exact set for which "step in" is the right
+   * verb. One you are presently inside is therefore absent, correctly: you
+   * are already there.
+   */
+  const shared = (app.home?.rejoinable ?? []).filter((channel) =>
+    channel.others.some((other) => other.id === accountId)
+  );
+
   const ask = async () => {
     setAsking(true);
     setAskError(null);
@@ -84,7 +103,7 @@ export function ProfileView({
   };
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+    <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading} numberOfLines={1}>
           {profile?.account.displayName ?? fallbackName}
@@ -116,6 +135,45 @@ export function ProfileView({
         anybody's contact — so this sends a request like any other, and they
         decide.
       */}
+      {onEnterChannel && shared.length > 0 ? (
+        <>
+          <SectionLabel>Channels with them</SectionLabel>
+          <View style={styles.stack}>
+            {shared.map((channel) => (
+              <Pressable
+                key={channel.channelId}
+                accessibilityRole="button"
+                accessibilityLabel={`${
+                  channel.name ??
+                  describeChannel(channel.others.map((o) => o.displayName))
+                }. Step in.`}
+                onPress={() => {
+                  app.act(channel.channelId, { type: 'ENTER' });
+                  onEnterChannel(channel.channelId);
+                }}
+                style={({ pressed }) => [
+                  styles.channel,
+                  pressed && styles.channelPressed,
+                ]}
+              >
+                <Text
+                  style={channel.name ? type.body : styles.channelDescribed}
+                  numberOfLines={1}
+                >
+                  {channel.name ??
+                    describeChannel(channel.others.map((o) => o.displayName))}
+                </Text>
+                <Text style={type.muted}>
+                  {channel.presentCount > 0
+                    ? `${channel.presentCount} present`
+                    : 'Nobody here right now'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
+
       <SectionLabel>Contact</SectionLabel>
       <Card style={styles.stack}>
         {contact?.status === 'accepted' ? (
@@ -148,12 +206,11 @@ export function ProfileView({
         )}
         {askError ? <Text style={styles.error}>{askError}</Text> : null}
       </Card>
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
   container: { padding: spacing(2) },
   header: {
     flexDirection: 'row',
@@ -163,6 +220,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing(1),
   },
   stack: { gap: spacing(1) },
+  channel: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing(1.5),
+    gap: 2,
+  },
+  channelPressed: { backgroundColor: colors.surfaceRaised },
+  /** Italic when nobody has named it; see core/naming.ts. */
+  channelDescribed: { ...type.body, fontStyle: 'italic' },
   bio: { ...type.muted, lineHeight: 20 },
   error: { color: colors.danger, fontSize: 13 },
 });

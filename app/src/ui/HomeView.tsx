@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -18,7 +17,7 @@ import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Empty, Field, SectionLabel } from './components';
+import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 /**
@@ -30,11 +29,19 @@ import { colors, formatDuration, radius, spacing, type } from './theme';
 export function HomeView({
   onEnterChannel,
   onOpenSettings,
+  onOpenProfile = () => {},
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
   onEnterChannel: (channelId: string) => void;
   onOpenSettings: () => void;
+  /**
+   * Reads somebody's profile. A contact row is now a way to *find out who
+   * somebody is* rather than only a button to start something with them —
+   * which is what makes a profile reachable at all, it having previously
+   * needed you to already be in a channel with the person.
+   */
+  onOpenProfile?: (accountId: string, displayName: string) => void;
   /**
    * The channel you are present in right now, if you walked back here without
    * stepping out. Null when you are not in one.
@@ -113,7 +120,7 @@ export function HomeView({
   };
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+    <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerMain}>
           <Text style={type.title}>The Floor</Text>
@@ -243,6 +250,9 @@ export function HomeView({
                 selected.length < MAX_CHANNEL_PARTICIPANTS - 1
               }
               onToggleSelect={() => toggleSelected(entry.account.id)}
+              onOpenProfile={() =>
+                onOpenProfile(entry.account.id, entry.account.displayName)
+              }
               onStartChannel={async () => {
                 try {
                   const id = await app.startChannel([entry.account.id]);
@@ -311,7 +321,7 @@ export function HomeView({
           ))}
         </View>
       )}
-    </ScrollView>
+    </Screen>
   );
 }
 
@@ -413,8 +423,21 @@ function ChannelRow({
   /** Presence, not membership — you never stopped belonging to it. */
   onStepIn: () => void;
 }) {
+  const title =
+    channel.name ??
+    describeChannel(channel.others.map((other) => other.displayName));
   return (
-    <Card style={styles.row}>
+    // The whole row, rather than a button on the end of it. There is only one
+    // thing to do with a channel you are not in, so a target the size of the
+    // row is the honest shape for it — and it matches the live bar above,
+    // which has always worked this way.
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. Step in.`}
+      onPress={onStepIn}
+      style={({ pressed }) => pressed && styles.rowPressed}
+    >
+      <Card style={styles.row}>
       <View style={styles.rowMain}>
         {/*
           A named channel is asserted; an unnamed one is only described, and
@@ -427,8 +450,7 @@ function ChannelRow({
           style={channel.name ? type.body : styles.described}
           numberOfLines={1}
         >
-          {channel.name ??
-            describeChannel(channel.others.map((other) => other.displayName))}
+          {title}
         </Text>
         <Text style={type.muted}>
           {/*
@@ -442,8 +464,8 @@ function ChannelRow({
             : 'Nobody here right now'}
         </Text>
       </View>
-      <Button label="Step in" variant="primary" onPress={onStepIn} />
-    </Card>
+      </Card>
+    </Pressable>
   );
 }
 
@@ -456,6 +478,7 @@ function ContactRow({
   onToggleSelect,
   onStartChannel,
   onJoinExisting,
+  onOpenProfile,
 }: {
   entry: ContactView;
   /** A live channel containing this contact, if one has already begun. */
@@ -468,11 +491,36 @@ function ContactRow({
   onToggleSelect: () => void;
   onStartChannel: () => void;
   onJoinExisting: (channelId: string) => void;
+  onOpenProfile: () => void;
 }) {
   const app = useApp();
   const { account, status } = entry;
+  /**
+   * An outgoing request is a row for an address, not a person — `displayName`
+   * holds the address and there is no account behind it yet, so there is no
+   * profile to open.
+   */
+  const hasProfile = status === 'accepted' || status === 'incoming';
+  // In multi-select the row's job is picking, so it picks. Opening a profile
+  // mid-selection would lose the selection to a navigation nobody asked for.
+  const onPress = selecting ? onToggleSelect : onOpenProfile;
+  const pressable = selecting ? status === 'accepted' && selectable : hasProfile;
+
   return (
-    <Card style={styles.row}>
+    <Pressable
+      accessibilityRole={pressable ? 'button' : undefined}
+      accessibilityLabel={
+        pressable
+          ? selecting
+            ? `${account.displayName}. ${selected ? 'Picked' : 'Pick'}.`
+            : `${account.displayName}. Open profile.`
+          : undefined
+      }
+      disabled={!pressable}
+      onPress={onPress}
+      style={({ pressed }) => pressed && pressable && styles.rowPressed}
+    >
+      <Card style={styles.row}>
       <View style={styles.rowMain}>
         <Text style={type.body}>{account.displayName}</Text>
         <Text style={type.muted}>
@@ -534,7 +582,8 @@ function ContactRow({
           />
         </View>
       )}
-    </Card>
+      </Card>
+    </Pressable>
   );
 }
 
@@ -594,7 +643,6 @@ function AddContact() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
   header: {
     flexDirection: 'row',
@@ -654,6 +702,8 @@ const styles = StyleSheet.create({
     gap: spacing(1.5),
   },
   rowMain: { flex: 1, gap: 2 },
+  /** Feedback on a row whose whole surface is the target. */
+  rowPressed: { opacity: 0.7 },
   /**
    * A channel nobody has named: described rather than called something.
    *

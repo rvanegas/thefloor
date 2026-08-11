@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
 } from '../../../core/constants';
 import type { ChannelState } from '../../../core/types';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Field, SectionLabel } from './components';
+import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
 import { colors, spacing, type } from './theme';
 
@@ -44,7 +44,7 @@ export function ChannelSettingsView({
   };
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+    <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Channel settings</Text>
         <Button label="Done" variant="ghost" onPress={onBack} />
@@ -146,12 +146,11 @@ export function ChannelSettingsView({
           it keeps your place here.
         </Text>
       </Card>
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
   container: { padding: spacing(2), paddingBottom: spacing(4) },
   header: {
     flexDirection: 'row',
