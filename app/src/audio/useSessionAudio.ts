@@ -13,6 +13,7 @@ import {
   type AppleAudioConfiguration,
 } from '@livekit/react-native';
 import { api } from '../api/http';
+import { CALL, PLAYBACK_ONLY } from './session';
 
 /**
  * Joins the session's audio room and publishes the microphone.
@@ -49,25 +50,31 @@ export interface SessionAudio {
   micOpen: boolean;
 }
 
-/**
- * What the audio session asks of the system when nothing needs capturing.
- *
- * The library's own playout-only policy. `playback` rather than
- * `playAndRecord` is the whole point: taking the session as a call drags a
- * Bluetooth speaker from A2DP down to HFP — mono, roughly 16 kHz — and makes
- * every other app's audio unusable for as long as you are in the channel.
- * `mixWithOthers` is what lets that other app keep playing.
- */
-const PLAYBACK_ONLY: AppleAudioConfiguration = {
-  audioCategory: 'playback',
-  audioCategoryOptions: ['mixWithOthers'],
-  audioMode: 'spokenAudio',
-};
-
 /** Apple-only; on Android the category model does not apply. */
-async function applyPlaybackOnly(): Promise<void> {
+async function applyConfiguration(
+  config: AppleAudioConfiguration
+): Promise<void> {
   if (Platform.OS !== 'ios') return;
-  await AudioSession.setAppleAudioConfiguration(PLAYBACK_ONLY).catch(() => {});
+  await AudioSession.setAppleAudioConfiguration(config).catch(() => {});
+}
+
+/**
+ * Puts the session where the microphone's state says it belongs.
+ *
+ * Both directions are stated, and that is the point rather than tidiness.
+ * Applying only the playout half — which is what this did — pinned the session
+ * to `playback` + `spokenAudio` and left it there through the *next* time the
+ * microphone opened, capturing with the echo canceller off, so the far end
+ * heard itself. The native policy did not save it: that reacts to the audio
+ * *engine* changing state, and with a muted track still holding the device
+ * open, the engine never left the recording state to re-enter it.
+ *
+ * `stopMicTrackOnMute` fixes the engine half and is the reason a Bluetooth
+ * speaker is released at all, but the session is configured here regardless.
+ * Depending on a transition we do not control is what broke this once.
+ */
+async function applyForMicrophone(open: boolean): Promise<void> {
+  await applyConfiguration(open ? CALL : PLAYBACK_ONLY);
 }
 
 /**
@@ -108,7 +115,13 @@ export function useSessionAudio(
     if (!channelId || !token) return;
 
     let cancelled = false;
-    const room = new Room();
+    // Muting has to actually stop capturing, which is not the default: a muted
+    // microphone track otherwise keeps the device open, so the orange recording
+    // indicator stays lit, a Bluetooth speaker stays in the mono hands-free
+    // profile, and the audio engine never leaves the recording state. That last
+    // one is what made closing the microphone a one-way door — the engine
+    // transition the native audio policy watches for simply never happened.
+    const room = new Room({ publishDefaults: { stopMicTrackOnMute: true } });
     roomRef.current = room;
 
     const update = (patch: Partial<SessionAudio>) => {
@@ -172,9 +185,12 @@ export function useSessionAudio(
         }
         if (cancelled) return;
 
-        // Playout-only until there is something to capture for. Applied
-        // before the session is taken, so it is never briefly a call.
-        if (!micNeededRef.current) await applyPlaybackOnly();
+        const open = micNeededRef.current && !selfMutedRef.current;
+
+        // Playout-only until there is something to capture for, and a call
+        // when there is. Applied before the session is taken, so it is never
+        // briefly the wrong one.
+        await applyForMicrophone(open);
 
         // Started explicitly, despite registerGlobals() also installing
         // automatic management. Leaving it to the automatic path alone meant
@@ -189,9 +205,6 @@ export function useSessionAudio(
           return;
         }
 
-        // Nothing to apply on the way up: the native policy installs the
-        // recording configuration when the engine starts capturing.
-        const open = micNeededRef.current && !selfMutedRef.current;
         await room.localParticipant.setMicrophoneEnabled(open);
         update({ status: 'connected', micOpen: open });
       } catch (error) {
@@ -237,12 +250,20 @@ export function useSessionAudio(
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
     const open = micNeeded && !selfMuted;
-    room.localParticipant
-      .setMicrophoneEnabled(open)
-      // Handing the session back to `playback` is the half that matters for a
-      // speaker: stopping capture does not by itself restore A2DP.
-      .then(() => (open ? undefined : applyPlaybackOnly()))
-      .catch(() => {});
+    // Order matters and is opposite in the two directions: the session must
+    // already be a call before capture starts, and must stay one until capture
+    // has stopped. Configuring a `playback` session that is still recording is
+    // exactly what silences the echo canceller.
+    (open
+      ? applyForMicrophone(true).then(() =>
+          room.localParticipant.setMicrophoneEnabled(true)
+        )
+      : room.localParticipant
+          .setMicrophoneEnabled(false)
+          // Handing the session back to `playback` is the half that matters
+          // for a speaker: stopping capture does not by itself restore A2DP.
+          .then(() => applyForMicrophone(false))
+    ).catch(() => {});
     setState((s) => (s.micOpen === open ? s : { ...s, micOpen: open }));
   }, [selfMuted, micNeeded, state.status]);
 

@@ -8,15 +8,30 @@
 // code runs, which makes it look like a bundler fault rather than an ordering
 // one. Registering inside the audio hook is too late: that module imports
 // livekit-client above its own registerGlobals() call.
-import { registerGlobals } from '@livekit/react-native';
+import {
+  registerGlobals,
+  setupIOSAudioManagement,
+} from '@livekit/react-native';
 
 import { registerRootComponent } from 'expo';
 
 import App from './App';
+import { CALL, PLAYBACK_ONLY } from './src/audio/session';
 
 // Installs the WebRTC globals livekit-client expects (RTCPeerConnection and
 // friends). Must happen before any Room is constructed.
 registerGlobals();
+
+// Replaces the automatic audio policy registerGlobals() just installed with the
+// same one the app applies itself, so the two writers of this session cannot
+// disagree.
+//
+// They did disagree, and it was visible: with only the app's side stated, the
+// native observer would fire on some later engine transition and hand the call
+// back its own defaults — no `defaultToSpeaker`, so the conversation dropped to
+// the earpiece mid-sentence with nothing on screen to explain it. Whichever
+// wrote last won, and both write the same process-wide configuration object.
+setupIOSAudioManagement(true, { recording: CALL, playout: PLAYBACK_ONLY });
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,

@@ -850,11 +850,12 @@ activates with whatever category WebRTC defaults to, and
 native policy apply `playAndRecord`. Alone, neither buys anything — there is
 nobody to hear the microphone.
 
-So the session is now `playback` + `mixWithOthers` + `spokenAudio` until the
-microphone is actually needed, which is the library's own playout-only policy.
-Nothing has to be applied on the way back up: the native policy installs the
-recording configuration when capture starts. Handing it *back* on the way down
-does have to be explicit — stopping capture does not by itself restore A2DP.
+So the session is `playback` + `mixWithOthers` + `spokenAudio` until the
+microphone is actually needed, and `playAndRecord` + `allowBluetooth` +
+`mixWithOthers` + `defaultToSpeaker` + `videoChat` while it is capturing. Both
+are in `app/src/audio/session.ts`. **Both directions are applied, and the first
+shipped attempt applied only one. That caused echo**, which the next section is
+about.
 
 **Recording is the exception, and it is why this is a tested function rather
 than a condition inline.** `core/channel.ts` lets one person alone record; a
@@ -877,6 +878,44 @@ capturing and playing at once.
 profile switch. On a phone with a real speaker: play something from another
 app, enter an empty channel, confirm the music neither stops nor degrades, then
 have somebody join and confirm the microphone opens.
+
+#### Build 17 shipped this with echo, and why the code looks defensive now
+
+Build 17 applied the playout configuration only, on the assumption that the
+SDK's native policy would install the recording one when capture started. It
+does — on engine *transitions*, and there were none, because
+`setMicrophoneEnabled(false)` mutes a track without releasing the device. So a
+phone that had once closed its microphone kept capturing under `spokenAudio`,
+which is not a voice mode, which means no system echo canceller: the *other*
+party heard themselves. **POSTMORTEM-echo.md** is the full account.
+
+Four things follow, and each is load-bearing rather than belt-and-braces:
+
+- **`app/src/audio/session.ts` holds both configurations.** Three components
+  write this session — this app, the SDK's policy observer, and WebRTC
+  re-applying its own defaults — and they mutate one process-wide
+  `RTCAudioSessionConfiguration.webRTCConfiguration`. Whoever writes last wins,
+  so everything we control writes identical values. There is no such thing as a
+  temporary call to `setAppleAudioConfiguration`.
+- **`index.ts` hands those same constants to `setupIOSAudioManagement`,**
+  replacing the SDK defaults `registerGlobals()` installs, so the observer
+  cannot contradict the app on some later transition. It did, visibly: a tester
+  watched the echo stop and the audio drop to the earpiece in the same instant,
+  which is that configuration arriving — a voice mode, and no `defaultToSpeaker`.
+- **`CALL` states `defaultToSpeaker` explicitly**, rather than leaving it to
+  `videoChat` to imply, which it does not do reliably while `mixWithOthers` is
+  set. There is no speaker control in this app, so nothing on screen would
+  explain the earpiece.
+- **`stopMicTrackOnMute: true` on the `Room`,** so closing the microphone
+  really releases the device. Without it the engine never left the recording
+  state, which is both why the policy never fired and why the A2DP feature
+  above did nothing at all except when no track had ever been published.
+
+`mixWithOthers` stays. It was a live suspect, and the echo stopping under a
+configuration that carries it settles the question.
+
+Not verifiable here either — same phone-and-speaker test as above, plus two
+phones: mute, unmute, and confirm the other end does not hear itself.
 
 #### Home's dot means availability, not an open microphone
 

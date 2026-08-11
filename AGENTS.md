@@ -8,6 +8,10 @@ what is known and not done. **DECISIONS.md** is what was built and why,
 including what was deliberately not built. **FEATURES.md** is wanted features
 nobody has designed yet.
 
+**POSTMORTEM-echo.md** is a one-off: the build 17 echo bug, start to finish.
+Read it before touching the iOS audio session — three separate components
+configure it and the ways they disagree are not guessable from the code.
+
 ---
 
 # Expo HAS CHANGED
