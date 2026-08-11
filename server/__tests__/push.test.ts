@@ -2,7 +2,7 @@ import { createPrivateKey, createPublicKey, generateKeyPairSync, verify } from '
 import WebSocket from 'ws';
 import { buildApp, type App } from '../src/app';
 import { ANNOUNCE_INTERVAL_MS } from '../src/channels';
-import { MemoryPusher, mintProviderToken } from '../src/push';
+import { isDeadToken, MemoryPusher, mintProviderToken } from '../src/push';
 
 /**
  * What reaches somebody whose app is not running, and — as often — what does
@@ -295,6 +295,28 @@ describe('a dead address', () => {
     await settle();
 
     expect(app.devices.tokensFor([bob.account.id])).toEqual([]);
+  });
+
+  /**
+   * Only 410 Unregistered counts. Apple answers 400 BadDeviceToken both for a
+   * token that never existed and for a good one presented to the wrong
+   * environment — verified against the real service, where production accepted
+   * a token that sandbox refused with exactly this. Pruning on it would make
+   * one wrong APNS_ENV forget every device in the database.
+   */
+  it('survives every refusal but 410', () => {
+    expect(isDeadToken(410)).toBe(true);
+
+    // 400 is the one that matters: a good token in the wrong environment
+    // produces it, and so does a token that never existed.
+    expect(isDeadToken(400)).toBe(false);
+    // A rejected provider token, a throttle and an outage are all about the
+    // sender or the service, never about the address.
+    expect(isDeadToken(403)).toBe(false);
+    expect(isDeadToken(429)).toBe(false);
+    expect(isDeadToken(500)).toBe(false);
+    // Nothing was reached at all.
+    expect(isDeadToken(0)).toBe(false);
   });
 });
 

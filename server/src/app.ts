@@ -117,11 +117,45 @@ export function buildApp(options: BuildOptions = {}): App {
   pushNotifier.notify = (userIds, message) => {
     const away = userIds.filter((id) => !reachability.inApp(id));
     const tokens = devices.tokensFor(away);
-    if (tokens.length === 0) return;
+    // Logged even when nothing is sent, and with the reason it was not. The
+    // two ways of sending nothing — everybody is already looking, and nobody
+    // has registered a device — are indistinguishable from a delivery failure
+    // otherwise, which is exactly the confusion this feature shipped with.
+    if (tokens.length === 0) {
+      fastify.log.info(
+        {
+          channelId: message.channelId,
+          asked: userIds.length,
+          away: away.length,
+          why: away.length === 0 ? 'all reachable in-app' : 'no registered devices',
+        },
+        'push skipped'
+      );
+      return;
+    }
     void pusher
       .send(tokens, message)
-      .then((dead) => {
-        for (const token of dead) devices.forget(token);
+      .then((results) => {
+        for (const result of results) {
+          if (result.dead) devices.forget(result.token);
+        }
+        const failed = results.filter((r) => r.status !== 200);
+        fastify.log.info(
+          {
+            channelId: message.channelId,
+            sent: results.length - failed.length,
+            failed: failed.map((r) => ({
+              // Truncated: the whole token is in the database if it is ever
+              // wanted, and a log line is not the place to accumulate every
+              // address the server knows.
+              token: r.token.slice(0, 8),
+              status: r.status,
+              reason: r.reason,
+              error: r.error,
+            })),
+          },
+          'push sent'
+        );
       })
       .catch((error) => {
         fastify.log.error({ err: error }, 'push failed');

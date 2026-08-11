@@ -22,15 +22,32 @@ export interface PushMessage {
   channelId: string;
 }
 
+/** What one address's send did, for the caller to log. */
+export interface PushResult {
+  token: string;
+  /** The HTTP status Apple answered with, or 0 if nothing was reached. */
+  status: number;
+  /** Apple's machine-readable refusal, when it gave one. */
+  reason?: string;
+  /** Why the request never completed, when it did not. */
+  error?: string;
+  /** Whether this address should be forgotten. */
+  dead: boolean;
+}
+
 export interface Pusher {
   /**
    * Sends to every address given.
    *
-   * Resolves to the tokens Apple reported as dead, for the caller to forget.
-   * It never rejects: a notification is a courtesy, and nothing upstream
-   * should fail because a push did.
+   * Resolves to what happened per address. It never rejects: a notification is
+   * a courtesy, and nothing upstream should fail because a push did.
+   *
+   * **It reports rather than swallows.** The first version returned only the
+   * dead tokens and caught everything else, which meant APNs could refuse
+   * every notification and leave no trace anywhere — the failure looked
+   * identical to nothing having been sent, and cost an evening to tell apart.
    */
-  send(tokens: string[], message: PushMessage): Promise<string[]>;
+  send(tokens: string[], message: PushMessage): Promise<PushResult[]>;
 }
 
 /**
@@ -109,12 +126,9 @@ export class ApnsPusher implements Pusher {
     this.host = HOSTS[options.environment];
   }
 
-  async send(tokens: string[], message: PushMessage): Promise<string[]> {
+  async send(tokens: string[], message: PushMessage): Promise<PushResult[]> {
     if (tokens.length === 0) return [];
-    const results = await Promise.all(
-      tokens.map((token) => this.sendOne(token, message))
-    );
-    return results.filter((token): token is string => token !== null);
+    return Promise.all(tokens.map((token) => this.sendOne(token, message)));
   }
 
   /** Releases the connection. Called when the server shuts down. */
@@ -123,11 +137,10 @@ export class ApnsPusher implements Pusher {
     this.session = null;
   }
 
-  /** Resolves to the token if Apple says it is dead, otherwise null. */
   private async sendOne(
     token: string,
     message: PushMessage
-  ): Promise<string | null> {
+  ): Promise<PushResult> {
     const payload = JSON.stringify({
       aps: {
         alert: { title: message.title, body: message.body },
@@ -139,16 +152,15 @@ export class ApnsPusher implements Pusher {
 
     try {
       const { status, reason } = await this.request(token, message, payload);
-      // 410 is Apple's word for "this install is gone"; a 400 naming the token
-      // means the same thing said earlier. Either way the row is now a dead
-      // address and keeping it costs a round trip on every future send.
-      if (status === 410) return token;
-      if (status === 400 && reason === 'BadDeviceToken') return token;
-      return null;
-    } catch {
-      // A transport failure says nothing about the token. Dropping the
-      // notification is the whole cost.
-      return null;
+      return { token, status, reason, dead: isDeadToken(status) };
+    } catch (error) {
+      // A transport failure says nothing about the token, so the row stays.
+      return {
+        token,
+        status: 0,
+        error: error instanceof Error ? error.message : String(error),
+        dead: false,
+      };
     }
   }
 
@@ -239,6 +251,26 @@ export class ApnsPusher implements Pusher {
 }
 
 /**
+ * Whether Apple's answer means this address should be forgotten.
+ *
+ * **410 Unregistered, and only that.** It is the one unambiguous way Apple says
+ * "this install is gone", so the row is a dead address and keeping it costs a
+ * round trip on every future send.
+ *
+ * 400 `BadDeviceToken` is deliberately *not* included, though it reads like it
+ * should be. Apple returns it both for a token that never existed and for a
+ * perfectly good token presented to the wrong environment — verified against
+ * the real service, where production accepted a token that sandbox refused with
+ * exactly this. Pruning on it would turn one wrong `APNS_ENV` into every device
+ * in the database being forgotten, and every person having to relaunch the app
+ * before they could be reached again. A misconfiguration should cost delivery
+ * until it is fixed, not data.
+ */
+export function isDeadToken(status: number): boolean {
+  return status === 410;
+}
+
+/**
  * The JWT APNs accepts in place of a certificate.
  *
  * **The signature must be raw `r||s`, not DER.** Node's default ECDSA encoding
@@ -277,12 +309,12 @@ function base64url(value: string): string {
 export class ConsolePusher implements Pusher {
   constructor(private log: (message: string) => void = console.log) {}
 
-  async send(tokens: string[], message: PushMessage): Promise<string[]> {
+  async send(tokens: string[], message: PushMessage): Promise<PushResult[]> {
     this.log(
       `\n  ── push to ${tokens.length} device(s): ` +
         `${message.title} — ${message.body} (${message.channelId}) ──\n`
     );
-    return [];
+    return tokens.map((token) => ({ token, status: 200, dead: false }));
   }
 }
 
@@ -292,9 +324,13 @@ export class MemoryPusher implements Pusher {
   /** Tokens to report as dead on the next send, so pruning can be tested. */
   dead = new Set<string>();
 
-  async send(tokens: string[], message: PushMessage): Promise<string[]> {
+  async send(tokens: string[], message: PushMessage): Promise<PushResult[]> {
     this.sent.push({ tokens, message });
-    return tokens.filter((token) => this.dead.has(token));
+    return tokens.map((token) => ({
+      token,
+      status: this.dead.has(token) ? 410 : 200,
+      dead: this.dead.has(token),
+    }));
   }
 
   /** Every message sent to this address, in order. */
