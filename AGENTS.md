@@ -64,9 +64,18 @@ record.
 ## Deployment
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09 and most
-recently on 2026-08-10 — twice that day: the channels rework, and later the
+recently on 2026-08-11, with the settled recording names and the channel
+ordering. Two columns were added to `recordings` — `participant_names` and
+`name` — and verified against production afterwards: 22 channels, 11
+recordings, both columns present.
+
+Before that, twice on 2026-08-10: the channels rework, and later the
 empty-channel playback pause and the shared channel-description fallback. That
 second one changed no wire format, so build 14 kept working across it.
+
+The 2026-08-11 deploy was additive to the wire protocol — two new
+`RecordingView` fields — so build 16 went on working against it, ignoring them
+and labelling recordings the old way.
 
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
 runs the tests first and refuses to continue if they fail.
@@ -203,7 +212,7 @@ Two more things that fail quietly and are worth checking before anything else:
       cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
       codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
 
-  Verified this way for builds 14, 15 and 16: `production`.
+  Verified this way for builds 14 through 17: `production`.
 - **The App ID needs the Push Notifications capability** enabled in the
   developer portal, or signing refuses the entitlement. It is registered
   against `co.rvanegas.thefloor`, which survives `prebuild --clean` even though
