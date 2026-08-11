@@ -183,6 +183,42 @@ export class Realtime {
     this.heartbeatTimer = null;
   }
 
+  /**
+   * The app has come back to the foreground, where the socket is very likely
+   * dead and nothing has noticed.
+   *
+   * iOS suspends the process rather than telling anyone: timers stop, the
+   * socket is torn down underneath us, and `onclose` may not arrive until the
+   * process is scheduled again. Waiting for the heartbeat to work that out
+   * costs up to HEARTBEAT_TIMEOUT_MS of showing stale state as though it were
+   * live — and the timers that would notice were themselves suspended, so the
+   * clock only starts on resume.
+   *
+   * An open-looking socket is therefore probed rather than trusted. A dead one
+   * is replaced now, without waiting out a backoff that may have grown to ten
+   * seconds while the phone was asleep — the delay was earned by failures that
+   * happened in a different network condition, and possibly on a different
+   * network.
+   */
+  resume(): void {
+    if (!this.token || this.closedByUs) return;
+
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.lastSeen = Date.now();
+      // Restarted because the interval did not run while suspended.
+      this.startHeartbeat();
+      this.send({ type: 'ping' });
+      return;
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempt = 0;
+    this.open();
+  }
+
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
     const delay = Math.min(

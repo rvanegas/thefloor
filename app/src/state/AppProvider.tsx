@@ -8,7 +8,8 @@ import React, {
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+// Aliased: `AppState` is already the name of this file's own state shape.
+import { AppState as NativeAppState, Platform } from 'react-native';
 import type {
   ClientAction,
   HomeView,
@@ -202,6 +203,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState((s) => ({ ...s, ready: true }));
         return;
       }
+      // Connecting from here on, and it matters that it says so: the socket is
+      // not opened until after this keychain read and the fetch below, and
+      // `closed` in the meantime is indistinguishable from having tried and
+      // failed. Home reads it as the latter and says the app cannot reach the
+      // server, at the one moment it has not yet attempted to.
+      setState((s) => ({ ...s, status: 'connecting' }));
       try {
         const home = await api.home(token);
         if (cancelled) return;
@@ -211,13 +218,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // An expired or revoked token should land on sign-in, not an error.
         if (error instanceof ApiError && error.status === 401) {
           await storage.remove(TOKEN_KEY);
-          if (!cancelled) setState((s) => ({ ...s, ready: true }));
+          if (!cancelled) {
+            setState((s) => ({ ...s, ready: true, status: 'closed' }));
+          }
           return;
         }
+        // Back to `closed`, so the optimism above cannot strand the app
+        // claiming to be connecting at something it has stopped trying.
         if (!cancelled) {
           setState((s) => ({
             ...s,
             ready: true,
+            status: 'closed',
             lastError: error instanceof Error ? error.message : String(error),
           }));
         }
@@ -280,6 +292,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
     });
     return () => onSignedOut(null);
+  }, [realtime]);
+
+  /**
+   * Reconnects when the app comes back to the foreground.
+   *
+   * Nothing else does. iOS suspends the process and the socket does not
+   * survive it, so without this the app sat on a dead connection until a
+   * heartbeat happened to notice — showing stale channels as live, and then
+   * announcing the disconnection at the moment the user had just returned.
+   * Foregrounding is the commonest thing anyone does with a phone, and it was
+   * the one transition the socket knew nothing about.
+   */
+  useEffect(() => {
+    const subscription = NativeAppState.addEventListener('change', (next) => {
+      if (next === 'active') realtime.resume();
+    });
+    return () => subscription.remove();
   }, [realtime]);
 
   useEffect(() => () => realtime.disconnect(), [realtime]);

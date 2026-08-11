@@ -29,6 +29,7 @@ import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 import { louder, quieter } from './volume';
 import { describeChannel } from '../../../core/naming';
+import { useOfflineNotice } from './useOfflineNotice';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -66,6 +67,8 @@ export function ChannelView({
     id: string;
     displayName: string;
   } | null>(null);
+  // Before the early return below, which is where the rules of hooks want it.
+  const showOffline = useOfflineNotice(app.status);
 
   useEffect(() => {
     app.watchChannel(channelId);
@@ -248,7 +251,9 @@ export function ChannelView({
             </Text>
           ))}
 
-          {app.status !== 'open' ? (
+          {/* Same delay as Home's: a foreground drops the socket every time,
+              and this used to announce it the instant it happened. */}
+          {showOffline ? (
             <Text style={styles.warning}>
               Reconnecting — a dropped connection counts as leaving.
             </Text>

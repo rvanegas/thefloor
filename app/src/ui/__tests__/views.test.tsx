@@ -690,7 +690,8 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('warns that a dropped connection counts as leaving', () => {
+  it('warns that a dropped connection counts as leaving, once it has lasted', () => {
+    jest.useFakeTimers();
     showChannel(channelOf());
     mockApp.status = 'connecting';
     const tree = render(<ChannelView
@@ -699,8 +700,15 @@ describe('Channel', () => {
         onHome={() => {}}
         onExit={() => {}}
       />);
+    // Held back at first: foregrounding drops the socket every time, and this
+    // warning is alarming enough that crying wolf on it teaches people to
+    // ignore it.
+    expect(textOf(tree)).not.toContain('dropped connection counts as leaving');
+
+    act(() => void jest.advanceTimersByTime(3_000));
     expect(textOf(tree)).toContain('dropped connection counts as leaving');
     act(() => tree.unmount());
+    jest.useRealTimers();
   });
 
   it('renders a roster and generalised copy with four people', () => {
@@ -1299,23 +1307,40 @@ describe('the connection warning', () => {
     jest.useRealTimers();
   });
 
-  it('reports a drop immediately, having been connected once', () => {
+  it('holds a later drop back too, not only the first', () => {
+    // This used to assert the opposite — "a real drop, after a real
+    // connection: no grace this time" — and that is what people were seeing.
+    // Every foreground drops the socket, so a warning with no grace after the
+    // first connection is a warning on every foreground.
     jest.useFakeTimers();
     empty();
     mockApp.status = 'open';
     const tree = render(
       <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
     );
-    expect(textOf(tree)).not.toContain('Reconnecting');
+    const show = (status: 'connecting' | 'open' | 'closed') => {
+      mockApp.status = status;
+      act(() => {
+        tree.update(
+          <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+        );
+      });
+    };
 
-    // A real drop, after a real connection: no grace this time.
-    mockApp.status = 'connecting';
-    act(() => {
-      tree.update(
-        <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
-      );
-    });
-    expect(textOf(tree)).toContain('Reconnecting');
+    show('connecting');
+    expect(textOf(tree)).not.toContain('Reconnecting…');
+
+    // Back before the delay is up: never mentioned at all.
+    act(() => void jest.advanceTimersByTime(1_000));
+    show('open');
+    act(() => void jest.advanceTimersByTime(60_000));
+    expect(textOf(tree)).not.toContain('Reconnecting…');
+
+    // One that genuinely lasts is still reported.
+    show('connecting');
+    act(() => void jest.advanceTimersByTime(3_000));
+    expect(textOf(tree)).toContain('Reconnecting…');
+
     act(() => tree.unmount());
     jest.useRealTimers();
   });

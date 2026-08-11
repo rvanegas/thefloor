@@ -687,3 +687,42 @@ carries it there. Recordings still ignore the channel name entirely
 (`HomeView.tsx`, `'Unknown'`), because `RecordingView` has no name field and the
 recordings row has no column; that is a protocol and schema change, and a
 separate item.
+
+### The disconnection warning waits, and the socket knows about foregrounding
+
+Three faults, one symptom: the warning appeared on launch and on every return
+to the app.
+
+**Nothing listened for the app coming back.** iOS suspends the process; the
+socket does not survive it, and the timers that would notice were suspended
+too, so the clock only started on resume. The first sign of trouble was a
+heartbeat failing up to `HEARTBEAT_TIMEOUT_MS` later — stale channels shown as
+live until then, and the warning landing just as the user returned.
+`Realtime.resume()`, driven by an `AppState` listener, replaces a dead socket
+at once and probes one that still looks open rather than trusting it. It also
+drops the reconnect backoff, which may have grown to ten seconds against a
+network the phone is no longer on.
+
+**`closed` stood in for two different things.** The provider starts at `closed`
+and did not move until `realtime.connect()` ran — behind a keychain read *and*
+a full `api.home()` round trip. Home reads `closed` as having tried and failed,
+so a cold start on a slow network announced that the app could not reach the
+server at the one moment it had not yet tried. The restore now says
+`connecting` as soon as there is a token to connect with, and puts it back to
+`closed` if it gives up.
+
+**The grace period was a one-way latch.** Home held the warning back for two and
+a half seconds — but only once ever, so every drop after the first connection
+was announced instantly. Since a foreground *is* a drop, that meant every
+foreground. `useOfflineNotice` arms the delay on each transition into being
+offline. It keys on `status !== 'open'` rather than on the status itself, which
+matters: keying on the status would restart the delay on every
+`connecting`/`closed` flap of the backoff, and a phone with no route to the
+server would flap its way to never warning at all.
+
+The delay now covers all three places that report the connection — Home's
+banner, the quieter `· reconnecting` beside the signed-in name, and the
+in-channel "a dropped connection counts as leaving". A test asserted the old
+behaviour explicitly ("a real drop, after a real connection: no grace this
+time"); it was wrong about what a drop means on a phone, and now asserts the
+opposite.
