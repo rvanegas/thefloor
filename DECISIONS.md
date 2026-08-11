@@ -648,3 +648,42 @@ track paused because the room emptied from one somebody paused on purpose, and
 a second account of why playback is where it is next to the position itself. It
 is also the worse behaviour: a channel that starts playing at whoever steps in
 is a surprise, and a press of Play is not.
+
+### An unnamed channel is described, and the interface admits it
+
+A channel with no name falls back to its roster. That fallback is not a name
+and must not look like one, which is the part the old code got wrong in a way
+no amount of better wording would have fixed.
+
+The trouble is that the fallback is computed **per viewer**. You read "Dana
+Chu"; Dana reads your name. Rendered in the same slot and the same type as a
+real name, in one list beside channels that do have names, it reads as a shared
+proper noun — so people came away believing the channel was called that for
+everyone, and then found they had nothing to say out loud. "Our channel" only
+disambiguates when you have exactly one channel with that person, which
+permanent channels make unlikely.
+
+So a described channel now renders in `colors.textMuted` and italic, against a
+named one's full-strength upright `colors.text` — the hierarchy the app already
+uses for what it reports versus what it asserts. The wording stays viewer-
+relative, which is the honest form for a description once it no longer pretends
+to be a name.
+
+Three copies of the fallback had drifted, which is how "1 people" survived: with
+everyone else gone, the header and the push title both rendered
+`${others.length + 1} people`, while Home said "Just you". They now share
+`core/naming.ts`. It sits in core for the same reason the reducer does — the
+server writes the push title and the app writes the screen, and the two must not
+disagree about what a channel is called. `nameFor` in the server already claimed
+they agreed; it was wrong.
+
+The description also stops at two names and counts the rest ("Dana, Miro and 2
+others") rather than joining the whole roster, because it renders on one line in
+a list row and channels hold up to six.
+
+**Not done, and deliberately.** The lock screen gets the description with no
+typography at all, since a push title carries no styling — the wording alone
+carries it there. Recordings still ignore the channel name entirely
+(`HomeView.tsx`, `'Unknown'`), because `RecordingView` has no name field and the
+recordings row has no column; that is a protocol and schema change, and a
+separate item.

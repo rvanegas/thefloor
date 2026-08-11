@@ -13,6 +13,7 @@ import {
   reduce,
 } from '../../core/channel';
 import { initialFloorState } from '../../core/floor';
+import { describeChannel } from '../../core/naming';
 import { initialPlaybackState } from '../../core/playback';
 import { initialRecordingState } from '../../core/recording';
 import type {
@@ -828,14 +829,22 @@ export class ChannelRegistry {
    * What to call a channel when writing to one particular person: its name if
    * it has one, otherwise the roster as they see it.
    *
-   * The same fallback the app's own header and Home use, so a channel does not
-   * answer to one thing on the lock screen and another once you have tapped it.
+   * Now genuinely the same fallback the app's header and Home use, by sharing
+   * `describeChannel` with them, so a channel does not answer to one thing on
+   * the lock screen and another once you have tapped it. It used to say so and
+   * be wrong: this returned "3 people" where Home listed the names, and "1
+   * people" once everyone else had left.
+   *
+   * A lock screen has no typography, so the description arrives here stripped
+   * of the muted italic that marks it as a description on screen. Nothing to
+   * be done about that; the notification is addressed to one person, which is
+   * the reading under which a viewer-relative label is true.
    */
   private nameFor(channel: ChannelState, viewer: string): string {
     if (channel.name) return channel.name;
-    const others = otherParticipants(channel, viewer);
-    if (others.length === 1) return this.displayName(others[0]);
-    return `${others.length + 1} people`;
+    return describeChannel(
+      otherParticipants(channel, viewer).map((id) => this.displayName(id))
+    );
   }
 
   private displayName(userId: string): string {

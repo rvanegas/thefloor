@@ -14,6 +14,7 @@ import type {
   RejoinableView,
 } from '../../../core/protocol';
 import { MAX_CHANNEL_PARTICIPANTS } from '../../../core/constants';
+import { describeChannel } from '../../../core/naming';
 import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Field, SectionLabel } from './components';
@@ -412,11 +413,19 @@ function ChannelRow({
   return (
     <Card style={styles.row}>
       <View style={styles.rowMain}>
-        <Text style={type.body} numberOfLines={1}>
+        {/*
+          A named channel is asserted; an unnamed one is only described, and
+          the muted italic says so. Without it the two sit in one list looking
+          alike, and a description written from your side alone reads as a
+          name every member would recognise — which it is not. See
+          core/naming.ts.
+        */}
+        <Text
+          style={channel.name ? type.body : styles.described}
+          numberOfLines={1}
+        >
           {channel.name ??
-            (channel.others.length > 0
-              ? channel.others.map((other) => other.displayName).join(', ')
-              : 'Just you')}
+            describeChannel(channel.others.map((other) => other.displayName))}
         </Text>
         <Text style={type.muted}>
           {/*
@@ -642,6 +651,8 @@ const styles = StyleSheet.create({
     gap: spacing(1.5),
   },
   rowMain: { flex: 1, gap: 2 },
+  /** A channel nobody has named: described rather than called something. */
+  described: { ...type.body, color: colors.textMuted, fontStyle: 'italic' },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
   pendingTag: { ...type.muted, color: colors.textFaint },
   banner: {

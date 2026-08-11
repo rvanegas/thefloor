@@ -28,6 +28,7 @@ import { InlineMarkdown } from './markdown';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 import { louder, quieter } from './volume';
+import { describeChannel } from '../../../core/naming';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -183,11 +184,15 @@ export function ChannelView({
 
         <View style={styles.presence}>
           <View style={styles.titleRow}>
-            <Text style={styles.otherName} numberOfLines={1}>
+            {/* Muted italic when nobody has named it, for the reason set out
+                in core/naming.ts: this is a description written from your
+                side, not a name the others would recognise. */}
+            <Text
+              style={channel.name ? styles.otherName : styles.describedName}
+              numberOfLines={1}
+            >
               {channel.name ??
-                (others.length === 1
-                  ? others[0].displayName
-                  : `${others.length + 1} people`)}
+                describeChannel(others.map((other) => other.displayName))}
             </Text>
             <View style={styles.titleActions}>
               {/*
@@ -657,6 +662,13 @@ const styles = StyleSheet.create({
   audioMuted: { ...type.muted, color: colors.textFaint },
   audioBad: { ...type.muted, color: colors.danger },
   otherName: { flexShrink: 1, fontSize: 24, fontWeight: '700', color: colors.text },
+  describedName: {
+    flexShrink: 1,
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.textMuted,
+    fontStyle: 'italic',
+  },
   scroll: { flex: 1 },
   container: { padding: spacing(2), paddingBottom: spacing(2) },
   centered: {

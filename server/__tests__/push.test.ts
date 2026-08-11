@@ -424,3 +424,73 @@ describe('a restart', () => {
     expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
   });
 });
+
+/**
+ * The lock screen is the one surface where the channel's label arrives with no
+ * typography — the muted italic that marks a description on screen cannot come
+ * with it. So the words themselves have to be right, and they have to be the
+ * same words the app would show that same reader.
+ */
+describe('what an unnamed channel is called on the lock screen', () => {
+  /** A channel nobody is in, so that stepping in is worth announcing. */
+  async function emptyChannel() {
+    const { alice, bob } = await twoContacts();
+    const channelId = await createChannel(alice.token, [bob.account.id]);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    await settle();
+    pusher.sent.length = 0;
+    return { alice, bob, channelId };
+  }
+
+  it('names the others rather than counting heads', async () => {
+    const { alice, bob, channelId } = await emptyChannel();
+    const carol = await signIn('carol@example.com', 'Carol');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: 'carol@example.com' },
+    });
+    await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${alice.account.id}/accept`,
+      headers: auth(carol.token),
+    });
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'INVITE',
+      contactId: carol.account.id,
+    } as never);
+    await registerDevice(bob.token, 'bob-phone');
+    await settle();
+    pusher.sent.length = 0;
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    // Bob's side of the roster, which is the only side this notification has.
+    // It used to read "3 people", counting Bob himself among strangers.
+    expect(pusher.messagesFor('bob-phone')).toEqual([
+      { title: 'Alice and Carol', body: 'Alice stepped in.', channelId },
+    ]);
+  });
+
+  it('uses the name once the channel has one', async () => {
+    const { alice, bob, channelId } = await emptyChannel();
+    await registerDevice(bob.token, 'bob-phone');
+    app.channels.dispatch(channelId, bob.account.id, {
+      type: 'SET_NAME',
+      name: 'Thursday rehearsal',
+    } as never);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')).toEqual([
+      {
+        title: 'Thursday rehearsal',
+        body: 'Alice stepped in.',
+        channelId,
+      },
+    ]);
+  });
+});

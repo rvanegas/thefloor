@@ -10,6 +10,8 @@ import type { HomeView as HomeViewData } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
 import { HomeSettingsView } from '../HomeSettingsView';
+import { StyleSheet } from 'react-native';
+import { colors } from '../theme';
 
 /**
  * The views now render server snapshots rather than driving a local model, so
@@ -720,7 +722,9 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     const text = textOf(tree);
-    expect(text).toContain('4 people');
+    // Named after who else is in it, two names and a count — not "4 people",
+    // which threw away names the same screen goes on to list.
+    expect(text).toContain('Dana Chu, Miro Okafor and 1 other');
     expect(text).toContain('Dana Chu');
     expect(text).toContain('Miro Okafor');
     expect(text).toContain('Priya Raman');
@@ -1392,6 +1396,109 @@ describe('adding a contact you met in a channel', () => {
     expect(accept).toBeDefined();
     await act(async () => accept!.props.onPress());
     expect(mockApp.connectWith).toHaveBeenCalledWith(THEM);
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * A named channel is called something; an unnamed one is only being described,
+ * from the viewer's side alone — Alice reads different words for the same
+ * channel. Listed side by side in one type they look alike, and the
+ * description reads as a shared name it is not, so the styling has to carry
+ * the difference. Asserted on style rather than text because that *is* the
+ * feature.
+ */
+describe('named channels and described ones do not look alike', () => {
+  const titleStyleOf = (tree: ReactTestRenderer, text: string) => {
+    const node = tree.root.findAll(
+      (n) => typeof n.props?.children === 'string' && n.props.children === text
+    )[0];
+    return StyleSheet.flatten(node.props.style) as {
+      fontStyle?: string;
+      color?: string;
+    };
+  };
+
+  const homeWith = (name: string | null) => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name,
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 1,
+          createdAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    return render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+  };
+
+  it('sets a described channel in muted italic on Home', () => {
+    const tree = homeWith(null);
+    const style = titleStyleOf(tree, 'Miro Okafor');
+    expect(style.fontStyle).toBe('italic');
+    expect(style.color).toBe(colors.textMuted);
+    act(() => tree.unmount());
+  });
+
+  it('leaves a named channel asserted, upright and full strength', () => {
+    const tree = homeWith('Thursday rehearsal');
+    const style = titleStyleOf(tree, 'Thursday rehearsal');
+    expect(style.fontStyle).toBeUndefined();
+    expect(style.color).toBe(colors.text);
+    act(() => tree.unmount());
+  });
+
+  it('marks the channel header the same way', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    // The header, not the roster below it: both say "Dana Chu".
+    const [header] = tree.root.findAll(
+      (n) =>
+        n.props?.children === 'Dana Chu' &&
+        StyleSheet.flatten(n.props?.style)?.fontSize === 24
+    );
+    const style = StyleSheet.flatten(header.props.style) as {
+      fontStyle?: string;
+      color?: string;
+    };
+    expect(style.fontStyle).toBe('italic');
+    expect(style.color).toBe(colors.textMuted);
+    act(() => tree.unmount());
+  });
+
+  it('says so plainly when everyone else has left', () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name: null,
+          others: [],
+          presentCount: 0,
+          createdAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    expect(textOf(tree)).toContain('Just you');
     act(() => tree.unmount());
   });
 });

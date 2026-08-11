@@ -15,9 +15,12 @@ Try again.
 
 Can't scroll up.
 
-## Nameless Channels
+## Recordings Ignore the Channel Name
 
-Needs better fallback.
+A recording is listed and exported under the roster — "Unknown" when that is
+empty — even when the channel it came from has a name. `RecordingView` carries
+no name and the `recordings` row has no column, so this is a protocol and
+schema change rather than a display one.
 
 ## Dark Mode
 

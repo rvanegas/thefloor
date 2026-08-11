@@ -116,8 +116,14 @@ export interface ChannelState {
   id: string;
   /**
    * What the participants call this channel, or null when nobody has named
-   * it. Display falls back to the roster — the other party's name, or a head
-   * count — so a name is a replacement for that, never a requirement.
+   * it. A name is never required: display falls back to `describeChannel`
+   * over the roster.
+   *
+   * The two are not the same kind of thing, though, and the interface says so.
+   * A name is one string every member reads and can therefore say to another
+   * member. The fallback is a *description*, written from one viewer's side —
+   * you see "Dana Chu", she sees your name — so it is rendered in muted italic
+   * rather than dressed as a name that everybody shares.
    */
   name: string | null;
   /**
