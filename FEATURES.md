@@ -23,10 +23,6 @@ Needs better fallback.
 
 When everyone has stepped out, media should pause.
 
-## Media Volume
-
-Below 10%, increments and decrements are by 1%. Rationale is that background music requires tuning within this range.
-
 ## Dark Mode
 
 Currently all is in Dark Mode. Support Light Mode too.
@@ -34,4 +30,8 @@ Currently all is in Dark Mode. Support Light Mode too.
 ## Track Recording Costs
 
 Track costs of recordings and assign them to the user who starts the recording.
+
+## Apple Speakers Interaction
+
+It should be possible to hang out in a room and still send audio to bluetooth speakers.
 

@@ -607,3 +607,22 @@ content-available pushes, and `voip` only becomes load bearing under PushKit,
 which this does not use. AGENTS.md records that reviewers object to an app
 declaring a background mode it does not use, and that reasoning did not change
 because a different notification feature shipped.
+
+### The volume buttons change step size below 10%
+
+Quieter and Louder move a tenth at a time down to 10%, then a single point at a
+time below it. Music playing under a conversation lives in that bottom range,
+and there a whole tenth is the difference between a bed and silence — 10% to 0%
+in one tap, with nothing in between where the useful settings are.
+
+Both directions snap to a multiple of the current step rather than adding to
+whatever is there, so a volume that is not already on the grid — the 70% a
+track starts at, a value from some other client — walks onto it instead of
+carrying an offset forever. The boundary is asymmetric on purpose: at exactly
+10%, Louder takes the coarse step to 20% and Quieter takes the fine one to 9%,
+which is what makes a tap reversible by the opposite tap.
+
+It lives in `app/src/ui/volume.ts`, not in `core/`. This is how the controls
+behave, not a rule anyone is held to: the reducer accepts any volume and only
+clamps it to 0–1, so a client offering a slider instead would be no less
+correct.

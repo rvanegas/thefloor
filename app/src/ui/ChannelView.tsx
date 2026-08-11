@@ -27,10 +27,10 @@ import { ProfileView } from './ProfileView';
 import { InlineMarkdown } from './markdown';
 import { Button, Card, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
+import { louder, quieter } from './volume';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
-const VOLUME_STEP = 0.1;
 
 /**
  * The in-channel screen. Control states come from the same guards the server
@@ -404,7 +404,7 @@ export function ChannelView({
                   onPress={() =>
                     act({
                       type: 'SET_VOLUME',
-                      volume: playback.volume - VOLUME_STEP,
+                      volume: quieter(playback.volume),
                     })
                   }
                 />
@@ -420,7 +420,7 @@ export function ChannelView({
                   onPress={() =>
                     act({
                       type: 'SET_VOLUME',
-                      volume: playback.volume + VOLUME_STEP,
+                      volume: louder(playback.volume),
                     })
                   }
                 />
