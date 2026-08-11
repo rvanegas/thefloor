@@ -166,17 +166,29 @@ Two more things that fail quietly and are worth checking before anything else:
   `development`. `app.json` therefore passes `{ "mode": "production" }`, which
   is what a build headed for TestFlight needs.
 
-  Build 13 shipped before this was noticed, archived with `development`. The
-  symptom would have been every token from TestFlight being a sandbox token
-  against a production server: `BadDeviceToken`, blaming the token.
-
   The cost is that `expo run:ios` now produces production entitlements too. To
   test push against a locally built app, flip `mode` to `development` and set
   `APNS_ENV=sandbox` on whichever server it talks to — both, or neither.
 
-  Check it after every `prebuild`, since that is what regenerates the file:
+- **Check the exported IPA, not the entitlements file and not the archive.**
+  There are three artifacts and they disagree, which makes this easy to get
+  wrong in either direction:
 
-      grep -A1 aps-environment app/ios/TheFloor/TheFloor.entitlements
+  | | |
+  | --- | --- |
+  | `app/ios/TheFloor/TheFloor.entitlements` | what the app *requests*; the plugin writes it |
+  | `/tmp/thefloor.xcarchive` | signed against a **Development** profile by automatic signing — reads `development` even when the file says `production`, and that is expected |
+  | the exported IPA | re-signed for distribution at export. **This is what ships.** |
+
+  So an archive reading `development` proves nothing. To settle it:
+
+      xcodebuild -exportArchive -archivePath /tmp/thefloor.xcarchive \
+        -exportPath /tmp/thefloor-check -exportOptionsPlist <plist with
+        destination=export> -allowProvisioningUpdates
+      cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
+      codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
+
+  Verified this way for build 14: `production`.
 - **The App ID needs the Push Notifications capability** enabled in the
   developer portal, or signing refuses the entitlement. It is registered
   against `co.rvanegas.thefloor`, which survives `prebuild --clean` even though

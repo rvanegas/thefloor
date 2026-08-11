@@ -584,10 +584,16 @@ defect the registry test exists for.
 
 `app.json` passes `{ "mode": "production" }` to the `expo-notifications` plugin
 rather than taking its default. The plugin writes `aps-environment` into the
-entitlements once, at prebuild, with no knowledge of Debug versus Release — so
-the default of `development` would have every TestFlight build minting sandbox
-tokens against a production server, which APNs refuses with a `BadDeviceToken`
-that blames the token.
+entitlements once, at prebuild, with no knowledge of Debug versus Release, and
+its default is `development` — which would have the app asking for a sandbox
+entitlement on a build headed for TestFlight. The failure that follows is a
+`BadDeviceToken` naming the token rather than the environment.
+
+Pinned rather than left to the export to sort out. The export *does* re-sign for
+distribution and did produce `production` from an app requesting `development`,
+so the default might have worked — but "might, because a later signing step
+overrides what we asked for" is not a thing to depend on for the setting most
+likely to be silently wrong.
 
 Pinning it means a locally built app is also production-entitled, so testing
 push against `expo run:ios` takes flipping `mode` and setting `APNS_ENV=sandbox`
