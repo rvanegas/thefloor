@@ -203,7 +203,7 @@ Two more things that fail quietly and are worth checking before anything else:
       cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
       codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
 
-  Verified this way for builds 14 and 15: `production`.
+  Verified this way for builds 14, 15 and 16: `production`.
 - **The App ID needs the Push Notifications capability** enabled in the
   developer portal, or signing refuses the entitlement. It is registered
   against `co.rvanegas.thefloor`, which survives `prebuild --clean` even though
