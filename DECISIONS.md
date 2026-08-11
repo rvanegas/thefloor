@@ -663,11 +663,12 @@ everyone, and then found they had nothing to say out loud. "Our channel" only
 disambiguates when you have exactly one channel with that person, which
 permanent channels make unlikely.
 
-So a described channel now renders in `colors.textMuted` and italic, against a
-named one's full-strength upright `colors.text` — the hierarchy the app already
-uses for what it reports versus what it asserts. The wording stays viewer-
-relative, which is the honest form for a description once it no longer pretends
-to be a name.
+So a described channel now renders in italic against a named one's upright
+type. Italic *only*: it was briefly dimmed as well, which said "less important"
+on top of "not a name" — and these are not less important. Most channels have
+no name, so dimming them made the greyest thing on the screen the commonest.
+The wording stays viewer-relative, which is the honest form for a description
+once it no longer pretends to be a name.
 
 Three copies of the fallback had drifted, which is how "1 people" survived: with
 everyone else gone, the header and the push title both rendered
@@ -726,3 +727,29 @@ in-channel "a dropped connection counts as leaving". A test asserted the old
 behaviour explicitly ("a real drop, after a real connection: no grace this
 time"); it was wrong about what a drop means on a phone, and now asserts the
 opposite.
+
+### Home lists named channels first, then by when each was last used
+
+Two orderings, in that priority.
+
+**Named above described.** A name is something somebody sat down and wrote, so
+the channels that have one are the ones being kept deliberately. Sorting the
+whole list by recency alone buries them among channels nobody has bothered to
+name, which costs the naming most of its point — there would be little reason
+to name a channel if doing so bought you nothing but italics.
+
+**Within each group, most recently used first** — and that needed a field.
+The list was ordered by `createdAt`, ascending, which was defensible when
+channels lasted an afternoon and is not now that they are permanent: a channel
+opened months ago and used daily sank below whatever was opened last week and
+abandoned. `ChannelState.lastActiveAt` is stamped at creation, on every entry,
+and again when somebody steps out — so an occupied channel reads as now, and an
+empty one is ranked by when it went quiet.
+
+Comings and goings only. Renaming a channel from its settings screen is not
+using it and does not jump it up the list.
+
+It rides in the durable JSON blob rather than a new column, so there is no
+migration; rows written before it existed fall back to `created_at`, which is
+the order they already had. The grouping itself lives in the app, being a
+display decision — the server sorts by recency and Home groups on top of that.

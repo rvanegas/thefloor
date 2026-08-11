@@ -452,3 +452,51 @@ describe('a recording interrupted by the restart', () => {
     await shutdown(second);
   });
 });
+
+describe('when a channel was last in use', () => {
+  it('survives a restart, so the list order does not reshuffle', async () => {
+    const seed = boot();
+    const { alice, bob, channelId } = await pair(seed);
+    // Used well after it was created, which is the whole point of the field:
+    // creation order and use order are different things.
+    clock += 600_000;
+    seed.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    const used = clock;
+    clock += 60_000;
+    seed.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    seed.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    const emptied = clock;
+    await shutdown(seed);
+
+    const app = boot();
+    const revived = app.channels.get(channelId)!;
+    expect(revived.lastActiveAt).toBe(emptied);
+    expect(revived.lastActiveAt).toBeGreaterThan(used);
+    expect(revived.lastActiveAt).toBeGreaterThan(revived.createdAt);
+    await shutdown(app);
+  });
+
+  it('falls back to creation for a row written before the field existed', async () => {
+    // Those rows are ordinary and revivable; they simply have no record of
+    // use. Creation is the honest answer, and it is the order they had before.
+    const seed = boot();
+    const { channelId } = await pair(seed);
+    await shutdown(seed);
+
+    const raw = new DatabaseSync(dbPath());
+    const row = raw
+      .prepare('SELECT state, created_at FROM channels WHERE id = ?')
+      .get(channelId) as { state: string; created_at: number };
+    const { lastActiveAt: _dropped, ...older } = JSON.parse(row.state);
+    expect(_dropped).toBeDefined();
+    raw
+      .prepare('UPDATE channels SET state = ? WHERE id = ?')
+      .run(JSON.stringify(older), channelId);
+    raw.close();
+
+    const app = boot();
+    const revived = app.channels.get(channelId)!;
+    expect(revived.lastActiveAt).toBe(row.created_at);
+    await shutdown(app);
+  });
+});

@@ -667,11 +667,12 @@ const styles = StyleSheet.create({
   audioMuted: { ...type.muted, color: colors.textFaint },
   audioBad: { ...type.muted, color: colors.danger },
   otherName: { flexShrink: 1, fontSize: 24, fontWeight: '700', color: colors.text },
+  /** Italic alone; see the note on Home's `described`. */
   describedName: {
     flexShrink: 1,
     fontSize: 24,
     fontWeight: '700',
-    color: colors.textMuted,
+    color: colors.text,
     fontStyle: 'italic',
   },
   scroll: { flex: 1 },

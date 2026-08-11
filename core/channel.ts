@@ -62,6 +62,7 @@ export function createChannel(params: {
     participants,
     invitedBy: Object.fromEntries(invitees.map((i) => [i, initiator])),
     createdAt: now,
+    lastActiveAt: now,
     status: 'active',
     endedAt: null,
     // Creating a channel is entering it: the initiator is present immediately
@@ -292,6 +293,7 @@ export function reduce(
       return {
         ...state,
         disconnectedAt: others,
+        lastActiveAt: now,
         present: [...state.present, action.userId],
         everPresent: state.everPresent.includes(action.userId)
           ? state.everPresent
@@ -493,6 +495,9 @@ function stepOut(
     {
       ...state,
       present,
+      // Stamped on the way out as well as the way in, so an emptied channel
+      // is ordered by when it emptied rather than by when it was entered.
+      lastActiveAt: now,
       disconnectedAt: stillConnected,
       // A departing floor-holder's claim is force-released, exactly as if
       // released voluntarily. Dropped connections take this same path.

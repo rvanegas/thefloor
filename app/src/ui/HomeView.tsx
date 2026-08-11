@@ -55,7 +55,7 @@ export function HomeView({
   const invites = (home?.invites ?? []).filter(
     (i) => !dismissed.includes(i.channelId)
   );
-  const live = home?.rejoinable ?? [];
+  const live = orderChannels(home?.rejoinable ?? []);
   const contacts = home?.contacts ?? [];
   const recordings = home?.recordings ?? [];
 
@@ -351,6 +351,26 @@ function ExportButton({ recording }: { recording: RecordingView }) {
   );
 }
 
+/**
+ * Named channels first, then the ones only being described; most recently
+ * used first within each.
+ *
+ * A name is a thing somebody chose to write, so the channels that have one are
+ * the ones being kept deliberately, and burying them among the rest costs the
+ * naming its point. Sorting by recency alone would do exactly that.
+ *
+ * Recency is `lastActiveAt` rather than `createdAt`: channels are permanent
+ * now, so creation order has nothing to do with what anybody is using.
+ */
+function orderChannels(channels: RejoinableView[]): RejoinableView[] {
+  const byRecency = (a: RejoinableView, b: RejoinableView) =>
+    b.lastActiveAt - a.lastActiveAt;
+  return [
+    ...channels.filter((c) => c.name).sort(byRecency),
+    ...channels.filter((c) => !c.name).sort(byRecency),
+  ];
+}
+
 function describeStatus(status: string): string {
   return status === 'connecting' ? 'reconnecting' : 'offline';
 }
@@ -634,8 +654,14 @@ const styles = StyleSheet.create({
     gap: spacing(1.5),
   },
   rowMain: { flex: 1, gap: 2 },
-  /** A channel nobody has named: described rather than called something. */
-  described: { ...type.body, color: colors.textMuted, fontStyle: 'italic' },
+  /**
+   * A channel nobody has named: described rather than called something.
+   *
+   * Italic alone. Dimming it as well said "less important" on top of "not a
+   * name", and these are not less important — most channels have no name, and
+   * they were the greyest thing on the screen.
+   */
+  described: { ...type.body, fontStyle: 'italic' },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
   pendingTag: { ...type.muted, color: colors.textFaint },
   banner: {

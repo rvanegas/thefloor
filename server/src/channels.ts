@@ -702,9 +702,12 @@ export class ChannelRegistry {
         others,
         presentCount: channel.present.length,
         createdAt: channel.createdAt,
+        lastActiveAt: channel.lastActiveAt,
       });
     }
-    return rejoinable.sort((a, b) => a.createdAt - b.createdAt);
+    // Most recently used first. Home groups named channels above unnamed ones
+    // and preserves this order inside each group.
+    return rejoinable.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
   }
 
   recordingsFor(userId: string): RecordingRow[] {
@@ -1410,6 +1413,7 @@ export class ChannelRegistry {
       everPresent: channel.everPresent,
       status: channel.status,
       endedAt: channel.endedAt,
+      lastActiveAt: channel.lastActiveAt,
       lastRecording: channel.lastRecording,
     });
   }
@@ -1600,6 +1604,7 @@ export class ChannelRegistry {
       participants?: string[];
       invitedBy?: Record<string, string>;
       everPresent?: string[];
+      lastActiveAt?: number;
       lastRecording?: ChannelState['lastRecording'];
     };
     const participants =
@@ -1613,6 +1618,9 @@ export class ChannelRegistry {
       participants,
       invitedBy: durable.invitedBy ?? {},
       createdAt: row.created_at,
+      // Channels written before this field existed fall back to their creation
+      // — the same order they had before, rather than all of them at zero.
+      lastActiveAt: durable.lastActiveAt ?? row.created_at,
       status: 'active',
       endedAt: null,
       present: [],

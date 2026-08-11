@@ -52,6 +52,8 @@ export interface RejoinableView {
   /** How many participants are currently present. */
   presentCount: number;
   createdAt: number;
+  /** When anybody was last in it, which is what Home orders on. */
+  lastActiveAt: number;
 }
 
 export interface RecordingView {

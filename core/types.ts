@@ -155,6 +155,17 @@ export interface ChannelState {
    */
   invitedBy: Record<UserId, UserId>;
   createdAt: number;
+  /**
+   * The last time anybody was in the channel — set on creation, on every
+   * entry, and again when somebody steps out, so it freezes at the moment a
+   * channel emptied and reads as "now" for one still occupied.
+   *
+   * Existing because `createdAt` is no use for ordering once channels are
+   * permanent: a channel opened months ago and used every day would sink to
+   * the bottom of the list under whatever was opened most recently and
+   * abandoned.
+   */
+  lastActiveAt: number;
   status: 'active' | 'ended';
   /**
    * When the last member left, or null while the channel exists. There is

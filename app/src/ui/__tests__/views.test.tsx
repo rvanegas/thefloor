@@ -195,6 +195,7 @@ describe('Home', () => {
           others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
           presentCount: 1,
           createdAt: NOW,
+          lastActiveAt: NOW,
         },
       ],
       contacts: [
@@ -278,6 +279,7 @@ describe('Home', () => {
           others: [{ id: THEM, displayName: 'Dana Chu' }],
           presentCount: 1,
           createdAt: NOW,
+          lastActiveAt: NOW,
         },
       ],
       contacts: [
@@ -1257,6 +1259,7 @@ describe('a channel with nobody in it', () => {
           others: [{ id: THEM, displayName: 'Dana Chu' }],
           presentCount: 0,
           createdAt: NOW,
+          lastActiveAt: NOW,
         },
       ],
       contacts: [],
@@ -1454,6 +1457,7 @@ describe('named channels and described ones do not look alike', () => {
           others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
           presentCount: 1,
           createdAt: NOW,
+          lastActiveAt: NOW,
         },
       ],
       contacts: [],
@@ -1464,11 +1468,13 @@ describe('named channels and described ones do not look alike', () => {
     );
   };
 
-  it('sets a described channel in muted italic on Home', () => {
+  it('sets a described channel in italic on Home', () => {
+    // Italic and nothing else. Dimming it too said "less important" on top of
+    // "not a name", and most channels have no name.
     const tree = homeWith(null);
     const style = titleStyleOf(tree, 'Miro Okafor');
     expect(style.fontStyle).toBe('italic');
-    expect(style.color).toBe(colors.textMuted);
+    expect(style.color).toBe(colors.text);
     act(() => tree.unmount());
   });
 
@@ -1501,7 +1507,7 @@ describe('named channels and described ones do not look alike', () => {
       color?: string;
     };
     expect(style.fontStyle).toBe('italic');
-    expect(style.color).toBe(colors.textMuted);
+    expect(style.color).toBe(colors.text);
     act(() => tree.unmount());
   });
 
@@ -1515,6 +1521,7 @@ describe('named channels and described ones do not look alike', () => {
           others: [],
           presentCount: 0,
           createdAt: NOW,
+          lastActiveAt: NOW,
         },
       ],
       contacts: [],
@@ -1524,6 +1531,82 @@ describe('named channels and described ones do not look alike', () => {
       <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
     );
     expect(textOf(tree)).toContain('Just you');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * The order of Home's channel list. A name is something somebody chose to
+ * write, so named channels are the ones being kept deliberately; sorting the
+ * whole list by recency alone would bury them among channels nobody has
+ * bothered to name, which costs the naming its point.
+ */
+describe('the order of your channels', () => {
+  const channel = (
+    id: string,
+    name: string | null,
+    lastActiveAt: number,
+    other = 'Miro Okafor'
+  ) => ({
+    channelId: id,
+    name,
+    others: [{ id: `acct_${id}`, displayName: other }],
+    presentCount: 0,
+    createdAt: NOW,
+    lastActiveAt,
+  });
+
+  /** The rendered titles, in the order they appear. */
+  const titlesIn = (tree: ReactTestRenderer, expected: string[]) => {
+    const text = textOf(tree);
+    return expected
+      .map((title) => ({ title, at: text.indexOf(title) }))
+      .filter((entry) => entry.at >= 0)
+      .sort((a, b) => a.at - b.at)
+      .map((entry) => entry.title);
+  };
+
+  const show = (rejoinable: ReturnType<typeof channel>[]) => {
+    mockApp.home = { invites: [], rejoinable, contacts: [], recordings: [] };
+    return render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+  };
+
+  it('puts every named channel above every described one', () => {
+    // The stalest named channel still outranks the freshest unnamed one.
+    const tree = show([
+      channel('a', null, NOW),
+      channel('b', 'Thursday rehearsal', NOW - 900_000),
+    ]);
+    expect(titlesIn(tree, ['Thursday rehearsal', 'Miro Okafor'])).toEqual([
+      'Thursday rehearsal',
+      'Miro Okafor',
+    ]);
+    act(() => tree.unmount());
+  });
+
+  it('sorts by when each was last used, not when it was made', () => {
+    const tree = show([
+      channel('a', 'Standup', NOW - 900_000),
+      channel('b', 'Thursday rehearsal', NOW),
+      channel('c', 'Book club', NOW - 60_000),
+    ]);
+    expect(
+      titlesIn(tree, ['Thursday rehearsal', 'Book club', 'Standup'])
+    ).toEqual(['Thursday rehearsal', 'Book club', 'Standup']);
+    act(() => tree.unmount());
+  });
+
+  it('sorts the described ones by recency too', () => {
+    const tree = show([
+      channel('a', null, NOW - 900_000, 'Dana Chu'),
+      channel('b', null, NOW, 'Priya Raman'),
+    ]);
+    expect(titlesIn(tree, ['Priya Raman', 'Dana Chu'])).toEqual([
+      'Priya Raman',
+      'Dana Chu',
+    ]);
     act(() => tree.unmount());
   });
 });
