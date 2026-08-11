@@ -21,10 +21,16 @@ echo "→ tests"
 npm test --prefix core --silent >/dev/null
 npm test --prefix server --silent >/dev/null
 
+# The .env pattern is a wildcard with one exception, matching .gitignore and for
+# the same reason: a .env~ left by an editor or a .env.bak left by a careful
+# person is exactly as secret-bearing as .env itself, and an exact-match exclude
+# catches neither — it would sync one up, or delete one that only exists on the
+# box. .env.example is the one that is documentation rather than a secret.
 echo "→ syncing"
 rsync -az --delete -e "$SSH" \
   --exclude node_modules --exclude .git --exclude 'app/' \
-  --exclude '.env' --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
+  --include '.env.example' --exclude '.env*' \
+  --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
   --exclude '*.p8' \
   ./ "$HOST:/home/ubuntu/thefloor/"
 
