@@ -18,6 +18,7 @@ import type {
 } from '../../../core/protocol';
 import { api, ApiError, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
+import { onNotificationTap, registerForPush } from '../push';
 
 const TOKEN_KEY = 'thefloor.token';
 
@@ -92,6 +93,15 @@ interface AppValue extends AppState {
   leaveChannelView: (channelId: string) => void;
   act: (channelId: string, action: ClientAction) => void;
   clearError: () => void;
+  /**
+   * A channel a notification asked to be opened, waiting to be navigated to.
+   *
+   * Held here rather than acted on where it arrives, because a tap can land
+   * before there is anything to navigate — during a cold start the app is
+   * still restoring its token when the response is read.
+   */
+  pendingChannelId: string | null;
+  clearPendingChannel: () => void;
   /** Invites this user has dismissed, by channel id. */
   dismissedInvites: string[];
   dismissInvite: (channelId: string) => void;
@@ -120,6 +130,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * reopening to see what is currently live is reasonable rather than a fault.
    */
   const [dismissedInvites, setDismissedInvites] = useState<string[]>([]);
+  const [pendingChannelId, setPendingChannelId] = useState<string | null>(null);
+  /**
+   * The address this install is registered at, kept so sign-out can hand it
+   * back. Without it the row survives, and a phone that has been signed out of
+   * goes on receiving somebody else's notifications.
+   */
+  const deviceToken = useRef<string | null>(null);
   const [state, setState] = useState<AppState>({
     ready: false,
     token: null,
@@ -211,6 +228,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [connect]);
 
+  // Registered on every sign-in and every restored launch, not once ever: iOS
+  // reissues a device token after a restore or a reinstall, so a registry
+  // written once slowly fills with addresses that no longer resolve.
+  useEffect(() => {
+    if (!state.token) return;
+    let cancelled = false;
+    void registerForPush(state.token).then((token) => {
+      if (!cancelled) deviceToken.current = token;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.token]);
+
+  // A tap on a notification, from either direction it can arrive. Mounted once
+  // and independent of sign-in state, because the tap that launched the app is
+  // read before the stored token has been restored.
+  useEffect(() => onNotificationTap(setPendingChannelId), []);
+
   // Drives countdowns while a channel is on screen.
   useEffect(() => {
     if (!state.channelView) return;
@@ -253,6 +289,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...state,
       serverNow,
       dismissedInvites,
+      pendingChannelId,
+      clearPendingChannel: () => setPendingChannelId(null),
 
       dismissInvite: (channelId) => {
         setDismissedInvites((d) =>
@@ -273,6 +311,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       signOut: async () => {
         const token = state.token;
+        const device = deviceToken.current;
+        deviceToken.current = null;
         realtime.disconnect();
         await storage.remove(TOKEN_KEY);
         setState({
@@ -284,8 +324,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           status: 'closed',
           lastError: null,
         });
-        // Best effort: the local channel is already gone either way.
-        if (token) await api.signOut(token).catch(() => {});
+        // Best effort: the local channel is already gone either way. The
+        // device travels with it so the server forgets where to reach this
+        // phone while the credential authorising that is still good.
+        if (token) await api.signOut(token, device ?? undefined).catch(() => {});
       },
 
       requestContact: async (identifier) => {
@@ -357,7 +399,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),
     }),
-    [state, serverNow, connect, realtime, tick, dismissedInvites]
+    [
+      state,
+      serverNow,
+      connect,
+      realtime,
+      tick,
+      dismissedInvites,
+      pendingChannelId,
+    ]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -25,6 +25,14 @@ export interface ContactRow {
   created_at: number;
 }
 
+export interface DeviceTokenRow {
+  token: string;
+  account_id: string;
+  platform: 'ios' | 'android';
+  created_at: number;
+  last_seen_at: number;
+}
+
 export interface RecordingRow {
   id: string;
   channel_id: string;
@@ -137,6 +145,29 @@ CREATE TABLE IF NOT EXISTS channels (
   -- Null only on rows that predate persistence, all of which are ended.
   state TEXT
 );
+
+-- Where to reach a person when their app is not running: one row per install
+-- per account, keyed by the address Apple gave that install.
+--
+-- The token is stored in the clear, unlike everything in tokens and
+-- otp_codes. It is an address rather than a credential — holding it lets you
+-- ask Apple to show that device a notification, and nothing else. Hashing it
+-- would only make it unusable, since the whole point is to send it back.
+--
+-- Keyed on the token rather than on (account, device) because that is what
+-- makes re-registration an upsert: one phone signing in as somebody else keeps
+-- the same token, and the row has to *move* to the new account. A second row
+-- would push one person's conversations to another person's lock screen.
+CREATE TABLE IF NOT EXISTS device_tokens (
+  token        TEXT PRIMARY KEY,
+  account_id   TEXT NOT NULL REFERENCES accounts(id),
+  platform     TEXT NOT NULL CHECK (platform IN ('ios', 'android')),
+  created_at   INTEGER NOT NULL,
+  -- Refreshed on every registration, so a device that has stopped checking in
+  -- is distinguishable from one that never existed.
+  last_seen_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS device_tokens_account ON device_tokens(account_id);
 
 CREATE TABLE IF NOT EXISTS recordings (
   id           TEXT PRIMARY KEY,

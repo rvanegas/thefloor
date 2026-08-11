@@ -190,53 +190,45 @@ first one baked in.
 
 ---
 
-## An invite cannot reach anyone whose app is closed
+## Notifications do not ring — they are alerts
 
-**Status:** deliberately deferred (decision, 2026-08-08). In-app only for now,
-to keep the development loop short. Not a defect, and the spec stands as
-written.
+**Status:** the alert shipped 2026-08-10 (see DECISIONS.md). This is what was
+deliberately left out of it.
 
-The spec is explicit (§Session Lifecycle — the spec predates the rename):
+A notification arrives, sits on the lock screen, and opens the app into the
+channel when tapped. What it does not do is behave like an incoming call:
+there is no ringing, no answering from the lock screen, no full-screen incoming
+UI, and nothing wakes the app before the tap.
 
-> sends an **in-app live invite notification** to that contact — visible only
-> if their app is open (foreground or backgrounded but running); there is no
-> push notification / OS-level delivery to a closed app in this version.
+### What the larger version needs
 
-That is implemented faithfully: the invite goes over the websocket and renders
-as a banner on Home. If the app is not running, the socket does not exist and
-nothing arrives.
+- **PushKit** to wake a closed app, which in turn requires **CallKit** — Apple
+  requires a PushKit VoIP push to report an incoming call, and will terminate
+  an app that takes one without doing so. Note CallKit was ruled out for
+  background *audio* (see above); this is the other thing it is for, and here it
+  would be the right tool.
+- `voip` in `UIBackgroundModes`, removed before the first TestFlight build
+  because it did nothing, becomes load bearing again.
+- A second delivery path in `push.ts`: a VoIP push is a different `apns-push-type`
+  against a different topic (`<bundle id>.voip`) and a different device token,
+  so `Pusher` gains a method rather than a caller.
 
-### What it costs while deferred
+The alert covers most of the value and none of this is undone by adding it —
+the same server-side events would drive both.
 
-Both parties must already have the app open for a channel to begin, so testing
-means arranging that by some other means. An empty channel self-destructs after
-a minute, so an initiator who starts one and waits gets nothing unless the
-other party happens to be looking.
+### Smaller things left on the table
 
-Worth knowing before showing this to anyone who has not been told: the first
-thing a person does is check the lock screen, and finding nothing there reads
-as the app being broken rather than as a deliberate scope decision.
-
-### What it needs
-
-- **APNs**, and a registry of device tokens per account.
-- **A push on channel creation**, to the invitee, deep-linking to the channel.
-- An **Apple Developer account** — already needed for TestFlight.
-- For a genuinely call-like experience, **PushKit** to wake a closed app, which
-  in turn requires **CallKit** — Apple requires a PushKit VoIP push to report an
-  incoming call. Note CallKit was ruled out for background *audio* (see above);
-  this is the other thing it is for, and here it would be the right tool.
-- `voip` in `UIBackgroundModes`, currently declared and unused, becomes load
-  bearing again if PushKit is adopted.
-
-### When it is picked up
-
-A plain APNs alert — a notification you tap to open the app into the channel —
-needs no CallKit or PushKit and covers most of the value. Full call semantics
-(ringing, answering from the lock screen) is the larger version.
-
-Nothing about the in-app path needs undoing to add either: the invite already
-exists as a server-side event, and a push would be a second delivery of it.
+- **Time Sensitive delivery.** `interruption-level: 'time-sensitive'` would let
+  a notification break through a Focus mode, which suits a live conversation.
+  It needs the `com.apple.developer.usernotifications.time-sensitive`
+  entitlement, so it is a trip through the developer portal rather than a code
+  change.
+- **Nothing is notified but these two events.** A contact request, a request
+  accepted, or somebody inviting you into a channel you are already a member of
+  all still reach you in-app only.
+- **Android has no delivery at all.** `device_tokens` carries a `platform`
+  column and accepts `'android'`, but no FCM sender exists — see the Android
+  section above, where this is one item among many.
 
 ---
 

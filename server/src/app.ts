@@ -6,13 +6,19 @@ import websocket from '@fastify/websocket';
 import type { HomeView, PublicAccount } from '../../core/protocol';
 import { Accounts } from './accounts';
 import { openDb, type AccountRow, type Db } from './db';
+import { Devices, type DevicePlatform } from './devices';
 import { encodeRecording } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { ChannelRegistry, type RefusalCode } from './channels';
+import { ConsolePusher, createPushNotifier, type Pusher } from './push';
 import type { RecordingStore } from './storage';
-import { createHomeNotifier, registerWebsocket } from './ws';
+import {
+  createHomeNotifier,
+  createReachability,
+  registerWebsocket,
+} from './ws';
 
 export interface BuildOptions {
   dbPath?: string;
@@ -26,6 +32,11 @@ export interface BuildOptions {
   store?: RecordingStore;
   /** Grace period before an ended channel's audio room is torn down. */
   roomCloseGraceMs?: number;
+  /**
+   * Reaches a device whose app is not running. Without one, nothing is sent
+   * and the in-app path is all there is — which is what it was before push.
+   */
+  pusher?: Pusher;
   now?: () => number;
   logger?: boolean;
 }
@@ -35,6 +46,7 @@ export interface App {
   db: Db;
   accounts: Accounts;
   channels: ChannelRegistry;
+  devices: Devices;
 }
 
 /**
@@ -84,8 +96,38 @@ export function buildApp(options: BuildOptions = {}): App {
     rawAudio
   );
 
-  // Filled in once the websocket plugin loads; a no-op until then.
+  // Filled in once the websocket plugin loads; no-ops until then.
   const homeNotifier = createHomeNotifier();
+  const reachability = createReachability();
+  const devices = new Devices(db);
+  const pusher = options.pusher ?? new ConsolePusher(() => {});
+  const pushNotifier = createPushNotifier();
+
+  /**
+   * Turns "these people should know" into notifications actually sent.
+   *
+   * Three filters, in this order, and the order is the point: drop anyone
+   * already looking at the app, look up where the rest can be reached, and
+   * forget every address Apple says is dead. The registry supplies none of
+   * this — it knows only that something happened.
+   *
+   * Deliberately not awaited. A notification is a courtesy, and a channel
+   * transition must not wait on Apple or fail because of it.
+   */
+  pushNotifier.notify = (userIds, message) => {
+    const away = userIds.filter((id) => !reachability.inApp(id));
+    const tokens = devices.tokensFor(away);
+    if (tokens.length === 0) return;
+    void pusher
+      .send(tokens, message)
+      .then((dead) => {
+        for (const token of dead) devices.forget(token);
+      })
+      .catch((error) => {
+        fastify.log.error({ err: error }, 'push failed');
+      });
+  };
+
   const channels = new ChannelRegistry(
     db,
     accounts,
@@ -93,7 +135,8 @@ export function buildApp(options: BuildOptions = {}): App {
     options.media,
     (error, context) =>
       fastify.log.error({ err: error, context }, 'media operation failed'),
-    options.roomCloseGraceMs
+    options.roomCloseGraceMs,
+    pushNotifier
   );
 
   // Channels outlive the process that was holding them, so the first thing a
@@ -202,8 +245,54 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   fastify.post('/auth/sign-out', async (request, reply) => {
+    // Before the token is revoked, because forgetting the device needs to know
+    // whose device it was.
+    const account = authenticate(request);
+    const body = request.body as { deviceToken?: string } | undefined;
+    // Only the device signing out, not every device on the account: signing
+    // out on a phone should not silence a tablet. A device that stops
+    // receiving pushes without being told is the failure mode this avoids —
+    // and the one that keeps receiving them after sign-out is worse still.
+    if (account && body?.deviceToken) devices.forget(body.deviceToken);
+
     const header = request.headers.authorization;
     if (header?.startsWith('Bearer ')) accounts.revokeToken(header.slice(7));
+    return reply.code(204).send();
+  });
+
+  // --- Devices ------------------------------------------------------------
+
+  /**
+   * Records where this install can be reached.
+   *
+   * Called on every sign-in and on every launch with a stored token, because a
+   * device token is not permanent: iOS reissues it after a restore, and a
+   * registry that is only written once slowly fills with addresses that no
+   * longer resolve.
+   */
+  fastify.post('/devices', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as
+      | { token?: string; platform?: string }
+      | undefined;
+    const token = body?.token?.trim();
+    if (!token) return reply.code(400).send({ error: 'token is required' });
+    const platform = body?.platform === 'android' ? 'android' : 'ios';
+
+    devices.register(token, account.id, platform as DevicePlatform, now());
+    return { ok: true };
+  });
+
+  fastify.delete('/devices/:token', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { token } = request.params as { token: string };
+    // Unconditional: whoever holds this address is entitled to stop it being
+    // sent to, and checking ownership first would turn the route into a way of
+    // asking whether a given token belongs to somebody else.
+    devices.forget(token);
     return reply.code(204).send();
   });
 
@@ -588,10 +677,11 @@ export function buildApp(options: BuildOptions = {}): App {
       homeFor,
       now,
       homeNotifier,
+      reachability,
     });
   });
 
-  return { fastify, db, accounts, channels };
+  return { fastify, db, accounts, channels, devices };
 }
 
 /**

@@ -112,7 +112,7 @@ Node binds to loopback only; nothing reaches it except through Caddy.
 
 ### Credentials
 
-Three, deliberately separate, so no single leak is worse than it has to be:
+Four, deliberately separate, so no single leak is worse than it has to be:
 
 - **LiveKit** — media, held by the server.
 - **`thefloor-egress`** — PutObject only, and it travels to LiveKit. It cannot
@@ -129,8 +129,45 @@ Three, deliberately separate, so no single leak is worse than it has to be:
   which failed with a message naming a resource nothing in this codebase asks
   for. Worth knowing before scoping an SES policy anywhere else.
 
+- **APNs auth key** — a `.p8`, team-scoped, valid for both the sandbox and
+  production environments, held by the server so it can sign its own provider
+  JWTs. Apple offers the download **exactly once**; there is no recovery, only
+  revoking the key and creating another.
+
+  It lives at `~/.config/thefloor/AuthKey_<KEYID>.p8`, mode 600, on the box and
+  on the development machine alike — a credential rather than data, which is
+  what separates it from the database in `thefloor-data`.
+
+  What matters more than the convention is that it is **outside the synced
+  tree**: `bin/deploy` rsyncs with `--delete`, so a key inside the tree is one
+  a later deploy removes. `*.p8` is in `.gitignore` and in the deploy excludes,
+  both deliberately.
+
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it.
+
+### `APNS_ENV` is the setting that will cost you an afternoon
+
+A device token minted by a debug build (`expo run:ios`) is valid **only**
+against `api.sandbox.push.apple.com`; one from TestFlight or the App Store only
+against `api.push.apple.com`. Cross them and APNs answers `BadDeviceToken`,
+which names the token and says nothing whatsoever about the environment being
+the cause — so the obvious next move is to go looking at registration, which is
+working fine.
+
+The server defaults to `production`, because that is what a deployed server is
+talking to. Set `APNS_ENV=sandbox` when testing against a locally built app.
+
+Two more things that fail quietly and are worth checking before anything else:
+
+- **The entitlement comes from the `expo-notifications` config plugin**, which
+  gets development-versus-production right per build configuration. Do not
+  hand-write `aps-environment` into `app.json`; a hard-coded `production` there
+  breaks push against `expo run:ios` and nothing says so.
+- **The App ID needs the Push Notifications capability** enabled in the
+  developer portal, or signing refuses the entitlement. It is registered
+  against `co.rvanegas.thefloor`, which survives `prebuild --clean` even though
+  the local `ios/` does not.
 
 ### Known rough edges
 
@@ -153,9 +190,11 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   screen and nobody has opened it on an iPad. Claiming support invites App
   Review to test there, on a layout built for a phone. Turn it back on after
   actually looking at one.
-- **`voip` removed from `UIBackgroundModes`.** It does nothing without PushKit,
-  and reviewers have objected to apps declaring it unused. It becomes load
-  bearing again if push notification is ever picked up.
+- **`voip` removed from `UIBackgroundModes`, and still out.** It does nothing
+  without PushKit, and reviewers have objected to apps declaring it unused.
+  Push notification has since been picked up and this did *not* change: a
+  visible alert needs neither `voip` nor `remote-notification`. It becomes load
+  bearing only if PushKit and CallKit are adopted for call-like ringing.
 - **`userInterfaceStyle` is `dark`,** matching the interface. It said `light`,
   which left system surfaces — alerts, the keyboard, the status bar — rendering
   pale against a `#0E1013` app.

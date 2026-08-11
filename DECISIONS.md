@@ -501,3 +501,89 @@ steps you out of wherever you were, applied in the registry — the only place
 that can see a person across channels. Everything that ordinarily follows a
 departure follows this one: a floor claim is released, and a recording left
 with nobody in it stops and files itself.
+
+---
+
+## Notifications, and why the server talks to Apple itself
+
+Shipped 2026-08-10. Until this, a channel could only reach you if your app was
+already running: the invite travelled over the websocket and rendered as a
+banner on Home, and if the socket did not exist nothing arrived. That was a
+deliberate scope decision, and the cost of it was that the first thing anybody
+does is check the lock screen, where finding nothing reads as the app being
+broken.
+
+Two events now produce a notification, and the second is the one the interface
+implies most strongly:
+
+- **An invite**, when a channel is created — the same event the socket already
+  carries, delivered a second way.
+- **A channel becoming active**, meaning presence going from nobody to
+  somebody. A channel is a permanent place, so what is worth knowing about one
+  is not that it exists but that there is currently a person in it.
+
+### Direct APNs rather than Expo's push service
+
+The server holds an APNs `.p8` auth key and signs its own provider JWTs against
+`api.push.apple.com` over HTTP/2, in `push.ts`, with no dependency: Node 24 has
+`node:http2` and `node:crypto`, which matches the no-native-dependencies stance
+in `db.ts`.
+
+The alternative was `getExpoPushTokenAsync` plus `exp.host`, which is less code.
+It was declined because it puts a third party in the path of every notification
+and pulls in EAS credential management, which BACKLOG deliberately defers until
+Android arrives. The APNs key is a fourth credential alongside LiveKit,
+`thefloor-egress` and `thefloor-server`, held the same way and scoped the same
+way, and the local `xcodebuild` release pipeline needs nothing added to it.
+
+The one place this is sharper than it looks is the JWT signature. Node's default
+ECDSA encoding is DER; JWS requires the raw `r||s` form, and APNs answers a DER
+signature with a bare `InvalidProviderToken` that names nothing about the
+encoding. `dsaEncoding: 'ieee-p1363'` is the fix, and there is a test asserting
+the signature is 64 bytes and verifies — the bug is otherwise invisible without
+a round trip to Apple.
+
+### Nobody with the app open is sent one
+
+`Reachability.inApp` — the socket layer's `hasConnection`, exposed the way
+`HomeNotifier` is — filters every recipient. Somebody holding a live connection
+is already being told, so a notification would be a second copy of what is on
+their screen. The client sets a notification handler that suppresses the banner
+too, for the moment the two disagree, which is a reconnect.
+
+This is why the plumbing goes through a `PushNotifier` rather than being called
+directly: `ChannelRegistry` decides that something is worth telling people
+about, and has no business knowing about device tokens, Apple, or who happens
+to be looking.
+
+### A five-minute quiet window per channel
+
+Presence is derived from the websocket, so one person on a bad connection
+produces a run of empty-to-occupied transitions that are a network artefact
+rather than anything happening in the room. Without the window every flap rings
+everybody. It is held in memory: a restart resetting it costs at most one extra
+notification, which is not worth a column.
+
+The window has to outlast a reconnect, and `DISCONNECT_GRACE_MS` is a minute,
+so anything shorter would let a single flap through.
+
+### Device tokens are stored in the clear
+
+Unlike `tokens` and `otp_codes`, which are hashed. A device token is an address
+rather than a credential — holding it lets you ask Apple to show that device a
+notification and nothing else — and hashing it would only make it unusable,
+since the whole point is to send it back.
+
+The row is keyed on the token rather than on a pair, which is what makes
+registration an upsert. A phone that signs out and signs in as somebody else
+keeps the address Apple gave it, so the row has to *move*; a second row would
+put one person's conversations on another person's lock screen. That is the
+defect the registry test exists for.
+
+### `voip` and `remote-notification` stay out of UIBackgroundModes
+
+A visible alert needs neither. `remote-notification` is for silent
+content-available pushes, and `voip` only becomes load bearing under PushKit,
+which this does not use. AGENTS.md records that reviewers object to an app
+declaring a background mode it does not use, and that reasoning did not change
+because a different notification feature shipped.

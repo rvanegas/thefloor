@@ -93,8 +93,27 @@ export const api = {
       body: { identifier, code, displayName },
     }),
 
-  signOut: (token: string) =>
-    request<void>('/auth/sign-out', { method: 'POST', token }),
+  /**
+   * Signs out, and forgets this device while doing it.
+   *
+   * The device token travels with the request rather than being deleted
+   * separately, because the credential that authorises forgetting it is the
+   * one about to be revoked. Two calls would have to be ordered, and the wrong
+   * order leaves a signed-out phone still receiving notifications.
+   */
+  signOut: (token: string, deviceToken?: string) =>
+    request<void>('/auth/sign-out', {
+      method: 'POST',
+      body: { deviceToken },
+      token,
+    }),
+
+  registerDevice: (token: string, deviceToken: string, platform: 'ios' | 'android') =>
+    request<{ ok: true }>('/devices', {
+      method: 'POST',
+      body: { token: deviceToken, platform },
+      token,
+    }),
 
   home: (token: string) => request<HomeView>('/home', { token }),
 

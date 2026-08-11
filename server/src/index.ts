@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { buildApp } from './app';
 import { ConsoleMailer, SesMailer, type Mailer } from './mail';
 import { LiveKitMediaServer, type MediaServer } from './media';
+import { ApnsPusher, ConsolePusher, type Pusher } from './push';
 import { S3RecordingStore } from './storage';
 
 // Node's own .env loader — no dependency. Resolved against the working
@@ -73,12 +75,42 @@ const store = s3Bucket
   ? new S3RecordingStore(s3Bucket, process.env.RECORDINGS_REGION ?? mailRegion)
   : undefined;
 
+/**
+ * Notifications, likewise optional: without an APNs key nothing is sent and the
+ * in-app path is all there is, which is exactly how the app worked before push
+ * existed. That keeps local development free of credentials.
+ *
+ * APNS_ENV decides which Apple to talk to, and it is the setting most likely to
+ * be wrong. A device token minted by a debug build (`expo run:ios`) is valid
+ * only against `sandbox`, one from TestFlight only against `production`, and
+ * the wrong pairing fails with a bare BadDeviceToken that names nothing about
+ * the environment. The default is production because that is what a deployed
+ * server is talking to.
+ */
+const apnsKeyPath = process.env.APNS_KEY_PATH;
+const apnsKeyId = process.env.APNS_KEY_ID;
+const apnsTeamId = process.env.APNS_TEAM_ID;
+const apnsBundleId = process.env.APNS_BUNDLE_ID ?? 'co.rvanegas.thefloor';
+const apnsEnv =
+  process.env.APNS_ENV === 'sandbox' ? 'sandbox' : 'production';
+const pusher: Pusher | undefined =
+  apnsKeyPath && apnsKeyId && apnsTeamId
+    ? new ApnsPusher({
+        key: readFileSync(apnsKeyPath, 'utf8'),
+        keyId: apnsKeyId,
+        teamId: apnsTeamId,
+        bundleId: apnsBundleId,
+        environment: apnsEnv,
+      })
+    : new ConsolePusher();
+
 const app = buildApp({
   dbPath,
   mailer,
   media,
   mediaUrl: liveKitUrl,
   store,
+  pusher,
   logger: true,
 });
 app.channels.start();
@@ -92,6 +124,7 @@ app.fastify
               mail: mailFrom ? `ses:${mailFrom}` : 'console',
         audio: media ? liveKitUrl : 'none',
         recordings: storage ? `s3://${storage.bucket}` : 'not configured',
+        push: apnsKeyPath ? `apns:${apnsEnv}` : 'console',
       },
       'the floor server listening'
     );
@@ -108,6 +141,11 @@ app.fastify
     if (!mailFrom) {
       app.fastify.log.warn(
         'MAIL_FROM is unset — one-time codes are printed to this console, not emailed.'
+      );
+    }
+    if (!apnsKeyPath) {
+      app.fastify.log.warn(
+        'APNS_KEY_PATH / APNS_KEY_ID / APNS_TEAM_ID are unset — notifications are printed to this console, so nothing reaches a closed app.'
       );
     }
   })

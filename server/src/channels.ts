@@ -29,8 +29,20 @@ import {
   type RecordingRow,
 } from './db';
 import type { MediaServer, PlaybackSession } from './media';
+import { createPushNotifier, type PushNotifier } from './push';
 
 export const TICK_INTERVAL_MS = 500;
+
+/**
+ * How long a channel stays quiet after announcing itself.
+ *
+ * A channel becoming active is worth a notification; the same channel emptying
+ * and refilling five times because somebody's train went into a tunnel is not.
+ * The window is what separates the two, and it has to outlast a reconnect —
+ * `DISCONNECT_GRACE_MS` is a minute, so anything shorter would let one flap
+ * through.
+ */
+export const ANNOUNCE_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
  * The stem key for shared playback, and the room identity it publishes under.
@@ -210,13 +222,23 @@ export class ChannelRegistry {
   /** When each live run's row was last checkpointed. Keyed by run id. */
   private checkpointedAt = new Map<string, number>();
 
+  /**
+   * When each channel last announced itself, so a flapping connection cannot
+   * ring everybody repeatedly. See `announceActive`.
+   *
+   * In memory deliberately: a restart resetting it costs at most one extra
+   * notification, which is not worth a column.
+   */
+  private lastAnnouncedAt = new Map<string, number>();
+
   constructor(
     private db: Db,
     private accounts: Accounts,
     private now: () => number = Date.now,
     private media?: MediaServer,
     private onMediaError: (error: unknown, context: string) => void = () => {},
-    private roomCloseGraceMs: number = ROOM_CLOSE_GRACE_MS
+    private roomCloseGraceMs: number = ROOM_CLOSE_GRACE_MS,
+    private push: PushNotifier = createPushNotifier()
   ) {}
 
   // --- Lifecycle ----------------------------------------------------------
@@ -363,6 +385,20 @@ export class ChannelRegistry {
     // invariant is what lets the migration tell a ghost from a channel.
     this.persistChannel(channel);
     this.emit([channel.id]);
+    // A second delivery of the invite the socket has just carried, for anyone
+    // whose app is not running to receive it. Not a replacement: the in-app
+    // banner is still the primary path, and the notifier drops anyone who is
+    // already looking.
+    //
+    // Titled with whoever asked rather than with the channel: a channel is
+    // never named at creation, so every perspective-dependent fallback would
+    // reduce to the roster anyway, and the one thing the recipient wants to
+    // know is who is asking.
+    this.push.notify(unique, {
+      title: this.displayName(initiator),
+      body: 'Started a channel with you.',
+      channelId: channel.id,
+    });
     return { ok: true, channel };
   }
 
@@ -710,6 +746,9 @@ export class ChannelRegistry {
     const arrived =
       after.participants.length > before.participants.length ||
       after.present.some((id) => !before.present.includes(id));
+    if (before.present.length === 0 && after.present.length > 0) {
+      this.announceActive(after);
+    }
     if (after.status === 'active' && arrived) {
       if (after.floor.holder !== null) this.assertSilence(after);
       this.ensureEgress(after);
@@ -747,6 +786,60 @@ export class ChannelRegistry {
         this.persisted.delete(after.id);
       }, 30_000).unref?.();
     }
+  }
+
+  /**
+   * Tells the people who are not here that the channel has come alive.
+   *
+   * A channel is a permanent place, and the thing worth knowing about one is
+   * that somebody is in it — which is exactly the transition from nobody
+   * present to somebody present. Fired from `commit`, so it cannot disagree
+   * with what the clients were told.
+   *
+   * Suppressed within `ANNOUNCE_INTERVAL_MS` of the last announcement, because
+   * presence follows a websocket: one person on a bad connection produces a
+   * run of empty-to-occupied transitions that are a network artefact rather
+   * than anything happening in the room.
+   */
+  private announceActive(channel: ChannelState): void {
+    if (channel.status !== 'active') return;
+    const now = this.now();
+    const last = this.lastAnnouncedAt.get(channel.id);
+    if (last !== undefined && now - last < ANNOUNCE_INTERVAL_MS) return;
+    this.lastAnnouncedAt.set(channel.id, now);
+
+    const arrived = channel.present[0];
+    const absent = channel.participants.filter(
+      (id) => !channel.present.includes(id)
+    );
+    // Each is titled from its own recipient's point of view, because an
+    // unnamed channel is called after whoever else is in it and there is no
+    // one answer to that.
+    for (const userId of absent) {
+      this.push.notify([userId], {
+        title: this.nameFor(channel, userId),
+        body: `${this.displayName(arrived)} stepped in.`,
+        channelId: channel.id,
+      });
+    }
+  }
+
+  /**
+   * What to call a channel when writing to one particular person: its name if
+   * it has one, otherwise the roster as they see it.
+   *
+   * The same fallback the app's own header and Home use, so a channel does not
+   * answer to one thing on the lock screen and another once you have tapped it.
+   */
+  private nameFor(channel: ChannelState, viewer: string): string {
+    if (channel.name) return channel.name;
+    const others = otherParticipants(channel, viewer);
+    if (others.length === 1) return this.displayName(others[0]);
+    return `${others.length + 1} people`;
+  }
+
+  private displayName(userId: string): string {
+    return this.accounts.public(userId)?.displayName ?? 'Someone';
   }
 
   /**

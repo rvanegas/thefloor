@@ -49,6 +49,24 @@ export function createHomeNotifier(): HomeNotifier {
 }
 
 /**
+ * Whether this person is reachable inside the app right now.
+ *
+ * The one thing push delivery needs from the socket layer: somebody holding a
+ * live connection is already being told everything as it happens, so sending
+ * them a notification as well is a second copy of what is on their screen.
+ * Shaped like `HomeNotifier` and for the same reason — the code that asks
+ * exists before the socket plugin does, so it starts answering "no", which is
+ * the safe default: it means a push is sent rather than swallowed.
+ */
+export interface Reachability {
+  inApp: (userId: string) => boolean;
+}
+
+export function createReachability(): Reachability {
+  return { inApp: () => false };
+}
+
+/**
  * Realtime fan-out. Clients never compute channel state — they watch it. Every
  * snapshot carries the server's clock, so countdowns run against one authority
  * rather than each device's own idea of the time.
@@ -60,8 +78,17 @@ export function registerWebsocket(deps: {
   homeFor: (userId: string) => HomeView;
   now: () => number;
   homeNotifier: HomeNotifier;
+  reachability: Reachability;
 }): void {
-  const { fastify, accounts, channels, homeFor, now, homeNotifier } = deps;
+  const {
+    fastify,
+    accounts,
+    channels,
+    homeFor,
+    now,
+    homeNotifier,
+    reachability,
+  } = deps;
   const connections = new Set<Connection>();
 
   /** Whether this user still has any live socket. */
@@ -136,6 +163,8 @@ export function registerWebsocket(deps: {
   // Contact changes arrive over HTTP and touch two people's Home lists: the
   // requester's and the recipient's. Without this the recipient learns nothing
   // until they happen to reload — a request simply never appears.
+  reachability.inApp = hasConnection;
+
   homeNotifier.notify = (userIds) => {
     for (const connection of connections) {
       if (connection.watchingHome && userIds.includes(connection.userId)) {

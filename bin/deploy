@@ -25,6 +25,7 @@ echo "→ syncing"
 rsync -az --delete -e "$SSH" \
   --exclude node_modules --exclude .git --exclude 'app/' \
   --exclude '.env' --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
+  --exclude '*.p8' \
   ./ "$HOST:/home/ubuntu/thefloor/"
 
 echo "→ installing and restarting"

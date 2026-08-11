@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
@@ -42,6 +42,26 @@ function Root() {
     token,
     !!live?.selfMuted[me]
   );
+
+  /**
+   * A tap on a notification, once there is somewhere to land.
+   *
+   * Deferred until signed in and ready rather than acted on where it arrives:
+   * a tap that launched the app is read while the stored token is still being
+   * restored, and navigating then would drop the person into an empty channel
+   * screen — or, signed out, behind the sign-in form.
+   *
+   * The channel is watched as well as shown, because arriving this way skips
+   * every path that would otherwise have subscribed to it.
+   */
+  const { pendingChannelId, clearPendingChannel, watchChannel } = app;
+  useEffect(() => {
+    if (!pendingChannelId || !ready || !token) return;
+    watchChannel(pendingChannelId);
+    setChannelId(pendingChannelId);
+    setSettingsOpen(false);
+    clearPendingChannel();
+  }, [pendingChannelId, ready, token, watchChannel, clearPendingChannel]);
 
   if (!ready) {
     return (
