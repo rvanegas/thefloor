@@ -216,7 +216,14 @@ Two more things that fail quietly and are worth checking before anything else:
       cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
       codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
 
-  Verified this way for builds 14 through 18: `production`.
+  Verified this way for builds 14 through 19: `production`.
+
+  Note that this export **re-signs**, and Xcode's automatic build-number
+  management can bump `CFBundleVersion` while doing it: the check on build 19
+  produced an IPA reading 20 from an archive reading 19. That copy is local and
+  is never uploaded, so it does not matter for what ships — but do not read the
+  number off the *checked* IPA and conclude the wrong build went out. The
+  archive's `Info.plist` is the honest answer, and TestFlight is the final one.
 - **The App ID needs the Push Notifications capability** enabled in the
   developer portal, or signing refuses the entitlement. It is registered
   against `co.rvanegas.thefloor`, which survives `prebuild --clean` even though
