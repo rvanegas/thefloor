@@ -25,3 +25,19 @@ jest.mock('expo-notifications', () => ({
 }));
 
 jest.mock('expo-device', () => ({ isDevice: false }));
+
+// The audio SDK reaches native modules at import time — it installs a
+// DOMException polyfill and its AudioSession talks to the bridge — so any
+// screen importing it would need a device to render under the test renderer.
+// Only the route picker is reachable from the UI layer; the rest of this
+// package is used inside src/audio, which the suite does not mount.
+jest.mock('@livekit/react-native', () => ({
+  AudioSession: {
+    showAudioRoutePicker: jest.fn(async () => {}),
+    setAppleAudioConfiguration: jest.fn(async () => {}),
+    startAudioSession: jest.fn(async () => {}),
+    stopAudioSession: jest.fn(async () => {}),
+  },
+  registerGlobals: jest.fn(),
+  setupIOSAudioManagement: jest.fn(),
+}));

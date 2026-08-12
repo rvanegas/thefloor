@@ -1086,12 +1086,25 @@ Four things follow, and each is load-bearing rather than belt-and-braces:
   cannot contradict the app on some later transition. It did, visibly: a tester
   watched the echo stop and the audio drop to the earpiece in the same instant,
   which is that configuration arriving — a voice mode, and no `defaultToSpeaker`.
-- **`CALL` does *not* state `defaultToSpeaker`.** Build 18 added it, to stop a
-  call landing on the receiver, and it cost Bluetooth headphone users their
-  headphones — the route moved to the phone on the first unmute. Build 19 took
-  it back out. Both failures are real and neither is a configuration error:
-  the right output depends on what is connected, and nothing in this stack can
-  see that. See BACKLOG.md, "There is no output control".
+- **`CALL` states `defaultToSpeaker`, and the eligibility list beside it.**
+  With `playAndRecord` the default output is `builtInReceiver` — the small
+  speaker held to an ear — and this makes it `builtInSpeaker` *when no other
+  route is connected*. It does not override headphones; that is what "default"
+  means in its name.
+
+  It was added in 18, removed in 19 when a tester's Bluetooth headphones lost
+  the route, and restored once that was understood. The option was not
+  overriding the headphones: **they were not an eligible output at all.** In
+  `playAndRecord` a Bluetooth device is available as an output only if the
+  category options permit it, and 18 listed `allowBluetooth` — the mono
+  hands-free profile — and nothing else. With no eligible route, "no other
+  route is connected" was true and the speaker won, correctly, from a rule
+  doing exactly what it says. The fix was the list, not the option:
+  `allowBluetoothA2DP` for a device that is only listening, `allowBluetooth`
+  for one with a microphone, `allowAirPlay` for the rest.
+
+  Twice now this area has been diagnosed by removing the most recently added
+  thing. Both times the added thing was right and its neighbour was wrong.
 - **`stopMicTrackOnMute: true` on the `Room`,** so closing the microphone
   really releases the device. Without it the engine never left the recording
   state, which is both why the policy never fired and why the A2DP feature
@@ -1102,6 +1115,25 @@ configuration that carries it settles the question.
 
 Not verifiable here either — same phone-and-speaker test as above, plus two
 phones: mute, unmute, and confirm the other end does not hear itself.
+
+#### The output picker, added on the understanding it should leave
+
+`ChannelSettingsView` raises iOS's own route picker — `AVRoutePickerView`, via
+`AudioSession.showAudioRoutePicker`. Not a control of ours, and it could not be:
+nothing in this stack tells JavaScript what outputs exist. `selectAudioOutput`
+is a blind speaker/default toggle, `enumerateDevices` returns the built-in
+microphone and no outputs, and neither package surfaces the current route. The
+system sheet needs none of that.
+
+In settings rather than on the channel screen: it is not part of holding a
+conversation. And it exists **because the default might be wrong**, not because
+choosing an output is a thing this app wants people to do. If it goes untouched
+it should be removed, which was the author's expectation the day it was added
+and is recorded in BACKLOG.md so the removal is a plan rather than a regret.
+
+What would earn it a permanent place is somebody using it to send audio
+somewhere iOS would not have chosen — a speaker across a room, a car, an
+AirPlay receiver. That is a want no default can infer.
 
 #### Home's dot means availability, not an open microphone
 

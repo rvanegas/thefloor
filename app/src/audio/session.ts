@@ -40,17 +40,34 @@ export const PLAYBACK_ONLY: AppleAudioConfiguration = {
  * stopping under exactly this configuration, which is the SDK's own recording
  * policy.
  *
- * **`defaultToSpeaker` is deliberately not stated here**, though the earpiece
- * problem argues for it. Added explicitly alongside `allowBluetooth` in build
- * 18, it cost Bluetooth headphone users their headphones: the route moved to
- * the phone on the first unmute and stayed there. Between a call in the wrong
- * ear and a call in the wrong device entirely, this is the SDK's own
- * combination and the only one observed working for Bluetooth. See BACKLOG.md
- * — the real answer is an output control that can see the current route, and
- * nothing in this stack can.
+ * **`defaultToSpeaker` is what puts a call on the loudspeaker rather than the
+ * earpiece**, which is the whole of what it means: with `playAndRecord` the
+ * default output is `builtInReceiver`, the small speaker you hold to your ear,
+ * and this makes it `builtInSpeaker` *when no other route is connected*. It
+ * does not override headphones. Apple's own wording, and the intent here.
+ *
+ * It was in build 18, came out in 19 because a tester's Bluetooth headphones
+ * lost the route, and is back because that was the wrong conclusion. The
+ * option was not overriding the headphones: **they were not an eligible output
+ * at all.** In `playAndRecord` a Bluetooth device is only available as an
+ * output if the options say so, and that build listed `allowBluetooth` (which
+ * is the mono hands-free profile) and nothing else. With no eligible route,
+ * "no other route is connected" was true, and the speaker won correctly from a
+ * rule doing exactly what it says.
+ *
+ * So the eligibility list is the fix, and it is the SDK's own: A2DP for a
+ * device that is only listening, HFP for one with a microphone, AirPlay for
+ * everything else. Getting this wrong is silent — it does not fail, it just
+ * quietly stops offering somebody their headphones.
  */
 export const CALL: AppleAudioConfiguration = {
   audioCategory: 'playAndRecord',
-  audioCategoryOptions: ['allowBluetooth', 'mixWithOthers'],
+  audioCategoryOptions: [
+    'allowBluetooth',
+    'allowBluetoothA2DP',
+    'allowAirPlay',
+    'mixWithOthers',
+    'defaultToSpeaker',
+  ],
   audioMode: 'videoChat',
 };

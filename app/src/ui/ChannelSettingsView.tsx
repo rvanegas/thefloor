@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   DELETED_RETENTION_MS,
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
 } from '../../../core/constants';
 import type { ChannelState } from '../../../core/types';
+import { showRoutePicker } from '../audio/routePicker';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
@@ -188,6 +189,33 @@ export function ChannelSettingsView({
           {description.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
         </Text>
       </Card>
+
+      {/*
+        The system's own output picker, not a control of ours: iOS knows what is
+        connected and we do not — nothing in the audio stack tells JavaScript
+        what outputs exist.
+
+        Here rather than on the channel screen because it is not part of holding
+        a conversation. The default should be right by itself — the loudspeaker
+        rather than the earpiece, yielding to headphones — and this is for the
+        times it is not, so that being in the wrong ear is fixable by the person
+        it is happening to instead of by a release. If it goes untouched, that
+        is evidence the default works and it should come out again.
+      */}
+      {Platform.OS === 'ios' ? (
+        <>
+          <SectionLabel>Audio output</SectionLabel>
+          <Card style={styles.stack}>
+            <Button
+              label="Choose where sound comes out"
+              sublabel="Speaker, earpiece, headphones or anything paired"
+              onPress={() => {
+                void showRoutePicker();
+              }}
+            />
+          </Card>
+        </>
+      ) : null}
 
       {/*
         Last, and plain. The confirmation carries the weight — colouring the

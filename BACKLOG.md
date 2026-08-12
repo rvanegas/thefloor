@@ -343,43 +343,23 @@ enter that set.
 
 ---
 
-## There is no output control, and no static configuration is right without one
+## The output picker is on probation
 
-Where a call comes out of is currently decided by one fixed AVAudioSession
-configuration for everybody, and two device reports say that cannot work:
+`ChannelSettingsView` raises iOS's own route picker — an `AVRoutePickerView`
+via `AudioSession.showAudioRoutePicker`, not a control of ours, because nothing
+in this stack tells JavaScript what outputs exist.
 
-- Without `defaultToSpeaker` — the SDK's own recording configuration, which is
-  what ships — a call with no accessory connected can land on the **receiver**.
-  The symptom is audible only with the phone against your ear at full volume,
-  and nothing on screen explains it. Observed on build 17.
-- With `defaultToSpeaker` added, **Bluetooth headphones lose the route**: audio
-  moves to the phone on the first unmute and stays there. Observed on build 18,
-  which is why it came back out.
+It is there to make a wrong route recoverable by whoever is hearing it rather
+than by a release, and **it is expected to be removed.** The default should be
+right on its own: `defaultToSpeaker` gives the loudspeaker rather than the
+earpiece and yields to anything connected. If nobody reaches for the picker
+after a few weeks of real use, that is the evidence that the default works and
+this should come out — decided by the author on the day it was added, so that
+the removal is a plan rather than a regret.
 
-Neither is a configuration error. The correct output depends on what is
-connected, and **nothing in this stack can see that**: `@livekit/react-native`
-exposes only `selectAudioOutput('default' | 'force_speaker')`, which is a blind
-`overrideOutputAudioPort` and overrides headphones too;
-`react-native-webrtc`'s `enumerateDevices` returns the built-in microphone and
-no outputs at all; neither package surfaces `AVAudioSession.currentRoute` or a
-route-change event.
-
-So this needs one of:
-
-1. **A speaker button**, like every other call app has — an explicit override
-   the user can correct, mapped to `selectAudioOutput`. Cheapest, and it makes
-   the wrong route recoverable rather than merely explicable.
-2. **A small native module** exposing the current route and
-   `routeChangeNotification`, so the choice can be made properly: force the
-   speaker only when the route would otherwise be the receiver, and re-decide
-   whenever anything is plugged in or paired.
-
-(1) is worth doing regardless. (2) is what makes the default correct.
-
-Related: `videoChat` is documented as implying `allowBluetooth` and
-`defaultToSpeaker` on its own, yet the receiver was observed under it. Whether
-explicit `audioCategoryOptions` clear that implication, or `mixWithOthers`
-suppresses it, was never established — it was worked around, not understood.
+What would argue for keeping it: people using it to move audio somewhere iOS
+would not have chosen — a Bluetooth speaker across a room, a car, an AirPlay
+receiver. That is a want the default cannot infer.
 
 ---
 

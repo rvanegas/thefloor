@@ -888,6 +888,29 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  it('opens the system output picker from settings', async () => {
+    // Ours to place, not ours to build: iOS knows what is connected and this
+    // app cannot — nothing in the audio stack tells JavaScript what outputs
+    // exist. So the button raises the system sheet and nothing more.
+    const { AudioSession } = require('@livekit/react-native');
+    AudioSession.showAudioRoutePicker.mockClear();
+
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
+    const picker = findButton(tree, 'Choose where sound comes out');
+    expect(picker).toBeDefined();
+    await act(async () => picker!.props.onPress());
+    expect(AudioSession.showAudioRoutePicker).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
   it('lists the recordings made in it, which is where they now live', () => {
     // They were on Home, which put every conversation anyone had ever recorded
     // into one list belonging to nothing. A recording belongs to the channel:
