@@ -373,6 +373,50 @@ export function ChannelView({
           <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
         </Card>
 
+        {/*
+          Stepping out is the ordinary way to finish talking, so it is the only
+          departure offered here. Leaving the channel outright lives in
+          settings: it is rare, it is close to irreversible, and putting it
+          beside this one in the colour reserved for danger drew the eye
+          straight to the action least likely to be wanted.
+
+          Directly under the microphone, because the two are the same question
+          asked at different strengths — whether the others can hear you, and
+          whether you are still there at all. Everything below is about what
+          the channel is doing rather than about you being in it.
+
+          Unexplained: it is the one thing on this screen somebody reaches for
+          already knowing what it does, so the sublabel that used to describe
+          it is gone. The heading and the card stay, every other control on
+          this screen sitting in one.
+        */}
+        <SectionLabel>Step Out</SectionLabel>
+        <Card style={styles.stack}>
+          <Button
+            label="Step out"
+            onPress={() => {
+              act({ type: 'STEP_OUT' });
+              app.leaveChannelView(channelId);
+              onExit();
+            }}
+          />
+        </Card>
+
+        {/*
+          Who is here is settled before what is playing: the roster is the
+          channel, and the two sections above are the rest of what this screen
+          says about the people in it. Shared audio and recording are things
+          the channel does, and they wait.
+        */}
+        <SectionLabel>Invite</SectionLabel>
+        <Card style={styles.stack}>
+          <InviteList
+            channel={channel}
+            me={me}
+            onInvite={(contactId) => act({ type: 'INVITE', contactId })}
+          />
+        </Card>
+
         <SectionLabel>Shared audio</SectionLabel>
         <Card style={styles.stack}>
           {playback.failure ? (
@@ -578,36 +622,6 @@ export function ChannelView({
               Step in to record. A recording stops when the last person leaves.
             </Text>
           ) : null}
-        </Card>
-
-        {/*
-          Stepping out is the ordinary way to finish talking, so it is the only
-          departure offered here. Leaving the channel outright lives in
-          settings: it is rare, it is close to irreversible, and putting it
-          beside this one in the colour reserved for danger drew the eye
-          straight to the action least likely to be wanted.
-
-          Unlabelled and unexplained, above the sections it used to sit under:
-          it is the one thing on this screen somebody reaches for knowing
-          already what it does, and a heading over a single button was naming
-          the obvious twice.
-        */}
-        <Button
-          label="Step out"
-          onPress={() => {
-            act({ type: 'STEP_OUT' });
-            app.leaveChannelView(channelId);
-            onExit();
-          }}
-        />
-
-        <SectionLabel>Invite</SectionLabel>
-        <Card style={styles.stack}>
-          <InviteList
-            channel={channel}
-            me={me}
-            onInvite={(contactId) => act({ type: 'INVITE', contactId })}
-          />
         </Card>
 
         {/*
