@@ -659,6 +659,39 @@ needed nothing: it drops the `selfMuted` entry outright, membership being gone.
 
 ---
 
+## Claiming the floor unmutes you, and holds you there until you release
+
+A muted floor-holder is the one arrangement in which every microphone in the
+channel is shut: theirs by their own hand, everyone else's by the claim. It is
+also completely silent from the outside — the others see somebody holding the
+floor, wait for them, and hear nothing, with no way to tell that from a pause
+for breath. Nobody claims the floor in order to stay quiet, so `CLAIM_FLOOR`
+clears the claimant's `selfMuted` entry, and `canSetSelfMute` refuses to put it
+back while they hold it.
+
+This is the same distinction as the section above: clearing a mute is safe here
+because a claim is a deliberate act with somebody's attention on it, which a
+lost connection is not. The microphone opens under a finger, not under a
+timeout.
+
+The way to stop talking is to release the floor. It costs nothing, hands the
+room back, and returns the mute along with it — including when the three-minute
+limit releases it for you, which is a release like any other. The interface
+disables the mute control while you hold the floor and says so, on the general
+rule that a disabled control and a refused action must not disagree.
+
+Two things it deliberately does *not* do:
+
+- **The silenced keep their mute.** Someone force-muted by another's claim
+  gains nothing by muting themselves and loses nothing either, but the setting
+  is theirs, and it is what they will be left holding when the claim ends.
+  Clearing or freezing it would be deciding something on their behalf that has
+  no bearing on the floor.
+- **Unmuting is never refused.** `canSetSelfMute` gates only `muted: true`, so
+  the guard can never strand somebody inaudible.
+
+---
+
 ## Membership is what puts a channel on Home, and nothing else
 
 A channel you belong to appears on Home — as a row, or as the live banner, and

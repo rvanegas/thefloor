@@ -12,6 +12,7 @@ import {
   canClaimFloor,
   canDeleteChannel,
   canLeaveChannel,
+  canSetSelfMute,
   createChannel,
   reduce,
 } from '../channel';
@@ -117,6 +118,66 @@ describe('eligibility rule', () => {
     const s = reduce(joined(), { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0);
     expect(canClaimFloor(s, A, T0)).toBe(true);
     expect(canClaimFloor(s, B, T0)).toBe(true);
+  });
+});
+
+describe('the floor and self-mute', () => {
+  it('unmutes the claimant, who claimed in order to speak', () => {
+    // Nobody takes the floor to stay silent, and a muted holder is the one
+    // arrangement in which every microphone in the channel is shut: theirs by
+    // their own hand, everyone else's by the claim.
+    let s = reduce(joined(), { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0);
+    expect(s.selfMuted[A]).toBe(true);
+
+    s = reduce(s, { type: 'CLAIM_FLOOR', userId: A }, T0 + 1_000);
+    expect(s.floor.holder).toBe(A);
+    expect(s.selfMuted[A]).toBe(false);
+  });
+
+  it('refuses to let the holder mute again until they release', () => {
+    let s = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
+    expect(canSetSelfMute(s, A, true)).toBe(false);
+
+    s = reduce(s, { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0 + 1_000);
+    expect(s.selfMuted[A]).toBe(false);
+
+    // Releasing is the way to stop talking, and it gives the mute back.
+    s = reduce(s, { type: 'RELEASE_FLOOR', userId: A }, T0 + 2_000);
+    expect(canSetSelfMute(s, A, true)).toBe(true);
+    s = reduce(s, { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0 + 3_000);
+    expect(s.selfMuted[A]).toBe(true);
+  });
+
+  it('lets a claim that expires give the mute back', () => {
+    // The auto-release at three minutes is a release like any other.
+    let s = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
+    s = reduce(s, { type: 'TICK' }, T0 + FLOOR_CLAIM_MS);
+    expect(s.floor.holder).toBeNull();
+    expect(canSetSelfMute(s, A, true)).toBe(true);
+  });
+
+  it('leaves the silenced free to mute themselves', () => {
+    // B's mute does nothing while A holds the floor, but it is B's to set, and
+    // it is what B is left with when the claim ends.
+    let s = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
+    expect(canSetSelfMute(s, B, true)).toBe(true);
+
+    s = reduce(s, { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0 + 1_000);
+    expect(s.selfMuted[B]).toBe(true);
+
+    s = reduce(s, { type: 'RELEASE_FLOOR', userId: A }, T0 + 2_000);
+    expect(s.selfMuted[B]).toBe(true);
+  });
+
+  it('never blocks unmuting', () => {
+    const s = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
+    expect(canSetSelfMute(s, A, false)).toBe(true);
+  });
+
+  it('leaves everyone else’s mute alone when someone claims', () => {
+    let s = reduce(joined(), { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0);
+    s = reduce(s, { type: 'CLAIM_FLOOR', userId: A }, T0 + 1_000);
+    expect(s.selfMuted[B]).toBe(true);
   });
 });
 

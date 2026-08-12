@@ -69,7 +69,12 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently twice on 2026-08-12: recordings moved to the channel they were
+Most recently three times on 2026-08-12. The last made claiming the floor clear
+the claimant's self-mute and refuse to let them set it again until they release
+— no schema change and no wire change, so build 23 kept working across it,
+simply without greying out its own mute button while it holds the floor.
+
+Before that, twice the same day: recordings moved to the channel they were
 made in, with deletion by mark and sweep and playback into the room; then the
 branch that answered for recordings whose channel had already ended, once the
 four of those were deleted. The first carried a migration — `deleted_at` on

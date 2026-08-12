@@ -127,6 +127,30 @@ export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
+ * Self-mute is unilateral and unlimited, with one exception: the floor-holder.
+ *
+ * Claiming the floor is asking everyone else to be silent so you can speak, and
+ * a claimant who is muted has cut every microphone in the channel including
+ * their own. That is not a state anybody means to be in, so a claim clears the
+ * claimant's mute (in the reducer) and this refuses to put it back until they
+ * release. The way to stop talking is to release the floor, which costs nothing
+ * and gives it back to the room.
+ *
+ * The silenced are *not* covered: their mute does nothing while somebody else
+ * holds the floor, but it is theirs to set, and it is what they will be left
+ * with when the claim ends.
+ */
+export function canSetSelfMute(
+  state: ChannelState,
+  userId: UserId,
+  muted: boolean
+): boolean {
+  // Only muting is refused. Unmuting is always allowed, and is a no-op for a
+  // holder who is already unmuted.
+  return !muted || state.floor.holder !== userId;
+}
+
+/**
  * Recording needs the person starting it to be **present**, and nothing more.
  *
  * One person alone may record — a channel is a place you can talk into before
@@ -424,7 +448,15 @@ export function reduce(
 
     case 'CLAIM_FLOOR': {
       if (!canClaimFloor(state, action.userId, now)) return state;
-      return { ...state, floor: claimFloor(state.floor, action.userId, now) };
+      // A claim unmutes the claimant. Nobody claims the floor in order to stay
+      // silent, and a muted holder is the one configuration in which the whole
+      // channel is inaudible — see `canSetSelfMute`, which then holds them
+      // there until they release.
+      return {
+        ...state,
+        floor: claimFloor(state.floor, action.userId, now),
+        selfMuted: { ...state.selfMuted, [action.userId]: false },
+      };
     }
 
     case 'RELEASE_FLOOR': {
@@ -433,7 +465,9 @@ export function reduce(
     }
 
     case 'SET_SELF_MUTE':
-      // Unilateral, unlimited, and with no bearing on floor eligibility.
+      // Unilateral, unlimited, and with no bearing on floor eligibility —
+      // except that the floor-holder may not mute themselves.
+      if (!canSetSelfMute(state, action.userId, action.muted)) return state;
       return {
         ...state,
         selfMuted: { ...state.selfMuted, [action.userId]: action.muted },
