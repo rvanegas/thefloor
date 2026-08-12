@@ -261,7 +261,7 @@ Two more things that fail quietly and are worth checking before anything else:
       cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
       codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
 
-  Verified this way for builds 14 through 21: `production`.
+  Verified this way for builds 14 through 22: `production`.
 
   Note that this export **re-signs**, and Xcode's automatic build-number
   management can bump `CFBundleVersion` while doing it: the check on build 19
