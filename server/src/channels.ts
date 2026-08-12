@@ -37,21 +37,6 @@ import type { MediaServer, PlaybackSession } from './media';
 import type { RecordingStore } from './storage';
 import { createPushNotifier, type PushNotifier } from './push';
 
-/**
- * A recording whose channel ended before deleting one was possible.
- *
- * Under the old rule the last member leaving ended the channel and its
- * recordings were kept — the interface said so in as many words. Membership of
- * a channel that no longer has any is the wrong question to ask about those, so
- * they keep the rule they were made under: whoever was in the run. Nothing can
- * enter this state any more, since ending a channel now means deleting it, so
- * the branch retires itself as those recordings are exported or swept.
- */
-const ORPHANED_CHANNEL = `(
-  c.deleted_at IS NULL AND c.ended_at IS NOT NULL
-  AND EXISTS (SELECT 1 FROM json_each(r.participants) WHERE json_each.value = ?)
-)`;
-
 export const TICK_INTERVAL_MS = 500;
 
 /** How often deleted rows past their week are looked for. */
@@ -813,18 +798,24 @@ export class ChannelRegistry {
         //
         // Finished runs only — an in-flight row exists for crash recovery and
         // is not yet a recording anyone can play.
+        //
+        // There used to be a second branch here for recordings whose channel
+        // ended back when ending one kept them: membership of a channel with no
+        // members cannot answer for those, so they kept the rule they were made
+        // under, whoever was in the run. Four existed, they were deleted on
+        // 2026-08-12, and nothing can enter that state now that ending a channel
+        // means deleting it. The branch went with them.
         `SELECT r.* FROM recordings r
          JOIN channels c ON c.id = r.channel_id
          WHERE r.ended_at IS NOT NULL
            AND r.deleted_at IS NULL
            AND c.deleted_at IS NULL
-           AND (
-             EXISTS (SELECT 1 FROM json_each(c.participants) WHERE json_each.value = ?)
-             OR ${ORPHANED_CHANNEL}
+           AND EXISTS (
+             SELECT 1 FROM json_each(c.participants) WHERE json_each.value = ?
            )
          ORDER BY r.started_at DESC`
       )
-      .all(userId, userId) as unknown as RecordingRow[];
+      .all(userId) as unknown as RecordingRow[];
   }
 
   /** The same rule, for one channel: its recordings, or nothing if not yours. */

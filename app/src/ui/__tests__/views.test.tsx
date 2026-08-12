@@ -233,8 +233,9 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
-  it('offers an export for each past recording', async () => {
-    const { exportRecording } = require('../../api/download');
+  it('does not list recordings, which belong to their channel', () => {
+    // They were here, as one flat list belonging to nothing. The server still
+    // sends the field for build 20, which renders it; this screen ignores it.
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -253,19 +254,10 @@ describe('Home', () => {
     };
 
     const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
-    expect(textOf(tree)).toContain('1:32');
-
-    const button = findButton(tree, 'Export');
-    expect(button).toBeDefined();
-    await act(async () => button!.props.onPress());
-    // The recording's own name, which the server fixed when the run stopped —
-    // not a label rebuilt here from the roster.
-    expect(exportRecording).toHaveBeenCalledWith(
-      'token',
-      'rec_1',
-      'Dana Chu and Me',
-      NOW + 92_000
-    );
+    const text = textOf(tree);
+    expect(text).not.toContain('Dana Chu and Me');
+    expect(text).not.toContain('1:32');
+    expect(findButton(tree, 'Export')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -911,7 +903,7 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('lists the recordings made in it, which is where they now live', () => {
+  it('lists the recordings made in it, which is where they now live', async () => {
     // They were on Home, which put every conversation anyone had ever recorded
     // into one list belonging to nothing. A recording belongs to the channel:
     // it is what names it, and what deleting takes it with.
@@ -935,7 +927,19 @@ describe('Channel', () => {
     const text = textOf(tree);
     expect(text).toContain('Book club');
     expect(text).not.toContain('Nothing recorded here yet');
-    expect(findButton(tree, 'Export')).toBeDefined();
+
+    // Exported under the recording's own name, which the server fixed when the
+    // run stopped — not a label rebuilt here from the roster, which is how two
+    // people came to call one recording two different things.
+    const { exportRecording } = require('../../api/download');
+    exportRecording.mockClear();
+    await act(async () => findButton(tree, 'Export')!.props.onPress());
+    expect(exportRecording).toHaveBeenCalledWith(
+      'token',
+      'rec_1',
+      'Book club',
+      NOW - 30_000
+    );
     act(() => tree.unmount());
   });
 

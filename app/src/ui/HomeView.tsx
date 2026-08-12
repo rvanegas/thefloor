@@ -17,15 +17,7 @@ import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
-import {
-  Button,
-  Card,
-  Empty,
-  Field,
-  RecordingRow,
-  Screen,
-  SectionLabel,
-} from './components';
+import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 /**
@@ -82,14 +74,10 @@ export function HomeView({
     )
   );
   const contacts = home?.contacts ?? [];
-  // A recording whose channel is still around is shown there, not here.
-  const channelIds = new Set([
-    ...(home?.rejoinable ?? []).map((c) => c.channelId),
-    ...(home?.invites ?? []).map((c) => c.channelId),
-  ]);
-  const orphaned = (home?.recordings ?? []).filter(
-    (r) => !channelIds.has(r.channelId)
-  );
+  // Recordings are not on this screen at all: they live on the channel they
+  // were made in, which names them and takes them when it goes. The server
+  // still sends `home.recordings` for build 20, which renders it — see
+  // BACKLOG.md for when that field goes too.
 
   /**
    * A live channel *containing* each contact, if there is one. The server
@@ -330,27 +318,6 @@ export function HomeView({
       <SectionLabel>Add contact</SectionLabel>
       <AddContact />
 
-      {/*
-        Recordings live on the channel they were made in — it names them, its
-        members are who may hear them, and deleting it deletes them. What is
-        left here is the set with nowhere else to be: recordings of channels
-        that ended back when ending one kept them. Nothing can join that set,
-        and the section disappears with the last of them.
-      */}
-      {orphaned.length > 0 ? (
-        <>
-          <SectionLabel>Recordings without a channel</SectionLabel>
-          <Text style={[type.muted, styles.orphanNote]}>
-            These were made in channels that have since ended. Export what you
-            want to keep — there is no channel left to find them in.
-          </Text>
-          <View style={styles.list}>
-            {orphaned.map((r) => (
-              <RecordingRow key={r.id} recording={r} />
-            ))}
-          </View>
-        </>
-      ) : null}
     </Screen>
   );
 }
@@ -724,6 +691,5 @@ const styles = StyleSheet.create({
   bannerDismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
   addContact: { gap: spacing(1) },
   message: { fontSize: 13 },
-  orphanNote: { marginBottom: spacing(1) },
   selectBar: { flexDirection: 'row', gap: spacing(1), marginTop: spacing(1) },
 });

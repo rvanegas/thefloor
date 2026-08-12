@@ -334,12 +334,8 @@ otherwise lose every recording at a deploy.
 
 Once nobody is on 20, the field goes: `homeFor` stops calling `recordingsFor`,
 and `RecordingView` leaves `HomeView` in `core/protocol.ts`. What must *not* go
-with it is `recordingsFor` itself — the export endpoint's permission check
-reads it, and it is the only thing that answers for a recording whose channel
-ended under the old rule.
-
-Home's "Recordings without a channel" section retires on its own: nothing can
-enter that set.
+with it is `recordingsFor` itself — the export and playback endpoints both read
+it, and it is the one place the access rule is written down.
 
 ---
 

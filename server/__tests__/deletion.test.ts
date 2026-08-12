@@ -242,19 +242,22 @@ describe('the sweep', () => {
     for (const key of keys) expect(store.keys()).not.toContain(key);
   });
 
-  it('spares a channel that was ended before deleting one existed', async () => {
-    // Those recordings were made under a rule that said in as many words that
-    // they were kept. A sweep reading `ended_at` rather than `deleted_at`
-    // would destroy exactly the ones that promise covered.
-    const { alice, channelId } = await recorded();
+  it('takes nothing that was merely ended rather than deleted', async () => {
+    // The distinction the `deleted_at` column exists for. Ending and deleting
+    // are the same event now — the last member cannot leave — but rows written
+    // before that was true are ended and *not* deleted, and a sweep reading
+    // `ended_at` would destroy them. There is no way to reach this state from
+    // the app; it is reached here the only way it exists, by writing the row.
+    const { channelId } = await recorded();
     app.db
       .prepare('UPDATE channels SET ended_at = ? WHERE id = ?')
       .run(clock, channelId);
 
     clock += DELETED_RETENTION_MS * 10;
-    expect(app.channels.sweepDeleted(clock).recordings).toBe(0);
+    expect(app.channels.sweepDeleted(clock)).toEqual({
+      recordings: 0,
+      channels: 0,
+    });
     expect(rowsOf(channelId)).toHaveLength(1);
-    // And its audience keeps it, the channel it belonged to being gone.
-    expect(app.channels.recordingsFor(alice.account.id)).toHaveLength(1);
   });
 });

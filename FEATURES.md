@@ -35,3 +35,6 @@ Channels can be shared to anyone with a link which navigates to web page with ch
 
 First evaluate relevant differences and establish dev simulator on mac.
 
+## Better Speaker UI in Channel
+
+A full element. Visual display when speaking. Pressable, goes to profile, from there can add as contact. 

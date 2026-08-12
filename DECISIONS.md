@@ -607,17 +607,27 @@ shared track. And a long recording takes seconds to mix before it is loaded,
 which is why the row that was tapped says "Loading…" rather than the screen
 going quiet.
 
-### The recordings with no channel left
+### The recordings with no channel left were deleted
 
-Four recordings in production belong to channels that ended under the old rule.
-Their channel is gone, so channel membership cannot answer for them, and the
-new screen they would live on does not exist.
+Four recordings belonged to channels that ended under the old rule, where the
+last member leaving ended the channel and kept what was recorded in it. Their
+channel was gone, so channel membership could not answer for them, and the
+screen they would now live on did not exist.
 
-They keep the rule they were made under — whoever was in the run — and Home
-grew a section that appears only when there are any: "Recordings without a
-channel", saying plainly that there is nowhere left to find them and to export
-what is worth keeping. Nothing can enter that set, since ending a channel now
-means deleting it, so the branch and the section retire themselves.
+They were shown on Home for a day, under a section that said there was nowhere
+left to find them and to export anything worth keeping, and they kept the rule
+they were made under — whoever was in the run. On 2026-08-12 they were marked
+for deletion instead: 1 to 61 seconds each, from the first two days of the
+project, and nobody wanted them.
+
+So the section is gone, and so is the branch in `recordingsFor` that answered
+for them. Nothing can enter that state now that ending a channel means deleting
+it, which is what makes removing the branch safe rather than merely tidy — and
+the four rows were confirmed gone from the query before the code went.
+
+What stays, and must: `deleted_at` is still its own column rather than a
+reading of `ended_at`. There are still channels that are ended and not deleted,
+and a sweep that confused the two would take recordings nobody asked it to.
 
 ---
 
