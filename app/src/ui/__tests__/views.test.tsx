@@ -827,11 +827,32 @@ describe('Channel', () => {
 
     const stepOut = findButton(tree, 'Step out');
     expect(stepOut).toBeDefined();
-    expect(labelOf(stepOut!)).toContain('You stay a member');
+    // Bare: no sublabel and no heading over it. Somebody reaching for this one
+    // knows what it does, and the words were saying so a second time.
+    expect(labelOf(stepOut!)).not.toContain('You stay a member');
     expect(findButton(tree, 'Leave channel')).toBeUndefined();
 
     act(() => stepOut!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
+    act(() => tree.unmount());
+  });
+
+  it('puts stepping out above inviting, and inviting above the recordings', () => {
+    // The order of the tail of this screen, by how often it is wanted: the way
+    // out first, then the way to bring somebody in, then the archive you scroll
+    // to on purpose.
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    const text = textOf(tree);
+    expect(text.indexOf('Step out')).toBeGreaterThan(-1);
+    expect(text.indexOf('Step out')).toBeLessThan(text.indexOf('Invite'));
+    expect(text.indexOf('Invite')).toBeLessThan(text.indexOf('Recordings'));
     act(() => tree.unmount());
   });
 

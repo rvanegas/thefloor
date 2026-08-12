@@ -15,6 +15,7 @@ import {
   canControlPlayback,
   canPauseRecording,
   canResumeRecording,
+  canSetSelfMute,
   canStartRecording,
   canStopRecording,
   isPresent,
@@ -337,20 +338,26 @@ export function ChannelView({
         <Card style={styles.stack}>
           <Button
             label={iAmSelfMuted ? 'Unmute yourself' : 'Mute yourself'}
+            // Holding the floor is holding it open to speak. The reducer
+            // refuses the mute either way; disabling the control is what stops
+            // the two disagreeing on screen.
+            disabled={!canSetSelfMute(channel, me, !iAmSelfMuted)}
             onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
           />
           <Text style={type.muted}>
             {iAmSilenced
               ? `Silenced by ${holderName}'s floor claim.`
-              : iAmSelfMuted
-                ? 'Muted by you. This is separate from the floor and costs you nothing.'
-                : audio.micOpen
-                  ? 'Open. Self-mute never affects floor eligibility.'
-                  : // Closed because nobody is here to hear it, which is worth
-                    // saying: a microphone the screen calls open and is not is
-                    // exactly the kind of silence this codebase keeps
-                    // apologising for elsewhere.
-                    'Closed until somebody else is here — so your other apps keep the speakers.'}
+              : iHoldFloor
+                ? 'Open while you hold the floor — release it to mute yourself.'
+                : iAmSelfMuted
+                  ? 'Muted by you. This is separate from the floor and costs you nothing.'
+                  : audio.micOpen
+                    ? 'Open. Self-mute never affects floor eligibility.'
+                    : // Closed because nobody is here to hear it, which is
+                      // worth saying: a microphone the screen calls open and is
+                      // not is exactly the kind of silence this codebase keeps
+                      // apologising for elsewhere.
+                      'Closed until somebody else is here — so your other apps keep the speakers.'}
           </Text>
           {recordingLive && iAmSilenced ? (
             // Being unheard is not the same as being unrecorded, and it would
@@ -573,6 +580,36 @@ export function ChannelView({
         </Card>
 
         {/*
+          Stepping out is the ordinary way to finish talking, so it is the only
+          departure offered here. Leaving the channel outright lives in
+          settings: it is rare, it is close to irreversible, and putting it
+          beside this one in the colour reserved for danger drew the eye
+          straight to the action least likely to be wanted.
+
+          Unlabelled and unexplained, above the sections it used to sit under:
+          it is the one thing on this screen somebody reaches for knowing
+          already what it does, and a heading over a single button was naming
+          the obvious twice.
+        */}
+        <Button
+          label="Step out"
+          onPress={() => {
+            act({ type: 'STEP_OUT' });
+            app.leaveChannelView(channelId);
+            onExit();
+          }}
+        />
+
+        <SectionLabel>Invite</SectionLabel>
+        <Card style={styles.stack}>
+          <InviteList
+            channel={channel}
+            me={me}
+            onInvite={(contactId) => act({ type: 'INVITE', contactId })}
+          />
+        </Card>
+
+        {/*
           Recordings live here because they belong to the channel: it names
           them, its members are who may hear them, and deleting it deletes
           them. They were on Home, which put every conversation you had ever
@@ -601,33 +638,6 @@ export function ChannelView({
             ))}
           </View>
         )}
-
-        <SectionLabel>Invite</SectionLabel>
-        <Card style={styles.stack}>
-          <InviteList
-            channel={channel}
-            me={me}
-            onInvite={(contactId) => act({ type: 'INVITE', contactId })}
-          />
-        </Card>
-
-        {/*
-          Stepping out is the ordinary way to finish talking, so it is the only
-          departure offered here. Leaving the channel outright lives in
-          settings: it is rare, it is close to irreversible, and putting it
-          beside this one in the colour reserved for danger drew the eye
-          straight to the action least likely to be wanted.
-        */}
-        <SectionLabel>Leaving</SectionLabel>
-        <Button
-          label="Step out"
-          sublabel="You stay a member — the channel keeps going without you"
-          onPress={() => {
-            act({ type: 'STEP_OUT' });
-            app.leaveChannelView(channelId);
-            onExit();
-          }}
-        />
       </ScrollView>
     </View>
   );
