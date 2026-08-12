@@ -157,7 +157,31 @@ export function canStartRecording(
  * time, present or not — and when the last one does, the channel ends.
  */
 export function canLeaveChannel(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && isParticipant(state, userId);
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    // The last member cannot leave — there would be nobody to leave it *to*.
+    // What that tap does is destroy the channel and everything recorded in it,
+    // so it is a different action with a different name, and the interface says
+    // so in the same place rather than hiding the difference behind one word.
+    state.participants.length > 1
+  );
+}
+
+/**
+ * Whether `userId` may delete the channel outright.
+ *
+ * Only its last member, and only because there is nobody left to disagree.
+ * Deleting is not leaving with an extra consequence: it ends the channel for
+ * good and takes every recording made in it, which is why the two are separate
+ * actions rather than one that behaves differently depending on the roster.
+ */
+export function canDeleteChannel(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    state.participants.length === 1
+  );
 }
 
 /**
@@ -301,7 +325,22 @@ export function reduce(
       };
     }
 
-    case 'STEP_OUT':
+    case 'STEP_OUT': {
+      const gone = stepOut(state, action.userId, now);
+      if (gone === state) return state;
+      // Leaving the room puts your microphone back as you found it. A mute is
+      // a thing you do *during* a conversation — to cough, to type, to talk to
+      // somebody in the room you are actually in — and carrying it across a
+      // departure means coming back inaudible, with the reason a decision you
+      // made an hour ago and have no cause to remember. Nobody hears you and
+      // nothing on the way in says why.
+      //
+      // Deliberate departures only. A connection lost past its grace period
+      // arrives as DISCONNECT_EXPIRED, and keeps the mute.
+      return { ...gone, selfMuted: { ...gone.selfMuted, [action.userId]: false } };
+    }
+
+    case 'DISCONNECT_EXPIRED':
       return stepOut(state, action.userId, now);
 
     case 'INVITE': {
@@ -344,7 +383,21 @@ export function reduce(
         floor: { ...gone.floor, lastClaimedAt },
       };
 
+      // Never zero: the last member cannot reach this action at all. Kept as an
+      // assertion rather than a branch — if the guard above ever stops holding,
+      // a channel with no members must still not survive.
       return participants.length === 0 ? endChannel(next, now) : next;
+    }
+
+    case 'DELETE_CHANNEL': {
+      if (!canDeleteChannel(state, action.userId)) return state;
+      // The same ending its last member's departure used to produce, reached
+      // deliberately. What is new is downstream: the server marks the channel
+      // and its recordings for deletion, and a sweep removes them a week later.
+      return endChannel(
+        { ...stepOut(state, action.userId, now), participants: [] },
+        now
+      );
     }
 
     case 'SET_NAME': {
@@ -449,10 +502,11 @@ function tick(state: ChannelState, now: number): ChannelState {
 
   // Someone gone past the grace period has left. Handled before the floor
   // expiry so their claim is released by the leave itself, as any other
-  // departure would release it.
+  // departure would release it. Not STEP_OUT: that is the departure somebody
+  // chose, and it clears their self-mute, which a lost connection must not.
   for (const [userId, since] of Object.entries(next.disconnectedAt)) {
     if (since !== undefined && now - since >= DISCONNECT_GRACE_MS) {
-      next = reduce(next, { type: 'STEP_OUT', userId }, now);
+      next = reduce(next, { type: 'DISCONNECT_EXPIRED', userId }, now);
     }
   }
 

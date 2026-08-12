@@ -326,6 +326,23 @@ functionality of Facetime and Zoom channels.
 
 ---
 
+## `HomeView.recordings` outlived its screen
+
+The app shows recordings on the channel they were made in. The server still
+sends the flat Home list, because build 20 and earlier render it and would
+otherwise lose every recording at a deploy.
+
+Once nobody is on 20, the field goes: `homeFor` stops calling `recordingsFor`,
+and `RecordingView` leaves `HomeView` in `core/protocol.ts`. What must *not* go
+with it is `recordingsFor` itself — the export endpoint's permission check
+reads it, and it is the only thing that answers for a recording whose channel
+ended under the old rule.
+
+Home's "Recordings without a channel" section retires on its own: nothing can
+enter that set.
+
+---
+
 ## There is no output control, and no static configuration is right without one
 
 Where a call comes out of is currently decided by one fixed AVAudioSession

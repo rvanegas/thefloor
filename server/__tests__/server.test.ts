@@ -570,10 +570,14 @@ describe('channels', () => {
     app.channels.tick();
     expect(app.channels.get(channelId)!.status).toBe('active');
 
-    // Only membership ends it, and only the last member's.
+    // Only membership ends it, and only by its last member deleting it —
+    // leaving is refused to them, that tap being the one that destroys the
+    // channel and everything recorded in it.
     app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE_CHANNEL' });
     expect(app.channels.get(channelId)!.status).toBe('active');
     app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
+    expect(app.channels.get(channelId)!.status).toBe('active');
+    app.channels.dispatch(channelId, bob.account.id, { type: 'DELETE_CHANNEL' });
     expect(app.channels.get(channelId)!.status).toBe('ended');
 
     const row = app.db

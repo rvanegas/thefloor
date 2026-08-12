@@ -178,4 +178,18 @@ export const api = {
       `/channels/${channelId}/media-token`,
       { method: 'POST', token }
     ),
+
+  /**
+   * Loads a recording as its channel's shared track. The channel is the
+   * recording's own and is never named here — the server takes it from the
+   * row, so a recording cannot be played anywhere but where it was made.
+   *
+   * Slow on purpose: the mix is encoded from the stems on the way through, the
+   * same as an export, so this is a wait of seconds and the caller shows it.
+   */
+  playRecording: (token: string, recordingId: string) =>
+    request<{ track: { id: string; title: string; durationMs: number } }>(
+      `/recordings/${recordingId}/play`,
+      { method: 'POST', token }
+    ),
 };

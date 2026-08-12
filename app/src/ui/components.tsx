@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,7 +12,11 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { colors, radius, spacing, type } from './theme';
+import type { RecordingView } from '../../../core/protocol';
+import { exportRecording } from '../api/download';
+import { api } from '../api/http';
+import { useApp } from '../state/AppProvider';
+import { colors, formatDuration, radius, spacing, type } from './theme';
 
 export function Button({
   label,
@@ -231,4 +236,144 @@ const styles = StyleSheet.create({
     padding: spacing(2),
   },
   empty: { paddingVertical: spacing(2) },
+});
+
+/**
+ * A finished recording, with the control that turns it into a file.
+ *
+ * Shared because recordings are shown on the channel they were made in and,
+ * for as long as build 20 is out there, on Home — and a recording must not be
+ * called one thing on one screen and something else on the other.
+ */
+export function RecordingRow({
+  recording,
+  playable = false,
+  playDisabled = false,
+  playDisabledReason,
+}: {
+  recording: RecordingView;
+  /**
+   * Whether this row can be played into the room. False on Home, where the
+   * rows shown are the ones whose channel is gone — there is no room to play
+   * them into.
+   */
+  playable?: boolean;
+  /** Whoever holds the floor decides what plays, and this says when that is not you. */
+  playDisabled?: boolean;
+  playDisabledReason?: string;
+}) {
+  return (
+    <Card style={recordingStyles.row}>
+      <View style={recordingStyles.main}>
+        {/*
+          Decided when the run stopped and the same for everybody who was in
+          it, so two people can talk about one recording by one name.
+        */}
+        <Text style={recordingStyles.name} numberOfLines={1}>
+          {recording.name}
+        </Text>
+        <Text style={type.muted}>
+          {new Date(recording.startedAt).toLocaleString()} ·{' '}
+          {formatDuration(recording.durationMs)}
+          {playable && playDisabled && playDisabledReason
+            ? ` · ${playDisabledReason}`
+            : ''}
+        </Text>
+      </View>
+      {playable ? (
+        <PlayButton recording={recording} disabled={playDisabled} />
+      ) : null}
+      <ExportButton recording={recording} />
+    </Card>
+  );
+}
+
+/**
+ * Loads a recording as the channel's shared track, which is how it is played:
+ * there is no second playback mechanism, and once it is loaded the controls
+ * already on the screen are the ones that run it.
+ *
+ * Its own component for the same reason as the export button — the mix is
+ * encoded on demand, so this is a wait of seconds and the row that was tapped
+ * is the one that should say so.
+ */
+function PlayButton({
+  recording,
+  disabled,
+}: {
+  recording: RecordingView;
+  disabled: boolean;
+}) {
+  const app = useApp();
+  const [busy, setBusy] = React.useState(false);
+
+  return (
+    <Button
+      label={busy ? 'Loading…' : 'Play'}
+      disabled={busy || disabled}
+      onPress={async () => {
+        if (!app.token) return;
+        setBusy(true);
+        try {
+          await api.playRecording(app.token, recording.id);
+        } catch (e) {
+          Alert.alert(
+            'Could not play',
+            e instanceof Error ? e.message : String(e)
+          );
+        } finally {
+          setBusy(false);
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * Its own component so each row keeps its own progress state — the mix is
+ * encoded on demand, so this is a wait of seconds rather than an instant
+ * download, and a shared flag would show every row as busy.
+ */
+export function ExportButton({ recording }: { recording: RecordingView }) {
+  const app = useApp();
+  const [busy, setBusy] = React.useState(false);
+
+  return (
+    <Button
+      label={busy ? 'Preparing…' : 'Export'}
+      disabled={busy}
+      onPress={async () => {
+        if (!app.token) return;
+        setBusy(true);
+        try {
+          await exportRecording(
+            app.token,
+            recording.id,
+            // Same label as the row it came from, so the file that lands in
+            // the share sheet is recognisable as the thing that was tapped.
+            recording.name,
+            recording.endedAt
+          );
+        } catch (e) {
+          Alert.alert(
+            'Could not export',
+            e instanceof Error ? e.message : String(e)
+          );
+        } finally {
+          setBusy(false);
+        }
+      }}
+    />
+  );
+}
+
+const recordingStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1.5),
+  },
+  main: { flex: 1, gap: spacing(0.25) },
+  name: { color: colors.text, fontSize: 16, fontWeight: '600' },
 });

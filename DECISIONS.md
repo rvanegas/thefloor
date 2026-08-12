@@ -505,6 +505,150 @@ with nobody in it stops and files itself.
 
 ---
 
+## A recording belongs to the channel it was made in
+
+Recordings used to be a flat list on Home, belonging to whoever had been in the
+run and outliving everything else — the channel could end and its recordings
+stayed, reachable for ever by their original audience. They now belong to the
+place: shown on the channel's own screen, visible to its members, deleted with
+it.
+
+**Membership of the channel is the whole access rule**, and it cuts both ways
+deliberately. Someone invited today can play a conversation recorded last year;
+someone who leaves loses recordings of conversations they were in. The
+alternative — membership *and* having been in the run — was considered and
+declined: it keeps a recording reachable by a person the channel no longer
+belongs to, and it makes "who can hear this" a different question from "whose
+channel is this", which is exactly the question this change exists to collapse.
+
+The consent question that hangs off the widening half is real and is not
+answered here. See BACKLOG.md, "Two-party consent".
+
+### The last member cannot leave, only delete
+
+Leaving means the others keep it. With nobody else, the same tap now destroys
+the channel *and* every recording in it, and an action that means "see you
+later" for everyone else must not quietly mean that. So `canLeaveChannel`
+refuses the last member and `canDeleteChannel` admits only them: one control in
+one place, wearing a different name, a different colour and a different
+confirmation depending on which it is.
+
+Both refusals are stated out loud by the registry rather than left to the
+reducer's inertness, which is how every other guard here works. A client that
+deleted nothing and was told nothing walks the user back to Home as though the
+channel were gone — and build 20 and earlier send `LEAVE_CHANNEL` as the last
+member, that having been how a channel ended, so they get a sentence naming
+what to do instead of a button that does nothing.
+
+**The confirmation is two dialogs.** One is the pattern everywhere else in this
+app and is not enough here: what goes is unrecoverable, it is the only copy
+anybody has, and the tap that starts it sits where "leave" sat in every
+previous build. The second says the count out loud — somebody about to lose
+four recordings should have read the word "four" before it happens.
+
+### Marked, then swept a week later
+
+Deleting sets `deleted_at` on the channel and on its recordings. Nothing is
+removed for `DELETED_RETENTION_MS`, which is seven days.
+
+Not an undo: there is no way back in the app, and the recordings are
+unreachable from the moment the channel goes, there being no members left to
+reach them. What the week buys is that a mistake is still recoverable *by
+hand* — the rows are marked rather than gone, and so are the objects they name.
+It also keeps `recordings.channel_id` pointing at something real for the whole
+week, which a delete-now-cascade-later scheme would not.
+
+Two orderings in the sweep are load-bearing:
+
+- **The bucket is emptied before the row is dropped.** A row is the only record
+  of which objects belong to a recording, so the other order leaves objects
+  nobody can ever identify, paid for indefinitely. A failed delete leaves the
+  row for the next sweep, which is the recoverable direction.
+- **A channel goes only once nothing points at it**, so a recording whose
+  objects would not delete keeps its channel alive rather than orphaning the
+  row or failing the constraint.
+
+`deleted_at` is its own column rather than a reading of `ended_at`, and that
+distinction protects real data: channels that ended under the old rule — where
+the last member leaving ended the channel and *kept* its recordings, as the
+interface said in as many words — are ended and not deleted. Inferring one from
+the other would have the first sweep destroy exactly what that rule promised.
+
+### Playing one back is loading it as the channel's track
+
+There is no second playback mechanism, and that is the whole design.
+`POST /recordings/:id/play` mixes the stems exactly as an export does, writes
+the result to the same kind of per-track temp directory an upload uses, and
+hands it to `loadTrack`. From that moment it *is* the channel's shared track:
+played, paused, sought and levelled by the controls already on the screen,
+published into the room by the media participant that was already there, and
+governed by the same rule that whoever holds the floor decides what plays.
+
+Nothing in `core` changed for it. The reducer already had `SET_TRACK`, which is
+server-minted and unreachable from a client — the same protection the upload
+path relies on, and for the same reason: only the server knows where a file
+landed.
+
+**The channel is the recording's own, never one the caller names.** It is read
+from `channel_id`, so a recording cannot be piped into a different room. The
+permission check is `recordingsFor`, the same function the export endpoint
+asks, so what may be played and what may be downloaded cannot come apart.
+
+The duration is probed from the mix rather than copied from `duration_ms`: one
+is what was captured and the other is what the file came out as, and the
+scrubber runs on the second. The mix is encoded per request, like an export —
+the stems are the durable artefact, so a change to how the floor is applied
+reaches old recordings instead of leaving a stale file that lets a silenced
+remark through.
+
+Two consequences worth knowing. Playing a recording while recording puts it in
+the new recording, because that is what the room heard — the same as any
+shared track. And a long recording takes seconds to mix before it is loaded,
+which is why the row that was tapped says "Loading…" rather than the screen
+going quiet.
+
+### The recordings with no channel left
+
+Four recordings in production belong to channels that ended under the old rule.
+Their channel is gone, so channel membership cannot answer for them, and the
+new screen they would live on does not exist.
+
+They keep the rule they were made under — whoever was in the run — and Home
+grew a section that appears only when there are any: "Recordings without a
+channel", saying plainly that there is nowhere left to find them and to export
+what is worth keeping. Nothing can enter that set, since ending a channel now
+means deleting it, so the branch and the section retire themselves.
+
+---
+
+## Stepping out clears your self-mute; losing your connection does not
+
+A mute is something you do *during* a conversation — to cough, to type, to talk
+to whoever is in the room you are actually in. Carried across a departure it
+stops being an action and becomes a setting: you walk back in an hour later
+inaudible, on a decision you have no reason to remember, and nothing on the way
+in tells you. So `STEP_OUT` puts the microphone back as it found it.
+
+**The two departures had to stop being the same event for this.** They had
+deliberately been one: the grace period running out dispatched `STEP_OUT`, so
+that a dropped connection released the floor and stopped an emptied channel's
+recording by exactly the path a tap takes — one route rather than two that have
+to agree. That is still worth having, and now there is one rule that
+distinguishes them, so there is a second action, `DISCONNECT_EXPIRED`, that
+does the same departure without the intent.
+
+Clearing the mute on a lost connection would be a hot microphone. The client
+re-enters by itself when a socket comes back (`socket.ts`, `enteredChannel`),
+so nobody would be asked and nothing would be tapped — the phone in your pocket
+would simply start transmitting again, having been muted on purpose. A
+deliberate departure has somebody's attention; a timeout has nobody's.
+
+`DISCONNECT_EXPIRED` is issued by `TICK` and is absent from the server's
+`CLIENT_ACTIONS` allowlist, so it is not reachable from a client. `LEAVE_CHANNEL`
+needed nothing: it drops the `selfMuted` entry outright, membership being gone.
+
+---
+
 ## Membership is what puts a channel on Home, and nothing else
 
 A channel you belong to appears on Home — as a row, or as the live banner, and

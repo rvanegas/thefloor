@@ -159,14 +159,18 @@ describe('the floor among three', () => {
     expect(s.present).toEqual([B]);
   });
 
-  it('ends only when the third and last member leaves the channel', () => {
+  it('ends only when the third and last member deletes it', () => {
     let s = trio();
     s = reduce(s, { type: 'LEAVE_CHANNEL', userId: A }, T0);
     expect(s.status).toBe('active');
     s = reduce(s, { type: 'LEAVE_CHANNEL', userId: B }, T0 + 1_000);
     expect(s.status).toBe('active');
     expect(s.participants).toEqual([C]);
+    // C cannot leave: with nobody else, that tap destroys the channel and
+    // everything recorded in it, and is named for what it does.
     s = reduce(s, { type: 'LEAVE_CHANNEL', userId: C }, T0 + 2_000);
+    expect(s.status).toBe('active');
+    s = reduce(s, { type: 'DELETE_CHANNEL', userId: C }, T0 + 2_000);
     expect(s.status).toBe('ended');
     expect(s.endedAt).toBe(T0 + 2_000);
   });

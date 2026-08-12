@@ -17,7 +17,15 @@ import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
+import {
+  Button,
+  Card,
+  Empty,
+  Field,
+  RecordingRow,
+  Screen,
+  SectionLabel,
+} from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 /**
@@ -74,7 +82,14 @@ export function HomeView({
     )
   );
   const contacts = home?.contacts ?? [];
-  const recordings = home?.recordings ?? [];
+  // A recording whose channel is still around is shown there, not here.
+  const channelIds = new Set([
+    ...(home?.rejoinable ?? []).map((c) => c.channelId),
+    ...(home?.invites ?? []).map((c) => c.channelId),
+  ]);
+  const orphaned = (home?.recordings ?? []).filter(
+    (r) => !channelIds.has(r.channelId)
+  );
 
   /**
    * A live channel *containing* each contact, if there is one. The server
@@ -315,72 +330,28 @@ export function HomeView({
       <SectionLabel>Add contact</SectionLabel>
       <AddContact />
 
-      <SectionLabel>Past recordings</SectionLabel>
-      {recordings.length === 0 ? (
-        <Empty>Recordings you make in a channel will appear here.</Empty>
-      ) : (
-        <View style={styles.list}>
-          {recordings.map((r) => (
-            <Card key={r.id} style={styles.row}>
-              <View style={styles.rowMain}>
-                {/*
-                  Decided when the run stopped and the same for everybody who
-                  was in it, so two people can talk about one recording by one
-                  name. 'Unknown' used to appear here whenever the roster
-                  resolved to nothing, which reads as data loss.
-                */}
-                <Text style={styles.described} numberOfLines={1}>
-                  {r.name}
-                </Text>
-                <Text style={type.muted}>
-                  {new Date(r.startedAt).toLocaleString()} ·{' '}
-                  {formatDuration(r.durationMs)}
-                </Text>
-              </View>
-              <ExportButton recording={r} />
-            </Card>
-          ))}
-        </View>
-      )}
+      {/*
+        Recordings live on the channel they were made in — it names them, its
+        members are who may hear them, and deleting it deletes them. What is
+        left here is the set with nowhere else to be: recordings of channels
+        that ended back when ending one kept them. Nothing can join that set,
+        and the section disappears with the last of them.
+      */}
+      {orphaned.length > 0 ? (
+        <>
+          <SectionLabel>Recordings without a channel</SectionLabel>
+          <Text style={[type.muted, styles.orphanNote]}>
+            These were made in channels that have since ended. Export what you
+            want to keep — there is no channel left to find them in.
+          </Text>
+          <View style={styles.list}>
+            {orphaned.map((r) => (
+              <RecordingRow key={r.id} recording={r} />
+            ))}
+          </View>
+        </>
+      ) : null}
     </Screen>
-  );
-}
-
-/**
- * Its own component so each row keeps its own progress state — the mix is
- * encoded on demand, so this is a wait of seconds rather than an instant
- * download, and a shared flag would show every row as busy.
- */
-function ExportButton({ recording }: { recording: RecordingView }) {
-  const app = useApp();
-  const [busy, setBusy] = useState(false);
-
-  return (
-    <Button
-      label={busy ? 'Preparing…' : 'Export'}
-      disabled={busy}
-      onPress={async () => {
-        if (!app.token) return;
-        setBusy(true);
-        try {
-          await exportRecording(
-            app.token,
-            recording.id,
-            // Same label as the row it came from, so the file that lands in
-            // the share sheet is recognisable as the thing that was tapped.
-            recording.name,
-            recording.endedAt
-          );
-        } catch (e) {
-          Alert.alert(
-            'Could not export',
-            e instanceof Error ? e.message : String(e)
-          );
-        } finally {
-          setBusy(false);
-        }
-      }}
-    />
   );
 }
 
@@ -753,5 +724,6 @@ const styles = StyleSheet.create({
   bannerDismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
   addContact: { gap: spacing(1) },
   message: { fontSize: 13 },
+  orphanNote: { marginBottom: spacing(1) },
   selectBar: { flexDirection: 'row', gap: spacing(1), marginTop: spacing(1) },
 });

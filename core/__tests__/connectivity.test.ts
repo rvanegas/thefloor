@@ -48,6 +48,23 @@ describe('disconnecting', () => {
     expect(state.disconnectedAt[B]).toBeUndefined();
   });
 
+  it('keeps a self-mute that stepping out would have cleared', () => {
+    // The two departures differ here and nowhere else. Stepping out is a
+    // decision, and the mute goes with it. A connection running out of grace
+    // is not: the client re-enters by itself on reconnect, so clearing the
+    // mute would hand back a live microphone that somebody deliberately
+    // closed, without anyone being asked.
+    let state = reduce(joined(), { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0);
+    state = reduce(state, { type: 'DISCONNECTED', userId: B }, T0);
+    state = tick(state, T0 + DISCONNECT_GRACE_MS);
+
+    expect(isPresent(state, B)).toBe(false);
+    expect(state.selfMuted[B]).toBe(true);
+
+    const back = reduce(state, { type: 'ENTER', userId: B }, T0 + DISCONNECT_GRACE_MS + 1);
+    expect(back.selfMuted[B]).toBe(true);
+  });
+
   it('is cancelled by reconnecting', () => {
     let state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
     state = reduce(state, { type: 'CONNECTED', userId: B }, T0 + 30_000);

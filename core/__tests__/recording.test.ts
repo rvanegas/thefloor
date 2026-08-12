@@ -238,11 +238,11 @@ describe('recording and presence', () => {
     expect(s.lastRecording?.durationMs).toBe(20_000 + DISCONNECT_GRACE_MS);
   });
 
-  it('finalizes when the last member leaves the channel', () => {
+  it('finalizes when the last member deletes the channel', () => {
     const s = apply(joined(), [
       [start(A), T0],
       [{ type: 'LEAVE_CHANNEL', userId: A }, T0 + 30_000],
-      [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 30_000],
+      [{ type: 'DELETE_CHANNEL', userId: B }, T0 + 30_000],
     ]);
     expect(s.status).toBe('ended');
     expect(s.recording.status).toBe('idle');

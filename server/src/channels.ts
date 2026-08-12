@@ -2,11 +2,15 @@ import { readdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MAX_CHANNEL_PARTICIPANTS } from '../../core/constants';
+import {
+  DELETED_RETENTION_MS,
+  MAX_CHANNEL_PARTICIPANTS,
+} from '../../core/constants';
 import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
 import {
   canControlPlayback,
+  canDeleteChannel,
   createChannel,
   isParticipant,
   otherParticipants,
@@ -30,9 +34,28 @@ import {
   type RecordingRow,
 } from './db';
 import type { MediaServer, PlaybackSession } from './media';
+import type { RecordingStore } from './storage';
 import { createPushNotifier, type PushNotifier } from './push';
 
+/**
+ * A recording whose channel ended before deleting one was possible.
+ *
+ * Under the old rule the last member leaving ended the channel and its
+ * recordings were kept — the interface said so in as many words. Membership of
+ * a channel that no longer has any is the wrong question to ask about those, so
+ * they keep the rule they were made under: whoever was in the run. Nothing can
+ * enter this state any more, since ending a channel now means deleting it, so
+ * the branch retires itself as those recordings are exported or swept.
+ */
+const ORPHANED_CHANNEL = `(
+  c.deleted_at IS NULL AND c.ended_at IS NOT NULL
+  AND EXISTS (SELECT 1 FROM json_each(r.participants) WHERE json_each.value = ?)
+)`;
+
 export const TICK_INTERVAL_MS = 500;
+
+/** How often deleted rows past their week are looked for. */
+export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * How long a channel stays quiet after announcing itself.
@@ -72,6 +95,7 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'ENTER',
   'STEP_OUT',
   'LEAVE_CHANNEL',
+  'DELETE_CHANNEL',
   'INVITE',
   'SET_NAME',
   'SET_DESCRIPTION',
@@ -212,6 +236,7 @@ export class ChannelRegistry {
   private trackFiles = new Map<string, { file: string; dir: string }>();
   private listeners = new Set<(channelIds: string[]) => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
   /**
    * The durable projection last written per channel, as its JSON. What makes
    * writing on every commit affordable: a transition that changes only
@@ -239,7 +264,9 @@ export class ChannelRegistry {
     private media?: MediaServer,
     private onMediaError: (error: unknown, context: string) => void = () => {},
     private roomCloseGraceMs: number = ROOM_CLOSE_GRACE_MS,
-    private push: PushNotifier = createPushNotifier()
+    private push: PushNotifier = createPushNotifier(),
+    /** Read and delete on the recordings bucket; absent in tests that do not need it. */
+    private store?: RecordingStore
   ) {}
 
   // --- Lifecycle ----------------------------------------------------------
@@ -248,11 +275,21 @@ export class ChannelRegistry {
     if (this.timer) return;
     this.timer = setInterval(() => this.tick(), TICK_INTERVAL_MS);
     this.timer.unref?.();
+    // Hourly rather than on the 500ms tick: what it looks for changes once a
+    // week, and it reads two tables and talks to S3. A boot sweep runs from
+    // restore(), so a server that is never up for an hour still sweeps.
+    this.sweepTimer = setInterval(
+      () => this.sweepDeleted(this.now()),
+      SWEEP_INTERVAL_MS
+    );
+    this.sweepTimer.unref?.();
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    this.sweepTimer = null;
   }
 
   /** Advances every live channel's timers. Exposed so tests can step it. */
@@ -449,6 +486,34 @@ export class ChannelRegistry {
         type: 'INVITE',
         inviteeId: contactId,
       } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    }
+
+    // Both departures are refused out loud rather than left to the reducer's
+    // silence, which is what every other guard here relies on. Two reasons.
+    //
+    // The destructive one needs an answer: a client that deleted nothing and
+    // was told nothing walks the user back to Home as though the channel were
+    // gone. And build 20 and earlier send LEAVE_CHANNEL as the last member,
+    // that having been the way a channel ended — they get a sentence naming
+    // what to do instead, where a no-op would look like a dead button.
+    if (action.type === 'DELETE_CHANNEL' && !canDeleteChannel(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Only a channel’s last member can delete it.',
+        code: 'forbidden',
+      };
+    }
+    if (
+      action.type === 'LEAVE_CHANNEL' &&
+      isParticipant(channel, userId) &&
+      channel.participants.length === 1
+    ) {
+      return {
+        ok: false,
+        error:
+          'You are the last member, so leaving would destroy this channel and its recordings. Delete it instead.',
+        code: 'forbidden',
+      };
     }
 
     // The reducer trims, caps and treats empty as unnamed; all that is checked
@@ -728,22 +793,128 @@ export class ChannelRegistry {
     return rejoinable.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
   }
 
+  /**
+   * Every recording of every channel this user belongs to.
+   *
+   * **Membership of the channel, not of the run.** A recording belongs to the
+   * place it was made rather than to the people who happened to be in the room
+   * that day, which is what lets it be shown on the channel's own screen and
+   * deleted with it. The rule cuts both ways and both are intended: joining a
+   * channel gives you everything ever recorded in it, and leaving takes away
+   * recordings of conversations you were in.
+   */
   recordingsFor(userId: string): RecordingRow[] {
-    // Membership via the participants JSON, which the migration backfills for
-    // every pre-existing row, so the legacy two-party columns need no OR here.
     return this.db
       .prepare(
-        // Finished runs only: an in-flight row exists for crash recovery and
+        // Membership is read from the channel row rather than from the live
+        // registry: persistChannel rewrites `participants` on every change, so
+        // it is as current, and it answers for a channel this process has not
+        // revived as readily as for one it has.
+        //
+        // Finished runs only — an in-flight row exists for crash recovery and
         // is not yet a recording anyone can play.
-        `SELECT * FROM recordings
-         WHERE ended_at IS NOT NULL
-           AND EXISTS (
-             SELECT 1 FROM json_each(recordings.participants)
-             WHERE json_each.value = ?
+        `SELECT r.* FROM recordings r
+         JOIN channels c ON c.id = r.channel_id
+         WHERE r.ended_at IS NOT NULL
+           AND r.deleted_at IS NULL
+           AND c.deleted_at IS NULL
+           AND (
+             EXISTS (SELECT 1 FROM json_each(c.participants) WHERE json_each.value = ?)
+             OR ${ORPHANED_CHANNEL}
            )
+         ORDER BY r.started_at DESC`
+      )
+      .all(userId, userId) as unknown as RecordingRow[];
+  }
+
+  /** The same rule, for one channel: its recordings, or nothing if not yours. */
+  recordingsInChannel(channelId: string, userId: string): RecordingRow[] {
+    const channel = this.channels.get(channelId);
+    if (!channel || !isParticipant(channel, userId)) return [];
+    return this.db
+      .prepare(
+        `SELECT * FROM recordings
+         WHERE ended_at IS NOT NULL AND deleted_at IS NULL AND channel_id = ?
          ORDER BY started_at DESC`
       )
-      .all(userId) as unknown as RecordingRow[];
+      .all(channelId) as unknown as RecordingRow[];
+  }
+
+  /**
+   * Marks a deleted channel and everything recorded in it, for the sweep to
+   * remove a week later.
+   *
+   * Nothing is removed here, and the delay is not politeness: `channel_id` is
+   * a real foreign key, so a recording outliving its channel by even an
+   * instant would be a broken row. Marking both at once keeps every row valid
+   * for the whole week and lets one sweep take them together, in the order the
+   * key requires.
+   */
+  private markDeleted(channelId: string, now: number): void {
+    this.db
+      .prepare('UPDATE recordings SET deleted_at = ? WHERE channel_id = ? AND deleted_at IS NULL')
+      .run(now, channelId);
+    this.db
+      .prepare('UPDATE channels SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL')
+      .run(now, channelId);
+  }
+
+  /**
+   * Removes what was marked more than `DELETED_RETENTION_MS` ago: the audio
+   * first, then the rows.
+   *
+   * The bucket is emptied before the row that names the objects is dropped,
+   * because a row is the only record of which keys belong to a recording — the
+   * other order leaves objects nobody can ever identify, paid for for ever. A
+   * failed delete therefore leaves the row in place to be tried again on the
+   * next sweep, which is the recoverable direction.
+   */
+  sweepDeleted(now: number): { recordings: number; channels: number } {
+    const cutoff = now - DELETED_RETENTION_MS;
+    const due = this.db
+      .prepare(
+        'SELECT id, s3_key, segment_keys, stems FROM recordings WHERE deleted_at IS NOT NULL AND deleted_at <= ?'
+      )
+      .all(cutoff) as unknown as Array<{
+      id: string;
+      s3_key: string;
+      segment_keys: string | null;
+      stems: string | null;
+    }>;
+
+    let recordings = 0;
+    for (const row of due) {
+      const keys = objectKeysOf(row);
+      // Without a store configured there is nothing to empty and no way to
+      // know the objects are gone, so the row stays: a marked recording is
+      // already unreachable, and keeping it costs a row rather than an
+      // unidentifiable object.
+      if (!this.store) continue;
+      let emptied = true;
+      for (const key of keys) {
+        try {
+          this.store.delete(key);
+        } catch (error) {
+          emptied = false;
+          this.onMediaError(error, `sweep ${key}`);
+        }
+      }
+      if (!emptied) continue;
+      this.db.prepare('DELETE FROM recordings WHERE id = ?').run(row.id);
+      recordings += 1;
+    }
+
+    // Only channels with nothing left pointing at them, so a recording whose
+    // objects would not delete keeps its channel alive rather than orphaning
+    // the row or failing the constraint.
+    const gone = this.db
+      .prepare(
+        `DELETE FROM channels
+         WHERE deleted_at IS NOT NULL AND deleted_at <= ?
+           AND NOT EXISTS (SELECT 1 FROM recordings WHERE recordings.channel_id = channels.id)`
+      )
+      .run(cutoff);
+    return { recordings, channels: Number(gone.changes ?? 0) };
   }
 
   // --- Persistence --------------------------------------------------------
@@ -751,6 +922,13 @@ export class ChannelRegistry {
   private commit(before: ChannelState, after: ChannelState): void {
     this.channels.set(after.id, after);
     this.persistChannel(after);
+    // Ending is deletion and nothing else now: the last member cannot leave,
+    // only delete. Keyed on the transition rather than on the action so that
+    // any other route to `ended` — a migration, a future rule — marks the
+    // recordings too rather than stranding them in a channel nobody can reach.
+    if (before.status === 'active' && after.status === 'ended') {
+      this.markDeleted(after.id, after.endedAt ?? this.now());
+    }
     this.applyFloorToMedia(before, after);
     this.applyRecordingToMedia(before, after);
     // A run's audience only ever grows. Someone who arrives mid-recording is
@@ -1603,6 +1781,10 @@ export class ChannelRegistry {
         }
       }, 'sweepTrackFiles');
     }
+
+    // Anything whose week ran out while this server was down, or while the
+    // previous one was up for less than an hour at a time.
+    this.sweepDeleted(now);
   }
 
   /** A stored channel, made live again with everything volatile reset. */
@@ -1816,5 +1998,46 @@ export class ChannelRegistry {
         JSON.stringify(this.floorWindows.get(channel.id) ?? []),
         runId
       );
+  }
+}
+
+/**
+ * Every object in the bucket a recording row names, deduplicated.
+ *
+ * Read from all three columns rather than the tidiest one, because they were
+ * written at different times and disagree about coverage: `stems` is the
+ * authority for a row written since mid-run joins existed, `segment_keys` is
+ * the flat list that preceded it, and `s3_key` is the single key that preceded
+ * *that*. A key missed here is an object nobody can ever identify again once
+ * the row is gone, so this reads all of them and lets the overlap be harmless.
+ */
+function objectKeysOf(row: {
+  s3_key: string;
+  segment_keys: string | null;
+  stems: string | null;
+}): string[] {
+  const keys = new Set<string>();
+  if (row.s3_key) keys.add(row.s3_key);
+  for (const key of parseJson<string[]>(row.segment_keys) ?? []) {
+    if (typeof key === 'string') keys.add(key);
+  }
+  const stems =
+    parseJson<Record<string, Array<string | { key?: string }>>>(row.stems) ?? {};
+  for (const segments of Object.values(stems)) {
+    for (const segment of segments ?? []) {
+      const key = typeof segment === 'string' ? segment : segment?.key;
+      if (typeof key === 'string') keys.add(key);
+    }
+  }
+  return [...keys];
+}
+
+/** Tolerates the malformed, which is the point: a sweep must not be stoppable. */
+function parseJson<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
   }
 }

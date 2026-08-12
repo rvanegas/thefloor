@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
+  DELETED_RETENTION_MS,
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
 } from '../../../core/constants';
@@ -30,6 +31,13 @@ export function ChannelSettingsView({
   // Alone, the same tap destroys the channel rather than merely removing you
   // from it. Nothing else on screen would say so.
   const lastMember = channel.participants.length === 1;
+  // What deleting would take with it. Read from the snapshot the channel
+  // screen is already showing, so the number in the warning is the number of
+  // rows the person can see above it.
+  const recordingCount =
+    app.channelView?.channel.id === channel.id
+      ? (app.channelView.recordings?.length ?? 0)
+      : 0;
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
 
@@ -37,6 +45,82 @@ export function ChannelSettingsView({
     app.act(channel.id, { type: 'SET_NAME', name });
     onBack();
   };
+
+  /**
+   * Leaving, for anyone but the last member. It now costs the recordings too —
+   * they belong to the channel, and giving up the channel gives up reaching
+   * them — so the confirmation says so rather than leaving it to be discovered
+   * by their absence.
+   */
+  const confirmLeave = () =>
+    Alert.alert(
+      'Leave this channel?',
+      `It disappears from your home screen and you will need a fresh invitation to come back. Everyone else keeps it${
+        recordingCount === 0
+          ? '.'
+          : `, and ${countOf(recordingCount)} with it — you will not be able to reach ${
+              recordingCount === 1 ? 'it' : 'them'
+            } again.`
+      }`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: () => {
+            app.act(channel.id, { type: 'LEAVE_CHANNEL' });
+            onLeft();
+          },
+        },
+      ]
+    );
+
+  /**
+   * Deleting, which only the last member can do and which is the end of the
+   * channel and everything recorded in it.
+   *
+   * **Two taps, and the second one is not next to the first.** A single
+   * destructive confirm is the pattern everywhere else in this app, and it is
+   * not enough here: what goes is unrecoverable, it is the only copy anybody
+   * has, and the tap that starts it sits where "leave" sat in every previous
+   * build. The second dialog exists to cost a moment and to say the number out
+   * loud — a person who is about to lose four recordings should have read the
+   * word "four" before it happens.
+   */
+  const confirmDelete = () =>
+    Alert.alert(
+      'Delete this channel?',
+      recordingCount === 0
+        ? 'You are its last member, so this is the end of it. It cannot be undone.'
+        : `You are its last member, so this deletes the channel and ${countOf(
+            recordingCount
+          )} made in it. Export anything you want to keep first — this cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert(
+              recordingCount === 0
+                ? 'Delete for good?'
+                : `Delete ${countOf(recordingCount)} for good?`,
+              `Everything goes, permanently, after ${RETENTION_DAYS} days. There is no undo in the app.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: () => {
+                    app.act(channel.id, { type: 'DELETE_CHANNEL' });
+                    onLeft();
+                  },
+                },
+              ]
+            ),
+        },
+      ]
+    );
 
   const saveDescription = () => {
     app.act(channel.id, { type: 'SET_DESCRIPTION', description });
@@ -111,35 +195,23 @@ export function ChannelSettingsView({
         action. The exception is being the last member, where the tap really
         does destroy something, and the colour is then telling the truth.
       */}
-      <SectionLabel>Leaving</SectionLabel>
+      <SectionLabel>{lastMember ? 'Deleting' : 'Leaving'}</SectionLabel>
       <Card style={styles.stack}>
         <Button
-          label="Leave channel"
+          label={lastMember ? 'Delete channel' : 'Leave channel'}
           sublabel={
             lastMember
-              ? 'You are the last member — this deletes the channel'
-              : 'Removes it from your home screen'
+              ? recordingCount === 0
+                ? 'You are its last member — this destroys it for good'
+                : `This destroys it and ${countOf(recordingCount)}, for good`
+              : recordingCount === 0
+                ? 'Removes it from your home screen'
+                : `Removes it from your home screen, ${countOf(
+                    recordingCount
+                  )} included`
           }
           variant={lastMember ? 'danger' : 'default'}
-          onPress={() =>
-            Alert.alert(
-              lastMember ? 'Delete this channel?' : 'Leave this channel?',
-              lastMember
-                ? 'You are its last member, so leaving deletes it. Its recordings are kept.'
-                : 'It disappears from your home screen and you will need a fresh invitation to come back. Everyone else keeps it.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: lastMember ? 'Delete' : 'Leave',
-                  style: 'destructive',
-                  onPress: () => {
-                    app.act(channel.id, { type: 'LEAVE_CHANNEL' });
-                    onLeft();
-                  },
-                },
-              ]
-            )
-          }
+          onPress={() => (lastMember ? confirmDelete() : confirmLeave())}
         />
         <Text style={type.muted}>
           Stepping out is on the channel screen and is probably what you want:
@@ -173,3 +245,11 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
 });
+
+/** "a recording" / "3 recordings" — the count read as a phrase. */
+function countOf(n: number): string {
+  return n === 1 ? 'its one recording' : `its ${n} recordings`;
+}
+
+/** Said in the warning, so it cannot disagree with what the server does. */
+const RETENTION_DAYS = Math.round(DELETED_RETENTION_MS / (24 * 60 * 60 * 1000));

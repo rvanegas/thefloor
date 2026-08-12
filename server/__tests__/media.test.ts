@@ -59,9 +59,13 @@ function runIdOf(channelId: string): string {
  */
 function endChannel(channelId: string): void {
   const members = [...(app.channels.get(channelId)?.participants ?? [])];
-  for (const id of members) {
+  // Everyone leaves but the last, who cannot: for them the same tap is
+  // DELETE_CHANNEL, because it destroys the channel and its recordings.
+  for (const id of members.slice(0, -1)) {
     app.channels.dispatch(channelId, id, { type: 'LEAVE_CHANNEL' });
   }
+  const last = members[members.length - 1];
+  if (last) app.channels.dispatch(channelId, last, { type: 'DELETE_CHANNEL' });
 }
 
 async function signIn(identifier: string, displayName: string) {

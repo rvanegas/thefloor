@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
+import { MemoryRecordingStore } from '../src/storage';
 import { MEDIA_IDENTITY, mediaRoomIdentity } from '../src/channels';
 
 /**
@@ -15,6 +16,7 @@ import { MEDIA_IDENTITY, mediaRoomIdentity } from '../src/channels';
 
 let app: App;
 let media: MemoryMediaServer;
+let store: MemoryRecordingStore;
 let clock = 1_700_000_000_000;
 let scratch: string;
 
@@ -29,11 +31,13 @@ afterAll(async () => {
 beforeEach(() => {
   clock = 1_700_000_000_000;
   media = new MemoryMediaServer();
+  store = new MemoryRecordingStore();
   app = buildApp({
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
     media,
     mediaUrl: 'wss://example.livekit.cloud',
+    store,
     now: () => clock,
     roomCloseGraceMs: 0,
   });
@@ -53,9 +57,13 @@ const auth = (token: string) => ({ authorization: `Bearer ${token}` });
  */
 function endChannel(channelId: string): void {
   const members = [...(app.channels.get(channelId)?.participants ?? [])];
-  for (const id of members) {
+  // Everyone leaves but the last, who cannot: for them the same tap is
+  // DELETE_CHANNEL, because it destroys the channel and its recordings.
+  for (const id of members.slice(0, -1)) {
     app.channels.dispatch(channelId, id, { type: 'LEAVE_CHANNEL' });
   }
+  const last = members[members.length - 1];
+  if (last) app.channels.dispatch(channelId, last, { type: 'DELETE_CHANNEL' });
 }
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
@@ -127,6 +135,125 @@ async function upload(
     payload: await audioFile(seconds),
   });
 }
+
+/** An ogg/opus tone, which is the shape a recording's stems are in. */
+async function stemFile(seconds: number): Promise<Buffer> {
+  const path = join(scratch, `stem-${seconds}.ogg`);
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('ffmpeg', [
+      '-v', 'error', '-f', 'lavfi',
+      '-i', `sine=frequency=440:duration=${seconds}:sample_rate=48000`,
+      '-c:a', 'libopus', '-y', path,
+    ]);
+    child.on('error', reject);
+    child.on('close', (code) =>
+      code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`))
+    );
+  });
+  return readFile(path);
+}
+
+/**
+ * A finished recording of `channelId`, with real audio behind it.
+ *
+ * Written straight to the table rather than captured: what is under test is
+ * playback, and the capture path has its own tests.
+ */
+async function fileRecording(
+  channelId: string,
+  speaker: string,
+  name = 'Tuesday'
+): Promise<string> {
+  const key = `${channelId}/run/${speaker}-001.ogg`;
+  store.put(key, await stemFile(2));
+  const id = `rec_${Math.abs(hash(key))}`;
+  app.db
+    .prepare(
+      `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id,
+         participants, started_at, duration_ms, s3_key, segment_keys, stems,
+         floor_timeline, ended_at, name)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    )
+    .run(
+      id, channelId, speaker, speaker, JSON.stringify([speaker]), clock, 2_000,
+      key, JSON.stringify([key]), JSON.stringify({ [speaker]: [key] }),
+      '[]', clock + 2_000, name
+    );
+  return id;
+}
+
+/** Stable ids without a clock or a random source, both of which tests fix. */
+function hash(text: string): number {
+  let value = 0;
+  for (const character of text) value = (value * 31 + character.charCodeAt(0)) | 0;
+  return value;
+}
+
+describe('playing a recording back', () => {
+  it('becomes the channel’s track, under the controls that already exist', async () => {
+    // The whole design of this feature: there is no second playback mechanism.
+    // A recording is mixed, loaded as the shared track, and from then on it is
+    // played, paused, sought and levelled by what was already on the screen.
+    const { alice, channelId } = await sessionOfTwo();
+    const recordingId = await fileRecording(channelId, alice.account.id);
+
+    const response = await app.fastify.inject({
+      method: 'POST',
+      url: `/recordings/${recordingId}/play`,
+      headers: auth(alice.token),
+    });
+    expect(response.statusCode).toBe(200);
+
+    const channel = app.channels.get(channelId)!;
+    // Named as the recording is named, so what is playing is recognisable as
+    // the row that was tapped.
+    expect(channel.playback.track?.title).toBe('Tuesday');
+    // Probed from the mix rather than copied from duration_ms: the scrubber
+    // runs on this number, so it has to be the file's own.
+    expect(channel.playback.track!.durationMs).toBeGreaterThan(1_500);
+    // Loaded and waiting, exactly as an uploaded track arrives: playing it is
+    // a separate tap, and it is the same tap.
+    expect(channel.playback.status).toBe('paused');
+    expect(channel.playback.positionMs).toBe(0);
+
+    // And the ordinary control starts it, into the room, as a track.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PLAY' });
+    await settle();
+    expect(app.channels.get(channelId)!.playback.status).toBe('playing');
+    expect(media.playbacks[0].identity).toBe(mediaRoomIdentity(channelId));
+  }, 30_000);
+
+  it('is refused to somebody who is not in the channel', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    const mallory = await signIn('mallory@example.com', 'Mallory');
+    const recordingId = await fileRecording(channelId, alice.account.id);
+
+    const response = await app.fastify.inject({
+      method: 'POST',
+      url: `/recordings/${recordingId}/play`,
+      headers: auth(mallory.token),
+    });
+    // Not 403: that a recording exists is only for the channel to know.
+    expect(response.statusCode).toBe(404);
+    expect(app.channels.get(channelId)!.playback.track).toBeNull();
+  }, 30_000);
+
+  it('is refused while somebody else holds the floor', async () => {
+    // The same rule an uploaded track obeys, because it goes through the same
+    // door: whoever has the floor decides what plays.
+    const { alice, bob, channelId } = await sessionOfTwo();
+    const recordingId = await fileRecording(channelId, alice.account.id);
+    app.channels.dispatch(channelId, bob.account.id, { type: 'CLAIM_FLOOR' });
+
+    const response = await app.fastify.inject({
+      method: 'POST',
+      url: `/recordings/${recordingId}/play`,
+      headers: auth(alice.token),
+    });
+    expect(response.statusCode).toBe(409);
+    expect((response.json() as { error: string }).error).toContain('floor');
+  }, 30_000);
+});
 
 describe('loading a track', () => {
   it('takes the title from the file and the duration from the file itself', async () => {

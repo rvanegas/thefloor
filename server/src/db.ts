@@ -76,6 +76,8 @@ export interface RecordingRow {
   ended_at: number | null;
   /** Why the run ended early, when it did not end by anyone's choice. */
   failure: string | null;
+  /** When its channel was deleted. Null until then; the sweep reads it. */
+  deleted_at: number | null;
 }
 
 const SCHEMA = `
@@ -162,7 +164,12 @@ CREATE TABLE IF NOT EXISTS channels (
   -- because the reducer owns the shape and grows it freely; normalising would
   -- mean a migration per field for a value only ever read whole, at boot.
   -- Null only on rows that predate persistence, all of which are ended.
-  state TEXT
+  state TEXT,
+  -- When its last member deleted it. The row and its recordings survive the
+  -- mark by a week so that a mistake is recoverable and the foreign key stays
+  -- pointing at something; the sweep is what actually removes them. Distinct
+  -- from ended_at, which pre-dates deletion existing.
+  deleted_at INTEGER
 );
 
 -- Where to reach a person when their app is not running: one row per install
@@ -216,7 +223,11 @@ CREATE TABLE IF NOT EXISTS recordings (
   -- that, and the registry's restore() finalizes it.
   ended_at INTEGER,
   -- Why the run ended early, when it did not end by anyone's choice.
-  failure TEXT
+  failure TEXT,
+  -- Set with the channel's, never on its own: a recording belongs to its
+  -- channel and is deleted with it. The sweep reads this, and the objects in
+  -- the bucket go at the same time.
+  deleted_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS recordings_participants
   ON recordings(initiator_id, invitee_id);
@@ -318,6 +329,22 @@ function migrate(db: Db): void {
   for (const column of ['participants', 'name', 'description', 'state']) {
     if (!channelColumns.some((c) => c.name === column)) {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);
+    }
+  }
+
+  // Deletion is a mark and a sweep, and the mark is its own column on both
+  // tables rather than a reading of `ended_at`. Channels that ended under the
+  // old rule — where the last member leaving ended the channel and kept its
+  // recordings — are ended and *not* deleted, and inferring one from the other
+  // would have the first sweep destroy exactly the recordings that rule
+  // promised to keep. Null means "not marked", and every pre-existing row
+  // means it.
+  for (const [table, columns] of [
+    ['channels', channelColumns],
+    ['recordings', db.prepare('PRAGMA table_info(recordings)').all() as Array<{ name: string }>],
+  ] as const) {
+    if (!columns.some((c) => c.name === 'deleted_at')) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN deleted_at INTEGER`);
     }
   }
 

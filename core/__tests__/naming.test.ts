@@ -45,9 +45,9 @@ describe('SET_NAME', () => {
       named
     );
 
-    // Both members leave, which is the only way a channel ends.
+    // One leaves and the last deletes, which is the only way a channel ends.
     const emptied = reduce(named, { type: 'LEAVE_CHANNEL', userId: A }, T0 + 1);
-    const ended = reduce(emptied, { type: 'LEAVE_CHANNEL', userId: B }, T0 + 2);
+    const ended = reduce(emptied, { type: 'DELETE_CHANNEL', userId: B }, T0 + 2);
     expect(ended.status).toBe('ended');
     expect(reduce(ended, { type: 'SET_NAME', userId: A, name: 'New' }, T0 + 2)).toBe(
       ended

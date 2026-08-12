@@ -3,10 +3,14 @@ import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import websocket from '@fastify/websocket';
-import type { HomeView, PublicAccount } from '../../core/protocol';
+import type {
+  HomeView,
+  PublicAccount,
+  RecordingView,
+} from '../../core/protocol';
 import { describeChannel } from '../../core/naming';
 import { Accounts } from './accounts';
-import { openDb, type AccountRow, type Db } from './db';
+import { openDb, type AccountRow, type Db, type RecordingRow } from './db';
 import { Devices, type DevicePlatform } from './devices';
 import { encodeRecording } from './export';
 import { isEmailAddress, type Mailer } from './mail';
@@ -171,7 +175,8 @@ export function buildApp(options: BuildOptions = {}): App {
     (error, context) =>
       fastify.log.error({ err: error, context }, 'media operation failed'),
     options.roomCloseGraceMs,
-    pushNotifier
+    pushNotifier,
+    options.store
   );
 
   // Channels outlive the process that was holding them, so the first thing a
@@ -609,6 +614,75 @@ export function buildApp(options: BuildOptions = {}): App {
   );
 
   /**
+   * Plays a recording into the channel it was made in.
+   *
+   * Deliberately the *same* mechanism as a shared track rather than a second
+   * one: the mix is written to disk and loaded through `loadTrack`, so it
+   * arrives as the channel's track and every control that already exists —
+   * play, pause, seek, volume, and the floor-holder's exclusive say over all
+   * of them — governs it without knowing where it came from.
+   *
+   * The channel is the recording's own, never one named by the caller. A
+   * recording can only ever be played back into the room it was made in, which
+   * is what stops one channel's conversation being piped into another.
+   */
+  fastify.post('/recordings/:id/play', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    // Same rule as the export, read through the same function so that what may
+    // be played and what may be downloaded cannot come apart.
+    const row = channels
+      .recordingsFor(account.id)
+      .find((candidate) => candidate.id === id);
+    if (!row) return reply.code(404).send({ error: 'No such recording.' });
+    if (!options.store) {
+      return reply
+        .code(503)
+        .send({ error: 'Recording storage is not configured.' });
+    }
+
+    // Under the server's own temp directory, one per track, named with the pid
+    // so a later boot can tell an orphan from a directory still in use — the
+    // same convention an uploaded track follows, because this becomes one.
+    const dir = await mkdtemp(join(tmpdir(), `thefloor-track-${process.pid}-`));
+    const file = join(dir, 'track.ogg');
+    try {
+      const { data } = await encodeRecording(
+        {
+          stems: row.stems ? JSON.parse(row.stems) : {},
+          timeline: row.floor_timeline ? JSON.parse(row.floor_timeline) : [],
+        },
+        (key) => options.store!.get(key)
+      );
+      await writeFile(file, data);
+
+      // Probed rather than taken from `duration_ms`: that is what was
+      // captured, and this is what the mix came out as. The scrubber runs on
+      // this number, so it has to be the file's own.
+      const durationMs = await probeDurationMs(file);
+      const result = await channels.loadTrack(row.channel_id, account.id, {
+        file,
+        dir,
+        title: toRecordingView(row, account.id).name,
+        durationMs,
+      });
+      if (!result.ok) {
+        await rm(dir, { recursive: true, force: true });
+        return reply.code(statusFor(result.code)).send({ error: result.error });
+      }
+      return { track: result.channel.playback.track };
+    } catch (error) {
+      await rm(dir, { recursive: true, force: true });
+      request.log.error({ err: error, recording: id }, 'recording playback failed');
+      return reply
+        .code(500)
+        .send({ error: 'That recording could not be prepared for playback.' });
+    }
+  });
+
+  /**
    * The finished recording, with the floor applied.
    *
    * Encoded per request rather than stored: the stems are the durable artefact
@@ -625,19 +699,27 @@ export function buildApp(options: BuildOptions = {}): App {
       .prepare('SELECT * FROM recordings WHERE id = ?')
       .get(id) as
       | {
-          participants: string | null;
+          channel_id: string;
           stems: string | null;
           floor_timeline: string | null;
+          deleted_at: number | null;
         }
       | undefined;
 
-    // Absent and not-yours are the same answer: knowing a recording exists is
-    // itself something only its participants should learn. The migration
-    // backfills participants for every old row, so membership reads it alone.
-    const participants: string[] = row?.participants
-      ? JSON.parse(row.participants)
-      : [];
-    if (!row || !participants.includes(account.id)) {
+    // Absent, deleted and not-yours are one answer: knowing a recording exists
+    // is itself something only the channel's members should learn.
+    //
+    // Membership of the *channel*, which is the rule everywhere now — not of
+    // the run, as it was until recordings came to belong to the place they
+    // were made in. A member who joined last week may export a conversation
+    // from last year, and somebody who left may not export the one they were
+    // in. Both follow from the same sentence and both are meant.
+    const mine = row
+      ? channels
+          .recordingsFor(account.id)
+          .some((candidate) => candidate.id === id)
+      : false;
+    if (!row || row.deleted_at !== null || !mine) {
       return reply.code(404).send({ error: 'No such recording.' });
     }
     if (!options.store) {
@@ -669,6 +751,53 @@ export function buildApp(options: BuildOptions = {}): App {
 
   // --- Shared views -------------------------------------------------------
 
+  /**
+   * A recording row as its audience sees it: named once and for everybody,
+   * with the other participants' names as they were when the run was filed.
+   *
+   * Shared by Home and the channel snapshot so one recording cannot be called
+   * two different things depending on which screen you found it on.
+   */
+  function toRecordingView(row: RecordingRow, userId: string): RecordingView {
+    const participants: string[] = row.participants
+      ? JSON.parse(row.participants)
+      : [row.initiator_id, row.invitee_id];
+    // Names as they were when the run was filed. Rows written before that was
+    // recorded resolve live, which is what they did all along.
+    const frozen: Record<string, string> = row.participant_names
+      ? JSON.parse(row.participant_names)
+      : {};
+    const others = participants
+      .filter((id) => id !== userId)
+      .map((id) =>
+        frozen[id] ? { id, displayName: frozen[id] } : accounts.public(id)
+      )
+      .filter((account): account is PublicAccount => !!account);
+    return {
+      id: row.id,
+      channelId: row.channel_id,
+      // Rows written before the name was decided at stop time have none to
+      // read; they fall back to the viewer-relative label they always had.
+      name: row.name ?? describeChannel(others.map((o) => o.displayName)),
+      others,
+      startedAt: row.started_at,
+      // Rows old enough to predate the column were backfilled this way by the
+      // migration, so it is the same answer rather than a guess.
+      endedAt: row.ended_at ?? row.started_at + row.duration_ms,
+      durationMs: row.duration_ms,
+    };
+  }
+
+  /** A channel's own recordings, for whoever belongs to it. */
+  function recordingsInChannel(
+    channelId: string,
+    userId: string
+  ): RecordingView[] {
+    return channels
+      .recordingsInChannel(channelId, userId)
+      .map((row) => toRecordingView(row, userId));
+  }
+
   function homeFor(userId: string): HomeView {
     return {
       invites: channels.invitesFor(userId),
@@ -681,36 +810,13 @@ export function buildApp(options: BuildOptions = {}): App {
         account: entry.account,
         status: entry.status as 'accepted' | 'outgoing' | 'incoming',
       })),
-      recordings: channels.recordingsFor(userId).map((row) => {
-        const participants: string[] = row.participants
-          ? JSON.parse(row.participants)
-          : [row.initiator_id, row.invitee_id];
-        // Names as they were when the run was filed. Rows written before that
-        // was recorded resolve live, which is what they did all along.
-        const frozen: Record<string, string> = row.participant_names
-          ? JSON.parse(row.participant_names)
-          : {};
-        const others = participants
-            .filter((id) => id !== userId)
-            .map((id) =>
-              frozen[id] ? { id, displayName: frozen[id] } : accounts.public(id)
-            )
-          .filter((account): account is PublicAccount => !!account);
-        return {
-          id: row.id,
-          channelId: row.channel_id,
-          // Rows written before the name was decided at stop time have none to
-          // read; they fall back to the viewer-relative label they always had.
-          name:
-            row.name ?? describeChannel(others.map((o) => o.displayName)),
-          others,
-          startedAt: row.started_at,
-          // Rows old enough to predate the column were backfilled this way by
-          // the migration, so it is the same answer rather than a guess.
-          endedAt: row.ended_at ?? row.started_at + row.duration_ms,
-          durationMs: row.duration_ms,
-        };
-      }),
+      // Still sent, though the app now shows recordings on the channel they
+      // were made in. Build 20 and earlier render this list on Home and would
+      // otherwise lose them at a server deploy, a release ahead of the build
+      // that stops reading it. See BACKLOG.md.
+      recordings: channels.recordingsFor(userId).map((row) =>
+        toRecordingView(row, userId)
+      ),
     };
   }
 
@@ -725,6 +831,7 @@ export function buildApp(options: BuildOptions = {}): App {
       accounts,
       channels,
       homeFor,
+      recordingsInChannel,
       now,
       homeNotifier,
       reachability,

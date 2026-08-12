@@ -25,7 +25,13 @@ import { useApp } from '../state/AppProvider';
 import { ChannelSettingsView } from './ChannelSettingsView';
 import { ProfileView } from './ProfileView';
 import { InlineMarkdown } from './markdown';
-import { Button, Card, SectionLabel } from './components';
+import {
+  Button,
+  Card,
+  Empty,
+  RecordingRow,
+  SectionLabel,
+} from './components';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 import { louder, quieter } from './volume';
 import { describeChannel } from '../../../core/naming';
@@ -59,6 +65,17 @@ export function ChannelView({
   const app = useApp();
   const view = app.channelView;
   const channel = view?.channel.id === channelId ? view.channel : null;
+  // Only ever this channel's, and only while the snapshot is this channel's:
+  // showing the previous channel's recordings for a frame while the next
+  // snapshot arrives would be showing them to somebody who may not be a member.
+  //
+  // `?? []` is load-bearing rather than defensive. A server that predates this
+  // field sends a snapshot without it, which is exactly what this build meets
+  // between its release and the deploy that follows — the field is additive,
+  // so the old server keeps working, and reading `.length` off nothing is the
+  // one way that could still crash the screen.
+  const recordings =
+    view?.channel.id === channelId ? (view.recordings ?? []) : [];
   const me = app.me?.id ?? '';
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -554,6 +571,36 @@ export function ChannelView({
             </Text>
           ) : null}
         </Card>
+
+        {/*
+          Recordings live here because they belong to the channel: it names
+          them, its members are who may hear them, and deleting it deletes
+          them. They were on Home, which put every conversation you had ever
+          recorded into one list belonging to nothing.
+        */}
+        <SectionLabel>Recordings</SectionLabel>
+        {recordings.length === 0 ? (
+          <Empty>Nothing recorded here yet.</Empty>
+        ) : (
+          <View style={styles.stack}>
+            {recordings.map((r) => (
+              <RecordingRow
+                key={r.id}
+                recording={r}
+                // Playing one loads it as the channel's shared track, so it is
+                // governed by exactly what governs a track somebody uploaded —
+                // including the floor-holder's say over what plays.
+                playable
+                playDisabled={!mayControlPlayback}
+                playDisabledReason={
+                  channel.floor.holder
+                    ? 'the floor decides what plays'
+                    : 'step in to play'
+                }
+              />
+            ))}
+          </View>
+        )}
 
         <SectionLabel>Invite</SectionLabel>
         <Card style={styles.stack}>

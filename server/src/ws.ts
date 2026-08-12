@@ -8,6 +8,7 @@ import type {
   ClientMessage,
   HomeView,
   PublicAccount,
+  RecordingView,
   ServerMessage,
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
@@ -76,6 +77,7 @@ export function registerWebsocket(deps: {
   accounts: Accounts;
   channels: ChannelRegistry;
   homeFor: (userId: string) => HomeView;
+  recordingsInChannel: (channelId: string, userId: string) => RecordingView[];
   now: () => number;
   homeNotifier: HomeNotifier;
   reachability: Reachability;
@@ -85,6 +87,7 @@ export function registerWebsocket(deps: {
     accounts,
     channels,
     homeFor,
+    recordingsInChannel,
     now,
     homeNotifier,
     reachability,
@@ -152,7 +155,12 @@ export function registerWebsocket(deps: {
       .filter((account): account is PublicAccount => !!account);
     send(connection, {
       type: 'channel',
-      view: { channel, participants, serverNow: now() },
+      view: {
+        channel,
+        participants,
+        recordings: recordingsInChannel(channelId, connection.userId),
+        serverNow: now(),
+      },
     });
   }
 

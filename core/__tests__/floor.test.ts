@@ -8,7 +8,13 @@ import {
   floorRemainingMs,
   isSilenced,
 } from '../floor';
-import { canClaimFloor, createChannel, reduce } from '../channel';
+import {
+  canClaimFloor,
+  canDeleteChannel,
+  canLeaveChannel,
+  createChannel,
+  reduce,
+} from '../channel';
 import type { ChannelAction, ChannelState } from '../types';
 
 const A = 'user-a';
@@ -253,6 +259,25 @@ describe('channel lifecycle', () => {
     expect(s.participants).toEqual([A, B]);
   });
 
+  it('clears their self-mute, so they are audible when they come back', () => {
+    // A mute is something you do during a conversation — to cough, to type, to
+    // talk to whoever is in the room with you. Carried across a departure it
+    // becomes a decision made an hour ago and long forgotten: you walk back in
+    // inaudible, nobody hears you, and nothing on the way in says why.
+    let s = reduce(joined(), { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0);
+    s = reduce(s, { type: 'STEP_OUT', userId: B }, T0 + 5_000);
+    expect(s.selfMuted[B]).toBe(false);
+
+    const back = reduce(s, { type: 'ENTER', userId: B }, T0 + 10_000);
+    expect(back.selfMuted[B]).toBe(false);
+  });
+
+  it('leaves everyone else’s mute alone', () => {
+    let s = reduce(joined(), { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0);
+    s = reduce(s, { type: 'STEP_OUT', userId: B }, T0 + 5_000);
+    expect(s.selfMuted[A]).toBe(true);
+  });
+
   it('keeps a member on the roster when they step out', () => {
     const s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0 + 5_000);
     // Presence and membership are different things: B is gone from the room
@@ -273,10 +298,10 @@ describe('channel lifecycle', () => {
     expect(s.invitedBy).not.toHaveProperty(B);
   });
 
-  it('ends when the last member leaves, and irreversibly', () => {
+  it('ends when its last member deletes it, and irreversibly', () => {
     const s = apply(joined(), [
       [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 5_000],
-      [{ type: 'LEAVE_CHANNEL', userId: A }, T0 + 6_000],
+      [{ type: 'DELETE_CHANNEL', userId: A }, T0 + 6_000],
     ]);
     expect(s.status).toBe('ended');
     expect(s.endedAt).toBe(T0 + 6_000);
@@ -286,6 +311,34 @@ describe('channel lifecycle', () => {
     const attempted = reduce(s, { type: 'ENTER', userId: A }, T0 + 7_000);
     expect(attempted.present).toEqual([]);
     expect(attempted).toBe(s);
+  });
+
+  it('refuses to let the last member leave, deletion being the only way out', () => {
+    // Leaving means the others keep it. With nobody else, the same tap would
+    // destroy the channel and every recording in it — so it is not the same
+    // tap, and the reducer will not perform it under the gentler name.
+    const alone = reduce(joined(), { type: 'LEAVE_CHANNEL', userId: B }, T0 + 5_000);
+    expect(alone.participants).toEqual([A]);
+
+    const attempted = reduce(alone, { type: 'LEAVE_CHANNEL', userId: A }, T0 + 6_000);
+    expect(attempted).toBe(alone);
+    expect(attempted.status).toBe('active');
+    expect(canLeaveChannel(alone, A)).toBe(false);
+    expect(canDeleteChannel(alone, A)).toBe(true);
+  });
+
+  it('offers deletion only to the last member', () => {
+    const two = joined();
+    expect(canDeleteChannel(two, A)).toBe(false);
+    expect(canDeleteChannel(two, B)).toBe(false);
+    expect(canLeaveChannel(two, A)).toBe(true);
+
+    // And not to somebody who was never in it.
+    const alone = reduce(two, { type: 'LEAVE_CHANNEL', userId: B }, T0 + 5_000);
+    expect(canDeleteChannel(alone, B)).toBe(false);
+    expect(reduce(alone, { type: 'DELETE_CHANNEL', userId: B }, T0 + 6_000)).toBe(
+      alone
+    );
   });
 
   it('releases the floor when its holder leaves the channel', () => {

@@ -256,15 +256,17 @@ describe('the export endpoint', () => {
       .run('sess_x', initiator, invitee, clock, JSON.stringify([initiator, invitee]));
     app.db
       .prepare(
+        // ended_at set: an in-flight row is a run being recovered rather than
+        // a recording, and nothing offers one for export.
         `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id,
            participants, started_at, duration_ms, s3_key, segment_keys, stems,
-           floor_timeline)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+           floor_timeline, ended_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
       )
       .run(
         id, 'sess_x', initiator, invitee,
         JSON.stringify([initiator, invitee]), clock, 5_000, '', '[]',
-        JSON.stringify(stems), JSON.stringify(timeline)
+        JSON.stringify(stems), JSON.stringify(timeline), clock + 5_000
       );
   };
 

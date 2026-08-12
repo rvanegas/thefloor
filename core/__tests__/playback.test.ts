@@ -274,7 +274,7 @@ describe('playback and the channel lifecycle', () => {
     const s = apply(loaded(), [
       [{ type: 'PLAY', userId: A }, T0],
       [{ type: 'LEAVE_CHANNEL', userId: A }, T0 + 30_000],
-      [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 30_000],
+      [{ type: 'DELETE_CHANNEL', userId: B }, T0 + 30_000],
     ]);
     expect(s.playback.status).toBe('paused');
     expect(s.playback.positionMs).toBe(30_000);

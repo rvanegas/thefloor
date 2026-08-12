@@ -110,6 +110,7 @@ describe('countdown ticking', () => {
           { id: ME, displayName: 'Me' },
           { id: THEM, displayName: 'Dana' },
         ],
+        recordings: [],
         serverNow: T0,
       });
     });
@@ -153,6 +154,7 @@ describe('countdown ticking', () => {
           { id: ME, displayName: 'Me' },
           { id: THEM, displayName: 'Dana' },
         ],
+        recordings: [],
         serverNow: T0,
       });
     });

@@ -92,6 +92,12 @@ export interface HomeView {
 export interface ChannelView {
   channel: ChannelState;
   /**
+   * Everything recorded in this channel, newest first, visible to anyone who
+   * belongs to it. Recordings live on the channel screen because they belong
+   * to the channel: it is what names them, and deleting it deletes them.
+   */
+  recordings: RecordingView[];
+  /**
    * Every participant, the viewer included — the name directory for the ids
    * in `channel.participants`, `present`, `floor.holder` and `selfMuted`.
    */
@@ -104,6 +110,11 @@ export type ClientAction =
   | { type: 'ENTER' }
   /** Give up presence, keep membership. */
   | { type: 'STEP_OUT' }
+  /**
+   * Destroy the channel and every recording made in it. Only its last member
+   * may — everyone else leaves instead, and the last member cannot.
+   */
+  | { type: 'DELETE_CHANNEL' }
   /** Give up membership; ends the channel if you were the last member. */
   | { type: 'LEAVE_CHANNEL' }
   /**

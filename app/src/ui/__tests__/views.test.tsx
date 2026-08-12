@@ -6,7 +6,10 @@ import renderer, {
 } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
 import type { ChannelState } from '../../../../core/types';
-import type { HomeView as HomeViewData } from '../../../../core/protocol';
+import type {
+  HomeView as HomeViewData,
+  RecordingView,
+} from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
 import { ProfileView } from '../ProfileView';
@@ -30,7 +33,12 @@ const mockApp = {
   token: 'token',
   me: { id: ME, displayName: 'Me' },
   home: null as HomeViewData | null,
-  channelView: null as { channel: ChannelState; participants: Array<{ id: string; displayName: string }>; serverNow: number } | null,
+  channelView: null as {
+    channel: ChannelState;
+    participants: Array<{ id: string; displayName: string }>;
+    recordings: RecordingView[];
+    serverNow: number;
+  } | null,
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -159,7 +167,7 @@ function channelOf(mutate: (s: ChannelState) => ChannelState = (s) => s) {
   return mutate(reduce(base, { type: 'ENTER', userId: THEM }, NOW));
 }
 
-function showChannel(channel: ChannelState) {
+function showChannel(channel: ChannelState, recordings: RecordingView[] = []) {
   const names: Record<string, string> = {
     [ME]: 'Me',
     [THEM]: 'Dana Chu',
@@ -172,6 +180,7 @@ function showChannel(channel: ChannelState) {
       id,
       displayName: names[id] ?? id,
     })),
+    recordings,
     serverNow: NOW,
   };
 }
@@ -855,7 +864,7 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('warns the last member that leaving deletes the channel', () => {
+  it('offers the last member a delete rather than a leave', () => {
     // With somebody else there it merely removes you. Alone, the same tap
     // destroys the channel, and that is when the colour is telling the truth.
     showChannel(
@@ -869,9 +878,99 @@ describe('Channel', () => {
       />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
 
-    expect(labelOf(findButton(tree, 'Leave channel')!)).toContain(
-      'this deletes the channel'
+    // Not "Leave": for the last member the control is a different action with
+    // a different name, because what it does is destroy the channel and
+    // everything recorded in it.
+    expect(findButton(tree, 'Leave channel')).toBeUndefined();
+    expect(labelOf(findButton(tree, 'Delete channel')!)).toContain(
+      'destroys it for good'
     );
+    act(() => tree.unmount());
+  });
+
+  it('lists the recordings made in it, which is where they now live', () => {
+    // They were on Home, which put every conversation anyone had ever recorded
+    // into one list belonging to nothing. A recording belongs to the channel:
+    // it is what names it, and what deleting takes it with.
+    showChannel(channelOf(), [
+      {
+        id: 'rec_1',
+        channelId: 'sess_1',
+        name: 'Book club',
+        others: [{ id: THEM, displayName: 'Dana Chu' }],
+        startedAt: NOW - 60_000,
+        endedAt: NOW - 30_000,
+        durationMs: 30_000,
+      },
+    ]);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    const text = textOf(tree);
+    expect(text).toContain('Book club');
+    expect(text).not.toContain('Nothing recorded here yet');
+    expect(findButton(tree, 'Export')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('offers to play one, and says who decides when it cannot', () => {
+    // Playing loads the recording as the channel's shared track, so the rule
+    // is the one that already governs a track: whoever holds the floor decides
+    // what plays. A disabled button with no reason beside it is the thing this
+    // avoids.
+    const recording: RecordingView = {
+      id: 'rec_1',
+      channelId: 'sess_1',
+      name: 'Tuesday',
+      others: [{ id: THEM, displayName: 'Dana Chu' }],
+      startedAt: NOW - 60_000,
+      endedAt: NOW - 30_000,
+      durationMs: 30_000,
+    };
+
+    showChannel(channelOf(), [recording]);
+    const mine = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(findButton(mine, 'Play')!.props.disabled).toBeFalsy();
+    act(() => mine.unmount());
+
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW)),
+      [recording]
+    );
+    const theirs = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(findButton(theirs, 'Play')!.props.disabled).toBe(true);
+    expect(textOf(theirs)).toContain('the floor decides what plays');
+    act(() => theirs.unmount());
+  });
+
+  it('survives a server too old to send them', () => {
+    // The field is additive, so a build carrying this screen meets a server
+    // without it between its release and the deploy that follows.
+    showChannel(channelOf());
+    mockApp.channelView = {
+      ...mockApp.channelView!,
+      recordings: undefined as never,
+    };
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(textOf(tree)).toContain('Nothing recorded here yet');
     act(() => tree.unmount());
   });
 
@@ -889,11 +988,12 @@ describe('Channel', () => {
   });
 
   it('renders the ended state', () => {
-    // Both members leave, which is the only thing that ends a channel.
+    // One leaves and the last deletes, which is the only thing that ends a
+    // channel now.
     showChannel(
       channelOf((s) => {
         const half = reduce(s, { type: 'LEAVE_CHANNEL', userId: THEM }, NOW);
-        return reduce(half, { type: 'LEAVE_CHANNEL', userId: ME }, NOW);
+        return reduce(half, { type: 'DELETE_CHANNEL', userId: ME }, NOW);
       })
     );
     const tree = render(<ChannelView

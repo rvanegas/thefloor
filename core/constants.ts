@@ -92,6 +92,21 @@ export const MAX_BIO_LENGTH = 2_000;
 export const DISCONNECT_GRACE_MS = 60_000;
 
 /**
+ * How long a deleted channel and its recordings survive the tap that deleted
+ * them, before the sweep removes the rows and the audio in the bucket.
+ *
+ * A week, and it is not an undo: nothing in the app can bring a deleted
+ * channel back, and its recordings are unreachable from the moment it goes,
+ * there being no members left to reach them. What the week buys is that a
+ * mistake is still *recoverable by hand* — the rows are marked, not gone, and
+ * so are the objects they name.
+ *
+ * Shared with the client because the confirmation says so, and a warning that
+ * disagrees with what the server does is worse than no warning.
+ */
+export const DELETED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
  * How often each side proves it is still there, and how long silence is
  * tolerated before the connection is treated as dead.
  *

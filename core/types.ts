@@ -218,9 +218,23 @@ export type ChannelAction =
    */
   | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
   /**
+   * Destroy the channel and everything recorded in it. Only its last member
+   * may, there being nobody left to disagree — see `canDeleteChannel`.
+   *
+   * The rows are marked rather than removed: `recordings.channel_id` is a real
+   * foreign key, and a sweep a week later is what actually deletes them and
+   * the objects they name. That week is the whole recovery story, and it is
+   * only reachable by hand.
+   */
+  | { type: 'DELETE_CHANNEL'; userId: UserId }
+  /**
    * Give up membership: removed from the roster, and the channel disappears
    * from this user's Home. Implies stepping out, necessarily — `present` must
    * never hold someone who is not a participant.
+   *
+   * Refused to the last member, who has `DELETE_CHANNEL` instead: with
+   * recordings belonging to the channel, that tap destroys them, and an action
+   * that means "see you later" for everyone else must not quietly mean that.
    *
    * When the last member leaves, the channel ends. That is the only way a
    * channel ends; nobody can destroy one that other people still belong to.
@@ -272,6 +286,18 @@ export type ChannelAction =
    */
   | { type: 'CONNECTED'; userId: UserId }
   | { type: 'DISCONNECTED'; userId: UserId }
+  /**
+   * The grace period ran out: the same departure a tap makes, minus the
+   * intent. Issued by `TICK` and by nothing else — it is deliberately absent
+   * from the server's client-action allowlist.
+   *
+   * It exists because one rule now distinguishes the two. Stepping out clears
+   * your self-mute; losing your connection must not, or a phone that dropped
+   * out for a minute would come back with a live microphone its owner had
+   * deliberately closed. The reconnect path re-enters by itself, so nobody
+   * would be asked first.
+   */
+  | { type: 'DISCONNECT_EXPIRED'; userId: UserId }
   /**
    * Advances time-driven transitions: floor expiry, a track reaching its end,
    * and a dropped connection outlasting the grace period. Nothing here ends a

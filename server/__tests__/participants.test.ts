@@ -40,9 +40,13 @@ const auth = (token: string) => ({ authorization: `Bearer ${token}` });
  */
 function endChannel(channelId: string): void {
   const members = [...(app.channels.get(channelId)?.participants ?? [])];
-  for (const id of members) {
+  // Everyone leaves but the last, who cannot: for them the same tap is
+  // DELETE_CHANNEL, because it destroys the channel and its recordings.
+  for (const id of members.slice(0, -1)) {
     app.channels.dispatch(channelId, id, { type: 'LEAVE_CHANNEL' });
   }
+  const last = members[members.length - 1];
+  if (last) app.channels.dispatch(channelId, last, { type: 'DELETE_CHANNEL' });
 }
 
 async function signIn(identifier: string, displayName: string) {
@@ -445,15 +449,16 @@ describe('recording with people joining mid-run', () => {
     expect(audience).not.toContain(carol.account.id);
   });
 
-  it('keeps a departed member’s claim on a recording they were in', async () => {
-    // Leaving a channel gives up the channel, not the conversations you were
-    // part of before you left. This is also the case that broke: at the moment
-    // the last member leaves the roster is empty, so filing against it wrote a
-    // recording nobody could open.
+  it('records who took part, even as the roster empties under it', async () => {
+    // The row's audience is who was in the *run*, and it is written from the
+    // run rather than from the roster — which is the case that broke, since at
+    // the moment the last member goes the roster is empty and filing against
+    // it wrote a recording naming nobody. It is a record of the conversation;
+    // who may open it is a separate question, answered by channel membership.
     const { alice, bob, channelId } = await pairRecording();
     clock += 10_000;
     app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
-    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE_CHANNEL' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'DELETE_CHANNEL' });
     await settle();
 
     expect(app.channels.get(channelId)!.status).toBe('ended');
@@ -464,9 +469,12 @@ describe('recording with people joining mid-run', () => {
       [alice.account.id, bob.account.id].sort()
     );
 
-    // And both still find it on Home after the channel is gone.
+    // And neither of them can reach it any more, the channel it belonged to
+    // having been deleted. The row survives its week for the sweep, not for
+    // them: deleting a channel is what deleting its recordings means.
+    expect(row).toBeDefined();
     for (const user of [alice, bob]) {
-      expect(app.channels.recordingsFor(user.account.id)).toHaveLength(1);
+      expect(app.channels.recordingsFor(user.account.id)).toEqual([]);
     }
   });
 
@@ -717,13 +725,13 @@ describe('a channel everybody else has left', () => {
     expect(listed!.others).toEqual([]);
   });
 
-  it('still ends when that last member leaves it too', async () => {
+  it('still ends when that last member deletes it', async () => {
     const { alice, bob } = await circle();
     const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(
       (r) => r.json()
     )) as { channelId: string };
     app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
-    app.channels.dispatch(channelId, alice.account.id, { type: 'LEAVE_CHANNEL' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'DELETE_CHANNEL' });
 
     expect(app.channels.get(channelId)!.status).toBe('ended');
     expect(app.channels.rejoinableFor(alice.account.id)).toEqual([]);

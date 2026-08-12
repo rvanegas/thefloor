@@ -1,4 +1,8 @@
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 
 /**
  * Read access to the recordings bucket.
@@ -11,6 +15,12 @@ import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
  */
 export interface RecordingStore {
   get(key: string): Promise<Buffer>;
+  /**
+   * Removes an object. Fire-and-forget by design: the sweep that calls this
+   * runs on a timer with nobody waiting, and a failure leaves the row in place
+   * to be retried on the next one.
+   */
+  delete(key: string): void;
 }
 
 export class S3RecordingStore implements RecordingStore {
@@ -35,6 +45,17 @@ export class S3RecordingStore implements RecordingStore {
     }
     return Buffer.concat(chunks);
   }
+
+  delete(key: string): void {
+    // Unawaited, and the rejection is swallowed here rather than left to
+    // become an unhandled rejection that takes the process down. The sweep
+    // only removes a row once every object it names has gone, so a failure
+    // here costs one more week of storage and is retried, which is the safe
+    // direction: the alternative is an object no row can identify.
+    void this.client
+      .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+      .catch(() => {});
+  }
 }
 
 /** Serves objects from memory. For tests. */
@@ -49,5 +70,14 @@ export class MemoryRecordingStore implements RecordingStore {
     const found = this.objects.get(key);
     if (!found) throw new Error(`No such object: ${key}`);
     return found;
+  }
+
+  delete(key: string): void {
+    this.objects.delete(key);
+  }
+
+  /** What the sweep left behind, for tests to assert on. */
+  keys(): string[] {
+    return [...this.objects.keys()];
   }
 }
