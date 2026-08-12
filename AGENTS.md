@@ -175,10 +175,23 @@ Five, deliberately separate, so no single leak is worse than it has to be:
   Apple ID session had gone. A key belongs to the team rather than to a person,
   is not a session, and does not expire.
 
-  It lives at `~/.config/thefloor/AuthKey_<KEYID>.p8`, mode 600, beside a
-  plain-text `asc-issuer-id` holding the issuer UUID. The key id is read from
-  the filename; the issuer id is not a secret, but it is unmemorable and it
-  belongs with the key it names. `THEFLOOR_ASC_DIR` and
+  Named `thefloor-release`, after what it does, as `thefloor-egress` and
+  `thefloor-server` are. **Its role must be Admin.** App Manager can upload a
+  build and cannot touch signing assets, so it authenticates and then fails
+  with `Cloud signing permission error` / `No signing certificate "iOS
+  Distribution" found` — this project has no distribution certificate locally,
+  Apple holds it, and fetching it is a signing-asset operation. A key's role is
+  fixed at creation, so getting this wrong means revoking and starting again.
+
+  It lives in **its own directory**, `~/.config/thefloor/asc/`, holding
+  `AuthKey_<KEYID>.p8` and a plain-text `issuer-id`. The directory is the point:
+  the APNs key is an `AuthKey_*.p8` under `~/.config/thefloor` as well, and a
+  glob there matches it first — alphabetically, silently, and with no way to
+  tell the two apart by content, both being ES256 private keys. The script now
+  refuses outright if that directory ever holds more than one key.
+
+  The key id is read from the filename; the issuer id is per-team, so it
+  survives replacing the key. `THEFLOOR_ASC_DIR` and
   `APP_STORE_CONNECT_ISSUER_ID` override both.
 
   Generated in App Store Connect under Users and Access → Integrations, and
@@ -248,7 +261,7 @@ Two more things that fail quietly and are worth checking before anything else:
       cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
       codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
 
-  Verified this way for builds 14 through 20: `production`.
+  Verified this way for builds 14 through 21: `production`.
 
   Note that this export **re-signs**, and Xcode's automatic build-number
   management can bump `CFBundleVersion` while doing it: the check on build 19
