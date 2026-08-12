@@ -617,6 +617,21 @@ describe('presence is exclusive', () => {
     expect(app.channels.channelsFor(alice.account.id)).toEqual([second]);
   });
 
+  it('lists a channel you are present in, so none is ever invisible', async () => {
+    // Membership is the whole test. Presence used to hide a channel from your
+    // own home screen on the reasoning that you were looking at it already,
+    // which fails the moment the server believes you are somewhere the app
+    // does not: reinstalling was enough, and the channel appeared nowhere —
+    // not here, and not in invitesFor, which passes over anyone ever present.
+    const { alice, first } = await twoChannels();
+    expect(app.channels.get(first)!.present).toContain(alice.account.id);
+
+    const listed = app.channels
+      .rejoinableFor(alice.account.id)
+      .map((entry) => entry.channelId);
+    expect(listed).toContain(first);
+  });
+
   it('leaves the first channel reachable rather than stranding it', async () => {
     // The reason the old behaviour was worse than leaving: a channel you are
     // present in is filtered out of your own home screen, so being wrongly

@@ -1191,6 +1191,72 @@ describe('Home while still in a channel', () => {
     act(() => tree.unmount());
   });
 
+  it('does not also list the channel the banner is showing', () => {
+    // The server now sends every channel you belong to, the one you are in
+    // included, because withholding it is what made it invisible when the two
+    // ends disagreed about where you were. The banner and the row are two
+    // renderings of one channel, so exactly one of them appears.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_1',
+          name: 'Book club',
+          others: [{ id: 'acct_2', displayName: 'Dana Chu' }],
+          presentCount: 2,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView
+        onEnterChannel={() => {}}
+        onOpenSettings={() => {}}
+        liveChannel={{
+          channelId: 'sess_1',
+          title: 'Book club',
+          present: 2,
+          muted: false,
+        }}
+        onReturnToChannel={() => {}}
+      />
+    );
+    const text = textOf(tree).replace(/\s+/g, ' ');
+    expect(text).toContain('tap to go back');
+    expect(text.match(/Book club/g)).toHaveLength(1);
+    act(() => tree.unmount());
+  });
+
+  it('lists a channel the server thinks you are in when this app is not', () => {
+    // The reinstall case, and the invariant that answers it: a channel you
+    // belong to is reachable from Home whatever the server believes about your
+    // presence. With no banner to render it — this process has entered
+    // nothing — the row is what must be there.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_1',
+          name: 'A Priori',
+          others: [{ id: 'acct_2', displayName: 'Dana Chu' }],
+          presentCount: 1,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    expect(textOf(tree)).toContain('A Priori');
+    act(() => tree.unmount());
+  });
+
   it('shows nothing when you are not in one', () => {
     home();
     const tree = render(

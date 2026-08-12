@@ -219,12 +219,21 @@ export function registerWebsocket(deps: {
     };
     connections.add(connection);
 
-    // Any channel this user is already in now has a live connection again,
-    // cancelling a grace period they may be part-way through.
-    for (const channel of channels.channelsFor(account.id)) {
-      channels.report(channel, account.id, 'CONNECTED');
-    }
-
+    // Deliberately nothing about presence here.
+    //
+    // This used to report CONNECTED for every channel the account was present
+    // in, cancelling any grace period in progress. It meant that *opening a
+    // socket* — by any process, for any reason — asserted that the user was
+    // still in the room. A reinstalled app connecting within the grace minute
+    // therefore inherited a presence it knew nothing about, could not act on,
+    // and would never give up, because every reconnection renewed it.
+    //
+    // A client that really is in a channel says so: `watch.channel` reports
+    // CONNECTED, and the reconnect path re-sends ENTER besides. Both are
+    // assertions from a process that knows where it is, which is the only
+    // thing that should be able to hold somebody in a room. A process that
+    // asserts neither lets the grace run out and is stepped out, which is the
+    // truth about it.
     send(connection, {
       type: 'hello',
       account: { id: account.id, displayName: account.display_name },

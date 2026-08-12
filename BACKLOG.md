@@ -15,59 +15,19 @@ missing features until you find the reasoning.
 
 ---
 
-## Channels do not survive a server restart — and now they promise to
+## Two things that ship unbounded, both from channels being permanent
 
-**Status:** known, shipped anyway on 2026-08-10, deliberately. This is now the
-largest gap in the product and the one to close first.
+Channels themselves survive a restart — `9761d72`, 2026-08-10 — and this entry
+used to say the opposite for a day after that shipped, which is worth a moment
+of distrust for anything else here that has not been re-read lately. What
+follows is what is actually outstanding.
 
-`ChannelRegistry` holds channels in memory and writes a row only when one ends.
-Restarting the server therefore destroys every channel — its name, its
-description, its roster, who had ever entered it. Recordings survive, because
-they are rows of their own.
-
-**What changed is the promise, not the mechanism.** When these were sessions,
-losing one on restart cost a conversation in progress; sessions were
-short-lived by construction and an empty one self-destructed in a minute, so
-keeping the tick loop in memory to avoid writing every 500ms was a fair trade.
-A channel is a permanent place. It sits on the home screen with a name somebody
-chose and a description somebody wrote, it never expires, and the interface
-gives every reason to expect it to be there tomorrow. So the same behaviour
-that used to be a limitation is now the app breaking its word.
-
-Every deploy triggers it. `bin/deploy` restarts the service.
-
-### The way in, which is now easier than it was
-
-**Persist on transition**: write the channel whenever the reducer produces a new
-state, and rehydrate on boot. The write rate is bounded by how often people
-actually act, since a tick that changes nothing produces no new state. Storing
-the durable projection as one JSON blob beside a few queryable columns avoids a
-migration every time a field is added.
-
-Two objections used to make this awkward. One has evaporated:
-
-- **Presence.** The old worry was that restoring with nobody present would let
-  the empty-channel timer end every restored channel within a minute. That timer
-  no longer exists, so `present: []` on boot is simply the truth, and an empty
-  restored channel sitting there is now the correct behaviour rather than a
-  problem to work around. Removing the auto-end is what made rehydration viable.
-- **Recordings in flight.** Still real. Egress handles live in the same memory,
-  so a restart mid-run orphans them: LiveKit keeps capturing, nothing calls
-  `stopRecording`, and it bills until the room closes. The lever that does not
-  need the handles is calling `closeRoom` for every unended channel at boot —
-  nobody is present by construction, so the room holds only ghosts. Filing the
-  `recordings` row when a run *starts* rather than when it ends would also let
-  an interrupted run be recovered instead of lost.
-
-### Two more things that ship unbounded
-
-Both follow from channels being permanent and neither is fixed:
-
-- **Home grows without limit.** `invitesFor` and `rejoinableFor` still partition
-  channels into "invited, never entered" and "entered, then left". Nothing ever
-  removes a channel from the second list, so it accumulates every channel you
-  have ever stepped out of, for ever. The replacement is one persistent channel
-  list, sorted by presence then recent activity.
+- **Home grows without limit.** `invitesFor` and `rejoinableFor` partition
+  channels into "invited, never entered" and "everything else you belong to".
+  Nothing ever removes a channel from the second list, so it accumulates every
+  channel you have ever been in, for ever. Sorting by presence and recent
+  activity is done; bounding the list is not — it wants archiving, or leaving,
+  to be something a person can actually do.
 - **The tick loop walks every channel ever created**, every 500ms, as do
   `invitesFor`, `rejoinableFor` and `channelsFor`. It wants an active set — the
   channels with a live floor claim, playing playback, an active recording or a

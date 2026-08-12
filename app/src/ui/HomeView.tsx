@@ -62,7 +62,17 @@ export function HomeView({
   const invites = (home?.invites ?? []).filter(
     (i) => !dismissed.includes(i.channelId)
   );
-  const live = orderChannels(home?.rejoinable ?? []);
+  // Every channel you belong to is listed, minus the one the banner is already
+  // showing — the two are alternative presentations of the same row, not a
+  // list and an exception to it. The server no longer withholds the channel it
+  // thinks you are in, because it can be wrong about that and used to hide the
+  // channel entirely when it was; whether you are *live* somewhere is settled
+  // here, where the app knows what it is actually connected to.
+  const live = orderChannels(
+    (home?.rejoinable ?? []).filter(
+      (channel) => channel.channelId !== liveChannel?.channelId
+    )
+  );
   const contacts = home?.contacts ?? [];
   const recordings = home?.recordings ?? [];
 

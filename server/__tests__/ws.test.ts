@@ -378,6 +378,45 @@ describe('websocket', () => {
     fresh.close();
   });
 
+  it('does not let a new process inherit a presence it knows nothing about', async () => {
+    // Reinstalling the app: the old process dies inside the grace minute and
+    // the new one signs in with the stored token. Merely holding a socket used
+    // to assert that the user was still in the room, so the grace was
+    // cancelled and the server held them present in a channel the new process
+    // had never heard of — for ever, since every reconnection renewed it.
+    // Presence is asserted by watching or entering, never by connecting.
+    const { alice, bob, channelId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
+
+    b.close();
+    await new Promise((r) => setTimeout(r, 200));
+
+    // The reinstalled app: connected and signed in, watching Home, with no
+    // idea it was ever in a channel.
+    const reinstalled = new Client(bob.token, baseUrl);
+    await reinstalled.open();
+    reinstalled.send({ type: 'watch.home' });
+    await reinstalled.next('home');
+
+    clock += DISCONNECT_GRACE_MS;
+    app.channels.tick();
+
+    expect(app.channels.get(channelId)!.present).not.toContain(bob.account.id);
+    // And it is listed for him regardless, which is the half that makes it
+    // reachable rather than merely correct.
+    expect(
+      app.channels.rejoinableFor(bob.account.id).map((r) => r.channelId)
+    ).toContain(channelId);
+    a.close();
+    reinstalled.close();
+  });
+
   it('cancels the grace period when the user comes back', async () => {
     const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);

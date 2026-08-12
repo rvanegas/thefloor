@@ -679,13 +679,31 @@ export class ChannelRegistry {
     return invites.sort((a, b) => a.createdAt - b.createdAt);
   }
 
-  /** A channel this user entered and left, still alive and re-enterable. */
+  /**
+   * Every live channel this user belongs to and has been in.
+   *
+   * **Membership is the only test.** This used to skip the channel you were
+   * present in, on the reasoning that you were already looking at it — and
+   * that reasoning fails in every case where the client and the server
+   * disagree about where you are. Reinstalling the app was enough: the old
+   * process's socket closed, the new one connected inside the disconnect
+   * grace and cancelled it, and the server went on holding you present in a
+   * channel the new process had never heard of. Skipped here and absent from
+   * `invitesFor` — which passes over anyone who has ever been present — it
+   * appeared nowhere at all, with no way back to it.
+   *
+   * So presence no longer decides visibility. It is a *display* concern, and
+   * the client is the only end that can settle it: the app knows whether it
+   * is actually in a channel, where this list only knows what the server last
+   * believed. A channel you are in appears here like any other; the app
+   * renders it as the live banner instead of a row when it can tell that it
+   * is live, and as a row when it cannot.
+   */
   rejoinableFor(userId: string): RejoinableView[] {
     const rejoinable: RejoinableView[] = [];
     for (const channel of this.channels.values()) {
       if (channel.status !== 'active') continue;
       if (!isParticipant(channel, userId)) continue;
-      if (channel.present.includes(userId)) continue;
       if (!channel.everPresent.includes(userId)) continue;
 
       const others = otherParticipants(channel, userId)

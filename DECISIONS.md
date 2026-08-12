@@ -489,18 +489,58 @@ Nothing had gone wrong in the reducer, which is the point. Entering is a fact
 about one channel and stepping out is a fact about another, and no rule
 connected them, because the reducer sees one channel at a time and cannot.
 
-What made it worse than merely leaving is that `rejoinableFor` filters out
-channels you are present in — reasonably, since you would be looking at one
-rather than needing a way back to it. So being wrongly marked present made the
-first channel invisible on your own home screen at the same moment it became
-unreachable, while everybody still in it saw you as Present with your audio
-connected somewhere else entirely.
+What made it worse than merely leaving is that `rejoinableFor` used to filter
+out channels you were present in — reasonably, it seemed, since you would be
+looking at one rather than needing a way back to it. So being wrongly marked
+present made the first channel invisible on your own home screen at the same
+moment it became unreachable, while everybody still in it saw you as Present
+with your audio connected somewhere else entirely. That filter is now gone; the
+next section is why.
 
 A person has one microphone and one pair of ears, so entering somewhere now
 steps you out of wherever you were, applied in the registry — the only place
 that can see a person across channels. Everything that ordinarily follows a
 departure follows this one: a floor claim is released, and a recording left
 with nobody in it stops and files itself.
+
+---
+
+## Membership is what puts a channel on Home, and nothing else
+
+A channel you belong to appears on Home — as a row, or as the live banner, and
+under every circumstance including restarts, reinstalls and disconnections. The
+*only* reason for a channel not to be there is that you are no longer a member
+of it.
+
+Presence used to be a second reason, and it cost a real channel. Reinstalling
+the app was enough: the old process's socket closed, starting the disconnect
+grace; the new process connected inside that minute, which the server took as
+proof the user was still in the room and cancelled the grace; and the channel
+was then withheld from Home as one you were already looking at — by a process
+that had never heard of it. `invitesFor` passes over anyone who has ever been
+present, so it was not there either. A named, permanent channel with three
+members and a recording hanging off it simply vanished, with no way back.
+
+Two changes, and the split matters:
+
+- **`rejoinableFor` tests membership alone.** Whether you are *live* somewhere
+  is a display question, and the client is the only end that can answer it: the
+  app knows what it is connected to, where the server knows only what it last
+  believed. So Home lists every channel you belong to, and `HomeView` renders
+  the one it is actually in as the banner instead of a row. When the two ends
+  disagree, the failure is now a duplicate-looking row rather than a
+  disappearance — visible, and recoverable by tapping it.
+- **Opening a socket no longer asserts presence.** `watch.channel` reports
+  `CONNECTED`, and the reconnect path re-sends `ENTER`; both come from a
+  process that knows where it is. Connecting alone does not, and a process that
+  asserts neither now lets the grace run out and is stepped out, which is the
+  truth about it. Before, every reconnection renewed a presence nobody was
+  holding — the ghost was not merely invisible to its owner, it showed up as
+  Present to everyone else in the room.
+
+The general shape is worth keeping: **when a client and a server disagree about
+where somebody is, the safe default is to show more, not less.** An extra row
+is a nuisance. A missing channel is indistinguishable from a lost one.
 
 ---
 

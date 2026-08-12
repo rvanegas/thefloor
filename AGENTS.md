@@ -231,8 +231,12 @@ Two more things that fail quietly and are worth checking before anything else:
 
 ### Known rough edges
 
-- **A deploy destroys every channel.** Channels are in memory, and they are
-  now permanent as far as the interface is concerned. See BACKLOG.md.
+- **A deploy costs presence, not channels.** This said a deploy destroyed
+  every channel, which stopped being true on 2026-08-10 when `9761d72` made
+  them survive a restart — and the line stayed, so it was still being believed
+  and acted on a day later. `restore()` revives every unended channel from its
+  state blob. What a restart does drop is `present`, `disconnectedAt`, the
+  floor and any recording in flight: the process, not the place.
 - **The 380-day-uptime box is not this one.** dianoia runs on a separate
   instance and was deliberately left alone — it owns ports 80 and 443 there
   with its own nginx and certbot.
