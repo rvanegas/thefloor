@@ -69,10 +69,20 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently three times on 2026-08-12. The last made claiming the floor clear
-the claimant's self-mute and refuse to let them set it again until they release
-— no schema change and no wire change, so build 23 kept working across it,
-simply without greying out its own mute button while it holds the floor.
+Most recently four times on 2026-08-12. The last narrowed the one-per-set rule
+to *unnamed* channels and made an unnamed channel's invitation move the
+conversation when the invitee arrives — see DECISIONS.md. No migration: two
+fields were added to the state blob, and both default correctly for a channel
+that has never moved (`mediaRoom` to the channel id, `invited` to empty), so
+existing rows are rewritten on their next change rather than up front. Verified
+against production afterwards: 5 live channels revived, 15 recordings, health
+green. Wire-additive, so build 23 goes on working; build 25 is the one that
+follows a move.
+
+Before that, one that made claiming the floor clear the claimant's self-mute
+and refuse to let them set it again until they release — no schema change and
+no wire change, so build 23 kept working across it, simply without greying out
+its own mute button while it holds the floor.
 
 Before that, twice the same day: recordings moved to the channel they were
 made in, with deletion by mark and sweep and playback into the room; then the
@@ -378,7 +388,11 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
 
 - **The splash is still the Expo default.**
 
-`buildNumber` must increase for each upload, even when the version does not.
+`buildNumber` must increase for each upload, even when the version does not —
+and **`bin/release-ios` does that itself**, reading `app.json`, adding one, and
+writing it back before it prebuilds. Bumping it by hand first is not an error
+Apple will complain about, but it skips a number: doing both is what turned 23
+into 25 and left build 24 never existing.
 
 ---
 
