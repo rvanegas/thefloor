@@ -69,7 +69,14 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently twice on 2026-08-11. The second put every channel you belong to
+Most recently twice on 2026-08-12: recordings moved to the channel they were
+made in, with deletion by mark and sweep and playback into the room; then the
+branch that answered for recordings whose channel had already ended, once the
+four of those were deleted. The first carried a migration — `deleted_at` on
+`channels` and `recordings` — verified against production afterwards: 22
+channels, 15 recordings, nothing marked.
+
+Before those, twice on 2026-08-11. The second put every channel you belong to
 on Home regardless of what the server believes about your presence, and stopped
 a bare socket asserting presence. No schema change and no wire change — the
 `rejoinable` array simply carries more — so build 19 kept working across it,
@@ -261,7 +268,7 @@ Two more things that fail quietly and are worth checking before anything else:
       cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
       codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
 
-  Verified this way for builds 14 through 22: `production`.
+  Verified this way for builds 14 through 23: `production`.
 
   Note that this export **re-signs**, and Xcode's automatic build-number
   management can bump `CFBundleVersion` while doing it: the check on build 19
