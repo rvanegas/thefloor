@@ -19,6 +19,42 @@ ARCHIVE=/tmp/thefloor.xcarchive
 
 cd "$(dirname "$0")/.."
 
+# An App Store Connect API key, if there is one, so that neither signing nor
+# uploading depends on an Apple ID being signed in to Xcode.
+#
+# That dependency is what this exists to remove. Build 21 archived fine and then
+# failed at the upload with "Failed to Use Accounts" — Xcode's account list had
+# simply emptied overnight, with nobody having signed out. A key belongs to the
+# team rather than to a person, is not a session, and does not expire.
+#
+# The key id is read from the filename, exactly as the APNs key's is, so there
+# is one fewer thing to record. The issuer id is a plain file beside it: it is
+# not a secret, but it is unmemorable and it belongs with the key it names.
+# Both live outside the tree, because `bin/deploy` rsyncs with --delete.
+ASC_DIR=${THEFLOOR_ASC_DIR:-$HOME/.config/thefloor}
+ASC_KEY=$(ls "$ASC_DIR"/AuthKey_*.p8 2>/dev/null | head -1 || true)
+ASC_ISSUER=${APP_STORE_CONNECT_ISSUER_ID:-}
+if [ -z "$ASC_ISSUER" ] && [ -f "$ASC_DIR/asc-issuer-id" ]; then
+  ASC_ISSUER=$(tr -d '[:space:]' < "$ASC_DIR/asc-issuer-id")
+fi
+
+AUTH=()
+if [ -n "$ASC_KEY" ] && [ -n "$ASC_ISSUER" ]; then
+  ASC_KEY_ID=$(basename "$ASC_KEY" .p8)
+  ASC_KEY_ID=${ASC_KEY_ID#AuthKey_}
+  AUTH=(
+    -authenticationKeyPath "$ASC_KEY"
+    -authenticationKeyID "$ASC_KEY_ID"
+    -authenticationKeyIssuerID "$ASC_ISSUER"
+  )
+  echo "→ authenticating as API key $ASC_KEY_ID"
+else
+  # Not fatal: the interactive path still works when somebody is signed in, and
+  # refusing to release for want of a key would be worse than saying so.
+  echo "→ no API key found in $ASC_DIR; falling back to Xcode's signed-in account" >&2
+  echo "  (a missing account fails at the upload with 'Failed to Use Accounts')" >&2
+fi
+
 # Every upload needs a build number Apple has not seen before, even when the
 # version is unchanged. Bumping it here means one fewer thing to forget.
 node - <<'JS'
@@ -72,9 +108,13 @@ JS
 
 echo "→ archive"
 rm -rf "$ARCHIVE"
+# The key is passed to the archive too, not only the upload: automatic signing
+# fetches profiles from the portal, and doing that through the key is what keeps
+# the whole release working with nobody signed in.
 xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
   -configuration Release -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" -allowProvisioningUpdates \
+  ${AUTH[@]+"${AUTH[@]}"} \
   DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
   archive >/tmp/thefloor-archive.log 2>&1 \
   || { echo "✗ archive failed; see /tmp/thefloor-archive.log" >&2; exit 1; }
@@ -95,6 +135,7 @@ PLIST
 xcodebuild -exportArchive -archivePath "$ARCHIVE" \
   -exportPath /tmp/thefloor-upload \
   -exportOptionsPlist /tmp/UploadOptions.plist \
+  ${AUTH[@]+"${AUTH[@]}"} \
   -allowProvisioningUpdates 2>&1 | grep -E "Uploaded|EXPORT (SUCCEEDED|FAILED)|error:"
 
 echo "✓ processing in App Store Connect — TestFlight in a few minutes"

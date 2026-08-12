@@ -134,7 +134,7 @@ Node binds to loopback only; nothing reaches it except through Caddy.
 
 ### Credentials
 
-Four, deliberately separate, so no single leak is worse than it has to be:
+Five, deliberately separate, so no single leak is worse than it has to be:
 
 - **LiveKit** — media, held by the server.
 - **`thefloor-egress`** — PutObject only, and it travels to LiveKit. It cannot
@@ -164,6 +164,31 @@ Four, deliberately separate, so no single leak is worse than it has to be:
   tree**: `bin/deploy` rsyncs with `--delete`, so a key inside the tree is one
   a later deploy removes. `*.p8` is in `.gitignore` and in the deploy excludes,
   both deliberately.
+
+- **App Store Connect API key** — a second `.p8`, used by `bin/release-ios` to
+  sign and upload without an Apple ID being signed in to Xcode.
+
+  It exists because that dependency broke a release. Build 21 archived cleanly
+  and failed at the upload with `Failed to Use Accounts`: Xcode's account list
+  had emptied overnight, with nobody having signed out and no keychain reset —
+  the certificate and the provisioning profiles were untouched, so only the
+  Apple ID session had gone. A key belongs to the team rather than to a person,
+  is not a session, and does not expire.
+
+  It lives at `~/.config/thefloor/AuthKey_<KEYID>.p8`, mode 600, beside a
+  plain-text `asc-issuer-id` holding the issuer UUID. The key id is read from
+  the filename; the issuer id is not a secret, but it is unmemorable and it
+  belongs with the key it names. `THEFLOOR_ASC_DIR` and
+  `APP_STORE_CONNECT_ISSUER_ID` override both.
+
+  Generated in App Store Connect under Users and Access → Integrations, and
+  offered for download **once**, like the APNs key. Same reasons for the
+  location: `*.p8` is gitignored and excluded from the deploy, and `bin/deploy`
+  rsyncs with `--delete`, so a key inside the tree is one a later deploy
+  removes.
+
+  Without it the script says so and falls back to the interactive path, which
+  still works whenever somebody is signed in.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it.
