@@ -322,8 +322,58 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
 - **`ITSAppUsesNonExemptEncryption: false`.** All traffic is HTTPS and WebRTC,
   which is the standard exemption. Declaring it stops App Store Connect asking
   on every single upload.
-- **Icons are still the Expo defaults.** A build will upload, and every tester
-  gets a generic square.
+- **The iOS icon is the artwork now, rasterised from `the-floor-icon.svg`.**
+  `app/assets/icon.png` and `app/assets/favicon.png` are generated from it; the
+  SVG is the master, and neither PNG should be edited by hand. Regenerate with
+  ImageMagick, rendering large and downsampling so the diagonal is smooth
+  rather than stepped:
+
+      magick -background white -size 4096x4096 the-floor-icon.svg \
+        -resize 1024x1024 -alpha remove -alpha off -type TrueColor \
+        -colorspace sRGB PNG24:app/assets/icon.png
+
+  `-alpha remove -alpha off` is not decoration: **an iOS app icon with an alpha
+  channel is rejected at upload.** The artwork is opaque either way — two
+  triangles filling the square — so the channel would carry nothing and still
+  fail the check.
+
+  `bin/release-ios` runs `prebuild --clean`, which regenerates the whole
+  `ios/` asset catalogue from `app/assets/icon.png`, so nothing else has to be
+  copied anywhere for a build to pick this up.
+
+- **The Android adaptive icon is the same artwork, in three layers**, though
+  Android is not built or shipped here — there is no `android/`, and
+  `bin/release-ios` is the only release path. It is preparation.
+
+  The artwork is the **background** layer, full-bleed. It survives any launcher
+  mask — circle, squircle, rounded square — because a diagonal through the
+  centre stays a diagonal through the centre; having no focal mark is what
+  makes it crop-proof rather than what puts it at risk.
+
+  The **foreground** is a fully transparent 1024×1024 PNG. Expo requires the
+  key, and the foreground is the layer launchers shift for parallax, so
+  full-bleed art there would slide and expose an edge. The artwork belongs
+  underneath it.
+
+  The **monochrome** layer — the themed icon, Android 13+ — is the one that
+  took a decision rather than a command. It has to be a single-colour shape on
+  transparency, and a two-colour split has no silhouette, so the shape is the
+  orange triangle: the upper-left half, the one that leads in the artwork. Black
+  on transparent; the system tints it, and only the alpha channel is read.
+
+  That silhouette is its own master, `the-floor-icon-mono.svg`, beside the
+  full one — a second file rather than a `magick` incantation that crops the
+  first, because which half it is is a decision and belongs somewhere legible.
+
+      magick -background none -size 4096x4096 the-floor-icon-mono.svg -resize 1024x1024 \
+        -type TrueColorAlpha -colorspace sRGB PNG32:app/assets/android-icon-monochrome.png
+
+  `adaptiveIcon.backgroundColor` went from `#14162B` to `#5B6478`, the artwork's
+  grey. The background *image* covers it, so it is only what shows if that ever
+  fails to load — but a fallback in a colour from nowhere in the design was
+  worse than one that matches.
+
+- **The splash is still the Expo default.**
 
 `buildNumber` must increase for each upload, even when the version does not.
 
