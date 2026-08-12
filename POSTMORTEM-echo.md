@@ -170,12 +170,10 @@ The two states, `PLAYBACK_ONLY` and `CALL`, as exported constants. Given the
 three writers, the only survivable arrangement is that everything we control
 writes identical values.
 
-**2. `CALL` states `defaultToSpeaker` explicitly.** Not left to `videoChat` to
-imply: a voice mode does not reliably override the receiver while
-`mixWithOthers` is set. Without this the fix would have shipped the earpiece
-behaviour permanently instead of intermittently — and there is no speaker
-control anywhere in this app, so nothing on screen would have explained it. It
-remains a *default*; headphones and Bluetooth still take the route.
+**2. `CALL` is the SDK's own recording configuration.** Build 18 added
+`defaultToSpeaker` to it, to stop the earpiece — see
+[The tail](#the-tail-defaulttospeaker-cost-bluetooth-its-route), which is the
+part of this story that did not go well.
 
 **3. `index.ts` installs that policy natively.**
 `setupIOSAudioManagement(true, { recording: CALL, playout: PLAYBACK_ONLY })`
@@ -218,6 +216,47 @@ On two phones:
    that the recording indicator goes out when the microphone closes.
 
 ---
+
+## The tail: `defaultToSpeaker` cost Bluetooth its route
+
+Build 18 shipped with `defaultToSpeaker` in the call configuration, added on
+the strength of the earpiece observation above. Within minutes the tester
+reported the next thing:
+
+> when I connect to channel with bluetooth headphones, then self-mute, then
+> un-self-mute, the audio remains on phone, no longer on bt headphones.
+
+Caused by build 18, and by both halves of it at once: the option itself, which
+is widely reported to beat Bluetooth HFP for output when set alongside
+`allowBluetooth`, and `stopMicTrackOnMute`, which is what makes an unmute
+renegotiate the route at all. Build 17 never reconfigured on unmute, so the
+question never arose there.
+
+Build 19 takes the option back out, returning `CALL` to the SDK's own recording
+configuration — the only one observed working for Bluetooth, and the one the
+echo was observed stopping under.
+
+**That leaves the earpiece unfixed, and it is worth being plain about why.**
+Two device reports, two static configurations, and each fixes one and breaks
+the other:
+
+| | no accessory | Bluetooth headphones |
+| --- | --- | --- |
+| without `defaultToSpeaker` | receiver — observed on 17 | works |
+| with `defaultToSpeaker` | speaker | route lost — observed on 18 |
+
+Neither is a configuration error. **The correct output depends on what is
+connected, and nothing in this stack can see what is connected**:
+`selectAudioOutput` is a blind `overrideOutputAudioPort` that overrides
+headphones too, `enumerateDevices` returns the built-in microphone and no
+outputs, and neither package surfaces `currentRoute` or a route-change
+notification. A speaker button, or a small native module, is the way out. Both
+are in BACKLOG.md.
+
+The lesson is the same one as the original bug, arriving a second time in one
+afternoon: a plausible sentence about iOS routing, shipped without a device to
+check it on. `defaultToSpeaker` is documented to yield to connected accessories.
+It did not.
 
 ## What this cost, and the general lesson
 

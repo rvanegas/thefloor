@@ -32,21 +32,25 @@ export const PLAYBACK_ONLY: AppleAudioConfiguration = {
  *
  * **`videoChat` is what turns on the system echo canceller.** Capturing under
  * a non-voice mode puts a bare microphone next to a loudspeaker playing the
- * other party, who then hears themselves a beat late.
+ * other party, who then hears themselves a beat late. Apple also documents
+ * this mode as implying `allowBluetooth` and `defaultToSpeaker`, which is the
+ * system's own pairing and is left to it.
  *
- * **`defaultToSpeaker` is what keeps it audible.** `playAndRecord` routes to
- * the receiver — the earpiece — unless told otherwise, and a voice mode alone
- * does not reliably override that while `mixWithOthers` is set. The symptom is
- * a conversation you can only hear by holding the phone against your ear, at
- * full volume, with no control on screen that explains it. It remains a
- * *default*: headphones and Bluetooth still take the route when present.
+ * `mixWithOthers` does not cost the echo canceller — the echo was observed
+ * stopping under exactly this configuration, which is the SDK's own recording
+ * policy.
  *
- * `mixWithOthers` is carried over from the playout side so entering a call does
- * not interrupt another app. It does not cost the echo canceller; that pairing
- * is the SDK's own recording policy and was observed working.
+ * **`defaultToSpeaker` is deliberately not stated here**, though the earpiece
+ * problem argues for it. Added explicitly alongside `allowBluetooth` in build
+ * 18, it cost Bluetooth headphone users their headphones: the route moved to
+ * the phone on the first unmute and stayed there. Between a call in the wrong
+ * ear and a call in the wrong device entirely, this is the SDK's own
+ * combination and the only one observed working for Bluetooth. See BACKLOG.md
+ * — the real answer is an output control that can see the current route, and
+ * nothing in this stack can.
  */
 export const CALL: AppleAudioConfiguration = {
   audioCategory: 'playAndRecord',
-  audioCategoryOptions: ['allowBluetooth', 'mixWithOthers', 'defaultToSpeaker'],
+  audioCategoryOptions: ['allowBluetooth', 'mixWithOthers'],
   audioMode: 'videoChat',
 };

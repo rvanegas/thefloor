@@ -26,11 +26,10 @@ registerGlobals();
 // same one the app applies itself, so the two writers of this session cannot
 // disagree.
 //
-// They did disagree, and it was visible: with only the app's side stated, the
-// native observer would fire on some later engine transition and hand the call
-// back its own defaults — no `defaultToSpeaker`, so the conversation dropped to
-// the earpiece mid-sentence with nothing on screen to explain it. Whichever
-// wrote last won, and both write the same process-wide configuration object.
+// They did disagree, and it was visible: a tester watched the echo stop and the
+// audio drop to the earpiece in the same instant, which is this observer firing
+// on some later engine transition and handing the call its own configuration.
+// Whichever writes last wins, and both write the same process-wide object.
 setupIOSAudioManagement(true, { recording: CALL, playout: PLAYBACK_ONLY });
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

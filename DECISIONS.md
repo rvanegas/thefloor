@@ -852,7 +852,7 @@ nobody to hear the microphone.
 
 So the session is `playback` + `mixWithOthers` + `spokenAudio` until the
 microphone is actually needed, and `playAndRecord` + `allowBluetooth` +
-`mixWithOthers` + `defaultToSpeaker` + `videoChat` while it is capturing. Both
+`mixWithOthers` + `videoChat` while it is capturing. Both
 are in `app/src/audio/session.ts`. **Both directions are applied, and the first
 shipped attempt applied only one. That caused echo**, which the next section is
 about.
@@ -902,10 +902,12 @@ Four things follow, and each is load-bearing rather than belt-and-braces:
   cannot contradict the app on some later transition. It did, visibly: a tester
   watched the echo stop and the audio drop to the earpiece in the same instant,
   which is that configuration arriving — a voice mode, and no `defaultToSpeaker`.
-- **`CALL` states `defaultToSpeaker` explicitly**, rather than leaving it to
-  `videoChat` to imply, which it does not do reliably while `mixWithOthers` is
-  set. There is no speaker control in this app, so nothing on screen would
-  explain the earpiece.
+- **`CALL` does *not* state `defaultToSpeaker`.** Build 18 added it, to stop a
+  call landing on the receiver, and it cost Bluetooth headphone users their
+  headphones — the route moved to the phone on the first unmute. Build 19 took
+  it back out. Both failures are real and neither is a configuration error:
+  the right output depends on what is connected, and nothing in this stack can
+  see that. See BACKLOG.md, "There is no output control".
 - **`stopMicTrackOnMute: true` on the `Room`,** so closing the microphone
   really releases the device. Without it the engine never left the recording
   state, which is both why the policy never fired and why the A2DP feature
