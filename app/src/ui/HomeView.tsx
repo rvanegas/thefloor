@@ -68,10 +68,9 @@ export function HomeView({
   // thinks you are in, because it can be wrong about that and used to hide the
   // channel entirely when it was; whether you are *live* somewhere is settled
   // here, where the app knows what it is actually connected to.
-  const live = orderChannels(
-    (home?.rejoinable ?? []).filter(
-      (channel) => channel.channelId !== liveChannel?.channelId
-    )
+  const rejoinable = orderChannels(home?.rejoinable ?? []);
+  const live = rejoinable.filter(
+    (channel) => channel.channelId !== liveChannel?.channelId
   );
   const contacts = home?.contacts ?? [];
   // Recordings are not on this screen at all: they live on the channel they
@@ -97,7 +96,13 @@ export function HomeView({
       shown: !dismissed.includes(invite.channelId),
     });
   }
-  for (const channel of live) {
+  // Every channel you belong to, *including* the one you are standing in — not
+  // `live`, which has that one filtered out because the banner is showing it
+  // instead of a row. A banner is an affordance like any other, so the contact
+  // you are talking to right now is exactly the one who must not be offered a
+  // fresh start; reading the filtered list offered it, which is the one case
+  // where the offer is plainly absurd.
+  for (const channel of rejoinable) {
     for (const other of channel.others) {
       channelWith.set(other.id, { channelId: channel.channelId, shown: true });
     }

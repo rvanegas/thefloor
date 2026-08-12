@@ -316,9 +316,12 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   Push notification has since been picked up and this did *not* change: a
   visible alert needs neither `voip` nor `remote-notification`. It becomes load
   bearing only if PushKit and CallKit are adopted for call-like ringing.
-- **`userInterfaceStyle` is `dark`,** matching the interface. It said `light`,
-  which left system surfaces — alerts, the keyboard, the status bar — rendering
-  pale against a `#0E1013` app.
+- **`userInterfaceStyle` is `automatic`.** This said `dark`, and stopped being
+  true when `app/src/ui/theme.ts` grew a light palette — the app follows the
+  system now, and a screenshot of it in light mode is it working rather than
+  failing. What the setting is *for* has not changed: it is what makes system
+  surfaces — alerts, the keyboard, the status bar — match the app instead of
+  rendering pale against a `#0E1013` screen.
 - **`ITSAppUsesNonExemptEncryption: false`.** All traffic is HTTPS and WebRTC,
   which is the standard exemption. Declaring it stops App Store Connect asking
   on every single upload.

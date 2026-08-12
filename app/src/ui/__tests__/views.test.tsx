@@ -311,6 +311,47 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
+  it('does not offer to start the one you are standing in', () => {
+    // The channel you are in is shown as the banner rather than as a row, and
+    // reading the list with that row filtered out left the person you are
+    // talking to right now being offered a fresh start with you.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_live',
+          name: null,
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 1,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+
+    const tree = render(
+      <HomeView
+        onEnterChannel={() => {}}
+        onOpenSettings={() => {}}
+        liveChannel={{
+          channelId: 'sess_live',
+          title: 'Dana Chu',
+          present: 1,
+          muted: false,
+        }}
+        onReturnToChannel={() => {}}
+      />
+    );
+    expect(findButton(tree, 'Start channel')).toBeUndefined();
+    expect(findButton(tree, 'Join channel')).toBeUndefined();
+    expect(textOf(tree)).toContain('Channel already open');
+    act(() => tree.unmount());
+  });
+
   it('offers to join, not start, once the invite has been dismissed', () => {
     // Dismissing the banner removes the only other way in. Suppressing the
     // contact row as well would leave no route to a channel that still exists.
