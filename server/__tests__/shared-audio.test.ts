@@ -6,7 +6,7 @@ import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
 import { MemoryRecordingStore } from '../src/storage';
-import { MEDIA_IDENTITY, mediaRoomIdentity } from '../src/channels';
+import { MEDIA_IDENTITY, playbackIdentity } from '../src/channels';
 
 /**
  * Shared playback where it meets the rest of the channel: who may change it,
@@ -220,7 +220,7 @@ describe('playing a recording back', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'PLAY' });
     await settle();
     expect(app.channels.get(channelId)!.playback.status).toBe('playing');
-    expect(media.playbacks[0].identity).toBe(mediaRoomIdentity(channelId));
+    expect(media.playbacks[0].identity).toBe(playbackIdentity(channelId));
   }, 30_000);
 
   it('is refused to somebody who is not in the channel', async () => {
@@ -294,7 +294,7 @@ describe('loading a track', () => {
     await settle();
 
     expect(media.playbacks).toHaveLength(1);
-    expect(media.playbacks[0].identity).toBe(mediaRoomIdentity(channelId));
+    expect(media.playbacks[0].identity).toBe(playbackIdentity(channelId));
 
     await upload(alice.token, channelId, 'Another.mp3');
     await settle();
@@ -356,8 +356,8 @@ describe('the media participant is not a speaker', () => {
 
     expect(media.subscriptions.length).toBeGreaterThan(0);
     for (const change of media.subscriptions) {
-      expect(change.speaker).not.toBe(mediaRoomIdentity(channelId));
-      expect(change.listener).not.toBe(mediaRoomIdentity(channelId));
+      expect(change.speaker).not.toBe(playbackIdentity(channelId));
+      expect(change.listener).not.toBe(playbackIdentity(channelId));
     }
   });
 });

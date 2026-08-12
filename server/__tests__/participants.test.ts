@@ -175,12 +175,16 @@ describe('creating a channel with several people', () => {
 });
 
 describe('mid-channel invites', () => {
-  it('adds a contact of the inviter, who then joins like any invitee', async () => {
+  it('adds a contact of the inviter to a named channel, who then joins like any invitee', async () => {
     const { alice, bob, carol } = await circle();
     const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(
       (r) => r.json()
     )) as { channelId: string };
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Standup',
+    } as never);
 
     const result = app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
@@ -244,7 +248,12 @@ describe('mid-channel invites', () => {
     });
 
     // Fill the roster to six, then one more must be refused. The extras only
-    // need to exist as contacts of alice.
+    // need to exist as contacts of alice. Named, because only a named channel
+    // has a roster that grows.
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Standup',
+    } as never);
     const extras = [] as User[];
     for (let i = 0; i < 5; i++) {
       const extra = await signIn(`extra${i}@example.com`, `Extra ${i}`);
@@ -370,6 +379,13 @@ describe('recording with people joining mid-run', () => {
       (r) => r.json()
     )) as { channelId: string };
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    // Named, so that inviting carol brings her *here*. In an unnamed channel
+    // an invitation moves everybody to a different channel instead, which
+    // ends the run rather than adding a stem to it — that is its own test.
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Long call',
+    } as never);
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'START_RECORDING',
     });

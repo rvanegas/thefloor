@@ -237,6 +237,13 @@ describe('a channel becoming active', () => {
       headers: auth(carol.token),
     });
 
+    // Named, because only a named channel takes a newcomer in where they were
+    // invited. Inviting into an unnamed one moves the conversation elsewhere,
+    // which is a different test.
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Standup',
+    } as never);
     app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
     await settle();
     await registerDevice(carol.token, 'carol-phone');
@@ -247,6 +254,11 @@ describe('a channel becoming active', () => {
       type: 'INVITE',
       contactId: carol.account.id,
     } as never);
+    // Carol is told she was invited; that is the invitation, not the arrival,
+    // and this test is about the arrival.
+    await settle();
+    pusher.sent.length = 0;
+
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
     await settle();
 
@@ -443,7 +455,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
   }
 
   it('names the others rather than counting heads', async () => {
-    const { alice, bob, channelId } = await emptyChannel();
+    const { alice, bob } = await twoContacts();
     const carol = await signIn('carol@example.com', 'Carol');
     await app.fastify.inject({
       method: 'POST',
@@ -456,10 +468,14 @@ describe('what an unnamed channel is called on the lock screen', () => {
       url: `/contacts/${alice.account.id}/accept`,
       headers: auth(carol.token),
     });
-    app.channels.dispatch(channelId, alice.account.id, {
-      type: 'INVITE',
-      contactId: carol.account.id,
-    } as never);
+    // All three from the start. An unnamed channel cannot be widened by an
+    // invitation — that moves the conversation to a different channel — and
+    // what is under test here is what an unnamed one is *called*.
+    const channelId = await createChannel(alice.token, [
+      bob.account.id,
+      carol.account.id,
+    ]);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     await registerDevice(bob.token, 'bob-phone');
     await settle();
     pusher.sent.length = 0;

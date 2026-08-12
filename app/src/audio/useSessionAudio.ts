@@ -78,7 +78,15 @@ async function applyForMicrophone(open: boolean): Promise<void> {
 }
 
 /**
- * @param channelId the session to join, or null to stay disconnected
+ * @param mediaRoom the audio to be in, or null to stay disconnected. The
+ *                  connection is keyed on this rather than on the channel,
+ *                  because a conversation that moves to another channel takes
+ *                  its room with it — the point of the move being that nobody
+ *                  reconnects. Rebuilding here on the channel id would undo
+ *                  exactly what the server went to the trouble of preserving.
+ * @param channelId the channel to ask for a credential for. Only ever read
+ *                  when a connection is being made, so a move that leaves the
+ *                  room alone never re-reads it.
  * @param token     the app's own auth token, used to fetch a join credential
  * @param selfMuted the user's own mute, which is theirs alone and unrelated to
  *                  the floor
@@ -87,6 +95,7 @@ async function applyForMicrophone(open: boolean): Promise<void> {
  *                  hook has never decided anything about who may speak.
  */
 export function useSessionAudio(
+  mediaRoom: string | null,
   channelId: string | null,
   token: string | null,
   selfMuted: boolean,
@@ -111,8 +120,12 @@ export function useSessionAudio(
   const micNeededRef = useRef(micNeeded);
   micNeededRef.current = micNeeded;
 
+  /** Read at connect, like the others: a move must not re-run the effect. */
+  const channelIdRef = useRef(channelId);
+  channelIdRef.current = channelId;
+
   useEffect(() => {
-    if (!channelId || !token) return;
+    if (!mediaRoom || !channelIdRef.current || !token) return;
 
     let cancelled = false;
     // Muting has to actually stop capturing, which is not the default: a muted
@@ -175,7 +188,7 @@ export function useSessionAudio(
     (async () => {
       update({ status: 'connecting', message: null });
       try {
-        const credential = await api.mediaToken(token, channelId);
+        const credential = await api.mediaToken(token, channelIdRef.current!);
         if (!credential.url) {
           update({
             status: 'unavailable',
@@ -229,7 +242,7 @@ export function useSessionAudio(
       AudioSession.stopAudioSession().catch(() => {});
       roomRef.current = null;
     };
-  }, [channelId, token]);
+  }, [mediaRoom, token]);
 
   /**
    * Keeps the published microphone in step with both reasons it may be off.

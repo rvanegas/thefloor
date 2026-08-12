@@ -166,5 +166,16 @@ export type ServerMessage =
   | { type: 'channel'; view: ChannelView }
   /** The channel ended or is no longer visible to this user. */
   | { type: 'channel.gone'; channelId: string }
+  /**
+   * The conversation you were in has moved, because somebody was asked into an
+   * unnamed channel and arrived. `to` is where the people are now; `from` is
+   * still there, still yours, and still holds whatever was recorded in it.
+   *
+   * Sent instead of `channel.gone` so the app can follow rather than fall back
+   * to Home. The audio needs no attention: the destination inherits the room,
+   * so a client that switches what it watches and re-renders has already done
+   * everything the move requires of it.
+   */
+  | { type: 'channel.moved'; from: string; to: string }
   | { type: 'error'; message: string; code?: string }
   | { type: 'pong'; serverNow: number };

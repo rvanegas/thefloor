@@ -119,6 +119,14 @@ describe('who can see a recording', () => {
     const { alice, bob, carol, channelId } = await recorded();
     expect(app.channels.recordingsFor(carol.account.id)).toEqual([]);
 
+    // A place is what a *named* channel is, and only a named one takes
+    // somebody in. Inviting into an unnamed channel moves the conversation to
+    // another one, which leaves the recording behind with the place it was
+    // made in — the same rule, seen from the other side.
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'The place',
+    } as never);
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'INVITE',
       contactId: carol.account.id,

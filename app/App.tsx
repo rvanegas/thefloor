@@ -47,11 +47,32 @@ function Root() {
   const micNeeded = !!live && microphoneNeeded(live, me);
 
   const audio = useSessionAudio(
+    // Keyed on the audio rather than on the channel, which are no longer the
+    // same thing: a conversation that moves takes its room with it, and this
+    // hook tearing down and rebuilding on the new channel id would turn pure
+    // bookkeeping into a dropped call for everybody in it.
+    live ? live.mediaRoom : null,
     live ? live.id : null,
     token,
     !!live?.selfMuted[me],
     micNeeded
   );
+
+  /**
+   * Follow a conversation that has changed channels.
+   *
+   * Only when this screen is on the channel it left — a move you are not
+   * looking at is Home's business, and it shows the destination as a row like
+   * any other. The socket has already switched what it watches, so the
+   * snapshot for the new channel is on its way or already here.
+   */
+  const { movedChannel } = app;
+  useEffect(() => {
+    if (!movedChannel) return;
+    setChannelId((current) =>
+      current === movedChannel.from ? movedChannel.to : current
+    );
+  }, [movedChannel]);
 
   /**
    * A tap on a notification, once there is somewhere to land.

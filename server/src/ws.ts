@@ -181,6 +181,25 @@ export function registerWebsocket(deps: {
     }
   };
 
+  /**
+   * A conversation that has changed channels, told only to the people it took
+   * with it, and only where they were watching the channel it left.
+   *
+   * The watch is deliberately *not* switched here. Which channel a client is
+   * looking at is the client's to decide — it is the end that knows whether
+   * this person is standing in the conversation or merely has the screen open
+   * — and a server that moved the subscription would also be telling clients
+   * built before this message existed to render a channel they never asked
+   * for, while their taps went on naming the old one.
+   */
+  channels.onMove(({ from, to, userIds }) => {
+    for (const connection of connections) {
+      if (!userIds.includes(connection.userId)) continue;
+      if (!connection.watchingChannels.has(from)) continue;
+      send(connection, { type: 'channel.moved', from, to });
+    }
+  });
+
   // Any channel change can alter both parties' Home (an invite appears, a
   // rejoinable channel shows up), so both views refresh together.
   channels.onChange((changedIds) => {

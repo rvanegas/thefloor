@@ -40,6 +40,23 @@ export function createChannel(params: {
   initiator: UserId;
   invitees: UserId[];
   now: number;
+  /**
+   * The audio to open in. Defaults to the channel's own id, which is what a
+   * channel started from nothing wants; a channel created to receive a moving
+   * conversation is handed the room those people are already talking in, so
+   * that arriving costs them no reconnection.
+   */
+  mediaRoom?: string;
+  /**
+   * Who is in it the moment it exists. Defaults to the initiator alone, which
+   * is what starting a channel means — you are in it, waiting.
+   *
+   * A channel created to receive a conversation that is moving is the other
+   * case: the people walking in are whoever was standing in the channel being
+   * left, which is not everybody who belongs and need not include whoever the
+   * conversation began with.
+   */
+  present?: UserId[];
 }): ChannelState {
   const { id, initiator, invitees, now } = params;
   const participants = [initiator, ...invitees];
@@ -54,21 +71,30 @@ export function createChannel(params: {
   if (participants.length > MAX_CHANNEL_PARTICIPANTS) {
     throw new Error(`A channel holds at most ${MAX_CHANNEL_PARTICIPANTS} people.`);
   }
+  const present = params.present ?? [initiator];
+  if (present.some((id) => !participants.includes(id))) {
+    throw new Error('A channel cannot open with someone who does not belong.');
+  }
   return {
     id,
+    mediaRoom: params.mediaRoom ?? id,
     name: null,
     description: null,
     initiator,
     participants,
     invitedBy: Object.fromEntries(invitees.map((i) => [i, initiator])),
+    invited: {},
     createdAt: now,
     lastActiveAt: now,
     status: 'active',
     endedAt: null,
     // Creating a channel is entering it: the initiator is present immediately
     // and waits there for as long as it takes anyone else to join.
-    present: [initiator],
-    everPresent: [initiator],
+    present,
+    // Identical to `present` rather than to the roster: having been here is
+    // what separates a channel you have opened from one you were added to,
+    // and everyone else has still only been added.
+    everPresent: present,
     floor: initialFloorState(),
     selfMuted: Object.fromEntries(participants.map((p) => [p, false])),
     recording: initialRecordingState(),
@@ -80,6 +106,29 @@ export function createChannel(params: {
 
 export function isParticipant(state: ChannelState, userId: UserId): boolean {
   return state.participants.includes(userId);
+}
+
+/**
+ * Whether anybody has named this channel — the one distinction that decides
+ * what an invitation does.
+ *
+ * A named channel is a place. It has a name its members say to each other, it
+ * keeps its recordings under that name, and people can be brought into it; a
+ * second named channel with the same members is perfectly sensible, because
+ * the name is what tells them apart.
+ *
+ * An unnamed channel is not a place but a set of people talking, described
+ * rather than named — which is why there can only ever be one per set. Two
+ * would be indistinguishable on Home, both rendered as the same list of names,
+ * and nothing could tell you which one anybody meant.
+ */
+export function isNamed(state: ChannelState): boolean {
+  return state.name !== null;
+}
+
+/** Whether `userId` has an outstanding invitation here without belonging yet. */
+export function isInvited(state: ChannelState, userId: UserId): boolean {
+  return userId in state.invited;
 }
 
 /** Everyone in the channel except `userId`, in participant order. */
@@ -330,6 +379,19 @@ export function reduce(
     };
   }
 
+  // Bookkeeping that follows a move. Both are the server reporting something
+  // it has already done elsewhere, so neither carries an actor to authorise.
+  if (action.type === 'TAKE_MEDIA_ROOM') {
+    if (state.mediaRoom === action.room) return state;
+    return { ...state, mediaRoom: action.room };
+  }
+
+  if (action.type === 'INVITE_TAKEN') {
+    if (!(action.inviteeId in state.invited)) return state;
+    const { [action.inviteeId]: _taken, ...invited } = state.invited;
+    return { ...state, invited };
+  }
+
   if (!isParticipant(state, action.userId)) return state;
 
   switch (action.type) {
@@ -369,6 +431,18 @@ export function reduce(
 
     case 'INVITE': {
       if (!canInvite(state, action.userId, action.inviteeId)) return state;
+
+      // An unnamed channel does not widen. It is its people and nothing else,
+      // so asking somebody in cannot mean "and now we are four" — it means the
+      // conversation is going somewhere that is those four. The invitation
+      // waits here; the server settles where when they arrive.
+      if (!isNamed(state)) {
+        return {
+          ...state,
+          invited: { ...state.invited, [action.inviteeId]: action.userId },
+        };
+      }
+
       return {
         ...state,
         participants: [...state.participants, action.inviteeId],

@@ -63,6 +63,15 @@ interface AppState {
   me: PublicAccount | null;
   home: HomeView | null;
   channelView: ChannelView | null;
+  /**
+   * The last move the server reported: a conversation that changed channels
+   * because somebody was asked into an unnamed one and arrived.
+   *
+   * Kept as state rather than delivered as an event because the screen that
+   * has to follow it may not be mounted at the moment it lands — coming back
+   * to a channel you were in should land you where its people actually are.
+   */
+  movedChannel: { from: string; to: string } | null;
   status: ConnectionStatus;
   lastError: string | null;
 }
@@ -131,10 +140,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * because a dismissal is an action, and one that forgets itself the moment
    * you navigate away is not really a dismissal.
    *
-   * Keyed by channel, so it is permanent for that invitation and no longer:
-   * there is only ever one live channel per set of people, so being invited
-   * again means a new channel with a new id, which raises a new banner. That
-   * gives both halves of what a dismissal should mean without a second rule.
+   * Keyed by channel, so it is permanent for that invitation and no longer.
+   * Being asked again raises a new banner whenever it is a different channel
+   * asking, which is what gives both halves of what a dismissal should mean
+   * without a second rule. Two people do share one unnamed channel, though, so
+   * a second invitation from the same person into the same unnamed channel is
+   * the case this does *not* re-raise.
    *
    * It does not survive relaunching the app. Channels are short-lived, and
    * reopening to see what is currently live is reasonable rather than a fault.
@@ -169,6 +180,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     me: null,
     home: null,
     channelView: null,
+    movedChannel: null,
     status: 'closed',
     lastError: null,
   });
@@ -210,6 +222,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               ? { ...s, channelView: null }
               : s
           ),
+        // The conversation is in another channel now. Recorded rather than
+        // acted on here: the screen showing it has to follow, and only it
+        // knows whether it is the screen in question.
+        //
+        // The snapshot is left alone. One for the destination is already on
+        // its way — the socket re-watched before handing this over — and
+        // blanking it in between would flash the channel screen empty.
+        onChannelMoved: (from, to) =>
+          setState((s) => ({ ...s, movedChannel: { from, to } })),
         onStatus: (status) => setState((s) => ({ ...s, status })),
         onError: (message) => setState((s) => ({ ...s, lastError: message })),
       });
@@ -311,6 +332,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         me: null,
         home: null,
         channelView: null,
+        movedChannel: null,
         status: 'closed',
         lastError:
           'You were signed out. Signing in on another device ends the channel here.',
@@ -384,6 +406,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           me: null,
           home: null,
           channelView: null,
+          movedChannel: null,
           status: 'closed',
           lastError: null,
         });

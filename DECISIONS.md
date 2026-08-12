@@ -18,6 +18,14 @@ were at the time — `SessionView`, `SessionState` — and those are now
 called sessions and are unrelated: the auth session behind a bearer token, and
 LiveKit's `AudioSession`. Neither was renamed.
 
+**And a channel is never called a room.** The word belongs to Clubhouse, and a
+product that borrows a competitor's vocabulary invites the comparison it should
+be avoiding. The media layer does use it — `closeRoom`, `setSilenced({ room })`,
+`issueToken({ room, identity })`, `new Room(...)` in the app — because it is
+LiveKit's own term for a LiveKit thing, and none of it reaches a screen. The
+test is whether a user could ever read the word: in the code it is the media
+plane's vocabulary; in the interface it does not exist.
+
 ---
 
 ## Shared audio playback during a channel
@@ -689,6 +697,109 @@ Two things it deliberately does *not* do:
   no bearing on the floor.
 - **Unmuting is never refused.** `canSetSelfMute` gates only `muted: true`, so
   the guard can never strand somebody inaudible.
+
+---
+
+## One *unnamed* channel per set of people, and inviting moves the conversation
+
+The rule was one live channel per set of people, full stop. It existed so that
+repeated taps could not stack duplicates and leave an invitee with a pile of
+banners from one person. It is now narrower — one **unnamed** channel per set —
+and that narrowing is what makes naming a channel mean something.
+
+The distinction it rests on already existed and was only ever cosmetic. A named
+channel has a string every member reads and can say aloud to another member. An
+unnamed one has a *description*, written from the viewer's side: you see "Dana
+Chu", she sees your name. So an unnamed channel is not a place at all — it is
+these people, talking — and that is why there can only be one of them per set.
+Two would be indistinguishable on Home, both rendered as the same list of
+names, and nothing could tell you which one anybody meant. Two *named* channels
+holding the same people are perfectly sensible, because the name is what tells
+them apart. Naming a channel is therefore the act that turns a conversation
+into a place, and the reward for it is that you may have another.
+
+### What inviting somebody now does
+
+A named channel takes people in: `INVITE` adds a participant, exactly as it
+always did. An unnamed channel cannot, because there is nothing to add them
+*to* — it is its people, and a different set of people is a different channel.
+So the invitation is recorded rather than applied, and when the invitee
+arrives, everybody moves to the unnamed channel for the wider set. If one
+already exists this is a change of channel and nothing is created; if not, it
+is created on the spot.
+
+**The move happens when the invitee arrives, not when the invitation is sent.**
+Moving at invite time was the simpler build by some distance — it needs no new
+concept, the invitation stays ordinary membership — but it strands the people
+who did not do anything: A and B end up in a channel whose identity claims C is
+in it, on the strength of a question C has not answered and may never answer.
+
+The cost of the choice is a genuinely new thing in the model. An invitation
+into an unnamed channel cannot be membership, because the channel it would be
+membership of is not this one and may not exist yet. It lives in `invited` on
+the channel it was sent from, which is also the channel it is *answered* at —
+the invitee is shown that channel, taps to join it, and the server settles
+where they actually land. `dispatch` therefore has one carefully drawn hole in
+its authorisation: a non-participant may send `ENTER`, and only `ENTER`, and
+only when they hold an invitation. Everything else still refuses them.
+
+### What travels, and what stays
+
+Presence travels. Membership does not. The channel left behind keeps its
+roster, its description and every recording made in it, and stays on the Home
+of everyone who belongs to it. A conversation moving on is not a reason to
+destroy what was said before it did — and it would have been destruction, since
+recordings belong to their channel and go when it goes.
+
+Whatever was playing stays too, along with its file and its position, and its
+playback participant is disconnected on the way out rather than left publishing
+into a room that now belongs to somebody else.
+
+### The audio does not move, which is the whole reason `mediaRoom` exists
+
+A LiveKit room used to be named after the channel — `app.ts` said so in as many
+words. A move would then change the room name, and every participant's
+connection would be torn down and rebuilt to express something that is pure
+bookkeeping: a dropped call, a fresh token, a renegotiation, all to say "this
+conversation is now called something else".
+
+So `ChannelState` carries a `mediaRoom` distinct from its id, and the
+destination **inherits** it from the channel people are walking out of. Nothing
+reconnects. The client keys its connection on the room rather than the channel
+id, which is what makes an unchanged room an unchanged socket, and asks for a
+credential by channel id only when it is actually connecting.
+
+The channel left behind is handed a fresh room in the same breath. Two channels
+naming one room would put whoever later walked into the empty one straight into
+the conversation that moved on without them — the sharpest edge in the whole
+change, and invisible until somebody hears a voice they should not.
+
+`room` stays the media plane's word. It never reaches the interface; see the
+note on vocabulary at the top of this file.
+
+### Clearing a name is refused when it would make a second unnamed channel
+
+It looks like a harmless undo and is not: it hands the channel back to the
+one-per-set rule, and if those people already have an unnamed channel there
+would then be two of them. Refused out loud with a sentence saying why, because
+reducer silence here reads as a dead button. Renaming is always free.
+
+### What an old build does with all this
+
+The wire change is additive — two new fields on the channel snapshot and one
+new server message — so build 23 goes on working, with three known dents:
+
+- A conversation that moves out from under it leaves it watching the channel
+  everybody left, showing itself absent. The destination is on Home as an
+  ordinary row, so it is two taps away rather than lost.
+- Invitations it sends into unnamed channels are recorded correctly by the
+  server, but its own screen shows nothing happening, there being no
+  participant added.
+- Accepting one lands the user in the new channel and then tells that build the
+  old one is gone, since it is no longer a member of it. Same recovery: Home.
+
+Non-moving channels are untouched, `mediaRoom` being equal to the channel id
+for every channel that has never moved.
 
 ---
 

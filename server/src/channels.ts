@@ -12,6 +12,8 @@ import {
   canControlPlayback,
   canDeleteChannel,
   createChannel,
+  isInvited,
+  isNamed,
   isParticipant,
   otherParticipants,
   reduce,
@@ -37,6 +39,17 @@ import type { MediaServer, PlaybackSession } from './media';
 import type { RecordingStore } from './storage';
 import { createPushNotifier, type PushNotifier } from './push';
 
+/**
+ * A conversation that has changed channels, and who it took with it. `userIds`
+ * is everyone the move actually moved — whoever was standing in `from`, plus
+ * the person whose arrival caused it.
+ */
+export interface Move {
+  from: string;
+  to: string;
+  userIds: string[];
+}
+
 export const TICK_INTERVAL_MS = 500;
 
 /** How often deleted rows past their week are looked for. */
@@ -54,14 +67,20 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 export const ANNOUNCE_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
- * The stem key for shared playback, and the room identity it publishes under.
+ * The stem key for shared playback, and the identity it publishes under.
  *
  * A name rather than a user id, because it is not a user: it never claims the
  * floor, is never silenced, and so never appears in the floor timeline. User
  * ids are minted with a `usr_` prefix, so this cannot collide with one.
+ *
+ * Keyed by channel rather than by room, and it was called `mediaRoomIdentity`
+ * until a channel gained a `mediaRoom` of its own, at which point the name read
+ * as the room's identity rather than the publisher's. Uniqueness holds either
+ * way: two channels never share a room, and a conversation leaving one closes
+ * its playback on the way out rather than leaving this connected behind it.
  */
 export const MEDIA_IDENTITY = 'media';
-export const mediaRoomIdentity = (channelId: string) => `media:${channelId}`;
+export const playbackIdentity = (channelId: string) => `media:${channelId}`;
 
 /**
  * The actions a client is allowed to send, as opposed to the ones the server
@@ -220,6 +239,7 @@ export class ChannelRegistry {
   /** The uploaded file per channel, and the directory to remove with it. */
   private trackFiles = new Map<string, { file: string; dir: string }>();
   private listeners = new Set<(channelIds: string[]) => void>();
+  private moveListeners = new Set<(move: Move) => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   /**
@@ -317,8 +337,44 @@ export class ChannelRegistry {
     return () => this.listeners.delete(listener);
   }
 
+  /**
+   * The live unnamed channel holding exactly these people, if there is one.
+   *
+   * *Exactly*: a superset is a different conversation and a subset is the one
+   * you are leaving. This is the lookup the whole design rests on — it decides
+   * whether starting a channel opens a new one, and whether a move lands
+   * somewhere that already exists or somewhere created on the spot.
+   *
+   * Named channels are invisible to it, which is what lets a set of people
+   * keep a permanent named channel and still have an ordinary unnamed one.
+   */
+  private unnamedChannelFor(people: string[]): ChannelState | undefined {
+    const want = new Set(people);
+    return [...this.channels.values()].find(
+      (channel) =>
+        channel.status === 'active' &&
+        !isNamed(channel) &&
+        channel.participants.length === want.size &&
+        channel.participants.every((id) => want.has(id))
+    );
+  }
+
   private emit(channelIds: string[]): void {
     for (const listener of this.listeners) listener(channelIds);
+  }
+
+  /**
+   * Told when a conversation moves, which no snapshot can express: the people
+   * are simply absent from one channel and present in another, and a client
+   * watching the first has no way to guess where they went.
+   */
+  onMove(listener: (move: Move) => void): () => void {
+    this.moveListeners.add(listener);
+    return () => this.moveListeners.delete(listener);
+  }
+
+  private emitMove(move: Move): void {
+    for (const listener of this.moveListeners) listener(move);
   }
 
   // --- Commands -----------------------------------------------------------
@@ -349,17 +405,15 @@ export class ChannelRegistry {
       }
     }
 
-    // One live channel per *set* of people. Without this, repeated taps stack
-    // duplicate channels and the invitees see a pile of banners from one
-    // person. Same people plus or minus one is a different channel — that is
-    // what invites are for.
-    const want = new Set([initiator, ...unique]);
-    const existing = [...this.channels.values()].find(
-      (s) =>
-        s.status === 'active' &&
-        s.participants.length === want.size &&
-        s.participants.every((id) => want.has(id))
-    );
+    // One live *unnamed* channel per set of people. Without this, repeated taps
+    // stack duplicates and the invitees see a pile of banners from one person
+    // — and worse, nothing on Home could tell those channels apart, an unnamed
+    // channel being displayed as the list of who is in it.
+    //
+    // Named channels are exempt, and that is the whole point of naming one. A
+    // name is what distinguishes two channels holding the same people, so once
+    // there is one there may be as many as they like.
+    const existing = this.unnamedChannelFor([initiator, ...unique]);
     if (existing) {
       this.stepOutOfOthers(initiator, existing.id);
       const rejoined = reduce(
@@ -438,6 +492,13 @@ export class ChannelRegistry {
     const channel = this.channels.get(channelId);
     if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
     if (!isParticipant(channel, userId)) {
+      // One thing a non-participant may do: answer an invitation. It is the
+      // only action whose whole purpose is to change whether you belong, and
+      // an unnamed channel's invitation is deliberately not membership — see
+      // `acceptInvitation` for where answering it actually lands you.
+      if (action.type === 'ENTER' && isInvited(channel, userId)) {
+        return this.acceptInvitation(channel, userId);
+      }
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }
     if (!CLIENT_ACTIONS.has(action.type)) {
@@ -467,10 +528,25 @@ export class ChannelRegistry {
       if (!this.accounts.areContacts(userId, contactId)) {
         return { ok: false, error: 'Not a contact.', code: 'forbidden' };
       }
-      return this.apply(channelId, userId, {
+      const invited = this.apply(channelId, userId, {
         type: 'INVITE',
         inviteeId: contactId,
       } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+      // The same second delivery `create` sends, for the same reason: the
+      // in-app banner is the primary path and reaches nobody whose app is
+      // closed. It matters more here than it used to — an unnamed channel's
+      // invitation is now the only way anyone else joins a conversation in
+      // progress, and it is answered rather than merely noticed.
+      if (invited.ok) {
+        this.push.notify([contactId], {
+          title: this.displayName(userId),
+          body: isNamed(channel)
+            ? `Invited you to ${channel.name}.`
+            : 'Invited you to a channel.',
+          channelId,
+        });
+      }
+      return invited;
     }
 
     // Both departures are refused out loud rather than left to the reducer's
@@ -505,8 +581,28 @@ export class ChannelRegistry {
     // here is that the payload carries a string at all, the wire giving no
     // guarantee of even that.
     if (action.type === 'SET_NAME') {
-      if (typeof (action as { name?: unknown }).name !== 'string') {
+      const name = (action as { name?: unknown }).name;
+      if (typeof name !== 'string') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      // Clearing a name is not the harmless undo it looks like: it hands this
+      // channel back to the one-per-set rule, and if these people already have
+      // an unnamed channel there would then be two, indistinguishable on Home
+      // and both described by the same list of names. Refused out loud —
+      // reducer silence here would read as a dead button.
+      //
+      // Only a *clear* is checked. Renaming is always free, a name being what
+      // tells two channels of the same people apart.
+      if (name.trim() === '' && isNamed(channel)) {
+        const existing = this.unnamedChannelFor(channel.participants);
+        if (existing && existing.id !== channelId) {
+          return {
+            ok: false,
+            error:
+              'You already have a channel with these people and no name. Rename this one instead of clearing it.',
+            code: 'conflict',
+          };
+        }
       }
     }
 
@@ -680,6 +776,188 @@ export class ChannelRegistry {
    * It lives here rather than in the reducer because the reducer sees one
    * channel at a time and this is a fact about a person across all of them.
    */
+  /**
+   * Answers an unnamed channel's invitation, which is not a way into that
+   * channel but the moment a conversation moves.
+   *
+   * An unnamed channel is its people. So `source` does not gain `userId` —
+   * everybody in it walks, together, into the unnamed channel for the wider
+   * set. That channel may already exist, in which case this is a change of
+   * channel and nothing is created; otherwise it is made here.
+   *
+   * What travels is presence, not membership. `source` keeps its roster, its
+   * description and every recording made in it, and stays on the Home of
+   * everyone who belongs to it — a conversation moving on is not a reason to
+   * destroy what was said before.
+   *
+   * The audio does travel, and that is the whole reason `mediaRoom` exists:
+   * the destination takes over the room these people are already talking in,
+   * so a move costs nobody a reconnection. `source` is handed a fresh room in
+   * the same breath, because two channels naming one room would put whoever
+   * walked back into the empty one inside the conversation that left it.
+   */
+  private acceptInvitation(
+    source: ChannelState,
+    userId: string
+  ): { ok: true; channel: ChannelState } | Refused {
+    const inviter = source.invited[userId];
+
+    // Named since the invitation was made, and a named channel is a place
+    // rather than a set of people: it takes newcomers in, so this resolves as
+    // the ordinary join it would have been had the name come first.
+    if (isNamed(source)) {
+      // Whoever asked, unless they have since left — the reducer will not take
+      // an invitation from somebody who is no longer in the channel, and an
+      // invitation that quietly did nothing is worse than one credited to the
+      // person whose channel it is.
+      const asker =
+        inviter && isParticipant(source, inviter) ? inviter : source.initiator;
+      this.apply(source.id, asker, {
+        type: 'INVITE',
+        inviteeId: userId,
+      } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+      this.applyServer(source.id, { type: 'INVITE_TAKEN', inviteeId: userId });
+      this.stepOutOfOthers(userId, source.id);
+      return this.apply(source.id, userId, { type: 'ENTER' });
+    }
+
+    const people = [...source.participants, userId];
+    if (people.length > MAX_CHANNEL_PARTICIPANTS) {
+      return {
+        ok: false,
+        error: `Channels hold up to ${MAX_CHANNEL_PARTICIPANTS} people.`,
+        code: 'conflict',
+      };
+    }
+
+    // Whoever is standing in the source right now. Read before anything moves,
+    // because stepping the first of them out changes it.
+    const movers = [...source.present];
+    const now = this.now();
+
+    // Nothing to hand over when nobody was there: an invitation answered an
+    // hour later moves no audio, and the source keeps the room it never left.
+    const handOver = movers.length > 0;
+
+    // Whatever was playing belongs to the channel it was loaded into, along
+    // with its file and its position. Closed rather than carried, so no stale
+    // publisher is left in a room that now belongs to somebody else.
+    if (handOver) this.closePlayback(source.id);
+
+    // Out of the source first, through the ordinary path: a departing
+    // floor-holder releases the floor, and a source left empty stops its
+    // recording — which stays with the source, being a recording of what was
+    // said there.
+    for (const mover of movers) {
+      this.apply(source.id, mover, { type: 'STEP_OUT' });
+    }
+
+    const room = source.mediaRoom;
+    if (handOver) {
+      this.applyServer(source.id, { type: 'TAKE_MEDIA_ROOM', room: newId('room') });
+    }
+
+    let target = this.unnamedChannelFor(people);
+    if (target) {
+      if (handOver) {
+        this.applyServer(target.id, { type: 'TAKE_MEDIA_ROOM', room });
+      }
+    } else {
+      target = this.createMoved(source, userId, inviter, handOver ? room : undefined, now);
+    }
+
+    // The invitation is spent whether it created a channel or found one.
+    this.applyServer(source.id, { type: 'INVITE_TAKEN', inviteeId: userId });
+
+    for (const mover of movers) {
+      this.apply(target.id, mover, { type: 'ENTER' });
+    }
+    this.stepOutOfOthers(userId, target.id);
+    const arrived = this.apply(target.id, userId, { type: 'ENTER' });
+    // Before the snapshots, so a client is told where everybody went before it
+    // is shown a channel they are no longer in.
+    this.emitMove({ from: source.id, to: target.id, userIds: [...movers, userId] });
+    this.emit([source.id, target.id]);
+    return arrived;
+  }
+
+  /**
+   * The unnamed channel for a widened set, created because there was not one.
+   *
+   * It is the source continued rather than a fresh start, so it keeps the
+   * source's initiator and its record of who invited whom; only the newcomer
+   * is new. Nobody who was not standing in the source is marked as having been
+   * here, which is what keeps it off their Home as anything but an invitation.
+   */
+  private createMoved(
+    source: ChannelState,
+    invitee: string,
+    inviter: string | undefined,
+    mediaRoom: string | undefined,
+    now: number
+  ): ChannelState {
+    const participants = [...source.participants, invitee];
+    const id = insertWithUniqueKey(
+      () => newId('chan'),
+      (candidate) =>
+        this.db
+          .prepare(
+            `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
+             VALUES (?, ?, ?, ?, ?)`
+          )
+          .run(
+            candidate,
+            source.initiator,
+            // The legacy two-party columns are anchors for old rows and are
+            // never read for new ones; participants is the truth.
+            participants[1] ?? invitee,
+            now,
+            JSON.stringify(participants)
+          )
+    );
+
+    const created = createChannel({
+      id,
+      initiator: source.initiator,
+      invitees: participants.filter((p) => p !== source.initiator),
+      now,
+      mediaRoom,
+      // Empty, and filled by the same ENTER loop that fills a destination
+      // which already existed. One path for both, so arriving cannot mean two
+      // different things depending on whether the channel had to be made.
+      present: [],
+    });
+    const channel: ChannelState = {
+      ...created,
+      // Carried over rather than recomputed: how each of these people came to
+      // be in this conversation did not change by the conversation moving, and
+      // an invitation names whoever actually asked.
+      invitedBy: {
+        ...source.invitedBy,
+        [invitee]: inviter ?? source.initiator,
+      },
+    };
+    this.channels.set(channel.id, channel);
+    this.persistChannel(channel);
+    return channel;
+  }
+
+  /**
+   * An action with no actor to authorise — the server reporting something it
+   * has done, rather than anyone performing it.
+   */
+  private applyServer(
+    channelId: string,
+    action: Extract<ChannelAction, { type: 'TAKE_MEDIA_ROOM' | 'INVITE_TAKEN' }>
+  ): void {
+    const channel = this.channels.get(channelId);
+    if (!channel) return;
+    const next = reduce(channel, action, this.now());
+    if (next === channel) return;
+    this.commit(channel, next);
+    this.emit([channelId]);
+  }
+
   private stepOutOfOthers(userId: string, keep: string): void {
     for (const id of this.channelsFor(userId)) {
       if (id !== keep) this.apply(id, userId, { type: 'STEP_OUT' });
@@ -710,19 +988,35 @@ export class ChannelRegistry {
     return channel;
   }
 
-  /** A channel this user was invited into and has never entered. */
+  /**
+   * A channel this user has been asked into and has never entered.
+   *
+   * Two shapes, presented identically because they are the same question. In a
+   * named channel an invitation is membership without presence. In an unnamed
+   * one it cannot be — answering it moves everybody somewhere else, possibly
+   * somewhere that does not exist yet — so it is an entry in `invited`, and
+   * the channel named here is the one to answer *at*, not the one you end up
+   * in. `acceptInvitation` settles that.
+   */
   invitesFor(userId: string): InviteView[] {
     const invites: InviteView[] = [];
     for (const channel of this.channels.values()) {
       if (channel.status !== 'active') continue;
-      if (!isParticipant(channel, userId)) continue;
-      if (channel.everPresent.includes(userId)) continue;
+      const asked = isInvited(channel, userId);
+      if (!asked) {
+        if (!isParticipant(channel, userId)) continue;
+        if (channel.everPresent.includes(userId)) continue;
+      }
       // Named after whoever actually asked, which for a mid-channel invite is
       // not necessarily the initiator.
       const from = this.accounts.public(
-        channel.invitedBy[userId] ?? channel.initiator
+        channel.invited[userId] ?? channel.invitedBy[userId] ?? channel.initiator
       );
-      if (from) {
+      // Never from yourself. A channel that a move created holds people who
+      // have not been in it yet, and its initiator is whoever began the
+      // conversation it continues — so without this, the person who started it
+      // is invited by themselves to the room they are standing in.
+      if (from && from.id !== userId) {
         invites.push({ channelId: channel.id, from, createdAt: channel.createdAt });
       }
     }
@@ -968,7 +1262,11 @@ export class ChannelRegistry {
       // A backstop, not the mechanism: participants leave on their own once
       // told the channel ended. This guarantees the room does not outlive it.
       setTimeout(() => {
-        this.run(() => this.media?.closeRoom(after.id), `closeRoom ${after.id}`);
+        // The channel's own room, which is not always the one named after it:
+        // a channel that received a moving conversation is holding somebody
+        // else's, and closing by id would tear down a room it does not own.
+        const room = after.mediaRoom;
+        this.run(() => this.media?.closeRoom(room), `closeRoom ${room}`);
       }, this.roomCloseGraceMs).unref?.();
       // Keep it briefly so watchers get a final snapshot explaining why it
       // ended, rather than the channel vanishing from under them.
@@ -1084,7 +1382,7 @@ export class ChannelRegistry {
           pending.add(speaker);
         };
         this.media
-          .setSilenced({ room: state.id, speaker, listener, silenced })
+          .setSilenced({ room: state.mediaRoom, speaker, listener, silenced })
           .then(
             // Only an unapplied *silence* needs retrying: an unapplied
             // un-silence means there was nothing subscribed to restore.
@@ -1210,7 +1508,7 @@ export class ChannelRegistry {
     this.run(
       async () => {
         const handle = await this.media!.startRecording({
-          room: state.id,
+          room: state.mediaRoom,
           identity,
           key,
         });
@@ -1325,14 +1623,19 @@ export class ChannelRegistry {
     if (this.openingPlayback.has(channelId)) return;
     const entry = this.trackFiles.get(channelId);
     if (!entry) return;
+    // Read now rather than inside the call: which room this channel's audio is
+    // in is a property of the channel, and the only thing that changes it is a
+    // move, which closes playback before it happens.
+    const room = this.channels.get(channelId)?.mediaRoom;
+    if (!room) return;
 
     this.openingPlayback.add(channelId);
     this.run(
       async () => {
         try {
           const channel = await this.media!.openPlayback({
-            room: channelId,
-            identity: mediaRoomIdentity(channelId),
+            room,
+            identity: playbackIdentity(channelId),
             displayName: 'Shared audio',
             file: entry.file,
             onFailure: (error) => this.playbackFailed(channelId, error),
@@ -1572,7 +1875,7 @@ export class ChannelRegistry {
     if (!account) return { ok: false, error: 'No such account.', code: 'not_found' };
 
     const token = await this.media.issueToken({
-      room: channelId,
+      room: channel.mediaRoom,
       identity: userId,
       displayName: account.displayName,
     });
@@ -1597,6 +1900,14 @@ export class ChannelRegistry {
       initiator: channel.initiator,
       participants: channel.participants,
       invitedBy: channel.invitedBy,
+      // Both of these outlive the process, and for the same reason: they are
+      // facts about the channel rather than about the conversation running in
+      // it. An unanswered invitation is still unanswered after a restart, and
+      // a channel that inherited its audio still owns that room — restoring it
+      // as the channel id would silently split a moved conversation in two,
+      // the far end still holding tokens for the room it was handed.
+      invited: channel.invited,
+      mediaRoom: channel.mediaRoom,
       everPresent: channel.everPresent,
       status: channel.status,
       endedAt: channel.endedAt,
@@ -1728,7 +2039,10 @@ export class ChannelRegistry {
       // notification is quiet, and the alternative is every phone lighting up
       // every time the server is restarted.
       this.lastAnnouncedAt.set(channel.id, now);
-      this.run(() => this.media?.closeRoom(row.id), `closeRoom ${row.id}`);
+      // The revived channel's room, which a channel that has moved does not
+      // share with its id.
+      const room = channel.mediaRoom;
+      this.run(() => this.media?.closeRoom(room), `closeRoom ${room}`);
     }
 
     // An uploaded track belongs to one channel of one process, and dies with
@@ -1794,6 +2108,8 @@ export class ChannelRegistry {
       initiator?: string;
       participants?: string[];
       invitedBy?: Record<string, string>;
+      invited?: Record<string, string>;
+      mediaRoom?: string;
       everPresent?: string[];
       lastActiveAt?: number;
       lastRecording?: ChannelState['lastRecording'];
@@ -1803,11 +2119,15 @@ export class ChannelRegistry {
       (row.participants ? (JSON.parse(row.participants) as string[]) : []);
     return {
       id: row.id,
+      // Written before this field existed means never moved, and a channel
+      // that has never moved talks in the room named after it.
+      mediaRoom: durable.mediaRoom ?? row.id,
       name: durable.name ?? row.name ?? null,
       description: durable.description ?? row.description ?? null,
       initiator: durable.initiator ?? row.initiator_id,
       participants,
       invitedBy: durable.invitedBy ?? {},
+      invited: durable.invited ?? {},
       createdAt: row.created_at,
       // Channels written before this field existed fall back to their creation
       // — the same order they had before, rather than all of them at zero.

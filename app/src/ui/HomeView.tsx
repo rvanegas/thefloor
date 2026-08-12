@@ -79,10 +79,21 @@ export function HomeView({
   // BACKLOG.md for when that field goes too.
 
   /**
-   * A live channel *containing* each contact, if there is one. The server
-   * keeps one live channel per set of people, so a 1:1 tap on someone already
-   * in a channel with you would rejoin it rather than make a second — and the
-   * contact row must not offer to start what has already begun.
+   * The channel that tapping a contact would reopen, if there is one — which
+   * is the *unnamed* channel holding exactly the two of you, and nothing else.
+   *
+   * Both halves of that are load-bearing, and this used to have neither. It
+   * matched any channel the contact appeared in, so a named three-person
+   * channel made a contact read "Channel already open" when tapping them would
+   * have opened something else entirely: Erta showed as open because she was
+   * in Product Meeting with two other people.
+   *
+   * The rule it must mirror is the server's. One unnamed channel per set of
+   * people, so a 1:1 tap on somebody you have an unnamed channel with reopens
+   * that one rather than making a second — and nothing else answers for it. A
+   * named channel does not, because a name is exactly what makes a second
+   * channel with the same people sensible. A wider channel does not either: it
+   * is a different set of people.
    *
    * `shown` is whether that channel already has its own affordance above, as a
    * banner or a rejoin row. When it does, the contact row says so and offers
@@ -103,9 +114,12 @@ export function HomeView({
   // fresh start; reading the filtered list offered it, which is the one case
   // where the offer is plainly absurd.
   for (const channel of rejoinable) {
-    for (const other of channel.others) {
-      channelWith.set(other.id, { channelId: channel.channelId, shown: true });
-    }
+    if (channel.name !== null) continue;
+    if (channel.others.length !== 1) continue;
+    channelWith.set(channel.others[0].id, {
+      channelId: channel.channelId,
+      shown: true,
+    });
   }
 
   /**

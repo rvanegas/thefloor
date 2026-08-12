@@ -311,6 +311,65 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
+  it('goes on offering to start one when the only channel with them is named', () => {
+    // From a screenshot: Erta read "Channel already open" because Erta was in
+    // Product Meeting, a named three-person channel. Tapping her would not
+    // have opened that — a name is exactly what makes a second channel with
+    // the same people sensible, and there was no unnamed one to reopen.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_named',
+          name: 'Product Meeting',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    expect(findButton(tree, 'Start channel')).toBeDefined();
+    expect(textOf(tree)).not.toContain('Channel already open');
+    act(() => tree.unmount());
+  });
+
+  it('goes on offering to start one when the unnamed channel is a wider one', () => {
+    // Three people is a different set from two, and it has its own unnamed
+    // channel. Tapping this contact opens the one that is just the two of you.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_trio',
+          name: null,
+          others: [
+            { id: THEM, displayName: 'Dana Chu' },
+            { id: 'usr_c', displayName: 'Sam Reyes' },
+          ],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    expect(findButton(tree, 'Start channel')).toBeDefined();
+    expect(textOf(tree)).not.toContain('Channel already open');
+    act(() => tree.unmount());
+  });
+
   it('does not offer to start the one you are standing in', () => {
     // The channel you are in is shown as the banner rather than as a row, and
     // reading the list with that row filtered out left the person you are

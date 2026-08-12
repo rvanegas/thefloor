@@ -26,6 +26,12 @@ export interface RealtimeHandlers {
   onHome?: (home: HomeView) => void;
   onChannel?: (view: ChannelView) => void;
   onChannelGone?: (channelId: string) => void;
+  /**
+   * The conversation moved to another channel — somebody was asked into an
+   * unnamed one and arrived. The audio does not need touching; the destination
+   * inherited the room.
+   */
+  onChannelMoved?: (from: string, to: string) => void;
   onStatus?: (status: ConnectionStatus) => void;
   onError?: (message: string) => void;
   /** Server time at the moment of the snapshot, for clock alignment. */
@@ -125,6 +131,18 @@ export class Realtime {
         case 'channel.gone':
           if (this.enteredChannel === message.channelId) this.enteredChannel = null;
           this.handlers.onChannelGone?.(message.channelId);
+          break;
+        case 'channel.moved':
+          // The conversation is in a different channel now. Follow it here as
+          // well as upstairs: this is what a reconnect would re-enter, and
+          // re-entering the channel everybody has left would walk back out of
+          // the conversation on the first blip of signal.
+          if (this.enteredChannel === message.from) this.enteredChannel = message.to;
+          if (this.watchedChannel === message.from) {
+            this.send({ type: 'unwatch.channel', channelId: message.from });
+            this.watchChannel(message.to);
+          }
+          this.handlers.onChannelMoved?.(message.from, message.to);
           break;
         case 'error':
           this.handlers.onError?.(message.message);
