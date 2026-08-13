@@ -69,7 +69,15 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently four times on 2026-08-12. The last narrowed the one-per-set rule
+Most recently five times on 2026-08-12. The last added `DELETE /recordings/:id`
+— one recording marked for deletion on the same terms as a deleted channel's,
+swept a week later by the sweep that already existed. No schema change: the
+`deleted_at` column it marks has been there since earlier that day. Verified
+against production afterwards: 11 live recordings, 4 already marked, unchanged
+by the deploy. Purely additive, so every build keeps working; build 27 is the
+one that can ask for it.
+
+Before that, one that narrowed the one-per-set rule
 to *unnamed* channels and made an unnamed channel's invitation move the
 conversation when the invitee arrives — see DECISIONS.md. No migration: two
 fields were added to the state blob, and both default correctly for a channel
