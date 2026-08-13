@@ -38,76 +38,21 @@ follows is what is actually outstanding.
 
 ---
 
-## Backgrounding: real failures, not currently reproducible
+## Presence follows the websocket, not the room
 
-**Status:** investigated 2026-08-07 and 2026-08-08. The audio background mode
-is confirmed working. The failures were real and are not reproducing. Nobody
-has explained why.
-
-### What was observed failing
-
-On 2026-08-07, on a real iPhone: backgrounding the app dropped the phone from
-the LiveKit room within seconds, it did not rejoin, and it did not recover on
-returning to the foreground. On 2026-08-08 a foregrounded channel dropped after
-85 seconds with auto-lock disabled.
-
-Each of those was seen once.
-
-### What was confirmed working
-
-On 2026-08-08, unplugged, on Wi-Fi, instrumented: **six minutes backgrounded
-with no drop**, two of those minutes with the room silent. Across 854,000 lines
-of device log there were zero suspensions and zero releases of the audio
-assertion.
-
-The app holds `com.apple.mediaexperience:MediaPlayback` from `audiomxd` — the
-assertion the `audio` background mode exists to grant. **The audio channel is
-configured correctly.** That was the leading hypothesis for the whole problem
-and it is wrong.
-
-### What is not explained
-
-Nothing in the app changed between the failing runs and the working ones. The
-audio-channel commit (c63726f, removing a duplicate owner) was already in place
-during the 85-second foreground failure. The only changes after that were
-server-side — the track egress fix and a restart — and neither touches the
-phone's audio.
-
-So the difference is unaccounted for. Candidates nobody has tested:
-
-- **Network.** Both failures happened on the same Wi-Fi, but a transient is
-  indistinguishable from a suspension in what we measured.
-- **Accumulated app state.** The failing runs came after many
-  background/foreground cycles; the working ones came after a fresh launch.
-- **Coincidence.** Two observations is not a pattern.
-
-### How to investigate when it recurs
-
-The instrumentation is set up and works without a cable:
-
-    idevicesyslog -n -u <udid> > capture.log
-
-The device is paired for network access ("Show this iPhone when on Wi-Fi" in
-Finder). `server/dev-guest.mjs --status` reads LiveKit room membership and
-`server/dev-channel.mjs` reads the server's own view; both are gitignored.
-
-Useful greps once a drop is caught: `MediaPlayback` for the audio assertion,
-`suspend` for the decision, and the app's bundle id for its lifecycle.
-
-**Do not plug in the phone to investigate.** USB masked the failure entirely —
-plugged in, nothing reproduced across several minutes in either state.
-
-Three separate defects surfaced during this investigation and are worth fixing
-on their own account — the socket-close eviction race, the missing websocket
-heartbeat, and the stale audio status. They are listed under **Known defects**
-below.
-
-### The general lesson
+**Status:** not started. This is what survives the 2026-08 backgrounding
+investigation, which is otherwise closed — see DECISIONS.md for what that
+settled and how to instrument a phone if it ever needs doing again.
 
 Presence is derived from the app's websocket; participation is what happens in
-the LiveKit room. These can disagree for a long time in either direction.
-Presence probably ought to follow room membership — that is exactly "speaking
-or hearing".
+the LiveKit room. These can disagree for a long time in either direction, and
+every symptom that has come of it — a ghost showing as Present, a channel
+invisible to somebody who is in it, a run of empty-to-occupied flaps that are a
+network artefact — has been patched at its own site rather than at the cause.
+
+Presence probably ought to follow room membership, which is exactly "speaking
+or hearing". The work is not small: the five-minute push quiet window, the
+disconnect grace, and the eviction path all read from the socket today.
 
 ---
 
@@ -127,8 +72,9 @@ Every hard problem in this project has been an iOS problem, and each was solved
 against iOS's rules:
 
 - **Background audio** was chased for two days through `UIBackgroundModes`,
-  AVAudioSession ownership and CallKit. Android's foreground-service model is
-  different in every particular, and the work does not transfer.
+  AVAudioSession ownership and CallKit (see DECISIONS.md). Android's
+  foreground-service model is different in every particular, and the work does
+  not transfer.
 - **The audio channel** is started explicitly through
   `@livekit/react-native`'s `AudioSession`, whose behaviour differs by
   platform — `AndroidAudioTypeOptions` exists precisely because the two need
@@ -168,8 +114,8 @@ UI, and nothing wakes the app before the tap.
 - **PushKit** to wake a closed app, which in turn requires **CallKit** — Apple
   requires a PushKit VoIP push to report an incoming call, and will terminate
   an app that takes one without doing so. Note CallKit was ruled out for
-  background *audio* (see above); this is the other thing it is for, and here it
-  would be the right tool.
+  background *audio* (see DECISIONS.md); this is the other thing it is for, and
+  here it would be the right tool.
 - `voip` in `UIBackgroundModes`, removed before the first TestFlight build
   because it did nothing, becomes load bearing again.
 - A second delivery path in `push.ts`: a VoIP push is a different `apns-push-type`

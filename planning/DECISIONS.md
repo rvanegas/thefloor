@@ -1395,3 +1395,57 @@ buttons.
 **It cannot ship over the air.** `userInterfaceStyle` is written into
 `Info.plist` at prebuild, so light mode reaches a phone only through a new
 build. Nothing here touches the wire protocol, `core/`, or the server.
+
+---
+
+## Backgrounded audio was ruled out, and CallKit with it
+
+Investigated 2026-08-07 and 2026-08-08, closed 2026-08-13 having not recurred
+since. This is here rather than in BACKLOG because it is a settled negative
+result: the answer is that the audio channel is not the problem, and the cost
+of not writing that down is somebody spending another two days finding it out.
+
+**What was seen failing.** On 2026-08-07, on a real iPhone: backgrounding the
+app dropped the phone from the LiveKit room within seconds, it did not rejoin,
+and it did not recover on returning to the foreground. On 2026-08-08 a
+*foregrounded* channel dropped after 85 seconds with auto-lock disabled. Each
+was seen once, and neither has been seen since.
+
+**What was confirmed working.** On 2026-08-08, unplugged, on Wi-Fi,
+instrumented: six minutes backgrounded with no drop, two of those minutes with
+the room silent. Across 854,000 lines of device log there were zero suspensions
+and zero releases of the audio assertion. The app holds
+`com.apple.mediaexperience:MediaPlayback` from `audiomxd` — the assertion the
+`audio` background mode exists to grant. **The audio channel is configured
+correctly**, which was the leading hypothesis for the whole problem and is
+wrong.
+
+That is also why **CallKit was ruled out**. It was on the table as the heavier
+way to hold audio alive in the background, and there is nothing for it to fix.
+It becomes the right tool again for a different job — ringing, in
+BACKLOG's notification item — where it is required rather than optional.
+
+Nothing in the app changed between the failing runs and the working ones: the
+audio-channel commit (c63726f, removing a duplicate owner) was already in place
+during the 85-second failure, and the only changes after it were server-side.
+So the difference was never accounted for. The untested candidates were a
+network transient, which is indistinguishable from a suspension in what was
+measured; accumulated state, the failing runs having come after many
+background/foreground cycles and the working ones after a fresh launch; and
+coincidence, two observations not being a pattern.
+
+**How to instrument it if it recurs.** The setup works without a cable:
+
+    idevicesyslog -n -u <udid> > capture.log
+
+The device is paired for network access ("Show this iPhone when on Wi-Fi" in
+Finder). `server/dev-guest.mjs --status` reads LiveKit room membership and
+`server/dev-channel.mjs` reads the server's own view; both are gitignored.
+Useful greps once a drop is caught: `MediaPlayback` for the audio assertion,
+`suspend` for the decision, and the app's bundle id for its lifecycle.
+
+**Do not plug the phone in to investigate.** USB masked the failure entirely —
+plugged in, nothing reproduced across several minutes in either state.
+
+What the investigation did leave behind is the observation that presence and
+room membership are different things, which is still open in BACKLOG.
