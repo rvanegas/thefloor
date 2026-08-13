@@ -12,6 +12,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { MAX_RECORDING_NAME_LENGTH } from '../../../core/constants';
 import type { RecordingView } from '../../../core/protocol';
 import { exportRecording } from '../api/download';
 import { api } from '../api/http';
@@ -273,6 +274,13 @@ export function RecordingRow({
    * undone from inside the app.
    */
   const [open, setOpen] = React.useState(false);
+  /**
+   * The rename field takes the place of the actions rather than joining them,
+   * so a row is either offering things to do or asking for a name — never a
+   * text box wedged between Export and Delete, with Delete a thumb's width
+   * from a keyboard somebody is typing into.
+   */
+  const [renaming, setRenaming] = React.useState(false);
 
   return (
     <Card style={recordingStyles.row}>
@@ -281,7 +289,13 @@ export function RecordingRow({
         accessibilityLabel={`${recording.name}, ${formatDuration(
           recording.durationMs
         )}. ${open ? 'Hide actions' : 'Show actions'}.`}
-        onPress={() => setOpen((current) => !current)}
+        onPress={() => {
+          // Collapsing abandons a rename in progress, so reopening the row
+          // offers the actions again rather than the half-typed name of
+          // whatever the person had changed their mind about.
+          setRenaming(false);
+          setOpen((current) => !current);
+        }}
         style={({ pressed }) => (pressed ? recordingStyles.pressed : undefined)}
       >
         <View style={recordingStyles.main}>
@@ -299,12 +313,17 @@ export function RecordingRow({
         </View>
       </Pressable>
 
-      {open ? (
+      {open && renaming ? (
+        <RenameEditor recording={recording} onDone={() => setRenaming(false)} />
+      ) : null}
+
+      {open && !renaming ? (
         <View style={recordingStyles.actions}>
           {playable ? (
             <PlayButton recording={recording} disabled={playDisabled} />
           ) : null}
           <ExportButton recording={recording} />
+          <Button label="Rename" onPress={() => setRenaming(true)} />
           <DeleteButton recording={recording} />
           {/*
             Beside the disabled button rather than up in the summary line,
@@ -317,6 +336,77 @@ export function RecordingRow({
         </View>
       ) : null}
     </Card>
+  );
+}
+
+/**
+ * Renames a recording, in place of the row's actions.
+ *
+ * Inline rather than an `Alert.prompt`, which would have been three lines:
+ * that is iOS-only, and every other confirmation in this app is an
+ * `Alert.alert` that the tests drive by pulling its buttons out of a spy —
+ * a prompt is the one shape that has neither an Android answer nor a way to
+ * be exercised. A field in the row is also what naming a *channel* looks
+ * like, one screen away.
+ *
+ * Starts on the current name rather than empty, because renaming is usually
+ * amending: "Standup" becomes "Standup, Tuesday". Nothing is done locally on
+ * success — the server pushes a snapshot carrying the new name, and it
+ * carries it to everybody else in the channel at the same moment.
+ */
+function RenameEditor({
+  recording,
+  onDone,
+}: {
+  recording: RecordingView;
+  onDone: () => void;
+}) {
+  const app = useApp();
+  const [name, setName] = React.useState(recording.name);
+  const [busy, setBusy] = React.useState(false);
+
+  const save = async () => {
+    if (!app.token || name.trim() === '') return;
+    setBusy(true);
+    try {
+      await api.renameRecording(app.token, recording.id, name);
+      onDone();
+    } catch (e) {
+      Alert.alert(
+        'Could not rename',
+        e instanceof Error ? e.message : String(e)
+      );
+      // Left open on failure, with what was typed still in it, so a name that
+      // was refused can be fixed rather than retyped.
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={recordingStyles.actions}>
+      <Field
+        value={name}
+        onChangeText={(v) => setName(v.slice(0, MAX_RECORDING_NAME_LENGTH))}
+        placeholder="What was this conversation?"
+        autoCapitalize="sentences"
+        autoFocus
+        onSubmit={() => void save()}
+      />
+      {/*
+        Said before the tap rather than after it: everyone in the channel
+        reads this name, and the person retitling their own recording has no
+        other reason to expect that.
+      */}
+      <Text style={type.muted}>Everyone in this channel sees the new name.</Text>
+      <Button
+        label={busy ? 'Renaming…' : 'Save'}
+        variant="primary"
+        disabled={busy || name.trim() === ''}
+        onPress={() => void save()}
+      />
+      <Button label="Cancel" variant="ghost" disabled={busy} onPress={onDone} />
+    </View>
   );
 }
 

@@ -203,4 +203,18 @@ export const api = {
       method: 'DELETE',
       token,
     }),
+
+  /**
+   * Renames a recording, for everybody in its channel rather than only for
+   * whoever typed — the name is one shared thing, which is what makes it
+   * worth having. The server refuses an empty one; nothing here needs to
+   * re-render on success, since the channel snapshot arrives with the new
+   * name in it.
+   */
+  renameRecording: (token: string, recordingId: string, name: string) =>
+    request<{ ok: true }>(`/recordings/${recordingId}`, {
+      method: 'PATCH',
+      body: { name },
+      token,
+    }),
 };

@@ -49,6 +49,15 @@ export const PLAYBACK_DEFAULT_VOLUME = 0.7;
 export const MAX_CHANNEL_NAME_LENGTH = 60;
 
 /**
+ * The most characters a recording's name may hold.
+ *
+ * The same bound as a channel's, and for the same reason rather than by
+ * coincidence: a named channel lends its name to what it records, so a
+ * recording name that could be longer would be one no rename could restore.
+ */
+export const MAX_RECORDING_NAME_LENGTH = MAX_CHANNEL_NAME_LENGTH;
+
+/**
  * The most characters a channel's description may hold.
  *
  * Roomier than the name because it is prose and may carry links, whose markup

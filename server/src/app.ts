@@ -709,6 +709,33 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true };
   });
 
+  /**
+   * Renames one recording, for everybody in its channel — the name is shared,
+   * so a rename is too. See `renameRecording` for why an empty one is refused
+   * rather than clearing the name.
+   */
+  fastify.patch('/recordings/:id', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = (request.body ?? {}) as { name?: unknown };
+    if (typeof body.name !== 'string') {
+      return reply.code(400).send({ error: 'A name is required.' });
+    }
+
+    const result = channels.renameRecording(id, account.id, body.name);
+    // Not found stays 404 for the reason the other three recording routes give
+    // — that a recording exists is something only its channel's members
+    // learn — but a name this server will not accept is an ordinary 400, and
+    // says so, since the caller already knows the recording is there.
+    if (!result.ok) {
+      return reply
+        .code(result.code === 'not_found' ? 404 : statusFor(result.code))
+        .send({ error: result.error });
+    }
+    return { ok: true };
+  });
+
   fastify.get('/recordings/:id/export', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;

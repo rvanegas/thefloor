@@ -1,4 +1,7 @@
-import { DELETED_RETENTION_MS } from '../../core/constants';
+import {
+  DELETED_RETENTION_MS,
+  MAX_RECORDING_NAME_LENGTH,
+} from '../../core/constants';
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
@@ -12,6 +15,10 @@ import { MemoryRecordingStore } from '../src/storage';
  * going is a mark and a sweep a week later — long enough that a mistake is
  * recoverable by hand, and late enough that the foreign key never points at
  * nothing.
+ *
+ * Renaming a recording is tested here too, for the fixture: it is the other
+ * thing anybody in the channel may do to one, and it turns on the same reach
+ * test as deleting.
  */
 
 let app: App;
@@ -285,6 +292,111 @@ describe('deleting one recording', () => {
     // something only the channel's members should learn.
     expect(response.statusCode).toBe(404);
     expect(rowsOf(channelId)[0].deleted_at).toBeNull();
+  });
+});
+
+describe('renaming one recording', () => {
+  /** What one member of the channel would be shown this recording as. */
+  const nameOf = (channelId: string, recordingId: string, userId: string) =>
+    app.channels
+      .recordingsInChannel(channelId, userId)
+      .find((row) => row.id === recordingId)?.name;
+
+  it('renames it for everybody in the channel, not only whoever typed', async () => {
+    const { alice, bob, channelId } = await recorded();
+    const [recording] = rowsOf(channelId);
+
+    const response = await app.fastify.inject({
+      method: 'PATCH',
+      url: `/recordings/${recording.id}`,
+      headers: auth(alice.token),
+      payload: { name: '  Tuesday planning  ' },
+    });
+    expect(response.statusCode).toBe(200);
+
+    // Trimmed, and the same string for both of them — the whole reason the
+    // name is stored rather than derived per viewer.
+    expect(nameOf(channelId, recording.id, alice.account.id)).toBe('Tuesday planning');
+    expect(nameOf(channelId, recording.id, bob.account.id)).toBe('Tuesday planning');
+  });
+
+  it('lets anybody in the channel do it, not only whoever pressed record', async () => {
+    const { alice, bob, channelId } = await recorded();
+    const [recording] = rowsOf(channelId);
+
+    // Alice started the run; Bob renames it.
+    const response = await app.fastify.inject({
+      method: 'PATCH',
+      url: `/recordings/${recording.id}`,
+      headers: auth(bob.token),
+      payload: { name: 'Bob was here' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(nameOf(channelId, recording.id, alice.account.id)).toBe('Bob was here');
+  });
+
+  it('caps the length rather than refusing a long one', async () => {
+    const { alice, channelId } = await recorded();
+    const [recording] = rowsOf(channelId);
+
+    await app.fastify.inject({
+      method: 'PATCH',
+      url: `/recordings/${recording.id}`,
+      headers: auth(alice.token),
+      payload: { name: 'x'.repeat(MAX_RECORDING_NAME_LENGTH + 20) },
+    });
+    expect(nameOf(channelId, recording.id, alice.account.id)).toBe(
+      'x'.repeat(MAX_RECORDING_NAME_LENGTH)
+    );
+  });
+
+  it('refuses an empty name rather than clearing it', async () => {
+    // Clearing would fall back to a label computed from the viewer's others,
+    // which reads differently to each person — so it would replace one shared
+    // name with several private ones rather than restoring anything.
+    const { alice, channelId } = await recorded();
+    const [recording] = rowsOf(channelId);
+    const before = nameOf(channelId, recording.id, alice.account.id);
+
+    const response = await app.fastify.inject({
+      method: 'PATCH',
+      url: `/recordings/${recording.id}`,
+      headers: auth(alice.token),
+      payload: { name: '   ' },
+    });
+    // 400 rather than 404: the caller already knows the recording is there,
+    // so there is nothing left to keep from them.
+    expect(response.statusCode).toBe(400);
+    expect(nameOf(channelId, recording.id, alice.account.id)).toBe(before);
+  });
+
+  it('refuses a payload whose name is not a string', async () => {
+    const { alice, channelId } = await recorded();
+    const [recording] = rowsOf(channelId);
+
+    const response = await app.fastify.inject({
+      method: 'PATCH',
+      url: `/recordings/${recording.id}`,
+      headers: auth(alice.token),
+      payload: { name: 42 },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('refuses somebody who is not in the channel, without admitting it exists', async () => {
+    const { alice, carol, channelId } = await recorded();
+    const [recording] = rowsOf(channelId);
+    const before = nameOf(channelId, recording.id, alice.account.id);
+
+    const response = await app.fastify.inject({
+      method: 'PATCH',
+      url: `/recordings/${recording.id}`,
+      headers: auth(carol.token),
+      payload: { name: 'Mine now' },
+    });
+    // The same answer as every other recording route gives a stranger.
+    expect(response.statusCode).toBe(404);
+    expect(nameOf(channelId, recording.id, alice.account.id)).toBe(before);
   });
 });
 

@@ -1111,7 +1111,7 @@ describe('Channel', () => {
     act(() => theirs.unmount());
   });
 
-  it('opens a recording to three actions, and closes it again', async () => {
+  it('opens a recording to its actions, and closes it again', async () => {
     const recording: RecordingView = {
       id: 'rec_1',
       channelId: 'sess_1',
@@ -1129,14 +1129,14 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    // Export and Delete rather than Play, which is also the name of the shared
-    // audio control further up the screen.
-    for (const label of ['Export', 'Delete']) {
+    // Export, Rename and Delete rather than Play, which is also the name of
+    // the shared audio control further up the screen.
+    for (const label of ['Export', 'Rename', 'Delete']) {
       expect(findButton(tree, label)).toBeUndefined();
     }
 
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
-    for (const label of ['Export', 'Delete']) {
+    for (const label of ['Export', 'Rename', 'Delete']) {
       expect(findButton(tree, label)).toBeDefined();
     }
 
@@ -1191,6 +1191,88 @@ describe('Channel', () => {
 
     asked.mockRestore();
     deleted.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('renames one from the row, starting on the name it already has', async () => {
+    const recording: RecordingView = {
+      id: 'rec_1',
+      channelId: 'sess_1',
+      name: 'Tuesday',
+      others: [{ id: THEM, displayName: 'Dana Chu' }],
+      startedAt: NOW - 60_000,
+      endedAt: NOW - 30_000,
+      durationMs: 30_000,
+    };
+    showChannel(channelOf(), [recording]);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+
+    const { api } = require('../../api/http');
+    const renamed = jest
+      .spyOn(api, 'renameRecording')
+      .mockResolvedValue({ ok: true } as never);
+
+    act(() => findButton(tree, 'Rename')!.props.onPress());
+    // The field takes the place of the actions, so nothing destructive sits
+    // beside a keyboard somebody is typing into.
+    expect(findButton(tree, 'Delete')).toBeUndefined();
+    // And it says who else this reaches, before the tap rather than after.
+    expect(textOf(tree)).toContain('Everyone in this channel sees the new name');
+
+    const field = tree.root.findAll(
+      (n) => n.props?.placeholder === 'What was this conversation?'
+    )[0];
+    // Amending, not starting over: the current name is already in it.
+    expect(field.props.value).toBe('Tuesday');
+
+    // An empty name is refused here rather than at the server, since clearing
+    // one is not a thing a recording can be.
+    act(() => field.props.onChangeText('   '));
+    expect(findButton(tree, 'Save')!.props.disabled).toBe(true);
+
+    act(() => field.props.onChangeText('Tuesday planning'));
+    await act(async () => findButton(tree, 'Save')!.props.onPress());
+    expect(renamed).toHaveBeenCalledWith('token', 'rec_1', 'Tuesday planning');
+
+    // Done: the row is back to offering actions, and the new name arrives on
+    // the next snapshot rather than being patched in here.
+    expect(findButton(tree, 'Delete')).toBeDefined();
+
+    renamed.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('abandons a rename when the row is closed', async () => {
+    const recording: RecordingView = {
+      id: 'rec_1',
+      channelId: 'sess_1',
+      name: 'Tuesday',
+      others: [{ id: THEM, displayName: 'Dana Chu' }],
+      startedAt: NOW - 60_000,
+      endedAt: NOW - 30_000,
+      durationMs: 30_000,
+    };
+    showChannel(channelOf(), [recording]);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    act(() => findButton(tree, 'Rename')!.props.onPress());
+    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    // Reopening offers the actions again, not the half-typed name of something
+    // somebody had already changed their mind about.
+    expect(findButton(tree, 'Rename')).toBeDefined();
     act(() => tree.unmount());
   });
 

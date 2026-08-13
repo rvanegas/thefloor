@@ -637,6 +637,45 @@ What stays, and must: `deleted_at` is still its own column rather than a
 reading of `ended_at`. There are still channels that are ended and not deleted,
 and a sweep that confused the two would take recordings nobody asked it to.
 
+### Renaming one, and why an empty name is refused
+
+`PATCH /recordings/:id` takes a name and writes it to the row every member
+reads. The reach test is `recordingsFor`, the same one play, export and delete
+ask, so anybody in the channel may rename anything in it — including a run they
+were not in and did not start. That follows from the recording belonging to the
+place rather than to whoever pressed record, which is the sentence the rest of
+this section is built on.
+
+The consequence is that a rename is not a private label: it changes what the
+recording is called for everyone at once, which is why the field says so above
+the button. Anything else would have needed a per-viewer name, and a per-viewer
+name is precisely what settling the name at stop time was built to get rid of —
+two people who were in one conversation should be able to say its name to each
+other.
+
+**An empty name is a 400 rather than a clear.** Clearing looks free, because
+`toRecordingView` already falls back when `name` is null, and for a *channel*
+an empty `SET_NAME` is exactly how you unname it. But the fallback here is
+`describeChannel(others)`, computed from the viewer's others — so clearing
+would not restore the settled name, it would replace one shared name with a
+different private one for each member. The settled name is not recoverable
+once overwritten, and inventing a way to recover it would mean recomputing
+`nameRecording` from `participants` and `participant_names`, which the rows
+predating those columns cannot supply. A recording has a name; renaming gives
+it another one.
+
+The route is a `PATCH` on the recording rather than a `POST` to a sub-path,
+because it changes a field of a thing that already exists — and its 404 for a
+stranger matches the other three routes, while an unacceptable name is an
+ordinary 400: the caller already knows the recording is there, so there is
+nothing left to withhold.
+
+In the app the field takes the place of the row's actions rather than joining
+them, so Delete is never a thumb's width from a keyboard somebody is typing
+into, and collapsing the row abandons the edit. It is a field rather than
+`Alert.prompt`, which is iOS-only and is the one shape in this app that no test
+can drive.
+
 ---
 
 ## Stepping out clears your self-mute; losing your connection does not

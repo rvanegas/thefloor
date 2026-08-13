@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   DELETED_RETENTION_MS,
   MAX_CHANNEL_PARTICIPANTS,
+  MAX_RECORDING_NAME_LENGTH,
 } from '../../core/constants';
 import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
@@ -1157,6 +1158,55 @@ export class ChannelRegistry {
       .run(this.now(), recordingId);
     // So the channel screen loses the row now rather than whenever something
     // else happens to change.
+    this.emit([row.channel_id]);
+    return { ok: true };
+  }
+
+  /**
+   * Renames one recording, for everybody who can reach it.
+   *
+   * The same reach test as deleting, and for the same reason: a recording
+   * belongs to the channel it was made in, so anybody in that channel has
+   * standing over what it is called. The consequence is worth saying out
+   * loud — this changes the name in *everyone's* list, not a private label.
+   * That is the point rather than a cost. The name exists so two people can
+   * talk about one recording by one name, and a rename only one of them saw
+   * would destroy exactly the property the settled name was built to have.
+   *
+   * **An empty name is refused rather than clearing it.** Clearing looks
+   * free — `toRecordingView` already falls back when `name` is null — but the
+   * fallback it falls back to is `describeChannel(others)`, which is computed
+   * from the *viewer's* others and so reads differently to each person. So
+   * clearing would not restore the settled name; it would replace one shared
+   * name with several private ones. A recording has a name, and renaming it
+   * gives it another one.
+   */
+  renameRecording(
+    recordingId: string,
+    userId: string,
+    name: string
+  ): { ok: true } | Refused {
+    const row = this.recordingsFor(userId).find(
+      (candidate) => candidate.id === recordingId
+    );
+    if (!row) {
+      return { ok: false, error: 'No such recording.', code: 'not_found' };
+    }
+    // Normalised here rather than at the route, so every caller agrees on
+    // what a given input names it — the same reasoning as `SET_NAME`.
+    const trimmed = name.trim().slice(0, MAX_RECORDING_NAME_LENGTH);
+    if (trimmed === '') {
+      return {
+        ok: false,
+        error: 'A recording needs a name.',
+        code: 'invalid',
+      };
+    }
+    this.db
+      .prepare('UPDATE recordings SET name = ? WHERE id = ?')
+      .run(trimmed, recordingId);
+    // Same as deleting: the channel screen shows the new name now rather than
+    // whenever something else happens to change.
     this.emit([row.channel_id]);
     return { ok: true };
   }
