@@ -81,7 +81,17 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently five times on 2026-08-12. The last added `DELETE /recordings/:id`
+Most recently on 2026-08-13, adding `PATCH /recordings/:id`: a name written to
+the row every member of the channel reads, guarded by the same reach test that
+play, export and delete already ask, so anybody in the channel may rename
+anything in it. No schema change — the `name` column has been there since
+2026-08-11 — and no change to any existing response, so every installed build
+goes on working; build 28 is the one that can ask for it. Verified against
+production afterwards: the route answers `401` rather than `404` to an
+unauthenticated caller, and the data is untouched at 23 channels and 17
+recordings, 6 of them already marked for deletion.
+
+Before that, five times on 2026-08-12. The last added `DELETE /recordings/:id`
 — one recording marked for deletion on the same terms as a deleted channel's,
 swept a week later by the sweep that already existed. No schema change: the
 `deleted_at` column it marks has been there since earlier that day. Verified
