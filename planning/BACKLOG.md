@@ -7,11 +7,14 @@ thing, it is in AGENTS.md.
 
 Ordered roughly by size: the substantial pieces first, then individual defects.
 
-Two neighbours worth knowing about. **FEATURES.md** holds wanted features that
-nobody has designed yet, which is a different question from work that is
-specified and pending. **DECISIONS.md** holds what was built and why, including
-the choices that were considered and declined — several of which read like
-missing features until you find the reasoning.
+The neighbours worth knowing about. **FEATURES.md** is the roadmap: features
+that are wanted, at a paragraph each, which is a different question from work
+that is specified and pending. One of them large enough to need a design gets a
+file of its own, and that file is where it lives while it is being designed and
+built, until it ships and whatever survives moves to DECISIONS.md.
+**DECISIONS.md** holds what was built and why, including the choices that were
+considered and declined — several of which read like missing features until you
+find the reasoning.
 
 ---
 

@@ -3,14 +3,26 @@
 What you need before touching anything: how it is laid out, how to run it, how
 to ship it, and the traps that have already cost somebody a day.
 
-Three other documents, each answering a different question. **BACKLOG.md** is
-what is known and not done. **DECISIONS.md** is what was built and why,
-including what was deliberately not built. **FEATURES.md** is wanted features
-nobody has designed yet.
+Everything that is not this file lives in **`planning/`**. This one stays at the
+root because it is the one a fresh reader is pointed at; the rest are documents
+you go looking for, and a root directory that lists them all buries the code.
 
-**POSTMORTEM-echo.md** is a one-off: the build 17 echo bug, start to finish.
-Read it before touching the iOS audio session — three separate components
-configure it and the ways they disagree are not guessable from the code.
+Three of them answer a standing question each. **`planning/BACKLOG.md`** is what
+is known and not done. **`planning/DECISIONS.md`** is what was built and why,
+including what was deliberately not built. **`planning/FEATURES.md`** is the
+roadmap: features that are wanted, at a paragraph each.
+
+The rest are temporary, and say so in their own first lines. Designs for
+unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
+deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
+**`planning/POSTMORTEM-echo.md`** is a one-off that stays: the build 17 echo
+bug, start to finish. Read it before touching the iOS audio session — three
+separate components configure it and the ways they disagree are not guessable
+from the code.
+
+References between documents inside `planning/` are by bare filename, since
+they are siblings. References from code and from this file carry the
+`planning/` prefix.
 
 ---
 
@@ -79,7 +91,8 @@ one that can ask for it.
 
 Before that, one that narrowed the one-per-set rule
 to *unnamed* channels and made an unnamed channel's invitation move the
-conversation when the invitee arrives — see DECISIONS.md. No migration: two
+conversation when the invitee arrives — see planning/DECISIONS.md. No
+migration: two
 fields were added to the state blob, and both default correctly for a channel
 that has never moved (`mediaRoom` to the channel id, `invited` to empty), so
 existing rows are rewritten on their next change rather than up front. Verified
