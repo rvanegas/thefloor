@@ -210,6 +210,84 @@ describe('deleting a channel', () => {
   });
 });
 
+describe('deleting one recording', () => {
+  it('marks it, leaving the channel and everything else in it alone', async () => {
+    const { alice, channelId, keys } = await recorded();
+    const [recording] = rowsOf(channelId);
+    expect(recording.deleted_at).toBeNull();
+
+    const response = await app.fastify.inject({
+      method: 'DELETE',
+      url: `/recordings/${recording.id}`,
+      headers: auth(alice.token),
+    });
+    expect(response.statusCode).toBe(200);
+
+    // Marked, not removed: the row and the audio both survive the week, which
+    // is the whole of the recovery story.
+    expect(rowsOf(channelId)[0].deleted_at).toBe(clock);
+    for (const key of keys) expect(store.keys()).toContain(key);
+    // And the channel it was made in is untouched.
+    expect(app.channels.get(channelId)!.status).toBe('active');
+  });
+
+  it('takes it out of every list at once', async () => {
+    const { alice, bob, channelId } = await recorded();
+    const [recording] = rowsOf(channelId);
+
+    await app.fastify.inject({
+      method: 'DELETE',
+      url: `/recordings/${recording.id}`,
+      headers: auth(alice.token),
+    });
+
+    // Gone for the person who deleted it and for everybody else in the
+    // channel — a recording belongs to the channel, not to whoever pressed
+    // record or whoever pressed delete.
+    expect(app.channels.recordingsInChannel(channelId, alice.account.id)).toEqual([]);
+    expect(app.channels.recordingsFor(bob.account.id)).toEqual([]);
+  });
+
+  it('is swept a week later, exactly as a deleted channel’s recordings are', async () => {
+    const { alice, channelId, keys } = await recorded();
+    const [recording] = rowsOf(channelId);
+    await app.fastify.inject({
+      method: 'DELETE',
+      url: `/recordings/${recording.id}`,
+      headers: auth(alice.token),
+    });
+
+    clock += DELETED_RETENTION_MS - 1;
+    expect(app.channels.sweepDeleted(clock).recordings).toBe(0);
+    for (const key of keys) expect(store.keys()).toContain(key);
+
+    clock += 1;
+    expect(app.channels.sweepDeleted(clock).recordings).toBe(1);
+    expect(rowsOf(channelId)).toEqual([]);
+    for (const key of keys) expect(store.keys()).not.toContain(key);
+    // The channel outlives it: only the recording was deleted.
+    expect(
+      app.db.prepare('SELECT id FROM channels WHERE id = ?').get(channelId)
+    ).toBeDefined();
+  });
+
+  it('refuses somebody who is not in the channel, without admitting it exists', async () => {
+    const { carol, channelId } = await recorded();
+    const [recording] = rowsOf(channelId);
+
+    const response = await app.fastify.inject({
+      method: 'DELETE',
+      url: `/recordings/${recording.id}`,
+      headers: auth(carol.token),
+    });
+    // The same answer as asking for one that is not there, which is the rule
+    // export and play already follow: knowing a recording exists is itself
+    // something only the channel's members should learn.
+    expect(response.statusCode).toBe(404);
+    expect(rowsOf(channelId)[0].deleted_at).toBeNull();
+  });
+});
+
 describe('the sweep', () => {
   async function deleted() {
     const context = await recorded();

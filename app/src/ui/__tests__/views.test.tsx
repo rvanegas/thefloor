@@ -1049,6 +1049,11 @@ describe('Channel', () => {
     expect(text).toContain('Book club');
     expect(text).not.toContain('Nothing recorded here yet');
 
+    // Closed until asked: the list is what this section is for, and the
+    // actions belong to whichever row somebody has opened.
+    expect(findButton(tree, 'Export')).toBeUndefined();
+    act(() => findButton(tree, 'Book club')!.props.onPress());
+
     // Exported under the recording's own name, which the server fixed when the
     // run stopped — not a label rebuilt here from the roster, which is how two
     // people came to call one recording two different things.
@@ -1086,6 +1091,7 @@ describe('Channel', () => {
         onHome={() => {}}
         onExit={() => {}}
       />);
+    act(() => findButton(mine, 'Tuesday')!.props.onPress());
     expect(findButton(mine, 'Play')!.props.disabled).toBeFalsy();
     act(() => mine.unmount());
 
@@ -1099,9 +1105,93 @@ describe('Channel', () => {
         onHome={() => {}}
         onExit={() => {}}
       />);
+    act(() => findButton(theirs, 'Tuesday')!.props.onPress());
     expect(findButton(theirs, 'Play')!.props.disabled).toBe(true);
     expect(textOf(theirs)).toContain('the floor decides what plays');
     act(() => theirs.unmount());
+  });
+
+  it('opens a recording to three actions, and closes it again', async () => {
+    const recording: RecordingView = {
+      id: 'rec_1',
+      channelId: 'sess_1',
+      name: 'Tuesday',
+      others: [{ id: THEM, displayName: 'Dana Chu' }],
+      startedAt: NOW - 60_000,
+      endedAt: NOW - 30_000,
+      durationMs: 30_000,
+    };
+    showChannel(channelOf(), [recording]);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    // Export and Delete rather than Play, which is also the name of the shared
+    // audio control further up the screen.
+    for (const label of ['Export', 'Delete']) {
+      expect(findButton(tree, label)).toBeUndefined();
+    }
+
+    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    for (const label of ['Export', 'Delete']) {
+      expect(findButton(tree, label)).toBeDefined();
+    }
+
+    // One row's worth of actions at a time: tapping it again puts them away.
+    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    expect(findButton(tree, 'Delete')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('asks before deleting one, and marks it when told to', async () => {
+    // Deleting is marking: it leaves every list now and the audio goes in the
+    // sweep a week later. Everyone in the channel loses it, which is why this
+    // is the one row action that asks first.
+    const recording: RecordingView = {
+      id: 'rec_1',
+      channelId: 'sess_1',
+      name: 'Tuesday',
+      others: [{ id: THEM, displayName: 'Dana Chu' }],
+      startedAt: NOW - 60_000,
+      endedAt: NOW - 30_000,
+      durationMs: 30_000,
+    };
+    showChannel(channelOf(), [recording]);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+
+    const { Alert } = require('react-native');
+    const asked = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const { api } = require('../../api/http');
+    const deleted = jest
+      .spyOn(api, 'deleteRecording')
+      .mockResolvedValue({ ok: true } as never);
+
+    act(() => findButton(tree, 'Delete')!.props.onPress());
+    expect(asked).toHaveBeenCalled();
+    // Nothing has happened yet — the question is the point.
+    expect(deleted).not.toHaveBeenCalled();
+
+    // Take the destructive choice the alert offered.
+    const actions = asked.mock.calls[0][2] as Array<{
+      style?: string;
+      onPress?: () => void;
+    }>;
+    const confirm = actions.find((a) => a.style === 'destructive')!;
+    await act(async () => confirm.onPress!());
+    expect(deleted).toHaveBeenCalledWith('token', 'rec_1');
+
+    asked.mockRestore();
+    deleted.mockRestore();
+    act(() => tree.unmount());
   });
 
   it('survives a server too old to send them', () => {

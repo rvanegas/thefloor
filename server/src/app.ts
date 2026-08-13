@@ -690,6 +690,25 @@ export function buildApp(options: BuildOptions = {}): App {
    * takes effect for past recordings too rather than leaving a stale file that
    * lets a silenced remark through.
    */
+  /**
+   * Marks one recording for deletion. The audio and the row go in the sweep a
+   * week later, exactly as a deleted channel's do — this only sets the mark,
+   * which is what makes the week a recovery window rather than a formality.
+   */
+  fastify.delete('/recordings/:id', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    const result = channels.deleteRecording(id, account.id);
+    // 404 rather than `statusFor`, which answers 400 for not_found: the other
+    // two recording routes say 404, and absent, deleted and not-yours are one
+    // answer here for the reason spelled out under the export — that a
+    // recording exists is itself something only its channel's members learn.
+    if (!result.ok) return reply.code(404).send({ error: result.error });
+    return { ok: true };
+  });
+
   fastify.get('/recordings/:id/export', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;

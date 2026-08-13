@@ -1126,6 +1126,42 @@ export class ChannelRegistry {
   }
 
   /**
+   * Deletes one recording, on the same terms as deleting the channel deletes
+   * all of them: marked now, swept a week later, and gone from every list in
+   * the meantime.
+   *
+   * Anybody who can reach it may, which is everybody in its channel. That is
+   * deliberately not the rule for deleting a *channel* — only its last member
+   * may do that, there being nobody left to disagree — because the two acts
+   * are not the same size. A channel is a place other people are still using;
+   * one recording is a thing that was made, and whoever was in the room to be
+   * recorded has as much standing to unmake it as whoever pressed record.
+   *
+   * The reach test is `recordingsFor`, the same function play and export ask,
+   * so what may be heard, downloaded and deleted cannot come apart.
+   */
+  deleteRecording(
+    recordingId: string,
+    userId: string
+  ): { ok: true } | Refused {
+    const row = this.recordingsFor(userId).find(
+      (candidate) => candidate.id === recordingId
+    );
+    if (!row) {
+      return { ok: false, error: 'No such recording.', code: 'not_found' };
+    }
+    this.db
+      .prepare(
+        'UPDATE recordings SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL'
+      )
+      .run(this.now(), recordingId);
+    // So the channel screen loses the row now rather than whenever something
+    // else happens to change.
+    this.emit([row.channel_id]);
+    return { ok: true };
+  }
+
+  /**
    * Marks a deleted channel and everything recorded in it, for the sweep to
    * remove a week later.
    *

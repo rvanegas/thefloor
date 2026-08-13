@@ -192,4 +192,15 @@ export const api = {
       `/recordings/${recordingId}/play`,
       { method: 'POST', token }
     ),
+
+  /**
+   * Marks a recording for deletion. It leaves every list at once and its audio
+   * is removed by the sweep a week later, which is the whole of the recovery
+   * story and is only reachable by hand.
+   */
+  deleteRecording: (token: string, recordingId: string) =>
+    request<{ ok: true }>(`/recordings/${recordingId}`, {
+      method: 'DELETE',
+      token,
+    }),
 };

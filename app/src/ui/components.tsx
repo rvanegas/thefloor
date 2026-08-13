@@ -262,29 +262,110 @@ export function RecordingRow({
   playDisabled?: boolean;
   playDisabledReason?: string;
 }) {
+  /**
+   * Closed until asked. A recording is a thing you mostly scan past — the list
+   * is the point, and three buttons per row turned a list of what was said
+   * into a wall of controls. Tapping one opens it, and only one row's worth of
+   * actions is ever on screen at a time.
+   *
+   * It also puts delete somewhere that takes a deliberate act to reach, which
+   * matters more than the tidiness: it is the one action here that cannot be
+   * undone from inside the app.
+   */
+  const [open, setOpen] = React.useState(false);
+
   return (
     <Card style={recordingStyles.row}>
-      <View style={recordingStyles.main}>
-        {/*
-          Decided when the run stopped and the same for everybody who was in
-          it, so two people can talk about one recording by one name.
-        */}
-        <Text style={recordingStyles.name} numberOfLines={1}>
-          {recording.name}
-        </Text>
-        <Text style={type.muted}>
-          {new Date(recording.startedAt).toLocaleString()} ·{' '}
-          {formatDuration(recording.durationMs)}
-          {playable && playDisabled && playDisabledReason
-            ? ` · ${playDisabledReason}`
-            : ''}
-        </Text>
-      </View>
-      {playable ? (
-        <PlayButton recording={recording} disabled={playDisabled} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${recording.name}, ${formatDuration(
+          recording.durationMs
+        )}. ${open ? 'Hide actions' : 'Show actions'}.`}
+        onPress={() => setOpen((current) => !current)}
+        style={({ pressed }) => (pressed ? recordingStyles.pressed : undefined)}
+      >
+        <View style={recordingStyles.main}>
+          {/*
+            Decided when the run stopped and the same for everybody who was in
+            it, so two people can talk about one recording by one name.
+          */}
+          <Text style={recordingStyles.name} numberOfLines={1}>
+            {recording.name}
+          </Text>
+          <Text style={type.muted}>
+            {new Date(recording.startedAt).toLocaleString()} ·{' '}
+            {formatDuration(recording.durationMs)}
+          </Text>
+        </View>
+      </Pressable>
+
+      {open ? (
+        <View style={recordingStyles.actions}>
+          {playable ? (
+            <PlayButton recording={recording} disabled={playDisabled} />
+          ) : null}
+          <ExportButton recording={recording} />
+          <DeleteButton recording={recording} />
+          {/*
+            Beside the disabled button rather than up in the summary line,
+            where it was explaining a control that is no longer visible until
+            somebody asks for it.
+          */}
+          {playable && playDisabled && playDisabledReason ? (
+            <Text style={type.muted}>Play is unavailable — {playDisabledReason}.</Text>
+          ) : null}
+        </View>
       ) : null}
-      <ExportButton recording={recording} />
     </Card>
+  );
+}
+
+/**
+ * Marks a recording for deletion, which is what deleting one means here: it
+ * leaves every list at once, and the sweep removes the audio a week later.
+ *
+ * Confirmed first, and the confirmation says what the week is for. This is the
+ * only action in the app that destroys somebody else's copy of something —
+ * a recording belongs to the channel, so every member loses it, not just
+ * whoever tapped.
+ */
+function DeleteButton({ recording }: { recording: RecordingView }) {
+  const app = useApp();
+  const [busy, setBusy] = React.useState(false);
+
+  const remove = async () => {
+    if (!app.token) return;
+    setBusy(true);
+    try {
+      await api.deleteRecording(app.token, recording.id);
+      // Nothing to do on success: the server pushes a fresh snapshot without
+      // this recording in it, and the row goes with it.
+    } catch (e) {
+      Alert.alert(
+        'Could not delete',
+        e instanceof Error ? e.message : String(e)
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Button
+      label={busy ? 'Deleting…' : 'Delete'}
+      variant="danger"
+      disabled={busy}
+      onPress={() =>
+        Alert.alert(
+          `Delete ${recording.name}?`,
+          'Everyone in this channel loses it. The audio is removed a week from now, and nothing in the app can bring it back.',
+          [
+            { text: 'Keep', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => void remove() },
+          ]
+        )
+      }
+    />
   );
 }
 
@@ -368,12 +449,11 @@ export function ExportButton({ recording }: { recording: RecordingView }) {
 }
 
 const recordingStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing(1.5),
-  },
-  main: { flex: 1, gap: spacing(0.25) },
+  // A column now, because the actions open *below* the name rather than
+  // sitting beside it.
+  row: { gap: spacing(1.5) },
+  main: { gap: spacing(0.25) },
   name: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  pressed: { opacity: 0.6 },
+  actions: { gap: spacing(1) },
 });
