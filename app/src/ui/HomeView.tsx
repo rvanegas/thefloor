@@ -76,7 +76,7 @@ export function HomeView({
   // Recordings are not on this screen at all: they live on the channel they
   // were made in, which names them and takes them when it goes. The server
   // still sends `home.recordings` for build 20, which renders it — see
-  // BACKLOG.md for when that field goes too.
+  // planning/BACKLOG.md for when that field goes too.
 
   /**
    * The channel that tapping a contact would reopen, if there is one — which

@@ -6,7 +6,7 @@
  * viewer's side and says who else is in there, so you and the person you are
  * talking to see different words for the same channel. The interface has to
  * admit that rather than dress it as a name — see the muted italic in
- * HomeView and ChannelView, and DECISIONS.md.
+ * HomeView and ChannelView, and planning/DECISIONS.md.
  *
  * Shared by both screens and by the push title so that a channel does not
  * answer to one thing on the lock screen and another once you have tapped it.
@@ -45,7 +45,8 @@ export function describeChannel(others: string[]): string {
  * one thing that exists once, and two people discussing it have to be
  * discussing the same thing by the same name.
  *
- * Decided when the run stops and stored, never recomputed. See DECISIONS.md.
+ * Decided when the run stops and stored, never recomputed. See
+ * planning/DECISIONS.md.
  */
 export function nameRecording(participants: string[]): string {
   // Never empty in practice — a run with nobody in it is discarded rather than

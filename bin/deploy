@@ -8,7 +8,7 @@
 # .env there holds production secrets this must never overwrite.
 #
 # Live channels live in memory, so a restart drops every call in progress.
-# There is no way around that yet; see BACKLOG.md.
+# There is no way around that yet; see planning/BACKLOG.md.
 set -euo pipefail
 
 HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}

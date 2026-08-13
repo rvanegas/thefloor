@@ -832,7 +832,7 @@ export function buildApp(options: BuildOptions = {}): App {
       // Still sent, though the app now shows recordings on the channel they
       // were made in. Build 20 and earlier render this list on Home and would
       // otherwise lose them at a server deploy, a release ahead of the build
-      // that stops reading it. See BACKLOG.md.
+      // that stops reading it. See planning/BACKLOG.md.
       recordings: channels.recordingsFor(userId).map((row) =>
         toRecordingView(row, userId)
       ),

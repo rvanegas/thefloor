@@ -16,7 +16,7 @@ import { AudioSession } from '@livekit/react-native';
  * `defaultToSpeaker` gives the loudspeaker rather than the earpiece, and yields
  * to headphones — so this exists to make a wrong route recoverable by whoever
  * is hearing it, rather than by a release. If nobody reaches for it, that is
- * evidence the default is working and this can go. See BACKLOG.md.
+ * evidence the default is working and this can go. See planning/BACKLOG.md.
  */
 export async function showRoutePicker(): Promise<void> {
   if (Platform.OS !== 'ios') return;
