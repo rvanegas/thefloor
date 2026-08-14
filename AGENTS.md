@@ -87,8 +87,19 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently on 2026-08-13, and it was not a deploy at all: **the media server
-moved off LiveKit Cloud onto this box.** `bin/deploy` was never run — no code
+Most recently on 2026-08-13: the two idle timers, and with them the first
+`accounts` migration since `bio`. **`accounts.last_seen_at`**, added and left
+null — backfilling it from `created_at` would have read as a year idle for
+somebody who used the app that morning — so it fills in as people connect. The
+wire gained `ContactView.lastSeenAt`, typed optional precisely because an
+installed build meets a server without it, and additive besides, so every build
+kept working across the restart; build 30 is the one that shows the timers.
+Verified against production afterwards: the column present, two accounts already
+stamped by clients reconnecting after the restart, data untouched at 7 channels,
+12 recordings with 6 already marked, and 5 accounts. No errors in the log.
+
+Before that, on the same day, **the media server moved off LiveKit Cloud onto
+this box.** `bin/deploy` was never run — no code
 changed — and no build shipped, because the client is told where to connect by
 the server and there is no URL in the binary. It was `livekit-server`, a Redis
 and the egress recorder installed by the new `bin/provision-livekit`, a second
