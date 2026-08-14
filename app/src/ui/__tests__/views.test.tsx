@@ -14,6 +14,7 @@ import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
 import { ProfileView } from '../ProfileView';
 import { HomeSettingsView } from '../HomeSettingsView';
+import { SupportView } from '../SupportView';
 import { StyleSheet } from 'react-native';
 import { colors } from '../theme';
 
@@ -1491,57 +1492,6 @@ describe('Home settings', () => {
     act(() => tree.unmount());
   });
 
-  it('offers a way to chip in, and says which address to use', async () => {
-    const tree = await openSettings();
-    const text = textOf(tree);
-    expect(findButton(tree, 'Chip in')).toBeTruthy();
-    // The address is the whole of how a donation finds its way back to an
-    // account, so the screen has to name it.
-    expect(text).toContain('me@example.com');
-    expect(text).toContain('unlocks nothing');
-    act(() => tree.unmount());
-  });
-
-  it('says nothing about donating when the server offers nowhere to donate', async () => {
-    mockApp.loadSupport.mockResolvedValueOnce({
-      url: null as unknown as string,
-      identifier: 'me@example.com',
-      mine: null,
-    });
-    const tree = await openSettings();
-    expect(findButton(tree, 'Chip in')).toBeUndefined();
-    expect(textOf(tree)).not.toContain('Support');
-    act(() => tree.unmount());
-  });
-
-  it('leaves the rest of the screen alone when support cannot be read', async () => {
-    // An older server, or one that fails: the name and bio are what this
-    // screen is for and must not wait on, or break with, an extra fetch.
-    mockApp.loadSupport.mockRejectedValueOnce(new Error('nope'));
-    const tree = await openSettings();
-    expect(textOf(tree)).toContain('Bach');
-    expect(findButton(tree, 'Chip in')).toBeUndefined();
-    act(() => tree.unmount());
-  });
-
-  it('thanks somebody who has already given, in their own currencies', async () => {
-    mockApp.loadSupport.mockResolvedValueOnce({
-      url: 'https://ko-fi.com/thefloor',
-      identifier: 'me@example.com',
-      mine: {
-        count: 2,
-        since: NOW,
-        totals: [
-          { currency: 'EUR', cents: 1000 },
-          { currency: 'USD', cents: 300 },
-        ],
-      },
-    });
-    const tree = await openSettings();
-    expect(textOf(tree)).toContain('€10.00 and $3.00');
-    act(() => tree.unmount());
-  });
-
   it('saves both fields together', async () => {
     const tree = await openSettings();
     const name = tree.root.findAll(
@@ -2780,6 +2730,107 @@ describe('who is in the channel, and who is talking', () => {
     expect(mockApp.loadProfile).toHaveBeenCalledWith(THEM);
     // And from there they can be kept, which is what the card is a route to.
     expect(findButton(tree, 'Add contact')).toBeDefined();
+    act(() => tree.unmount());
+  });
+});
+
+describe('Support', () => {
+  /** Both screens fetch on mount, so every case has to let that settle. */
+  async function open(element: React.ReactElement) {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(element);
+    });
+    return tree;
+  }
+
+  const home = () =>
+    open(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+
+  it('offers a way in from Home, and nothing more than that', async () => {
+    const tree = await home();
+    expect(findButton(tree, 'Chip in')).toBeTruthy();
+    // The argument for giving belongs on the screen behind this, not on the
+    // one somebody opened to reach a conversation.
+    expect(textOf(tree)).not.toContain('unlocks nothing');
+    act(() => tree.unmount());
+  });
+
+  it('opens the screen rather than the browser', async () => {
+    const opened = jest.fn();
+    const tree = await open(
+      <HomeView
+        onEnterChannel={() => {}}
+        onOpenSettings={() => {}}
+        onOpenSupport={opened}
+      />
+    );
+    act(() => findButton(tree, 'Chip in')!.props.onPress());
+    expect(opened).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('says nothing on Home when there is nowhere to give', async () => {
+    mockApp.loadSupport.mockResolvedValueOnce({
+      url: null as unknown as string,
+      identifier: 'me@example.com',
+      mine: null,
+    });
+    const tree = await home();
+    expect(findButton(tree, 'Chip in')).toBeUndefined();
+    expect(textOf(tree)).not.toContain('Support');
+    act(() => tree.unmount());
+  });
+
+  it('leaves Home alone when support cannot be read at all', async () => {
+    // An older server, or one that fails. Home is what somebody opened the app
+    // for and must not wait on, or break with, an extra fetch.
+    mockApp.loadSupport.mockRejectedValueOnce(new Error('nope'));
+    const tree = await home();
+    expect(findButton(tree, 'Chip in')).toBeUndefined();
+    expect(textOf(tree)).toContain('Contacts');
+    act(() => tree.unmount());
+  });
+
+  it('makes the case on its own screen, and names the address', async () => {
+    const tree = await open(<SupportView onBack={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('costs money every month');
+    expect(text).toContain('unlocks nothing');
+    // The address is the whole of how a donation finds its way back to an
+    // account, so the screen has to name it.
+    expect(text).toContain('me@example.com');
+    expect(findButton(tree, 'Chip in')).toBeTruthy();
+    act(() => tree.unmount());
+  });
+
+  it('thanks somebody who has already given, in their own currencies', async () => {
+    mockApp.loadSupport.mockResolvedValueOnce({
+      url: 'https://ko-fi.com/thefloor',
+      identifier: 'me@example.com',
+      mine: {
+        count: 2,
+        since: NOW,
+        totals: [
+          { currency: 'EUR', cents: 1000 },
+          { currency: 'USD', cents: 300 },
+        ],
+      },
+    });
+    const tree = await open(<SupportView onBack={() => {}} />);
+    expect(textOf(tree)).toContain('€10.00 and $3.00');
+    act(() => tree.unmount());
+  });
+
+  it('says so plainly when there is nowhere to give', async () => {
+    mockApp.loadSupport.mockResolvedValueOnce({
+      url: null as unknown as string,
+      identifier: 'me@example.com',
+      mine: null,
+    });
+    const tree = await open(<SupportView onBack={() => {}} />);
+    expect(findButton(tree, 'Chip in')).toBeUndefined();
+    expect(textOf(tree)).toContain('no way to give');
     act(() => tree.unmount());
   });
 });

@@ -31,6 +31,7 @@ export function HomeView({
   onEnterChannel,
   onOpenSettings,
   onOpenProfile = () => {},
+  onOpenSupport = () => {},
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
@@ -43,6 +44,8 @@ export function HomeView({
    * needed you to already be in a channel with the person.
    */
   onOpenProfile?: (accountId: string, displayName: string) => void;
+  /** Opens the screen that explains donating, and carries the link out. */
+  onOpenSupport?: () => void;
   /**
    * The channel you are present in right now, if you walked back here without
    * stepping out. Null when you are not in one.
@@ -58,6 +61,34 @@ export function HomeView({
 }) {
   const app = useApp();
   const dismissed = app.dismissedInvites;
+
+  /**
+   * Whether there is anywhere to donate at all, which decides only whether the
+   * way in is shown. The explanation and the link itself are on the screen
+   * behind it.
+   *
+   * Asked here rather than carried on the Home snapshot, which is pushed to
+   * every client on every change and would be answering this question
+   * constantly for a row that never moves. Failure is silence: an older server,
+   * or one with no link configured, leaves Home exactly as it was rather than
+   * reporting an error about something nobody asked for.
+   */
+  const [canSupport, setCanSupport] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!app.token) return;
+      try {
+        const view = await app.loadSupport();
+        if (!cancelled) setCanSupport(!!view.url);
+      } catch {
+        // Nothing to say, and nowhere useful to say it.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [app.token]);
 
   const home = app.home;
   const invites = (home?.invites ?? []).filter(
@@ -337,6 +368,29 @@ export function HomeView({
 
       <SectionLabel>Add contact</SectionLabel>
       <AddContact />
+
+      {/*
+        Last on the screen, and one line rather than three.
+
+        Everything above it is what somebody opened the app to do. A request
+        for money that sat above the channels would be reading the room wrong,
+        and the argument for it — what the server costs, that it unlocks
+        nothing, which address to pay with — is longer than belongs on a screen
+        somebody is passing through. That lives one tap away, where it has been
+        chosen rather than imposed.
+      */}
+      {canSupport ? (
+        <>
+          <SectionLabel>Support</SectionLabel>
+          <Card>
+            <Button
+              label="Chip in"
+              variant="ghost"
+              onPress={onOpenSupport}
+            />
+          </Card>
+        </>
+      ) : null}
 
     </Screen>
   );

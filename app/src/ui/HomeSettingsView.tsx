@@ -2,17 +2,14 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import type { SupportView } from '../../../core/protocol';
 import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../../core/constants';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
-import { describeGiving } from './money';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 
@@ -31,7 +28,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [support, setSupport] = useState<SupportView | null>(null);
 
   // The bio is not in the `hello` snapshot — it would ride on every roster for
   // the sake of one screen — so it is fetched when that screen opens.
@@ -54,30 +50,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       cancelled = true;
     };
   }, [app.me?.id]);
-
-  /**
-   * Fetched separately from the profile, and deliberately silent when it fails.
-   *
-   * A server too old to answer, or one with no donation link configured, should
-   * leave this screen exactly as it was rather than showing an error about a
-   * section nobody asked for. It also must not gate `loaded`: the name and bio
-   * are what this screen is for, and they should not wait on it.
-   */
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!app.token) return;
-      try {
-        const view = await app.loadSupport();
-        if (!cancelled) setSupport(view);
-      } catch {
-        // Nothing to say, and nowhere useful to say it.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [app.token]);
 
   const save = async () => {
     setSaving(true);
@@ -205,47 +177,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
               device in your hand.
             </Text>
           </Card>
-
-          {/*
-              Last, below Account and below the way out. Asking for money is the
-              least important thing on this screen to the person reading it, and
-              putting it above the name field they came here to change would say
-              otherwise.
-          */}
-          {support?.url ? (
-            <>
-              <SectionLabel>Support</SectionLabel>
-              <Card style={styles.stack}>
-                <Text style={type.muted}>
-                  The Floor runs on a server that costs money every month — the
-                  box, the audio, and the storage your recordings sit in.
-                  Giving is entirely optional and unlocks nothing: everything
-                  works the same whether you do or not.
-                </Text>
-
-                {support.mine ? (
-                  <Text style={type.muted}>
-                    You have given {describeGiving(support.mine)}. Thank you.
-                  </Text>
-                ) : null}
-
-                <Button
-                  label="Chip in"
-                  onPress={() => void Linking.openURL(support.url!)}
-                />
-
-                {/* The address is the whole of how a donation finds its way
-                    back to an account — Ko-fi's page has nowhere to carry who
-                    you are, so this is what makes the difference between a
-                    recorded gift and an anonymous one. */}
-                <Text style={type.muted}>
-                  Opens in your browser. Use {support.identifier} there and it
-                  will show up here; pay with anything else and it arrives
-                  without a name on it.
-                </Text>
-              </Card>
-            </>
-          ) : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 

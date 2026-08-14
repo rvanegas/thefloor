@@ -7,6 +7,7 @@ import { AppProvider, useApp } from './src/state/AppProvider';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
+import { SupportView } from './src/ui/SupportView';
 import { ChannelView } from './src/ui/ChannelView';
 import { ProfileView } from './src/ui/ProfileView';
 import { describeChannel } from '../core/naming';
@@ -14,8 +15,8 @@ import { microphoneNeeded } from './src/audio/micNeeded';
 import { colors } from './src/ui/theme';
 
 /**
- * Four screens: Auth when signed out, Channel when you are looking at one,
- * Settings when you open them, Home otherwise.
+ * Auth when signed out, Channel when you are looking at one, Settings or
+ * Support or a profile when you open them, Home otherwise.
  *
  * **Presence is not a screen.** The audio connection is held here rather than
  * inside the channel screen, so walking back to Home leaves you in the
@@ -32,6 +33,8 @@ function Root() {
   const { ready, token } = app;
   const [channelId, setChannelId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The screen explaining what donating is for, reached from Home. */
+  const [supportOpen, setSupportOpen] = useState(false);
   /** Somebody's profile, opened from a contact row. */
   const [profile, setProfile] = useState<{ id: string; name: string } | null>(
     null
@@ -90,7 +93,11 @@ function Root() {
     if (!pendingChannelId || !ready || !token) return;
     watchChannel(pendingChannelId);
     setChannelId(pendingChannelId);
+    // Every screen stacked over Home closes: a tap on a notification means go
+    // to that conversation, and coming back to a settings screen you had left
+    // open would be a surprise.
     setSettingsOpen(false);
+    setSupportOpen(false);
     clearPendingChannel();
   }, [pendingChannelId, ready, token, watchChannel, clearPendingChannel]);
 
@@ -124,6 +131,10 @@ function Root() {
     return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
   }
 
+  if (supportOpen) {
+    return <SupportView onBack={() => setSupportOpen(false)} />;
+  }
+
   if (profile) {
     return (
       <ProfileView
@@ -143,6 +154,7 @@ function Root() {
       onEnterChannel={setChannelId}
       onOpenSettings={() => setSettingsOpen(true)}
       onOpenProfile={(id, name) => setProfile({ id, name })}
+      onOpenSupport={() => setSupportOpen(true)}
       // What Home needs to show that a conversation is still going without you
       // looking at it. An open microphone behind a screen that gives no sign of
       // it is the one thing this change could plausibly make worse.
