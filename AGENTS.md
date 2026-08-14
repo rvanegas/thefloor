@@ -15,10 +15,16 @@ roadmap: features that are wanted, at a paragraph each.
 The rest are temporary, and say so in their own first lines. Designs for
 unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
 deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
-**`planning/POSTMORTEM-echo.md`** is a one-off that stays: the build 17 echo
-bug, start to finish. Read it before touching the iOS audio session — three
-separate components configure it and the ways they disagree are not guessable
-from the code.
+Two are one-offs that stay. **`planning/POSTMORTEM-echo.md`** is the build 17
+echo bug, start to finish. Read it before touching the iOS audio session —
+three separate components configure it and the ways they disagree are not
+guessable from the code. **`planning/MIGRATION.md`** is about moving this box:
+it began as the 2026-08-13 migration to a *smaller* instance, built and then
+abandoned before cutover when self-hosting the media inverted its premise, and
+it now carries the sizing argument in both directions. Read it before sizing,
+rebuilding or re-hosting the server, and before trusting `bin/provision`,
+`bin/provision-livekit` or `bin/deploy`'s health check about any box that is not
+the live one.
 
 References between documents inside `planning/` are by bare filename, since
 they are siblings. References from code and from this file carry the
@@ -81,7 +87,28 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently on 2026-08-13, adding `PATCH /recordings/:id`: a name written to
+Most recently on 2026-08-13, and it was not a deploy at all: **the media server
+moved off LiveKit Cloud onto this box.** `bin/deploy` was never run — no code
+changed — and no build shipped, because the client is told where to connect by
+the server and there is no URL in the binary. It was `livekit-server`, a Redis
+and the egress recorder installed by the new `bin/provision-livekit`, a second
+Caddy site block for `livekit.rvanegas.co`, two firewall rules, and three lines
+of `server/.env`. The reasoning is in planning/DECISIONS.md; the numbers and the
+rebuild path are in planning/MIGRATION.md.
+
+Verified against production afterwards with two phones — join, claim and release
+the floor, record, play back into the room — and the recording landed in S3 as
+two stems with both egress manifests, timestamps matching `egress_complete` in
+the log to the second. Data untouched at 24 channels and 18 recordings, 6 of
+them already marked for deletion. Build 28 went on working across it without
+being restarted.
+
+The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
+`/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
+participants**, every stem being its own egress job. That is a chosen figure and
+raising it is the first move if it ever bites, not a hardware limit.
+
+Before that, on 2026-08-13, adding `PATCH /recordings/:id`: a name written to
 the row every member of the channel reads, guarded by the same reach test that
 play, export and delete already ask, so anybody in the channel may rename
 anything in it. No schema change — the `name` column has been there since
@@ -174,25 +201,66 @@ afterwards: 15 channels, 2 recordings, both still joining, ids unchanged.
 
 | | |
 | --- | --- |
-| Instance | Lightsail `thefloor`, us-west-2a, Ubuntu 24.04, 2GB, $12/mo |
+| Instance | Lightsail `thefloor`, us-west-2a, Ubuntu 24.04, 2GB, 2 vCPU, $12/mo |
 | Static IP | `44.241.121.49` |
-| DNS | Namecheap, A record `thefloor` → that IP |
-| TLS | Caddy, automatic Let's Encrypt, renews itself |
+| DNS | Namecheap, A records `thefloor` **and `livekit`** → that IP |
+| TLS | Caddy, automatic Let's Encrypt, renews itself, two site blocks |
 | Service | systemd `thefloor`, restarts on failure and on boot |
+| Media | systemd `livekit-server` (1.13.5) and `livekit-egress` (`livekit/egress:v1.14.0`, under Docker), plus `redis-server` |
+| Media config | `/etc/livekit/livekit.yaml` and `egress.yaml`, mode 600 |
 | Node | 22, required for the built-in `node:sqlite` |
 | Database | `/home/ubuntu/thefloor-data/thefloor.db`, outside the synced tree |
-| Logs | `journalctl -u thefloor` and `-u caddy` |
+| Logs | `journalctl -u thefloor`, `-u caddy`, `-u livekit-server`, `-u livekit-egress` |
 
-Node binds to loopback only; nothing reaches it except through Caddy.
+Node binds to loopback only; nothing reaches it except through Caddy. So does
+LiveKit's HTTP/WSS port, 7880. What is exposed is the media transport, which
+cannot be otherwise: **7881/TCP** (ICE/TCP) and **7882-7885/UDP** (the mux), open
+to any address, because that is where phones on arbitrary networks send audio.
+Nothing is given up — WebRTC carries its own encryption, and ICE credentials are
+negotiated during signalling, which is behind Caddy and needs a token this server
+signs.
+
+Two media settings are load-bearing and neither announces itself when wrong.
+**`rtc.use_external_ip: true`** is necessary and *not sufficient*: it validates
+the STUN-discovered address with a round trip, so the UDP ports must be open
+before `livekit-server` starts or it silently advertises the private address and
+rooms connect with no audio. Read `journalctl -u livekit-server | grep "using
+external IPs"` — the yaml is no evidence. And **`udp_port` is mutually exclusive
+with `port_range_start`/`end`**; setting both is not an error, the range just
+wins. Both are covered at length in planning/DECISIONS.md.
+
+The media plane is deliberately *not* in `bin/provision`. It is
+**`bin/provision-livekit`**, a sibling, run after it — which is exactly what a
+second box would need if the media ever splits off this one.
 
 ### Credentials
 
-Five, deliberately separate, so no single leak is worse than it has to be:
+Six, deliberately separate, so no single leak is worse than it has to be:
 
-- **LiveKit** — media, held by the server.
-- **`thefloor-egress`** — PutObject only, and it travels to LiveKit. It cannot
-  read the bucket back, so a leak of the key a third party holds does not
-  expose anyone's conversations.
+- **LiveKit** — media. Since 2026-08-13 this is a **self-issued** API key and
+  secret rather than one granted by LiveKit Cloud, generated once with
+  `livekit-server generate-keys`. Being self-issued is what makes it easy to
+  treat casually, and it should not be: it mints join tokens for any room.
+
+  It lives in exactly three places, all mode 600 and all outside the synced
+  tree — `server/.env` and `/etc/livekit/{livekit,egress}.yaml` on the box, and
+  `~/.config/thefloor/livekit.env` on the development machine, which is what
+  `bin/provision-livekit` reads. That script refuses to run without it rather
+  than generating a pair of its own, on `bin/provision`'s principle that a
+  script which invents credentials is one whose every invocation can leave a
+  different pair behind and a server pointed at the one before it.
+
+  Losing it is recoverable in a way the APNs key is not: generate another and
+  write it to all three, at the cost of invalidating every issued join token at
+  once.
+
+- **`thefloor-egress`** — PutObject only. **It no longer leaves the box, and it
+  should stay exactly this narrow anyway.** The original reason was that it
+  travelled to LiveKit, a third party, so a leak of a key somebody else held
+  could not read anyone's conversations back. Self-hosted, that reason is gone
+  and the scoping is still right: an S3 key that can only add is a smaller
+  blast radius than one that can read or delete, whoever holds it. Widening it
+  would be trading a real property for no gain.
 - **`thefloor-server`** — `ses:SendEmail` on the rvanegas.co identity and
   `s3:GetObject` on the recordings bucket. Nothing else. Created for this
   deployment because Lightsail instances get no IAM role, so the default
@@ -341,6 +409,24 @@ Two more things that fail quietly and are worth checking before anything else:
 - **`tsx` runs TypeScript directly in production.** Fine at this scale and it
   keeps the cross-package `core/` imports working without a build step, but a
   compile step would start faster and use less memory if that ever matters.
+- **A deploy now happens next to live audio, and nobody has heard what that
+  sounds like.** `bin/deploy` runs `npm install` on the box and restarts, and
+  since 2026-08-13 the SFU is on that same box. The line above is still true —
+  a deploy costs presence, not channels — but it used to also be true that a
+  deploy could not touch a conversation, *because* the media was elsewhere. That
+  is no longer true and it has not been observed either way, since nobody was
+  talking during one. **A deploy that audibly interrupts a call is the signal to
+  move the media plane to its own $7 box**, which planning/DECISIONS.md argues
+  and `bin/provision-livekit` exists to make cheap. It is worth listening for
+  rather than waiting to be told about.
+- **`setSilenced` throws `participant does not exist` twice a second while a
+  floor is held**, whenever a channel member is not connected to the media room
+  — 89 in one test session, 470 on 2026-08-10. It is the loudest thing in the
+  log by a wide margin and it is **not** a media-provider fault: it survived the
+  2026-08-13 move from LiveKit Cloud unchanged, which was checked at the time
+  precisely so it would not be misread later as a regression. Diagnosis, log
+  greps and a deliberate reproduction are in planning/BACKLOG.md under Known
+  defects.
 
 ---
 

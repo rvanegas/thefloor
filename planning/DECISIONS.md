@@ -1449,3 +1449,157 @@ plugged in, nothing reproduced across several minutes in either state.
 
 What the investigation did leave behind is the observation that presence and
 room membership are different things, which is still open in BACKLOG.
+
+---
+
+## The media server is self-hosted, on the box that was already there
+
+Decided and done 2026-08-13. WebRTC moved off LiveKit Cloud and onto `thefloor`
+itself: `livekit-server`, a Redis, and the egress recorder, all beside the app.
+
+The forcing event was the bill. LiveKit's free Build tier is 5,000 participant-
+minutes and it was exhausted four days after the first deploy, with audio down
+from then on. The next tier up is **$50/mo**, against a box that costs $12 and
+was already paid for. Four days of solo testing extrapolated to ~30,000
+participant-minutes a month — a fifth of what $50 buys — so it was not a case of
+outgrowing the free tier so much as the free tier being a trial.
+
+### Why this is cheap here specifically
+
+Self-hosting an SFU is usually the wrong trade. It is a good one here because of
+what this app asks for, not because of anything general about SFUs:
+
+- **Audio only.** No video anywhere, so no video codec and nothing to transcode.
+- **One speaker at a time.** The floor is the whole point, and a muted publisher
+  sends nothing — so traffic is one upstream track and N downstream copies,
+  never N².
+- **Track egress, passthrough.** `startRecording` uses `startTrackEgress` with
+  `DirectFileOutput`, which writes the Opus already being published. The 4 CPU /
+  4 GB figure in LiveKit's docs sizes *room composite*, which renders video in a
+  headless browser. It is not this workload and reading it as though it were is
+  the easiest way to talk yourself out of this.
+
+An SFU relays Opus rather than decoding it, so CPU was never the constraint
+either. The most expensive media work on this box remains the `FfmpegDecoder` in
+`playback.ts`, which was already there.
+
+Memory, the only real budget, came in under estimate: **~730 MB of 1907** with
+everything resident, against ~990 projected. `livekit-server` and `egress` idle
+at ~15 MB each; the item the projection missed was `dockerd` at 66 MB.
+
+### Why not a second box, and what the signal would be
+
+$7/mo, seriously considered, and deferred rather than rejected. The argument for
+it was never memory but **lifecycle**: `bin/deploy` runs `npm install` on the box
+and restarts, which today costs presence and not conversations *precisely
+because* media is elsewhere — and once it is not, that spike lands on live audio.
+An OOM kill has the same shape: today it drops signalling while conversations
+continue, co-located it takes the conversation and any recording in flight.
+
+Both are real. Neither is worth $7/mo before there is anybody to inconvenience,
+and the deciding fact is that **splitting later is cheap**: `livekit-server` is a
+separate process with its own config, so the move is a box built by
+`bin/provision-livekit`, an A record, and `LIVEKIT_URL` in `server/.env`. No
+code, no migration, no wire change.
+
+The signal to split is a deploy that audibly interrupts a call. You will notice.
+
+### Nothing in the app changed, and that is structural
+
+`POST /channels/:id/media-token` returns `{ token, url }`, and
+`useSessionAudio.ts` connects to whatever `url` comes back with — there is no
+hardcoded fallback, only a "no audio configured" branch. So the cutover was three
+lines in `server/.env` and a restart, with build 28 picking it up on its next
+token request. No release, no App Store round trip. It is also what makes the
+future split to a second box a one-line change.
+
+### Connectivity is a ladder, and only the first rung was built
+
+The old worry about NAT was framed in peer-to-peer terms, which is the wrong
+frame for an SFU. The server has a public IP and open UDP ports; a client only
+has to send outbound UDP and receive the return flow, which essentially every
+NAT permits — carrier-grade NAT included. The symmetric-NAT failures that make
+TURN mandatory for P2P mostly do not arise.
+
+| rung | port | covers | built |
+| --- | --- | --- | --- |
+| ICE/UDP direct to the SFU | 7882–7885/UDP (mux) | the large majority | yes |
+| ICE/TCP | 7881/TCP | UDP blocked, outbound TCP allowed | yes |
+| TURN/UDP | 3478/UDP | — | no |
+| TURN/TLS | 5349 or 443 | only 443 gets out | no |
+
+The last two are what happens when somebody reports they cannot connect, and
+TURN/TLS on 443 is expensive in a specific way: Caddy owns 443, TURN/TLS is not
+HTTP so `reverse_proxy` cannot carry it, and sharing the port needs SNI routing
+via `caddy-l4` — which means replacing the apt-installed Caddy with an `xcaddy`
+build and giving up the Cloudsmith repo's upgrades. The cheaper intermediate is
+TURN/TLS on **5349** with `external_tls: true` and Caddy terminating, which
+covers every restrictive network except those allowing 443 and nothing else.
+
+**And TURN cannot be tested from your own network**, which is the real ongoing
+cost of self-hosting and worth naming plainly: your network does not need TURN,
+so everything passes and you have learned nothing. When it breaks it breaks for a
+subset of users on networks you do not have, silently, while everyone on home
+Wi-Fi stays fine.
+
+### Four things that cost time, or would have
+
+**`rtc.use_external_ip: true` is necessary and not sufficient.** A cloud VM sees
+a private address, so without it LiveKit advertises ICE candidates nobody can
+route to. But the setting discovers the public address over STUN and then
+*validates* it with a round trip back to itself — so it also needs the UDP ports
+open at the firewall **before the server starts**. With them shut the log reads
+`found external IP via STUN {"externalIP": "44.241.121.49"}` immediately followed
+by `could not validate external IP`, and it falls back to advertising
+`172.26.0.26`. The configuration is correct, the address was found correctly, and
+the symptom is still the worst kind: the room connects, participants appear,
+negotiation completes, and there is no audio. **The log line to read is `using
+external IPs`, not the yaml.** Discovery happens only at startup, so opening the
+firewall afterwards needs a restart.
+
+**Egress rations itself by a CPU budget, and the default is for a different
+job.** `track_cpu_cost` defaults to 1 against two vCPUs, so the third concurrent
+track egress is refused — and every participant in a recording is their own
+egress, which a six-person channel reaches at once. Set to `0.15`, honest for a
+no-transcode byte pump. The key name had to be *verified* rather than assumed:
+egress **silently ignores unknown config keys**, so a typo would have left the
+default in place with nothing said anywhere. Setting it to 100 and watching
+`minimumCpu` move is how you confirm it took.
+
+**A subdomain, not a path prefix, and the reason is in the SDK.** `livekit.
+rvanegas.co` looks like ceremony when `thefloor.rvanegas.co` already points at
+the same IP — but routing LiveKit under a `/livekit` prefix does not work:
+
+    new URL("/twirp/livekit.RoomService/GetParticipant",
+            "https://thefloor.rvanegas.co/livekit")
+      → https://thefloor.rvanegas.co/twirp/…        # the prefix is gone
+
+`TwirpRpc` builds an **absolute** path and resolves it against the base URL, so
+`RoomServiceClient` and `EgressClient` would drop the prefix and land on Fastify.
+`prefix` is a `TwirpRpc` option and neither client forwards it — only
+`requestTimeout` and `failover`. A prefix-free variant does work (route `/rtc`,
+`/rtc/*` and `/twirp/*` on the app's own hostname) and was rejected for giving
+that hostname two owners, where a new Fastify route or a new LiveKit top-level
+path lands on the wrong process and 404s quietly. A DNS record is cheaper.
+
+**`udp_port` and `port_range_start`/`end` are mutually exclusive.** The mux takes
+effect only when the range is unset, and setting both is not an error that
+announces itself — the range simply wins.
+
+### What was verified, and what it does not cover
+
+Two phones, in an order chosen so each step exercised something the previous one
+did not: join; claim and release the floor; record; play back into the room. All
+four passed. The recording landed as `rec_M3y1Yp4FGyoZ` — two stems and both
+egress manifests in S3, timestamps matching `egress_complete` in the log to the
+second. Playback was the one that mattered most, being the only exercise of
+`@livekit/rtc-node` against a self-hosted server rather than Cloud.
+
+What it does not cover is load, TURN, and what a deploy does to a live call —
+the first two by construction, the third because nobody was talking during one.
+
+**A pre-existing rough edge, checked so it would not be blamed on the move.**
+`setSilenced` throws `participant does not exist` fairly often — 89 during the
+verification session. It is not a regression: 470 on 2026-08-10, 86 on the 11th,
+64 on the 12th, and 7 on the 13th when audio was down all day. The rate tracks
+how much talking happened, not which media server was serving it.

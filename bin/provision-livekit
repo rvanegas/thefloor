@@ -1,0 +1,337 @@
+#!/bin/bash
+#
+# Brings the media plane up on a box that bin/provision has already prepared:
+# livekit-server, the Redis it needs because egress does, and egress itself.
+#
+#     bin/provision-livekit ubuntu@<ip>
+#
+# Idempotent, so re-running after a failure part way through is safe and is the
+# expected way to recover.
+#
+# A sibling of bin/provision rather than part of it, for the reason
+# planning/DECISIONS.md gives: this is exactly the script a second box would
+# need if the split ever happens, and keeping it separate is what makes that a
+# matter of running it somewhere else rather than untangling it from the app's
+# setup.
+#
+# Like bin/provision it invents no secret. The LiveKit API key pair is read
+# from a file outside the tree; a script that generates credentials is one
+# whose every invocation is a chance to leave a different pair on a box and a
+# server pointed at the one before it.
+set -euo pipefail
+
+HOST=${1:?usage: bin/provision-livekit ubuntu@<ip>}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+SSH="ssh -i $KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+
+# Pinned rather than latest, both of them. `curl get.livekit.io | bash` installs
+# whatever is current, which makes the box unreproducible: provisioning a second
+# one months later would silently give it a different SFU from the one the first
+# was tested against.
+LIVEKIT_VERSION=${LIVEKIT_VERSION:-1.13.5}
+EGRESS_VERSION=${EGRESS_VERSION:-v1.14.0}
+
+LIVEKIT_HOSTNAME=${LIVEKIT_HOSTNAME:-livekit.rvanegas.co}
+
+# Generated once with `livekit-server generate-keys` and kept beside the APNs
+# key, under ~/.config/thefloor — a credential rather than data, and outside the
+# tree because bin/deploy rsyncs that with --delete.
+ENV_FILE=${THEFLOOR_LIVEKIT_ENV:-$HOME/.config/thefloor/livekit.env}
+if [ ! -f "$ENV_FILE" ]; then
+  cat >&2 <<MSG
+✗ missing $ENV_FILE
+
+  It holds the LiveKit API key pair. Generate one and write it there:
+
+      livekit-server generate-keys        # or on the box, once it is installed
+
+      umask 077
+      cat > $ENV_FILE <<'ENV'
+      LIVEKIT_API_KEY=APIxxxxxxxxxxxx
+      LIVEKIT_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      ENV
+
+  The same pair goes into server/.env on the box at cutover.
+MSG
+  exit 1
+fi
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+: "${LIVEKIT_API_KEY:?not set in $ENV_FILE}"
+: "${LIVEKIT_API_SECRET:?not set in $ENV_FILE}"
+
+cd "$(dirname "$0")/.."
+
+echo "→ livekit-server $LIVEKIT_VERSION"
+$SSH "$HOST" "set -euo pipefail
+  if [ \"\$(livekit-server --version 2>/dev/null | awk '{print \$NF}')\" != '$LIVEKIT_VERSION' ]; then
+    tmp=\$(mktemp -d)
+    curl -fsSL -o \"\$tmp/livekit.tar.gz\" \\
+      https://github.com/livekit/livekit/releases/download/v$LIVEKIT_VERSION/livekit_${LIVEKIT_VERSION}_linux_amd64.tar.gz
+    tar -xzf \"\$tmp/livekit.tar.gz\" -C \"\$tmp\" livekit-server
+    sudo install -m 755 \"\$tmp/livekit-server\" /usr/local/bin/livekit-server
+    rm -rf \"\$tmp\"
+  fi
+  livekit-server --version"
+
+# livekit-server alone would need no Redis. It needs one because egress does:
+# the two hand jobs back and forth over Redis queues. Ubuntu's package binds
+# loopback and enables protected-mode out of the box, which is all this wants.
+echo "→ redis"
+$SSH "$HOST" 'set -euo pipefail
+  if ! command -v redis-server >/dev/null; then
+    sudo apt-get update -qq
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server >/dev/null 2>&1
+  fi
+  sudo systemctl enable --now redis-server >/dev/null
+  redis-cli ping'
+
+# Egress is Docker-only upstream. Building it from source drags in GStreamer and
+# Chrome, which is not worth doing to avoid a daemon.
+echo "→ docker + egress $EGRESS_VERSION"
+$SSH "$HOST" "set -euo pipefail
+  if ! command -v docker >/dev/null; then
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq docker.io >/dev/null 2>&1
+  fi
+  sudo systemctl enable --now docker >/dev/null
+  sudo docker image inspect livekit/egress:$EGRESS_VERSION >/dev/null 2>&1 \\
+    || sudo docker pull -q livekit/egress:$EGRESS_VERSION"
+
+# Two service accounts. `livekit` is ordinary. `livekit-egress` exists only to
+# reserve uid 1001, which is the uid the livekit/egress image runs as: egress.yaml
+# is bind-mounted into the container and has to be readable there, and pinning the
+# number on the host is what stops some later user drifting into it.
+echo "→ users and /etc/livekit"
+$SSH "$HOST" 'set -euo pipefail
+  id livekit >/dev/null 2>&1 \
+    || sudo useradd --system --no-create-home --shell /usr/sbin/nologin livekit
+  id livekit-egress >/dev/null 2>&1 \
+    || sudo useradd --system --uid 1001 --no-create-home --shell /usr/sbin/nologin livekit-egress 2>/dev/null
+  sudo mkdir -p /etc/livekit
+  sudo chown root:livekit /etc/livekit
+  sudo chmod 750 /etc/livekit'
+
+# /etc/livekit rather than ~/.config/thefloor, and the difference matters:
+# bin/deploy rsyncs ~/thefloor with --delete, and while ~/.config is outside that
+# tree too, /etc is outside it by construction. A config a deploy can reach is
+# one that works perfectly until the deploy after next removes it, and the
+# failure arrives as "audio stopped" some minutes after a green deploy.
+echo "→ /etc/livekit/livekit.yaml"
+$SSH "$HOST" 'sudo tee /etc/livekit/livekit.yaml >/dev/null' <<YAML
+# The SFU. Written by bin/provision-livekit — edit that, not this.
+
+# HTTP and WSS, behind Caddy on $LIVEKIT_HOSTNAME. Loopback only, on the same
+# reasoning that already keeps Node off the public interface. This does NOT
+# affect the RTC ports below, which stay on every interface: bind_addresses is
+# the HTTP server's alone.
+port: 7880
+bind_addresses:
+  - 127.0.0.1
+
+rtc:
+  # Non-negotiable on a cloud VM, and the single most common self-hosting
+  # failure. Lightsail hands the instance a private address; without this,
+  # LiveKit advertises ICE candidates nobody can route to, and the symptom is
+  # the worst kind — the room connects, participants appear, negotiation
+  # completes, and there is no audio.
+  #
+  # It also needs the UDP ports below to be open at the Lightsail firewall
+  # *before* the server starts: the external address is discovered over STUN
+  # and then validated by a round trip back to itself, and a closed firewall
+  # fails the validation and falls back to advertising the private address.
+  # Same silent symptom, from a step further back.
+  use_external_ip: true
+
+  # ICE/TCP, for networks that block UDP outright. Exposed directly on the
+  # node: upstream says plainly that this port cannot sit behind a load
+  # balancer or TLS, and WebRTC transports carry their own encryption, so
+  # nothing is given up by keeping it out of Caddy.
+  tcp_port: 7881
+
+  # UDP mux. port_range_start / port_range_end must stay unset — the mux takes
+  # effect only when the range is absent, and setting both is not an error that
+  # announces itself: the range simply wins.
+  udp_port: 7882-7885
+
+redis:
+  address: 127.0.0.1:6379
+
+keys:
+  $LIVEKIT_API_KEY: $LIVEKIT_API_SECRET
+
+logging:
+  level: info
+YAML
+$SSH "$HOST" 'sudo chown livekit:livekit /etc/livekit/livekit.yaml && sudo chmod 600 /etc/livekit/livekit.yaml'
+
+echo "→ /etc/livekit/egress.yaml"
+$SSH "$HOST" 'sudo tee /etc/livekit/egress.yaml >/dev/null' <<YAML
+# The recorder. Written by bin/provision-livekit — edit that, not this.
+#
+# Owned by uid 1001 because that is the uid the livekit/egress image runs as,
+# and this file is bind-mounted into it.
+
+# Egress is an ordinary API client of the SFU over loopback, and takes its jobs
+# off Redis queues. Both addresses must match livekit.yaml.
+ws_url: ws://127.0.0.1:7880
+api_key: $LIVEKIT_API_KEY
+api_secret: $LIVEKIT_API_SECRET
+
+redis:
+  address: 127.0.0.1:6379
+
+# Availability is decided by a CPU budget rather than by how much work a job
+# really does, and the defaults assume a job that renders video in a headless
+# browser. This app only ever asks for track egress: DirectFileOutput over the
+# Opus already being published, no transcode, a byte pump. The default cost of
+# 1 would let two of them run on a two-vCPU box and refuse the third, which a
+# six-person channel reaches at once — every stem is its own egress.
+#
+# The other costs are deliberately left alone. Egress logs "not enough cpu for
+# some egress types" at startup because room composite still costs 4; that is
+# accurate, and refusing a job this box cannot do is the right answer.
+cpu_cost:
+  track_cpu_cost: 0.15
+
+log_level: info
+YAML
+$SSH "$HOST" 'sudo chown livekit-egress:livekit-egress /etc/livekit/egress.yaml && sudo chmod 600 /etc/livekit/egress.yaml'
+
+# livekit-server warns at startup that the default 425984 is too small. A burst
+# of RTP arriving faster than the SFU drains it is dropped in the kernel, which
+# reaches a listener as choppy audio and appears in no log at all.
+echo "→ udp buffers"
+$SSH "$HOST" 'set -euo pipefail
+  sudo tee /etc/sysctl.d/60-livekit.conf >/dev/null <<CONF
+net.core.rmem_max = 5000000
+net.core.wmem_max = 5000000
+CONF
+  sudo sysctl -q --system'
+
+echo "→ systemd units"
+$SSH "$HOST" 'sudo tee /etc/systemd/system/livekit-server.service >/dev/null' <<'UNIT'
+[Unit]
+Description=LiveKit SFU
+Documentation=https://docs.livekit.io/home/self-hosting/vm/
+# Requires, not merely After: livekit-server holds the Redis connection egress
+# reads its jobs from, and comes up unable to serve them without one.
+Requires=redis-server.service
+After=redis-server.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=livekit
+Group=livekit
+ExecStart=/usr/local/bin/livekit-server --config /etc/livekit/livekit.yaml
+Restart=on-failure
+RestartSec=2
+# One fd per peer connection per transport, plus the mux sockets. Not a limit
+# this workload reaches, but if it ever did the failure would be refused
+# connections and nothing anywhere naming the cause.
+LimitNOFILE=65536
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+$SSH "$HOST" 'sudo tee /etc/systemd/system/livekit-egress.service >/dev/null' <<UNIT
+[Unit]
+Description=LiveKit Egress (track egress only)
+Documentation=https://docs.livekit.io/home/self-hosting/egress/
+Requires=docker.service
+After=docker.service livekit-server.service redis-server.service
+
+[Service]
+# Host networking so that ws://127.0.0.1:7880 and the Redis on loopback are the
+# same addresses inside the container as out, matching /etc/livekit/egress.yaml.
+#
+# No --cap-add SYS_ADMIN. Upstream prescribes it for the Chrome sandbox that
+# room composite needs; this app only ever asks for track egress, so it would
+# buy nothing and cost the isolation.
+ExecStartPre=-/usr/bin/docker rm -f livekit-egress
+ExecStart=/usr/bin/docker run --rm --name livekit-egress \\
+  --network host \\
+  --mount type=bind,source=/etc/livekit/egress.yaml,target=/etc/egress.yaml,readonly \\
+  -e EGRESS_CONFIG_FILE=/etc/egress.yaml \\
+  livekit/egress:$EGRESS_VERSION
+ExecStop=/usr/bin/docker stop livekit-egress
+Restart=on-failure
+RestartSec=5
+# Egress finishes uploading an in-flight recording as it shuts down. Stopping it
+# sooner loses the stem and leaves a row pointing at a key that never lands in
+# the bucket.
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+$SSH "$HOST" 'set -euo pipefail
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now livekit-server >/dev/null
+  sudo systemctl restart livekit-server
+  sudo systemctl enable --now livekit-egress >/dev/null
+  sudo systemctl restart livekit-egress'
+
+# The Caddy block is added only once DNS points here, and that is not fussiness.
+# Caddy asks Let'"'"'s Encrypt for a certificate the moment it loads a site block,
+# and a hostname that does not resolve to this box fails validation — five times
+# per hostname per hour and the name is rate-limited, which arrives precisely
+# when cutover needs it. bin/provision refuses to restart Caddy for the same
+# reason; see planning/MIGRATION.md.
+echo "→ caddy"
+BOX_IP=${HOST#*@}
+# Asked of a public resolver rather than this machine's. What matters is what
+# Let's Encrypt will see, and a laptop that cached NXDOMAIN while the record was
+# being added would otherwise block a cutover that is perfectly ready.
+RESOLVED=$(dig +short "$LIVEKIT_HOSTNAME" @1.1.1.1 | tail -1)
+if [ "$RESOLVED" != "$BOX_IP" ]; then
+  echo "  ⚠ $LIVEKIT_HOSTNAME resolves to '${RESOLVED:-nothing}', not $BOX_IP — skipping."
+  echo "    Add the A record, then re-run this script. Nothing else is pending."
+else
+  if ! $SSH "$HOST" "grep -q '^$LIVEKIT_HOSTNAME' /etc/caddy/Caddyfile"; then
+    $SSH "$HOST" 'sudo tee -a /etc/caddy/Caddyfile >/dev/null' <<BLOCK
+
+# The SFU's HTTP and WSS port. It binds loopback, so this block is the only way
+# in — the same arrangement Node has above.
+#
+# No flush_interval here. The app's block needs it because a buffered response
+# makes every countdown arrive late; a WebSocket upgrade is not buffered, and
+# the twirp calls behind it are request/response.
+#
+# ICE/TCP on 7881 and the UDP mux on 7882-7885 are deliberately NOT here. They
+# cannot sit behind a proxy or TLS, and WebRTC carries its own encryption.
+$LIVEKIT_HOSTNAME {
+	reverse_proxy 127.0.0.1:7880
+}
+BLOCK
+  fi
+  $SSH "$HOST" 'set -euo pipefail
+    sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
+      || { echo "  ✗ Caddyfile does not validate" >&2; exit 1; }
+    sudo systemctl reload caddy'
+  echo "  $LIVEKIT_HOSTNAME served"
+fi
+
+echo "→ checking"
+$SSH "$HOST" 'set -euo pipefail
+  systemctl is-active livekit-server livekit-egress redis-server | tr "\n" " "; echo
+  # Whether use_external_ip actually settled on the public address. If this
+  # prints a 172.x or 10.x address, the Lightsail firewall is still closed on
+  # 7882-7885/UDP: the room will connect and carry no audio.
+  sudo journalctl -u livekit-server -n 200 --no-pager \
+    | grep "using external IPs" | tail -1'
+
+echo "✓ media plane provisioned."
+echo "  Still by hand:"
+echo "    1. Lightsail firewall: 7881/TCP and 7882-7885/UDP. Not 7880."
+echo "    2. LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET in server/.env, then"
+echo "       sudo systemctl restart thefloor"

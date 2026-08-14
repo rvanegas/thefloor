@@ -1,0 +1,116 @@
+#!/bin/bash
+#
+# Brings a bare Ubuntu 24.04 Lightsail instance to the point where bin/deploy
+# works against it. Run once per box:
+#
+#     bin/provision ubuntu@<new-ip>
+#
+# Idempotent, so re-running after a failure part way through is safe and is the
+# expected way to recover.
+#
+# What it deliberately does NOT do is put any secret on the box. server/.env
+# and the APNs .p8 are copied by hand — see planning/MIGRATION.md — because a
+# script that reads credentials is a script whose every invocation is a chance
+# to write them somewhere they should not be.
+#
+# It also does not start thefloor. The unit is installed and enabled, but the
+# database has to be in place first, and a server that comes up against an
+# empty one would write a fresh schema and look healthy while holding nothing.
+set -euo pipefail
+
+HOST=${1:?usage: bin/provision ubuntu@<ip>}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+SSH="ssh -i $KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+
+# The unit file and Caddyfile are taken from the backup rather than written out
+# here, so what lands on the new box is what was running on the old one instead
+# of a second copy that can drift from it.
+BACKUP=${THEFLOOR_BACKUP:-~/.config/thefloor/backup-2026-08-13}
+for f in Caddyfile thefloor.service; do
+  [ -f "$BACKUP/$f" ] || { echo "✗ missing $BACKUP/$f" >&2; exit 1; }
+done
+
+cd "$(dirname "$0")/.."
+
+echo "→ packages"
+# Node from NodeSource rather than Ubuntu's, which ships 18: node:sqlite is a
+# 22 feature and the server has no other database driver.
+$SSH "$HOST" 'set -euo pipefail
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq curl gnupg ca-certificates sqlite3 rsync >/dev/null
+
+  # ffmpeg is not optional and is easy to miss, because nothing complains until
+  # somebody exports. export.ts spawns `ffmpeg` to mix a recording, playback
+  # probes duration with `ffprobe`, and neither path is exercised by starting
+  # the server or by /healthz — a box without it serves channels correctly,
+  # stays green, and fails every export and every playback at runtime.
+  # The live box has 6.1.1 from Ubuntu, which is what this installs.
+  sudo apt-get install -y -qq ffmpeg >/dev/null
+
+  if ! command -v node >/dev/null || [ "$(node -v | cut -d. -f1)" != "v22" ]; then
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null
+    sudo apt-get install -y -qq nodejs >/dev/null
+  fi
+
+  if ! command -v caddy >/dev/null; then
+    curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key \
+      | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt \
+      | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq caddy >/dev/null
+  fi
+'
+
+# 2GB, matching the old box. The runtime sits around 300MB and does not need
+# it; the npm install during a deploy is the spike, and on a 1GB micro that is
+# the moment with the least room. Swap is what keeps it from being an OOM.
+echo "→ swap"
+$SSH "$HOST" 'set -euo pipefail
+  if ! swapon --show | grep -q /swapfile; then
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile >/dev/null
+    sudo swapon /swapfile
+    grep -q "^/swapfile" /etc/fstab || echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab >/dev/null
+  fi
+'
+
+# Outside ~/thefloor on purpose: bin/deploy rsyncs that tree with --delete, so
+# anything inside it is something a later deploy removes.
+echo "→ directories"
+$SSH "$HOST" 'mkdir -p ~/thefloor-data ~/thefloor ~/.config/thefloor && chmod 700 ~/.config/thefloor'
+
+# The Caddyfile is written but Caddy is deliberately NOT restarted, so it goes
+# on serving its packaged default until cutover. Two traps here, both learned
+# the hard way:
+#
+# `apt-get install caddy` starts the service, so `systemctl enable --now` is a
+# no-op on an already-running unit and does not re-read the file — the config
+# lands on disk and nothing loads it. That silence is the dangerous part: the
+# box looks provisioned and would serve the packaged welcome page, over plain
+# HTTP with no certificate, the instant it owned the production IP.
+#
+# And restarting it here would be wrong anyway. Caddy would immediately try
+# ACME for a hostname that still resolves to the old box, fail validation, and
+# spend Let's Encrypt's five-failures-per-hostname-per-hour — so the certificate
+# would be rate-limited at precisely the moment cutover needed it. Loading the
+# config is a cutover step, once the IP has moved. See planning/MIGRATION.md.
+echo "→ caddy config (staged, not loaded)"
+$SSH "$HOST" 'sudo tee /etc/caddy/Caddyfile >/dev/null' < "$BACKUP/Caddyfile"
+$SSH "$HOST" 'sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
+  && echo "  Caddyfile validates" || { echo "  ✗ Caddyfile does not validate" >&2; exit 1; }
+  sudo systemctl enable caddy >/dev/null 2>&1 || true'
+
+echo "→ systemd unit"
+$SSH "$HOST" 'sudo tee /etc/systemd/system/thefloor.service >/dev/null' < "$BACKUP/thefloor.service"
+$SSH "$HOST" 'sudo systemctl daemon-reload && sudo systemctl enable thefloor >/dev/null'
+
+echo "→ unattended upgrades"
+$SSH "$HOST" 'sudo systemctl enable --now unattended-upgrades >/dev/null 2>&1 || true'
+
+echo "✓ provisioned. Still to do by hand, in order:"
+echo "    1. copy server/.env and the APNs .p8   (planning/MIGRATION.md)"
+echo "    2. copy the database into ~/thefloor-data/"
+echo "    3. THEFLOOR_HOST=$HOST bin/deploy"
+echo "    4. at cutover, once the static IP has moved: sudo systemctl restart caddy"
