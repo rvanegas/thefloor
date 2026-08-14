@@ -95,9 +95,9 @@ planning/DECISIONS.md for why it is not in-app purchase. The build is a
 `donations` table, `server/src/donations.ts`, `POST /support/kofi` and `GET
 /support`, plus a Support card in `HomeSettingsView`. Nothing in `core/` changed
 except one additive type, so the wire is unchanged and build 30 kept working
-across all three restarts; **build 31 is the one that shows the card**, and it is
-not built yet. Alongside it went `GET /privacy` and a fixed one-time code for
-App Review (`REVIEW_IDENTIFIER` / `REVIEW_CODE`).
+across all three restarts. **Build 31 is the one that shows the card**, uploaded
+to TestFlight the same day. Alongside it went `GET /privacy` and a fixed one-time
+code for App Review (`REVIEW_IDENTIFIER` / `REVIEW_CODE`).
 
 **The app ships worldwide and the link is withheld per person.** App Review
 Guideline 3.1.1(a) prohibits an external payment link outside the United States
