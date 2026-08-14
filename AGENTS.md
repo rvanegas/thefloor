@@ -493,14 +493,21 @@ Two more things that fail quietly and are worth checking before anything else:
   move the media plane to its own $7 box**, which planning/DECISIONS.md argues
   and `bin/provision-livekit` exists to make cheap. It is worth listening for
   rather than waiting to be told about.
-- **`setSilenced` throws `participant does not exist` twice a second while a
-  floor is held**, whenever a channel member is not connected to the media room
-  — 89 in one test session, 470 on 2026-08-10. It is the loudest thing in the
-  log by a wide margin and it is **not** a media-provider fault: it survived the
-  2026-08-13 move from LiveKit Cloud unchanged, which was checked at the time
-  precisely so it would not be misread later as a regression. Diagnosis, log
-  greps and a deliberate reproduction are in planning/BACKLOG.md under Known
-  defects.
+- **A floor claim is enforced against a *track*, and tracks are replaced under
+  it.** Fixed on 2026-08-14 and worth knowing before touching `assertSilence`:
+  a phone whose connection flaps rejoins publishing a new track id, which the
+  mute already stated does not name and which is subscribed to by default, so
+  the silenced person becomes audible again while every screen says otherwise.
+  `reconcileSilence` compares what was stated against what the room is actually
+  carrying, once a tick, and restates the difference. **The transition is for
+  latency and the reconciliation is for truth** — do not collapse one into the
+  other. planning/DECISIONS.md carries the logs that show it.
+
+  The same change retired what used to be the loudest thing in the log by a wide
+  margin — `participant does not exist`, twice a second for as long as a claim
+  lasted, 470 on 2026-08-10 — by asking the room who is in it rather than
+  guessing from channel membership. If it ever comes back, that is the
+  regression.
 
 ---
 

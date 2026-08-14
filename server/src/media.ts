@@ -54,8 +54,9 @@ export interface MediaServer {
    * reaches their device — but it leaves the silenced person's audio pipeline
    * completely undisturbed, which is what makes it survivable and reversible.
    *
-   * Returns whether anything was acted on: false means the speaker had no
-   * published track yet, so the caller must re-state this once they do —
+   * Returns the speaker's tracks it was stated against, empty meaning they had
+   * nothing published yet. The caller keeps those ids: a statement is about a
+   * *track*, so it stops being true the moment the speaker republishes, and
    * whoever publishes next is subscribed to by default.
    */
   setSilenced(params: {
@@ -65,7 +66,21 @@ export interface MediaServer {
     /** Who stops receiving it. */
     listener: string;
     silenced: boolean;
-  }): Promise<boolean>;
+  }): Promise<string[]>;
+
+  /**
+   * Who is in the room right now and what each of them is publishing, by
+   * identity. A participant present but publishing nothing has an empty list;
+   * one who is not in the room at all is absent from the map.
+   *
+   * This is what makes the floor hold against a flapping connection. A mute is
+   * a statement about a track id, and a client that drops and reconnects — an
+   * ordinary event on a phone — comes back publishing a *new* track, which the
+   * old statement does not cover and which is subscribed to by default. So the
+   * server compares what it last stated against what the room is actually
+   * carrying, once a tick, rather than trusting a call that succeeded once.
+   */
+  audioTracks(room: string): Promise<Map<string, string[]>>;
 
   /** Tears the room down when the channel ends. */
   closeRoom(room: string): Promise<void>;
@@ -251,16 +266,29 @@ export class LiveKitMediaServer implements MediaServer {
     speaker: string;
     listener: string;
     silenced: boolean;
-  }): Promise<boolean> {
+  }): Promise<string[]> {
     const publisher = await this.rooms.getParticipant(room, speaker);
     const audio = publisher.tracks
       .filter((track) => track.type === TrackType.AUDIO)
       .map((track) => track.sid);
     // Nothing published yet: whoever publishes next is subscribed to by
     // default, so the caller re-states this against a real track later.
-    if (audio.length === 0) return false;
+    if (audio.length === 0) return audio;
     await this.rooms.updateSubscriptions(room, listener, audio, !silenced);
-    return true;
+    return audio;
+  }
+
+  async audioTracks(room: string): Promise<Map<string, string[]>> {
+    const roster = new Map<string, string[]>();
+    for (const participant of await this.rooms.listParticipants(room)) {
+      roster.set(
+        participant.identity,
+        participant.tracks
+          .filter((track) => track.type === TrackType.AUDIO)
+          .map((track) => track.sid)
+      );
+    }
+    return roster;
   }
 
   async closeRoom(room: string): Promise<void> {
@@ -451,13 +479,24 @@ export class MemoryMediaServer implements MediaServer {
   failStart: { reason: string; identity?: string } | null = null;
   /**
    * Identities (`room/identity`) treated as having no published track:
-   * setSilenced against them is a no-op returning false, as it is against a
-   * participant who has joined the channel but not the room yet.
+   * setSilenced against them acts on nothing, as it does against a participant
+   * who has joined the channel but not the room yet.
    */
   readonly unpublished = new Set<string>();
+  /** The current track id per `room/identity`, minted on first sight. */
+  private trackIds = new Map<string, string>();
+  private nextTrackId = 1;
+  /**
+   * Every `room/identity` this server has been told about, which is what it
+   * has instead of connections. Kept apart from `subscriptions` because that
+   * is a log tests clear between assertions, and emptying the log must not
+   * empty the room.
+   */
+  private known = new Set<string>();
 
   async issueToken({ room, identity }: { room: string; identity: string }) {
     this.issued.push({ room, identity });
+    this.known.add(`${room}/${identity}`);
     return `token:${room}:${identity}`;
   }
 
@@ -472,11 +511,53 @@ export class MemoryMediaServer implements MediaServer {
     listener: string;
     silenced: boolean;
   }) {
-    if (this.unpublished.has(`${room}/${speaker}`)) return false;
+    this.known.add(`${room}/${speaker}`);
+    this.known.add(`${room}/${listener}`);
+    // Subscriptions are changed on the listener, so a listener who is not in
+    // the room is the failure the real thing answers with `participant does
+    // not exist` — the loudest line in the log for as long as it was retried.
+    if (this.unpublished.has(`${room}/${listener}`)) {
+      throw new Error('participant does not exist');
+    }
+    if (this.unpublished.has(`${room}/${speaker}`)) return [];
     // Keyed by who is being withheld, which is what callers ask about.
     this.muted.set(`${room}/${speaker}`, silenced);
     this.subscriptions.push({ room, speaker, listener, silenced });
-    return true;
+    return [this.trackId(room, speaker)];
+  }
+
+  /**
+   * The roster: everyone this server has ever been told about for the room,
+   * less whoever is marked `unpublished`, each publishing one track. There is
+   * no connection here to hold, so having been named is what standing in the
+   * room amounts to — and `unpublished` is what it looks like to be out of it.
+   */
+  async audioTracks(room: string) {
+    const roster = new Map<string, string[]>();
+    for (const key of this.known) {
+      if (!key.startsWith(`${room}/`)) continue;
+      if (this.unpublished.has(key)) continue;
+      const identity = key.slice(room.length + 1);
+      roster.set(identity, [this.trackId(room, identity)]);
+    }
+    return roster;
+  }
+
+  /**
+   * A client dropping and reconnecting: the same person, a brand-new track,
+   * which is the case any statement made against the old one no longer covers.
+   */
+  republish(room: string, identity: string): void {
+    this.trackIds.delete(`${room}/${identity}`);
+  }
+
+  private trackId(room: string, identity: string): string {
+    const key = `${room}/${identity}`;
+    const existing = this.trackIds.get(key);
+    if (existing) return existing;
+    const id = `TR_${this.nextTrackId++}`;
+    this.trackIds.set(key, id);
+    return id;
   }
 
   async closeRoom(room: string) {

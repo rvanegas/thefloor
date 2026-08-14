@@ -1923,3 +1923,91 @@ So it is a review-notes item rather than a code item. If a reviewer raises it,
 blocking is a day's work. Building it speculatively ahead of a rejection that
 may never come was the thing not worth doing — and the reasoning is here so that
 the next person to notice the gap knows it was noticed.
+
+---
+
+## A mute is about a track, and tracks do not last
+
+**Status:** built 2026-08-14, after a report that entering a channel and having
+the other person claim the floor did not silence the reporter — she went on
+hearing him for the whole claim while both screens said he was silenced.
+
+The floor is enforced by unsubscribing every listener from the silenced
+speaker's audio (`setSilenced`), which is the right cut and is argued for at
+length in `server/src/media.ts`. What was wrong is *when* it was stated. It was
+stated once, on a transition — the holder changing, or somebody arriving — and
+then believed. LiveKit's `UpdateSubscriptions` takes **track ids**, and a track
+id is not a property of a person: a client that drops and reconnects publishes a
+brand-new one, which the old statement does not name and which is subscribed to
+by default. Nothing in `ChannelState` changes when that happens, so nothing
+re-stated it.
+
+The evidence is two logs read side by side, and it is worth keeping because
+neither is legible alone. The server's:
+
+    11:58:17.110  setSilenced chan_W… wjD<-sud=true   participant does not exist
+    11:58:17.356  …the same, and again at .857 and 18.357
+
+and LiveKit's, for the same seconds:
+
+    11:58:08.343  participant closing   sud   PEER_CONNECTION_DISCONNECTED
+    11:58:18.712  starting RTC session  sud                 ← a new session
+    11:58:18.947  mediaTrack published  sud                 ← a new track id
+    11:58:19.362  UpdateSubscriptions   wjD                 ← the mute, at last
+
+That claim recovered by luck: his websocket dropped along with his media
+connection, so the roster changed, so `commit` re-stated everything. Eleven
+minutes later the media plane flapped **alone**, twice —
+
+    12:06:11 closing → 12:06:20 rejoin, new track
+    12:06:41 closing → 12:06:49 rejoin, new track
+
+— and there is not one `UpdateSubscriptions` in that window. Nothing was even
+attempted.
+
+### What replaced it
+
+The server now records what it was actually told: per `listener<-speaker` pair,
+the room, whether the speaker was withheld, and **the track ids it was stated
+against** (`silenceSignature`). Once a tick, while a floor is held,
+`reconcileSilence` asks the media plane what the room is really carrying and
+restates every pair whose signature disagrees. A republished track is a changed
+signature, so it is caught within 500 ms without anything else having to notice.
+
+Two properties of that are load-bearing and easy to lose:
+
+- **A statement in flight is not a statement in force.** The record is cleared
+  before the call, not after it fails, and written only when the call returns a
+  track it acted on. So a failure, a call that found nothing published, and a
+  call never made are all the same thing to the reconciliation — which is what
+  makes it converge rather than believe itself.
+- **It touches only pairs where both ends are in the room.** This is what
+  retired the loudest line in the log. The old retry loop worked from
+  `state.participants`, which is channel *membership*, and asked LiveKit about
+  people who were not there — `participant does not exist`, twice a second, for
+  as long as a claim lasted, 470 in one day. Room presence is now read from the
+  room, so an absent member is not asked about at all.
+
+The immediate statement on a transition is kept, and is deliberately dumber: it
+does not know who is in the room and fires at once so that a claim takes effect
+now rather than up to a tick later. Everything it cannot land is left to the
+reconciliation. That is the division — **the transition is for latency, the
+reconciliation is for truth** — and collapsing either into the other loses one
+of them.
+
+### What was not done
+
+**LiveKit's `UpdateSubscriptionPermissions`** is the primitive this wants: it is
+keyed to the publisher rather than to a track, so it would survive republishing
+without any reconciliation at all. It is not in `livekit-server-sdk@2.17.0`, and
+reaching past the SDK to the twirp endpoint to get it was not worth it for a
+mechanism the tick already affords. Worth revisiting on an SDK upgrade.
+
+**LiveKit webhooks** (`track_published`) would cut the 500 ms to nothing and
+remove the polling. They also add a public endpoint, a shared secret, and a
+second thing to configure in `livekit.yaml` — for a saving of at most half a
+second on an event that happens when somebody's connection drops. The
+reconciliation costs one `ListParticipants` per held floor per tick, which is
+one call every 500 ms for as long as somebody is actually talking, and nothing
+at all otherwise. If the floor ever needs to be tighter than a tick, this is the
+change to make.

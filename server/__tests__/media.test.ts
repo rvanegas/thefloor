@@ -245,7 +245,10 @@ describe('the floor as an actual mute', () => {
         async issueToken() {
           return 'irrelevant';
         },
-        async setSilenced() {
+        async setSilenced(): Promise<string[]> {
+          throw new Error('livekit unreachable');
+        },
+        async audioTracks(): Promise<Map<string, string[]>> {
           throw new Error('livekit unreachable');
         },
         async closeRoom() {},

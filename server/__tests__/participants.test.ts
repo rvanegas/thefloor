@@ -370,6 +370,91 @@ describe('the silencing matrix with three people', () => {
       silenced: true,
     });
   });
+
+  /**
+   * The build 34 bug: she claimed the floor and could still hear him. A mute is
+   * a statement about a *track*, and his phone's connection had flapped, so he
+   * came back publishing a different one — which the statement did not cover
+   * and which is subscribed to by default. Nothing the reducer sees changes
+   * when that happens, so nothing used to re-state it, and he stayed audible
+   * for the rest of the claim while every screen said he was silenced.
+   */
+  it('restates a silence when the speaker republishes under it', async () => {
+    const { alice, bob, carol, channelId } = await trioAllPresent();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+    media.subscriptions.length = 0;
+
+    media.republish(channelId, bob.account.id);
+    clock += 500;
+    app.channels.tick();
+    await settle();
+
+    // Only him, and to everyone: the others' statements still hold.
+    expect(media.subscriptions).toHaveLength(2);
+    for (const listener of [alice.account.id, carol.account.id]) {
+      expect(media.subscriptions).toContainEqual({
+        room: channelId,
+        speaker: bob.account.id,
+        listener,
+        silenced: true,
+      });
+    }
+  });
+
+  it('says nothing to a media plane that already agrees', async () => {
+    const { alice, channelId } = await trioAllPresent();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+    media.subscriptions.length = 0;
+
+    // Ten seconds of a held floor with nothing happening in it.
+    for (let i = 0; i < 20; i += 1) {
+      clock += 500;
+      app.channels.tick();
+      await settle();
+    }
+    expect(media.subscriptions).toEqual([]);
+  });
+
+  /**
+   * The other half of the same change. Re-stating a mute against somebody who
+   * is not in the media room is what made `participant does not exist` the
+   * loudest line in the log — hundreds of them per claim, twice a second.
+   */
+  it('leaves someone who is not in the room out of it', async () => {
+    const { alice, bob, carol, channelId } = await trioAllPresent();
+    media.unpublished.add(`${channelId}/${carol.account.id}`);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+    media.subscriptions.length = 0;
+
+    for (let i = 0; i < 20; i += 1) {
+      clock += 500;
+      app.channels.tick();
+      await settle();
+    }
+    expect(media.subscriptions).toEqual([]);
+
+    // And she is picked up the moment she does arrive, without anything else
+    // having to happen in the channel.
+    media.unpublished.clear();
+    clock += 500;
+    app.channels.tick();
+    await settle();
+    expect(media.subscriptions).toContainEqual({
+      room: channelId,
+      speaker: carol.account.id,
+      listener: alice.account.id,
+      silenced: true,
+    });
+    expect(media.subscriptions).toContainEqual({
+      room: channelId,
+      speaker: bob.account.id,
+      listener: carol.account.id,
+      silenced: true,
+    });
+  });
 });
 
 describe('recording with people joining mid-run', () => {

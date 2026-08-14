@@ -380,43 +380,7 @@ commits record them.
     paths set `.timeout 2000`; the one that runs a single query over SSH does
     not, so it fails immediately against a locked database instead of waiting
     the way the others do. `bin/db`.
-6. **`assertSilence` retries against absent participants twice a second, for as
-    long as the floor is held.** The single loudest thing in the log — 470 in a
-    day on 2026-08-10 — and it has never been chased.
-
-    `assertSilence` iterates `state.participants`, which is channel
-    *membership*, and calls `getParticipant(room, speaker)` for each. Membership
-    is not room presence: a member who is not currently connected to LiveKit
-    does not exist there, so the call throws `participant does not exist` rather
-    than returning. The error handler then calls `note()`, which puts the
-    speaker into `pendingSilence` — and the tick re-states everything in
-    `pendingSilence` every 500 ms while a floor holder exists. So one absent
-    member produces two failures a second per listener, indefinitely, and stops
-    only when the floor is released.
-
-    That is why the daily counts track how much talking happened rather than
-    anything else, and why it survived the LiveKit Cloud → self-hosted move
-    unchanged. **It is not a media-provider problem and should not be
-    investigated as one.**
-
-    The narrow fix is to treat "not in the room" the way "no published track" is
-    already treated a few lines up — a `false` return rather than a throw, since
-    both mean *cannot be acted on yet*, and only the `!applied && silenced`
-    branch should re-note. The wider question is whether `assertSilence` should
-    iterate room membership instead of channel membership at all, which is the
-    same presence-vs-room-membership split already open under *Presence follows
-    the websocket, not the room*.
-
-    Nothing user-visible is known to break. Silencing works for everyone
-    actually present, and an absent member has nothing to hear.
-
-    **To find it in the logs:**
-
-        ssh ubuntu@44.241.121.49 \
-          'journalctl -u thefloor -o short-iso --no-pager' \
-          | grep "media operation failed" | grep setSilenced
-
-7. **`closeRoom` fails for every revived channel at boot.** A batch of
+6. **`closeRoom` fails for every revived channel at boot.** A batch of
     `twirp error unknown: requested room does not exist` at `level: 50`, once
     per restart — 103 in the week to 2026-08-14, dating back to 2026-08-09.
 
@@ -429,31 +393,13 @@ commits record them.
     Nothing breaks: closing an absent room is the state that was wanted. The
     cost is that a restart writes several stack traces that look like a fault
     and are not, which is exactly the noise that makes a real fault at boot easy
-    to miss — the same complaint as `assertSilence` above, and the same shape of
-    fix. A 404 from `deleteRoom` means *already closed* and should be swallowed
-    rather than raised. `server/src/media.ts:267`.
+    to miss — the same complaint as the `assertSilence` flood that was fixed on
+    2026-08-14, and the same shape of fix. A 404 from `deleteRoom` means
+    *already closed* and should be swallowed rather than raised.
+    `server/src/media.ts`.
 
     Noted 2026-08-14 while verifying the donations deploy, where it was briefly
     mistaken for a regression caused by that deploy. It is not related to it.
-
-    Per-day counts, which is how the correlation with talking was established:
-
-        … | cut -c1-10 | sort | uniq -c
-
-    The signature that distinguishes this from an ordinary transient is the
-    *rate*: bursts of 8–10 in the same second, sustained across consecutive
-    seconds, rather than scattered singles. On 2026-08-14 it was 89 failures
-    inside 24 distinct seconds.
-
-        … | cut -c1-19 | uniq -c | sort -rn | head
-
-    **To reproduce deliberately:** get two accounts into a channel, have one
-    claim the floor, then force-quit the other client — or drop it from the
-    network — without leaving the channel. The absent account stays in
-    `state.participants`, and the log should start ticking twice a second within
-    a couple of seconds and keep going until the floor is released.
-    `server/src/channels.ts` (`assertSilence`, and the `pendingSilence` loop in
-    `tick`), `server/src/media.ts` (`setSilenced`).
 
 ---
 

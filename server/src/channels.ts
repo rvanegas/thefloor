@@ -137,6 +137,24 @@ export const ROOM_CLOSE_GRACE_MS = 5_000;
 export const RUN_CHECKPOINT_MS = 5_000;
 
 /**
+ * Everything a statement about one listener–speaker pair was made against, as
+ * one comparable string: two of these being equal is what lets the floor's
+ * reconciliation leave a pair alone.
+ *
+ * The room is in it because a channel can move to another one, and the tracks
+ * because a client that reconnects republishes — in both cases the statement
+ * is about something that no longer exists, which is indistinguishable from
+ * never having been made.
+ */
+function silenceSignature(
+  room: string,
+  silenced: boolean,
+  tracks: string[]
+): string {
+  return `${room}:${silenced}:${[...tracks].sort().join(',')}`;
+}
+
+/**
  * Why an operation was refused, for callers that must map it onto something
  * else — an HTTP status, today.
  *
@@ -213,11 +231,19 @@ export class ChannelRegistry {
    */
   private recordingAudience = new Map<string, Set<string>>();
   /**
-   * Speakers whose silencing has been decided but not yet applied — they had
-   * no published track when it was asserted. Retried each tick while the
-   * claim lasts, because whoever publishes next is subscribed to by default.
+   * What the media plane was last known to have been told, per channel: for
+   * each `listener<-speaker` pair, whether the speaker was withheld and the
+   * room and tracks it was stated against. Absent means nothing is known to
+   * have landed, which is what a failed call and a never-made one have in
+   * common.
+   *
+   * The tracks are the point. A mute is a statement about a track id, so it
+   * stops being true the moment the speaker republishes — which a phone does
+   * every time its connection flaps, coming back with a new track that is
+   * subscribed to by default. Remembering only "the call succeeded" cannot
+   * notice that; remembering *what* succeeded can. See `reconcileSilence`.
    */
-  private pendingSilence = new Map<string, Set<string>>();
+  private silenceStated = new Map<string, Map<string, string>>();
   /**
    * When each participant was silenced, as offsets into the *recorded* audio
    * rather than wall clock — so paused time is already excluded and the
@@ -315,14 +341,12 @@ export class ChannelRegistry {
     // The media plane's self-correction. Both of these exist for the same
     // race: someone can enter a channel before their track exists, so a mute
     // or an egress asked for at that moment lands on nothing and must be
-    // asked for again once there is something to act on.
-    for (const [id, speakers] of this.pendingSilence) {
-      const channel = this.channels.get(id);
-      if (!channel || channel.status !== 'active' || !channel.floor.holder) {
-        this.pendingSilence.delete(id);
-        continue;
-      }
-      if (speakers.size > 0) this.assertSilence(channel, [...speakers]);
+    // asked for again once there is something to act on. The floor's half goes
+    // further, and re-checks a mute that *did* land, because a track it was
+    // stated against can be replaced under it — see `reconcileSilence`.
+    for (const [id, channel] of this.channels) {
+      if (channel.status !== 'active' || channel.floor.holder === null) continue;
+      this.run(() => this.reconcileSilence(channel), `reconcileSilence ${id}`);
     }
     for (const id of this.capturing.keys()) {
       const channel = this.channels.get(id);
@@ -1359,6 +1383,7 @@ export class ChannelRegistry {
       setTimeout(() => {
         this.channels.delete(after.id);
         this.persisted.delete(after.id);
+        this.silenceStated.delete(after.id);
       }, 30_000).unref?.();
     }
   }
@@ -1446,9 +1471,13 @@ export class ChannelRegistry {
    * and cannot drift out of step with the reducer. Nothing is ever done to a
    * silenced person's own publishing.
    *
-   * A speaker with no published track cannot be acted on yet; they are noted
-   * in `pendingSilence` and re-stated each tick until it lands, because
-   * whoever publishes next is subscribed to by default.
+   * This is the immediate half, fired on a transition so a claim takes effect
+   * at once rather than on the next tick. It is best-effort by design: it does
+   * not know who is actually in the media room, and a pair it cannot state —
+   * either end absent, the speaker publishing nothing yet — is left to
+   * `reconcileSilence`, which does. Every pair it does state is remembered, so
+   * the reconciliation has something to compare against and does not restate
+   * what already landed.
    */
   private assertSilence(
     state: ChannelState,
@@ -1457,29 +1486,88 @@ export class ChannelRegistry {
     if (!this.media || state.status !== 'active') return;
     const holder = state.floor.holder;
     for (const speaker of speakers) {
-      this.pendingSilence.get(state.id)?.delete(speaker);
+      const silenced = holder !== null && speaker !== holder;
       for (const listener of state.participants) {
         if (listener === speaker) continue;
-        const silenced = holder !== null && speaker !== holder;
-        const context = `setSilenced ${state.id} ${listener}<-${speaker}=${silenced}`;
-        const note = () => {
-          const pending = this.pendingSilence.get(state.id) ?? new Set<string>();
-          this.pendingSilence.set(state.id, pending);
-          pending.add(speaker);
-        };
-        this.media
-          .setSilenced({ room: state.mediaRoom, speaker, listener, silenced })
-          .then(
-            // Only an unapplied *silence* needs retrying: an unapplied
-            // un-silence means there was nothing subscribed to restore.
-            (applied) => {
-              if (!applied && silenced) note();
-            },
-            (error) => {
-              this.onMediaError(error, context);
-              if (silenced) note();
-            }
-          );
+        this.stateSilence(state, speaker, listener, silenced);
+      }
+    }
+  }
+
+  /**
+   * Tells the media plane one pair, and remembers it if it lands.
+   *
+   * The record is cleared before the call rather than after it fails, so a
+   * statement in flight is never mistaken for one in force.
+   */
+  private stateSilence(
+    state: ChannelState,
+    speaker: string,
+    listener: string,
+    silenced: boolean
+  ): void {
+    if (!this.media) return;
+    const room = state.mediaRoom;
+    const stated = this.silenceStated.get(state.id) ?? new Map<string, string>();
+    this.silenceStated.set(state.id, stated);
+    const pair = `${listener}<-${speaker}`;
+    stated.delete(pair);
+    this.media.setSilenced({ room, speaker, listener, silenced }).then(
+      (tracks) => {
+        // Nothing published is nothing stated: whoever publishes next is
+        // subscribed to by default, so this has to be said again against a
+        // real track — which is exactly what the reconciliation will see.
+        if (tracks.length > 0) {
+          stated.set(pair, silenceSignature(room, silenced, tracks));
+        }
+      },
+      (error) =>
+        this.onMediaError(
+          error,
+          `setSilenced ${state.id} ${pair}=${silenced}`
+        )
+    );
+  }
+
+  /**
+   * The floor's standing correction: compares what the room is actually
+   * carrying against what was last stated about it, and restates the pairs
+   * that disagree.
+   *
+   * Run once a tick while somebody holds the floor, because everything a
+   * one-shot statement rests on can stop being true without anything the
+   * reducer sees changing. A silenced speaker whose connection flaps comes
+   * back publishing a new track that the old unsubscribe does not cover and
+   * that is subscribed to by default — so they are audible again, indefinitely,
+   * while every screen says they are silenced. That is what this catches.
+   *
+   * Only pairs where both ends are in the room are touched, and only speakers
+   * who are actually publishing. Acting on anyone else is not merely wasted:
+   * it is what used to make `participant does not exist` the loudest line in
+   * the log, twice a second for as long as a claim lasted.
+   */
+  private async reconcileSilence(state: ChannelState): Promise<void> {
+    if (!this.media || state.status !== 'active') return;
+    const holder = state.floor.holder;
+    if (holder === null) return;
+    const room = state.mediaRoom;
+    const roster = await this.media.audioTracks(room);
+    // The channel may have moved rooms or released the floor while we asked.
+    const now = this.channels.get(state.id);
+    if (!now || now.mediaRoom !== room || now.floor.holder !== holder) return;
+
+    const present = state.participants.filter((id) => roster.has(id));
+    const stated = this.silenceStated.get(state.id) ?? new Map<string, string>();
+    this.silenceStated.set(state.id, stated);
+    for (const speaker of present) {
+      const tracks = roster.get(speaker) ?? [];
+      if (tracks.length === 0) continue;
+      const silenced = speaker !== holder;
+      const signature = silenceSignature(room, silenced, tracks);
+      for (const listener of present) {
+        if (listener === speaker) continue;
+        if (stated.get(`${listener}<-${speaker}`) === signature) continue;
+        this.stateSilence(state, speaker, listener, silenced);
       }
     }
   }
