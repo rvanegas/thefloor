@@ -63,7 +63,7 @@ function delivery(overrides: Record<string, unknown> = {}) {
   };
   return app.fastify.inject({
     method: 'POST',
-    url: '/support/kofi',
+    url: '/donations/kofi',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     payload: new URLSearchParams({ data: JSON.stringify(payload) }).toString(),
   });
@@ -140,7 +140,7 @@ describe('Recording a donation', () => {
   it('refuses an unreadable payload rather than storing a broken row', async () => {
     const notForm = await app.fastify.inject({
       method: 'POST',
-      url: '/support/kofi',
+      url: '/donations/kofi',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       payload: 'data=not-json',
     });
@@ -194,7 +194,7 @@ describe('Attribution', () => {
 
     const answered = await app.fastify.inject({
       method: 'GET',
-      url: '/support',
+      url: '/donations',
       headers: auth(giver.token),
     });
     expect(answered.json().mine.totals).toEqual([
@@ -219,7 +219,7 @@ describe('What a person is told about their own giving', () => {
       method: 'GET',
       // Asked from a device that may be shown the link, so this covers the
       // whole shape of the answer; who is offered it is its own describe.
-      url: '/support?locale=en-US&tz=America/Los_Angeles',
+      url: '/donations?locale=en-US&tz=America/Los_Angeles',
       headers: auth(giver.token),
     });
     expect(mine.json()).toEqual({
@@ -234,7 +234,7 @@ describe('What a person is told about their own giving', () => {
 
     const theirs = await app.fastify.inject({
       method: 'GET',
-      url: '/support',
+      url: '/donations',
       headers: auth(other.token),
     });
     expect(theirs.json().mine.totals).toEqual([{ currency: 'USD', cents: 9900 }]);
@@ -244,7 +244,7 @@ describe('What a person is told about their own giving', () => {
     const giver = await signIn('giver@example.com');
     const answered = await app.fastify.inject({
       method: 'GET',
-      url: '/support',
+      url: '/donations',
       headers: auth(giver.token),
     });
     expect(answered.json().mine).toBe(null);
@@ -261,7 +261,7 @@ describe('What a person is told about their own giving', () => {
 
     const answered = await app.fastify.inject({
       method: 'GET',
-      url: '/support',
+      url: '/donations',
       headers: auth(giver.token),
     });
     expect(answered.json().mine.totals).toEqual([
@@ -271,7 +271,7 @@ describe('What a person is told about their own giving', () => {
   });
 
   it('needs a token', async () => {
-    const support = await app.fastify.inject({ method: 'GET', url: '/support' });
+    const support = await app.fastify.inject({ method: 'GET', url: '/donations' });
     expect(support.statusCode).toBe(401);
   });
 });
@@ -280,7 +280,7 @@ describe('Who is offered the link at all', () => {
   const supportFrom = (token: string, query = '') =>
     app.fastify.inject({
       method: 'GET',
-      url: `/support${query}`,
+      url: `/donations${query}`,
       headers: auth(token),
     });
 

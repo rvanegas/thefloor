@@ -492,10 +492,15 @@ export function buildApp(options: BuildOptions = {}): App {
     return privacyPage(options.contactEmail);
   });
 
-  // --- Support ------------------------------------------------------------
+  // --- Donations ----------------------------------------------------------
 
   /**
    * Where to donate, and what this person has already given.
+   *
+   * Named for donations rather than support, though the screen reading it is
+   * called Support: "support" means money here and help everywhere else, and
+   * `/support` is the path a person who wants help will try. That path is left
+   * to them.
    *
    * A route rather than a field on the Home snapshot: that snapshot is pushed
    * to every client on every change, and this is read by one settings screen
@@ -507,7 +512,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * Store submission — worth having, since the guideline permitting an external
    * payment link at all is under appeal.
    */
-  fastify.get('/support', async (request, reply) => {
+  fastify.get('/donations', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
 
@@ -551,8 +556,12 @@ export function buildApp(options: BuildOptions = {}): App {
    * token inside the payload is the whole proof, and checking it is Donations'
    * job. Answers 200 to anything verified, including a replay, because a
    * webhook that errors is a webhook retried forever.
+   *
+   * This path is configured in Ko-fi's dashboard rather than in any code we
+   * ship, so moving it means editing it there in the same breath. Nothing
+   * retries a 404 into the right place.
    */
-  fastify.post('/support/kofi', async (request, reply) => {
+  fastify.post('/donations/kofi', async (request, reply) => {
     const body = typeof request.body === 'string' ? request.body : '';
     const result = donations.record(body, now());
 

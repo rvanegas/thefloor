@@ -310,7 +310,7 @@ receiver. That is a want the default cannot infer.
 
 ## Donations arrive by webhook alone, and nothing reconciles them
 
-`POST /support/kofi` is the only writer to the `donations` table. **Ko-fi has no
+`POST /donations/kofi` is the only writer to the `donations` table. **Ko-fi has no
 read API**, so there is no way to ask what we missed: a delivery that did not
 land — because the server was restarting, or because their retry gave up — is
 gone from here and exists only in their dashboard. **Ko-fi's dashboard is the
