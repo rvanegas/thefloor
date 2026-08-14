@@ -14,6 +14,13 @@ import {
 } from '@livekit/react-native';
 import { api } from '../api/http';
 import { CALL, PLAYBACK_ONLY } from './session';
+import {
+  NOBODY_SPEAKING,
+  nextReleaseAt,
+  onActiveSpeakers,
+  shownAsSpeaking,
+  type SpeakingHold,
+} from './speaking';
 
 /**
  * Joins the session's audio room and publishes the microphone.
@@ -192,11 +199,37 @@ export function useSessionAudio(
       update({ othersAudible: audible.size });
     };
 
-    // The whole set every time, rather than a diff: the event carries who is
-    // speaking now, so replacing the list is both simpler and correct when
-    // somebody stops without any further event about them.
-    const onSpeakers = (speakers: Participant[]) =>
-      update({ speaking: speakers.map((s) => s.identity) });
+    // Held on the trailing edge rather than rendered raw — see ./speaking.ts.
+    // The room drops somebody for the length of a breath, and following that
+    // exactly makes the indicator flicker through every pause in a sentence.
+    let hold: SpeakingHold = NOBODY_SPEAKING;
+    let release: ReturnType<typeof setTimeout> | undefined;
+
+    /**
+     * Publishes the hold, and arms a timer for the moment it next changes.
+     *
+     * The timer is the part that is easy to leave out: a hold running out is
+     * the one transition the room does not announce, having already said
+     * everything it has to say about somebody who stopped talking. Without it
+     * the last speaker's dot stays lit until somebody else happens to speak.
+     */
+    const publish = (at: number) => {
+      clearTimeout(release);
+      update({ speaking: shownAsSpeaking(hold, at) });
+      const next = nextReleaseAt(hold, at);
+      if (next === null) return;
+      release = setTimeout(() => {
+        const later = Date.now();
+        hold = onActiveSpeakers(hold, hold.active, later);
+        publish(later);
+      }, next - at);
+    };
+
+    const onSpeakers = (speakers: Participant[]) => {
+      const at = Date.now();
+      hold = onActiveSpeakers(hold, speakers.map((s) => s.identity), at);
+      publish(at);
+    };
 
     room
       .on(RoomEvent.TrackMuted, onMuted)
@@ -205,8 +238,14 @@ export function useSessionAudio(
       .on(RoomEvent.TrackUnsubscribed, onUnsubscribed)
       .on(RoomEvent.ActiveSpeakersChanged, onSpeakers)
       // Nobody is speaking on a connection that is gone, and the last thing
-      // heard would otherwise stay lit for as long as the screen is open.
-      .on(RoomEvent.Disconnected, () => update({ status: 'idle', speaking: [] }));
+      // heard would otherwise stay lit for as long as the screen is open. The
+      // hold is dropped outright rather than allowed to run out: it is a
+      // smoothing of live speech, and there is no longer any.
+      .on(RoomEvent.Disconnected, () => {
+        clearTimeout(release);
+        hold = NOBODY_SPEAKING;
+        update({ status: 'idle', speaking: [] });
+      });
 
     (async () => {
       update({ status: 'connecting', message: null });
@@ -260,6 +299,9 @@ export function useSessionAudio(
 
     return () => {
       cancelled = true;
+      // Before `cancelled` stops it doing anything, so the timer cannot
+      // outlive the room it was smoothing.
+      clearTimeout(release);
       room.removeAllListeners();
       room.disconnect().catch(() => {});
       AudioSession.stopAudioSession().catch(() => {});

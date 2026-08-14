@@ -176,6 +176,25 @@ export class Accounts {
     return row ? { id: row.id, displayName: row.display_name } : null;
   }
 
+  /**
+   * Records that this person has the app open.
+   *
+   * Called as a socket opens, on every message it carries, and as it closes.
+   * Writing on each message rather than only at the edges is what keeps the
+   * value true for somebody who has been connected for hours: the client
+   * heartbeats, so the stored time is never more than one interval stale, and
+   * "connected since Tuesday" never reads as "last seen Tuesday".
+   *
+   * The cost is one small UPDATE per client per heartbeat, which at this scale
+   * is nothing. If it ever stops being nothing, the fix is to write only when
+   * the stored value is older than an interval, not to move the call.
+   */
+  markSeen(id: string, now: number): void {
+    this.db
+      .prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?')
+      .run(now, id);
+  }
+
   // --- One-time codes -----------------------------------------------------
 
   /**
@@ -397,9 +416,11 @@ export class Accounts {
    * the question the pending_invites table exists to avoid answering. The name
    * appears when they accept, which is also when it starts to mean anything.
    */
-  contactsFor(
-    userId: string
-  ): Array<{ account: { id: string; displayName: string }; status: string }> {
+  contactsFor(userId: string): Array<{
+    account: { id: string; displayName: string };
+    status: string;
+    lastSeenAt: number | null;
+  }> {
     const rows = this.db
       .prepare('SELECT * FROM contacts WHERE a_id = ? OR b_id = ?')
       .all(userId, userId) as unknown as Array<{
@@ -423,7 +444,12 @@ export class Accounts {
         status === 'outgoing'
           ? { id: '', displayName: account.identifier }
           : { id: account.id, displayName: account.display_name };
-      return [{ account: view, status }];
+      // Withheld from an outgoing request for the same reason the name is:
+      // that row is an address, not yet a person, and whether somebody is
+      // behind it is precisely what it must not reveal.
+      const lastSeenAt =
+        status === 'outgoing' ? null : (account.last_seen_at ?? null);
+      return [{ account: view, status, lastSeenAt }];
     });
 
     // Requests to addresses that have no account yet, shown exactly as above.
@@ -436,6 +462,7 @@ export class Accounts {
       entries.push({
         account: { id: '', displayName: invite.identifier },
         status: 'outgoing',
+        lastSeenAt: null,
       });
     }
 

@@ -18,6 +18,7 @@ import { MAX_CHANNEL_PARTICIPANTS } from '../../../core/constants';
 import {
   atLeastTwoPresent,
   canClaimFloor,
+  idleMs,
   canInvite,
   canControlPlayback,
   canPauseRecording,
@@ -41,6 +42,7 @@ import {
   RecordingRow,
   SectionLabel,
 } from './components';
+import { ago } from './relativeTime';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 import { louder, quieter } from './volume';
 import { describeChannel } from '../../../core/naming';
@@ -259,6 +261,7 @@ export function ChannelView({
                 // reducer imagines it: the floor says who *may* speak, and
                 // this says who is.
                 speaking={audio.speaking.includes(participant.id)}
+                now={now}
                 onPress={
                   participant.id === me
                     ? undefined
@@ -676,12 +679,15 @@ function ParticipantCard({
   participant,
   self,
   speaking,
+  now,
   onPress,
 }: {
   channel: NonNullable<ReturnType<typeof useApp>['channelView']>['channel'];
   participant: { id: string; displayName: string };
   self: boolean;
   speaking: boolean;
+  /** The server's clock, which is what the idle time is measured against. */
+  now: number;
   onPress?: () => void;
 }) {
   const here = isPresent(channel, participant.id);
@@ -690,6 +696,16 @@ function ParticipantCard({
   const holdsFloor = channel.floor.holder === participant.id;
   // Somebody who is neither speaking nor able to be heard: the badge would be
   // dead space, so the status carries it instead.
+  /**
+   * How long they have been gone, in words, or null when there is no such
+   * duration — they are here, they have never been here, or the server was
+   * restarted while they were, which drops presence with nobody leaving.
+   *
+   * Appended rather than given its own line: it qualifies "Stepped out", and a
+   * second line under every absent person would make the roster twice as tall
+   * to say something that is one clause long.
+   */
+  const away = idleMs(channel, participant.id, now);
   const status = here
     ? // Present but unreachable is its own state, not absence: they are still
       // in the channel and still hold whatever they hold. Saying so beats
@@ -698,7 +714,9 @@ function ParticipantCard({
       ? 'Present · reconnecting…'
       : 'Present'
     : channel.everPresent.includes(participant.id)
-      ? 'Stepped out'
+      ? away === null
+        ? 'Stepped out'
+        : `Stepped out ${ago(away)}`
       : 'Waiting for them to join…';
 
   const body = (

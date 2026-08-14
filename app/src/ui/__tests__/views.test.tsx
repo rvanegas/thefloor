@@ -2454,6 +2454,61 @@ describe('the appearance setting', () => {
   });
 });
 
+describe('when a contact was last in the app', () => {
+  function homeWith(lastSeenAt: number | null | undefined) {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [
+        {
+          account: { id: 'acct_q', displayName: 'Quinn Ito' },
+          status: 'accepted',
+          lastSeenAt,
+        },
+      ],
+    };
+    return render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+  }
+
+  it('says how long ago, in words', () => {
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = homeWith(NOW);
+    expect(textOf(tree)).toContain('5 minutes ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('says they are here rather than counting the seconds', () => {
+    // "A few seconds ago" about somebody sitting in the app is true and
+    // useless — and the stored time is a heartbeat stale, so a live user
+    // would otherwise flicker between a count and nothing.
+    mockApp.serverNow = () => NOW + 3_000;
+    const tree = homeWith(NOW);
+    const text = textOf(tree);
+    expect(text).toContain('In the app now');
+    expect(text).not.toContain('seconds ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('says nothing at all when it does not know', () => {
+    // Two ways to get here and neither is worth a word on screen: a server
+    // that predates the field sends none, and somebody who has not connected
+    // since it existed has nothing recorded.
+    for (const unknown of [null, undefined]) {
+      const tree = homeWith(unknown);
+      const text = textOf(tree);
+      expect(text).toContain('Quinn Ito');
+      expect(text).not.toContain('ago');
+      expect(text).not.toContain('In the app now');
+      act(() => tree.unmount());
+    }
+  });
+});
+
 describe('who is in the channel, and who is talking', () => {
   /**
    * The card for one person, found by the name in its label. A card is a
@@ -2537,6 +2592,68 @@ describe('who is in the channel, and who is talking', () => {
       'Speaking'
     );
     expect(textOf(tree)).toContain('has the floor');
+    act(() => tree.unmount());
+  });
+
+  it('says how long somebody has been gone, in words', () => {
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW))
+    );
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).toContain('Stepped out 5 minutes ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('says only that they are gone when it does not know since when', () => {
+    // A restart drops presence without anybody stepping out, so there is no
+    // moment to report. Dating it from the deploy would be a confident answer
+    // to a question nothing here can answer.
+    const channel = channelOf((s) =>
+      reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW)
+    );
+    showChannel({ ...channel, lastPresentAt: {} });
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Stepped out');
+    expect(text).not.toContain('ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('counts the absence against the server clock', () => {
+    // Same reason the floor countdown does: the device's clock drifts and can
+    // be set by the user, and this one is compared against a server timestamp.
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW))
+    );
+    mockApp.serverNow = () => NOW + 3 * 3_600_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).toContain('Stepped out 3 hours ago');
+    mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });
 

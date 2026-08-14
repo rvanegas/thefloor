@@ -101,6 +101,7 @@ export function createChannel(params: {
     lastRecording: null,
     playback: initialPlaybackState(),
     disconnectedAt: {},
+    lastPresentAt: {},
   };
 }
 
@@ -141,6 +142,30 @@ export function otherParticipants(
 
 export function isPresent(state: ChannelState, userId: UserId): boolean {
   return state.present.includes(userId);
+}
+
+/**
+ * How long this user has been away from the channel, or null when that is not
+ * a question with an answer.
+ *
+ * Null covers three cases deliberately, because none of them is a duration:
+ * they are here now; they have never been here; or they were here when the
+ * server last restarted, which drops presence without anybody leaving. The
+ * caller shows nothing for all three rather than guessing at one.
+ *
+ * Clamped at zero. A client computes this against the server's clock, which it
+ * learns with a round trip's lag, so a departure a moment ago can arrive as a
+ * small negative — and "in -2 seconds" is the kind of thing that reaches a
+ * screen exactly once and is remembered for years.
+ */
+export function idleMs(
+  state: ChannelState,
+  userId: UserId,
+  now: number
+): number | null {
+  if (isPresent(state, userId)) return null;
+  const since = state.lastPresentAt[userId];
+  return since === undefined ? null : Math.max(0, now - since);
 }
 
 /**
@@ -661,6 +686,10 @@ function stepOut(
       // is ordered by when it emptied rather than by when it was entered.
       lastActiveAt: now,
       disconnectedAt: stillConnected,
+      // Every way out passes through here — a tap, a grace period running
+      // out, and leaving the channel outright — which is the reason to stamp
+      // it here rather than in the three cases above.
+      lastPresentAt: { ...state.lastPresentAt, [userId]: now },
       // A departing floor-holder's claim is force-released, exactly as if
       // released voluntarily. Dropped connections take this same path.
       floor:

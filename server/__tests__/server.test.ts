@@ -151,7 +151,13 @@ describe('one-time codes', () => {
     const later = await signIn('later@example.com', 'Later');
     const theirs = app.accounts.contactsFor(later.account.id);
     expect(theirs).toEqual([
-      { account: { id: alice.account.id, displayName: 'Alice' }, status: 'incoming' },
+      {
+        account: { id: alice.account.id, displayName: 'Alice' },
+        status: 'incoming',
+        // Null because being in the app is holding a socket, and Alice has
+        // only ever signed in over HTTP here.
+        lastSeenAt: null,
+      },
     ]);
 
     // And Alice's side is now a real pending request rather than an invite.

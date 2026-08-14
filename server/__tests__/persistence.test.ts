@@ -152,6 +152,46 @@ describe('a channel across a restart', () => {
     await shutdown(second);
   });
 
+  it('remembers when somebody stepped out, across a restart', async () => {
+    // "Stepped out an hour ago" has to survive a deploy. When somebody was
+    // last in a channel is a fact about the channel rather than about the
+    // process serving it, which is what puts it in the durable projection
+    // beside the name and the roster.
+    const first = boot();
+    const { alice, bob, channelId } = await pair(first);
+    first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    const left = (clock += 60_000);
+    first.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    expect(first.channels.get(channelId)!.lastPresentAt[bob.account.id]).toBe(
+      left
+    );
+    await shutdown(first);
+
+    const second = boot();
+    expect(second.channels.get(channelId)!.lastPresentAt[bob.account.id]).toBe(
+      left
+    );
+    await shutdown(second);
+  });
+
+  it('invents no departure for somebody who was present at the restart', async () => {
+    // A restart drops presence without anybody stepping out, so there is no
+    // moment to record. Stamping the restart would report the deploy as the
+    // time they left — a confident answer to a question nothing here can
+    // answer — and the screen says only "Stepped out" instead.
+    const first = boot();
+    const { bob, channelId } = await pair(first);
+    first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    expect(first.channels.get(channelId)!.present).toContain(bob.account.id);
+    await shutdown(first);
+
+    const second = boot();
+    const after = second.channels.get(channelId)!;
+    expect(after.present).toEqual([]);
+    expect(after.lastPresentAt[bob.account.id]).toBeUndefined();
+    await shutdown(second);
+  });
+
   it('is on both members’ home screens again, in the right section', async () => {
     const first = boot();
     const { alice, bob, channelId } = await pair(first);

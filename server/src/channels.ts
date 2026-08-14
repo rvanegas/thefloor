@@ -1998,6 +1998,10 @@ export class ChannelRegistry {
       status: channel.status,
       endedAt: channel.endedAt,
       lastActiveAt: channel.lastActiveAt,
+      // Durable for the same reason as those two: when somebody was last in
+      // this channel is a fact about the channel, and a deploy is not a thing
+      // that should make everybody look freshly arrived.
+      lastPresentAt: channel.lastPresentAt,
       lastRecording: channel.lastRecording,
     });
   }
@@ -2198,6 +2202,7 @@ export class ChannelRegistry {
       mediaRoom?: string;
       everPresent?: string[];
       lastActiveAt?: number;
+      lastPresentAt?: ChannelState['lastPresentAt'];
       lastRecording?: ChannelState['lastRecording'];
     };
     const participants =
@@ -2228,6 +2233,10 @@ export class ChannelRegistry {
       lastRecording: durable.lastRecording ?? null,
       playback: initialPlaybackState(),
       disconnectedAt: {},
+      // Empty on a channel written before this existed, which reads as "not
+      // known" and shows no idle time — the honest answer, rather than dating
+      // everybody's absence from the deploy that added the field.
+      lastPresentAt: durable.lastPresentAt ?? {},
     };
   }
 

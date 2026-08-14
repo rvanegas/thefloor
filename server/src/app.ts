@@ -855,6 +855,7 @@ export function buildApp(options: BuildOptions = {}): App {
       contacts: accounts.contactsFor(userId).map((entry) => ({
         account: entry.account,
         status: entry.status as 'accepted' | 'outgoing' | 'incoming',
+        lastSeenAt: entry.lastSeenAt,
       })),
       // Still sent, though the app now shows recordings on the channel they
       // were made in. Build 20 and earlier render this list on Home and would

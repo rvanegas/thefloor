@@ -1647,3 +1647,97 @@ indicator" — but it is also a value arriving continuously into a React tree
 that currently re-renders on server snapshots and a one-second tick, and
 speaking-or-not is what a reader of the screen is actually asking. It is worth
 revisiting if the binary dot turns out to read as laggy.
+
+---
+
+## Two idle timers, and one place that turns a gap into words
+
+Built 2026-08-13, alongside the channel cards the two of them are shown on.
+
+**They measure different things and come from different clocks.** The one on a
+channel card is "when were you last *in this channel*", which the reducer knows:
+`stepOut` is the single route out — a tap, a grace period running out, and
+leaving the channel outright all pass through it — so the stamp goes there and
+nowhere else. The one on Home is "when were you last *in the app*", which the
+reducer cannot know, the app being a thing that exists outside any channel. That
+is a socket, so it is `accounts.last_seen_at`, written by the websocket layer.
+
+**`last_seen_at` is written on every message, not only at the edges.** Writing
+it as a socket opens and closes is the obvious cheaper thing and it is wrong for
+the case that matters most: somebody who has had the app open since this morning
+would read as last seen this morning. The client heartbeats, so a write per
+message keeps the value within one interval of the truth. That is one small
+UPDATE per client per interval, which at this scale is nothing; if it ever stops
+being nothing the fix is to skip the write when the stored value is already
+recent, not to move it to the edges.
+
+**Absent means absent, and is shown as nothing.** Both clocks have states with
+no answer, and the temptation in each is to manufacture one. A restart drops
+`present` without anybody stepping out, so there is no moment when they left —
+stamping the restart would report the deploy as the time they went. An account
+that has not connected since the column existed has no last-seen — backfilling
+from `created_at` would read as a year idle for somebody who used the app this
+morning. Both are left null, and the interface says nothing rather than
+something false. `idleMs` returns null for all three of "here", "never here" and
+"unknown" for the same reason: none of them is a duration.
+
+**The wording is dayjs's.** `agoOrNull` and `ago` in `app/src/ui/relativeTime.ts`
+wrap `dayjs`'s `relativeTime` plugin, which inherits moment's thresholds — 45
+seconds is "a minute", 90 minutes is "2 hours", 25 days is "a month". That ladder
+is a solved problem with unobvious edges, and one written by hand reads fine at
+the values it was tested against and says "1 minutes ago" at the ones it was not.
+The test pins the strings, so an upgrade that changes the wording fails here
+rather than on a phone.
+
+Two things the wrapper does that the library does not. It clamps negatives,
+because these are computed against the server's clock learned a round trip ago,
+and dayjs renders a negative gap as "in a few seconds" — a future tense for
+something that has already happened. And it never reads the device clock: the
+gap is passed in as a duration and offset from a fixed anchor, rather than
+passing an absolute time and letting dayjs subtract `Date.now()`, which would
+quietly reintroduce the device clock this app counts against the server's to
+avoid.
+
+**Under a minute reads as presence rather than as a number.** "A few seconds
+ago" about somebody sitting in the app is true and answers a question nobody
+asked; it is also where the heartbeat's staleness lives, so a live user would
+otherwise flicker between a count and nothing. Home says "In the app now"; a
+channel card says nothing at all, presence being spelt out beside it already.
+
+**What this discloses, said plainly.** A contact can now see roughly when you
+last had the app open. That is a real disclosure and it is the point of the
+feature — the list is for deciding whether it is worth trying somebody — but it
+is worth writing down as a thing that was chosen rather than a thing that
+happened. It is limited to contacts, who are people you accepted; an outgoing
+request shows nothing, because that row is an address rather than a person and
+whether anybody is behind it is exactly what it must not answer.
+
+---
+
+## The speaking indicator holds on the way down
+
+Changed 2026-08-13, the same day the cards shipped, on the strength of build 29
+on a real phone: the dot flickered through every breath and every gap between
+sentences. Distracting in a way the test suite could not have found, because
+LiveKit's speaker detection is what produces the transitions and no test here
+has a live room.
+
+**The hold is on the removal, and it could not have been on the signal.** The
+obvious shape — "speaking if there was a signal in the last two seconds" — is
+wrong, and wrong in a way that only shows up in the case the feature is most
+for. `ActiveSpeakersChanged` fires when the set *changes*, not continuously, so
+somebody talking uninterrupted for a minute produces one event at the start and
+nothing after it; a last-signal clock would expire mid-sentence and put the dot
+out while they were still talking. What the event says is who is speaking *now*,
+and it stays true until the next one — so what needs smoothing is the moment
+somebody leaves the set.
+
+The leading edge is deliberately not smoothed. A dot that appeared 300ms after
+somebody started talking would be a worse fault than the flicker.
+
+It lives in `app/src/audio/speaking.ts` as a pure function of (hold, speakers,
+now), on the same reasoning as `micNeeded`: the timing rules are the entire
+substance, and they are not exercisable through a hook that needs a real room to
+produce a single event. The hook keeps a timer alongside it, because a hold
+running out is the one transition nothing announces — the room has already said
+everything it has to say about somebody who stopped.

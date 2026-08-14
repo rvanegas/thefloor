@@ -245,6 +245,9 @@ export function registerWebsocket(deps: {
       lastSeen: now(),
     };
     connections.add(connection);
+    // Having the app open is exactly this: a live socket. Stamped as it opens
+    // so somebody who connects and says nothing still counts as here.
+    accounts.markSeen(account.id, now());
 
     // Deliberately nothing about presence here.
     //
@@ -270,6 +273,11 @@ export function registerWebsocket(deps: {
     socket.on('message', (raw: Buffer | string) => {
       // Any message is proof of life, not only a heartbeat.
       connection.lastSeen = now();
+      // The same proof, written down. This is what keeps "last seen" true for
+      // a socket that has been open for hours: without it the stored time
+      // would be when they connected, and somebody talking right now would
+      // read as having been away since this morning.
+      accounts.markSeen(connection.userId, connection.lastSeen);
 
       let message: ClientMessage;
       try {
@@ -326,6 +334,10 @@ export function registerWebsocket(deps: {
 
     socket.on('close', () => {
       connections.delete(connection);
+      // The moment they stopped being in the app, which is the one this is
+      // read for. Written before the presence reporting below, so a snapshot
+      // pushed as a result of it already carries the right time.
+      accounts.markSeen(connection.userId, now());
       // Losing a socket is not leaving a channel. It starts the grace period,
       // and reconnecting inside that minute cancels it — so a tunnel, a lift
       // or a backgrounded app costs nobody their place.

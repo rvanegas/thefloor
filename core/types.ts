@@ -233,6 +233,22 @@ export interface ChannelState {
    * back.
    */
   disconnectedAt: Partial<Record<UserId, number>>;
+  /**
+   * When each user's presence last ended — stamped on the way out, by every
+   * route out there is, and never while somebody is here.
+   *
+   * Absent has two meanings and the interface treats them alike, because it
+   * has nothing to say about either: they have never been present, or they
+   * were present when the server last restarted. A restart drops `present`
+   * without anybody stepping out, so there is no moment to record — and
+   * stamping the restart itself would report the deploy as the time they left,
+   * which is a confident answer to a question nothing here can answer.
+   *
+   * Durable, unlike `present` and `disconnectedAt`. When somebody was last in
+   * a channel is a fact about the channel rather than about the process
+   * serving it.
+   */
+  lastPresentAt: Partial<Record<UserId, number>>;
 }
 
 export type ChannelAction =

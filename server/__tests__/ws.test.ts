@@ -501,4 +501,65 @@ describe('websocket', () => {
     b.close();
   }, 20_000);
 
+  describe('when somebody was last in the app', () => {
+    /** What a contact of Bob's is told about Alice. */
+    const aliceAsSeenByBob = (bobId: string, aliceId: string) =>
+      app.accounts
+        .contactsFor(bobId)
+        .find((entry) => entry.account.id === aliceId);
+
+    it('is recorded as a socket opens, and kept true while it is open', async () => {
+      const { alice, bob } = await pairInSession();
+      expect(aliceAsSeenByBob(bob.account.id, alice.account.id)?.lastSeenAt)
+        .toBeNull();
+
+      const a = new Client(alice.token, baseUrl);
+      await a.open();
+      await a.next('hello');
+      expect(aliceAsSeenByBob(bob.account.id, alice.account.id)?.lastSeenAt)
+        .toBe(clock);
+
+      // An hour into a connection that has stayed open. Without the write on
+      // each message this would still read as the moment she connected, so
+      // somebody talking right now would look an hour idle.
+      clock += 3_600_000;
+      a.send({ type: 'ping' });
+      await a.next('pong');
+      expect(aliceAsSeenByBob(bob.account.id, alice.account.id)?.lastSeenAt)
+        .toBe(clock);
+
+      a.close();
+    });
+
+    it('is stamped again as the socket goes', async () => {
+      const { alice, bob } = await pairInSession();
+      const a = new Client(alice.token, baseUrl);
+      await a.open();
+      await a.next('hello');
+
+      const left = (clock += 60_000);
+      a.close();
+      // The close handler runs on the server's own event loop, so this waits
+      // for it rather than assuming it has already happened.
+      await new Promise((r) => setTimeout(r, 200));
+      expect(aliceAsSeenByBob(bob.account.id, alice.account.id)?.lastSeenAt)
+        .toBe(left);
+    });
+
+    it('is withheld from a request sent to an address', async () => {
+      // An outgoing request is an address, not a person. Whether anybody is
+      // behind it is exactly what that row must not disclose — a last-seen
+      // time would answer it.
+      const alice = await signIn('+15550000001', 'Alice');
+      await app.fastify.inject({
+        method: 'POST',
+        url: '/contacts/request',
+        headers: auth(alice.token),
+        payload: { identifier: '+15550000009' },
+      });
+      const [outgoing] = app.accounts.contactsFor(alice.account.id);
+      expect(outgoing.status).toBe('outgoing');
+      expect(outgoing.lastSeenAt).toBeNull();
+    });
+  });
 });

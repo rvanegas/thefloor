@@ -35,6 +35,18 @@ export type ContactStatus = 'accepted' | 'outgoing' | 'incoming';
 export interface ContactView {
   account: PublicAccount;
   status: ContactStatus;
+  /**
+   * When they last had the app open, or null when that is not known — an
+   * outgoing request, which is an address rather than a person, or somebody
+   * who has not connected since the server began recording it.
+   *
+   * Optional rather than merely nullable, and that is the wire talking: a
+   * server that predates the field sends no such key, which is exactly what an
+   * installed build meets between its release and the deploy that follows. The
+   * server always sets it; the client must survive its absence, and the type
+   * is what makes it do so.
+   */
+  lastSeenAt?: number | null;
 }
 
 export interface InviteView {

@@ -18,6 +18,7 @@ import { useOfflineNotice } from './useOfflineNotice';
 import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
+import { agoOrNull } from './relativeTime';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 /**
@@ -481,6 +482,20 @@ function ContactRow({
    * profile to open.
    */
   const hasProfile = status === 'accepted' || status === 'incoming';
+
+  /**
+   * When they last had the app open, which is what makes this row a judgement
+   * about whether to try them rather than just a button.
+   *
+   * Three states, and the empty one is deliberate: a server that predates the
+   * field sends nothing, and somebody who has not connected since it was added
+   * has nothing recorded. Saying "last seen: unknown" about both would be
+   * noise on every row of an old snapshot, so an unknown says nothing at all.
+   */
+  const lastSeen =
+    entry.lastSeenAt == null
+      ? ''
+      : (agoOrNull(app.serverNow() - entry.lastSeenAt) ?? 'In the app now');
   // In multi-select the row's job is picking, so it picks. Opening a profile
   // mid-selection would lose the selection to a navigation nobody asked for.
   const onPress = selecting ? onToggleSelect : onOpenProfile;
@@ -508,7 +523,9 @@ function ContactRow({
             ? 'Pending'
             : existing?.shown && !selecting
               ? 'Channel already open'
-              : ''}
+              : // What this row says when there is nothing else to report,
+                // which is most of the time: whether it is worth trying them.
+                lastSeen}
         </Text>
       </View>
 

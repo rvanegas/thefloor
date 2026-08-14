@@ -3,10 +3,6 @@
 
 These are new items on the roadmap.
 
-## Idle Timer
-
-User card should say how long has been idle. Two timers: first, time since not in app, displayed in Home View user card. The second, time since not present in channel, displayed in user card of channel.
-
 ## Track Recording Costs
 
 Track costs of recordings and assign them to the user who starts the recording.

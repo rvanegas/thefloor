@@ -15,6 +15,12 @@ export interface AccountRow {
   created_at: number;
   /** Markdown, as typed. Null until they write one. */
   bio: string | null;
+  /**
+   * When this person last held a live socket — written as they connect, as
+   * they speak, and as they go. Null for an account that has not connected
+   * since the column existed.
+   */
+  last_seen_at: number | null;
 }
 
 export interface ContactRow {
@@ -88,7 +94,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at   INTEGER NOT NULL,
   -- What this person says about themselves, as the Markdown source they
   -- typed. Null until they write one.
-  bio          TEXT
+  bio          TEXT,
+  -- When they last had the app open, to the nearest heartbeat. Null until
+  -- they first connect.
+  last_seen_at INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -367,6 +376,12 @@ function migrate(db: Db): void {
     .all() as Array<{ name: string }>;
   if (!accountColumns.some((c) => c.name === 'bio')) {
     db.exec('ALTER TABLE accounts ADD COLUMN bio TEXT');
+  }
+  // Left null rather than backfilled from `created_at`: an account made a year
+  // ago and used this morning would read as a year idle, which is worse than
+  // reading as unknown. Everyone's fills in the next time they connect.
+  if (!accountColumns.some((c) => c.name === 'last_seen_at')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN last_seen_at INTEGER');
   }
 
   // Channels from before persistence whose ended_at is null are ghosts: the
