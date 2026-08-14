@@ -121,37 +121,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             </Text>
           </Card>
 
-          {/*
-            Above "About you" and below the name: this is about the phone
-            rather than about you, but it is the setting somebody opens this
-            screen to change on a whim, and burying it under a bio nobody
-            edits twice would be the wrong order.
-          */}
-          <SectionLabel>Appearance</SectionLabel>
-          <Card style={styles.stack}>
-            <View style={styles.choices}>
-              {(
-                [
-                  ['light', 'Light'],
-                  ['dark', 'Dark'],
-                  ['system', 'System'],
-                ] as Array<[ColorSchemePreference, string]>
-              ).map(([value, label]) => (
-                <Button
-                  key={value}
-                  label={label}
-                  style={styles.choice}
-                  variant={app.appearance === value ? 'primary' : 'default'}
-                  onPress={() => app.setAppearance(value)}
-                />
-              ))}
-            </View>
-            <Text style={type.muted}>
-              System follows the phone, and changes with it — including on a
-              schedule, if you have one set.
-            </Text>
-          </Card>
-
           <SectionLabel>About you</SectionLabel>
           <Card style={styles.stack}>
             <Field
@@ -178,6 +147,37 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             </Text>
             <Text style={styles.count}>
               {bio.length} / {MAX_BIO_LENGTH}
+            </Text>
+          </Card>
+
+          {/*
+            After the two things that are about *you* and before the account
+            itself: this is a setting about the phone, and the screen now reads
+            outwards — your name, what you say about yourself, how the app
+            looks, and then the account underneath all of it.
+          */}
+          <SectionLabel>Appearance</SectionLabel>
+          <Card style={styles.stack}>
+            <View style={styles.choices}>
+              {(
+                [
+                  ['light', 'Light'],
+                  ['dark', 'Dark'],
+                  ['system', 'System'],
+                ] as Array<[ColorSchemePreference, string]>
+              ).map(([value, label]) => (
+                <Button
+                  key={value}
+                  label={label}
+                  style={styles.choice}
+                  variant={app.appearance === value ? 'primary' : 'default'}
+                  onPress={() => app.setAppearance(value)}
+                />
+              ))}
+            </View>
+            <Text style={type.muted}>
+              System follows the phone, and changes with it — including on a
+              schedule, if you have one set.
             </Text>
           </Card>
 
