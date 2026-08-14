@@ -2494,6 +2494,44 @@ describe('when a contact was last in the app', () => {
     act(() => tree.unmount());
   });
 
+  it('shows the time even when the row already has something to say', () => {
+    // The bug this exists to stop coming back. The idle time was the last
+    // branch of a ternary, so "Channel already open" took the line and the
+    // time never rendered — for everybody you have a 1:1 channel with, which
+    // is everybody you actually talk to. The one untested case was the only
+    // case a real account had.
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'chan_1',
+          name: null,
+          others: [{ id: 'acct_q', displayName: 'Quinn Ito' }],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      recordings: [],
+      contacts: [
+        {
+          account: { id: 'acct_q', displayName: 'Quinn Ito' },
+          status: 'accepted',
+          lastSeenAt: NOW,
+        },
+      ],
+    };
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Channel already open');
+    expect(text).toContain('5 minutes ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
   it('says nothing at all when it does not know', () => {
     // Two ways to get here and neither is worth a word on screen: a server
     // that predates the field sends none, and somebody who has not connected

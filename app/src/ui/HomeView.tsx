@@ -496,6 +496,26 @@ function ContactRow({
     entry.lastSeenAt == null
       ? ''
       : (agoOrNull(app.serverNow() - entry.lastSeenAt) ?? 'In the app now');
+
+  /**
+   * What this row's second line says, which is up to two separate facts.
+   *
+   * They are joined rather than ranked, and that is the whole of what was
+   * wrong here first time: the idle time was written as the last branch of a
+   * ternary, so "Channel already open" claimed the line and the time never
+   * appeared for anybody you had a 1:1 channel with — which is everybody you
+   * talk to, and therefore everybody the timer is for.
+   */
+  const secondLine = [
+    status !== 'accepted'
+      ? 'Pending'
+      : existing?.shown && !selecting
+        ? 'Channel already open'
+        : '',
+    lastSeen,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   // In multi-select the row's job is picking, so it picks. Opening a profile
   // mid-selection would lose the selection to a navigation nobody asked for.
   const onPress = selecting ? onToggleSelect : onOpenProfile;
@@ -518,15 +538,7 @@ function ContactRow({
       <Card style={styles.row}>
       <View style={styles.rowMain}>
         <Text style={type.body}>{account.displayName}</Text>
-        <Text style={type.muted}>
-          {status !== 'accepted'
-            ? 'Pending'
-            : existing?.shown && !selecting
-              ? 'Channel already open'
-              : // What this row says when there is nothing else to report,
-                // which is most of the time: whether it is worth trying them.
-                lastSeen}
-        </Text>
+        <Text style={type.muted}>{secondLine}</Text>
       </View>
 
       {status === 'accepted' && selecting ? (
