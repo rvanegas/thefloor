@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * What the server already has, so that leaving a field alone writes nothing.
+   *
+   * A ref rather than state: it is never rendered, and it has to be readable by
+   * a blur handler that fired before a re-render would have delivered it.
+   */
+  const saved = useRef({ displayName: '', bio: '' });
+
   // The bio is not in the `hello` snapshot — it would ride on every roster for
   // the sake of one screen — so it is fetched when that screen opens.
   useEffect(() => {
@@ -40,6 +48,12 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         if (cancelled) return;
         setDisplayName(profile.account.displayName);
         setBio(profile.bio ?? '');
+        // The baseline every later comparison is against, so that opening this
+        // screen and closing it again writes nothing.
+        saved.current = {
+          displayName: profile.account.displayName,
+          bio: profile.bio ?? '',
+        };
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -51,16 +65,55 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
     };
   }, [app.me?.id]);
 
-  const save = async () => {
+  /**
+   * Writes whatever has actually changed.
+   *
+   * This screen has no Save button. Appearance and signing out always took
+   * effect the moment they were touched, and the two text fields did not,
+   * which made one button on the screen mean "keep my work" and the other —
+   * Done, nearer and more obvious — mean "throw it away, silently". Saving on
+   * blur removes the choice rather than explaining it.
+   *
+   * Rethrows so that Done can decline to close on a failure. A screen that
+   * closed anyway would be the silent discard again, wearing a different hat.
+   */
+  const persist = async () => {
+    const name = displayName.trim();
+    const text = bio.trim();
+    // A blank name is refused rather than written: it is how everybody else
+    // finds you, and the server ignores an empty one anyway. Saying so under
+    // the field is what stands in for a disabled button.
+    const nameChanged = name !== '' && name !== saved.current.displayName;
+    const bioChanged = text !== saved.current.bio;
+    if (!nameChanged && !bioChanged) return;
+
+    const changes: { displayName?: string; bio?: string } = {};
+    if (nameChanged) changes.displayName = name;
+    if (bioChanged) changes.bio = text;
+
     setSaving(true);
     setError(null);
     try {
-      await app.saveProfile({ displayName, bio });
-      onBack();
+      await app.saveProfile(changes);
+      saved.current = {
+        displayName: changes.displayName ?? saved.current.displayName,
+        bio: changes.bio ?? saved.current.bio,
+      };
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      throw e;
     } finally {
       setSaving(false);
+    }
+  };
+
+  /** Keeps the work, then leaves — and stays put if it could not be kept. */
+  const done = async () => {
+    try {
+      await persist();
+      onBack();
+    } catch {
+      // The error is on screen, and the edit is still in the field.
     }
   };
 
@@ -70,7 +123,12 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Settings</Text>
-        <Button label="Done" variant="ghost" onPress={onBack} />
+        <Button
+          label={saving ? 'Saving…' : 'Done'}
+          variant="ghost"
+          disabled={saving}
+          onPress={() => void done()}
+        />
       </View>
 
       {!loaded ? (
@@ -86,7 +144,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
               }
               placeholder="What people should call you"
               autoCapitalize="words"
+              onBlur={() => void persist().catch(() => {})}
             />
+            {!named ? (
+              <Text style={styles.error}>
+                A name cannot be empty — it is how everyone else finds you, so
+                this one is kept until you type another.
+              </Text>
+            ) : null}
             <Text style={type.muted}>
               Shown wherever you appear — the roster of a channel, a contact
               list, an invitation.
@@ -101,6 +166,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
               placeholder="Anything you would like people to know…"
               autoCapitalize="sentences"
               multiline
+              onBlur={() => void persist().catch(() => {})}
             />
 
             {/* Same reasoning as a channel's description: the field shows
@@ -179,20 +245,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           </Card>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <View style={styles.actions}>
-            <Button
-              label={saving ? 'Saving…' : 'Save'}
-              variant="primary"
-              disabled={saving || !named}
-              onPress={save}
-            />
-            {!named ? (
-              <Text style={styles.error}>
-                A name cannot be empty — it is how everyone else finds you.
-              </Text>
-            ) : null}
-          </View>
         </>
       )}
     </Screen>
@@ -224,6 +276,5 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },
-  actions: { gap: spacing(1), marginTop: spacing(2) },
   error: { color: colors.danger, fontSize: 13 },
 });

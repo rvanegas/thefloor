@@ -86,6 +86,7 @@ export function Field({
   autoFocus,
   autoCapitalize = 'none',
   onSubmit,
+  onBlur,
   submitLabel = 'done',
   multiline,
 }: {
@@ -97,6 +98,11 @@ export function Field({
   autoCapitalize?: 'none' | 'words' | 'sentences';
   /** Return key submits the form this field belongs to. */
   onSubmit?: () => void;
+  /**
+   * Focus left the field. Where a screen saves as you go rather than behind a
+   * button, this is the moment an edit is finished enough to keep.
+   */
+  onBlur?: () => void;
   submitLabel?: 'done' | 'go' | 'send' | 'next';
   /**
    * Grows to several lines, and the return key inserts a newline rather than
@@ -118,6 +124,7 @@ export function Field({
       multiline={multiline}
       returnKeyType={!multiline && onSubmit ? submitLabel : undefined}
       onSubmitEditing={multiline ? undefined : onSubmit}
+      onBlur={onBlur}
       // A number-pad has no return key, so the form would otherwise be
       // unsubmittable from the keyboard alone.
       submitBehavior={multiline ? 'newline' : 'blurAndSubmit'}

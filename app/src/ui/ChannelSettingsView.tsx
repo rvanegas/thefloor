@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   DELETED_RETENTION_MS,
@@ -42,8 +42,39 @@ export function ChannelSettingsView({
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
 
-  const saveName = () => {
-    app.act(channel.id, { type: 'SET_NAME', name });
+  /**
+   * What the channel already has, so leaving a field alone dispatches nothing.
+   */
+  const saved = useRef({
+    name: channel.name ?? '',
+    description: channel.description ?? '',
+  });
+
+  /**
+   * Writes whichever of the two has actually changed.
+   *
+   * There were two Save buttons here and each of them closed the screen, so
+   * naming a channel took you out of the settings you were halfway through —
+   * and Done, sitting above both, discarded everything without a word. Saving
+   * as you leave a field means the only button left is the one that means what
+   * it says.
+   *
+   * An empty name is a real value here, unlike a display name: it is how a
+   * channel goes back to being listed by who is in it.
+   */
+  const persist = () => {
+    if (name !== saved.current.name) {
+      app.act(channel.id, { type: 'SET_NAME', name });
+      saved.current.name = name;
+    }
+    if (description !== saved.current.description) {
+      app.act(channel.id, { type: 'SET_DESCRIPTION', description });
+      saved.current.description = description;
+    }
+  };
+
+  const done = () => {
+    persist();
     onBack();
   };
 
@@ -123,16 +154,11 @@ export function ChannelSettingsView({
       ]
     );
 
-  const saveDescription = () => {
-    app.act(channel.id, { type: 'SET_DESCRIPTION', description });
-    onBack();
-  };
-
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Channel settings</Text>
-        <Button label="Done" variant="ghost" onPress={onBack} />
+        <Button label="Done" variant="ghost" onPress={done} />
       </View>
 
       <SectionLabel>Channel name</SectionLabel>
@@ -142,9 +168,9 @@ export function ChannelSettingsView({
           onChangeText={(v) => setName(v.slice(0, MAX_CHANNEL_NAME_LENGTH))}
           placeholder="What is this channel about?"
           autoCapitalize="words"
-          onSubmit={saveName}
+          onSubmit={persist}
+          onBlur={persist}
         />
-        <Button label="Save name" variant="primary" onPress={saveName} />
         <Text style={type.muted}>
           Everyone in the channel sees this name, and anyone in it can change
           it. Leave it empty to go back to listing who is here.
@@ -161,12 +187,13 @@ export function ChannelSettingsView({
           placeholder="Links, a reading list, what this is for…"
           autoCapitalize="sentences"
           multiline
+          onBlur={persist}
         />
 
         {/*
           A preview, because the input shows markup and the header will not.
-          Without it the only way to find out what `[a](b)` becomes is to save
-          and go back, and the only way to fix a typo is to do that twice.
+          Without it the only way to find out what `[a](b)` becomes is to go
+          back and look, and the only way to fix a typo is to do that twice.
         */}
         {description.trim() ? (
           <View style={styles.preview}>
@@ -175,11 +202,6 @@ export function ChannelSettingsView({
           </View>
         ) : null}
 
-        <Button
-          label="Save description"
-          variant="primary"
-          onPress={saveDescription}
-        />
         <Text style={type.muted}>
           Shown under the channel name to everyone in it. **Bold**, *italic*,
           `code`, ~~strikethrough~~ and [links](https://example.com) work.
