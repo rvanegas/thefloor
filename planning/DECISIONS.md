@@ -1603,3 +1603,47 @@ the first two by construction, the third because nobody was talking during one.
 verification session. It is not a regression: 470 on 2026-08-10, 86 on the 11th,
 64 on the 12th, and 7 on the 13th when audio was down all day. The rate tracks
 how much talking happened, not which media server was serving it.
+
+---
+
+## A card per person in a channel, lit by who is actually audible
+
+Built 2026-08-13. The roster used to be one line of muted grey per person
+under the channel title — `Dana Chu · Present · muted` — which made the answer
+to "who is here and who is talking" the smallest type on a screen whose next
+four cards described what the channel was doing. It is a card each now, with
+the name at full weight and a dot that fills while that person is audible.
+
+**Everybody gets one, yourself included.** Your own mute and your own speaking
+indicator are things you want to see, and a roster that lists everyone but you
+makes the count on Home disagree with what the screen shows. Your card is the
+one that is not pressable: it would lead to a read-only view of yourself
+offering to add you as your own contact.
+
+**The speaking indicator comes from the room, not from the reducer.** These are
+different questions and it would be easy to answer the wrong one: the floor
+says who *may* speak and the server enforces it by muting everybody else, so a
+card lit from `channel.floor.holder` would glow through three minutes of
+silence and would stay dark for the ordinary case of several people talking
+with no claim at all. Only the media connection knows who is making noise, so
+`useSessionAudio` now surfaces LiveKit's `ActiveSpeakersChanged` as a list of
+identities. They are account ids — the server issues join tokens under
+`identity: userId` — so they index straight into a channel's participants with
+no second lookup and no mapping to keep in step.
+
+The list is emptied on `Disconnected` rather than left as it was. A name still
+pulsing on a screen whose audio has dropped is exactly the reading that
+matters, and it is the one a stale list gets wrong.
+
+**No animation.** The dot is filled or hollow, driven by the events as they
+arrive, which is already several changes a second while somebody is talking.
+Its size does not change with the state, so a card cannot reflow every time
+somebody draws breath, and there is no animation loop running behind a screen
+that is otherwise idle while a conversation goes on above it.
+
+What the card does *not* do is show an audio level. LiveKit reports one, and a
+bar that moves with it is a more literal answer to "a dynamic visual
+indicator" — but it is also a value arriving continuously into a React tree
+that currently re-renders on server snapshots and a one-second tick, and
+speaking-or-not is what a reader of the screen is actually asking. It is worth
+revisiting if the binary dot turns out to read as laggy.

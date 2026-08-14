@@ -41,6 +41,19 @@ export interface SessionAudio {
   /** How many other participants are publishing audio we can hear. */
   othersAudible: number;
   /**
+   * Who is audibly speaking right now, by account id — the same identity the
+   * server issues join tokens under, so these index straight into a channel's
+   * participants without a second lookup.
+   *
+   * Includes you. It is the room's own judgement rather than ours: LiveKit
+   * decides from the published audio level, which is the only place that
+   * information exists, and this hook has never reasoned about who may speak.
+   *
+   * Empty while disconnected, which is honest — a stale name still pulsing on
+   * a screen whose audio has dropped would be the one reading that matters.
+   */
+  speaking: string[];
+  /**
    * Whether the microphone is actually capturing.
    *
    * False while you are alone in a channel and not recording, which is a state
@@ -106,6 +119,7 @@ export function useSessionAudio(
     message: null,
     mutedByServer: false,
     othersAudible: 0,
+    speaking: [],
     micOpen: false,
   });
   const roomRef = useRef<Room | null>(null);
@@ -178,12 +192,21 @@ export function useSessionAudio(
       update({ othersAudible: audible.size });
     };
 
+    // The whole set every time, rather than a diff: the event carries who is
+    // speaking now, so replacing the list is both simpler and correct when
+    // somebody stops without any further event about them.
+    const onSpeakers = (speakers: Participant[]) =>
+      update({ speaking: speakers.map((s) => s.identity) });
+
     room
       .on(RoomEvent.TrackMuted, onMuted)
       .on(RoomEvent.TrackUnmuted, onUnmuted)
       .on(RoomEvent.TrackSubscribed, onSubscribed)
       .on(RoomEvent.TrackUnsubscribed, onUnsubscribed)
-      .on(RoomEvent.Disconnected, () => update({ status: 'idle' }));
+      .on(RoomEvent.ActiveSpeakersChanged, onSpeakers)
+      // Nobody is speaking on a connection that is gone, and the last thing
+      // heard would otherwise stay lit for as long as the screen is open.
+      .on(RoomEvent.Disconnected, () => update({ status: 'idle', speaking: [] }));
 
     (async () => {
       update({ status: 'connecting', message: null });

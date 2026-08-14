@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {
   cooldownRemainingMs,
   floorRemainingMs,
@@ -235,40 +242,31 @@ export function ChannelView({
               style={styles.description}
             />
           ) : null}
-          {others.map((participant) => (
-            /*
-              Tappable, because "who is this?" is a question that arises about
-              somebody an acquaintance brought in, and this line is the only
-              place their name appears. A row rather than a button: it is a
-              status line first, and reads as one.
-            */
-            <Text
-              key={participant.id}
-              style={type.muted}
-              accessibilityRole="button"
-              accessibilityLabel={`${participant.displayName}, view profile`}
-              onPress={() => setViewing(participant)}
-            >
-              {/* When the header is the other party's own name, repeating it
-                  here says nothing; under a channel name it is the only place
-                  their name appears. */}
-              {others.length === 1 && !channel.name
-                ? ''
-                : `${participant.displayName} · `}
-              {isPresent(channel, participant.id)
-                ? // Present but unreachable is its own state, not absence:
-                  // they are still in the channel and still hold whatever
-                  // they hold. Saying so beats making them vanish and
-                  // reappear over a moment's bad signal.
-                  channel.disconnectedAt[participant.id] !== undefined
-                  ? 'Present · reconnecting…'
-                  : 'Present'
-                : channel.everPresent.includes(participant.id)
-                  ? 'Stepped out'
-                  : 'Waiting for them to join…'}
-              {channel.selfMuted[participant.id] ? ' · muted' : ''}
-            </Text>
-          ))}
+          {/*
+            A card each, rather than the status lines this used to be. Who is
+            in the room and who is talking is what the screen is *for*, and it
+            was the smallest type on it — a line of muted grey under the title,
+            below which four cards described what the channel was doing.
+          */}
+          <View style={styles.roster}>
+            {view.participants.map((participant) => (
+              <ParticipantCard
+                key={participant.id}
+                channel={channel}
+                participant={participant}
+                self={participant.id === me}
+                // Audible right now, as the room hears it rather than as the
+                // reducer imagines it: the floor says who *may* speak, and
+                // this says who is.
+                speaking={audio.speaking.includes(participant.id)}
+                onPress={
+                  participant.id === me
+                    ? undefined
+                    : () => setViewing(participant)
+                }
+              />
+            ))}
+          </View>
 
           {/* Same delay as Home's: a foreground drops the socket every time,
               and this used to announce it the instant it happened. */}
@@ -659,6 +657,108 @@ export function ChannelView({
 }
 
 /**
+ * One person in the channel: who they are, whether they are here, and whether
+ * they are talking.
+ *
+ * Pressable because "who is this?" is a real question about somebody an
+ * acquaintance brought in, and the answer — their profile, and the request that
+ * keeps them — is one tap from here. Your own card is not: it leads to a
+ * read-only view of yourself, offering to add you as your own contact.
+ *
+ * The speaking indicator is driven by the room rather than by the reducer. The
+ * floor decides who *may* speak and the server enforces it; only the media
+ * connection knows who is actually making noise, and the two are different
+ * questions — a silent floor-holder and a self-muted person mouthing at a dead
+ * microphone both look wrong if the badge is inferred from state.
+ */
+function ParticipantCard({
+  channel,
+  participant,
+  self,
+  speaking,
+  onPress,
+}: {
+  channel: NonNullable<ReturnType<typeof useApp>['channelView']>['channel'];
+  participant: { id: string; displayName: string };
+  self: boolean;
+  speaking: boolean;
+  onPress?: () => void;
+}) {
+  const here = isPresent(channel, participant.id);
+  const reconnecting = channel.disconnectedAt[participant.id] !== undefined;
+  const muted = !!channel.selfMuted[participant.id];
+  const holdsFloor = channel.floor.holder === participant.id;
+  // Somebody who is neither speaking nor able to be heard: the badge would be
+  // dead space, so the status carries it instead.
+  const status = here
+    ? // Present but unreachable is its own state, not absence: they are still
+      // in the channel and still hold whatever they hold. Saying so beats
+      // making them vanish and reappear over a moment's bad signal.
+      reconnecting
+      ? 'Present · reconnecting…'
+      : 'Present'
+    : channel.everPresent.includes(participant.id)
+      ? 'Stepped out'
+      : 'Waiting for them to join…';
+
+  const body = (
+    <>
+      <View style={styles.cardHead}>
+        {/* One string rather than a name and a suffix, so it is one run of
+            text to a screen reader and to anything else reading the tree. */}
+        <Text style={styles.cardName} numberOfLines={1}>
+          {self ? `${participant.displayName} (you)` : participant.displayName}
+        </Text>
+        {/*
+          The dynamic part, and the only thing on this screen that changes
+          several times a second. Filled while they are audible, hollow
+          otherwise — a shape that is always in the same place, so a card does
+          not reflow every time somebody draws breath.
+        */}
+        <View
+          style={[styles.speakingDot, speaking && styles.speakingDotLive]}
+          accessibilityElementsHidden
+        />
+      </View>
+      <Text style={type.muted}>
+        {status}
+        {muted ? ' · muted' : ''}
+        {holdsFloor ? ' · has the floor' : ''}
+      </Text>
+    </>
+  );
+
+  const label = `${participant.displayName}${self ? ', you' : ''}. ${status}.${
+    speaking ? ' Speaking.' : ''
+  }${onPress ? ' View profile.' : ''}`;
+
+  if (!onPress) {
+    return (
+      <View
+        style={[styles.participantCard, speaking && styles.participantCardLive]}
+        accessibilityLabel={label}
+      >
+        {body}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.participantCard,
+        speaking && styles.participantCardLive,
+        pressed && styles.participantCardPressed,
+      ]}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
+/**
  * Who can be invited: accepted contacts of *this user* who are not already in
  * the channel, the cap permitting. The guard is the same one the server
  * enforces, so a shown button and a refused invite cannot disagree — except on
@@ -780,6 +880,38 @@ const styles = StyleSheet.create({
   },
   centeredText: { textAlign: 'center', lineHeight: 20 },
   presence: { gap: 2, marginBottom: spacing(0.5) },
+  roster: { gap: spacing(1), marginTop: spacing(1) },
+  participantCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing(1.75),
+    paddingVertical: spacing(1.25),
+    gap: 2,
+  },
+  /** The accent, the same one the floor gets: this is the app's one mechanic. */
+  participantCardLive: { borderColor: colors.floor },
+  participantCardPressed: { backgroundColor: colors.surfaceRaised },
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1),
+  },
+  cardName: { flexShrink: 1, fontSize: 16, fontWeight: '600', color: colors.text },
+  speakingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'transparent',
+  },
+  speakingDotLive: {
+    borderColor: colors.floor,
+    backgroundColor: colors.floor,
+  },
   description: {
     ...type.muted,
     lineHeight: 20,

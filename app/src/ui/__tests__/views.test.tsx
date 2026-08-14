@@ -91,8 +91,14 @@ const AUDIO = {
   message: null,
   mutedByServer: false,
   othersAudible: 0,
+  speaking: [] as string[],
   micOpen: true,
 };
+
+/** The same connection, with somebody audible on it. */
+function audioWith(...speaking: string[]) {
+  return { ...AUDIO, speaking };
+}
 
 jest.mock('../../state/AppProvider', () => ({
   useApp: () => mockApp,
@@ -1340,9 +1346,10 @@ describe('Channel', () => {
       />);
     const text = textOf(tree);
     expect(text).toContain('Book club');
-    // Under a channel name the status line is the only place the other
-    // party's name appears, so it must carry it even in a 1:1.
-    expect(text).toContain('Dana Chu · ');
+    // Under a channel name the roster is the only place the other party's
+    // name appears, so it must carry it even in a 1:1 — which the card does
+    // unconditionally, the old status line having spelt it only sometimes.
+    expect(text).toContain('Dana Chu');
     act(() => tree.unmount());
   });
 
@@ -2443,6 +2450,119 @@ describe('the appearance setting', () => {
     expect(styleOf('Light').backgroundColor).toBe(
       styleOf('System').backgroundColor
     );
+    act(() => tree.unmount());
+  });
+});
+
+describe('who is in the channel, and who is talking', () => {
+  /**
+   * The card for one person, found by the name in its label. A card is a
+   * Pressable for everybody but you, so its style is a function of press
+   * state rather than an array — both shapes are flattened the same way here.
+   */
+  function cardFor(tree: ReactTestRenderer, name: string) {
+    const node = tree.root
+      .findAll(
+        (n) =>
+          typeof n.type === 'string' &&
+          String(n.props?.accessibilityLabel ?? '').startsWith(name)
+      )
+      .at(0);
+    const style = node?.props?.style;
+    return {
+      node,
+      style: StyleSheet.flatten(
+        typeof style === 'function' ? style({ pressed: false }) : style
+      ) as { borderColor?: unknown },
+    };
+  }
+
+  it('gives everybody a card, yourself included', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Dana Chu');
+    // Your own card is there and says so, which is where your mute and your
+    // own speaking indicator belong.
+    expect(text).toContain('Me (you)');
+    expect(cardFor(tree, 'Dana Chu').node).toBeDefined();
+    expect(cardFor(tree, 'Me, you').node).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('marks the card of whoever is audible, and only theirs', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={audioWith(THEM)}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const them = cardFor(tree, 'Dana Chu');
+    const mine = cardFor(tree, 'Me, you');
+    expect(them.style.borderColor).toBe(colors.floor);
+    expect(mine.style.borderColor).not.toBe(colors.floor);
+    expect(String(them.node!.props.accessibilityLabel)).toContain('Speaking');
+    act(() => tree.unmount());
+  });
+
+  it('asks the room who is talking rather than the floor', () => {
+    // Holding the floor is permission to speak, not speech. A card lit by the
+    // reducer would glow through three minutes of silence — and would leave a
+    // self-muted person's card lit while nothing of theirs is heard.
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
+    );
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const them = cardFor(tree, 'Dana Chu');
+    expect(them.style.borderColor).not.toBe(colors.floor);
+    // The claim is still reported, in words, where it belongs.
+    expect(String(them.node!.props.accessibilityLabel)).not.toContain(
+      'Speaking'
+    );
+    expect(textOf(tree)).toContain('has the floor');
+    act(() => tree.unmount());
+  });
+
+  it('opens their profile from the card, and offers no route to your own', async () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    // Yours is not a button: a read-only profile of yourself, offering to add
+    // you as your own contact, is not a screen worth reaching.
+    expect(cardFor(tree, 'Me, you').node!.props.accessibilityRole).not.toBe(
+      'button'
+    );
+
+    const theirs = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => String(n.props?.accessibilityLabel).startsWith('Dana Chu'));
+    await act(async () => theirs!.props.onPress());
+    expect(mockApp.loadProfile).toHaveBeenCalledWith(THEM);
+    // And from there they can be kept, which is what the card is a route to.
+    expect(findButton(tree, 'Add contact')).toBeDefined();
     act(() => tree.unmount());
   });
 });
