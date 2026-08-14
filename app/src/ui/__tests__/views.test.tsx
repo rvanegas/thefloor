@@ -59,6 +59,17 @@ const mockApp = {
     bio: 'Cellist. **Bach** mostly.',
   })),
   saveProfile: jest.fn(async () => {}),
+  // Configured by default, so the Support section is exercised rather than
+  // skipped; the tests that care about it absent override this.
+  loadSupport: jest.fn(async () => ({
+    url: 'https://ko-fi.com/thefloor',
+    identifier: 'me@example.com',
+    mine: null as {
+      count: number;
+      since: number;
+      totals: Array<{ currency: string; cents: number }>;
+    } | null,
+  })),
   connectWith: jest.fn(async () => ({ accepted: false })),
   watchChannel: jest.fn(),
   leaveChannelView: jest.fn(),
@@ -1477,6 +1488,57 @@ describe('Home settings', () => {
     expect(text).toContain('Preview');
     expect(text).toContain('Bach');
     expect(text).not.toContain('**Bach**');
+    act(() => tree.unmount());
+  });
+
+  it('offers a way to chip in, and says which address to use', async () => {
+    const tree = await openSettings();
+    const text = textOf(tree);
+    expect(findButton(tree, 'Chip in')).toBeTruthy();
+    // The address is the whole of how a donation finds its way back to an
+    // account, so the screen has to name it.
+    expect(text).toContain('me@example.com');
+    expect(text).toContain('unlocks nothing');
+    act(() => tree.unmount());
+  });
+
+  it('says nothing about donating when the server offers nowhere to donate', async () => {
+    mockApp.loadSupport.mockResolvedValueOnce({
+      url: null as unknown as string,
+      identifier: 'me@example.com',
+      mine: null,
+    });
+    const tree = await openSettings();
+    expect(findButton(tree, 'Chip in')).toBeUndefined();
+    expect(textOf(tree)).not.toContain('Support');
+    act(() => tree.unmount());
+  });
+
+  it('leaves the rest of the screen alone when support cannot be read', async () => {
+    // An older server, or one that fails: the name and bio are what this
+    // screen is for and must not wait on, or break with, an extra fetch.
+    mockApp.loadSupport.mockRejectedValueOnce(new Error('nope'));
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain('Bach');
+    expect(findButton(tree, 'Chip in')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('thanks somebody who has already given, in their own currencies', async () => {
+    mockApp.loadSupport.mockResolvedValueOnce({
+      url: 'https://ko-fi.com/thefloor',
+      identifier: 'me@example.com',
+      mine: {
+        count: 2,
+        since: NOW,
+        totals: [
+          { currency: 'EUR', cents: 1000 },
+          { currency: 'USD', cents: 300 },
+        ],
+      },
+    });
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain('€10.00 and $3.00');
     act(() => tree.unmount());
   });
 

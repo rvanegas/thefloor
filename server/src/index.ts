@@ -104,8 +104,46 @@ const pusher: Pusher | undefined =
       })
     : new ConsolePusher();
 
+/**
+ * The one address App Review can sign in as. Both halves are required — an
+ * address with no code, or a code with no address, configures nothing — so a
+ * half-filled .env leaves every code random rather than leaving one account
+ * open with a value somebody guessed at.
+ *
+ * Publish the pair in the review notes and treat it as public. Point it at an
+ * account holding demo data and nothing else.
+ */
+const reviewIdentifier = process.env.REVIEW_IDENTIFIER;
+const reviewCode = process.env.REVIEW_CODE;
+const review =
+  reviewIdentifier && reviewCode
+    ? { identifier: reviewIdentifier, code: reviewCode }
+    : undefined;
+
+/**
+ * Donations, which are optional in both halves and independently so.
+ *
+ * KOFI_URL is what the app is told to open; unset, it offers nothing, and that
+ * is also how the donate link is withdrawn — a restart rather than a new build,
+ * which matters because the App Store guideline permitting an external payment
+ * link at all is under appeal.
+ *
+ * KOFI_VERIFICATION_TOKEN is from More -> API -> Webhooks -> Advanced on Ko-fi,
+ * and is the only thing standing between that endpoint and anyone who can post
+ * to it. Unset, deliveries are refused rather than trusted.
+ */
+const kofiUrl = process.env.KOFI_URL;
+const kofiVerificationToken = process.env.KOFI_VERIFICATION_TOKEN;
+const kofi =
+  kofiUrl || kofiVerificationToken
+    ? { url: kofiUrl, verificationToken: kofiVerificationToken }
+    : undefined;
+
 const app = buildApp({
   dbPath,
+  review,
+  kofi,
+  contactEmail: process.env.CONTACT_EMAIL,
   mailer,
   media,
   mediaUrl: liveKitUrl,
@@ -125,9 +163,19 @@ app.fastify
         audio: media ? liveKitUrl : 'none',
         recordings: storage ? `s3://${storage.bucket}` : 'not configured',
         push: apnsKeyPath ? `apns:${apnsEnv}` : 'console',
+        // Logged because an account whose code never changes is worth being
+        // able to see from the outside, rather than having to read .env to
+        // find out whether one is open.
+        review: review ? review.identifier : 'none',
+        donations: kofiVerificationToken ? 'ko-fi' : 'not configured',
       },
       'the floor server listening'
     );
+    if (kofiUrl && !kofiVerificationToken) {
+      app.fastify.log.warn(
+        'KOFI_URL is set without KOFI_VERIFICATION_TOKEN — the app will offer the link, but every donation Ko-fi reports will be refused and nothing recorded.'
+      );
+    }
     if (!media) {
       app.fastify.log.warn(
         'LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET are unset — channels run with no audio.'

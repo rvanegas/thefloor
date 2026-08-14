@@ -87,7 +87,46 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently on 2026-08-13: the two idle timers, and with them the first
+Most recently on 2026-08-14, three times: **voluntary donations**, the fix for
+the mistake the first deploy shipped, and then the region filter.
+
+Donations are a **Ko-fi link, external, unlocking nothing** — see
+planning/DECISIONS.md for why it is not in-app purchase. The build is a
+`donations` table, `server/src/donations.ts`, `POST /support/kofi` and `GET
+/support`, plus a Support card in `HomeSettingsView`. Nothing in `core/` changed
+except one additive type, so the wire is unchanged and build 30 kept working
+across all three restarts; **build 31 is the one that shows the card**, and it is
+not built yet. Alongside it went `GET /privacy` and a fixed one-time code for
+App Review (`REVIEW_IDENTIFIER` / `REVIEW_CODE`).
+
+**The app ships worldwide and the link is withheld per person.** App Review
+Guideline 3.1.1(a) prohibits an external payment link outside the United States
+storefront — the *link*, not the app — so shipping US-only would have locked
+existing non-US users out of the App Store for nothing. The app reports its
+locale and timezone from `Intl`; `server/src/region.ts` decides. **Silence means
+hidden, and so does anything ambiguous**, because showing the link to the wrong
+storefront is a violation while hiding it from the right one costs a donation.
+`accounts.donations_allowed` overrides it either way — null for everyone by
+default. That was the third deploy's migration, on the `bio` / `last_seen_at`
+pattern.
+
+The second deploy was the one that mattered. **The first stored Ko-fi's
+`verification_token` in the `donations.raw` column**, because it stored the
+request body verbatim and that body carries the secret authenticating every
+future delivery — into the database, into every backup, and into the output of
+any query selecting that column, which is how it surfaced. The token was
+rotated, the row deleted, the payload is now stored minus that field, and a test
+asserts it appears nowhere in the table. The general form is worth carrying:
+**a payload that authenticates itself contains a credential, and storing it
+verbatim stores the credential.**
+
+Verified against production afterwards: `donations: "ko-fi"` in the startup log,
+a bad token answered `401` with nothing written, `/privacy` served as HTML
+naming `support@rvanegas.co`, and data untouched at 5 accounts, 24 channels and
+12 recordings. A real end-to-end donation is still untested. Note that Ko-fi's
+`closeRoom` noise in the log is unrelated and dates to 2026-08-09.
+
+Before that, on 2026-08-13: the two idle timers, and with them the first
 `accounts` migration since `bio`. **`accounts.last_seen_at`**, added and left
 null — backfilling it from `created_at` would have read as a year idle for
 somebody who used the app that morning — so it fills in as people connect. The
@@ -246,7 +285,7 @@ second box would need if the media ever splits off this one.
 
 ### Credentials
 
-Six, deliberately separate, so no single leak is worse than it has to be:
+Seven, deliberately separate, so no single leak is worse than it has to be:
 
 - **LiveKit** — media. Since 2026-08-13 this is a **self-issued** API key and
   secret rather than one granted by LiveKit Cloud, generated once with
@@ -335,8 +374,32 @@ Six, deliberately separate, so no single leak is worse than it has to be:
   Without it the script says so and falls back to the interactive path, which
   still works whenever somebody is signed in.
 
+- **Ko-fi webhook verification token** — `KOFI_VERIFICATION_TOKEN`, from More →
+  API → Webhooks → Advanced on Ko-fi, matching the webhook URL
+  `https://thefloor.rvanegas.co/support/kofi`.
+
+  Unlike every other credential here it is a **shared secret sent inside the
+  request body** rather than a signature over it, so it is only safe because
+  Caddy terminates TLS in front of the endpoint. Anyone holding it can write
+  fabricated donations into the database. It is compared with
+  `timingSafeEqual`, never logged, and — since 2026-08-14 — **stripped from the
+  payload before the payload is stored**, because the first implementation kept
+  the request body verbatim and put the secret on every row. See
+  planning/DECISIONS.md.
+
+  Rotating it is cheap and non-destructive: regenerate on Ko-fi, replace the
+  line in `server/.env`, restart. Nothing already recorded depends on it, which
+  is the opposite of the APNs key and worth knowing when deciding how nervous to
+  be.
+
+  It lives at `~/.config/thefloor/kofi-verification-token.txt` on the
+  development machine, mode 600 — outside the synced tree, on the same reasoning
+  as the `.p8` keys.
+
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
-sync so a deploy cannot overwrite it.
+sync so a deploy cannot overwrite it. `KOFI_URL`, `CONTACT_EMAIL` and the
+`REVIEW_*` pair live there too and are settings rather than secrets —
+`server/.env.example` documents every one of them.
 
 ### `APNS_ENV` is the setting that will cost you an afternoon
 
@@ -515,6 +578,30 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   worse than one that matches.
 
 - **The splash is still the Expo default.**
+
+- **Availability is worldwide, and the donate link is filtered per person.**
+  Guideline 3.1.1(a) permits buttons and external links to outside payment
+  mechanisms *in the United States storefront* and prohibits them everywhere
+  else — so what has to be US-only is the link, not the app. This was very
+  nearly got wrong in the other direction: the original plan shipped US-only,
+  which would have locked out non-US users who already existed.
+
+  The filter is `server/src/region.ts`, fed by a locale and timezone the app
+  reports. **Anything it is not sure about resolves to hidden.** If you ever
+  change it, keep that asymmetry: showing the link outside the US storefront is
+  a guideline violation, and hiding it inside costs one donation.
+
+  Two global kill switches sit above it, both server-side and both a restart
+  rather than a submission: unset `KOFI_URL`, or set every account's
+  `donations_allowed` to 0. That is deliberate, because the US carve-out exists
+  under an injunction still being appealed.
+
+- **`NSMicrophoneUsageDescription` was wrong until 2026-08-14**, and it is the
+  one string every user and every reviewer reads. It said "so the other person
+  in a session can hear you": sessions became channels on 2026-08-10, and a
+  channel holds up to `MAX_CHANNEL_PARTICIPANTS` rather than one other person.
+  Worth re-reading whenever the vocabulary moves — nothing tests a permission
+  string.
 
 `buildNumber` must increase for each upload, even when the version does not —
 and **`bin/release-ios` does that itself**, reading `app.json`, adding one, and

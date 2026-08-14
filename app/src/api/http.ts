@@ -1,5 +1,11 @@
-import type { HomeView, PublicAccount, ProfileView } from '../../../core/protocol';
+import type {
+  HomeView,
+  PublicAccount,
+  ProfileView,
+  SupportView,
+} from '../../../core/protocol';
 import { API_URL } from './config';
+import { deviceRegion } from './region';
 
 export class ApiError extends Error {
   constructor(
@@ -129,6 +135,30 @@ export const api = {
     token: string,
     changes: { displayName?: string; bio?: string }
   ) => request<ProfileView>('/me', { method: 'POST', body: changes, token }),
+
+  /**
+   * Where to donate, and what this person has already given.
+   *
+   * The URL comes from the server rather than the binary, on the same principle
+   * as the media server's: a link that can be withdrawn by editing one
+   * environment variable is one that does not need an App Store submission to
+   * take down. `url` is null when donations are not configured, and the screen
+   * shows nothing at all.
+   */
+  support: (token: string) => {
+    // Reported rather than acted on. The server decides whether this device is
+    // somewhere the donate link may be shown, so the rule can be changed
+    // without a release — and an absent answer means hidden, which is the safe
+    // direction.
+    const { locale, tz } = deviceRegion();
+    const query = new URLSearchParams();
+    if (locale) query.set('locale', locale);
+    if (tz) query.set('tz', tz);
+    const suffix = query.toString();
+    return request<SupportView>(`/support${suffix ? `?${suffix}` : ''}`, {
+      token,
+    });
+  },
 
   requestContact: (token: string, identifier: string) =>
     request<{ ok: true; accepted: boolean }>('/contacts/request', {

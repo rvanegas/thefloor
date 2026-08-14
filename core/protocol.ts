@@ -88,6 +88,40 @@ export interface RecordingView {
   durationMs: number;
 }
 
+/**
+ * What the Settings screen is told about donating.
+ *
+ * Fetched when that screen opens rather than carried on the Home snapshot,
+ * which is pushed to every client on every change — the same reasoning that
+ * keeps a bio off PublicAccount. Nothing here gates anything: donations are
+ * voluntary and unlock nothing, so no other view has any reason to read it.
+ */
+export interface SupportView {
+  /**
+   * Where to send somebody who wants to give. Null when donations are not
+   * configured, and the screen then offers nothing.
+   *
+   * Deliberately not a constant in the app: this is what makes withdrawing the
+   * donate link a server restart rather than an App Store submission.
+   */
+  url: string | null;
+  /**
+   * Their own sign-in address, shown beside the link.
+   *
+   * A donation is tied back to an account by the address it was paid with, and
+   * Ko-fi's link carries no field to put an account id in — so asking somebody
+   * to use this address is the cheapest half of attribution by a wide margin.
+   */
+  identifier: string;
+  /** What they have already given. Null when they have given nothing. */
+  mine: {
+    count: number;
+    since: number;
+    /** One entry per currency. Two currencies are never added together. */
+    totals: Array<{ currency: string; cents: number }>;
+  } | null;
+}
+
 /** Everything Home renders, pushed as one snapshot. */
 export interface HomeView {
   invites: InviteView[];

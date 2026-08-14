@@ -21,6 +21,13 @@ export interface AccountRow {
    * since the column existed.
    */
   last_seen_at: number | null;
+  /**
+   * Forces the donate link visible (1) or hidden (0), overriding what the
+   * device's region suggests. Null — the default for everyone — means decide
+   * automatically. See region.ts for why the automatic answer needs an
+   * override at all.
+   */
+  donations_allowed: number | null;
 }
 
 export interface ContactRow {
@@ -97,7 +104,14 @@ CREATE TABLE IF NOT EXISTS accounts (
   bio          TEXT,
   -- When they last had the app open, to the nearest heartbeat. Null until
   -- they first connect.
-  last_seen_at INTEGER
+  last_seen_at INTEGER,
+  -- Overrides the guess about whether this person may see the donate link.
+  -- Null means decide from what their device reports, which is what everybody
+  -- gets until somebody says otherwise; 1 forces it visible and 0 forces it
+  -- hidden. It exists because the automatic answer is an approximation of the
+  -- App Store storefront and a person who actually knows the truth for one
+  -- account should be able to say so without a deploy. See region.ts.
+  donations_allowed INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -147,6 +161,74 @@ CREATE TABLE IF NOT EXISTS pending_invites (
   created_at   INTEGER NOT NULL,
   PRIMARY KEY (requester_id, identifier)
 );
+
+-- Money somebody gave, voluntarily, toward keeping this running. Nothing is
+-- unlocked by it: an account that has never given a penny behaves identically
+-- to one that has, which is what keeps this table off every read path in the
+-- application.
+--
+-- Keyed on Ko-fi's transaction id because that is the whole idempotency story.
+-- A webhook is retried on any answer they do not like, and INSERT OR IGNORE
+-- against this key makes a replay a no-op without a read first.
+--
+-- account_id is nullable on purpose. Ko-fi's donate link carries no passthrough
+-- field, so the account is matched afterwards rather than known at the time,
+-- and a donation from somebody with no account here is still a donation. Losing
+-- it because it could not be attributed would be the wrong trade in every
+-- direction.
+--
+-- Matching is by address alone, and a donation paid from an address nobody has
+-- signed in with is left unattributed rather than guessed at. An earlier
+-- version inferred the giver from whoever had most recently tapped Support;
+-- that credits the wrong person whenever two people are donating at once, and
+-- nothing afterwards would ever reveal it had. An unattributed row is visible
+-- and fixable; a confidently wrong one is neither.
+CREATE TABLE IF NOT EXISTS donations (
+  kofi_transaction_id TEXT PRIMARY KEY,
+  account_id   TEXT REFERENCES accounts(id),
+  -- 'email' when the payer's address is one we know, 'manual' when somebody
+  -- resolved it by hand from Ko-fi's dashboard or a CSV export.
+  matched_by   TEXT CHECK (matched_by IN ('email', 'manual')),
+  email        TEXT,
+  from_name    TEXT,
+  message      TEXT,
+  -- Integer cents. Ko-fi sends "3.00" as a string; it is parsed straight to
+  -- cents rather than through a float, because money in a float is a defect
+  -- waiting for a large enough number.
+  amount_cents INTEGER NOT NULL,
+  currency     TEXT NOT NULL,
+  -- Ko-fi's own type field: Donation, Subscription, Shop Order, Commission.
+  kind         TEXT NOT NULL,
+  is_recurring INTEGER NOT NULL,
+  is_public    INTEGER NOT NULL,
+  received_at  INTEGER NOT NULL,
+  -- Their ISO timestamp, kept verbatim and unparsed beside our own clock, so
+  -- the two can be compared if they ever disagree.
+  kofi_at      TEXT,
+  -- The payload as JSON, minus its verification_token. This is a third party's
+  -- shape, which they may extend without telling anyone, so it is kept whole
+  -- rather than picked apart — a field that turns out to matter in six months
+  -- is recoverable from here rather than lost for every row already written.
+  --
+  -- The token is stripped because it is a long-lived shared secret: storing it
+  -- per row put a copy in the database, in every backup, and in the output of
+  -- any query that selected this column. It has already done its work by the
+  -- time a row is written.
+  --
+  -- Null for a row entered by hand. Ko-fi has no read API, so a delivery missed
+  -- while this server was down is gone for good unless it is copied out of
+  -- their dashboard — and a row typed in from there honestly has no payload.
+  -- NOT NULL here would have meant inventing one, which is worse than an
+  -- absence that says what it is:
+  --
+  --   INSERT INTO donations (kofi_transaction_id, account_id, matched_by,
+  --     email, amount_cents, currency, kind, is_recurring, is_public,
+  --     received_at)
+  --   VALUES ('<from the dashboard>', '<acct_...>', 'manual',
+  --     '<their address>', 500, 'USD', 'Donation', 0, 1, unixepoch() * 1000);
+  raw          TEXT
+);
+CREATE INDEX IF NOT EXISTS donations_account ON donations(account_id);
 
 -- Channels are held in memory while live; this is the record written when one
 -- ends, for history and to anchor recordings.
@@ -382,6 +464,12 @@ function migrate(db: Db): void {
   // reading as unknown. Everyone's fills in the next time they connect.
   if (!accountColumns.some((c) => c.name === 'last_seen_at')) {
     db.exec('ALTER TABLE accounts ADD COLUMN last_seen_at INTEGER');
+  }
+  // Left null for everyone, which is the value that means "decide from the
+  // device". Backfilling it either way would be asserting something about
+  // where existing accounts are that nobody has established.
+  if (!accountColumns.some((c) => c.name === 'donations_allowed')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN donations_allowed INTEGER');
   }
 
   // Channels from before persistence whose ended_at is null are ghosts: the

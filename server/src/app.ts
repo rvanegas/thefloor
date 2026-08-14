@@ -12,10 +12,13 @@ import { describeChannel } from '../../core/naming';
 import { Accounts } from './accounts';
 import { openDb, type AccountRow, type Db, type RecordingRow } from './db';
 import { Devices, type DevicePlatform } from './devices';
+import { Donations } from './donations';
 import { encodeRecording } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
+import { privacyPage } from './privacy';
+import { donationsVisibleFor } from './region';
 import { ChannelRegistry, type RefusalCode } from './channels';
 import { ConsolePusher, createPushNotifier, type Pusher } from './push';
 import type { RecordingStore } from './storage';
@@ -44,6 +47,38 @@ export interface BuildOptions {
   pusher?: Pusher;
   now?: () => number;
   logger?: boolean;
+  /**
+   * One address whose one-time code is fixed rather than random.
+   *
+   * App Review has to sign in, and signing in here means reading a code out of
+   * an inbox a reviewer has no access to — so without this the app cannot be
+   * reviewed at all, which is a rejection rather than a rough edge.
+   *
+   * The code is published in the review notes, so treat it as public: the
+   * account it opens must hold nothing that matters. Everything else about the
+   * path is unchanged — the code is still stored hashed, still expires, still
+   * counts attempts, and every other address still gets randomness.
+   */
+  review?: { identifier: string; code: string };
+  /**
+   * Where to send somebody who wants to donate, and the token that proves an
+   * incoming webhook came from Ko-fi.
+   *
+   * Both halves are independent. No `url` and the app offers nothing, which is
+   * also how the donate call to action is withdrawn without an App Store round
+   * trip. No `verificationToken` and deliveries are refused, because an
+   * unauthenticated writer to this table is worse than no table.
+   */
+  kofi?: { url?: string; verificationToken?: string };
+  /**
+   * Where somebody reads the privacy policy and wants to write to a person —
+   * including to ask for their account to be deleted, which the policy promises.
+   *
+   * Unset, the page points at the support address on the App Store listing,
+   * which is a real channel rather than a placeholder. Set it once there is an
+   * address worth publishing.
+   */
+  contactEmail?: string;
 }
 
 export interface App {
@@ -52,6 +87,7 @@ export interface App {
   accounts: Accounts;
   channels: ChannelRegistry;
   devices: Devices;
+  donations: Donations;
 }
 
 /**
@@ -66,7 +102,12 @@ export const MAX_TRACK_BYTES = 100 * 1024 * 1024;
 export function buildApp(options: BuildOptions = {}): App {
   const now = options.now ?? Date.now;
   const db = openDb(options.dbPath ?? ':memory:');
-  const accounts = new Accounts(db);
+  const accounts = new Accounts(db, options.review);
+  const donations = new Donations(
+    db,
+    accounts,
+    options.kofi?.verificationToken
+  );
   const fastify = Fastify({ logger: options.logger ?? false });
 
   // Several endpoints take no body, and a client that still declares
@@ -99,6 +140,16 @@ export function buildApp(options: BuildOptions = {}): App {
     'application/octet-stream',
     { parseAs: 'buffer' },
     rawAudio
+  );
+
+  // Ko-fi posts form-encoded, with the whole payload as JSON in a single
+  // `data` field. Kept as the raw string and handed to Donations intact, since
+  // that string is what gets stored verbatim — a parser dependency for one
+  // field of one route would earn nothing.
+  fastify.addContentTypeParser(
+    'application/x-www-form-urlencoded',
+    { parseAs: 'string' },
+    (_request, body: string, done) => done(null, body)
   );
 
   // Filled in once the websocket plugin loads; no-ops until then.
@@ -426,6 +477,94 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(400).send({ error: 'No pending request.' });
     }
     homeNotifier.notify([account.id, id]);
+    return { ok: true };
+  });
+
+  /**
+   * The privacy policy, which App Store Connect will not accept a submission
+   * without.
+   *
+   * Unauthenticated and served as HTML, because the people who need to read it
+   * are a reviewer with a browser and anybody deciding whether to sign up.
+   */
+  fastify.get('/privacy', async (_request, reply) => {
+    reply.type('text/html; charset=utf-8');
+    return privacyPage(options.contactEmail);
+  });
+
+  // --- Support ------------------------------------------------------------
+
+  /**
+   * Where to donate, and what this person has already given.
+   *
+   * A route rather than a field on the Home snapshot: that snapshot is pushed
+   * to every client on every change, and this is read by one settings screen
+   * when it opens. The same argument the protocol already makes for keeping a
+   * bio off PublicAccount.
+   *
+   * The URL comes from configuration and never from the binary, which is what
+   * makes withdrawing the donate call to action a restart rather than an App
+   * Store submission — worth having, since the guideline permitting an external
+   * payment link at all is under appeal.
+   */
+  fastify.get('/support', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    /*
+      Who may be shown the link at all.
+
+      The app ships worldwide, and Guideline 3.1.1(a) permits an external
+      payment link only in the United States storefront — so this has to be
+      decided per person rather than per build. The client reports what its
+      device says; the policy reading it is server-side, so it can be changed
+      without waiting for a release to reach anybody.
+
+      An override on the account wins outright, in both directions. Absent one,
+      an ambiguous or missing answer resolves to hidden: showing this to the
+      wrong person is a guideline violation, and hiding it from the right one
+      costs a donation.
+    */
+    const { locale, tz } = request.query as {
+      locale?: string;
+      tz?: string;
+    };
+    const visible =
+      account.donations_allowed === null ||
+      account.donations_allowed === undefined
+        ? donationsVisibleFor(locale, tz)
+        : account.donations_allowed === 1;
+
+    return {
+      url: visible ? (options.kofi?.url ?? null) : null,
+      // Their own address, shown on that screen so they can pay with the one
+      // we can recognise. It is the cheapest half of attribution by a distance.
+      identifier: account.identifier,
+      mine: donations.forAccount(account.id),
+    };
+  });
+
+  /**
+   * Ko-fi, telling us somebody gave.
+   *
+   * Unauthenticated, because Ko-fi holds no token of ours — the verification
+   * token inside the payload is the whole proof, and checking it is Donations'
+   * job. Answers 200 to anything verified, including a replay, because a
+   * webhook that errors is a webhook retried forever.
+   */
+  fastify.post('/support/kofi', async (request, reply) => {
+    const body = typeof request.body === 'string' ? request.body : '';
+    const result = donations.record(body, now());
+
+    if (!result.ok) {
+      if (result.reason === 'unconfigured') {
+        return reply.code(503).send({ error: 'Donations are not configured.' });
+      }
+      if (result.reason === 'unverified') {
+        return reply.code(401).send({ error: 'Unauthorized' });
+      }
+      return reply.code(400).send({ error: 'Unreadable payload.' });
+    }
     return { ok: true };
   });
 
@@ -885,7 +1024,7 @@ export function buildApp(options: BuildOptions = {}): App {
     });
   });
 
-  return { fastify, db, accounts, channels, devices };
+  return { fastify, db, accounts, channels, devices, donations };
 }
 
 /**

@@ -1741,3 +1741,185 @@ substance, and they are not exercisable through a hook that needs a real room to
 produce a single event. The hook keeps a timer alongside it, because a hold
 running out is the one transition nothing announces — the room has already said
 everything it has to say about somebody who stopped.
+
+---
+
+## Donations, by a link out rather than in-app purchase
+
+Built and deployed 2026-08-14. The roadmap had said "Payment — In-app
+purchases, optional" since it was written, and the word doing the work turned
+out to be *optional*: what was wanted was a way to give money toward keeping the
+thing running, not a paid tier. Nothing is unlocked. An account that has never
+given a penny behaves identically to one that has, which is what kept the build
+to one table, one module and two routes — there is no entitlement to model, no
+quota to enforce, and nothing in `core/` to thread a subscription through.
+
+**Why it can be a link at all.** App Review Guideline 3.1.1(a) reads: *"These
+entitlements are not required for developers to include buttons, external links,
+or other calls to action in their United States storefront apps"*, and the
+prohibition on such links applies *"in all other storefronts, except for the
+United States storefront, where this prohibition does not apply."* So an
+external donate link is permitted outright — no entitlement, no Apple
+commission, and no Paid Apps agreement, banking details or tax forms, none of
+which an IAP tip jar could have avoided.
+
+**The cost is that the app ships United States only.** That is the single
+setting the whole argument rests on, and widening availability later without
+also removing the link is how a compliant app becomes a rejected one. It is
+worth knowing that the carve-out exists because of the April 2025 injunction,
+which is under appeal — so the remedy has to be cheap, and it is: the Ko-fi URL
+comes from `KOFI_URL` in the environment and reaches the app only through `GET
+/support`. Withdrawing the call to action is an edit and a restart, not an App
+Store round trip. The same reasoning that keeps the LiveKit URL out of the
+binary.
+
+Two neighbouring routes were checked and do not apply. **3.2.1(vi)**, charitable
+fundraising, requires approved nonprofit status. **3.2.1(vii)** permits optional
+person-to-person gifts outside IAP, but it is user-to-another-user and ends *"a
+gift that is connected to or associated at any point in time with receiving
+digital content or services must use in-app purchase"* — too close to the line
+for a donation that keeps the app you are using alive.
+
+### Attribution is by address, and admits when it fails
+
+Ko-fi's donate link carries no passthrough field — nothing a Stripe Payment Link
+does with `client_reference_id`. So who gave is worked out afterwards, from the
+address they paid with, matched against `accounts.identifier` the way
+`byIdentifier` already matches: exactly, case-insensitively. The cheapest half
+of this is not code at all — the Settings screen shows people their own sign-in
+address and asks them to use it.
+
+**A middle stage was built and then removed, and the removal is the decision.**
+It recorded an intent row when somebody tapped Support, and attributed a
+donation arriving shortly after under an unrecognised address to whoever's
+intent was open. It is wrong in the case it exists for: two people donating at
+once, where it credits one person's money to another and *nothing afterwards
+would ever reveal that it had*. An unattributed row is visible and fixable by
+hand; a confidently wrong one is neither. Removing it also deleted a table, a
+route, a sweep and a TTL, which is the shape of a guess that was not earning its
+complexity.
+
+What resolves the remainder is a person, reading Ko-fi's dashboard. `matched_by`
+records which way each row was found — `'email'` or `'manual'` — so a total can
+say how much of itself it is sure about, and `raw` is nullable precisely so a
+row typed in from the dashboard does not have to invent a payload it never had.
+
+**Ko-fi's dashboard is the authoritative record; the `donations` table is a
+convenience copy.** There is no read API, so a delivery missed while this server
+was down cannot be fetched later, only copied across. That asymmetry is worth
+stating before somebody reconciles the two and assumes ours is right.
+
+### The verification token is not stored, and once was
+
+Ko-fi authenticates itself with a `verification_token` inside the request body —
+a shared secret rather than a signature, which is only safe because Caddy
+terminates TLS in front of this. It is compared with `timingSafeEqual`.
+
+The first implementation stored the entire request body in `raw`, faithfully,
+including that token. So the secret that authenticates every future delivery was
+written to the database on every row, into every backup, and into the output of
+any query that selected the column — which is exactly how it was found, by a
+`substr(raw, 1, 120)` during verification that printed it. The token was rotated
+and the row deleted.
+
+The payload is still kept whole, minus that one field, because Ko-fi may extend
+their shape without telling anyone and a field that matters in six months should
+be recoverable rather than lost for every row already written. There is a test
+asserting the token appears nowhere in the table, including a stringify of every
+column, so this cannot come back through a different route.
+
+The general form, worth carrying beyond this feature: **a payload that
+authenticates itself contains a credential, and storing it verbatim stores the
+credential.** Faithfulness and secrecy pull against each other here, and the
+resolution is to keep everything except the part whose only job was already done.
+
+### Shipping worldwide, and filtering who is offered the link
+
+Added later the same day, on learning there were already non-US users. The
+original plan had the app shipping **United States only**, which is the simplest
+way to satisfy 3.1.1(a) and turned out to be the wrong trade: it would have left
+existing users unable to install from the App Store at all, stuck on TestFlight
+builds that expire every ninety days. The guideline prohibits the *link* outside
+the US storefront, not the *app* — so the app ships everywhere and the link is
+withheld per person.
+
+**The client reports, the server decides.** The app sends its locale and
+timezone, read from `Intl` (built into Hermes, so no dependency and no native
+module); `server/src/region.ts` decides what that means. Putting the policy on
+the server is the whole point: this is a compliance rule, and one compiled into
+a binary takes a release plus however long people take to update, while one on
+the server takes a restart.
+
+**It is an approximation, and it is wrong in a chosen direction.** The
+authoritative signal is the App Store storefront, which only StoreKit reports
+and which would have cost a native module to read — added, ironically, to avoid
+in-app purchase. What is used instead is where the phone says it is. So every
+ambiguous case resolves to hidden, because the two failure modes are not
+comparable: showing the link outside the US storefront is a guideline violation,
+and hiding it from somebody inside it costs one donation.
+
+Three details that carry the weight:
+
+- **Both signals must agree.** Region alone would show the link to somebody
+  abroad who has set their phone to US formatting, which people do. Their
+  timezone is still where they are, and that is what refuses it. The cost is a
+  US person travelling, whose timezone follows them — the case a human can
+  recognise, which is what the override is for.
+- **The zones are a list, not a prefix test.** `America/` spans Canada, Mexico
+  and South America; `America/Toronto` and `America/Sao_Paulo` would both pass
+  `startsWith('America/')`. The list includes Hawaii and Alaska, which are not
+  `America/` zones at all, and the territories sharing the US storefront —
+  Puerto Rico, Guam, the USVI, American Samoa, the Northern Marianas.
+- **Silence means no.** Every build before this sends no hints, and reading that
+  absence as "United States" is the single guess that could put an external
+  payment link in front of the wrong storefront.
+
+`accounts.donations_allowed` overrides it in both directions — null for
+everyone by default, meaning decide automatically. It exists because the
+automatic answer is a guess and somebody who actually knows the truth for one
+account should be able to say so with an UPDATE rather than a deploy.
+
+Withholding the link does **not** withhold somebody's own donation history. That
+is a rule about where money may be solicited, not about who may see what they
+have already given.
+
+### What else shipped alongside
+
+**A fixed one-time code for App Review** (`REVIEW_IDENTIFIER`, `REVIEW_CODE`).
+Signing in means reading a six-digit code out of an inbox, and a reviewer has no
+inbox — so without this the app cannot be opened by the people who decide
+whether it ships, which is a rejection rather than a rough edge. The code is
+published in the review notes and is therefore public; the account it opens must
+hold nothing that matters. Everything else about the path is unchanged: still
+hashed, still expires, still counts attempts. Unset is the only configuration in
+which every code is random.
+
+**A privacy policy at `GET /privacy`**, which App Store Connect will not accept
+a submission without. Served by the server it describes, so it deploys with the
+code and cannot drift from it — a change to what is stored has to walk past the
+page that claims otherwise. Written as claims checkable against this codebase
+rather than boilerplate.
+
+### Blocking was built for Guideline 1.2, and reverted
+
+1.2 asks apps carrying user content for ways to filter objectionable content,
+report it, and block abusive users. The instinct was that blocking was the
+missing piece, since `declineContact` and `withdrawRequest` only reach somebody
+who is not yet a contact and nothing severs an accepted one. It was built —
+table, methods, routes, tests — and then removed unbuilt on the observation that
+the mechanisms already present answer 1.2 better than the new one would have:
+
+- **`DELETE /recordings/:id` is guarded by the same reach test as play and
+  export**, so any member of a channel can delete any recording in it. That is
+  removal by the person harmed, at the moment of harm, with no queue and no
+  appeal to the developer.
+- **There is no way in without consent.** Channels require an accepted contact
+  on both sides; there is no discovery, no directory, no way to be reached by a
+  stranger. That places The Floor with messaging apps, which ship no moderation
+  tooling, rather than with social feeds, which must.
+- **Leaving already works**, via `STEP_OUT` and `LEAVE_CHANNEL`.
+
+So it is a review-notes item rather than a code item. If a reviewer raises it,
+blocking is a day's work. Building it speculatively ahead of a rejection that
+may never come was the thing not worth doing — and the reasoning is here so that
+the next person to notice the gap knows it was noticed.

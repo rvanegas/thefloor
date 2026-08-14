@@ -44,7 +44,15 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 export class Accounts {
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private db: Db) {}
+  /**
+   * `review` names the one address whose code is fixed, so that App Review can
+   * sign in without an inbox. Absent in normal operation, and absent is the
+   * only configuration in which every code is random.
+   */
+  constructor(
+    private db: Db,
+    private review?: { identifier: string; code: string }
+  ) {}
 
   // --- Maintenance --------------------------------------------------------
 
@@ -217,10 +225,15 @@ export class Accounts {
       return null;
     }
 
-    const code = String(randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(
-      6,
-      '0'
-    );
+    // The review address gets its fixed code; everyone else, four bytes of
+    // randomness. Placed after the throttle rather than before it so that the
+    // reviewer's path is the ordinary one in every respect but the digits —
+    // there is no point in a sign-in that App Review can use and nobody else
+    // exercises.
+    const code =
+      this.review && sameIdentifier(id, this.review.identifier)
+        ? this.review.code
+        : String(randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(6, '0');
     this.db
       .prepare(
         `INSERT INTO otp_codes (identifier, code_hash, expires_at, attempts, created_at)
@@ -656,6 +669,17 @@ export class Accounts {
 
 function normalize(identifier: string): string {
   return identifier.trim();
+}
+
+/**
+ * Whether two identifiers name the same person, matched the way the database
+ * matches them — trimmed, and case-insensitively, since `byIdentifier` looks up
+ * COLLATE NOCASE. Configuring the review address in one case and having it
+ * typed in another is exactly the kind of thing that would otherwise fail
+ * silently, on the one sign-in nobody can debug from the outside.
+ */
+function sameIdentifier(x: string, y: string): boolean {
+  return normalize(x).toLowerCase() === normalize(y).toLowerCase();
 }
 
 function constantTimeEquals(x: string, y: string): boolean {

@@ -16,6 +16,7 @@ import type {
   ProfileView,
   PublicAccount,
   ChannelView,
+  SupportView,
 } from '../../../core/protocol';
 import { api, ApiError, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
@@ -93,6 +94,8 @@ interface AppValue extends AppState {
   declineContact: (contactId: string) => Promise<void>;
   /** Reads a profile. Rejects when it is not yours to see. */
   loadProfile: (accountId: string) => Promise<ProfileView>;
+  /** Where to donate, and what you have already given. */
+  loadSupport: () => Promise<SupportView>;
   /**
    * Asks somebody you share a channel with to be a contact. Resolves to
    * whether it went straight through, which happens when they had already
@@ -448,6 +451,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadProfile: async (accountId) => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         return api.profile(state.token, accountId);
+      },
+
+      /**
+       * Read when Settings opens rather than held in state: nothing else in the
+       * app reads it, donations gate nothing, and a value cached here would go
+       * stale the moment somebody gave.
+       */
+      loadSupport: async () => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        return api.support(state.token);
       },
 
       connectWith: async (accountId) => {

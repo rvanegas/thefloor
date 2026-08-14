@@ -3,13 +3,13 @@
 
 These are new items on the roadmap.
 
-## Track Recording Costs
+## Track Usage
 
-Track costs of recordings and assign them to the user who starts the recording.
+Per user tracking of minutes and timestamps of webrtc usage, minutes and timestamps of media playback including recordings playback, minutes and timestamps of recordings associated to user who initiates the recording, minutes of transcripts requested, GBs of recording egress/exports.
 
-## Meter WebRTC
+## Media Playback quality
 
-Count connection minutes as they are spent, so running out is something seen coming rather than discovered. The free tier is 5000 minutes a month and it ran out on 2026-08-13 with no warning: the first sign was a channel with people in it and no audio, and the app showing the LiveKit SDK's own words for a refused websocket. LiveKit will not tell us the remaining budget — the Analytics API reports `connectionMinutes` per session and is Scale plan or higher, and nothing at any plan reports an allowance or a reset date — so the count has to be ours. The server already knows who is present in which channel and when, which is the same quantity LiveKit bills, every human participant-minute; ingress, egress and playback participants are not charged. That makes it an estimate rather than the authoritative number, which is fine for a warning and not for a bill. Display on HomeView, before channel cards.
+Suppose two users are in a channel, both are muted and they are playing media. Is the quality of the playback equivalent to playing it directly or is it diminished by passing over webrtc? I sometimes get the impression that quality varies even during the playbook of a single file. Volume also seems to rise and fall, without manual intervention. Maybe this is a feature of webrtc?
 
 ## Watch Party
 
@@ -21,11 +21,27 @@ By way of indicators and notifications, users know when their contacts are avail
 
 ## Payment
 
-In-app purchases, optional.
+Voluntary donations shipped on 2026-08-14 — a Ko-fi link, external, unlocking
+nothing. See DECISIONS.md for why it is not in-app purchase. What is left:
+
+- **`bin/import-donations`**, reconciling a Ko-fi CSV export into the
+  `donations` table. Ko-fi has no read API, so a delivery missed while the
+  server was down exists only in their dashboard; their dashboard is the
+  authoritative record and ours is a convenience copy. Deferred until there is
+  a real export to write the parser against, and it is also the answer for a
+  donation paid from an address nobody signed in with.
+- **In-app purchase, or Stripe**, if the Ko-fi arrangement stops being worth
+  it. IAP is the only option that works outside the United States storefront;
+  Stripe is the only one that can attribute a donation exactly, via
+  `client_reference_id`. Both are a larger build than what shipped.
 
 ## Integration
 
-Otter.ai, Calendar, Contacts.
+Calendar, Contacts.
+
+## Transcripts
+
+Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel.
 
 ## Anonymous Web Access
 
