@@ -3,6 +3,7 @@ import { buildApp } from './app';
 import { ConsoleMailer, SesMailer, type Mailer } from './mail';
 import { LiveKitMediaServer, type MediaServer } from './media';
 import { ApnsPusher, ConsolePusher, type Pusher } from './push';
+import { deployed, MIN_SUPPORTED_BUILD } from './release';
 import { S3RecordingStore } from './storage';
 
 // Node's own .env loader — no dependency. Resolved against the working
@@ -168,6 +169,11 @@ app.fastify
         // find out whether one is open.
         review: review ? review.identifier : 'none',
         donations: kofiVerificationToken ? 'ko-fi' : 'not configured',
+        // The first line in the journal after a restart is where somebody
+        // looks when a deploy is in doubt, and until now it could not say
+        // which deploy it was.
+        commit: deployed()?.commit ?? 'local',
+        minBuild: MIN_SUPPORTED_BUILD,
       },
       'the floor server listening'
     );

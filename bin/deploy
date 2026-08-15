@@ -26,6 +26,31 @@ npm test --prefix server --silent >/dev/null
 # person is exactly as secret-bearing as .env itself, and an exact-match exclude
 # catches neither — it would sync one up, or delete one that only exists on the
 # box. .env.example is the one that is documentation rather than a secret.
+# What is about to be running, recorded before it goes rather than inferred
+# afterwards. This syncs like any other file and is read by server/src/release.ts.
+#
+# The dirty marker is the point. This script ships the working tree on purpose,
+# so "which commit is on the box" has an honest answer only when the tree was
+# clean — and the times it was not are exactly the times somebody will later
+# want to know. It warns and continues: refusing here would take away the
+# property the rsync was chosen for.
+SHA=$(git rev-parse --short HEAD)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ -n "$(git status --porcelain)" ]; then
+  SHA="$SHA-dirty"
+  echo "⚠ deploying a dirty tree — the box will record $SHA" >&2
+fi
+if [ "$BRANCH" != "master" ]; then
+  echo "⚠ deploying from $BRANCH, not master" >&2
+fi
+cat > server/deployed.json <<JSON
+{
+  "commit": "$SHA",
+  "branch": "$BRANCH",
+  "at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+JSON
+
 echo "→ syncing"
 rsync -az --delete -e "$SSH" \
   --exclude node_modules --exclude .git --exclude 'app/' \
@@ -33,6 +58,12 @@ rsync -az --delete -e "$SSH" \
   --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
   --exclude '*.p8' \
   ./ "$HOST:/home/ubuntu/thefloor/"
+
+# Gone from here the moment it has landed there. It is a fact about one box,
+# and a copy left in the checkout would have a local `npm start` reporting the
+# revision of somebody's last deploy — a wrong answer being worse than the
+# "unknown" that a checkout is supposed to give.
+rm -f server/deployed.json
 
 echo "→ installing and restarting"
 $SSH "$HOST" '
@@ -43,7 +74,17 @@ $SSH "$HOST" '
 echo "→ waiting for health"
 for _ in $(seq 1 20); do
   if curl -sf --max-time 5 https://thefloor.rvanegas.co/healthz >/dev/null; then
-    echo "✓ $(curl -s https://thefloor.rvanegas.co/healthz)"
+    HEALTH=$(curl -s https://thefloor.rvanegas.co/healthz)
+    echo "✓ $HEALTH"
+    # Health said yes; this says it is the code that was just sent. A restart
+    # that failed and left the previous process serving looks identical
+    # otherwise — which is the failure most worth catching, since everything
+    # afterwards gets verified against the wrong revision.
+    case "$HEALTH" in
+      *"\"$SHA\""*) ;;
+      *) echo "✗ healthy, but not reporting $SHA — the restart did not take" >&2
+         exit 1 ;;
+    esac
     exit 0
   fi
   sleep 2

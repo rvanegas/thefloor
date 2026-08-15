@@ -18,6 +18,7 @@ import { isEmailAddress, isPlausibleIdentifier, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { privacyPage } from './privacy';
+import { deployed, MIN_SUPPORTED_BUILD } from './release';
 import { supportPage } from './support';
 import { donationsVisibleFor } from './region';
 import { ChannelRegistry, type RefusalCode } from './channels';
@@ -1012,9 +1013,17 @@ export function buildApp(options: BuildOptions = {}): App {
     }
   });
 
+  // `commit` and `minBuild` are here rather than behind auth because the
+  // question they answer — what is actually running on the box — is one you
+  // want answerable by curl, from a machine that is not this one, at the
+  // moment a deploy is being doubted. A short sha of a private repository
+  // identifies a revision to somebody who already has the repository and is
+  // an opaque seven characters to anybody else.
   fastify.get('/healthz', async () => ({
     ok: true,
     audio: options.media ? 'livekit' : 'none',
+    commit: deployed()?.commit ?? 'unknown',
+    minBuild: MIN_SUPPORTED_BUILD,
   }));
 
   // --- Shared views -------------------------------------------------------

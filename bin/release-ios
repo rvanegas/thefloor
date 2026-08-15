@@ -65,17 +65,35 @@ else
   echo "  (a missing account fails at the upload with 'Failed to Use Accounts')" >&2
 fi
 
+# A tag is a permanent claim that a build was made from a particular commit,
+# and it is worth nothing if the tree held changes that commit does not carry.
+# Deliberately stricter than bin/deploy, which ships a dirty tree on purpose:
+# a deploy is reversible in a minute and a build in the App Store is not.
+if [ -n "$(git status --porcelain)" ]; then
+  echo "✗ working tree is not clean; commit or stash before releasing" >&2
+  git status --short >&2
+  exit 1
+fi
+
 # Every upload needs a build number Apple has not seen before, even when the
 # version is unchanged. Bumping it here means one fewer thing to forget.
-node - <<'JS'
+BUILD=$(node - <<'JS'
 const fs = require('fs');
 const path = 'app/app.json';
 const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
 const next = String(Number(cfg.expo.ios.buildNumber || '0') + 1);
 cfg.expo.ios.buildNumber = next;
 fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
-console.log(`→ build ${next}`);
+console.log(next);
 JS
+)
+echo "→ build $BUILD"
+
+# Committed before the archive, not after, so the commit is what gets built
+# rather than a description of it. ios/ is generated and gitignored, so
+# prebuild leaves the tree clean and this stays the only change.
+git add app/app.json
+git commit -q -m "Bump iOS build number to $BUILD"
 
 # --clean, deliberately. Without it, prebuild reuses the existing ios/ and a
 # newly added native dependency can fail to be linked at all — which is how
@@ -147,5 +165,13 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" \
   -exportOptionsPlist /tmp/UploadOptions.plist \
   ${AUTH[@]+"${AUTH[@]}"} \
   -allowProvisioningUpdates 2>&1 | grep -E "Uploaded|EXPORT (SUCCEEDED|FAILED)|error:"
+
+# Tagged here rather than beside the commit, because the tag means "Apple has
+# this" and nothing before the upload can promise that. An archive that failed
+# leaves the bump commit behind and no tag, which is the honest record: the
+# build number is spent either way — Apple will not take it twice — but no
+# revision claims to be a build that does not exist.
+git tag -a "build/$BUILD" -m "iOS build $BUILD, uploaded to App Store Connect"
+echo "→ tagged build/$BUILD (git push origin build/$BUILD)"
 
 echo "✓ processing in App Store Connect — TestFlight in a few minutes"

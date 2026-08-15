@@ -1,0 +1,69 @@
+import { readFileSync } from 'node:fs';
+
+/**
+ * What this server is, and what it has promised to keep talking to.
+ *
+ * Two facts that look unrelated and are the same question from opposite ends:
+ * which code is running here, and which clients that code owes an answer to.
+ */
+
+/**
+ * The oldest iOS build this server still answers correctly.
+ *
+ * It exists to make one decision decidable. The wire is changed in two steps —
+ * teach the server the old shape as well as the new, deploy that, ship the
+ * client, and remove the old shape a release later — and the third step has
+ * never had a rule saying when it is safe. This is the rule: **a compatibility
+ * shim may be deleted once this floor has passed the build that needed it, and
+ * not before.** Anything else is a guess about whose phone still has what.
+ *
+ * A **declaration rather than an enforcement**, and the difference matters.
+ * Nothing on the wire carries a build number — the app sends no version header
+ * and the server records none — so this cannot be checked against reality, and
+ * every claim in the deploy history that build N went on working was reasoned
+ * rather than measured. Making it measurable is in BACKLOG.md and is the thing
+ * that would give this number a source other than judgement.
+ *
+ * Raising it is the release decision that costs something. Build numbers rise
+ * on upload; this rises only when the builds below it are gone from every
+ * phone that matters, which after a public release means waiting rather than
+ * deciding.
+ *
+ * 36 because that is the first submitted build and nothing has ever been
+ * public. Every earlier build is a TestFlight install on the author's own
+ * devices, updatable on demand, and TestFlight expires them in 90 days anyway.
+ * The moment 36 is released this number stops being free to move.
+ */
+export const MIN_SUPPORTED_BUILD = 36;
+
+export interface Deployed {
+  /** Short sha of the commit that was synced, `-dirty` if the tree was not clean. */
+  commit: string;
+  /** Branch it was synced from, for when the sha alone is not recognisable. */
+  branch: string;
+  /** When bin/deploy stamped it, ISO 8601. */
+  at: string;
+}
+
+/**
+ * What `bin/deploy` recorded about the sync that put this code here.
+ *
+ * `bin/deploy` rsyncs the working tree rather than a git ref, deliberately, so
+ * that it works from a dirty tree — which means nothing about what is running
+ * is recoverable from the box itself. Every "verified against production
+ * afterwards" note ever written names a behaviour and no revision. This is the
+ * missing half.
+ *
+ * Null when the file is absent, which is every local run and is not an error:
+ * a checkout is its own answer to the question.
+ */
+export function deployed(): Deployed | null {
+  // Resolved against the working directory, which the systemd unit and the npm
+  // scripts alike set to this package — the same convention as .env and the
+  // default DB_PATH.
+  try {
+    return JSON.parse(readFileSync('./deployed.json', 'utf8')) as Deployed;
+  } catch {
+    return null;
+  }
+}

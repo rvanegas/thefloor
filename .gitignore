@@ -58,6 +58,11 @@ android/
 # scratch dev diagnostics (mint tokens, inspect live rooms)
 dev-*.mjs
 
+# what bin/deploy stamped on the way out — a fact about one box, written fresh
+# every deploy. Tracking it would make every deploy dirty the tree it reports
+# the cleanliness of.
+server/deployed.json
+
 # editor lock files
 .#*
 #*#

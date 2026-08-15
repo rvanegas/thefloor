@@ -21,6 +21,12 @@ carries the index and the rule for closing it. **Grep across the set** —
 `planning/DECISIONS*.md` — rather than the live one alone, or you will search
 only the last few days of the project's reasoning.
 
+**`planning/RELEASING.md`** answers a fourth, and is different in kind from the
+rest: it is not deferred work or history but standing guidance that was in this
+file until 2026-08-15. Everything only somebody producing an iOS build needs —
+`app.json`'s settings and their reasons, the icon rules that fail at upload,
+`prebuild --clean` dropping the signing team. Read it before `bin/release-ios`.
+
 The rest are temporary, and say so in their own first lines. Designs for
 unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
 deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
@@ -61,11 +67,14 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 617 now, having been 728 on
-2026-08-15 when nine deploys' worth of narrative was moved out. The headroom is
-about one deploy wide on purpose: each new one displaces the last, so the file
-should sit still rather than climb. When it passes 650, do not shave the traps —
-almost all of the excess will be one of these:
+**Keep it under 650 lines, and nearer 600.** It is 546 now, having been 728 and
+then 650 on 2026-08-15 — the second time by adding the branch conventions to a
+file that was already full, which is what sent the iOS release material to
+`planning/RELEASING.md`. The headroom is about one deploy wide on purpose: each
+new one displaces the last, so the file should sit still rather than climb.
+
+When it passes 650, **do not shave the traps.** Almost all of the excess will be
+one of these:
 
 - **Deploy narrative.** `## Deployment` keeps the *most recent* deploy and
   nothing else. When a new one lands, the one it replaces goes to
@@ -79,9 +88,20 @@ almost all of the excess will be one of these:
 
 What earns its place here is what stops somebody losing a day: `APNS_ENV`, the
 three artifacts that disagree about entitlements, `rtc.use_external_ip`, where
-each credential lives and what losing it costs, `prebuild --clean` dropping the
-signing team. Those stay verbatim however long the file gets — the density of
-the prose is not the problem, accumulation is.
+each credential lives and what losing it costs. Those stay verbatim however long
+the file gets — the density of the prose is not the problem, accumulation is.
+
+**When the traps alone reach the limit, split thematically rather than shave.**
+Take a subject that a whole class of work never touches, move it to
+`planning/` entire, and leave a section here that names the traps it contains
+and says when to go read it. Nothing is summarised away, and the sessions that
+do not need it stop paying for it — which is the same asymmetry the split from
+`planning/` was for, applied one level in. `planning/RELEASING.md` was the first
+of these and shows the shape: the seam is *who needs it*, not *how old it is*.
+A trap that bites outside the subject stays here even when it looks like it
+belongs there — `APNS_ENV` is about push and reads like release material, and it
+costs an afternoon to somebody testing locally who will never open the release
+document.
 
 Trimming is not a separate errand. Do it in the same commit as whatever added
 the material, while the judgement about what is durable is still fresh.
@@ -147,6 +167,35 @@ Or one at a time: `npm test --prefix core`, `--prefix app`, `--prefix server`.
 The per-behaviour table of which test covers what has been dropped: it
 duplicated the suite and went stale faster than the code did. The tests are the
 record.
+
+---
+
+## Branches, tags, and what is actually in people's hands
+
+Adopted 2026-08-15, once there was a submitted build to be wrong about. The
+reasoning is in planning/DECISIONS.md; these are the rules.
+
+- **`master` is trunk and is the only thing deployed.** Work on short-lived
+  branches, merge back. There is no develop branch and no release branches.
+- **`bin/deploy` rsyncs the working tree, not a git ref**, deliberately — so it
+  stamps `server/deployed.json` with the sha, marked `-dirty` when the tree
+  was. `GET /healthz` and the startup log report it, and the deploy now fails
+  if the box comes back not reporting the sha just sent.
+- **Every upload is tagged `build/<n>`, by `bin/release-ios`**, which refuses a
+  dirty tree: a tag is permanent where a deploy is reversible. Tags are not
+  pushed automatically; the command is printed.
+- **`released` points at what is downloadable**, and does not exist until
+  something is. It moves on release, not approval — which is why the release is
+  manual. `git diff released..master` is the drift users cannot see.
+- **`MIN_SUPPORTED_BUILD` in `server/src/release.ts` is the compatibility
+  floor**: a shim may be deleted only once the floor has passed the build that
+  needed it. A declaration, not a measurement — nothing on the wire carries a
+  build number. See planning/BACKLOG.md.
+
+The thing to hold on to: **the App Store is not a version, it is a
+population.** What the server owes compatibility to is the oldest build still
+installed, which is not the newest released one and is not something a branch
+can represent.
 
 ---
 
@@ -485,119 +534,17 @@ Two more things that fail quietly and are worth checking before anything else:
 
 ---
 
-## Before the first TestFlight build
+## Releasing an iOS build
 
-Configuration decided 2026-08-09 and worth knowing the reasons for.
+All of it is in **planning/RELEASING.md** — what `app.json` is set to and why,
+the icon that is rejected at upload if it carries an alpha channel, and
+`prebuild --clean` dropping `DEVELOPMENT_TEAM`. Moved there on 2026-08-15 when
+this file hit its limit: it is needed by somebody making a release and by
+nobody else, which is most sessions.
 
-- **`supportsTablet` is now false.** Nothing in the layout adapts to a larger
-  screen and nobody has opened it on an iPad. Claiming support invites App
-  Review to test there, on a layout built for a phone. Turn it back on after
-  actually looking at one.
-- **`voip` removed from `UIBackgroundModes`, and still out.** It does nothing
-  without PushKit, and reviewers have objected to apps declaring it unused.
-  Push notification has since been picked up and this did *not* change: a
-  visible alert needs neither `voip` nor `remote-notification`. It becomes load
-  bearing only if PushKit and CallKit are adopted for call-like ringing.
-- **`userInterfaceStyle` is `automatic`.** This said `dark`, and stopped being
-  true when `app/src/ui/theme.ts` grew a light palette — the app follows the
-  system now, and a screenshot of it in light mode is it working rather than
-  failing. What the setting is *for* has not changed: it is what makes system
-  surfaces — alerts, the keyboard, the status bar — match the app instead of
-  rendering pale against a `#0E1013` screen.
-- **`ITSAppUsesNonExemptEncryption: false`.** All traffic is HTTPS and WebRTC,
-  which is the standard exemption. Declaring it stops App Store Connect asking
-  on every single upload.
-- **The iOS icon is the artwork now, rasterised from `the-floor-icon.svg`.**
-  `app/assets/icon.png` and `app/assets/favicon.png` are generated from it; the
-  SVG is the master, and neither PNG should be edited by hand. Regenerate with
-  ImageMagick, rendering large and downsampling so the diagonal is smooth
-  rather than stepped:
-
-      magick -background white -size 4096x4096 the-floor-icon.svg \
-        -resize 1024x1024 -alpha remove -alpha off -type TrueColor \
-        -colorspace sRGB PNG24:app/assets/icon.png
-
-  `-alpha remove -alpha off` is not decoration: **an iOS app icon with an alpha
-  channel is rejected at upload.** The artwork is opaque either way — two
-  triangles filling the square — so the channel would carry nothing and still
-  fail the check.
-
-  `bin/release-ios` runs `prebuild --clean`, which regenerates the whole
-  `ios/` asset catalogue from `app/assets/icon.png`, so nothing else has to be
-  copied anywhere for a build to pick this up.
-
-- **The Android adaptive icon is prepared but Android is not shipped here.**
-  Three layers, generated from `the-floor-icon.svg` and
-  `the-floor-icon-mono.svg`; there is no `android/` and `bin/release-ios` is
-  the only release path. Why each layer is what it is — and why the monochrome
-  silhouette gets its own master file — is in planning/DECISIONS.md.
-
-- **The splash is still the Expo default.**
-
-- **Availability is worldwide, and the donate link is filtered per person.**
-  Guideline 3.1.1(a) permits buttons and external links to outside payment
-  mechanisms *in the United States storefront* and prohibits them everywhere
-  else — so what has to be US-only is the link, not the app. This was very
-  nearly got wrong in the other direction: the original plan shipped US-only,
-  which would have locked out non-US users who already existed.
-
-  The filter is `server/src/region.ts`, fed by a locale and timezone the app
-  reports. **Anything it is not sure about resolves to hidden.** If you ever
-  change it, keep that asymmetry: showing the link outside the US storefront is
-  a guideline violation, and hiding it inside costs one donation.
-
-  Two global kill switches sit above it, both server-side and both a restart
-  rather than a submission: unset `KOFI_URL`, or set every account's
-  `donations_allowed` to 0. That is deliberate, because the US carve-out exists
-  under an injunction still being appealed.
-
-- **`NSMicrophoneUsageDescription` was wrong until 2026-08-14**, and it is the
-  one string every user and every reviewer reads. It said "so the other person
-  in a session can hear you": sessions became channels on 2026-08-10, and a
-  channel holds up to `MAX_CHANNEL_PARTICIPANTS` rather than one other person.
-  Worth re-reading whenever the vocabulary moves — nothing tests a permission
-  string.
-
-`buildNumber` must increase for each upload, even when the version does not —
-and **`bin/release-ios` does that itself**, reading `app.json`, adding one, and
-writing it back before it prebuilds. Bumping it by hand first is not an error
-Apple will complain about, but it skips a number: doing both is what turned 23
-into 25 and left build 24 never existing.
-
----
-
-## `prebuild --clean` drops the signing team
-
-`expo prebuild --platform ios --clean` regenerates `ios/` from scratch, which
-discards `DEVELOPMENT_TEAM` and leaves the next archive failing with "Signing
-for TheFloor requires a development team".
-
-Pass it explicitly until something better exists:
-
-    xcodebuild ... DEVELOPMENT_TEAM=9946JKHZUJ CODE_SIGN_STYLE=Automatic
-
-Note too that changing `expo.name` renames the whole native project. It became
-`TheFloor` when the display name did, so the workspace, scheme and source
-directory all moved from `thefloor` to `TheFloor`. Anything with those paths
-hard-coded breaks silently, and the error names a missing scheme rather than
-the rename that caused it.
-
----
-
-## Submitted to the App Store, 2026-08-14
-
-Version 1.0.0, build 36, `WAITING_FOR_REVIEW`, release set to manual so approval
-and release stay two decisions. **planning/APPREVIEW.md carries everything**:
-what was built for it, what was typed into App Store Connect, the submitted
-review notes and description verbatim, and the six things filling in the listing
-taught — among them that the App Store version record and `CFBundleVersion`'s
-sibling `CFBundleShortVersionString` must agree or the build picker is silently
-empty, and that a screenshot showing the donate card would defeat
-`server/src/region.ts` in every storefront at once.
-
-The demo accounts are planning/DEMO-ACCOUNT.md; their credentials are in
-`~/.config/thefloor/demo-account.txt`, mode 600, and `REVIEW_IDENTIFIER` /
-`REVIEW_CODE` on the box are what make the review sign-in work.
+**Read it before running `bin/release-ios`.** The two traps that bite outside a
+release stayed here: `APNS_ENV` above, and the three artifacts that disagree
+about entitlements.
 
 ---
 
