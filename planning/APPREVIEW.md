@@ -4,14 +4,17 @@
 2026-08-14. It is deleted when the app is approved, with whatever is still true
 afterwards moving to DECISIONS.md. FEATURES.md points here.
 
-The app has been on TestFlight since build 5 and is at build 35. TestFlight
-review is not App Store review: a build that ships to testers has passed a
-lighter check, and the guidelines below are the ones that have not been applied
-to this app yet.
+The app has been on TestFlight since build 5 and is at **build 36**, which is
+the one to submit: nothing earlier contains account deletion or the privacy
+link. TestFlight review is not App Store review — a build that ships to testers
+has passed a lighter check, and the guidelines below are the ones that had not
+been applied to this app.
 
-**The code is done.** What is left is metadata typed into App Store Connect,
-four settings in `server/.env`, one recording that has to be made on a device,
-and two decisions that are a sentence each rather than a build.
+**The code, the metadata and the demo data are done.** The listing carries
+build 36, four screenshots, the description, the review notes and the six
+privacy declarations; the server carries the two pages and the review
+credentials. What is left is the EU trader declaration, the two open decisions
+below, and pressing Submit.
 
 ---
 
@@ -113,10 +116,10 @@ is the kind that goes stale between a decision and a submission.
   account is**, since the reviewer will open the Support card.
 - **Deleting the review account is the last thing to test, not the first.**
   There is one of them, its code is published, and it does not come back.
-- **The demo account has a recording in it.** This is the one piece of demo data
-  that cannot be seeded over HTTP — it needs real audio through LiveKit from a
-  device — and a channel with nothing in it demonstrates none of what the app is
-  for. See DEMO-ACCOUNT.md.
+- ~~**The demo account has a recording in it.**~~ Done 2026-08-14: one clean
+  run of 5.68 seconds with a stem for each participant, made from a handset and
+  a Simulator. The four failed 0:01 runs beside it are marked deleted. See
+  DEMO-ACCOUNT.md, and DECISIONS.md for the recorder bug it uncovered.
 - **`/support` answers as a page**, since it is what the App Store listing links
   to and the first thing a reviewer can open without installing anything.
 
