@@ -1,24 +1,27 @@
 # App Store review
 
-**Temporary.** This is the checklist for the first App Store submission, written
-2026-08-14. It is deleted when the app is approved, with whatever is still true
-afterwards moving to DECISIONS.md. FEATURES.md points here.
+**Temporary.** The checklist for the first App Store submission. It is deleted
+when the app is approved, with whatever is still true afterwards moving to
+DECISIONS.md. FEATURES.md points here.
 
-The app has been on TestFlight since build 5 and is at **build 36**, which is
-the one to submit: nothing earlier contains account deletion or the privacy
-link. TestFlight review is not App Store review — a build that ships to testers
-has passed a lighter check, and the guidelines below are the ones that had not
-been applied to this app.
+**Submitted 2026-08-14: version 1.0.0, build 36, state `WAITING_FOR_REVIEW`.**
+Release is manual, so approval will not put it live — that stays a separate
+decision. The submitted text is at the end of this file, because a rejection is
+answered by editing what was said rather than by remembering it.
 
-**The code, the metadata and the demo data are done.** The listing carries
-build 36, four screenshots, the description, the review notes and the six
-privacy declarations; the server carries the two pages and the review
-credentials. What is left is the EU trader declaration, the two open decisions
-below, and pressing Submit.
+What went in: build 36 (the first containing account deletion and the privacy
+link), four screenshots, description, keywords, the review notes, six App
+Privacy declarations, age rating 12+ by override, category Social Networking,
+free, worldwide, and both served pages live. The demo channel holds one clean
+5.68-second recording with a stem per participant.
+
+**The one thing unresolved at submission** is the EU trader banner — see "The
+DSA declaration" below. It does not block review; it governs EU availability.
 
 ---
 
 ## Built
+
 
 ### In-app account deletion — Guideline 5.1.1(v) — **done 2026-08-14**
 
@@ -247,3 +250,159 @@ can be changed before anybody arrives.
   states ask more, and the app says nothing about it. Same shape: a sentence,
   not a feature — but decide it.
 - **A support page, per above.** Blocking for the metadata, not for the code.
+
+---
+
+## What the submission itself taught, 2026-08-14
+
+Filling the listing surfaced six things that are invisible from the code and
+would each have cost an evening on the next submission.
+
+**The version record said `1.0` and every build says `1.0.0`.** Apple groups
+builds under the matching `CFBundleShortVersionString`, so the build picker was
+simply empty, and the obvious conclusion — "36 has not finished processing" —
+was wrong. The version field is editable while the state is Prepare for
+Submission. `app.json` is the source of truth; make App Store Connect agree with
+it rather than the other way round.
+
+**The age rating calculated to 4+ and had to be overridden to 13+.** Every
+content answer was honestly None — there is no profanity, horror or alcohol *in
+the app*, and user-generated content is declared separately — so the
+questionnaire produced a rating meaning "suitable for a four-year-old". That
+contradicts the privacy page, which says the app is not intended for anyone
+under 13, and a 4+ app carrying unmoderated person-to-person voice invites
+Kids-category scrutiny it should not attract. Overriding upward is always
+permitted and never queried. **Do not fix this by inflating the content
+answers**, which would be lying about the app to move a number.
+
+**A screenshot defeats `region.ts`.** Screenshots appear on the listing in every
+storefront, so a Home screenshot showing the donate card puts an external
+payment call to action in front of a German customer — the exact thing
+Guideline 3.1.1(a) prohibits and the entire region filter exists to prevent. It
+cannot be cropped out, because the pixel dimensions have to be exact. Shoot Home
+with `donations_allowed = 0` on that account, then set it back to null.
+
+**One screenshot set is enough.** 1320 × 2868 lands in `APP_IPHONE_67`, and
+App Store Connect reuses it for the 6.5" slot, saying so on the page.
+
+**The price tier is app-level and is not part of the version**, so "Add for
+Review" goes blue without one. An approval landing on an app with no price is
+one that cannot be released. Free, base territory United States.
+
+**The demo account's display name is on your store screenshots.** It read "App
+Review" in the first set, which tells every customer they are looking at a test
+build. Rename it for the shoot and rename it back — the notes and the account
+must agree by the time a reviewer signs in.
+
+### The DSA declaration, which was the one loose end
+
+Answered **non-trader**: the app is free, there are no in-app purchases, the
+Paid Apps Agreement is unsigned, and donations are voluntary, external and
+unlock nothing, so there is no transaction with a user to be commercial about.
+
+The red banner did not clear, through a hard reload or otherwise, and the
+Compliance row read `Digital Services Act · 27 Countries or Regions · Active`.
+Those two disagree and it was not resolved before submitting. It does not block
+review — "Add for Review" enabled with the banner still red, which is Apple's
+own validator saying so — but it governs **EU availability**, and that is the
+setting the worldwide-availability decision rests on.
+
+**Do not clear the banner by completing "Contact Information Verification".**
+That is the trader path, and it ends with a home address published on the
+product page. If the banner outlives the review, the route is Contact Us in App
+Store Connect, because only Apple can clear an account-level flag.
+
+---
+
+## What was submitted, verbatim
+
+Kept because a rejection is answered by editing what was said, and because App
+Store Connect is not a place anything can be diffed.
+
+### Review notes
+
+```
+WHAT IT IS
+The Floor is a voice app for talking with people you already know. A channel is
+a place rather than a call: it holds up to six people, keeps its name,
+description and recordings between conversations, and is still there when
+everyone has closed the app.
+
+Conversation is open by default — everyone present can speak. Anyone may also
+claim "the floor", and for as long as they hold it every other microphone is
+withheld, which is a way to be heard without being interrupted. Releasing it
+returns the room to normal. Anyone can mute themselves at any time.
+
+Anybody in a channel can start a recording. It captures each person as a
+separate track, follows the floor so the silenced are silent in the file, and
+when it stops it is named once for everyone. A finished recording can be played
+back into the channel for everyone to hear together, renamed, exported, or
+deleted — by any member, not only whoever started it. A member can also pick an
+audio file from their phone and play it into the channel the same way.
+
+People are reached by contact request, by email address or by tapping someone
+you have met in a channel; nothing happens until they accept. Home shows who
+your contacts are and when they were last connected, so you can tell whether it
+is a reasonable moment to talk. Notifications tell you when somebody asks you
+into a conversation.
+
+SIGNING IN
+There are no passwords. Normally a six-digit code is emailed. The review account
+above has a fixed code — enter appreview@rvanegas.co, then 194399.
+
+YOU DO NOT NEED A SECOND PERSON
+The account already has one contact and one channel. Open the channel, tap
+Record, speak, stop, then play the recording back, rename it, export it, or
+delete it. Recording requires only that you are present, so a single reviewer
+can exercise the whole feature alone.
+
+USER-GENERATED CONTENT (1.2)
+There is no discovery, no directory, and no way for a stranger to reach you.
+Every contact requires an accepted request on both sides, and every member of a
+channel can delete any recording in it — removal by the person affected, at the
+moment of harm.
+
+RECORDING AND CONSENT
+Recording is never automatic. Somebody in the channel starts it deliberately,
+and while it runs it is visible to everyone in that channel.
+
+DONATIONS
+The Support screen links out to Ko-fi in the browser. It is external, unlocks
+nothing, and the app behaves identically whether someone donates or not. The
+link is shown only in the United States storefront, per 3.1.1(a).
+
+PLEASE TEST ACCOUNT DELETION LAST
+Settings > Delete account works and you are welcome to use it. It removes the
+account's contacts, and a fresh sign-in at the same address has none — and an
+account with no contacts cannot start a channel, so deleting early leaves the
+rest of the app looking empty.
+```
+
+### Description
+
+```
+The Floor is for talking with people you already know.
+
+A channel is a place rather than a call. It holds up to six people, keeps its
+name and its recordings between conversations, and is still there tomorrow.
+Nobody has to answer it; you drop in, and whoever is there is there.
+
+Conversation is open — everyone can speak. When one person needs to be heard
+properly, they take the floor, and every other microphone stays quiet until
+they give it back. It is a way to finish a thought.
+
+Record a conversation when it is worth keeping. Every voice is captured on its
+own track, so what you get back is clear rather than a scramble, and it is
+named once for everybody. Play it into the channel afterwards and listen
+together, export it, or delete it — anyone in the channel can, not only
+whoever started it.
+
+Nobody can reach you unless you have both agreed. There is no feed, no
+directory, no strangers, and nothing to scroll. No advertising, no analytics.
+```
+
+### Keywords
+
+```
+voice,talk,conversation,friends,audio,record,speak,listen,group,call,turns,chat
+```

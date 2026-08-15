@@ -695,6 +695,23 @@ the rename that caused it.
 
 ---
 
+## Submitted to the App Store, 2026-08-14
+
+Version 1.0.0, build 36, `WAITING_FOR_REVIEW`, release set to manual so approval
+and release stay two decisions. **planning/APPREVIEW.md carries everything**:
+what was built for it, what was typed into App Store Connect, the submitted
+review notes and description verbatim, and the six things filling in the listing
+taught — among them that the App Store version record and `CFBundleVersion`'s
+sibling `CFBundleShortVersionString` must agree or the build picker is silently
+empty, and that a screenshot showing the donate card would defeat
+`server/src/region.ts` in every storefront at once.
+
+The demo accounts are planning/DEMO-ACCOUNT.md; their credentials are in
+`~/.config/thefloor/demo-account.txt`, mode 600, and `REVIEW_IDENTIFIER` /
+`REVIEW_CODE` on the box are what make the review sign-in work.
+
+---
+
 ## Names, which are three different things
 
 - **`The Floor`** — what appears under the icon. `CFBundleDisplayName`, set in
