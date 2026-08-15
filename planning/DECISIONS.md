@@ -2113,3 +2113,48 @@ Two paragraphs: deletion is in Settings and immediate, and here is exactly what
 stays behind and why. A test asserts both, because a page making claims about a
 feature is the thing that goes stale the moment the feature moves — which is the
 whole argument for the policy living beside the code.
+
+---
+
+## Two pages nobody in the app ever sees
+
+**Status:** built 2026-08-14, for the App Store submission.
+
+The privacy policy has been served at `GET /privacy` since donations shipped.
+It has a sibling now — `GET /support` — because App Store Connect requires a
+Support URL, will not accept a `mailto:` in that field, and shows the link on
+the listing to anybody reading it. It is the first thing about this application
+that somebody can open without installing anything.
+
+Both are served by the server they describe, which is the whole argument for
+where they live: they deploy with the code, and a change to what the software
+does has to walk past the page claiming otherwise. `server/src/html.ts` holds
+what they share — the escaping and the chrome — and deliberately nothing else.
+The prose is the point of each page and belongs in the file that is about it.
+Two copies of an escaping function is how one of them comes to be missing a case
+the other has.
+
+**The support page is written for somebody with a question**, not for a reviewer
+with a checklist. That is not a stylistic preference: a page written for the
+reviewer is one no user is helped by, and it is on the listing where users are.
+So it leads with a way to reach a person, and then answers what people actually
+ask — there is no password, nobody can reach you without mutual consent,
+recording is deliberate and visible, and account deletion is under Settings. The
+last of those is there because a support page is exactly where somebody looks
+after failing to find something in the app.
+
+`/support` was the app's donations route until it moved to `/donations`, which
+freed the human name for the human page. Fastify refuses a duplicate method and
+path at boot, so the rename had to land first; a test asserts both answer now,
+the page unauthenticated and the JSON route with a 401.
+
+### The privacy link in the app, and why it is not a constant
+
+Guideline 5.1.1(i) wants the policy reachable from inside the application rather
+than only from the listing, which is reasonable on its own terms — the listing is
+where you were before you signed up, and this is the question you have after.
+
+It opens `${API_URL}/privacy`, and using the API's own address rather than a URL
+written into the app is the part worth keeping. A build points at exactly one
+server, and that server's page is the one making claims about the data it is
+holding. A constant could name a different one and nothing would ever notice.

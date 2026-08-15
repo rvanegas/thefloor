@@ -1,3 +1,4 @@
+import { buildApp, type App } from '../src/app';
 import { supportPage } from '../src/support';
 
 /**
@@ -13,9 +14,45 @@ import { supportPage } from '../src/support';
  * The prose is not tested word for word — it is prose — but every claim checked
  * here is one the codebase has to keep true.
  *
- * The route serving it is tested with the rest of the routes; this is the
- * document.
  */
+
+describe('GET /support', () => {
+  let app: App;
+
+  afterEach(async () => {
+    app.channels.stop();
+    await app.fastify.close();
+  });
+
+  it('is served as a page to anyone, with no token', async () => {
+    // The App Store links to it, so most people who open it have not installed
+    // the app and could not authenticate if they wanted to.
+    app = buildApp({ dbPath: ':memory:', contactEmail: 'hello@example.com' });
+    const answered = await app.fastify.inject({
+      method: 'GET',
+      url: '/support',
+    });
+
+    expect(answered.statusCode).toBe(200);
+    expect(answered.headers['content-type']).toContain('text/html');
+    expect(answered.body).toContain('mailto:hello@example.com');
+  });
+
+  it('does not collide with the donations route it took the name from', async () => {
+    // `/support` was the app's donations route until it moved to `/donations`.
+    // Fastify refuses a duplicate method and path at boot, so this passing at
+    // all is the assertion; that both still answer is the rest of it.
+    app = buildApp({ dbPath: ':memory:' });
+    const page = await app.fastify.inject({ method: 'GET', url: '/support' });
+    const json = await app.fastify.inject({ method: 'GET', url: '/donations' });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.headers['content-type']).toContain('text/html');
+    // Unauthenticated, so the donations route refuses rather than answers —
+    // which is exactly how it can be told apart from the page.
+    expect(json.statusCode).toBe(401);
+  });
+});
 
 describe('The support page', () => {
   it('leads with a way to reach a person', async () => {

@@ -9,8 +9,9 @@ review is not App Store review: a build that ships to testers has passed a
 lighter check, and the guidelines below are the ones that have not been applied
 to this app yet.
 
-One thing is left to build before submitting. Everything else is either already
-done, or is metadata typed into App Store Connect rather than code.
+**The code is done.** What is left is metadata typed into App Store Connect,
+four settings in `server/.env`, one recording that has to be made on a device,
+and two decisions that are a sentence each rather than a build.
 
 ---
 
@@ -34,26 +35,29 @@ it does and does not take. The privacy page moved with it.
 **For the review notes:** deletion is in Settings, under the account's own
 heading, and takes effect immediately.
 
----
-
-## Must build first
-
-### A privacy policy link inside the app — Guideline 5.1.1(i)
+### A privacy policy link inside the app — Guideline 5.1.1(i) — **done 2026-08-14**
 
 The policy has to be linked *both* in App Store Connect metadata and "within the
-app in an easily accessible manner". `GET /privacy` exists and is good; nothing
-in `app/src/ui/` links to it. A row in `HomeSettingsView` opening it in the
-browser is an hour's work, and it is a rejection if it is missing.
+app in an easily accessible manner", and nothing in the app linked to it. It is
+a Privacy card on the settings screen, above the Account one, opening
+`${API_URL}/privacy` in the browser.
 
-It is cheaper than it looked: `API_URL` in `app/src/api/config.ts` is the
-server, so the link is `${API_URL}/privacy` opened with `Linking`. No new route,
-no new field on any response. A row in the Account card beside Sign out and
-Delete account, since that is already the part of the screen about the account
-rather than about you.
+Cheaper than it first looked: `API_URL` in `app/src/api/config.ts` is already
+the server, so no new route and no new field on any response — and the claims
+somebody reads are the ones made by the server actually holding their data,
+which a URL written into the app could not guarantee.
 
-The one thing to check is that `API_URL` is non-empty in a release build — it
-comes from `EXPO_PUBLIC_API_URL` at bundle time, and an empty one would render a
-link to `/privacy` on nothing.
+**The one thing to check before submitting** is that `API_URL` is non-empty in
+the release build. It comes from `EXPO_PUBLIC_API_URL` at bundle time; empty, the
+link says there is no server configured rather than opening `/privacy` on
+nothing, which is honest but is not a privacy policy.
+
+### A support page — Guideline 1.5 and the Support URL field — **done 2026-08-14**
+
+`server/src/support.ts`, served at `GET /support`, written for somebody with a
+question rather than for a reviewer with a checklist. `server/src/html.ts` is
+the shell it shares with the privacy policy — the escaping and the chrome, and
+nothing else, since the prose is the point of each page.
 
 ---
 
@@ -131,9 +135,10 @@ cannot claim something that stopped being true. It is written for somebody with
 a question rather than for a reviewer with a checklist, which is the only way to
 write one that is any use.
 
-The route registration is the last thing waiting: `GET /support` was the app's
-donations route until the rename to `/donations`, and Fastify refuses a
-duplicate, so the page cannot be wired until that rename is on master.
+Wired and tested. `GET /support` was the app's donations route until the rename
+to `/donations` freed the name, and Fastify refuses a duplicate — so one test
+asserts both still answer, the page unauthenticated and the JSON route with a
+401, which is what tells them apart.
 
 **Privacy policy URL.** `https://thefloor.rvanegas.co/privacy`.
 

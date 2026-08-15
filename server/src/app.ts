@@ -18,6 +18,7 @@ import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { privacyPage } from './privacy';
+import { supportPage } from './support';
 import { donationsVisibleFor } from './region';
 import { ChannelRegistry, type RefusalCode } from './channels';
 import { ConsolePusher, createPushNotifier, type Pusher } from './push';
@@ -490,6 +491,23 @@ export function buildApp(options: BuildOptions = {}): App {
   fastify.get('/privacy', async (_request, reply) => {
     reply.type('text/html; charset=utf-8');
     return privacyPage(options.contactEmail);
+  });
+
+  /**
+   * The support page, which App Store Connect requires a URL for and which the
+   * listing shows to anybody reading it.
+   *
+   * Its neighbour above rather than the donations routes below, despite the
+   * name: those moved to `/donations` precisely so this could be here. A support
+   * URL has to be a page a person opens — that field takes no `mailto:` — and
+   * the two documents this server serves belong together.
+   *
+   * Unauthenticated, for the same reason: whoever needs it may not have an
+   * account, and may be reading it because they cannot get one.
+   */
+  fastify.get('/support', async (_request, reply) => {
+    reply.type('text/html; charset=utf-8');
+    return supportPage(options.contactEmail);
   });
 
   // --- Donations ----------------------------------------------------------
