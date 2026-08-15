@@ -21,6 +21,37 @@ export function isEmailAddress(identifier: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
 }
 
+/**
+ * The longest identifier worth storing. 254 is the maximum length of an email
+ * address that can actually be delivered to, and no phone number approaches it.
+ */
+export const MAX_IDENTIFIER_LENGTH = 254;
+
+/** Loose on purpose, the way isEmailAddress is: shape rather than reachability. */
+export function isPhoneNumber(identifier: string): boolean {
+  return /^\+?[0-9][0-9\s().-]{6,19}$/.test(identifier.trim());
+}
+
+/**
+ * Whether an identifier could name somebody at all, by either transport.
+ *
+ * Wider than `isEmailAddress`, and the width is the point. Sign-in is email
+ * only today, but a phone number is the second identifier the design reserves
+ * and contact requests are already made to one — so the test for "is this an
+ * address" and the test for "can we mail a code to this" are not the same
+ * question, and answering the first with the second would decide against SMS
+ * from the one place with no stake in it.
+ *
+ * What this exists to exclude is the identifier that can never resolve into
+ * anybody: a bare word, a sentence, a kilobyte of text. Those become permanent
+ * rows in pending_invites, which nothing sweeps.
+ */
+export function isPlausibleIdentifier(identifier: string): boolean {
+  const id = identifier.trim();
+  if (id.length === 0 || id.length > MAX_IDENTIFIER_LENGTH) return false;
+  return isEmailAddress(id) || isPhoneNumber(id);
+}
+
 export interface SesMailerOptions {
   from: string;
   region: string;

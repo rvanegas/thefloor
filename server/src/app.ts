@@ -14,7 +14,7 @@ import { openDb, type AccountRow, type Db, type RecordingRow } from './db';
 import { Devices, type DevicePlatform } from './devices';
 import { Donations } from './donations';
 import { encodeRecording } from './export';
-import { isEmailAddress, type Mailer } from './mail';
+import { isEmailAddress, isPlausibleIdentifier, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { privacyPage } from './privacy';
@@ -399,6 +399,23 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(400).send({ error: 'identifier is required' });
     }
 
+    // A request to an address with no account is stored verbatim in
+    // pending_invites and resolves if that address ever signs up. Nothing
+    // sweeps that table — its only deletions are on resolution and on erase —
+    // so an identifier that could never name anybody is a row that is
+    // permanent and unreachable at once. This is the only place that check can
+    // happen, since by then the address is a primary key.
+    //
+    // Shape only, and deliberately wider than sign-in's email test: see
+    // isPlausibleIdentifier. Refusing a well-formed address because no account
+    // holds it would answer, one guess at a time, exactly the question
+    // pending_invites exists to leave unanswered — see db.ts.
+    if (!isPlausibleIdentifier(body.identifier)) {
+      return reply
+        .code(400)
+        .send({ error: 'Enter an email address or a phone number.' });
+    }
+
     const result = accounts.requestContact(account.id, body.identifier, now());
     if (!result.ok) return reply.code(400).send({ error: result.error });
     // The recipient is the whole point: without telling them, a request simply
@@ -412,6 +429,13 @@ export function buildApp(options: BuildOptions = {}): App {
 
   // Withdrawal goes by address, not row id — see Accounts.withdrawRequest for
   // why an id would give away what the empty outgoing id exists to hide.
+  //
+  // Deliberately *not* validated the way /contacts/request now is: rows written
+  // before that check exist and hold identifiers that are not addresses, and
+  // withdrawal is the only thing that can remove one. Validating here would
+  // make exactly those rows permanent, which is the problem rather than the
+  // fix. There is nothing to protect either — this only ever deletes a row
+  // whose requester_id is already the caller's.
   fastify.post('/contacts/withdraw', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
