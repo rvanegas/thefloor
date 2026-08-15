@@ -2169,8 +2169,18 @@ submission. Recording from a phone failed four times in a row with
     acct_42U9kVnzIm-V is not publishing audio; nothing to record.
 
 and each attempt filed a 0:01 recording. The account named was signed in on an
-iOS Simulator, which does not capture a microphone through
-`react-native-webrtc`: it joined the room, subscribed, and published nothing.
+iOS Simulator where **the microphone permission had been declined**: it joined
+the room, subscribed, and published nothing.
+
+The first diagnosis written here was that the Simulator cannot capture a
+microphone through `react-native-webrtc` at all. That was wrong, and it is worth
+leaving the correction visible because it is the more useful fact:
+`xcrun simctl privacy <device> grant microphone co.rvanegas.thefloor`, then
+relaunch, and it publishes like a phone — the recording made immediately
+afterwards carries a stem for the simulator and one for the handset, starting
+2 ms apart. A declined permission and an impossible platform produce exactly the
+same symptom from the server's side, which is precisely why the server should
+not be trying to tell them apart.
 
 **The bug was modelling that as an error at all.** `MediaServer.startRecording`
 asks LiveKit for the participant's tracks and threw when there was no audio one.
