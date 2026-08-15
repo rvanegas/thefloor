@@ -717,6 +717,153 @@ withdrawal only ever deletes a row whose `requester_id` is already the caller's.
 
 ---
 
+## Branches, once there was a build to be wrong about
+
+Adopted 2026-08-15, the day after build 36 was submitted. Until then there was
+one branch and it did not matter: every install was the author's, and the
+2026-08-10 wire break — which stopped every running client dead — was accepted
+precisely because of that. A submitted build ends the exemption.
+
+**The constraint is that there are two release vehicles with nothing in common
+but this repository.** The server deploys in about a minute and is reversible
+in another. An iOS build goes through review, then through whenever each person
+chooses to update, and is not reversible at all. They can never ship together,
+which is the whole content of the two-step wire migration already written down:
+teach the server both shapes, deploy, ship the client, remove the old shape a
+release later.
+
+**And the App Store is not a version, it is a population.** This is the part a
+branch cannot express and the reason the convention is mostly not branches. The
+deploy history is full of sentences like "build 30 kept working across the
+restart" and "installed builds up to 35 call `GET /support` expecting JSON and
+now receive HTML" — the thing the server owes compatibility to is the oldest
+build still installed somewhere, which is neither the newest released build nor
+anything a ref points at.
+
+### What was chosen
+
+**`master` stays trunk, with short-lived branches merged back.** No develop
+branch, no release branches. One person, a one-minute server deploy, and a
+release cadence measured in days: git-flow would be ceremony bought with
+nothing.
+
+**Builds are tagged, not branched.** A submitted build is immutable and is a
+point in history — that is a tag. `build/36` was created retroactively on
+`b069d61`, the commit that set `buildNumber` to 36 and the `app/` that was
+actually archived; the three commits between it and the submission note touched
+only `server/` and `planning/`, so `app/` and `core/` — the wire contract that
+build speaks — are unchanged across them. `bin/release-ios` now does it for
+every upload.
+
+**`released` is the one branch, and it does not exist yet.** It points at what
+somebody can download, so it is created when 36 is released rather than when it
+is approved — the two are separate decisions on purpose, which is why the
+release was set to manual. It earns its place for one reason that a tag does
+not cover: if review rejects a build, the fix is made against what was
+submitted rather than against a trunk that has moved on.
+
+### The three gaps that were closed at the same time
+
+None of this is worth much without knowing what is actually running, and it
+turned out nothing did.
+
+**`bin/deploy` rsyncs the working tree rather than a git ref**, deliberately —
+"works from a dirty tree" is in its own header comment, and it is the right
+call for a one-command deploy. The cost was that the box held no record of what
+it was running: `/healthz` returned `{ok, audio}`, and every "verified against
+production afterwards" note in this file names a behaviour and no revision. It
+now writes `server/deployed.json` before syncing, with the short sha, the
+branch, and the time — the sha marked `-dirty` when the tree was, because the
+deploys where that is true are exactly the ones somebody will later want to ask
+about. It warns rather than refuses: refusing would take back the property the
+rsync was chosen for.
+
+The file is deleted from the checkout as soon as it has landed on the box. It
+is a fact about one machine, and a copy left behind would have a local server
+reporting the revision of whoever last deployed — a confidently wrong answer in
+place of the "unknown" a checkout is supposed to give.
+
+**The deploy now checks that the box came back as the code that was sent.** A
+restart that failed and left the previous process serving answers `/healthz`
+exactly like a successful one — and that is the failure most worth catching,
+because everything verified afterwards gets verified against the wrong
+revision.
+
+**`bin/release-ios` bumped `buildNumber` and committed nothing**, so the commit
+that became a build was identifiable only by reading `app.json` at each
+revision. It now refuses a dirty tree, commits the bump before archiving so the
+commit is what gets built rather than a description of it, and tags after the
+upload succeeds — the tag meaning "Apple has this", which nothing before the
+upload can promise. A failed archive therefore leaves a bump commit and no tag:
+the build number is spent either way, since Apple will not take it twice, but
+no revision claims to be a build that does not exist.
+
+### The floor, and what it cannot do
+
+`MIN_SUPPORTED_BUILD` in `server/src/release.ts` is the oldest build the server
+still answers correctly, and it exists to make one thing decidable: **a
+compatibility shim may be deleted once the floor has passed the build that
+needed it, and not before.** The two-step migration has always had a third step
+with no rule attached, and this is the rule.
+
+**It is a declaration rather than a measurement, and that is a real limitation
+rather than a footnote.** Nothing on the wire carries a build number — the app
+sends no version header, the server records none — so the floor cannot be
+checked against reality, and every claim that build N went on working was
+reasoned rather than observed. Making it measurable is in BACKLOG.md; it is a
+client change, so it takes a build to reach anybody, and the builds already out
+there will never send it. Absent will have to mean old.
+
+It starts at 36 because nothing has ever been public: every earlier build is a
+TestFlight install on the author's own devices, updatable on demand, and
+TestFlight expires them at 90 days regardless. The moment 36 is released this
+number stops being free to move — after that, raising it means waiting for a
+population to turn over rather than deciding that it has.
+
+Both it and the deployed sha are reported by `/healthz` and in the startup log.
+They are unauthenticated, which was a choice: the question "what is running on
+the box" is one worth being able to ask by curl from a machine that is not this
+one, at the moment a deploy is being doubted, and a short sha of a private
+repository is an opaque seven characters to anybody who does not already have
+the repository.
+
+---
+
+## AGENTS.md splits by subject, not by age
+
+2026-08-15, the same day it was cut from 728 lines to 617 by moving history
+out. Adding the branch conventions put it back at exactly 650, its own limit,
+which made the next question unavoidable: what happens when what is left is all
+guidance rather than narrative, and there is nothing further to move to
+`DECISIONS.md`?
+
+The earlier trims moved things out **by age** — a deploy stops being the most
+recent one, so it goes to the history. That works until the file is nothing but
+standing guidance, and then it stops: the traps are the whole point of the file,
+and shaving them is how a document becomes useless while still being read.
+
+So the second axis is **who needs it**. `planning/RELEASING.md` is everything
+only somebody producing an iOS build needs — `app.json`'s settings and their
+reasons, the icon that is rejected at upload for carrying an alpha channel,
+`prebuild --clean` dropping `DEVELOPMENT_TEAM`, the state of the first
+submission. 115 lines, moved verbatim, taking the file to 546. Most sessions
+touch the server, the reducer or the app's behaviour and never make a release,
+and were paying for all of it before anybody typed anything.
+
+**What stayed is the test that makes this work.** `APNS_ENV` reads like release
+material and is not: it costs an afternoon to somebody testing push against a
+locally built app, who has no reason to open a document about releasing. Same
+for the three artifacts that disagree about entitlements. The seam is not the
+subject a section appears to belong to — it is whether a class of work that
+never opens the other document can still be bitten by what moved.
+
+The pointer left behind names the traps rather than the topic. A section saying
+"see RELEASING.md for release things" is one nobody follows; one saying the icon
+is rejected at upload if it carries an alpha channel is one somebody follows
+before they generate an icon.
+
+---
+
 ## The deploy history
 
 Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and

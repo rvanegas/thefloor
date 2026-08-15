@@ -1,7 +1,11 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
-node_modules/
+# dependencies. No trailing slash, deliberately: `node_modules/` matches a
+# directory and not a *symlink* named node_modules, so a link into another
+# checkout's modules — the ordinary way to run tests in a git worktree — was
+# not ignored, was picked up by `git add -A`, and replaced the real directories
+# with links to themselves on the next checkout.
+node_modules
 
 # Expo
 .expo/
@@ -57,6 +61,11 @@ android/
 
 # scratch dev diagnostics (mint tokens, inspect live rooms)
 dev-*.mjs
+
+# what bin/deploy stamped on the way out — a fact about one box, written fresh
+# every deploy. Tracking it would make every deploy dirty the tree it reports
+# the cleanliness of.
+server/deployed.json
 
 # editor lock files
 .#*
