@@ -12,6 +12,15 @@ is known and not done. **`planning/DECISIONS.md`** is what was built and why,
 including what was deliberately not built. **`planning/FEATURES.md`** is the
 roadmap: features that are wanted, at a paragraph each.
 
+`DECISIONS` is **more than one file**. `planning/DECISIONS.md` is always the
+live volume and the only one new decisions are appended to; closed volumes are
+`planning/DECISIONS-<first date>-to-<last date>.md`, and the first is
+`planning/DECISIONS-2026-08-07-to-2026-08-13.md`, which runs from the beginning
+to the day the media server came off LiveKit Cloud. The live volume's header
+carries the index and the rule for closing it. **Grep across the set** —
+`planning/DECISIONS*.md` — rather than the live one alone, or you will search
+only the last few days of the project's reasoning.
+
 The rest are temporary, and say so in their own first lines. Designs for
 unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
 deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
@@ -42,6 +51,51 @@ the live one.
 References between documents inside `planning/` are by bare filename, since
 they are siblings. References from code and from this file carry the
 `planning/` prefix.
+
+## Keeping this file small, which is a standing job
+
+**This file is loaded in full into every session, before anybody types
+anything.** Nothing reads it in segments. Everything in `planning/` is read only
+when somebody goes looking, so a paragraph there is free until it is needed and
+a paragraph here is paid for every time. That asymmetry is the whole reason for
+the split, and it decays quietly: the natural place to write down what just
+happened is the file already open, which is this one.
+
+**Keep it under 650 lines, and nearer 600.** It is 617 now, having been 728 on
+2026-08-15 when nine deploys' worth of narrative was moved out. The headroom is
+about one deploy wide on purpose: each new one displaces the last, so the file
+should sit still rather than climb. When it passes 650, do not shave the traps —
+almost all of the excess will be one of these:
+
+- **Deploy narrative.** `## Deployment` keeps the *most recent* deploy and
+  nothing else. When a new one lands, the one it replaces goes to
+  `planning/DECISIONS.md` under `## The deploy history`, newest first, verbatim
+  — the verification counts and the which-build-kept-working notes are the
+  valuable part and are not to be summarised away in the move.
+- **Reasoning about unshipped work.** Belongs in `planning/DECISIONS.md`, or in
+  its own `planning/` design document if it is still being decided.
+- **The story behind a rule.** Keep the rule and the cost of breaking it; move
+  the account of the afternoon it cost, leaving a pointer.
+
+What earns its place here is what stops somebody losing a day: `APNS_ENV`, the
+three artifacts that disagree about entitlements, `rtc.use_external_ip`, where
+each credential lives and what losing it costs, `prebuild --clean` dropping the
+signing team. Those stay verbatim however long the file gets — the density of
+the prose is not the problem, accumulation is.
+
+Trimming is not a separate errand. Do it in the same commit as whatever added
+the material, while the judgement about what is durable is still fresh.
+
+**The `DECISIONS` volumes have a cap of their own: 2,000 lines each.** Not for
+context — nothing loads them unprompted — but because a plain read stops at
+2,000 and what it drops is the tail, which in an append-only file is the newest
+material and the most likely to matter. The notice is easy to miss in a file
+that reads like an archive. The single `DECISIONS.md` hit 2,433 lines on
+2026-08-15 and was split; the live volume's header says how to close it and
+start the next. Cut on a section boundary and on a seam that means something.
+
+Line *length* is not a constraint worth thinking about — a read truncates at
+2,000 characters and the prose here wraps at 79.
 
 ---
 
@@ -100,6 +154,11 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
+**This section carries the most recent deploy and nothing else.** Every earlier
+one is in planning/DECISIONS.md under `## The deploy history`, newest first —
+which build kept working across which restart, and what was verified against
+production each time. Look there before assuming a behaviour is new.
+
 Most recently on 2026-08-14, four times. The last was **everything App Store
 review needed**: in-app account deletion (`DELETE /me`), a privacy policy link
 inside the app, a support page at `GET /support`, and the donations routes moved
@@ -124,169 +183,25 @@ and data untouched at 7 accounts, 25 channels, 20 recordings with 7 marked, and
 the one real donation row. Somebody took a media token seconds after the restart
 and stayed connected.
 
-Before that, three times the same day: **voluntary donations**, the fix for
-the mistake the first deploy shipped, and then the region filter.
-
-Donations are a **Ko-fi link, external, unlocking nothing** — see
-planning/DECISIONS.md for why it is not in-app purchase. The build is a
-`donations` table, `server/src/donations.ts`, `POST /donations/kofi` and `GET
-/donations`, plus a Support card in `HomeSettingsView`. Those two shipped as
-`/support/kofi` and `/support` and were renamed later — `support` meant money on
-one path and help on every other, and `/support` is the path somebody wanting
-help will try, which is what App Store Connect's Support URL has to point at.
-Nothing in `core/` changed
-except one additive type, so the wire is unchanged and build 30 kept working
-across all three restarts. **Build 31 is the one that shows the card**, uploaded
-to TestFlight the same day. Alongside it went `GET /privacy` and a fixed one-time
-code for App Review (`REVIEW_IDENTIFIER` / `REVIEW_CODE`).
-
-**The app ships worldwide and the link is withheld per person.** App Review
-Guideline 3.1.1(a) prohibits an external payment link outside the United States
-storefront — the *link*, not the app — so shipping US-only would have locked
-existing non-US users out of the App Store for nothing. The app reports its
-locale and timezone from `Intl`; `server/src/region.ts` decides. **Silence means
-hidden, and so does anything ambiguous**, because showing the link to the wrong
-storefront is a violation while hiding it from the right one costs a donation.
-`accounts.donations_allowed` overrides it either way — null for everyone by
-default. That was the third deploy's migration, on the `bio` / `last_seen_at`
-pattern.
-
-The second deploy was the one that mattered. **The first stored Ko-fi's
-`verification_token` in the `donations.raw` column**, because it stored the
-request body verbatim and that body carries the secret authenticating every
-future delivery — into the database, into every backup, and into the output of
-any query selecting that column, which is how it surfaced. The token was
-rotated, the row deleted, the payload is now stored minus that field, and a test
-asserts it appears nowhere in the table. The general form is worth carrying:
-**a payload that authenticates itself contains a credential, and storing it
-verbatim stores the credential.**
-
-Verified against production afterwards: `donations: "ko-fi"` in the startup log,
-a bad token answered `401` with nothing written, `/privacy` served as HTML
-naming `support@rvanegas.co`, and data untouched at 5 accounts, 24 channels and
-12 recordings. A real end-to-end donation is still untested. Note that Ko-fi's
-`closeRoom` noise in the log is unrelated and dates to 2026-08-09.
-
-Before that, on 2026-08-13: the two idle timers, and with them the first
-`accounts` migration since `bio`. **`accounts.last_seen_at`**, added and left
-null — backfilling it from `created_at` would have read as a year idle for
-somebody who used the app that morning — so it fills in as people connect. The
-wire gained `ContactView.lastSeenAt`, typed optional precisely because an
-installed build meets a server without it, and additive besides, so every build
-kept working across the restart; build 30 is the one that shows the timers.
-Verified against production afterwards: the column present, two accounts already
-stamped by clients reconnecting after the restart, data untouched at 7 channels,
-12 recordings with 6 already marked, and 5 accounts. No errors in the log.
-
-Before that, on the same day, **the media server moved off LiveKit Cloud onto
-this box.** `bin/deploy` was never run — no code
-changed — and no build shipped, because the client is told where to connect by
-the server and there is no URL in the binary. It was `livekit-server`, a Redis
-and the egress recorder installed by the new `bin/provision-livekit`, a second
-Caddy site block for `livekit.rvanegas.co`, two firewall rules, and three lines
-of `server/.env`. The reasoning is in planning/DECISIONS.md; the numbers and the
-rebuild path are in planning/MIGRATION.md.
-
-Verified against production afterwards with two phones — join, claim and release
-the floor, record, play back into the room — and the recording landed in S3 as
-two stems with both egress manifests, timestamps matching `egress_complete` in
-the log to the second. Data untouched at 24 channels and 18 recordings, 6 of
-them already marked for deletion. Build 28 went on working across it without
-being restarted.
-
 The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
 participants**, every stem being its own egress job. That is a chosen figure and
 raising it is the first move if it ever bites, not a hardware limit.
 
-Before that, on 2026-08-13, adding `PATCH /recordings/:id`: a name written to
-the row every member of the channel reads, guarded by the same reach test that
-play, export and delete already ask, so anybody in the channel may rename
-anything in it. No schema change — the `name` column has been there since
-2026-08-11 — and no change to any existing response, so every installed build
-goes on working; build 28 is the one that can ask for it. Verified against
-production afterwards: the route answers `401` rather than `404` to an
-unauthenticated caller, and the data is untouched at 23 channels and 17
-recordings, 6 of them already marked for deletion.
-
-Before that, five times on 2026-08-12. The last added `DELETE /recordings/:id`
-— one recording marked for deletion on the same terms as a deleted channel's,
-swept a week later by the sweep that already existed. No schema change: the
-`deleted_at` column it marks has been there since earlier that day. Verified
-against production afterwards: 11 live recordings, 4 already marked, unchanged
-by the deploy. Purely additive, so every build keeps working; build 27 is the
-one that can ask for it.
-
-Before that, one that narrowed the one-per-set rule
-to *unnamed* channels and made an unnamed channel's invitation move the
-conversation when the invitee arrives — see planning/DECISIONS.md. No
-migration: two
-fields were added to the state blob, and both default correctly for a channel
-that has never moved (`mediaRoom` to the channel id, `invited` to empty), so
-existing rows are rewritten on their next change rather than up front. Verified
-against production afterwards: 5 live channels revived, 15 recordings, health
-green. Wire-additive, so build 23 goes on working; build 25 is the one that
-follows a move.
-
-Before that, one that made claiming the floor clear the claimant's self-mute
-and refuse to let them set it again until they release — no schema change and
-no wire change, so build 23 kept working across it, simply without greying out
-its own mute button while it holds the floor.
-
-Before that, twice the same day: recordings moved to the channel they were
-made in, with deletion by mark and sweep and playback into the room; then the
-branch that answered for recordings whose channel had already ended, once the
-four of those were deleted. The first carried a migration — `deleted_at` on
-`channels` and `recordings` — verified against production afterwards: 22
-channels, 15 recordings, nothing marked.
-
-Before those, twice on 2026-08-11. The second put every channel you belong to
-on Home regardless of what the server believes about your presence, and stopped
-a bare socket asserting presence. No schema change and no wire change — the
-`rejoinable` array simply carries more — so build 19 kept working across it,
-showing a channel it is in as both banner and row until build 20 lands. The
-restart also cleared the stuck presence that had made a channel invisible;
-5 channels came back, `A Priori` among them.
-
-The first, earlier that day, brought the settled recording names and the
-channel ordering. Two columns were added to `recordings` —
-`participant_names` and `name` — and verified against production afterwards:
-22 channels, 11 recordings, both columns present. It was additive to the wire
-protocol — two new `RecordingView` fields — so build 16 went on working
-against it, ignoring them and labelling recordings the old way.
-
-Before those, twice on 2026-08-10: the channels rework, and later the
-empty-channel playback pause and the shared channel-description fallback. That
-second one changed no wire format, so build 14 kept working across it.
-
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
 runs the tests first and refuses to continue if they fail.
 
-### The 2026-08-10 deploy broke every installed client, on purpose
+### Never ship a wire change to a server before the client can speak it
 
-The Session → Channel rename changed the wire protocol, and the two ends were
-shipped separately because they cannot be shipped together: the server deploys
-in a minute and a new iOS build reaches a phone via App Store Connect
-processing plus whenever a tester updates. So build 5 stopped working the
-instant the server restarted, and stayed broken until build 6 landed.
-
-What broke, concretely — an old client talks and the new server does not answer:
-
-| Build 5 sends | Server now expects |
-| --- | --- |
-| `watch.session`, `unwatch.session`, `session.action` | `watch.channel`, `unwatch.channel`, `channel.action` |
-| `POST /sessions`, `/sessions/:id/media-token`, `/sessions/:id/track` | the same under `/channels` |
-| `LEAVE`, `END` | `STEP_OUT`, `LEAVE_CHANNEL` |
-
-Accepted knowingly because the only installs were the author's. **It is not a
-choice that survives having users.** The way to avoid it next time is to teach
-the server the old names as aliases, deploy that first, ship the client, and
-remove the aliases a release later — the ordinary two-step, which costs a
-compatibility layer to carry and then delete.
-
-The database migration in that deploy renamed `sessions` to `channels` in place
-and repointed the `recordings` foreign key. Verified against production
-afterwards: 15 channels, 2 recordings, both still joining, ids unchanged.
+The 2026-08-10 Session → Channel rename broke every installed client on
+purpose: the server deploys in a minute and a new iOS build reaches a phone via
+App Store Connect processing plus whenever a tester updates, so build 5 was dead
+the instant the server restarted and stayed dead until build 6 landed. It was
+accepted only because the only installs were the author's. **It is not a choice
+that survives having users.** The way to avoid it is the ordinary two-step:
+teach the server the old names as aliases, deploy that first, ship the client,
+remove the aliases a release later. What broke, and the migration that went with
+it, is in planning/DECISIONS.md.
 
 ### What is where
 
@@ -318,7 +233,7 @@ before `livekit-server` starts or it silently advertises the private address and
 rooms connect with no audio. Read `journalctl -u livekit-server | grep "using
 external IPs"` — the yaml is no evidence. And **`udp_port` is mutually exclusive
 with `port_range_start`/`end`**; setting both is not an error, the range just
-wins. Both are covered at length in planning/DECISIONS.md.
+wins. Both are covered at length in the first `DECISIONS` volume.
 
 The media plane is deliberately *not* in `bin/provision`. It is
 **`bin/provision-livekit`**, a sibling, run after it — which is exactly what a
@@ -549,8 +464,8 @@ Two more things that fail quietly and are worth checking before anything else:
   deploy could not touch a conversation, *because* the media was elsewhere. That
   is no longer true and it has not been observed either way, since nobody was
   talking during one. **A deploy that audibly interrupts a call is the signal to
-  move the media plane to its own $7 box**, which planning/DECISIONS.md argues
-  and `bin/provision-livekit` exists to make cheap. It is worth listening for
+  move the media plane to its own $7 box**, which the first `DECISIONS` volume
+  argues and `bin/provision-livekit` exists to make cheap. It is worth listening for
   rather than waiting to be told about.
 - **A floor claim is enforced against a *track*, and tracks are replaced under
   it.** Fixed on 2026-08-14 and worth knowing before touching `assertSilence`:
@@ -611,37 +526,11 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   `ios/` asset catalogue from `app/assets/icon.png`, so nothing else has to be
   copied anywhere for a build to pick this up.
 
-- **The Android adaptive icon is the same artwork, in three layers**, though
-  Android is not built or shipped here — there is no `android/`, and
-  `bin/release-ios` is the only release path. It is preparation.
-
-  The artwork is the **background** layer, full-bleed. It survives any launcher
-  mask — circle, squircle, rounded square — because a diagonal through the
-  centre stays a diagonal through the centre; having no focal mark is what
-  makes it crop-proof rather than what puts it at risk.
-
-  The **foreground** is a fully transparent 1024×1024 PNG. Expo requires the
-  key, and the foreground is the layer launchers shift for parallax, so
-  full-bleed art there would slide and expose an edge. The artwork belongs
-  underneath it.
-
-  The **monochrome** layer — the themed icon, Android 13+ — is the one that
-  took a decision rather than a command. It has to be a single-colour shape on
-  transparency, and a two-colour split has no silhouette, so the shape is the
-  orange triangle: the upper-left half, the one that leads in the artwork. Black
-  on transparent; the system tints it, and only the alpha channel is read.
-
-  That silhouette is its own master, `the-floor-icon-mono.svg`, beside the
-  full one — a second file rather than a `magick` incantation that crops the
-  first, because which half it is is a decision and belongs somewhere legible.
-
-      magick -background none -size 4096x4096 the-floor-icon-mono.svg -resize 1024x1024 \
-        -type TrueColorAlpha -colorspace sRGB PNG32:app/assets/android-icon-monochrome.png
-
-  `adaptiveIcon.backgroundColor` went from `#14162B` to `#5B6478`, the artwork's
-  grey. The background *image* covers it, so it is only what shows if that ever
-  fails to load — but a fallback in a colour from nowhere in the design was
-  worse than one that matches.
+- **The Android adaptive icon is prepared but Android is not shipped here.**
+  Three layers, generated from `the-floor-icon.svg` and
+  `the-floor-icon-mono.svg`; there is no `android/` and `bin/release-ios` is
+  the only release path. Why each layer is what it is — and why the monochrome
+  silhouette gets its own master file — is in planning/DECISIONS.md.
 
 - **The splash is still the Expo default.**
 
