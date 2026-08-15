@@ -665,6 +665,116 @@ export class Accounts {
       .run(a, b);
     return { withdrawn: true, targetId: target.id };
   }
+
+  // --- Erasure ------------------------------------------------------------
+
+  /**
+   * Everybody who would notice this account going: their contacts, requested
+   * and accepted alike. Read before `erase` runs, since afterwards there is no
+   * row left to read it from.
+   *
+   * Addresses invited but never signed up carry no id and are dropped — there
+   * is nobody to tell.
+   */
+  audienceFor(accountId: string): string[] {
+    return this.contactsFor(accountId)
+      .map((entry) => entry.account.id)
+      .filter(Boolean);
+  }
+
+  /**
+   * Deletes an account: everything that made it a person, and everything only
+   * it could act through.
+   *
+   * **The row itself survives, emptied, and that is not a hedge.** Every channel
+   * ever started carries `initiator_id` and `invitee_id` as real foreign keys
+   * into this table — including channels that other people are still talking in,
+   * and channels long ended that anchor their recordings. Removing the row would
+   * either break those constraints or require rewriting other people's history
+   * to say somebody else started it. What is left behind is a tombstone: no
+   * address, no name, no bio, nothing anybody can sign in as and nothing that
+   * describes a human being. `public()` gives it the same shape as any other
+   * account, so a stale id in an old participant list resolves to something
+   * rather than to nothing, and every screen already falls back gracefully when
+   * it does not.
+   *
+   * The identifier is replaced rather than nulled — the column is NOT NULL
+   * UNIQUE, and a value derived from the id is unique by construction. It is
+   * deliberately not an email address, so the same person signing up again gets
+   * a genuinely new account rather than walking back into this one.
+   *
+   * What goes with it:
+   *
+   * - **Contacts**, both directions and both states. Nobody keeps a relationship
+   *   with an account that is gone, and nobody is left holding the address.
+   * - **Invitations**, sent and received: rows this account sent to addresses
+   *   that never signed up, and rows other people sent to *its* address, which
+   *   would otherwise resolve into a contact request from a stranger if that
+   *   address ever signed up again.
+   * - **Sign-in codes and tokens**, so every device is signed out at once,
+   *   including any this person no longer has.
+   *
+   * Donations are **unlinked rather than deleted**: they are money that changed
+   * hands, Ko-fi holds the authoritative record either way, and a payment
+   * disappearing from this side because the payer left would leave the two ends
+   * disagreeing with nothing to reconcile from. `matched_by` goes with the link
+   * it describes, so a row cannot claim to be matched to nobody.
+   *
+   * Devices are `Devices.forgetAccount`'s job and are not reached from here —
+   * this class owns identity, that one owns addresses, and the route calls both.
+   */
+  erase(accountId: string): boolean {
+    const account = this.byId(accountId);
+    if (!account) return false;
+
+    this.db
+      .prepare('DELETE FROM contacts WHERE a_id = ? OR b_id = ?')
+      .run(accountId, accountId);
+    this.db
+      .prepare('DELETE FROM pending_invites WHERE requester_id = ?')
+      .run(accountId);
+    this.db
+      .prepare('DELETE FROM pending_invites WHERE identifier = ? COLLATE NOCASE')
+      .run(account.identifier);
+    this.db
+      .prepare('DELETE FROM otp_codes WHERE identifier = ? COLLATE NOCASE')
+      .run(account.identifier);
+    this.db.prepare('DELETE FROM tokens WHERE account_id = ?').run(accountId);
+    this.db
+      .prepare(
+        'UPDATE donations SET account_id = NULL, matched_by = NULL WHERE account_id = ?'
+      )
+      .run(accountId);
+
+    this.db
+      .prepare(
+        `UPDATE accounts
+            SET identifier = ?, display_name = ?, bio = NULL,
+                last_seen_at = NULL, donations_allowed = NULL
+          WHERE id = ?`
+      )
+      .run(erasedIdentifier(accountId), ERASED_DISPLAY_NAME, accountId);
+    return true;
+  }
+}
+
+/**
+ * What an erased account is called wherever an id still resolves to one — an
+ * old channel's participant list, a recording made before they left.
+ *
+ * Not a name anybody could have chosen: display names are what somebody types
+ * about themselves, and this is the application saying there is nobody here.
+ */
+export const ERASED_DISPLAY_NAME = 'Deleted account';
+
+/**
+ * Not an email address, deliberately. `request-code` refuses anything that is
+ * not one, so no code can ever be issued for this value however it is typed —
+ * and the same person signing up again gets a new account rather than this one
+ * back.
+ */
+function erasedIdentifier(accountId: string): string {
+  return `erased:${accountId}`;
 }
 
 function normalize(identifier: string): string {

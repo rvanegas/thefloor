@@ -618,6 +618,38 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * Deletes your account, from inside the application.
+   *
+   * App Store Guideline 5.1.1(v) requires this of anything that lets people
+   * create an account, and requires it *here* rather than by writing to a
+   * support address — which is what the privacy policy used to promise.
+   *
+   * Three things happen, in this order, and the order is what makes it safe.
+   * The people who need telling are read first, while there is still a row to
+   * read them from. Then the channels: leaving each one the ordinary way, so a
+   * held floor is released and a recording in progress is stopped, and deleting
+   * the ones nobody else is in. Only then is the account itself emptied, by
+   * which point nothing live points at it.
+   *
+   * No confirmation is asked for here. The app asks, naming what goes and what
+   * stays, and a second gate on this side would only be one the app had to know
+   * how to answer.
+   */
+  fastify.delete('/me', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const contacts = accounts.audienceFor(account.id);
+    const left = channels.removeMember(account.id);
+    devices.forgetAccount(account.id);
+    accounts.erase(account.id);
+    // Contacts lose a contact and the rest lose somebody from a channel; both
+    // are looking at a Home that now says something untrue.
+    homeNotifier.notify([...new Set([...contacts, ...left])]);
+    return reply.code(204).send();
+  });
+
+  /**
    * Somebody's profile.
    *
    * Readable by a contact, by anyone who shares a live channel with them, and

@@ -983,6 +983,55 @@ export class ChannelRegistry {
     this.emit([channelId]);
   }
 
+  /**
+   * Takes somebody out of every live channel, as though they had walked out of
+   * each one themselves, and reports who else was in them.
+   *
+   * This is what deleting an account does to conversations, and the whole of
+   * it. A channel is not owned by anybody: leaving is the only thing a departing
+   * member can do to one that other people are still in, so that is what
+   * happens, and their channels go on without them. Where they were the last
+   * member there is nobody left to leave it to, and the existing rule applies —
+   * the channel is deleted, taking its recordings with it on the usual mark and
+   * sweep.
+   *
+   * Both go through `apply` rather than the reducer directly, so a departing
+   * floor-holder releases the floor, a recording in progress is stopped, and the
+   * room is closed — one route, the same one a tap takes, rather than a second
+   * that has to agree with it.
+   *
+   * The returned ids are whoever needs their Home redrawn. It is collected
+   * before the departure rather than after, because afterwards there is nothing
+   * left to read it from.
+   */
+  removeMember(userId: string): string[] {
+    const others = new Set<string>();
+    // A snapshot: `apply` writes to `this.channels` as it commits, and one of
+    // these actions ends a channel.
+    for (const channel of [...this.channels.values()]) {
+      if (channel.status !== 'active') continue;
+
+      // An invitation is not membership, and an unanswered one to somebody who
+      // no longer exists would sit on the channel for ever. Spent rather than
+      // declined: `INVITE_TAKEN` is already the server saying this invitation
+      // will not be answered here.
+      if (isInvited(channel, userId)) {
+        this.applyServer(channel.id, { type: 'INVITE_TAKEN', inviteeId: userId });
+      }
+
+      if (!isParticipant(channel, userId)) continue;
+      for (const id of otherParticipants(channel, userId)) others.add(id);
+      this.apply(channel.id, userId, {
+        type: channel.participants.length === 1 ? 'DELETE_CHANNEL' : 'LEAVE_CHANNEL',
+      } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    }
+    // Defensive rather than expected: `otherParticipants` already excludes the
+    // viewer, and notifying somebody who has just been erased would be a lookup
+    // of a row that is about to go.
+    others.delete(userId);
+    return [...others];
+  }
+
   private stepOutOfOthers(userId: string, keep: string): void {
     for (const id of this.channelsFor(userId)) {
       if (id !== keep) this.apply(id, userId, { type: 'STEP_OUT' });
