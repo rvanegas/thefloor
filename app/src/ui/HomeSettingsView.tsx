@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../../core/constants';
+import { API_URL } from '../api/config';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
@@ -27,6 +29,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const [bio, setBio] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -104,6 +107,48 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       throw e;
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * Opens the privacy policy in the browser.
+   *
+   * `API_URL` is where this app's server is, and the policy is a page on it, so
+   * there is nothing to configure and nothing that can point at a different
+   * server's claims than the one holding the data. It is empty only in a
+   * development build with no `EXPO_PUBLIC_API_URL`, where the app has no
+   * server at all and says so on its first screen — saying it again here is
+   * better than opening `/privacy` on nothing.
+   */
+  const openPrivacy = async () => {
+    if (!API_URL) {
+      setError('No server configured, so there is no policy to show.');
+      return;
+    }
+    try {
+      await Linking.openURL(`${API_URL}/privacy`);
+    } catch {
+      // A refusal by the OS looks exactly like a dead button otherwise.
+      Alert.alert('Could not open the privacy policy', `${API_URL}/privacy`);
+    }
+  };
+
+  /**
+   * Deletes the account, and stays on this screen if it could not be.
+   *
+   * Nothing follows the call on the success path on purpose: the provider drops
+   * the session, and this screen is unmounted along with everything else behind
+   * it. `deleting` is cleared only on failure for the same reason — there is no
+   * component left to clear it in.
+   */
+  const remove = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await app.deleteAccount();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setDeleting(false);
     }
   };
 
@@ -219,6 +264,27 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             </Text>
           </Card>
 
+          {/*
+            Above the account itself, because it is what somebody reads *before*
+            deciding either of the things underneath it.
+
+            Guideline 5.1.1(i) asks for the policy to be reachable from inside
+            the application and not only from the App Store listing, which is
+            reasonable on its own terms: the listing is where you were before
+            you signed up, and this is the question you have after.
+
+            The page is served by the server it describes — `GET /privacy` — so
+            the link is the API's own address and nothing new has to be
+            threaded through the wire to find it.
+          */}
+          <SectionLabel>Privacy</SectionLabel>
+          <Card style={styles.stack}>
+            <Button label="Privacy policy" onPress={() => void openPrivacy()} />
+            <Text style={type.muted}>
+              What is stored, why, and for how long. It opens in your browser.
+            </Text>
+          </Card>
+
           <SectionLabel>Account</SectionLabel>
           <Card style={styles.stack}>
             <Button
@@ -242,6 +308,40 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
               Signing in elsewhere signs you out here, so this is only for the
               device in your hand.
             </Text>
+
+            {/*
+              Below Sign out, in the same card, because they are the two ways
+              out of an account and this is the one there is no way back from.
+              Not behind a submenu and not behind a typed confirmation: it has
+              to be as easy to find as signing up was, and a flow that makes
+              deletion harder to finish than it needs to be is itself a review
+              finding.
+
+              What the confirmation says is the work here. "This cannot be
+              undone" is true of everything destructive and tells nobody
+              anything; what is not obvious is that channels are not yours to
+              take with you, and somebody who discovers that afterwards has no
+              remedy.
+            */}
+            <Button
+              label={deleting ? 'Deleting…' : 'Delete account'}
+              variant="danger"
+              disabled={deleting}
+              onPress={() =>
+                Alert.alert(
+                  'Delete your account?',
+                  'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nThis cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => void remove(),
+                    },
+                  ]
+                )
+              }
+            />
           </Card>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}

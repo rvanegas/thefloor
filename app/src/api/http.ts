@@ -114,6 +114,17 @@ export const api = {
       token,
     }),
 
+  /**
+   * Deletes the account this token belongs to, and everything it is.
+   *
+   * No device token, unlike sign-out. That one names a single phone, because
+   * signing out here must not silence a tablet; this ends the account, so the
+   * server forgets every device registered to it and there is nothing for the
+   * caller to single out.
+   */
+  deleteAccount: (token: string) =>
+    request<void>('/me', { method: 'DELETE', token }),
+
   registerDevice: (token: string, deviceToken: string, platform: 'ios' | 'android') =>
     request<{ ok: true }>('/devices', {
       method: 'POST',

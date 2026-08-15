@@ -87,6 +87,12 @@ interface AppValue extends AppState {
     displayName?: string
   ) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Deletes the account and signs out. Rejects — leaving you signed in — if the
+   * server did not do it, since the alternative is a screen that says you have
+   * no account while the server still has one.
+   */
+  deleteAccount: () => Promise<void>;
   requestContact: (identifier: string) => Promise<{ accepted: boolean }>;
   /** Takes back a sent request, by the address it went to. */
   withdrawContact: (identifier: string) => Promise<void>;
@@ -417,6 +423,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // device travels with it so the server forgets where to reach this
         // phone while the credential authorising that is still good.
         if (token) await api.signOut(token, device ?? undefined).catch(() => {});
+      },
+
+      /**
+       * Deletes the account, then lands where signing out lands.
+       *
+       * The opposite order to `signOut`, and deliberately: signing out clears
+       * the app first because the local session is already gone whether the
+       * server hears or not. This one has to hear. A failure has to leave the
+       * account intact *and* the person still signed in to try again, so the
+       * error is rethrown and nothing local is touched until the server has
+       * answered.
+       */
+      deleteAccount: async () => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        await api.deleteAccount(state.token);
+        deviceToken.current = null;
+        realtime.disconnect();
+        await storage.remove(TOKEN_KEY);
+        setState({
+          ready: true,
+          token: null,
+          me: null,
+          home: null,
+          channelView: null,
+          movedChannel: null,
+          status: 'closed',
+          lastError: null,
+        });
       },
 
       requestContact: async (identifier) => {

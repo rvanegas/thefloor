@@ -46,6 +46,7 @@ const mockApp = {
   requestCode: jest.fn(),
   verify: jest.fn(),
   signOut: jest.fn(),
+  deleteAccount: jest.fn(async () => {}),
   requestContact: jest.fn(),
   acceptContact: jest.fn(),
   declineContact: jest.fn(),
@@ -1559,6 +1560,127 @@ describe('Home settings', () => {
     expect(onBack).not.toHaveBeenCalled();
     expect(textOf(tree)).toContain('server said no');
     act(() => tree.unmount());
+  });
+
+  /**
+   * The privacy policy, which Guideline 5.1.1(i) requires to be reachable from
+   * inside the application and not only from the App Store listing.
+   *
+   * The page itself is the server's, and tested there. What is asserted here is
+   * that there is a way to it, and that it points at the server actually
+   * holding the data rather than at a URL somebody typed into the app.
+   */
+  describe('the privacy policy link', () => {
+    it('is offered on the settings screen', async () => {
+      // That it points at *this* app's server is asserted in
+      // privacyLink.test.tsx, which needs the address configured at import time
+      // and so cannot share this file's module registry.
+      const tree = await openSettings();
+      expect(findButton(tree, 'Privacy policy')).toBeDefined();
+      act(() => tree.unmount());
+    });
+
+    it('says so rather than opening nothing when there is no server', async () => {
+      // Which is the case here: these tests run with no EXPO_PUBLIC_API_URL,
+      // the same state a development build with no `app/.env` is in.
+      const { Linking } = require('react-native');
+      const opened = jest
+        .spyOn(Linking, 'openURL')
+        .mockResolvedValue(undefined as never);
+
+      const tree = await openSettings();
+      await act(async () =>
+        findButton(tree, 'Privacy policy')!.props.onPress()
+      );
+
+      expect(opened).not.toHaveBeenCalled();
+      expect(textOf(tree)).toContain('No server configured');
+
+      opened.mockRestore();
+      act(() => tree.unmount());
+    });
+  });
+
+  /**
+   * Deleting the account, which App Store Guideline 5.1.1(v) requires to be
+   * reachable from inside the application rather than by writing to anybody.
+   *
+   * What is asserted here is the shape of the offer — findable on the settings
+   * screen, asked about before it happens, and honest about what it takes — not
+   * what the server does with it, which is the server's own test.
+   */
+  describe('deleting the account', () => {
+    const alertSpy = () => {
+      const { Alert } = require('react-native');
+      return jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    };
+
+    it('is offered on the same screen as signing out', async () => {
+      const tree = await openSettings();
+      expect(findButton(tree, 'Delete account')).toBeDefined();
+      expect(findButton(tree, 'Sign out')).toBeDefined();
+      act(() => tree.unmount());
+    });
+
+    it('asks first, and says what it does not take', async () => {
+      const asked = alertSpy();
+      const tree = await openSettings();
+
+      act(() => findButton(tree, 'Delete account')!.props.onPress());
+      expect(asked).toHaveBeenCalled();
+      expect(mockApp.deleteAccount).not.toHaveBeenCalled();
+
+      // The part nobody would guess: a channel is not yours to take with you.
+      // "This cannot be undone" alone would be true and useless.
+      const body = asked.mock.calls[0][1] as string;
+      expect(body).toContain('carry on without you');
+      expect(body).toContain('cannot be undone');
+
+      asked.mockRestore();
+      act(() => tree.unmount());
+    });
+
+    it('does it when the destructive choice is taken', async () => {
+      const asked = alertSpy();
+      const tree = await openSettings();
+      act(() => findButton(tree, 'Delete account')!.props.onPress());
+
+      const actions = asked.mock.calls[0][2] as Array<{
+        style?: string;
+        onPress?: () => void;
+      }>;
+      await act(async () =>
+        actions.find((a) => a.style === 'destructive')!.onPress!()
+      );
+      expect(mockApp.deleteAccount).toHaveBeenCalled();
+
+      asked.mockRestore();
+      act(() => tree.unmount());
+    });
+
+    it('stays put and says so when the server refused', async () => {
+      // The failure that matters: a screen claiming the account is gone while
+      // the server still has one would leave nobody able to try again.
+      const asked = alertSpy();
+      mockApp.deleteAccount.mockRejectedValueOnce(
+        new Error('server said no') as never
+      );
+      const tree = await openSettings();
+      act(() => findButton(tree, 'Delete account')!.props.onPress());
+
+      const actions = asked.mock.calls[0][2] as Array<{
+        style?: string;
+        onPress?: () => void;
+      }>;
+      await act(async () =>
+        actions.find((a) => a.style === 'destructive')!.onPress!()
+      );
+      expect(textOf(tree)).toContain('server said no');
+      expect(findButton(tree, 'Delete account')).toBeDefined();
+
+      asked.mockRestore();
+      act(() => tree.unmount());
+    });
   });
 
   it('will not save an empty name, and says why', async () => {
