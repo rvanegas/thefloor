@@ -1769,7 +1769,7 @@ also removing the link is how a compliant app becomes a rejected one. It is
 worth knowing that the carve-out exists because of the April 2025 injunction,
 which is under appeal — so the remedy has to be cheap, and it is: the Ko-fi URL
 comes from `KOFI_URL` in the environment and reaches the app only through `GET
-/support`. Withdrawing the call to action is an edit and a restart, not an App
+/donations`. Withdrawing the call to action is an edit and a restart, not an App
 Store round trip. The same reasoning that keeps the LiveKit URL out of the
 binary.
 

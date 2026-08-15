@@ -19,6 +19,15 @@ deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
 submission: what has to be built before it can be made, what is already settled
 and where the reasoning is, and what has to be typed into App Store Connect. It
 goes when the app is approved.
+
+**`planning/DEMO-ACCOUNT.md`** is temporary in the same way, and narrower: the
+two accounts App Review signs in as, why there are two rather than one, and the
+order they have to be torn down in afterwards. Read it before deleting them, or
+before touching `REVIEW_IDENTIFIER` / `REVIEW_CODE` on the box — unsetting those
+before the accounts are gone is how the rows become unreachable. The credentials
+are not in it; they are in `~/.config/thefloor/demo-account.txt`, mode 600, on
+the same reasoning as the `.p8` keys.
+
 Two are one-offs that stay. **`planning/POSTMORTEM-echo.md`** is the build 17
 echo bug, start to finish. Read it before touching the iOS audio session —
 three separate components configure it and the ways they disagree are not
@@ -96,8 +105,12 @@ the mistake the first deploy shipped, and then the region filter.
 
 Donations are a **Ko-fi link, external, unlocking nothing** — see
 planning/DECISIONS.md for why it is not in-app purchase. The build is a
-`donations` table, `server/src/donations.ts`, `POST /support/kofi` and `GET
-/support`, plus a Support card in `HomeSettingsView`. Nothing in `core/` changed
+`donations` table, `server/src/donations.ts`, `POST /donations/kofi` and `GET
+/donations`, plus a Support card in `HomeSettingsView`. Those two shipped as
+`/support/kofi` and `/support` and were renamed later — `support` meant money on
+one path and help on every other, and `/support` is the path somebody wanting
+help will try, which is what App Store Connect's Support URL has to point at.
+Nothing in `core/` changed
 except one additive type, so the wire is unchanged and build 30 kept working
 across all three restarts. **Build 31 is the one that shows the card**, uploaded
 to TestFlight the same day. Alongside it went `GET /privacy` and a fixed one-time
@@ -380,7 +393,13 @@ Seven, deliberately separate, so no single leak is worse than it has to be:
 
 - **Ko-fi webhook verification token** — `KOFI_VERIFICATION_TOKEN`, from More →
   API → Webhooks → Advanced on Ko-fi, matching the webhook URL
-  `https://thefloor.rvanegas.co/support/kofi`.
+  `https://thefloor.rvanegas.co/donations/kofi`.
+
+  **That URL lives in Ko-fi's dashboard and nowhere in this repository**, so
+  renaming the route means editing it there in the same breath. Nothing retries
+  a 404 into the right place, and Ko-fi has no read API to recover a delivery
+  from — a donation posted at the old path while the dashboard still says
+  `/support/kofi` is simply lost.
 
   Unlike every other credential here it is a **shared secret sent inside the
   request body** rather than a signature over it, so it is only safe because

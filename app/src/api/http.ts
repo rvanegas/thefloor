@@ -166,7 +166,7 @@ export const api = {
     if (locale) query.set('locale', locale);
     if (tz) query.set('tz', tz);
     const suffix = query.toString();
-    return request<SupportView>(`/support${suffix ? `?${suffix}` : ''}`, {
+    return request<SupportView>(`/donations${suffix ? `?${suffix}` : ''}`, {
       token,
     });
   },
