@@ -2011,3 +2011,105 @@ reconciliation costs one `ListParticipants` per held floor per tick, which is
 one call every 500 ms for as long as somebody is actually talking, and nothing
 at all otherwise. If the floor ever needs to be tighter than a tick, this is the
 change to make.
+
+---
+
+## Deleting your account, and the row that survives it
+
+**Status:** built 2026-08-14, for the App Store submission. App Review Guideline
+5.1.1(v) requires an application that lets people create an account to let them
+delete one *from inside it*. This one created accounts on first sign-in and
+offered no way out at all: `server/src/privacy.ts` promised deletion by writing
+to `CONTACT_EMAIL`, which is precisely the arrangement the guideline exists to
+end. It is the one certain rejection the audit in APPREVIEW.md found.
+
+`DELETE /me`, a row under Sign out in `HomeSettingsView`, and one confirmation.
+
+### It leaves, it does not evict
+
+The decision that shaped everything else: **a channel is not owned by anybody.**
+`canLeaveChannel` refuses the last member and hands them `canDeleteChannel`
+instead, because there would be nobody to leave it *to*. So deleting an account
+is `LEAVE_CHANNEL` from every live channel, and the existing rule then ends the
+ones where that person was the last member — taking their recordings on the mark
+and sweep that already exists.
+
+Channels with other people still in them survive, and so do the recordings made
+in them. That is not a compromise with the guideline, it is the same rule
+`recordingsFor` has always applied from the other direction: a recording belongs
+to the place it was made rather than to whoever was in the room, which is why
+joining a channel gives you everything ever recorded in it and leaving takes it
+away. Deleting recordings *by participant* would reach into other people's
+channels and remove their copy of a conversation they were in.
+
+Both departures go through `apply` rather than the reducer, so a departing
+floor-holder releases the floor and a run in a channel about to be deleted ends
+before the channel does. One route, the same one a tap takes.
+
+Invitations are the case that is not membership and so is not reached by
+leaving. An unnamed channel's invitation to somebody who no longer exists would
+sit there for ever, so `removeMember` spends it with `INVITE_TAKEN` — already the
+server's way of saying this invitation will not be answered here.
+
+### The account row survives, emptied, and that is the interesting part
+
+`channels.initiator_id` and `invitee_id` are `NOT NULL REFERENCES accounts(id)`,
+and foreign keys are on. Every channel that person ever started holds one —
+including channels other people are still talking in, and ended channels that
+anchor recordings. Deleting the row would break those constraints; making it
+possible would mean either rewriting other people's history to say somebody else
+started their channel, or rebuilding two tables to drop a NOT NULL.
+
+So `Accounts.erase` empties the row instead. The identifier becomes
+`erased:<id>` — unique by construction, and deliberately not an email address, so
+`request-code` can never issue a code for it however it is typed and the same
+person signing up again gets a genuinely new account. The display name becomes
+`Deleted account`; bio, `last_seen_at` and `donations_allowed` go to null.
+Contacts in both directions, invitations sent and received, sign-in codes and
+every token go outright.
+
+**What remains is a tombstone, not an account.** There is nothing on it that
+describes a person and nothing anybody can sign in as. What it buys is that a
+stale id in an old participant list resolves to *something* — `public()` gives it
+the same shape as any other account, and `displayName` already fell back to
+'Someone' when it resolved to nothing.
+
+Worth being clear that this is a reading of the guideline rather than a dodge:
+what 5.1.1(v) requires is that the account and the personal data go, in the app,
+without asking anybody. They do.
+
+### Donations are unlinked, not deleted
+
+`account_id` and `matched_by` are nulled and the row stays. It is money that
+changed hands; Ko-fi holds the authoritative record either way, and a payment
+vanishing from this side because the payer left would leave the two ends
+disagreeing with nothing to reconcile from. `matched_by` goes with the link it
+describes rather than being left claiming a match to nobody — see the attribution
+section above for why an unattributed row is fine and a confidently wrong one is
+not.
+
+### The confirmation is the feature
+
+"This cannot be undone" is true of everything destructive and tells nobody
+anything. What is not obvious — and what somebody who finds out afterwards has no
+remedy for — is that channels are not yours to take with you. So the alert says
+what is removed immediately, that shared channels and their recordings carry on
+without you, and that channels you are the only member of go with everything in
+them.
+
+It is not behind a submenu and not behind a typed confirmation. Deletion has to
+be as easy to find as signing up was, and a flow that makes it harder to finish
+than it needs to be is itself a review finding.
+
+The app's own path is the inverse of `signOut`'s, deliberately. Signing out
+clears the local session first, because it is gone either way whether the server
+hears or not. This one waits for the server: a failure has to leave the account
+intact *and* the person still signed in to try again, rather than a screen
+claiming they have no account while the server still has one.
+
+### The privacy page moved with it
+
+Two paragraphs: deletion is in Settings and immediate, and here is exactly what
+stays behind and why. A test asserts both, because a page making claims about a
+feature is the thing that goes stale the moment the feature moves — which is the
+whole argument for the policy living beside the code.

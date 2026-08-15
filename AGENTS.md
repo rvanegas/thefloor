@@ -15,6 +15,10 @@ roadmap: features that are wanted, at a paragraph each.
 The rest are temporary, and say so in their own first lines. Designs for
 unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
 deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
+**`planning/APPREVIEW.md`** is the same kind of document for the first App Store
+submission: what has to be built before it can be made, what is already settled
+and where the reasoning is, and what has to be typed into App Store Connect. It
+goes when the app is approved.
 Two are one-offs that stay. **`planning/POSTMORTEM-echo.md`** is the build 17
 echo bug, start to finish. Read it before touching the iOS audio session —
 three separate components configure it and the ways they disagree are not
