@@ -731,6 +731,69 @@ describe('when capture cannot start', () => {
     expect(media.recordings.every((r) => r.stopped)).toBe(true);
   });
 
+  it('records everybody else when one participant has no track', async () => {
+    // Not a failure, and this is the difference: `failStart` above is the
+    // recorder refusing, which is fatal. Somebody publishing nothing is an
+    // ordinary state this application creates on purpose — the microphone
+    // stays closed while you are alone in a channel — and it must not cost
+    // everyone else the conversation.
+    const { alice, bob, channelId } = await sessionOfTwo();
+    media.unpublished.add(`${channelId}/${bob.account.id}`);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+
+    const recording = app.channels.get(channelId)!.recording;
+    expect(recording.status).toBe('recording');
+    expect(recording.failure).toBeNull();
+    // Alice is being captured; bob has nothing to capture and no stem.
+    expect(media.recordings.map((r) => r.identity)).toEqual([alice.account.id]);
+  });
+
+  it('picks somebody up when their microphone opens mid-run', async () => {
+    // The same path a late arrival takes, which is what makes this cheap: a
+    // track appearing ten seconds in yields a stem from ten seconds in.
+    const { alice, bob, channelId } = await sessionOfTwo();
+    media.unpublished.add(`${channelId}/${bob.account.id}`);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    expect(media.recordings.map((r) => r.identity)).toEqual([alice.account.id]);
+
+    // Their microphone opens, and the retry window passes.
+    media.unpublished.clear();
+    clock += 6_000;
+    app.channels.tick();
+    await settle();
+
+    expect(media.recordings.map((r) => r.identity)).toEqual([
+      alice.account.id,
+      bob.account.id,
+    ]);
+  });
+
+  it('files a recording without somebody who never published', async () => {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    media.unpublished.add(`${channelId}/${bob.account.id}`);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    const row = app.db
+      .prepare('SELECT stems, duration_ms, failure FROM recordings WHERE channel_id = ?')
+      .get(channelId) as {
+      stems: string;
+      duration_ms: number;
+      failure: string | null;
+    };
+    // A recording exists, it is not marked failed, and it honestly holds one
+    // voice rather than claiming a stem nobody wrote.
+    expect(row.failure).toBeNull();
+    expect(row.duration_ms).toBeGreaterThan(0);
+    expect(Object.keys(JSON.parse(row.stems))).toEqual([alice.account.id]);
+  });
+
   it('lets the recording be started again afterwards', async () => {
     const { alice, channelId } = await sessionOfTwo();
     media.failStart = { reason: 'transient' };

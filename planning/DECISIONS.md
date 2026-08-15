@@ -2158,3 +2158,59 @@ It opens `${API_URL}/privacy`, and using the API's own address rather than a URL
 written into the app is the part worth keeping. A build points at exactly one
 server, and that server's page is the one making claims about the data it is
 holding. A constant could name a different one and nothing would ever notice.
+
+---
+
+## A participant with nothing to record is not a failure
+
+**Status:** fixed 2026-08-14, found while making demo data for the App Store
+submission. Recording from a phone failed four times in a row with
+
+    acct_42U9kVnzIm-V is not publishing audio; nothing to record.
+
+and each attempt filed a 0:01 recording. The account named was signed in on an
+iOS Simulator, which does not capture a microphone through
+`react-native-webrtc`: it joined the room, subscribed, and published nothing.
+
+**The bug was modelling that as an error at all.** `MediaServer.startRecording`
+asks LiveKit for the participant's tracks and threw when there was no audio one.
+But a participant in the room with no track open is an ordinary state, and one
+this application *deliberately creates*: `useSessionAudio` keeps the microphone
+closed while somebody is alone in a channel, so that sitting in an empty room
+does not drag a Bluetooth speaker down to the hands-free profile. A connection
+re-establishing and a permission not yet granted look identical from here.
+
+So it now returns **null** rather than throwing, and the caller treats null as
+"not yet" — releasing the reserved key, and handing the participant to
+`ensureEgress`, which is the path somebody who walks in mid-recording already
+takes. A microphone that opens ten seconds in yields a stem from ten seconds in.
+If it never opens, `fileRun` files a recording that person is simply not on.
+
+### What stayed fatal, and why the distinction is the whole fix
+
+`startEgress` has a `fatal` flag: everyone present when a run starts is fatal,
+and late arrivals are not. That was right, and the reasoning above it still
+holds — *"a channel recorded with one voice missing is worse than none, because
+it looks complete"* — but it was being applied to two different things.
+
+- **The recorder refusing** — egress unavailable, S3 unreachable, a codec
+  mismatch — is a failure of the apparatus. Still fatal, and still tested.
+- **A participant with no track** is a fact about one person that says nothing
+  about whether anybody else can be captured.
+
+Conflating them meant one silent participant cost everybody else their
+conversation. **A recording missing one voice is worth having; a recording that
+does not exist is not.**
+
+### Two things it left behind
+
+The error reached the interface verbatim, so a user was shown
+`acct_42U9kVnzIm-V is not publishing audio` — an internal id in a sentence
+meant for a person. `captureFailed` still passes `error.message` through to
+`RECORDING_FAILED` for genuine failures, and it should name people rather than
+rows. In BACKLOG.md.
+
+And every aborted attempt was filed: `fileRun` deletes a run with no stems, but
+these had one — the working participant's — so four 0:01 recordings appeared in
+a channel. Fixing the cause fixes the symptom, but a run that ended in failure
+still lists like any other.

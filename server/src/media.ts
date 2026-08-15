@@ -98,11 +98,24 @@ export interface MediaServer {
    * captures and a resumed one starts fresh ones — which is why a participant
    * yields one object per run rather than one per recording.
    */
+  /**
+   * Returns a handle, or **null when this participant has no audio track to
+   * record**. Null is not a failure and is not exceptional: a participant who
+   * has joined the room but whose microphone has not opened is the ordinary
+   * state this application creates on purpose — `useSessionAudio` keeps the
+   * microphone closed while somebody is alone in a channel — and it is also
+   * what a re-establishing connection and an ungranted permission look like.
+   *
+   * Modelling it as an error is what once cost an entire conversation to one
+   * silent participant. The caller retries, so a microphone that opens ten
+   * seconds in yields a stem from ten seconds in, exactly as somebody who
+   * walked in at that moment does.
+   */
   startRecording(params: {
     room: string;
     identity: string;
     key: string;
-  }): Promise<string>;
+  }): Promise<string | null>;
 
   stopRecording(handle: string): Promise<void>;
 
@@ -187,7 +200,7 @@ export class LiveKitMediaServer implements MediaServer {
     room: string;
     identity: string;
     key: string;
-  }): Promise<string> {
+  }): Promise<string | null> {
     const storage = this.options.storage;
     if (!storage) throw new Error('No recording storage configured.');
 
@@ -201,9 +214,8 @@ export class LiveKitMediaServer implements MediaServer {
     const audio = participant.tracks.find(
       (track) => track.type === TrackType.AUDIO
     );
-    if (!audio) {
-      throw new Error(`${identity} is not publishing audio; nothing to record.`);
-    }
+    // Nothing to point an egress at yet. Not an error: see the interface.
+    if (!audio) return null;
 
     const info = await this.egress.startTrackEgress(
       room,
@@ -573,6 +585,9 @@ export class MemoryMediaServer implements MediaServer {
     identity: string;
     key: string;
   }) {
+    // Somebody with no track behaves as the real one does: there is nothing to
+    // point an egress at, and that is a fact about them rather than a fault.
+    if (this.unpublished.has(`${room}/${identity}`)) return null;
     if (
       this.failStart &&
       (!this.failStart.identity || this.failStart.identity === identity)

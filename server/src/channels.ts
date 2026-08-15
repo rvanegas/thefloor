@@ -1728,6 +1728,13 @@ export class ChannelRegistry {
     const startMs = recordedMs(state.recording, this.now());
     perParticipant.set(identity, [...previous, { key, startMs }]);
 
+    /** Puts this participant back in the queue for the next tick to try. */
+    const tryAgainLater = () => {
+      this.releaseSegment(state.id, identity, key);
+      run.requested.delete(identity);
+      run.retryAt.set(identity, this.now() + 5_000);
+    };
+
     this.run(
       async () => {
         const handle = await this.media!.startRecording({
@@ -1735,6 +1742,22 @@ export class ChannelRegistry {
           identity,
           key,
         });
+        // No track to record yet — a microphone that has not opened, a
+        // permission not granted, a connection still coming back. Nobody has
+        // failed at anything, so the run carries on without them and this
+        // hands them to `ensureEgress`, which is the same path somebody who
+        // walks in mid-recording takes. If their microphone opens later they
+        // get a stem from that moment; if it never does, `fileRun` simply
+        // files a recording they are not on.
+        //
+        // This used to throw, and with `fatal` set for everyone present at the
+        // start it ended the whole run: one silent participant cost everybody
+        // else their conversation. A recording missing one voice is worth
+        // having; a recording that does not exist is not.
+        if (handle === null) {
+          tryAgainLater();
+          return;
+        }
         // The recording may have moved on while the call was in flight.
         const current = this.channels.get(state.id);
         if (
@@ -1749,12 +1772,12 @@ export class ChannelRegistry {
       },
       `startRecording ${key}`,
       (error) => {
+        // A genuine failure of the recording apparatus, which is a different
+        // thing from a participant with nothing to record.
         if (fatal) {
           this.captureFailed(state.id, identity, key, error);
         } else {
-          this.releaseSegment(state.id, identity, key);
-          run.requested.delete(identity);
-          run.retryAt.set(identity, this.now() + 5_000);
+          tryAgainLater();
         }
       }
     );
