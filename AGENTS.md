@@ -100,7 +100,31 @@ record.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-Most recently on 2026-08-14, three times: **voluntary donations**, the fix for
+Most recently on 2026-08-14, four times. The last was **everything App Store
+review needed**: in-app account deletion (`DELETE /me`), a privacy policy link
+inside the app, a support page at `GET /support`, and the donations routes moved
+to `/donations` to free that name. **Build 36 is the first build containing any
+of it**, uploaded the same day; every earlier build's Delete account and privacy
+link do not exist, so a submission cannot use one.
+
+Two things about that deploy are worth carrying. **The Ko-fi webhook URL lives
+in Ko-fi's dashboard and nowhere in this repository**, so moving the route meant
+editing it there by hand — done first, deliberately, so the window in which a
+donation could 404 was the deploy rather than however long a dashboard edit
+takes. And **installed builds up to 35 call `GET /support` expecting JSON and
+now receive HTML**; `SupportView` optional-chains the snapshot, so the screen
+reads "There is no way to give from here at the moment" rather than crashing.
+One such call was in the log within seconds of the restart.
+
+Verified against production afterwards: `/support` serving HTML naming
+`support@rvanegas.co`, `/donations` answering 401, `POST /donations/kofi`
+refusing a bad token with 401 and writing nothing, `POST /support/kofi` gone with
+a 404, `DELETE /me` answering 401 rather than 404 to an unauthenticated caller,
+and data untouched at 7 accounts, 25 channels, 20 recordings with 7 marked, and
+the one real donation row. Somebody took a media token seconds after the restart
+and stayed connected.
+
+Before that, three times the same day: **voluntary donations**, the fix for
 the mistake the first deploy shipped, and then the region filter.
 
 Donations are a **Ko-fi link, external, unlocking nothing** — see
@@ -473,13 +497,25 @@ Two more things that fail quietly and are worth checking before anything else:
 
   So an archive reading `development` proves nothing. To settle it:
 
+      ASC=~/.config/thefloor/asc
+      KEY=$(ls $ASC/AuthKey_*.p8 | head -1); KID=$(basename "$KEY" .p8); KID=${KID#AuthKey_}
       xcodebuild -exportArchive -archivePath /tmp/thefloor.xcarchive \
         -exportPath /tmp/thefloor-check -exportOptionsPlist <plist with
-        destination=export> -allowProvisioningUpdates
+        destination=export> -allowProvisioningUpdates \
+        -authenticationKeyPath "$KEY" -authenticationKeyID "$KID" \
+        -authenticationKeyIssuerID "$(tr -d '[:space:]' < $ASC/issuer-id)"
       cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
       codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
 
-  Verified this way for builds 14 through 23: `production`.
+  **The three authentication flags are not optional, and this recipe was
+  missing them until build 36.** Without them the export fails with `No
+  Accounts` and `No signing certificate "iOS Distribution" found` — the export
+  re-signs for distribution, Apple holds that certificate, and fetching it is a
+  signing-asset operation needing the App Store Connect key. It is the same
+  failure `bin/release-ios` exists to avoid, met by a command that had not been
+  given the same treatment.
+
+  Verified this way for builds 14 through 23, and for **36**: `production`.
 
   Note that this export **re-signs**, and Xcode's automatic build-number
   management can bump `CFBundleVersion` while doing it: the check on build 19

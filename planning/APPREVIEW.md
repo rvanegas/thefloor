@@ -101,10 +101,8 @@ at, since an account holding nothing shows a reviewer an empty Home.
 Ordinary things that are true today and are cheap to check again, because each
 is the kind that goes stale between a decision and a submission.
 
-- **`aps-environment` is `production` in the exported IPA.** Not the archive and
-  not the entitlements file — the three disagree by design. The `xcodebuild
-  -exportArchive` recipe is in AGENTS.md and has been run for builds 14–23; run
-  it once more for whatever build is submitted.
+- ~~**`aps-environment` is `production` in the exported IPA.**~~ Done for build
+  36, which is the one to submit. Redo it only if another build is made.
 - **`supportsTablet: false`,** so App Review does not open a phone layout on an
   iPad and file what it finds.
 - **The review account holds demo data and nothing real**, since its code is
@@ -222,9 +220,10 @@ by a different form.
 writes if they cannot get in. Use an address somebody actually reads during the
 review, not `noreply@`.
 
-**The build.** Uploaded by `bin/release-ios` and selected against the version in
-App Store Connect. It must be a build that contains account deletion — 35 does
-not; the next one will.
+**The build. It is 36**, uploaded 2026-08-14 and the first containing account
+deletion, the privacy link and a server serving `/support`. Select it against
+the version in App Store Connect. Nothing earlier can be submitted: in build 35
+the Delete account button does not exist.
 
 **Release: manual.** So the approval and the release are two decisions rather
 than one, and a server that needs `KOFI_URL` or the review credentials changed
