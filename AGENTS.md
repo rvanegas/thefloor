@@ -15,6 +15,14 @@ roadmap: features that are wanted, at a paragraph each.
 The rest are temporary, and say so in their own first lines. Designs for
 unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
 deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
+**`planning/DEMO-ACCOUNT.md`** is temporary in the same way, and narrower: the
+two accounts App Review signs in as, why there are two rather than one, and the
+order they have to be torn down in afterwards. Read it before deleting them, or
+before touching `REVIEW_IDENTIFIER` / `REVIEW_CODE` on the box — unsetting those
+before the accounts are gone is how the rows become unreachable. The credentials
+are not in it; they are in `~/.config/thefloor/demo-account.txt`, mode 600, on
+the same reasoning as the `.p8` keys.
+
 Two are one-offs that stay. **`planning/POSTMORTEM-echo.md`** is the build 17
 echo bug, start to finish. Read it before touching the iOS audio session —
 three separate components configure it and the ways they disagree are not
