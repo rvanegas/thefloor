@@ -44,6 +44,20 @@ describe('The privacy policy', () => {
     expect(page).toContain('Ko-fi');
   });
 
+  it('says account deletion happens in the app, and what it leaves behind', async () => {
+    // This page promised deletion by writing to a support address until the
+    // route existed, which is the arrangement Guideline 5.1.1(v) was written to
+    // end. Asserted here because a page making a claim about a feature is one
+    // that goes stale the moment the feature moves.
+    app = buildApp({ dbPath: ':memory:', contactEmail: 'hello@example.com' });
+    const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+
+    expect(page).toContain('deleted from inside the application');
+    // And the part that is not obvious: a channel is not yours to take with
+    // you, and the recordings made in one belong to it.
+    expect(page).toContain('carry on without you');
+  });
+
   it('names a contact address when there is one', async () => {
     app = buildApp({ dbPath: ':memory:', contactEmail: 'hello@example.com' });
     const page = (await fetchPolicy()).body;

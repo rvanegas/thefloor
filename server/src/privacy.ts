@@ -12,6 +12,8 @@
  * version of this document worth having.
  */
 
+import { escapeHtml, page } from './html';
+
 /**
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
@@ -31,30 +33,11 @@ export function privacyPage(contactEmail?: string): string {
     ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>`
     : 'the support address on the app’s App Store listing';
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy — The Floor</title>
-<style>
-  :root { color-scheme: light dark; }
-  body {
-    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 38rem; margin: 0 auto; padding: 2rem 1.25rem 4rem;
-  }
-  h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
-  h2 { font-size: 1.1rem; margin-top: 2rem; }
-  .updated { color: #6b7280; margin-top: 0; }
-  ul { padding-left: 1.25rem; }
-  li { margin: 0.4rem 0; }
-</style>
-</head>
-<body>
-
-<h1>Privacy</h1>
-<p class="updated">The Floor · last updated ${PRIVACY_UPDATED}</p>
-
+  return page({
+    title: 'Privacy — The Floor',
+    heading: 'Privacy',
+    standfirst: `The Floor · last updated ${PRIVACY_UPDATED}`,
+    body: `
 <p>The Floor is a small application for talking with people you know. This
 page says what it stores, why, and for how long. It is short because the
 application collects little.</p>
@@ -97,8 +80,18 @@ contacts in The Floor are people who have accepted a request inside it.</p>
 <p>Deleting a recording or a channel marks it immediately: it disappears for
 everyone at once and can no longer be played or exported. The underlying data
 is removed about ${RETENTION_DAYS} days later, so that a deletion made by
-mistake can be recovered by asking. To delete your account and everything in it,
-write to ${contact}.</p>
+mistake can be recovered by asking.</p>
+
+<p><strong>Your account is deleted from inside the application</strong>, under
+Settings, and it happens immediately. Your address, your name, what you wrote
+about yourself, your contacts and every sign-in are removed. You are taken out
+of every channel you were in: channels you shared with other people carry on
+without you, since they are those people’s conversations too, and channels you
+were the last member of are deleted with everything recorded in them. Recordings
+made in a channel that other people are still in stay with that channel, along
+with the name you had when each one was made — they are other people’s copies of
+a conversation they were in, and they are not ours to take away. Nothing that
+remains identifies you or can be signed in to.</p>
 
 <h2>Donations</h2>
 <p>Donating is entirely optional and unlocks nothing — the application behaves
@@ -107,7 +100,9 @@ own site, under their own privacy policy; The Floor never sees your card. Ko-fi
 tells this server the email address, name and amount of each donation, which is
 recorded so that a donation can be attributed to your account. If you pay with a
 different address than you signed in with, the donation is simply not connected
-to you.</p>
+to you. Deleting your account disconnects any donation from it; the record of
+the payment itself stays, with Ko-fi and here, because it is money that changed
+hands rather than something about you.</p>
 
 <h2>Who else can see any of it</h2>
 <p>Amazon Web Services stores the recordings and sends the sign-in emails. Apple
@@ -131,25 +126,8 @@ under 13.</p>
 changes too.</p>
 
 <h2>Getting in touch</h2>
-<p>Questions, or a request to delete your account: ${contact}.</p>
-
-</body>
-</html>
-`;
-}
-
-/**
- * Escapes the one value interpolated into the page above.
- *
- * It comes from this server's own configuration rather than from a user, so
- * this is belt-and-braces — but a contact address is exactly the kind of value
- * that gets moved to a database field later, and the escaping should already be
- * there when it does.
- */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+<p>Questions, or anything deleting your account in Settings did not settle:
+${contact}. There is a <a href="/support">support page</a> too.</p>
+`,
+  });
 }
