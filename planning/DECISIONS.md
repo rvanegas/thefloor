@@ -670,6 +670,53 @@ still lists like any other.
 
 ---
 
+## `pending_invites.identifier` stays an identifier, and is now checked
+
+Settled 2026-08-15, from a roadmap question asking whether the column should
+hold an account id or an email instead.
+
+**An account id is impossible by construction.** The table exists for exactly
+the case where no account exists. Storing the request either way is what stops
+the interface answering whether an address is registered here — a real request
+producing a row and an imaginary one producing nothing is a membership oracle
+anyone can query one guess at a time. The comment above the table in `db.ts`
+carries the full reasoning and is the thing to read before changing any of it.
+
+**It is already the email**, under the name this codebase gives a sign-in
+address everywhere else: `accounts.identifier`, `otp_codes.identifier`, and the
+bodies of `/auth/request-code` and `/contacts/request`. Renaming it to `email`
+would make one table disagree with the rest, break the resolution join in
+`resolveInvitesFor` against `accounts.identifier`, and decide against a phone
+number ever being an identifier — which the design still reserves.
+
+What the question did surface is a real gap. `/auth/request-code` validates
+with `isEmailAddress`; `/contacts/request` validated nothing, and passed the
+raw string to `requestContact`, which wrote it to `pending_invites` verbatim
+whenever no account matched. So `bob`, a sentence, or ten kilobytes of text
+became a row that can never resolve — signing up requires an address — and that
+nothing removes: the only deletions are on resolution and on erase, and there
+is no sweep.
+
+The check added is `isPlausibleIdentifier`, and it is **deliberately wider than
+sign-in's**. Email-only was written first and broke twenty-two tests, which was
+the useful part: contact requests are made to phone numbers throughout the
+suite. "Is this an address" and "can a code be mailed to this" are different
+questions, and answering the first with the second would settle the SMS
+question from the one place with no stake in it. So it accepts an email or a
+phone shape, caps length at 254, and rejects nothing else.
+
+**Shape only, never existence.** Refusing a well-formed address because no
+account holds it would reopen the enumeration hole the table was built to
+close. The two checks must not be allowed to merge.
+
+**`/contacts/withdraw` is left unvalidated, on purpose.** Rows written before
+this hold identifiers that would not pass, and withdrawal is the only thing
+that can remove one — validating there would make exactly those rows permanent,
+which is the problem rather than the fix. Nothing is exposed by the asymmetry:
+withdrawal only ever deletes a row whose `requester_id` is already the caller's.
+
+---
+
 ## The deploy history
 
 Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and

@@ -383,6 +383,71 @@ describe('contacts', () => {
     expect(again.statusCode).toBe(400);
   });
 
+  /**
+   * A request to an address with no account is stored under that address as a
+   * primary key and nothing ever sweeps the table, so an identifier that could
+   * not name a person is a row that is both permanent and unreachable.
+   */
+  it('refuses a request to something that is not an address', async () => {
+    const alice = await signIn('+15550000001', 'Alice');
+
+    for (const identifier of ['bob', '   ', 'not an address', 'x'.repeat(300)]) {
+      const refused = await app.fastify.inject({
+        method: 'POST',
+        url: '/contacts/request',
+        headers: auth(alice.token),
+        payload: { identifier },
+      });
+      expect(refused.statusCode).toBe(400);
+    }
+
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(0);
+  });
+
+  /**
+   * Sign-in is email-only today, but a phone number is the identifier the
+   * design reserves next and inviting one has to keep working — the check on
+   * the way in is about shape, not about which transport exists yet.
+   */
+  it('accepts a request to a phone number with no account', async () => {
+    const alice = await signIn('+15550000001', 'Alice');
+
+    const sent = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: '+15550000009' },
+    });
+    expect(sent.statusCode).toBe(200);
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(1);
+  });
+
+  /**
+   * Withdrawal is deliberately not validated the same way. Rows predating the
+   * check hold identifiers that would not pass it, and withdrawing is the only
+   * thing that can remove one — so validating here would make exactly those
+   * rows permanent, which is the problem rather than the fix.
+   */
+  it('still withdraws an invite whose identifier would now be refused', async () => {
+    const alice = await signIn('+15550000001', 'Alice');
+
+    app.db
+      .prepare(
+        'INSERT INTO pending_invites (requester_id, identifier, created_at) VALUES (?, ?, ?)'
+      )
+      .run(alice.account.id, 'bob', 0);
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(1);
+
+    const withdrawn = await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/withdraw',
+      headers: auth(alice.token),
+      payload: { identifier: 'bob' },
+    });
+    expect(withdrawn.statusCode).toBe(200);
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(0);
+  });
+
   it('withdraws a pending request to a real account, and only its own', async () => {
     const alice = await signIn('+15550000001', 'Alice');
     const bob = await signIn('+15550000002', 'Bob');
