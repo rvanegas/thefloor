@@ -194,9 +194,14 @@ reasoning is in planning/DECISIONS.md; these are the rules.
 
 - **`master` is trunk and is the only thing deployed.** Work on short-lived
   branches, merge back. There is no develop branch and no release branches.
-- **"Land it" means merge and clean up, in one phrase.** Get the branch onto
-  `master`, remove the worktree if the work was done in one, delete the branch
-  locally and on the origin. Fast-forward when it is possible; when the branch
+- **"Land it" means merge, push and clean up, in one phrase.** Get the branch
+  onto `master`, **push `master` to the origin**, remove the worktree if the
+  work was done in one, delete the branch locally and on the origin. The push
+  is not optional and is the step that gets skipped: a change that has landed
+  only on one machine is one that every other checkout, and any `bin/deploy`
+  run from one, silently does not have — and since `bin/deploy` rsyncs the
+  working tree rather than a ref, the box can be running it while the origin
+  has never heard of it. Fast-forward when it is possible; when the branch
   has fallen behind, rebase onto `master` and fast-forward that. **Rebase only
   while nobody else has the branch** — it rewrites commits that are already
   pushed, so it needs a force-push, which is harmless for a branch one session
