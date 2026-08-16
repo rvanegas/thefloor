@@ -15,7 +15,7 @@ import { ChannelView } from '../ChannelView';
 import { ProfileView } from '../ProfileView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
-import { StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { colors } from '../theme';
 
 /**
@@ -622,6 +622,29 @@ describe('Channel', () => {
     expect(textOf(tree)).toContain('Channel gone');
     expect(textOf(tree)).not.toContain('Loading channel');
     expect(findButton(tree, 'Back to home')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The rename field lives in this screen's scroll view, and a bare
+   * `ScrollView` does not shrink when the keyboard opens: the field ends up
+   * underneath it with nothing to scroll to, because the space is there and is
+   * merely covered. Every other screen goes through `Screen` for exactly this,
+   * and this one hand-rolled its own scroll view and did not — so renaming a
+   * recording on a handset meant typing into a field nobody could see.
+   *
+   * Asserted on the wrapper rather than on `Screen` itself, because what has to
+   * hold is the behaviour rather than which component supplies it.
+   */
+  it('keeps its scroll view inside a keyboard-avoiding wrapper', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(tree.root.findAll((n) => n.type === KeyboardAvoidingView)).toHaveLength(1);
     act(() => tree.unmount());
   });
 

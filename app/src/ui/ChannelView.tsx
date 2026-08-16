@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -40,6 +39,7 @@ import {
   Card,
   Empty,
   RecordingRow,
+  Screen,
   SectionLabel,
 } from './components';
 import { ago } from './relativeTime';
@@ -213,8 +213,7 @@ export function ChannelView({
   };
 
   return (
-    <View style={styles.root}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+    <Screen contentStyle={styles.container}>
         {recordingLive ? (
           <View style={styles.recordingIndicator}>
             <View
@@ -673,8 +672,7 @@ export function ChannelView({
             ))}
           </View>
         )}
-      </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
@@ -894,7 +892,6 @@ function audioTone(status: string) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
   audioMuted: { ...type.muted, color: colors.textFaint },
   audioBad: { ...type.muted, color: colors.danger },
   otherName: { flexShrink: 1, fontSize: 24, fontWeight: '700', color: colors.text },
@@ -906,7 +903,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontStyle: 'italic',
   },
-  scroll: { flex: 1 },
   container: { padding: spacing(2), paddingBottom: spacing(2) },
   centered: {
     flex: 1,
