@@ -158,6 +158,14 @@ plausibly implicated in AEC failures, and it appears in both configurations.
 But the echo stopped under a configuration that carries it. It stays, and other
 apps keep playing.
 
+> **2026-08-16: it no longer stays, and this paragraph's first half is still
+> true.** `mixWithOthers` came off `CALL`, and off the new `LISTENING`, for the
+> "Other Audio Output" work — so that a conversation pauses whatever else is
+> playing, which is the whole point of that change. It did not leave because it
+> was ever implicated in the echo; it was not, and the reasoning above is why
+> that suspicion was dropped. It is still on `IDLE`, so an empty channel still
+> leaves other apps alone. See `DECISIONS.md`.
+
 ---
 
 ## What was changed
@@ -169,6 +177,10 @@ change; the deployed server was already correct.
 The two states, `PLAYBACK_ONLY` and `CALL`, as exported constants. Given the
 three writers, the only survivable arrangement is that everything we control
 writes identical values.
+
+*`PLAYBACK_ONLY` is called `IDLE` since 2026-08-16, when a third state joined
+it; the rest of this section reads as it was written. Everything below about
+ordering and about `stopMicTrackOnMute` is unchanged and still load-bearing.*
 
 **2. `CALL` is the SDK's own recording configuration.** Build 18 added
 `defaultToSpeaker` to it, to stop the earpiece — see

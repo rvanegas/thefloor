@@ -5,10 +5,6 @@ These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out, which is why this is not called FEATURES. There
 are more in BACKLOG.md.
 
-## Other Audio Output
-
-A playing audio in some other app should be paused when audio activity, in or out, in The Floor begins.
-
 ## Notify Channel Member
 
 Ping specific member with a notification with specific text. Limited char count.

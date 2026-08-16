@@ -1294,6 +1294,88 @@ find that out.
 
 ---
 
+## The audio session has three states, and only one of them mixes
+
+2026-08-16, for the "Other Audio Output" task: *audio playing in some other app
+should be paused when audio activity, in or out, in The Floor begins.*
+
+It never was. Both configurations in `app/src/audio/session.ts` carried
+`mixWithOthers`, deliberately — a podcast played straight through a
+conversation. Taking it off both would have been one line, and would have been
+wrong: `micNeeded.ts` argues at length that "being in an empty channel should
+cost the speakers nothing", and a session is taken the moment you are present
+in an active channel, so a two-state fix stops somebody's music while they sit
+alone waiting for anybody to arrive.
+
+So the boundary is **audio activity, not presence**, and it needs a state that
+did not exist: playout that is exclusive. Three states, in that file:
+
+| | category | options | when |
+| --- | --- | --- | --- |
+| `IDLE` | `playback` | `mixWithOthers` | connected, alone, nothing audible |
+| `LISTENING` | `playback` | — | something audible, microphone closed |
+| `CALL` | `playAndRecord` | routes, `defaultToSpeaker` | microphone capturing |
+
+**`othersAudible` turned out to be exactly the right signal, already computed.**
+It is a set of identities maintained on `TrackSubscribed`/`TrackUnsubscribed`,
+which means it counts a recording being played into the room — the server
+publishes that as an ordinary participant track — and, because the room is
+built with `stopMicTrackOnMute: true`, does *not* count somebody present who is
+self-muted and therefore silent. Both are the behaviour wanted, and neither was
+designed for it. What was **not** used is `speaking`: that is smoothed live
+speech, and following it would reconfigure the session at every pause in a
+sentence.
+
+### Breaking the postmortem's rule on purpose, in one direction
+
+`POSTMORTEM-echo.md` is emphatic that three writers mutate one process-wide
+configuration and that this is survivable only because they all write the same
+values. `setupIOSAudioManagement` takes two — a recording value and a playout
+value — and there are now three.
+
+The break is real and it is asymmetric. `index.ts` hands the observer `IDLE`,
+the **mixing** playout value. So a write nobody asked for, firing on some
+engine transition while the session is `LISTENING`, can only ever let another
+app back in — an audible nuisance, and recoverable at the next edge. Handing it
+`LISTENING` instead would have made the same unasked-for write *silence
+somebody's music while they sat alone*, from an event nothing reports. Same
+rule broken either way; only one of the two failures is one you would ever want
+to have.
+
+The microphone ordering from that postmortem is untouched, and that was a
+constraint on the design rather than an accident: the new distinction is only
+ever between two *closed* states, so nothing about "a call before capture
+starts, and until capture has stopped" moves. `useSessionAudio`'s one effect
+now owns the configuration outright, with a ref holding what was last applied
+— a second effect watching the audible count would have raced the first at
+exactly the moment both change, since somebody arriving both makes a track
+audible and, through `micNeeded`, opens the microphone.
+
+### `mixWithOthers` left `CALL`, and not for the reason it was once suspected
+
+It was a live suspicion during the echo hunt and was cleared: the echo stopped
+under a configuration carrying it. It comes off now because a call is audio
+activity by definition. Nothing about the echo canceller (`videoChat`), the
+Bluetooth eligibility list or `defaultToSpeaker` depends on it.
+
+### Other apps stay paused when you leave
+
+`AudioSession.stopAudioSession()` is `session.setActive(false)` with no
+`notifyOthersOnDeactivation`, so iOS never tells the interrupted app it may
+resume. Considered and not built: making it resume means an app-owned native
+module deactivating the same session the postmortem is about, for a user who
+can press play. If it turns out to annoy people, that is the change.
+
+**The one thing to confirm on a device**, because iOS does not document it
+usefully: establishing exclusivity at *activation* is reliable, but the
+`IDLE` → `LISTENING` edge changes category options on a session that is
+already active. If another app plays on through it, the fallback is to bracket
+that one edge — microphone closed, so no capture is disturbed — with
+`stopAudioSession()` then `startAudioSession()`, at the cost of a brief gap in
+playout. Not adopted pre-emptively.
+
+---
+
 ## The deploy history
 
 Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and

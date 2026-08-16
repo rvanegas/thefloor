@@ -317,6 +317,29 @@ receiver. That is a want the default cannot infer.
 
 ---
 
+## Nobody has heard the `IDLE` → `LISTENING` edge on a device
+
+Shipped 2026-08-16 with the "Other Audio Output" work, and this is the one part
+of it that reasoning cannot settle. The session becomes exclusive by dropping
+`mixWithOthers`, which reliably interrupts another app *when the session is
+activated*. That edge does not activate anything: it changes category options
+on a session that is already active, because a track arrived. iOS does not
+document whether that interrupts.
+
+So the thing to listen for is music playing on through somebody starting to
+talk — while an empty channel still leaves it alone, which is the half that is
+certainly right. **The fallback is written down and deliberately not adopted
+yet**: bracket that one edge with `stopAudioSession()` then
+`startAudioSession()`, which costs a brief gap in playout and is safe there
+because the microphone is closed. See `DECISIONS.md`, "The audio session has
+three states".
+
+Also unconfirmed on hardware, and cheap to check at the same time: that a
+Bluetooth route survives the microphone opening and closing, which is the
+ground `POSTMORTEM-echo.md` was fought on.
+
+---
+
 ## Donations arrive by webhook alone, and nothing reconciles them
 
 `POST /donations/kofi` is the only writer to the `donations` table. **Ko-fi has no
