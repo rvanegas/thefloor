@@ -927,6 +927,68 @@ button Home leads with.
 
 ---
 
+## `BadDeviceToken` is not a dead address, and pruning on it nearly cost the table
+
+Found and fixed on 2026-08-10, eleven hours after notifications shipped;
+written down here on 2026-08-15, which is the point of the entry. It belongs
+beside **Notifications, and why the server talks to Apple itself** in
+`DECISIONS-2026-08-07-to-2026-08-13.md`, and it is not there because closed
+volumes are never edited. Until now it existed only in the message of commit
+`2d0821c` and in two comments in `push.ts` — which is exactly the failure this
+file's preamble describes: a commit message is read once, by somebody already
+looking at the diff.
+
+The trigger was ordinary. A notification had not arrived, and there was no way
+to find out why, because **the code said nothing either way**. Two separate
+silences, and the second is much worse than the first.
+
+**The notifier sent nothing and did not say so.** There are two ways to send
+nothing — every recipient is already in the app and is being told over the
+socket, and nobody has a registered device — and both produce the same visible
+result as a send that failed outright: no notification, no log line, nothing to
+distinguish them. `app.ts` now logs `push skipped` with which of the two kinds
+of nothing it was, and `push sent` with the count and every non-200 carrying
+Apple's own reason string. Tokens are truncated to eight characters in the log:
+the whole address is in the database if it is ever wanted, and a log line is
+not the place to accumulate every address the server knows.
+
+**The pusher swallowed Apple's refusals.** `send` returned only the tokens it
+judged dead and caught everything else, so APNs could refuse every single
+notification and leave no trace anywhere. It returns a `PushResult` per address
+now — status, Apple's reason, the transport error if the request never
+completed, and whether the row should be forgotten.
+
+**Then the serious one: `400 BadDeviceToken` was being treated as a dead
+address and pruned.** It reads like it should be. It is not. Apple answers it
+both for a token that never existed *and* for a perfectly good token presented
+to the wrong environment — verified against the real service, where production
+accepted a token that sandbox had refused with exactly this. So one wrong
+`APNS_ENV` would have walked the whole `device_tokens` table and forgotten it,
+and every user would have had to relaunch the app before they could be reached
+again. The misconfiguration is a one-line fix; the data it destroys is not
+recoverable from anywhere on this side.
+
+**Only `410 Unregistered` prunes now**, that being the one unambiguous way
+Apple says the install is gone. The rule is `isDeadToken`, a named exported
+function rather than an inline condition, precisely so it can be tested without
+a round trip to Apple — and the test enumerates the refusals that must *not*
+prune: 400, 403 (a rejected provider token), 429 (throttling), 500 (an outage),
+and 0, meaning nothing was reached at all. Every one of those is about the
+sender or the service, never about the address.
+
+The principle is worth stating on its own, because it generalises past push:
+**a misconfiguration should cost delivery until it is fixed, not data.** An
+error that means two things must be read as the harmless one when the harmful
+reading is destructive and irreversible.
+
+This is the `APNS_ENV` trap in AGENTS.md seen from the other side. That entry
+warns that crossing the environments gets you a `BadDeviceToken` naming the
+token and saying nothing about the cause, so the obvious next move is to go
+looking at registration, which is working fine. This is what that same error
+was very nearly allowed to *do* while you were looking in the wrong place.
+
+---
+
 ## The deploy history
 
 Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and
