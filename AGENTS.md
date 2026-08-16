@@ -44,6 +44,11 @@ file until 2026-08-15. Everything only somebody producing an iOS build needs —
 `app.json`'s settings and their reasons, the icon rules that fail at upload,
 `prebuild --clean` dropping the signing team. Read it before `bin/release-ios`.
 
+**`planning/CREDENTIALS.md`** is the second of that kind, split out the same
+day: the seven credentials, where each lives, what it can do and what losing it
+costs. Read it before touching any of them, `bin/provision`,
+`bin/provision-livekit`, or `server/.env`.
+
 The rest are temporary, and say so in their own first lines. Designs for
 unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
 deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
@@ -84,11 +89,15 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 546 now, having been 728 and
-then 650 on 2026-08-15 — the second time by adding the branch conventions to a
-file that was already full, which is what sent the iOS release material to
-`planning/RELEASING.md`. The headroom is about one deploy wide on purpose: each
-new one displaces the last, so the file should sit still rather than climb.
+**Keep it under 650 lines, and nearer 600.** It is 512 now, having been 728,
+then 650, then 600 — all on 2026-08-15, which is also the day this number was
+found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
+the same commit as any change to this file**, or the rule governs against a
+figure nobody has checked: it was claiming 104 lines of headroom when there
+were 50. The two splits it records are the iOS release material to
+`planning/RELEASING.md` and the credentials to `planning/CREDENTIALS.md`. The
+headroom is about one deploy wide on purpose: each new one displaces the last,
+so the file should sit still rather than climb.
 
 When it passes 650, **do not shave the traps.** Almost all of the excess will be
 one of these:
@@ -104,9 +113,10 @@ one of these:
   the account of the afternoon it cost, leaving a pointer.
 
 What earns its place here is what stops somebody losing a day: `APNS_ENV`, the
-three artifacts that disagree about entitlements, `rtc.use_external_ip`, where
-each credential lives and what losing it costs. Those stay verbatim however long
-the file gets — the density of the prose is not the problem, accumulation is.
+three artifacts that disagree about entitlements, `rtc.use_external_ip`, the
+`.p8` keys living outside a tree that `bin/deploy` rsyncs with `--delete`. Those
+stay verbatim however long the file gets — the density of the prose is not the
+problem, accumulation is.
 
 **When the traps alone reach the limit, split thematically rather than shave.**
 Take a subject that a whole class of work never touches, move it to
@@ -114,11 +124,16 @@ Take a subject that a whole class of work never touches, move it to
 and says when to go read it. Nothing is summarised away, and the sessions that
 do not need it stop paying for it — which is the same asymmetry the split from
 `planning/` was for, applied one level in. `planning/RELEASING.md` was the first
-of these and shows the shape: the seam is *who needs it*, not *how old it is*.
+of these and `planning/CREDENTIALS.md` the second, and they show the shape: the
+seam is *who needs it*, not *how old it is*.
+
 A trap that bites outside the subject stays here even when it looks like it
-belongs there — `APNS_ENV` is about push and reads like release material, and it
-costs an afternoon to somebody testing locally who will never open the release
-document.
+belongs there — `APNS_ENV` reads like release material and costs an afternoon to
+somebody testing push locally, and the `.p8` keys sit outside the tree because
+of `bin/deploy`, so that rule is quoted back into `### Credentials`. A trap
+wrapped around material that is staying does not move either:
+`rtc.use_external_ip` is inside `### What is where`, and separating it from the
+inventory would leave it without the thing it is about.
 
 Trimming is not a separate errand. Do it in the same commit as whatever added
 the material, while the judgement about what is durable is still fresh.
@@ -172,14 +187,9 @@ it changes; the app never holds authority over anything.
 
 ## Running the suite
 
-From the repo root, across all three packages:
-
-```bash
-npm test           # core + app + server
-npm run typecheck
-```
-
-Or one at a time: `npm test --prefix core`, `--prefix app`, `--prefix server`.
+`npm test` and `npm run typecheck` from the repo root run all three packages;
+both are `scripts` entries in the root `package.json`, which is where to look
+for the per-package variants rather than here.
 
 The per-behaviour table of which test covers what has been dropped: it
 duplicated the suite and went stale faster than the code did. The tests are the
@@ -326,127 +336,29 @@ second box would need if the media ever splits off this one.
 
 ### Credentials
 
-Seven, deliberately separate, so no single leak is worse than it has to be:
+Seven, deliberately separate, so no single leak is worse than it has to be: the
+self-issued **LiveKit** key that mints join tokens for any room,
+**`thefloor-egress`** (PutObject only), **`thefloor-server`** (SES plus
+recordings `GetObject`, and the configuration-set trap that scopes an SES policy
+wrongly everywhere else), the **APNs `.p8`**, the **App Store Connect key** and
+its Admin-role requirement, and the **Ko-fi verification token**. Where each
+lives, what it can do and what losing it costs are in planning/CREDENTIALS.md.
 
-- **LiveKit** — media. Since 2026-08-13 this is a **self-issued** API key and
-  secret rather than one granted by LiveKit Cloud, generated once with
-  `livekit-server generate-keys`. Being self-issued is what makes it easy to
-  treat casually, and it should not be: it mints join tokens for any room.
+**Read that before touching any credential, `bin/provision`,
+`bin/provision-livekit`, or `server/.env`.** Moved there on 2026-08-15 when this
+file hit its limit a second time: it is needed by somebody provisioning,
+rotating a key or debugging an auth failure, and by nobody writing app or core
+code.
 
-  It lives in exactly three places, all mode 600 and all outside the synced
-  tree — `server/.env` and `/etc/livekit/{livekit,egress}.yaml` on the box, and
-  `~/.config/thefloor/livekit.env` on the development machine, which is what
-  `bin/provision-livekit` reads. That script refuses to run without it rather
-  than generating a pair of its own, on `bin/provision`'s principle that a
-  script which invents credentials is one whose every invocation can leave a
-  different pair behind and a server pointed at the one before it.
-
-  Losing it is recoverable in a way the APNs key is not: generate another and
-  write it to all three, at the cost of invalidating every issued join token at
-  once.
-
-- **`thefloor-egress`** — PutObject only. **It no longer leaves the box, and it
-  should stay exactly this narrow anyway.** The original reason was that it
-  travelled to LiveKit, a third party, so a leak of a key somebody else held
-  could not read anyone's conversations back. Self-hosted, that reason is gone
-  and the scoping is still right: an S3 key that can only add is a smaller
-  blast radius than one that can read or delete, whoever holds it. Widening it
-  would be trading a real property for no gain.
-- **`thefloor-server`** — `ses:SendEmail` on the rvanegas.co identity and
-  `s3:GetObject` on the recordings bucket. Nothing else. Created for this
-  deployment because Lightsail instances get no IAM role, so the default
-  credential chain has nothing to find.
-
-  It also needs the **configuration set** in its resource list, not only the
-  identity. The rvanegas.co identity has `my-first-configuration-set` attached
-  as its default, so SES applies it to every send and checks permission on it —
-  which failed with a message naming a resource nothing in this codebase asks
-  for. Worth knowing before scoping an SES policy anywhere else.
-
-- **APNs auth key** — a `.p8`, team-scoped, valid for both the sandbox and
-  production environments, held by the server so it can sign its own provider
-  JWTs. Apple offers the download **exactly once**; there is no recovery, only
-  revoking the key and creating another.
-
-  It lives at `~/.config/thefloor/AuthKey_<KEYID>.p8`, mode 600, on the box and
-  on the development machine alike — a credential rather than data, which is
-  what separates it from the database in `thefloor-data`.
-
-  What matters more than the convention is that it is **outside the synced
-  tree**: `bin/deploy` rsyncs with `--delete`, so a key inside the tree is one
-  a later deploy removes. `*.p8` is in `.gitignore` and in the deploy excludes,
-  both deliberately.
-
-- **App Store Connect API key** — a second `.p8`, used by `bin/release-ios` to
-  sign and upload without an Apple ID being signed in to Xcode.
-
-  It exists because that dependency broke a release. Build 21 archived cleanly
-  and failed at the upload with `Failed to Use Accounts`: Xcode's account list
-  had emptied overnight, with nobody having signed out and no keychain reset —
-  the certificate and the provisioning profiles were untouched, so only the
-  Apple ID session had gone. A key belongs to the team rather than to a person,
-  is not a session, and does not expire.
-
-  Named `thefloor-release`, after what it does, as `thefloor-egress` and
-  `thefloor-server` are. **Its role must be Admin.** App Manager can upload a
-  build and cannot touch signing assets, so it authenticates and then fails
-  with `Cloud signing permission error` / `No signing certificate "iOS
-  Distribution" found` — this project has no distribution certificate locally,
-  Apple holds it, and fetching it is a signing-asset operation. A key's role is
-  fixed at creation, so getting this wrong means revoking and starting again.
-
-  It lives in **its own directory**, `~/.config/thefloor/asc/`, holding
-  `AuthKey_<KEYID>.p8` and a plain-text `issuer-id`. The directory is the point:
-  the APNs key is an `AuthKey_*.p8` under `~/.config/thefloor` as well, and a
-  glob there matches it first — alphabetically, silently, and with no way to
-  tell the two apart by content, both being ES256 private keys. The script now
-  refuses outright if that directory ever holds more than one key.
-
-  The key id is read from the filename; the issuer id is per-team, so it
-  survives replacing the key. `THEFLOOR_ASC_DIR` and
-  `APP_STORE_CONNECT_ISSUER_ID` override both.
-
-  Generated in App Store Connect under Users and Access → Integrations, and
-  offered for download **once**, like the APNs key. Same reasons for the
-  location: `*.p8` is gitignored and excluded from the deploy, and `bin/deploy`
-  rsyncs with `--delete`, so a key inside the tree is one a later deploy
-  removes.
-
-  Without it the script says so and falls back to the interactive path, which
-  still works whenever somebody is signed in.
-
-- **Ko-fi webhook verification token** — `KOFI_VERIFICATION_TOKEN`, from More →
-  API → Webhooks → Advanced on Ko-fi, matching the webhook URL
-  `https://thefloor.rvanegas.co/donations/kofi`.
-
-  **That URL lives in Ko-fi's dashboard and nowhere in this repository**, so
-  renaming the route means editing it there in the same breath. Nothing retries
-  a 404 into the right place, and Ko-fi has no read API to recover a delivery
-  from — a donation posted at the old path while the dashboard still says
-  `/support/kofi` is simply lost.
-
-  Unlike every other credential here it is a **shared secret sent inside the
-  request body** rather than a signature over it, so it is only safe because
-  Caddy terminates TLS in front of the endpoint. Anyone holding it can write
-  fabricated donations into the database. It is compared with
-  `timingSafeEqual`, never logged, and — since 2026-08-14 — **stripped from the
-  payload before the payload is stored**, because the first implementation kept
-  the request body verbatim and put the secret on every row. See
-  planning/DECISIONS.md.
-
-  Rotating it is cheap and non-destructive: regenerate on Ko-fi, replace the
-  line in `server/.env`, restart. Nothing already recorded depends on it, which
-  is the opposite of the APNs key and worth knowing when deciding how nervous to
-  be.
-
-  It lives at `~/.config/thefloor/kofi-verification-token.txt` on the
-  development machine, mode 600 — outside the synced tree, on the same reasoning
-  as the `.p8` keys.
+One rule from it stays here, because it bites somebody who is merely deploying:
+**both `.p8` keys live outside the synced tree**, under `~/.config/thefloor`,
+because `bin/deploy` rsyncs with `--delete` — a key inside the tree is one a
+later deploy removes. `*.p8` is in `.gitignore` and in the deploy excludes, both
+deliberately.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
-sync so a deploy cannot overwrite it. `KOFI_URL`, `CONTACT_EMAIL` and the
-`REVIEW_*` pair live there too and are settings rather than secrets —
-`server/.env.example` documents every one of them.
+sync so a deploy cannot overwrite it — `server/.env.example` documents every
+line, secret and setting alike.
 
 ### `APNS_ENV` is the setting that will cost you an afternoon
 

@@ -9,7 +9,9 @@ limit. It is loaded into every session before anybody types anything, and none
 of this is needed by somebody working on the server, the reducer or the app's
 behaviour — which is most work. This file is read when a release is being made.
 The traps that bite outside a release stayed behind: `APNS_ENV`, the three
-artifacts that disagree about entitlements, and the credentials.
+artifacts that disagree about entitlements. The credentials a release needs —
+the App Store Connect key and its Admin role, the APNs `.p8` — were split out
+of AGENTS.md the same day and are in CREDENTIALS.md.
 
 **Read this before running `bin/release-ios`.** The branch and tag conventions
 around a release are in AGENTS.md under `## Branches, tags, and what is actually
