@@ -9,7 +9,7 @@ A playing audio in some other app should be paused when audio activity, in or ou
 
 ## Immediate Play and Export
 
-Mixing the file should happen immediately after recording completes, playback and export are immediate.
+Mixing the file should happen immediately after recording completes, so playback and export actions can respond immediately. Until mixing is complete, recording card is not displayed.
 
 ## Notify Channel Member
 
@@ -29,19 +29,19 @@ Self-muting in a channel with other speakers should not disconnect output from b
 
 Regression: Running Zoom client on phone at the same time aggressively holds audio for itself, muting and/or silencing TheFloor.
 
-## Redesign User Cards
-
-In both Home and Channel views, user cards need redeign.
-
 ## Channel Admins
 
 Channels, by default, have no admins or owner. In channel settings, a user can declare himself owner, and then give admin status to others. Certain functions are now available only to admins, and owner who is an admin implicitly.
 
 ## Track Usage
 
-Per user tracking of minutes and timestamps of webrtc usage, minutes and timestamps of media playback including recordings playback, minutes and timestamps of recordings associated to user who initiates the recording, minutes of transcripts requested, GBs of recording egress/exports.
+Per user tracking of minutes and timestamps of webrtc usage, minutes and timestamps of media playback including recordings playback, minutes and timestamps of recordings associated to user who initiates the recording, GBs of recording egress/exports. Also, track minutes and timestamps of conversation shared by pairs of users. This tracking expires if more than one week old. 
 
-Some of this will stay in db. Some will be visible and exportable to users.
+All of this is saved in db.
+
+## Redesign User Cards
+
+In both Home and Channel views, user cards need redeign. Their cards can be horizontally thinner, and include name and time strings on same line. Omit indication of whether there exists a channel already. This information is on the User View. Is that what the source calls it? A User View? Also, do not display all contacts. Only six. If user has more contacts, then after these display a control (with same icon as "start a channel") with label "See All" and opens a new View "Contacts". On both Home View and User View, sort contacts by a key to be determined later.
 
 ## Media Playback quality
 
@@ -76,7 +76,7 @@ Explore scheduling and usage patterns
 A channel owner can gen a link defining the channel as root. Define a user's radiate number relative to a channel as 0 if user is in channel, and 1 + n the minimum radiate number of one's recently connected contacts is n. Recency is defined as having exchanged words in a channel. Having exchanhed words is defined as taking immediate turns in both directions in a channel.
 
 Number is updated lazily when exchange occurs. In User View display radiate number.
-
+n
 ## Build for Android
 
 First evaluate relevant differences and establish dev simulator on mac.
