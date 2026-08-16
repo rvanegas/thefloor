@@ -157,6 +157,20 @@ cat > /tmp/UploadOptions.plist <<PLIST
   <key>signingStyle</key><string>automatic</string>
   <key>destination</key><string>upload</string>
   <key>uploadSymbols</key><true/>
+  <!--
+    Without this, Xcode renumbers the build on the way out. It defaults to YES,
+    it applies at the export that re-signs for distribution, and it is silent:
+    build 43 was archived carrying CFBundleVersion 43 and arrived in TestFlight
+    as 44. Everything downstream then names a binary that does not exist — the
+    bump commit, the build/<n> tag, and app.json, which is left a number behind
+    what Apple holds and so bumps straight into a taken number on the next
+    release.
+
+    Apple's reason for the default is to spare you a refused upload when the
+    number is already used. That is worth less here than the numbers agreeing,
+    since bin/release-ios owns the number and increments it itself.
+  -->
+  <key>manageAppVersionAndBuildNumber</key><false/>
 </dict></plist>
 PLIST
 

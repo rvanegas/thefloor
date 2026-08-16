@@ -98,21 +98,28 @@ writing it back before it prebuilds. Bumping it by hand first is not an error
 Apple will complain about, but it skips a number: doing both is what turned 23
 into 25 and left build 24 never existing.
 
-**And what Apple receives can be one higher than what was archived.** The export
-that uploads re-signs, and Xcode's automatic build-number management can bump
-`CFBundleVersion` while it does — so build 43 was archived on 2026-08-16 with
-`CFBundleVersion` 43 in `/tmp/thefloor.xcarchive/Info.plist` and appeared in
-TestFlight as **44**. AGENTS.md already records this happening to the local
-entitlement check, where it does not matter because that copy is never uploaded.
-On the upload it matters twice: the `build/<n>` tag names a binary by a number
-the binary does not carry, and `app.json` is left a number behind what Apple
-holds, so the *next* release bumps into a build number already taken and the
-upload is refused.
+**What Apple receives used to be one higher than what was archived, and the
+fix is one line in the export options.** `manageAppVersionAndBuildNumber`
+defaults to **YES**, and at the export that re-signs for distribution it
+renumbers the build silently: build 43 was archived on 2026-08-16 carrying
+`CFBundleVersion` 43 in `/tmp/thefloor.xcarchive/Info.plist` and arrived in
+TestFlight as **44**. Everything downstream then named a binary that did not
+exist — the bump commit, the `build/<n>` tag, and `app.json`, left a number
+behind what Apple held and so bumping into a taken number on the next release.
 
-**After an upload, read the number off TestFlight and make `app.json` match it**
-— not the archive, and not what the script echoed. The tag is the thing that
-cannot be corrected afterwards; treat it as naming the commit rather than the
-binary.
+`bin/release-ios` now passes it as `false`, because this script owns the build
+number and increments it itself; Apple's default exists to spare you a refused
+upload when the number is already used, which is worth less than the numbers
+agreeing. **Builds up to 44 predate that**, so their tags and commits are off by
+one against App Store Connect and cannot be corrected — read a tag from that
+era as naming the commit rather than the binary. From 45 on, the archive, the
+tag, `app.json` and TestFlight should all say the same thing. **Check that on
+the next upload rather than assuming it**, since this has only been reasoned
+about and not yet observed working.
+
+The same key would settle the entitlement check in AGENTS.md, whose note about
+build 19 producing an IPA reading 20 is this behaviour seen where it is
+harmless, the checked copy never being uploaded.
 
 ---
 
