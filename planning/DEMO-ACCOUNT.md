@@ -59,7 +59,16 @@ Do these in this order. The order is the whole point of writing this down.
 that route.
 
 **2. Delete both accounts.** With the tokens from
-`~/.config/thefloor/demo-account.txt`:
+`~/.config/thefloor/demo-account.txt` — **but check they still work first.**
+Both stored tokens were found dead on 2026-08-16, two days after issue and 88
+days before they expire, so something revoked them rather than time doing it;
+a sign-out is the likeliest cause and `POST /auth/sign-out` revoking the token
+it is called with is documented below. `curl -H "authorization: Bearer $TOKEN"
+https://thefloor.rvanegas.co/home` answers 200 or 401 and settles it. A dead
+token is recoverable **only while the bypass is still configured** — sign in
+again with `REVIEW_IDENTIFIER`/`REVIEW_CODE`, or with the flip below for Sam,
+and write the new tokens into the file. That is why this step comes before
+step 3 and not after.
 
     curl -X DELETE https://thefloor.rvanegas.co/me \
       -H "authorization: Bearer $DEMO_TOKEN"
