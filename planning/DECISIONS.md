@@ -864,6 +864,103 @@ before they generate an icon.
 
 ---
 
+## An invitation becomes a message, and the phone number goes with it
+
+Built 2026-08-15. Until this, adding a contact by an address nobody held wrote
+a `pending_invites` row and did nothing else. Nobody was told. The invited
+person had to hear about The Floor by some other means, install it, sign up
+with that same address, and only then discover somebody had been waiting for
+them — a feature that worked exactly as designed and could not do the one thing
+its name promises. `/contacts/request` now sends them an email.
+
+**This reverses the transport half of `pending_invites.identifier` stays an
+identifier, and is now checked**, three sections above, which chose
+`isPlausibleIdentifier` — email *or* phone shape — over sign-in's email-only
+test. That reasoning was right on its premise and the premise moved. It held
+that "is this an address" and "can a code be mailed to this" are different
+questions, and that answering the first with the second would settle the SMS
+question from the one place with no stake in it. Once an invitation is a message
+rather than a row, they are the same question: an address this server cannot
+send to is an invitation nobody receives and a request its recipient never
+learns about. The route validates with `isEmailAddress` now.
+
+**`isPhoneNumber` and `isPlausibleIdentifier` are kept, unreachable.** Nothing
+in `src/` calls either. The argument that put them there still applies the day
+there is an SMS transport, at which point `Mailer` grows a sibling and the
+route's check goes back to the wider one; deleting them now would only mean
+writing the same two regexes back. `mail.ts` carries a comment saying so, which
+is the thing that stops a later reader treating dead code as an oversight.
+
+**The row and the email stand or fall together.** A failed send withdraws the
+invite rather than leaving it. Leaving it would show the sender a pending
+request, answer every retry with `Request already sent.` — the duplicate guard
+firing on a row nobody was told about — and never reach anybody. That is the one
+state the mistake cannot be corrected from, and `withdrawRequest` already does
+exactly the deletion needed.
+
+**What was given up, knowingly: a timing oracle.** The route's whole shape
+exists to refuse the question *does this address have an account* — see the
+comment above the table in `db.ts`. The response body still refuses it; the
+latency no longer does, because only the no-account path now waits on SES. It
+was accepted because telling a sender their invitation failed is worth more than
+closing a channel a determined prober could read from the app's own behaviour
+anyway. The alternative — sending detached, after the reply — buys the timing
+back and costs the failure report, which is the wrong trade.
+
+**The invitation names the sender and not their address.** A display name is
+what the app would have shown; an address is theirs to give out rather than
+ours, and mailing it would make the contact field a way to hand your address to
+a stranger who never agreed to receive it. Two properties are tested rather than
+left to the prose: attribution in the first line, because an unattributed
+invitation is indistinguishable from spam, and a promise that ignoring it is
+enough — true, since the request resolves only on sign-up and is swept at
+`INVITE_TTL_MS` otherwise.
+
+**`INSTALL_URL` is null until there is a store page.** The body drops the link
+line and says the app is not out yet rather than naming a URL that 404s: the
+first reads as an app that has not shipped, the second as one that is broken.
+
+The suite's cost was the mirror of last time's. Email-only broke twenty-two
+tests when it was tried before, because contact requests were made to phone
+numbers throughout; the identifiers in `server.test.ts` and `ws.test.ts` are now
+`userN@example.com`, and those two files needed a `MemoryMailer` they had never
+had, since inviting a stranger is no longer something a mailer-less server can
+do.
+
+### A display name is not an identifier, and `contactsFor` will keep suggesting it is
+
+Asked the same day, on a reading that `/contacts/request` had been meant to
+accept a display name as well as an address. It never did: `byIdentifier` is
+`WHERE identifier = ?`, nothing in the server queries `display_name` at all, and
+the oldest placeholder in the history is "Search by phone number or email".
+The permissive version accepted `bob` because it validated nothing, which is the
+bug the section three above was written about rather than an intention.
+
+**What invites the reading is real, and is not going away.** `contactsFor`
+renders an outgoing request as `{ id: '', displayName: account.identifier }` —
+the address deliberately placed in the name slot, because that row is an address
+and not yet a person. Anyone reading that line without the comment under it will
+conclude the two are interchangeable. They are opposites: the substitution
+exists precisely to avoid revealing whether anybody is behind the address.
+
+**Adding somebody by name already works, by the other route.** You reach it by
+tapping a person in a channel roster — `ProfileView` → `POST /contacts/:id/request`
+→ `requestContactById`, whose docstring has always said this is for somebody
+whose name you know and whose address you do not. The name is on the screen and
+the id comes with it, so nothing has to be typed and nothing has to be matched.
+
+**Typed name lookup was considered and declined.** `display_name` is `NOT NULL`
+and deliberately not `UNIQUE`, so a name identifies nobody on its own — two
+people may both be Dana Chu, and a request has to land on exactly one account.
+Searching every account by name is also the enumeration surface `pending_invites`
+was built to close, arrived at from the other direction: an address lookup that
+refuses to say whether anybody is there, beside a name lookup that lists everyone,
+is not a boundary. If it is ever wanted, the shape that costs nothing is a search
+restricted to people you already share a channel with — who are, by construction,
+people you can already see.
+
+---
+
 ## Starting a channel asks nobody anything
 
 Shipped 2026-08-15, from FEATURES.md. Home's way into a channel was a mode: a

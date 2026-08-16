@@ -6,6 +6,7 @@ import {
 } from '../../core/constants';
 import { OTP_RESEND_INTERVAL_MS } from '../src/accounts';
 import type { ClientMessage, ServerMessage } from '../../core/protocol';
+import { MemoryMailer } from '../src/mail';
 
 /**
  * These drive a real socket against a listening server. The HTTP tests use
@@ -19,7 +20,8 @@ let clock = 1_700_000_000_000;
 
 beforeEach(async () => {
   clock = 1_700_000_000_000;
-  app = buildApp({ dbPath: ':memory:', now: () => clock });
+  // Inviting an address with no account needs a transport — see server.test.ts.
+  app = buildApp({ dbPath: ':memory:', mailer: new MemoryMailer(), now: () => clock });
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const address = app.fastify.server.address();
   if (typeof address === 'string' || address === null) throw new Error('no port');
@@ -101,13 +103,13 @@ async function signIn(identifier: string, displayName?: string) {
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
 async function pairInSession() {
-  const alice = await signIn('+15550000001', 'Alice');
-  const bob = await signIn('+15550000002', 'Bob');
+  const alice = await signIn('user1@example.com', 'Alice');
+  const bob = await signIn('user2@example.com', 'Bob');
   await app.fastify.inject({
     method: 'POST',
     url: '/contacts/request',
     headers: auth(alice.token),
-    payload: { identifier: '+15550000002' },
+    payload: { identifier: 'user2@example.com' },
   });
   await app.fastify.inject({
     method: 'POST',
@@ -126,7 +128,7 @@ async function pairInSession() {
 
 describe('websocket', () => {
   it('completes the upgrade and greets an authenticated client', async () => {
-    const { token, account } = await signIn('+15550000001', 'Alice');
+    const { token, account } = await signIn('user1@example.com', 'Alice');
     const client = new Client(token, baseUrl);
     await client.open();
     const hello = await client.next('hello');
@@ -159,8 +161,8 @@ describe('websocket', () => {
     // Found by hand on two simulators: contact changes arrive over HTTP, and
     // nothing told the recipient's socket, so a request never appeared until
     // they happened to reload.
-    const alice = await signIn('+15550000001', 'Alice');
-    const bob = await signIn('+15550000002', 'Bob');
+    const alice = await signIn('user1@example.com', 'Alice');
+    const bob = await signIn('user2@example.com', 'Bob');
 
     const bobClient = new Client(bob.token, baseUrl);
     await bobClient.open();
@@ -171,7 +173,7 @@ describe('websocket', () => {
       method: 'POST',
       url: '/contacts/request',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
 
     const home = await bobClient.next(
@@ -186,8 +188,8 @@ describe('websocket', () => {
   });
 
   it('pushes an acceptance back to the requester', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
-    const bob = await signIn('+15550000002', 'Bob');
+    const alice = await signIn('user1@example.com', 'Alice');
+    const bob = await signIn('user2@example.com', 'Bob');
 
     const aliceClient = new Client(alice.token, baseUrl);
     await aliceClient.open();
@@ -198,7 +200,7 @@ describe('websocket', () => {
       method: 'POST',
       url: '/contacts/request',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
     await app.fastify.inject({
       method: 'POST',
@@ -238,7 +240,7 @@ describe('websocket', () => {
 
   it('refuses an action from someone outside the channel', async () => {
     const { channelId } = await pairInSession();
-    const mallory = await signIn('+15559999999', 'Mallory');
+    const mallory = await signIn('user9999999@example.com', 'Mallory');
     const m = new Client(mallory.token, baseUrl);
     await m.open();
 
@@ -254,7 +256,7 @@ describe('websocket', () => {
   });
 
   it('answers a heartbeat', async () => {
-    const { token } = await signIn('+15550000001', 'Alice');
+    const { token } = await signIn('user1@example.com', 'Alice');
     const client = new Client(token, baseUrl);
     await client.open();
     await client.next('hello');
@@ -458,8 +460,8 @@ describe('websocket', () => {
    * holder may no longer have.
    */
   it('closes a socket whose token was revoked by a sign-in elsewhere', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
-    const bob = await signIn('+15550000002', 'Bob');
+    const alice = await signIn('user1@example.com', 'Alice');
+    const bob = await signIn('user2@example.com', 'Bob');
 
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
@@ -473,13 +475,13 @@ describe('websocket', () => {
     // shared clock instead would trip the heartbeat timeout and close both
     // sockets for staleness, which is the other sweep entirely.
     const secondCode = app.accounts.issueCode(
-      '+15550000001',
+      'user1@example.com',
       clock + OTP_RESEND_INTERVAL_MS + 1_000
     )!;
     await app.fastify.inject({
       method: 'POST',
       url: '/auth/verify',
-      payload: { identifier: '+15550000001', code: secondCode },
+      payload: { identifier: 'user1@example.com', code: secondCode },
     });
 
     // The sweep runs on a real interval, so this waits rather than steps.
@@ -550,12 +552,12 @@ describe('websocket', () => {
       // An outgoing request is an address, not a person. Whether anybody is
       // behind it is exactly what that row must not disclose — a last-seen
       // time would answer it.
-      const alice = await signIn('+15550000001', 'Alice');
+      const alice = await signIn('user1@example.com', 'Alice');
       await app.fastify.inject({
         method: 'POST',
         url: '/contacts/request',
         headers: auth(alice.token),
-        payload: { identifier: '+15550000009' },
+        payload: { identifier: 'user9@example.com' },
       });
       const [outgoing] = app.accounts.contactsFor(alice.account.id);
       expect(outgoing.status).toBe('outgoing');

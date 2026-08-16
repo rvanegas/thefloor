@@ -14,7 +14,7 @@ import { openDb, type AccountRow, type Db, type RecordingRow } from './db';
 import { Devices, type DevicePlatform } from './devices';
 import { Donations } from './donations';
 import { encodeRecording } from './export';
-import { isEmailAddress, isPlausibleIdentifier, type Mailer } from './mail';
+import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { privacyPage } from './privacy';
@@ -401,27 +401,61 @@ export function buildApp(options: BuildOptions = {}): App {
     }
 
     // A request to an address with no account is stored verbatim in
-    // pending_invites and resolves if that address ever signs up. Nothing
-    // sweeps that table — its only deletions are on resolution and on erase —
-    // so an identifier that could never name anybody is a row that is
-    // permanent and unreachable at once. This is the only place that check can
-    // happen, since by then the address is a primary key.
+    // pending_invites and resolves if that address ever signs up, so an
+    // identifier that could never name anybody is a row that is permanent and
+    // unreachable at once. This is the only place that check can happen, since
+    // by then the address is a primary key.
     //
-    // Shape only, and deliberately wider than sign-in's email test: see
-    // isPlausibleIdentifier. Refusing a well-formed address because no account
-    // holds it would answer, one guess at a time, exactly the question
-    // pending_invites exists to leave unanswered — see db.ts.
-    if (!isPlausibleIdentifier(body.identifier)) {
-      return reply
-        .code(400)
-        .send({ error: 'Enter an email address or a phone number.' });
+    // Email only, and the same test sign-in uses — narrowed from
+    // isPlausibleIdentifier on 2026-08-15, when an invitation stopped being a
+    // row and became a message. A phone number is an address this server cannot
+    // send to, which makes it an invitation nobody receives.
+    //
+    // Refusing a well-formed address because no account holds it would answer,
+    // one guess at a time, exactly the question pending_invites exists to leave
+    // unanswered — so this check must not consult the accounts table, and
+    // deliberately does not. See db.ts.
+    if (!isEmailAddress(body.identifier)) {
+      return reply.code(400).send({ error: 'Enter a valid email address.' });
     }
 
     const result = accounts.requestContact(account.id, body.identifier, now());
     if (!result.ok) return reply.code(400).send({ error: result.error });
+
+    // Nobody holds this address yet, so the invitation is the only thing that
+    // can bring them here — a request whose email did not go out is a request
+    // its recipient will never learn about. Undo the row rather than leave one
+    // behind: it would show as pending on the sender's screen and make every
+    // retry answer "Request already sent", which is the one state from which
+    // the mistake cannot be corrected.
+    //
+    // The cost of awaiting the send is that the response is now slower when the
+    // address has no account than when it has one, which is a timing answer to
+    // the question the body of this route refuses to answer directly. Accepted
+    // knowingly: telling the sender their invitation failed is worth more than
+    // closing a side channel that a determined prober could read from the app's
+    // own behaviour anyway.
+    if (result.targetId === null) {
+      if (!options.mailer) {
+        accounts.withdrawRequest(account.id, body.identifier);
+        request.log.error('no mailer configured; cannot send an invitation');
+        return reply
+          .code(503)
+          .send({ error: 'Invitations are temporarily unavailable.' });
+      }
+      try {
+        await options.mailer.sendInvite(body.identifier, account.display_name);
+      } catch (error) {
+        accounts.withdrawRequest(account.id, body.identifier);
+        request.log.error({ err: error }, 'failed to send an invitation');
+        return reply.code(502).send({ error: 'Could not send the invitation.' });
+      }
+    }
+
     // The recipient is the whole point: without telling them, a request simply
     // never appears on their side.
-    // No target to notify when the address has no account yet.
+    // No target to notify when the address has no account yet — the invitation
+    // above is what stands in for it.
     homeNotifier.notify(
       result.targetId ? [account.id, result.targetId] : [account.id]
     );

@@ -110,6 +110,115 @@ describe('sending a code', () => {
   });
 });
 
+describe('inviting an address with no account', () => {
+  /** Signs somebody in and returns their bearer token. */
+  async function signIn(identifier: string, displayName: string) {
+    const code = app.accounts.issueCode(identifier, clock)!;
+    const body = (await verify(identifier, code, displayName)).json() as {
+      token: string;
+      account: { id: string };
+    };
+    return body;
+  }
+
+  const request = (token: string, identifier: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { identifier },
+    });
+
+  it('emails an invitation naming the sender', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+
+    const sent = await request(alice.token, 'stranger@example.com');
+    expect(sent.statusCode).toBe(200);
+
+    expect(mailer.invited).toHaveLength(1);
+    expect(mailer.invited[0].to).toBe('stranger@example.com');
+    expect(mailer.invited[0].from).toBe('Alice');
+    // Attribution in the body, not only in the metadata: an invitation that
+    // does not say who sent it is indistinguishable from spam.
+    expect(mailer.invited[0].body).toContain('Alice');
+    // And a way out that costs nothing, because the recipient never asked.
+    expect(mailer.invited[0].body).toContain('ignore this email');
+  });
+
+  /**
+   * The sender's address is theirs to give out. The invitation carries the
+   * display name the app would have shown and nothing else — otherwise typing
+   * an address into the contact field would be a way to hand yours to a
+   * stranger who never agreed to receive it.
+   */
+  it('never puts the sender’s address in the invitation', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await request(alice.token, 'stranger@example.com');
+    expect(mailer.invited[0].body).not.toContain('alice@example.com');
+  });
+
+  it('does not email somebody who already has an account', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await signIn('bob@example.com', 'Bob');
+
+    const sent = await request(alice.token, 'bob@example.com');
+    expect(sent.statusCode).toBe(200);
+    expect(mailer.invited).toHaveLength(0);
+  });
+
+  /**
+   * A phone number reaches nobody now that the invitation is a message rather
+   * than a row, and the pending_invites row it would leave behind is permanent.
+   */
+  it('refuses a phone number, and writes nothing', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+
+    const refused = await request(alice.token, '+15550000009');
+    expect(refused.statusCode).toBe(400);
+    expect(mailer.invited).toHaveLength(0);
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(0);
+  });
+
+  /**
+   * The row and the email stand or fall together. Leaving the row behind after
+   * a failed send would show the sender a pending request, answer every retry
+   * with "Request already sent", and never reach anybody — the one state the
+   * mistake cannot be corrected from.
+   */
+  it('leaves no pending invite behind when the send fails', async () => {
+    const broken = buildApp({
+      dbPath: ':memory:',
+      now: () => clock,
+      mailer: {
+        async sendCode() {},
+        async sendInvite() {
+          throw new Error('SES said no');
+        },
+      },
+    });
+    const code = broken.accounts.issueCode('alice@example.com', clock)!;
+    const alice = (
+      await broken.fastify.inject({
+        method: 'POST',
+        url: '/auth/verify',
+        payload: { identifier: 'alice@example.com', code, displayName: 'Alice' },
+      })
+    ).json() as { token: string; account: { id: string } };
+
+    const failed = await broken.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: { authorization: `Bearer ${alice.token}` },
+      payload: { identifier: 'stranger@example.com' },
+    });
+    expect(failed.statusCode).toBe(502);
+    expect(broken.accounts.contactsFor(alice.account.id)).toHaveLength(0);
+
+    broken.channels.stop();
+    await broken.fastify.close();
+  });
+});
+
 describe('transport failure', () => {
   it('reports failure rather than claiming a code was sent', async () => {
     const broken = buildApp({
@@ -117,6 +226,9 @@ describe('transport failure', () => {
       now: () => clock,
       mailer: {
         async sendCode() {
+          throw new Error('SES said no');
+        },
+        async sendInvite() {
           throw new Error('SES said no');
         },
       },

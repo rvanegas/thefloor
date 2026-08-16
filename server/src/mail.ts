@@ -3,17 +3,42 @@ import {
   SendEmailCommand,
   type SESv2ClientConfig,
 } from '@aws-sdk/client-sesv2';
+import { INVITE_TTL_MS } from './accounts';
 
 /**
- * Delivery of one-time codes. Kept behind an interface because the transport is
- * the only thing standing between the current development bypass and real
- * authentication — and because SMS will arrive later as a second implementation
- * rather than a rewrite of the callers.
+ * Everything this server sends to an address rather than to an account. Kept
+ * behind an interface because the transport is the only thing standing between
+ * the current development bypass and real authentication — and because SMS may
+ * arrive later as a second implementation rather than a rewrite of the callers.
+ *
+ * The two messages are unrelated in purpose and identical in constraint: both
+ * go to an address nobody has proved they hold, so neither may carry anything
+ * the recipient has not already been told by whoever typed the address in.
  */
 export interface Mailer {
   /** Resolves once handed to the transport. Delivery itself is not guaranteed. */
   sendCode(to: string, code: string): Promise<void>;
+  /**
+   * Asks an address with no account to install the app and find the request
+   * that is already waiting for it.
+   *
+   * `from` is the inviter's display name and deliberately not their address:
+   * the recipient never asked to hear from them, and an address is theirs to
+   * give out rather than ours. A name is what the app would show anyway.
+   */
+  sendInvite(to: string, from: string): Promise<void>;
 }
+
+/**
+ * Where an invited person is told to go, once there is somewhere.
+ *
+ * Null until the app is downloadable, and the invitation simply leaves the line
+ * out while it is — an email naming a store page that 404s is worse than one
+ * that asks somebody to go looking, because the first reads as a broken app and
+ * the second as an app that is not out yet. Set this to the App Store URL on
+ * the day of the first release.
+ */
+export const INSTALL_URL: string | null = null;
 
 export function isEmailAddress(identifier: string): boolean {
   // Deliberately loose. SES is the real validator; this only decides which
@@ -27,6 +52,24 @@ export function isEmailAddress(identifier: string): boolean {
  */
 export const MAX_IDENTIFIER_LENGTH = 254;
 
+/*
+ * The two below are **deliberately unreachable**, as of 2026-08-15. Nothing in
+ * `src/` calls either one.
+ *
+ * A phone number used to be accepted as the target of a contact request, on the
+ * reasoning that sign-in being email-only today should not decide against SMS
+ * from the one place with no stake in it. That inverted once an invitation
+ * became a message rather than a row: an address the server cannot send to is
+ * an invitation that is never delivered and a request the recipient never hears
+ * about, so the reserved identifier was costing something real to hold open.
+ *
+ * They stay because the reasoning that put them here is still sound and will
+ * apply again the day there is an SMS transport — at which point `Mailer` grows
+ * a sibling, `requestContact`'s validation becomes `isPlausibleIdentifier`
+ * again, and this comment goes. Deleting them now would only mean writing the
+ * same two regexes back. See planning/DECISIONS.md.
+ */
+
 /** Loose on purpose, the way isEmailAddress is: shape rather than reachability. */
 export function isPhoneNumber(identifier: string): boolean {
   return /^\+?[0-9][0-9\s().-]{6,19}$/.test(identifier.trim());
@@ -34,13 +77,6 @@ export function isPhoneNumber(identifier: string): boolean {
 
 /**
  * Whether an identifier could name somebody at all, by either transport.
- *
- * Wider than `isEmailAddress`, and the width is the point. Sign-in is email
- * only today, but a phone number is the second identifier the design reserves
- * and contact requests are already made to one — so the test for "is this an
- * address" and the test for "can we mail a code to this" are not the same
- * question, and answering the first with the second would decide against SMS
- * from the one place with no stake in it.
  *
  * What this exists to exclude is the identifier that can never resolve into
  * anybody: a bare word, a sentence, a kilobyte of text. Those become permanent
@@ -92,23 +128,77 @@ export class SesMailer implements Mailer {
       })
     );
   }
+
+  async sendInvite(to: string, from: string): Promise<void> {
+    await this.client.send(
+      new SendEmailCommand({
+        FromEmailAddress: this.options.from,
+        Destination: { ToAddresses: [to] },
+        Content: {
+          Simple: {
+            Subject: { Data: `${from} wants to talk with you on The Floor` },
+            Body: { Text: { Data: inviteBody(from) } },
+          },
+        },
+      })
+    );
+  }
 }
 
-/** Prints the code instead of sending it. For local work without SES. */
+/**
+ * The one message this server sends to somebody who has never asked it for
+ * anything, which is the whole of what makes it delicate.
+ *
+ * Two rules it is written to. It says who sent it in the first line, because an
+ * unattributed invitation is indistinguishable from spam and a recipient who
+ * cannot place the name should be able to stop reading there. And it promises
+ * that ignoring it is enough — true, since the request resolves only when the
+ * address signs up and is swept when it does not, and worth saying out loud so
+ * that nobody feels obliged to act in order to make it stop.
+ */
+function inviteBody(from: string): string {
+  const days = Math.round(INVITE_TTL_MS / (24 * 60 * 60 * 1000));
+  return [
+    `${from} added you as a contact on The Floor, using this email address.`,
+    '',
+    'The Floor is for talking rather than for calling. You drop into a channel',
+    'when you have something to say, and you can see who is around before you',
+    'interrupt anybody.',
+    '',
+    ...(INSTALL_URL
+      ? [`Install it here: ${INSTALL_URL}`, '']
+      : ['It is not on the App Store yet. This is an invitation to be ready.', '']),
+    'Sign in with this address and the request will be waiting for you.',
+    '',
+    'If the name means nothing to you, ignore this email — nothing happens',
+    `until you sign up, and the request expires after ${days} days.`,
+  ].join('\n');
+}
+
+/** Prints what would have been sent instead of sending it. For local work without SES. */
 export class ConsoleMailer implements Mailer {
   constructor(private log: (message: string) => void = console.log) {}
 
   async sendCode(to: string, code: string): Promise<void> {
     this.log(`\n  ── one-time code for ${to}: ${code} ──\n`);
   }
+
+  async sendInvite(to: string, from: string): Promise<void> {
+    this.log(`\n  ── invitation to ${to}, from ${from} ──\n${inviteBody(from)}\n`);
+  }
 }
 
 /** Records what would have been sent. For tests. */
 export class MemoryMailer implements Mailer {
   readonly sent: Array<{ to: string; code: string }> = [];
+  readonly invited: Array<{ to: string; from: string; body: string }> = [];
 
   async sendCode(to: string, code: string): Promise<void> {
     this.sent.push({ to, code });
+  }
+
+  async sendInvite(to: string, from: string): Promise<void> {
+    this.invited.push({ to, from, body: inviteBody(from) });
   }
 
   lastCodeFor(to: string): string | undefined {

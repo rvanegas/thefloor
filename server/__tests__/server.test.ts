@@ -1,4 +1,5 @@
 import { buildApp, type App } from '../src/app';
+import { MemoryMailer } from '../src/mail';
 
 /**
  * These cover what the server adds over the mock: authentication, the
@@ -7,11 +8,16 @@ import { buildApp, type App } from '../src/app';
  */
 
 let app: App;
+let mailer: MemoryMailer;
 let clock = 1_700_000_000_000;
 
 beforeEach(() => {
   clock = 1_700_000_000_000;
-  app = buildApp({ dbPath: ':memory:', now: () => clock });
+  // A mailer is not optional here the way it once was: since 2026-08-15 a
+  // request to an address with no account is refused unless the invitation can
+  // actually be sent, so a mailer-less app cannot reach half of these tests.
+  mailer = new MemoryMailer();
+  app = buildApp({ dbPath: ':memory:', mailer, now: () => clock });
 });
 
 afterEach(async () => {
@@ -42,14 +48,14 @@ const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
 /** Two accounts who have accepted each other — the normal starting point. */
 async function twoContacts() {
-  const alice = await signIn('+15550000001', 'Alice');
-  const bob = await signIn('+15550000002', 'Bob');
+  const alice = await signIn('user1@example.com', 'Alice');
+  const bob = await signIn('user2@example.com', 'Bob');
 
   await app.fastify.inject({
     method: 'POST',
     url: '/contacts/request',
     headers: auth(alice.token),
-    payload: { identifier: '+15550000002' },
+    payload: { identifier: 'user2@example.com' },
   });
   await app.fastify.inject({
     method: 'POST',
@@ -61,11 +67,11 @@ async function twoContacts() {
 
 describe('one-time codes', () => {
   it('creates an account on first verification and signs in after', async () => {
-    const first = await signIn('+15550000009', 'New Person');
+    const first = await signIn('user9@example.com', 'New Person');
     expect(first.token).toBeTruthy();
     expect(first.account.displayName).toBe('New Person');
 
-    const second = await signIn('+15550000009');
+    const second = await signIn('user9@example.com');
     expect(second.account.id).toBe(first.account.id);
     expect(second.token).not.toBe(first.token);
   });
@@ -73,17 +79,17 @@ describe('one-time codes', () => {
   it('renames an existing account when a name is given', async () => {
     // Signing out and back in is the only way to fix a name, so a name given
     // at sign-in has to apply to an account that already exists.
-    const first = await signIn('+15550000007', 'B');
+    const first = await signIn('user7@example.com', 'B');
     expect(first.account.displayName).toBe('B');
 
-    const second = await signIn('+15550000007', 'Bob');
+    const second = await signIn('user7@example.com', 'Bob');
     expect(second.account.id).toBe(first.account.id);
     expect(second.account.displayName).toBe('Bob');
   });
 
   it('keeps the current name when none is given', async () => {
-    const first = await signIn('+15550000008', 'Priya');
-    const second = await signIn('+15550000008');
+    const first = await signIn('user8@example.com', 'Priya');
+    const second = await signIn('user8@example.com');
     expect(second.account.displayName).toBe('Priya');
   });
 
@@ -200,52 +206,52 @@ describe('one-time codes', () => {
   });
 
   it('rejects a wrong code', async () => {
-    const code = app.accounts.issueCode('+15550000001', clock)!;
+    const code = app.accounts.issueCode('user1@example.com', clock)!;
     // Derived from the real code so it is guaranteed to differ.
     const wrong = code === '000000' ? '000001' : '000000';
 
     const response = await app.fastify.inject({
       method: 'POST',
       url: '/auth/verify',
-      payload: { identifier: '+15550000001', code: wrong },
+      payload: { identifier: 'user1@example.com', code: wrong },
     });
     expect(response.statusCode).toBe(401);
     expect(response.json()).toEqual({ error: 'Invalid or expired code.' });
   });
 
   it('expires a code after ten minutes', async () => {
-    const code = app.accounts.issueCode('+15550000003', clock)!;
+    const code = app.accounts.issueCode('user3@example.com', clock)!;
     clock += 10 * 60 * 1000 + 1;
     const response = await app.fastify.inject({
       method: 'POST',
       url: '/auth/verify',
-      payload: { identifier: '+15550000003', code },
+      payload: { identifier: 'user3@example.com', code },
     });
     expect(response.statusCode).toBe(401);
   });
 
   it('stops accepting attempts after five failures', async () => {
-    const code = app.accounts.issueCode('+15550000004', clock)!;
+    const code = app.accounts.issueCode('user4@example.com', clock)!;
     const wrong = code === '111111' ? '222222' : '111111';
 
     for (let i = 0; i < 5; i++) {
       await app.fastify.inject({
         method: 'POST',
         url: '/auth/verify',
-        payload: { identifier: '+15550000004', code: wrong },
+        payload: { identifier: 'user4@example.com', code: wrong },
       });
     }
     // Even the correct code is refused now.
     const response = await app.fastify.inject({
       method: 'POST',
       url: '/auth/verify',
-      payload: { identifier: '+15550000004', code },
+      payload: { identifier: 'user4@example.com', code },
     });
     expect(response.statusCode).toBe(401);
   });
 
   it('stores neither codes nor tokens in the clear', async () => {
-    const { token, code } = await signIn('+15550000005');
+    const { token, code } = await signIn('user5@example.com');
     const tokens = app.db.prepare('SELECT * FROM tokens').all();
     expect(JSON.stringify(tokens)).not.toContain(token);
     const codes = app.db.prepare('SELECT * FROM otp_codes').all();
@@ -260,7 +266,7 @@ describe('authorization', () => {
   });
 
   it('refuses a revoked token', async () => {
-    const { token } = await signIn('+15550000006');
+    const { token } = await signIn('user6@example.com');
     await app.fastify.inject({
       method: 'POST',
       url: '/auth/sign-out',
@@ -277,14 +283,14 @@ describe('authorization', () => {
 
 describe('contacts', () => {
   it('requires mutual acceptance before a channel is possible', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
-    const bob = await signIn('+15550000002', 'Bob');
+    const alice = await signIn('user1@example.com', 'Alice');
+    const bob = await signIn('user2@example.com', 'Bob');
 
     await app.fastify.inject({
       method: 'POST',
       url: '/contacts/request',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
 
     // Pending, so no channel yet.
@@ -313,13 +319,13 @@ describe('contacts', () => {
   });
 
   it('will not let the requester accept their own request', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
-    const bob = await signIn('+15550000002', 'Bob');
+    const alice = await signIn('user1@example.com', 'Alice');
+    const bob = await signIn('user2@example.com', 'Bob');
     await app.fastify.inject({
       method: 'POST',
       url: '/contacts/request',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
 
     const response = await app.fastify.inject({
@@ -331,13 +337,13 @@ describe('contacts', () => {
   });
 
   it('shows the two pending directions from each side', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
-    await signIn('+15550000002', 'Bob');
+    const alice = await signIn('user1@example.com', 'Alice');
+    await signIn('user2@example.com', 'Bob');
     await app.fastify.inject({
       method: 'POST',
       url: '/contacts/request',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
 
     const home = await app.fastify.inject({
@@ -354,7 +360,7 @@ describe('contacts', () => {
    * same, and the address is the one handle that keeps them that way.
    */
   it('withdraws a request to an address with no account', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
+    const alice = await signIn('user1@example.com', 'Alice');
 
     await app.fastify.inject({
       method: 'POST',
@@ -389,7 +395,7 @@ describe('contacts', () => {
    * not name a person is a row that is both permanent and unreachable.
    */
   it('refuses a request to something that is not an address', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
+    const alice = await signIn('user1@example.com', 'Alice');
 
     for (const identifier of ['bob', '   ', 'not an address', 'x'.repeat(300)]) {
       const refused = await app.fastify.inject({
@@ -405,21 +411,24 @@ describe('contacts', () => {
   });
 
   /**
-   * Sign-in is email-only today, but a phone number is the identifier the
-   * design reserves next and inviting one has to keep working — the check on
-   * the way in is about shape, not about which transport exists yet.
+   * A phone number used to be accepted here, on the reasoning that sign-in
+   * being email-only should not decide against SMS from the one place with no
+   * stake in it. Narrowed on 2026-08-15: an invitation is now an email rather
+   * than a row, so an address this server cannot send to is a request its
+   * recipient never hears about. `isPhoneNumber` survives, unreachable, for the
+   * day there is an SMS transport — see mail.ts.
    */
-  it('accepts a request to a phone number with no account', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
+  it('refuses a request to a phone number', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
 
-    const sent = await app.fastify.inject({
+    const refused = await app.fastify.inject({
       method: 'POST',
       url: '/contacts/request',
       headers: auth(alice.token),
       payload: { identifier: '+15550000009' },
     });
-    expect(sent.statusCode).toBe(200);
-    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(1);
+    expect(refused.statusCode).toBe(400);
+    expect(app.accounts.contactsFor(alice.account.id)).toHaveLength(0);
   });
 
   /**
@@ -429,7 +438,7 @@ describe('contacts', () => {
    * rows permanent, which is the problem rather than the fix.
    */
   it('still withdraws an invite whose identifier would now be refused', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
+    const alice = await signIn('user1@example.com', 'Alice');
 
     app.db
       .prepare(
@@ -449,14 +458,14 @@ describe('contacts', () => {
   });
 
   it('withdraws a pending request to a real account, and only its own', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
-    const bob = await signIn('+15550000002', 'Bob');
+    const alice = await signIn('user1@example.com', 'Alice');
+    const bob = await signIn('user2@example.com', 'Bob');
 
     await app.fastify.inject({
       method: 'POST',
       url: '/contacts/request',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
 
     // The recipient cannot withdraw what they did not send — declining is
@@ -465,7 +474,7 @@ describe('contacts', () => {
       method: 'POST',
       url: '/contacts/withdraw',
       headers: auth(bob.token),
-      payload: { identifier: '+15550000001' },
+      payload: { identifier: 'user1@example.com' },
     });
     expect(notYours.statusCode).toBe(400);
     expect(app.accounts.contactState(alice.account.id, bob.account.id)).not.toBeNull();
@@ -474,7 +483,7 @@ describe('contacts', () => {
       method: 'POST',
       url: '/contacts/withdraw',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
     expect(withdrawn.statusCode).toBe(200);
     expect(app.accounts.contactState(alice.account.id, bob.account.id)).toBeNull();
@@ -489,7 +498,7 @@ describe('contacts', () => {
       method: 'POST',
       url: '/contacts/withdraw',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
     expect(refused.statusCode).toBe(400);
     expect(app.accounts.contactsFor(alice.account.id)[0].status).toBe('accepted');
@@ -507,7 +516,7 @@ describe('bodyless POSTs', () => {
     ['/auth/sign-out', 204],
     ['/contacts/acct_nobody/accept', 400],
   ])('accepts %s with content-type and an empty body', async (url, expected) => {
-    const { token } = await signIn('+15550000001', 'Alice');
+    const { token } = await signIn('user1@example.com', 'Alice');
     const response = await app.fastify.inject({
       method: 'POST',
       url,
@@ -521,13 +530,13 @@ describe('bodyless POSTs', () => {
   });
 
   it('lets one contact accept another with no request body', async () => {
-    const alice = await signIn('+15550000001', 'Alice');
-    const bob = await signIn('+15550000002', 'Bob');
+    const alice = await signIn('user1@example.com', 'Alice');
+    const bob = await signIn('user2@example.com', 'Bob');
     await app.fastify.inject({
       method: 'POST',
       url: '/contacts/request',
       headers: auth(alice.token),
-      payload: { identifier: '+15550000002' },
+      payload: { identifier: 'user2@example.com' },
     });
 
     const accepted = await app.fastify.inject({
@@ -569,7 +578,7 @@ describe('channels', () => {
 
   it('refuses to act on a channel you are not part of', async () => {
     const { alice, bob } = await twoContacts();
-    const outsider = await signIn('+15550000099', 'Outsider');
+    const outsider = await signIn('user99@example.com', 'Outsider');
     const created = await app.fastify.inject({
       method: 'POST',
       url: '/channels',

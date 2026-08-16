@@ -453,6 +453,12 @@ export class Accounts {
           : row.requester_id === userId
             ? 'outgoing'
             : 'incoming';
+      // An outgoing request shows the *address* in the name slot, which reads
+      // as though the two were interchangeable and means the opposite: until
+      // they accept, there is a row here and not yet a person, and their name
+      // is theirs to give out. Nothing in this server ever looks an account up
+      // by `display_name` — see DECISIONS.md, which this line has already sent
+      // one reader to the wrong conclusion without.
       const view =
         status === 'outgoing'
           ? { id: '', displayName: account.identifier }
