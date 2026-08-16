@@ -1,7 +1,9 @@
 import { FLOOR_CLAIM_DELAY_STEP_MS, MAX_CHANNEL_PARTICIPANTS } from '../constants';
 import {
   canClaimFloor,
+  canDeleteChannel,
   canInvite,
+  canLeaveChannel,
   createChannel,
   isInvited,
   isParticipant,
@@ -41,10 +43,23 @@ describe('createChannel with several invitees', () => {
     expect(s.invitedBy).toEqual({ [B]: A, [C]: A });
   });
 
+  it('opens a channel of one, which is how starting one begins', () => {
+    const s = createChannel({ id: 's1', initiator: A, invitees: [], now: T0 });
+    expect(s.participants).toEqual([A]);
+    expect(s.present).toEqual([A]);
+    expect(s.invitedBy).toEqual({});
+    expect(s.selfMuted).toEqual({ [A]: false });
+    // The last member's tap is Delete, not Leave — there would be nobody to
+    // leave it to. True of a channel emptied by departures and true here from
+    // the first moment.
+    expect(canLeaveChannel(s, A)).toBe(false);
+    expect(canDeleteChannel(s, A)).toBe(true);
+    // And the invitation still has somewhere to go, which is the only reason
+    // this shape is worth having.
+    expect(canInvite(s, A, B)).toBe(true);
+  });
+
   it('rejects a structurally invalid roster', () => {
-    expect(() =>
-      createChannel({ id: 's1', initiator: A, invitees: [], now: T0 })
-    ).toThrow();
     expect(() =>
       createChannel({ id: 's1', initiator: A, invitees: [A], now: T0 })
     ).toThrow();

@@ -25,10 +25,6 @@ Mixing the file should happen immediately after recording completes, playback an
 
 Ping specific member with a notification with specific text. Limited char count.
 
-## Start a Channel
-
-Replace button to start a channel with something simpler. No picker, start channel with only self and invite from there.
-
 ## Review Logic for States
 
 Mute, Claimed Floor, In-App, Present, Speaking, Recording, Playing, Audio Connected, Audio Output.

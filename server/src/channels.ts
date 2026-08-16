@@ -409,13 +409,19 @@ export class ChannelRegistry {
    * an accepted contact of the initiator — of the initiator only: you cannot
    * open a channel to someone who has not agreed to one, but two people the
    * initiator brings together need not know each other.
+   *
+   * `invitees` may be empty, and that is now the ordinary way in: a channel of
+   * one, entered immediately, with the invitations made from inside it. The
+   * one-unnamed-channel-per-set rule below then makes the empty case
+   * idempotent — everybody has exactly one channel that is only themselves,
+   * and tapping the button again walks back into it rather than accumulating
+   * a row per tap.
    */
   create(
     initiator: string,
     invitees: string[]
   ): { ok: true; channel: ChannelState } | Refused {
     const unique = [...new Set(invitees)];
-    if (unique.length === 0) return { ok: false, error: 'Nobody to invite.', code: 'invalid' };
     if (unique.includes(initiator)) return { ok: false, error: 'That’s you.', code: 'invalid' };
     if (unique.length + 1 > MAX_CHANNEL_PARTICIPANTS) {
       return {
@@ -464,8 +470,10 @@ export class ChannelRegistry {
             candidate,
             initiator,
             // The legacy two-party columns are anchors for old rows and are
-            // never read for new ones; participants is the truth.
-            unique[0],
+            // never read for new ones; participants is the truth. NOT NULL,
+            // though, so a channel with no invitee names the initiator twice —
+            // the same thing `openRun` does for a recording made alone.
+            unique[0] ?? initiator,
             createdAt,
             JSON.stringify([initiator, ...unique])
           )
@@ -496,11 +504,18 @@ export class ChannelRegistry {
     // never named at creation, so every perspective-dependent fallback would
     // reduce to the roster anyway, and the one thing the recipient wants to
     // know is who is asking.
-    this.push.notify(unique, {
-      title: this.displayName(initiator),
-      body: 'Started a channel with you.',
-      channelId: channel.id,
-    });
+    //
+    // Skipped outright when there is nobody to tell, rather than left to the
+    // notifier's own empty case: that path logs why it sent nothing, and a
+    // channel of one would file a "push skipped" line every time somebody
+    // tapped Start a channel.
+    if (unique.length > 0) {
+      this.push.notify(unique, {
+        title: this.displayName(initiator),
+        body: 'Started a channel with you.',
+        channelId: channel.id,
+      });
+    }
     return { ok: true, channel };
   }
 

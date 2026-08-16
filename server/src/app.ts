@@ -740,13 +740,16 @@ export function buildApp(options: BuildOptions = {}): App {
       | { contactIds?: string[]; contactId?: string }
       | undefined;
     // The singular form is what pre-multi-user builds send; costs one line.
+    // Absent means nobody, which is a channel of one — the ordinary way to
+    // start one since builds stopped asking who first. An old client never
+    // sends that, so nothing that used to be refused has changed meaning.
     const contactIds =
-      body?.contactIds ?? (body?.contactId ? [body.contactId] : undefined);
-    if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
-      return reply.code(400).send({ error: 'contactIds is required' });
+      body?.contactIds ?? (body?.contactId ? [body.contactId] : []);
+    if (!Array.isArray(contactIds)) {
+      return reply.code(400).send({ error: 'contactIds must be an array' });
     }
     if (contactIds.some((id) => typeof id !== 'string')) {
-      return reply.code(400).send({ error: 'contactIds is required' });
+      return reply.code(400).send({ error: 'contactIds must be account ids' });
     }
 
     const result = channels.create(account.id, contactIds);

@@ -62,9 +62,12 @@ export function createChannel(params: {
   const participants = [initiator, ...invitees];
   // Structural violations, not policy ones: the caller was supposed to have
   // validated the roster, so a bad one here is a bug worth failing loudly on.
-  if (invitees.length === 0) {
-    throw new Error('A channel needs at least one invitee.');
-  }
+  //
+  // An empty `invitees` is *not* one of them. A channel of one person is the
+  // ordinary way to start one now — you open it and invite from inside — and
+  // the rest of the model already answers for that shape: `canDeleteChannel`
+  // is the last member's, `canLeaveChannel` is not, and `describeChannel([])`
+  // says "Just you".
   if (new Set(participants).size !== participants.length) {
     throw new Error('A channel cannot hold the same person twice.');
   }

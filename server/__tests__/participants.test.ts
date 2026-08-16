@@ -137,7 +137,7 @@ describe('creating a channel with several people', () => {
     expect(response.statusCode).toBe(200);
   });
 
-  it('refuses a non-contact invitee, the cap, and an empty roster', async () => {
+  it('refuses a non-contact invitee and the cap', async () => {
     const { alice, bob, carol } = await circle();
     // Bob and carol are not contacts, so bob cannot bring carol.
     const nonContact = await createSessionWith(bob, [carol.account.id]);
@@ -149,9 +149,30 @@ describe('creating a channel with several people', () => {
     ]);
     expect(overCap.statusCode).toBe(400);
     expect((overCap.json() as { error: string }).error).toContain('up to 6');
+  });
 
-    const empty = await createSessionWith(alice, []);
-    expect(empty.statusCode).toBe(400);
+  /**
+   * The ordinary way in: a button that asks nothing, and the invitations made
+   * from inside. An empty roster used to be a 400.
+   */
+  it('opens a channel of one, and reopens the same one on the next tap', async () => {
+    const { alice, bob } = await circle();
+
+    const first = await createSessionWith(alice, []);
+    expect(first.statusCode).toBe(200);
+    const { channelId } = first.json() as { channelId: string };
+
+    // Idempotent, by the same one-unnamed-channel-per-set rule that stops
+    // repeated taps on a contact stacking duplicates. Without it Home fills
+    // with rows that are all "Just you" and all different channels.
+    const again = await createSessionWith(alice, []);
+    expect((again.json() as { channelId: string }).channelId).toBe(channelId);
+
+    // A channel of two is a different set, so it is a different channel.
+    const withBob = await createSessionWith(alice, [bob.account.id]);
+    expect((withBob.json() as { channelId: string }).channelId).not.toBe(
+      channelId
+    );
   });
 
   it('rejoins the existing channel for the same set, not for a subset', async () => {
@@ -175,6 +196,60 @@ describe('creating a channel with several people', () => {
 });
 
 describe('mid-channel invites', () => {
+  /**
+   * The whole of what "Start a channel" now means, end to end: open one alone,
+   * ask somebody in from inside it, and the conversation is where both of you
+   * are when they answer.
+   *
+   * Nothing here is new machinery. A channel of one is unnamed, so the
+   * invitation behaves as it does in any unnamed channel — it does not widen
+   * the channel, it moves the conversation — and the channel of one is left
+   * standing, which is what makes the button idempotent the next time.
+   */
+  it('moves the conversation when somebody answers an invitation to a channel of one', async () => {
+    const { alice, bob } = await circle();
+    const { channelId } = (await createSessionWith(alice, []).then((r) =>
+      r.json()
+    )) as { channelId: string };
+    expect(app.channels.get(channelId)!.participants).toEqual([
+      alice.account.id,
+    ]);
+
+    const invited = app.channels.dispatch(channelId, alice.account.id, {
+      type: 'INVITE',
+      contactId: bob.account.id,
+    } as never);
+    expect(invited.ok).toBe(true);
+    // Not widened — an unnamed channel is its people, so this waits.
+    expect(app.channels.get(channelId)!.participants).toEqual([
+      alice.account.id,
+    ]);
+    expect(app.channels.invitesFor(bob.account.id)).toHaveLength(1);
+
+    const arrived = app.channels.dispatch(channelId, bob.account.id, {
+      type: 'ENTER',
+    });
+    expect(arrived.ok).toBe(true);
+    const target = (arrived as { ok: true; channel: { id: string } }).channel;
+    expect(target.id).not.toBe(channelId);
+    const moved = app.channels.get(target.id)!;
+    expect([...moved.participants].sort()).toEqual(
+      [alice.account.id, bob.account.id].sort()
+    );
+    expect([...moved.present].sort()).toEqual(
+      [alice.account.id, bob.account.id].sort()
+    );
+
+    // The channel of one stays behind, empty and still alice's, so the next
+    // tap of the button lands back in it rather than making another.
+    const left = app.channels.get(channelId)!;
+    expect(left.status).toBe('active');
+    expect(left.present).toEqual([]);
+    const again = await createSessionWith(alice, []);
+    expect((again.json() as { channelId: string }).channelId).toBe(channelId);
+  });
+
+
   it('adds a contact of the inviter to a named channel, who then joins like any invitee', async () => {
     const { alice, bob, carol } = await circle();
     const { channelId } = (await createSessionWith(alice, [bob.account.id]).then(

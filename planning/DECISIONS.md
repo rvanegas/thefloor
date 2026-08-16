@@ -864,6 +864,69 @@ before they generate an icon.
 
 ---
 
+## Starting a channel asks nobody anything
+
+Shipped 2026-08-15, from FEATURES.md. Home's way into a channel was a mode: a
+button reading *Start a channel with several people*, which armed a selection
+over the contact list, turned every row into a checkbox, and waited for a
+*Start with 3* to be pressed. It was a form to fill in before anything could
+happen. Now there is one primary button reading **Start a channel**, it makes a
+channel with nobody in it but you, walks you in, and the invitations are made
+from inside — where the roster is already on screen and adding somebody is one
+tap whether it is the first or the third.
+
+**The old button was hidden from exactly the people who needed it.** It only
+appeared once you had two accepted contacts, that being the least number a
+multi-select is worth. So somebody with one contact, or none, had no way to open
+an empty channel at all — the affordance for *I would like to be somewhere*
+required already knowing who you wanted there. The tap-a-contact path is
+untouched and still starts a 1:1 directly; what went is the mode, not the
+shortcut.
+
+**Almost nothing had to be built, which is the argument that this shape was
+already the model's.** A channel of one was a legal `ChannelState` in every
+respect but the constructor's guard: `canDeleteChannel` is the last member's
+and `canLeaveChannel` is not, `describeChannel([])` already returns *Just you*,
+`rejoinableFor` deliberately keeps a channel everyone else has walked out of,
+and `InviteList` already explains that an unnamed channel does not widen. The
+changes are three lines of permission — `createChannel` dropping the
+at-least-one-invitee throw, `create` dropping the empty-roster refusal, and
+`POST /channels` reading an absent `contactIds` as nobody — plus deleting the
+mode from `HomeView`.
+
+**The empty case is idempotent, and it is the existing rule that makes it so.**
+One unnamed channel per set of people, applied to the set of just yourself,
+means everybody has exactly one channel that is only them. Tapping the button
+twice walks back into it rather than filing a second row, which matters more
+here than it does for a pair: a channel of one is cheap to create by accident,
+and Home would otherwise fill with rows all reading *Just you* and all
+different. This is why the guard is worth keeping in mind when reading `create`
+— it is doing two jobs now.
+
+**Inviting from a channel of one moves the conversation rather than widening
+it**, exactly as it does from a channel of three, and the channel of one stays
+behind. That is not a special case and was not written as one: an unnamed
+channel is its people, so asking Bob in means everyone walks to the unnamed
+channel that is you and Bob — creating it or finding the one you already have.
+Your channel of one is left standing, empty, ready for the next tap. See
+`acceptInvitation`.
+
+Two smaller things. The legacy `channels.invitee_id` column is `NOT NULL`, so a
+channel with no invitee writes the initiator into it — the same thing `openRun`
+already does for a recording made alone, and the column is never read for rows
+that carry the `participants` JSON. And `create` now skips the push notify
+outright when there is nobody to tell, rather than letting the notifier's own
+empty case handle it: that path logs *why* it sent nothing, and would file a
+`push skipped` line on every tap of the button.
+
+**The wire change is server-permissive and must be deployed first**, per the
+rule in AGENTS.md. An empty `contactIds` was a 400 and is now a create; no
+installed build sends one, so nothing that used to work has changed meaning,
+but a new client against an old server gets `contactIds is required` on the one
+button Home leads with.
+
+---
+
 ## The deploy history
 
 Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and

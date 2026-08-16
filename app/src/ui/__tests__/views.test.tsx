@@ -2409,9 +2409,38 @@ describe('tapping a row', () => {
     act(() => tree.unmount());
   });
 
-  it('picks rather than navigating while choosing several people', () => {
-    // Opening a profile mid-selection would lose the selection to a
-    // navigation nobody asked for.
+  /**
+   * Starting a channel asks nobody anything. It used to arm a selection mode
+   * over the contact list, which was a form to fill in before the first
+   * channel could exist and which was hidden until you had two contacts —
+   * exactly backwards for somebody with nowhere to talk yet.
+   */
+  it('starts a channel with nobody in it and walks straight in', async () => {
+    const onEnterChannel = jest.fn();
+    mockApp.startChannel.mockResolvedValue('sess_alone');
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView onEnterChannel={onEnterChannel} onOpenSettings={() => {}} />
+    );
+
+    // Offered with an empty contact list, which the old affordance was not.
+    expect(findButton(tree, 'Start a channel with several people')).toBeUndefined();
+    await act(async () => {
+      findButton(tree, 'Start a channel')!.props.onPress();
+    });
+
+    expect(mockApp.startChannel).toHaveBeenCalledWith([]);
+    expect(mockApp.act).toHaveBeenCalledWith('sess_alone', { type: 'ENTER' });
+    expect(onEnterChannel).toHaveBeenCalledWith('sess_alone');
+    act(() => tree.unmount());
+  });
+
+  it('opens a profile from a contact row, there being no selection mode', () => {
     const onOpenProfile = jest.fn();
     mockApp.home = {
       invites: [],
@@ -2436,11 +2465,10 @@ describe('tapping a row', () => {
       />
     );
 
-    act(() => findButton(tree, 'Start a channel with several people')!.props.onPress());
     act(() => pressableFor(tree, 'Quinn Ito').props.onPress());
 
-    expect(onOpenProfile).not.toHaveBeenCalled();
-    expect(textOf(tree)).toContain('Picked');
+    expect(onOpenProfile).toHaveBeenCalledWith('acct_q', 'Quinn Ito');
+    expect(textOf(tree)).not.toContain('Picked');
     act(() => tree.unmount());
   });
 });

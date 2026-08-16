@@ -12,7 +12,6 @@ import type {
   RecordingView,
   RejoinableView,
 } from '../../../core/protocol';
-import { MAX_CHANNEL_PARTICIPANTS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { exportRecording } from '../api/download';
@@ -154,25 +153,25 @@ export function HomeView({
     });
   }
 
-  /**
-   * Multi-select for starting a channel with several contacts at once. Off by
-   * default: a plain tap still starts a 1:1 immediately, and this mode only
-   * changes what the rows offer, not what they are.
-   */
   const showOffline = useOfflineNotice(app.status);
 
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
-  const toggleSelected = (id: string) =>
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  const stopSelecting = () => {
-    setSelecting(false);
-    setSelected([]);
-  };
-  const startWithSelected = async () => {
+  /**
+   * Opens a channel and walks into it, with nobody else in it yet.
+   *
+   * This replaced a multi-select mode over the contact list — tap to arm it,
+   * pick people, confirm — which was a form to fill in before anything could
+   * happen, and had to be understood before the first channel. Now the button
+   * does the thing and the invitations are made from inside, where the roster
+   * is already on screen and adding somebody is one tap whether it is the
+   * first or the third.
+   *
+   * The empty case is idempotent on the server, one unnamed channel per set of
+   * people meaning one channel per person for the set of just themselves. So
+   * this is safe to tap twice and does not litter Home with empty rows.
+   */
+  const startAlone = async () => {
     try {
-      const id = await app.startChannel(selected);
-      stopSelecting();
+      const id = await app.startChannel([]);
       app.act(id, { type: 'ENTER' });
       onEnterChannel(id);
     } catch (e) {
@@ -277,6 +276,19 @@ export function HomeView({
         />
       ))}
 
+      {/*
+        Below the invites, above everything else. Somebody being asked into a
+        channel should answer that before opening one of their own, and
+        everything under it is a list rather than a thing to do.
+
+        It says "Start a channel" and nothing more. What it used to say —
+        "Start a channel with several people" — was describing a mode rather
+        than an outcome, and it only appeared once you had two contacts, so the
+        one affordance that opens an empty channel was hidden from exactly the
+        people who had nowhere to talk yet.
+      */}
+      <Button label="Start a channel" variant="primary" onPress={startAlone} />
+
       {live.length > 0 ? (
         <>
           <SectionLabel>Your channels</SectionLabel>
@@ -312,14 +324,6 @@ export function HomeView({
               key={entry.account.id || `sent:${entry.account.displayName}`}
               entry={entry}
               existing={channelWith.get(entry.account.id)}
-              selecting={selecting}
-              selected={selected.includes(entry.account.id)}
-              // Room for the initiator plus what is already picked.
-              selectable={
-                selected.includes(entry.account.id) ||
-                selected.length < MAX_CHANNEL_PARTICIPANTS - 1
-              }
-              onToggleSelect={() => toggleSelected(entry.account.id)}
               onOpenProfile={() =>
                 onOpenProfile(entry.account.id, entry.account.displayName)
               }
@@ -343,28 +347,6 @@ export function HomeView({
           ))}
         </View>
       )}
-
-      {selecting ? (
-        <View style={styles.selectBar}>
-          <Button
-            label={
-              selected.length === 0
-                ? 'Pick people above'
-                : `Start with ${selected.length}`
-            }
-            variant="primary"
-            disabled={selected.length === 0}
-            onPress={startWithSelected}
-          />
-          <Button label="Cancel" variant="ghost" onPress={stopSelecting} />
-        </View>
-      ) : contacts.filter((c) => c.status === 'accepted').length >= 2 ? (
-        <Button
-          label="Start a channel with several people"
-          variant="ghost"
-          onPress={() => setSelecting(true)}
-        />
-      ) : null}
 
       <SectionLabel>Add contact</SectionLabel>
       <AddContact />
@@ -507,10 +489,6 @@ function ChannelRow({
 function ContactRow({
   entry,
   existing,
-  selecting,
-  selected,
-  selectable,
-  onToggleSelect,
   onStartChannel,
   onJoinExisting,
   onOpenProfile,
@@ -518,12 +496,6 @@ function ContactRow({
   entry: ContactView;
   /** A live channel containing this contact, if one has already begun. */
   existing?: { channelId: string; shown: boolean };
-  /** Whether the list is in multi-select mode. */
-  selecting: boolean;
-  selected: boolean;
-  /** False once the cap leaves no room for another pick. */
-  selectable: boolean;
-  onToggleSelect: () => void;
   onStartChannel: () => void;
   onJoinExisting: (channelId: string) => void;
   onOpenProfile: () => void;
@@ -563,31 +535,22 @@ function ContactRow({
   const secondLine = [
     status !== 'accepted'
       ? 'Pending'
-      : existing?.shown && !selecting
+      : existing?.shown
         ? 'Channel already open'
         : '',
     lastSeen,
   ]
     .filter(Boolean)
     .join(' · ');
-  // In multi-select the row's job is picking, so it picks. Opening a profile
-  // mid-selection would lose the selection to a navigation nobody asked for.
-  const onPress = selecting ? onToggleSelect : onOpenProfile;
-  const pressable = selecting ? status === 'accepted' && selectable : hasProfile;
-
   return (
     <Pressable
-      accessibilityRole={pressable ? 'button' : undefined}
+      accessibilityRole={hasProfile ? 'button' : undefined}
       accessibilityLabel={
-        pressable
-          ? selecting
-            ? `${account.displayName}. ${selected ? 'Picked' : 'Pick'}.`
-            : `${account.displayName}. Open profile.`
-          : undefined
+        hasProfile ? `${account.displayName}. Open profile.` : undefined
       }
-      disabled={!pressable}
-      onPress={onPress}
-      style={({ pressed }) => pressed && pressable && styles.rowPressed}
+      disabled={!hasProfile}
+      onPress={onOpenProfile}
+      style={({ pressed }) => pressed && hasProfile && styles.rowPressed}
     >
       <Card style={styles.row}>
       <View style={styles.rowMain}>
@@ -595,14 +558,7 @@ function ContactRow({
         <Text style={type.muted}>{secondLine}</Text>
       </View>
 
-      {status === 'accepted' && selecting ? (
-        <Button
-          label={selected ? 'Picked ✓' : 'Pick'}
-          variant={selected ? 'primary' : 'ghost'}
-          disabled={!selectable}
-          onPress={onToggleSelect}
-        />
-      ) : status === 'accepted' ? (
+      {status === 'accepted' ? (
         existing?.shown ? null : existing ? (
           <Button
             label="Join channel"
@@ -793,5 +749,4 @@ const styles = StyleSheet.create({
   bannerDismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
   addContact: { gap: spacing(1) },
   message: { fontSize: 13 },
-  selectBar: { flexDirection: 'row', gap: spacing(1), marginTop: spacing(1) },
 });
