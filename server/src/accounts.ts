@@ -197,10 +197,61 @@ export class Accounts {
    * is nothing. If it ever stops being nothing, the fix is to write only when
    * the stored value is older than an interval, not to move the call.
    */
-  markSeen(id: string, now: number): void {
+  /**
+   * `build` is what the client said it is, when it said anything. **A missing
+   * build does not clear the stored one**, which is the whole subtlety of this
+   * write: the two file transfers and any older client call without it, and
+   * treating that as "now unknown" would let one such call erase the evidence
+   * that this person is on something current. Absence means "no news", and the
+   * column keeps the last thing actually claimed.
+   */
+  markSeen(id: string, now: number, build?: number | null): void {
+    if (build == null) {
+      this.db
+        .prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?')
+        .run(now, id);
+      return;
+    }
     this.db
-      .prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?')
-      .run(now, id);
+      .prepare('UPDATE accounts SET last_seen_at = ?, last_build = ? WHERE id = ?')
+      .run(now, build, id);
+  }
+
+  /**
+   * The oldest build seen from anybody active since `since`, and whether
+   * anything active declined to say.
+   *
+   * This is the measurement `MIN_SUPPORTED_BUILD` has never had. The floor is
+   * a declaration — a shim may be deleted once the floor has passed the build
+   * that needed it — and the question it turns on is "is anything older than
+   * this still calling", which until now had no source but memory.
+   *
+   * **`silent` is the important half, and it is why this does not simply
+   * return a number.** An account active in the window but reporting no build
+   * is not evidence of anything modern: it is a client from before the header
+   * existed, and it must be read as *at or below* the first build that sends
+   * one. A `oldest` of 40 with `silent: 2` does not mean the population starts
+   * at 40. Collapsing the two into one integer would produce a number that
+   * looks like a measurement and reads like a guess, which is the exact defect
+   * being fixed.
+   *
+   * **Presence here is `last_seen_at`, which is the socket's to write.** An
+   * account that has never held a socket is not in the window at all, however
+   * many HTTP calls it has made — deliberately, because that column means "had
+   * the app open" and is what the contact list renders. The two clients that
+   * matter both connect, so this is the same set in practice; it is worth
+   * knowing before reading a low `silent` as good news.
+   */
+  buildsSeenSince(since: number): { oldest: number | null; silent: number } {
+    const row = this.db
+      .prepare(
+        `SELECT MIN(last_build) AS oldest,
+                SUM(CASE WHEN last_build IS NULL THEN 1 ELSE 0 END) AS silent
+           FROM accounts
+          WHERE last_seen_at IS NOT NULL AND last_seen_at >= ?`
+      )
+      .get(since) as { oldest: number | null; silent: number | null };
+    return { oldest: row?.oldest ?? null, silent: row?.silent ?? 0 };
   }
 
   // --- One-time codes -----------------------------------------------------

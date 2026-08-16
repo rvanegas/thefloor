@@ -4,6 +4,7 @@ import type {
   ProfileView,
   SupportView,
 } from '../../../core/protocol';
+import { appBuild, BUILD_HEADER } from './build';
 import { API_URL } from './config';
 import { deviceRegion } from './region';
 
@@ -61,6 +62,12 @@ async function request<T>(
           ? {}
           : { 'content-type': 'application/json' }),
         ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
+        // Which build is calling, so the server's compatibility floor has a
+        // source other than judgement. Omitted rather than sent empty when the
+        // platform will not say — the server reads absence as "older than this
+        // header", and a blank value would have to be parsed into the same
+        // conclusion by a second rule. See build.ts.
+        ...(appBuild() === null ? {} : { [BUILD_HEADER]: String(appBuild()) }),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });

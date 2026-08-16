@@ -250,34 +250,6 @@ development can read codes off the server console by leaving `MAIL_FROM` unset
 
 ---
 
-## Nothing on the wire says which build is calling
-
-**Status:** not started. Noted 2026-08-15.
-
-`MIN_SUPPORTED_BUILD` in `server/src/release.ts` declares the oldest iOS build
-the server still answers correctly, and governs when a compatibility shim may
-be deleted. It cannot be checked: the app sends no version and the server
-records none, so the floor is a judgement about whose phone still has what, and
-every claim in the deploy history that build N kept working across a restart
-was reasoned rather than observed.
-
-The shape is small. The app sends its `buildNumber` as a header on every
-request — one place, `request()` in `app/src/api/http.ts` — and the server
-records the lowest it has seen recently, or a build-per-account column on the
-`last_seen_at` pattern, so the question "what is still out there" has an answer
-that came from the population rather than from memory.
-
-Two things make it less trivial than it looks. **It takes a build to reach
-anybody**, so the data starts the day it ships and says nothing about the
-builds already installed — absent has to mean old, indefinitely. And a header
-is a wire change, which is the two-step: additive and optional, so an installed
-build that never sends it is not refused.
-
-Worth doing before the first shim is deleted rather than after, since the
-question it answers is exactly the one that will be asked then.
-
----
-
 ## Per-speaker volume
 
 **Status:** not started. Noted 2026-08-10.

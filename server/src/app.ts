@@ -18,7 +18,12 @@ import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { privacyPage } from './privacy';
-import { deployed, MIN_SUPPORTED_BUILD } from './release';
+import {
+  BUILD_HEADER,
+  claimedBuild,
+  deployed,
+  MIN_SUPPORTED_BUILD,
+} from './release';
 import { supportPage } from './support';
 import { donationsVisibleFor } from './region';
 import { ChannelRegistry, type RefusalCode } from './channels';
@@ -267,6 +272,21 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) {
       reply.code(401).send({ error: 'Unauthorized' });
       return null;
+    }
+    // Which build is calling, recorded where the caller is already known.
+    //
+    // Written only when it *changes*, unlike `last_seen_at`, which the socket
+    // rewrites on every heartbeat because the value it holds moves constantly.
+    // This one is a constant per install, so an unconditional UPDATE on every
+    // authenticated request would be a write per request for a value that is
+    // almost never different.
+    //
+    // The socket is the main path — a client sitting in a channel makes almost
+    // no HTTP calls — and this catches the rest: signing in, uploading, and
+    // anybody whose socket has not reconnected since the upgrade.
+    const claimed = claimedBuild(request.headers[BUILD_HEADER]);
+    if (claimed !== null && claimed !== account.last_build) {
+      accounts.markSeen(account.id, now(), claimed);
     }
     return account;
   }
@@ -1056,12 +1076,35 @@ export function buildApp(options: BuildOptions = {}): App {
   // moment a deploy is being doubted. A short sha of a private repository
   // identifies a revision to somebody who already has the repository and is
   // an opaque seven characters to anybody else.
-  fastify.get('/healthz', async () => ({
-    ok: true,
-    audio: options.media ? 'livekit' : 'none',
-    commit: deployed()?.commit ?? 'unknown',
-    minBuild: MIN_SUPPORTED_BUILD,
-  }));
+  /**
+   * How far back `oldestBuild` and `silentBuilds` look. Thirty days is chosen
+   * against TestFlight's ninety-day expiry: long enough that somebody who uses
+   * the app occasionally still counts, short enough that a phone abandoned
+   * two months ago stops holding the floor down forever.
+   */
+  const BUILD_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+  fastify.get('/healthz', async () => {
+    // The declaration and the measurement, side by side, which is the whole
+    // point of putting it here. `minBuild` is what this server promises to
+    // answer; the other two are what has actually called.
+    //
+    // **`silentBuilds` is not a footnote.** It counts accounts active in the
+    // window whose build is unknown, which for now is everybody — every build
+    // up to 36 says nothing. While it is above zero, `oldestBuild` is a floor
+    // on the *known* population and not on the real one, and a shim must not
+    // be deleted on the strength of it. It reaching zero is the event that
+    // makes this number mean what it looks like it means.
+    const builds = accounts.buildsSeenSince(now() - BUILD_WINDOW_MS);
+    return {
+      ok: true,
+      audio: options.media ? 'livekit' : 'none',
+      commit: deployed()?.commit ?? 'unknown',
+      minBuild: MIN_SUPPORTED_BUILD,
+      oldestBuild: builds.oldest,
+      silentBuilds: builds.silent,
+    };
+  });
 
   // --- Shared views -------------------------------------------------------
 

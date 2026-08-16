@@ -22,6 +22,13 @@ export interface AccountRow {
    */
   last_seen_at: number | null;
   /**
+   * The iOS build they last connected from, or null when they last connected
+   * from one that does not report it. Absent is not "unknown" in the useless
+   * sense — it is a bound, meaning at or below the first build that sends the
+   * header, and it stays that until the account connects again.
+   */
+  last_build: number | null;
+  /**
    * Forces the donate link visible (1) or hidden (0), overriding what the
    * device's region suggests. Null — the default for everyone — means decide
    * automatically. See region.ts for why the automatic answer needs an
@@ -105,6 +112,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- When they last had the app open, to the nearest heartbeat. Null until
   -- they first connect.
   last_seen_at INTEGER,
+  -- Which iOS build they last connected from. Null means they have not
+  -- connected since the app began saying — which, indefinitely, has to be read
+  -- as "something at or below the first build that sends it". See release.ts.
+  last_build   INTEGER,
   -- Overrides the guess about whether this person may see the donate link.
   -- Null means decide from what their device reports, which is what everybody
   -- gets until somebody says otherwise; 1 forces it visible and 0 forces it
@@ -464,6 +475,14 @@ function migrate(db: Db): void {
   // reading as unknown. Everyone's fills in the next time they connect.
   if (!accountColumns.some((c) => c.name === 'last_seen_at')) {
     db.exec('ALTER TABLE accounts ADD COLUMN last_seen_at INTEGER');
+  }
+  // Null rather than backfilled with anything, and the null is load-bearing:
+  // it is the only way to say "connected from a build that did not say", which
+  // is every account until the first build that sends it has spread. Guessing
+  // `MIN_SUPPORTED_BUILD` here would manufacture exactly the reassurance this
+  // column exists to stop being manufactured.
+  if (!accountColumns.some((c) => c.name === 'last_build')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN last_build INTEGER');
   }
   // Left null for everyone, which is the value that means "decide from the
   // device". Backfilling it either way would be asserting something about

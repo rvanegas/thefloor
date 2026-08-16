@@ -1086,6 +1086,81 @@ was very nearly allowed to *do* while you were looking in the wrong place.
 
 ---
 
+## The wire says which build is calling, and admits when it does not
+
+Shipped 2026-08-15 in build 37, from BACKLOG.md. It exists to make **one**
+decision decidable, and it is worth being strict about which: **when a
+compatibility shim may be deleted.**
+
+The wire is changed in two steps — teach the server the old shape as well as
+the new, deploy that, ship the client, remove the old shape a release later —
+and the third step never had a rule that could be checked. `MIN_SUPPORTED_BUILD`
+is the rule, and release.ts is candid that it is *"a declaration rather than an
+enforcement"*: nothing on the wire carried a build number, so every claim in
+the deploy history that build N kept working was reasoned rather than observed.
+Now `GET /healthz` answers it, beside the declaration it checks.
+
+**It is a measurement, not an enforcement, and must never become one.** The
+server does not refuse an old client and no code path can. A field whose whole
+purpose is to observe the installed population must not be able to lock part of
+that population out — and refusing is a far worse failure than answering an old
+shape, because a phone that cannot be updated (a lapsed TestFlight build,
+somebody who has not opened the App Store in a month) would be bricked by
+policy rather than by incompatibility. `claimedBuild` therefore reads anything
+unparseable as *no claim at all* rather than as a bad request.
+
+**`silentBuilds` is the half that keeps the number honest, and it is why
+`/healthz` reports two things rather than one.** An account active in the
+window that reports no build is not evidence of anything modern — it is a
+client from before the header existed, and it has to be read as *at or below*
+build 36. So `oldestBuild: 41, silentBuilds: 2` does not mean the population
+starts at 41. Collapsing the pair into one integer would produce a number that
+looks like a measurement and reads like a guess, which is the exact defect
+being fixed. **While `silentBuilds` is above zero, no shim may be deleted on
+the strength of `oldestBuild`.** Its reaching zero is the event that makes the
+figure mean what it appears to mean, and that cannot happen before every
+pre-37 install has either updated or lapsed.
+
+**Read from the installed binary, not from `app.json`.**
+`Application.nativeBuildVersion` is `CFBundleVersion` as signed — what
+TestFlight shows and what the population actually has. The config is what
+somebody intended at prebuild time, and the two demonstrably disagree: AGENTS.md
+records an export whose IPA read 20 from an archive reading 19, Xcode's
+automatic build-number management having bumped it during the re-sign. A field
+answering "what is really installed" must not be able to inherit that.
+
+**No native module was added**, which is the reason this could ship in the same
+release rather than the next one. `expo-application` was already in the build —
+`expo-notifications` depends on it and its `EXApplication` pod is already in
+`ios/Podfile.lock` — so declaring it in `app/package.json`, pinned to the
+version already installed, links nothing new. That matters because the
+alternative is a `prebuild`, and `prebuild --clean` drops `DEVELOPMENT_TEAM`.
+
+Two smaller decisions. The header is mirrored as a **`?build=` query parameter
+on the websocket**, beside the token and for the same reason — React Native's
+WebSocket carries no custom headers portably — and the socket is the path that
+matters, since somebody sitting in a channel for an hour makes almost no HTTP
+calls. And over HTTP the write happens **only when the value changes**, unlike
+`last_seen_at`, which the socket rewrites every heartbeat because the value it
+holds moves constantly; a build is a constant per install, so an unconditional
+UPDATE per request would be a write for something almost never different.
+
+Two things to know before trusting a reading. **A missing header does not clear
+a stored build** — the two file transfers bypass `request()` entirely, and
+letting one of those blank the column would erase the evidence on every upload.
+And **presence here is `last_seen_at`, which only the socket writes**, so an
+account that has never held a socket is outside the window however many HTTP
+calls it has made. Both clients that matter connect, so it is the same set in
+practice; it is worth knowing before reading a low `silentBuilds` as good news.
+
+Still open: **the timing was the argument for doing it now rather than later.**
+The data starts the day it ships and says nothing about builds already
+installed, so every release this waited would have been a release the evidence
+did not cover. And Android, when it arrives, needs the same header or it joins
+the silent count permanently.
+
+---
+
 ## The deploy history
 
 Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and

@@ -36,6 +36,37 @@ import { readFileSync } from 'node:fs';
  */
 export const MIN_SUPPORTED_BUILD = 36;
 
+/**
+ * The header an iOS build uses to say which build it is, mirrored as a
+ * `?build=` query parameter on the websocket because React Native's WebSocket
+ * carries no custom headers portably.
+ *
+ * Additive and optional, which is the safe half of the two-step: a build that
+ * predates it sends nothing and is answered exactly as before. Shipped in
+ * build 37. See planning/BACKLOG.md for the shape and planning/DECISIONS.md
+ * for why the floor above needed a source other than judgement.
+ */
+export const BUILD_HEADER = 'x-thefloor-build';
+
+/**
+ * What a caller claims its build is, from a header or a query parameter.
+ *
+ * **Never refuses.** Anything unparseable is read as no claim at all rather
+ * than as a bad request, and that is deliberate: this is diagnostic metadata
+ * about a caller that has already authenticated, and a field whose whole
+ * purpose is to *observe* the installed population must not be able to lock
+ * part of that population out. A client that garbles it goes back to being
+ * counted the way every pre-37 build is — silent, and therefore old.
+ */
+export function claimedBuild(
+  raw: string | string[] | null | undefined
+): number | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 export interface Deployed {
   /** Short sha of the commit that was synced, `-dirty` if the tree was not clean. */
   commit: string;

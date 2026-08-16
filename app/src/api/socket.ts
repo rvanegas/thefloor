@@ -9,6 +9,7 @@ import type {
   ServerMessage,
   ChannelView,
 } from '../../../core/protocol';
+import { appBuild } from './build';
 import { WS_URL } from './config';
 import { reportSignedOut } from './http';
 
@@ -78,7 +79,16 @@ export class Realtime {
     if (!this.token) return;
     this.handlers.onStatus?.('connecting');
 
-    const socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(this.token)}`);
+    // A query parameter rather than a header, because the token is already one
+    // and for the same reason: React Native's WebSocket does not carry custom
+    // headers portably. The build rides beside it so that somebody merely
+    // *connected* — sitting in a channel, making no HTTP calls for an hour —
+    // is still counted. See build.ts.
+    const build = appBuild();
+    const socket = new WebSocket(
+      `${WS_URL}?token=${encodeURIComponent(this.token)}` +
+        (build === null ? '' : `&build=${build}`)
+    );
     this.socket = socket;
 
     socket.onopen = () => {

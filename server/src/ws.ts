@@ -13,6 +13,7 @@ import type {
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
 import type { ChannelRegistry } from './channels';
+import { claimedBuild } from './release';
 
 interface Connection {
   socket: WebSocket;
@@ -31,6 +32,15 @@ interface Connection {
   watchingChannels: Set<string>;
   /** When anything was last heard from this client. */
   lastSeen: number;
+  /**
+   * The build this socket announced at connect, or null if it announced none.
+   *
+   * Held on the connection rather than re-read per message because it cannot
+   * change without a reconnect — a new build is a new process — and because
+   * every `markSeen` this socket causes should agree about it. See
+   * `Accounts.buildsSeenSince`.
+   */
+  build: number | null;
 }
 
 /** Close code for a credential the server will not accept. */
@@ -243,11 +253,12 @@ export function registerWebsocket(deps: {
       watchingHome: false,
       watchingChannels: new Set(),
       lastSeen: now(),
+      build: claimedBuild(url.searchParams.get('build')),
     };
     connections.add(connection);
     // Having the app open is exactly this: a live socket. Stamped as it opens
     // so somebody who connects and says nothing still counts as here.
-    accounts.markSeen(account.id, now());
+    accounts.markSeen(account.id, now(), connection.build);
 
     // Deliberately nothing about presence here.
     //
@@ -277,7 +288,7 @@ export function registerWebsocket(deps: {
       // a socket that has been open for hours: without it the stored time
       // would be when they connected, and somebody talking right now would
       // read as having been away since this morning.
-      accounts.markSeen(connection.userId, connection.lastSeen);
+      accounts.markSeen(connection.userId, connection.lastSeen, connection.build);
 
       let message: ClientMessage;
       try {
@@ -337,7 +348,7 @@ export function registerWebsocket(deps: {
       // The moment they stopped being in the app, which is the one this is
       // read for. Written before the presence reporting below, so a snapshot
       // pushed as a result of it already carries the right time.
-      accounts.markSeen(connection.userId, now());
+      accounts.markSeen(connection.userId, now(), connection.build);
       // Losing a socket is not leaving a channel. It starts the grace period,
       // and reconnecting inside that minute cancels it — so a tunnel, a lift
       // or a backgrounded app costs nobody their place.
