@@ -2440,6 +2440,40 @@ describe('tapping a row', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The row lives at the foot of the channel list, and the list is only
+   * *labelled* when there is a channel in it — so the row has to sit outside
+   * that guard. Rendering it inside would hide the only way to open a channel
+   * from the one account that has none, which is the mistake the affordance it
+   * replaced already made once.
+   */
+  it('offers to start one whether or not there are channels already', () => {
+    const withChannel = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name: 'Thursday rehearsal',
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+
+    for (const home of [withChannel, { ...withChannel, rejoinable: [] }]) {
+      mockApp.home = home;
+      const tree = render(
+        <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      );
+      expect(findButton(tree, 'Start a channel')).toBeDefined();
+      act(() => tree.unmount());
+    }
+  });
+
   it('opens a profile from a contact row, there being no selection mode', () => {
     const onOpenProfile = jest.fn();
     mockApp.home = {

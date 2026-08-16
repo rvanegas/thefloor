@@ -277,35 +277,36 @@ export function HomeView({
       ))}
 
       {/*
-        Below the invites, above everything else. Somebody being asked into a
-        channel should answer that before opening one of their own, and
-        everything under it is a list rather than a thing to do.
+        The channels, and at the foot of them the way to make another.
 
         It says "Start a channel" and nothing more. What it used to say —
         "Start a channel with several people" — was describing a mode rather
         than an outcome, and it only appeared once you had two contacts, so the
         one affordance that opens an empty channel was hidden from exactly the
-        people who had nowhere to talk yet.
-      */}
-      <Button label="Start a channel" variant="primary" onPress={startAlone} />
+        people who had nowhere to talk yet. That is still the rule: it is
+        outside the `live.length` guard, so an account with no channels sees it
+        as the only row.
 
-      {live.length > 0 ? (
-        <>
-          <SectionLabel>Your channels</SectionLabel>
-          <View style={styles.list}>
-            {live.map((channel) => (
-              <ChannelRow
-                key={channel.channelId}
-                channel={channel}
-                onStepIn={() => {
-                  app.act(channel.channelId, { type: 'ENTER' });
-                  onEnterChannel(channel.channelId);
-                }}
-              />
-            ))}
-          </View>
-        </>
-      ) : null}
+        It sat above this list as a filled black button, which made the loudest
+        thing on the screen a thing to do rather than the conversations already
+        open. As the last row of the list it is in the place somebody is
+        already looking when nothing there is the one they want, and it reads
+        as one more channel — the one that does not exist yet.
+      */}
+      {live.length > 0 ? <SectionLabel>Your channels</SectionLabel> : null}
+      <View style={[styles.list, live.length === 0 && styles.listUnlabelled]}>
+        {live.map((channel) => (
+          <ChannelRow
+            key={channel.channelId}
+            channel={channel}
+            onStepIn={() => {
+              app.act(channel.channelId, { type: 'ENTER' });
+              onEnterChannel(channel.channelId);
+            }}
+          />
+        ))}
+        <StartChannelRow onPress={startAlone} />
+      </View>
 
       <SectionLabel>Contacts</SectionLabel>
       {!home ? (
@@ -481,6 +482,35 @@ function ChannelRow({
             : 'Nobody here right now'}
         </Text>
       </View>
+      </Card>
+    </Pressable>
+  );
+}
+
+/**
+ * The last row of the channel list: a mark and a label, in the shape of a
+ * channel rather than of a button.
+ *
+ * The accent is on the mark alone. A whole row in the floor colour would be
+ * competing with the live bar, which is the one thing on this screen that
+ * should be able to shout — and this is not urgent, it is merely available.
+ *
+ * `accessibilityLabel` is given explicitly so a screen reader says the action
+ * and not the plus sign, which is decoration and does not read as a word.
+ */
+function StartChannelRow({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Start a channel"
+      onPress={onPress}
+      style={({ pressed }) => pressed && styles.rowPressed}
+    >
+      <Card style={styles.startRow}>
+        <View style={styles.startMark}>
+          <Text style={styles.startMarkGlyph}>+</Text>
+        </View>
+        <Text style={styles.startLabel}>Start a channel</Text>
       </Card>
     </Pressable>
   );
@@ -714,6 +744,12 @@ const styles = StyleSheet.create({
   },
   offlineText: { color: colors.silenced, fontSize: 13 },
   list: { gap: spacing(1) },
+  /**
+   * The gap a SectionLabel would have left. With no channels there is no
+   * heading, and the start row would otherwise sit against whatever is above
+   * it — the header, or an invite banner.
+   */
+  listUnlabelled: { marginTop: spacing(2) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -732,6 +768,35 @@ const styles = StyleSheet.create({
    */
   described: { ...type.body, fontStyle: 'italic' },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
+  /**
+   * Not `row`, which spreads its children apart to put a control on the end.
+   * Here the mark and the label are one phrase and belong together on the
+   * left, so it packs rather than justifies. A shorter card too: this row has
+   * one line where a channel has two.
+   */
+  startRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1.5),
+    paddingVertical: spacing(1.5),
+  },
+  startMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.floorDim,
+  },
+  startMarkGlyph: {
+    color: colors.floor,
+    fontSize: 19,
+    // Centred by hand: the glyph's own box is taller than its ink, so leaving
+    // it to `justifyContent` alone hangs it low in the circle.
+    lineHeight: 21,
+    fontWeight: '500',
+  },
+  startLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
   pendingTag: { ...type.muted, color: colors.textFaint },
   banner: {
     flexDirection: 'row',

@@ -1022,6 +1022,24 @@ installed build sends one, so nothing that used to work has changed meaning,
 but a new client against an old server gets `contactIds is required` on the one
 button Home leads with.
 
+**Revised the same day, before anyone outside had it.** As shipped it was a
+filled black `variant="primary"` button sitting above the channel list, which
+made the loudest thing on a screen full of conversations a thing *to do* rather
+than the conversations themselves. It is now the last row of the channel list —
+a card in the shape of a `ChannelRow`, carrying a small `+` in a floor-tinted
+circle and the same label — so it sits where somebody is already looking when
+none of the rows above it is the one they want, and reads as one more channel,
+the one that does not exist yet. The accent is on the mark alone, deliberately:
+a whole row in the floor colour would be competing with the live bar, which is
+the one thing on Home that should be able to shout.
+
+The rule from three paragraphs up survives the move and is the thing to be
+careful of. **The row is outside the `live.length > 0` guard** — only the
+*Your channels* label is inside it — so an account with no channels sees the
+row as the only one on the list. Rendering it inside would hide the way into a
+channel from precisely the person who has none, which is the mistake the mode
+it replaced already made once, and there is a test pinning both cases.
+
 ---
 
 ## `BadDeviceToken` is not a dead address, and pruning on it nearly cost the table
