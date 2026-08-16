@@ -9,8 +9,25 @@ you go looking for, and a root directory that lists them all buries the code.
 
 Three of them answer a standing question each. **`planning/BACKLOG.md`** is what
 is known and not done. **`planning/DECISIONS.md`** is what was built and why,
-including what was deliberately not built. **`planning/FEATURES.md`** is the
-roadmap: features that are wanted, at a paragraph each.
+including what was deliberately not built. **`planning/TASKS.md`** is the
+roadmap, at a paragraph each — features, but also audits, open questions and
+things to go and find out, which is why it is not called FEATURES.
+
+**Any verb followed by a quoted string that matches a `##` heading in
+`planning/TASKS.md` is a reference to that entry, and is not itself a
+description of the work.** `Do task "Track Usage"`, `Implement "Track Usage"`
+and `Start on "Track Usage"` all mean the same thing. Go and read the entry
+before anything else; the paragraph under the heading is the request, and
+everything the title leaves out is in it. Taking the title at face value and
+starting to write is how you build something adjacent to what was asked for.
+
+**The verb is not part of the convention** — it says what is wanted done, which
+varies, since a good half of these entries are questions rather than features.
+The match on the heading is what makes it a reference. If a quotation happens to
+coincide with a heading and the surrounding request is plainly about something
+else, it is a coincidence; read it as context tells you to, and say which way
+you read it. Items in `BACKLOG.md` are named explicitly instead, until this
+convention is extended to cover them.
 
 `DECISIONS` is **more than one file**. `planning/DECISIONS.md` is always the
 live volume and the only one new decisions are appended to; closed volumes are
@@ -177,6 +194,20 @@ reasoning is in planning/DECISIONS.md; these are the rules.
 
 - **`master` is trunk and is the only thing deployed.** Work on short-lived
   branches, merge back. There is no develop branch and no release branches.
+- **"Land it" means merge and clean up, in one phrase.** Get the branch onto
+  `master`, remove the worktree if the work was done in one, delete the branch
+  locally and on the origin. Fast-forward when it is possible; when the branch
+  has fallen behind, rebase onto `master` and fast-forward that. **Rebase only
+  while nobody else has the branch** — it rewrites commits that are already
+  pushed, so it needs a force-push, which is harmless for a branch one session
+  made and is not harmless once anything pulls it. When it is shared, or when
+  the rebase throws conflicts whose resolution is a judgement rather than a
+  formality, make an ordinary merge commit instead and say so. Landing is not
+  the moment to be inventing what the change meant. The worktree goes *before*
+  the branch — git refuses to delete a branch that is checked out somewhere,
+  and the error names neither the worktree nor which one. A session working
+  inside a worktree has to leave it first, since the merge has to happen where
+  `master` is checked out.
 - **`bin/deploy` rsyncs the working tree, not a git ref**, deliberately — so it
   stamps `server/deployed.json` with the sha, marked `-dirty` when the tree
   was. `GET /healthz` and the startup log report it, and the deploy now fails

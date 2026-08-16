@@ -2,7 +2,7 @@
 
 **Temporary.** The checklist for the first App Store submission. It is deleted
 when the app is approved, with whatever is still true afterwards moving to
-DECISIONS.md. FEATURES.md points here.
+DECISIONS.md. TASKS.md points here.
 
 **Submitted 2026-08-14: version 1.0.0, build 36, state `WAITING_FOR_REVIEW`.**
 Release is manual, so approval will not put it live — that stays a separate

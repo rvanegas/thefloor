@@ -963,9 +963,10 @@ people you can already see.
 
 ## Starting a channel asks nobody anything
 
-Shipped 2026-08-15, from FEATURES.md. Home's way into a channel was a mode: a
-button reading *Start a channel with several people*, which armed a selection
-over the contact list, turned every row into a checkbox, and waited for a
+Shipped 2026-08-15, from FEATURES.md (renamed TASKS.md later the same day).
+Home's way into a channel was a mode: a button reading *Start a channel with
+several people*, which armed a selection over the contact list, turned every
+row into a checkbox, and waited for a
 *Start with 3* to be pressed. It was a form to fill in before anything could
 happen. Now there is one primary button reading **Start a channel**, it makes a
 channel with nobody in it but you, walks you in, and the invitations are made

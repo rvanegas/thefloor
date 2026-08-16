@@ -1,12 +1,12 @@
 # Watch Party
 
-A design for work not yet done. FEATURES.md names it in one line; this is what
+A design for work not yet done. TASKS.md names it in one line; this is what
 that line turns out to mean, and why. Nothing here is built — when it is,
 what was decided moves to DECISIONS.md and this file goes.
 
 ## Context
 
-FEATURES.md says: *"Independently of this functionality, a watch party plays
+TASKS.md says: *"Independently of this functionality, a watch party plays
 video, and disallows recordings."* Reading that against shared audio suggests
 widening `PlaybackTrack` to carry video, and that is the wrong shape. The
 videos people want to watch together are on YouTube. Nobody has an mp4.
