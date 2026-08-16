@@ -68,12 +68,25 @@ const media: MediaServer | undefined =
     : undefined;
 
 /**
- * Reading is a separate privilege from writing. The key above travels to
- * LiveKit and is PutObject-only; this uses the server's own credential chain,
- * so a leak of the third-party key cannot retrieve anyone's conversations.
+ * Reading is a separate privilege from writing, and this holds both — each on
+ * the credential that should have it.
+ *
+ * Reads use the server's own credential chain, so a leak of the key that
+ * travels to LiveKit cannot retrieve anyone's conversations. Writes — which is
+ * mixing, this server's only reason to put anything in the bucket itself — use
+ * the PutObject-only key above, the same one `media.ts` already stores the
+ * playback stem with. Nothing is widened by this: `thefloor-server` stays
+ * `s3:GetObject` and nothing else.
+ *
+ * With a bucket but no key, mixing fails and every recording falls back to
+ * being encoded on demand, which is what the server did before mixes existed.
  */
 const store = s3Bucket
-  ? new S3RecordingStore(s3Bucket, process.env.RECORDINGS_REGION ?? mailRegion)
+  ? new S3RecordingStore(
+      s3Bucket,
+      process.env.RECORDINGS_REGION ?? mailRegion,
+      s3Key && s3Secret ? { accessKey: s3Key, secret: s3Secret } : undefined
+    )
   : undefined;
 
 /**

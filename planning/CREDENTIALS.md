@@ -39,7 +39,10 @@ Deliberately separate, so no single leak is worse than it has to be:
   once.
 
 - **`thefloor-egress`** — PutObject only. **It no longer leaves the box, and it
-  should stay exactly this narrow anyway.** The original reason was that it
+  should stay exactly this narrow anyway.** Since 2026-08-16 it is also what
+  the server writes a finished mix with — `RecordingStore.put`, a second client
+  beside the read one — which is the same permission it already needed for the
+  playback stem and widens nothing. The original reason was that it
   travelled to LiveKit, a third party, so a leak of a key somebody else held
   could not read anyone's conversations back. Self-hosted, that reason is gone
   and the scoping is still right: an S3 key that can only add is a smaller
@@ -49,6 +52,13 @@ Deliberately separate, so no single leak is worse than it has to be:
   `s3:GetObject` on the recordings bucket. Nothing else. Created for this
   deployment because Lightsail instances get no IAM role, so the default
   credential chain has nothing to find.
+
+  **It was nearly widened on 2026-08-16 for no reason.** Storing the mix looked
+  like it needed a write here, when the server has held a PutObject key all
+  along — the one above, which `media.ts` already stores the playback stem
+  with. Anything that seems to need this credential widened is worth checking
+  against that one first. The sweep's `DeleteObject` is a live question of the
+  same kind, and is in BACKLOG.md.
 
   It also needs the **configuration set** in its resource list, not only the
   identity. The rvanegas.co identity has `my-first-configuration-set` attached

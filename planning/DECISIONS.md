@@ -1180,6 +1180,120 @@ the silent count permanently.
 
 ---
 
+## The mix is made when the run ends, and is stored
+
+Until 2026-08-16 a recording had no finished form. The stems were the artefact
+and the mix was derived on every request — an export encoded one and threw it
+away, and `POST /recordings/:id/play` did the same before loading the result as
+the channel's track. That was a deliberate choice with a real property behind
+it, recorded in the first volume: nothing stored means nothing stale, so a
+change to how the floor is applied reached every recording ever made rather
+than only the ones recorded after the deploy.
+
+The cost was paid by whoever tapped the row. A long recording takes seconds to
+mix, and those seconds were spent with somebody waiting on them — which is why
+the row said "Loading…" rather than the screen simply going quiet. The work was
+also done again on every request, so a recording played three times was mixed
+three times from the same unchanging stems.
+
+It is now made once, when the run is filed, and stored beside the stems it came
+from at `<channel>/<run>/mixed.ogg`. Playing and exporting are a GetObject.
+
+**A recording is not shown until its mix exists.** This is the part that makes
+the change worth making rather than merely faster on average: `recordingsFor`
+and `recordingsInChannel` both exclude rows whose `mix_state` is `'pending'`, so
+every card on a screen is one that responds the moment it is tapped. The
+alternative — showing it immediately and making the tap wait — is what was
+already happening, and the whole point is that a control which is visible ought
+to work. The window is seconds, and `startMix` emits when it closes, so the card
+appears by the same channel snapshot every other change arrives on.
+
+`mix_state` has three values and the third is the important one. `'pending'` is
+invisible; `'ready'` has a mix in the bucket; **`'unmixed'` has none and is
+shown anyway**, exporting by encoding on demand exactly as everything did
+before. Everything that can go wrong lands there: a mix that failed, a run
+filed by a server with no storage configured, and every recording made before
+this existed, which the migration backfills. So the worst case of this feature
+is the old behaviour, not a conversation nobody can reach — and a row that was
+`'unmixed'` becomes `'ready'` the first time it is asked for, since the export
+path stores what it made.
+
+Three things were nearly wrong and are worth keeping:
+
+**The stems are not in the bucket when the run ends.** `stopEgress` resolves
+when LiveKit has accepted the stop, not when it has uploaded anything, so the
+first read after a run will often find nothing. Mixing on demand never met this
+because minutes had passed. `getWhenReady` therefore retries for ten minutes
+before giving up, and is patient about every failure rather than only a 404 —
+the answer to all of them is the same. It is deliberately *not* used on the
+request path, where a missing object means missing and the caller is holding a
+socket open.
+
+**The sweep deletes the mix key unconditionally**, without consulting
+`mix_state`. Asking for one that was never written costs a no-op; skipping one
+that was — a mix stored a moment before a crash that lost the state update —
+leaves a conversation in the bucket after the row that names it has gone, which
+is the failure the sweep's whole ordering exists to prevent.
+
+**A restart during mixing would hide a recording permanently**, since pending is
+invisible and nothing else would ever revisit it. `restore()` re-queues every
+finished row still marked pending — which is also how a run interrupted
+mid-capture gets its mix, the stray-finalizing pass marking it pending first —
+and marks them unmixed instead when there is no store to mix from.
+
+**What was given up is the property the old design had.** A change to
+`buildFilterGraph` no longer reaches a recording already mixed, and there is
+nothing in the code that will notice. Anyone changing how the floor is applied
+has to invalidate what exists — `UPDATE recordings SET mix_state = 'unmixed'`,
+which makes the next request re-encode and overwrite — or the fix applies to
+conversations recorded after the deploy and to no others. That is written above
+`GET /recordings/:id/export` as well, since that is where somebody will be
+looking.
+
+### Where the mix lives, and the credential that was blamed for it
+
+The first version of this put the mix on the box's own disk, beside the
+database, on the stated grounds that writing it to S3 would mean widening
+`thefloor-server` from `s3:GetObject` to something that can also write the
+bucket. **That was simply false, and the evidence was already open**: the
+server has held a PutObject-only credential all along — the one handed to
+LiveKit with each egress request — and `media.ts` has used it directly to store
+the playback stem since shared audio shipped. Writing the mix needs no IAM
+change at all.
+
+With that gone the argument for local disk was weak and the argument against it
+was not: persistent state on an instance's filesystem is the thing this project
+has otherwise avoided, the database being the acknowledged exception, and one
+that would live on its own server if it were larger. The latency case did not
+survive either — playback is slower than S3 bandwidth, and delivery to a phone
+is slower than traffic inside AWS.
+
+So the mix goes in the bucket, and `RecordingStore` grew a `put` to say so:
+reads on the server's own credential chain, writes on the narrow key, one
+long-lived client each rather than the fresh `S3Client` per call that
+`media.ts` still constructs. `thefloor-server` stays `s3:GetObject` and nothing
+else, which planning/CREDENTIALS.md says it should.
+
+### `mixesSettled`, and why tests had to change
+
+Eleven tests failed on the first run, all of them asserting that a recording is
+listed the instant the run stops. That is the contract this deliberately
+changes, so they were updated rather than accommodated — but they needed
+something to wait on, and `setTimeout(0)` is not it when the work is an ffmpeg
+process behind three `await`s.
+
+`ChannelRegistry.mixesSettled()` resolves when nothing is in flight, exposed for
+the same reason `tick()` is. It forced one thing in the implementation worth
+knowing: `startMix` does **not** go through `this.run`, which reports failures
+in a continuation of a promise it has already handed back. Everything that
+decides whether a recording is visible has to have happened by the time the
+tracked promise settles, or a caller that waits correctly still reads a state
+that is still moving. `mixWaitMs` is injectable for the same reason — a test
+whose store holds whatever it is going to hold should not wait ten minutes to
+find that out.
+
+---
+
 ## The deploy history
 
 Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and

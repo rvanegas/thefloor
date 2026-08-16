@@ -36,6 +36,11 @@ beforeEach(() => {
     media,
     mediaUrl: 'wss://example.livekit.cloud',
     store,
+    // The stems these runs claim to have written are never uploaded, so
+    // waiting for them would be waiting for something that is not coming. The
+    // mix fails, the recording is filed unmixed, and it is visible — which is
+    // the fallback these tests want exercised anyway.
+    mixWaitMs: 0,
     now: () => clock,
     roomCloseGraceMs: 0,
   });
@@ -103,6 +108,9 @@ async function recorded() {
     type: 'STOP_RECORDING',
   });
   await settle();
+  // A recording is not shown until its mix is made or has failed, so nothing
+  // here can look for one until that has resolved.
+  await app.channels.mixesSettled();
 
   // The keys the run wrote, put in the store so the sweep has something to
   // empty. MemoryMediaServer records what it was asked to capture.

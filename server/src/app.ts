@@ -13,7 +13,7 @@ import { Accounts } from './accounts';
 import { openDb, type AccountRow, type Db, type RecordingRow } from './db';
 import { Devices, type DevicePlatform } from './devices';
 import { Donations } from './donations';
-import { encodeRecording } from './export';
+import { RECORDING_CONTENT_TYPE } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
@@ -43,8 +43,13 @@ export interface BuildOptions {
   media?: MediaServer;
   /** The wss:// URL clients should connect to. Sent alongside a join token. */
   mediaUrl?: string;
-  /** Read access to the recordings bucket, for encoding an export. */
+  /** The recordings bucket: stems in, mixes in and out. */
   store?: RecordingStore;
+  /**
+   * How long a mix waits for a stem the egress has not uploaded yet. Set to
+   * zero by tests whose store holds whatever it is going to hold already.
+   */
+  mixWaitMs?: number;
   /** Grace period before an ended channel's audio room is torn down. */
   roomCloseGraceMs?: number;
   /**
@@ -234,7 +239,8 @@ export function buildApp(options: BuildOptions = {}): App {
       fastify.log.error({ err: error, context }, 'media operation failed'),
     options.roomCloseGraceMs,
     pushNotifier,
-    options.store
+    options.store,
+    options.mixWaitMs
   );
 
   // Channels outlive the process that was holding them, so the first thing a
@@ -929,13 +935,9 @@ export function buildApp(options: BuildOptions = {}): App {
     const dir = await mkdtemp(join(tmpdir(), `thefloor-track-${process.pid}-`));
     const file = join(dir, 'track.ogg');
     try {
-      const { data } = await encodeRecording(
-        {
-          stems: row.stems ? JSON.parse(row.stems) : {},
-          timeline: row.floor_timeline ? JSON.parse(row.floor_timeline) : [],
-        },
-        (key) => options.store!.get(key)
-      );
+      // Normally already mixed, and then this is one fetch. See
+      // `recordingAudio` for what happens when it is not.
+      const data = await channels.recordingAudio(id);
       await writeFile(file, data);
 
       // Probed rather than taken from `duration_ms`: that is what was
@@ -962,14 +964,6 @@ export function buildApp(options: BuildOptions = {}): App {
     }
   });
 
-  /**
-   * The finished recording, with the floor applied.
-   *
-   * Encoded per request rather than stored: the stems are the durable artefact
-   * and the mix is derived from them, so a change to how the floor is applied
-   * takes effect for past recordings too rather than leaving a stale file that
-   * lets a silenced remark through.
-   */
   /**
    * Marks one recording for deletion. The audio and the row go in the sweep a
    * week later, exactly as a deleted channel's do — this only sets the mark,
@@ -1016,6 +1010,22 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true };
   });
 
+  /**
+   * The finished recording, with the floor applied.
+   *
+   * Stored rather than encoded per request, since 2026-08-16: the mix is made
+   * when the run ends, so this is a fetch of bytes that already exist and a
+   * recording exports the instant its card appears. The stems remain the
+   * durable artefact and the mix is still derived from them — see
+   * `recordingAudio`, which remakes it whenever it is missing.
+   *
+   * **The cost is that a change to how the floor is applied no longer reaches
+   * a recording already mixed.** It used to, because there was nothing stored
+   * to be stale. Anyone changing the gating in `buildFilterGraph` has to
+   * invalidate what exists — `UPDATE recordings SET mix_state = 'unmixed'`,
+   * which makes the next request re-encode and overwrite — or the fix applies
+   * to conversations recorded after the deploy and to no others.
+   */
   fastify.get('/recordings/:id/export', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
@@ -1023,14 +1033,7 @@ export function buildApp(options: BuildOptions = {}): App {
 
     const row = db
       .prepare('SELECT * FROM recordings WHERE id = ?')
-      .get(id) as
-      | {
-          channel_id: string;
-          stems: string | null;
-          floor_timeline: string | null;
-          deleted_at: number | null;
-        }
-      | undefined;
+      .get(id) as { channel_id: string; deleted_at: number | null } | undefined;
 
     // Absent, deleted and not-yours are one answer: knowing a recording exists
     // is itself something only the channel's members should learn.
@@ -1052,16 +1055,10 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(503).send({ error: 'Recording storage is not configured.' });
     }
 
-    const stems = row.stems ? JSON.parse(row.stems) : {};
-    const timeline = row.floor_timeline ? JSON.parse(row.floor_timeline) : [];
-
     try {
-      const { data, contentType } = await encodeRecording(
-        { stems, timeline },
-        (key) => options.store!.get(key)
-      );
+      const data = await channels.recordingAudio(id);
       return reply
-        .header('content-type', contentType)
+        .header('content-type', RECORDING_CONTENT_TYPE)
         .header('content-disposition', `attachment; filename="${id}.ogg"`)
         .send(data);
     } catch (error) {

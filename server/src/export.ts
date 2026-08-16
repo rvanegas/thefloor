@@ -138,6 +138,13 @@ export function buildFilterGraph(
 /** Fetches an object's bytes. Separated so tests can supply stems directly. */
 export type FetchObject = (key: string) => Promise<Buffer>;
 
+/**
+ * What a mixed recording is, whether it was just encoded or fetched from the
+ * bucket having been encoded when the run ended. One constant because those
+ * two paths must not be able to describe the same bytes differently.
+ */
+export const RECORDING_CONTENT_TYPE = 'audio/ogg';
+
 export interface EncodeResult {
   data: Buffer;
   contentType: string;
@@ -193,7 +200,7 @@ export async function encodeRecording(
       dir
     );
 
-    return { data: await readFile(output), contentType: 'audio/ogg' };
+    return { data: await readFile(output), contentType: RECORDING_CONTENT_TYPE };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

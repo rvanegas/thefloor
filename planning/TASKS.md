@@ -9,10 +9,6 @@ are more in BACKLOG.md.
 
 A playing audio in some other app should be paused when audio activity, in or out, in The Floor begins.
 
-## Immediate Play and Export
-
-Mixing the file should happen immediately after recording completes, so playback and export actions can respond immediately. Until mixing is complete, recording card is not displayed.
-
 ## Notify Channel Member
 
 Ping specific member with a notification with specific text. Limited char count.

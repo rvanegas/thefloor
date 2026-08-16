@@ -92,6 +92,21 @@ export interface RecordingRow {
   stems: string | null;
   /** JSON: Array<{ identity, fromMs, toMs }> — when each party was silenced. */
   floor_timeline: string | null;
+  /**
+   * Where the mixed recording stands: `'pending'` while it is being made,
+   * `'ready'` once it is in the bucket, `'unmixed'` when there is not one and
+   * nothing is going to make one without being asked.
+   *
+   * A pending recording is shown to nobody — see `recordingsFor`. The other two
+   * are both displayable, which is the distinction that matters: `'unmixed'`
+   * covers rows written before mixes existed and runs whose mix failed, and
+   * both of those still export, by encoding on demand exactly as every
+   * recording used to.
+   *
+   * Null on a row that is still capturing, and on legacy rows until the
+   * migration backfills them.
+   */
+  mix_state: string | null;
   /** Null while the run is still capturing; restore() finalizes strays. */
   ended_at: number | null;
   /** Why the run ended early, when it did not end by anyone's choice. */
@@ -318,6 +333,11 @@ CREATE TABLE IF NOT EXISTS recordings (
   -- rather than wall clock, so paused time is already excluded. This is what
   -- the encoder gates on.
   floor_timeline TEXT,
+  -- 'pending', 'ready' or 'unmixed'. The mix is made when the run ends rather
+  -- than per request, so that playing and exporting are immediate; until it
+  -- exists the recording is shown to nobody, which is what this column is read
+  -- for. See RecordingRow.mix_state.
+  mix_state TEXT,
   -- Null while the run is still capturing. The row is written when a run
   -- starts and finalized when it ends, which is what lets a run interrupted by
   -- a server restart be recovered — kept, marked failed — instead of leaving
@@ -419,6 +439,7 @@ function migrate(db: Db): void {
     'participants',
     'participant_names',
     'name',
+    'mix_state',
   ]) {
     if (!columns.some((c) => c.name === column)) {
       db.exec(`ALTER TABLE recordings ADD COLUMN ${column} TEXT`);
@@ -507,6 +528,20 @@ function migrate(db: Db): void {
            WHERE participants IS NULL`);
   db.exec(`UPDATE recordings SET participants = json_array(initiator_id, invitee_id)
            WHERE participants IS NULL`);
+
+  // Every recording that existed before mixes did has no mix and is not going
+  // to grow one on its own. 'unmixed' rather than null because null is what a
+  // row still capturing holds, and rather than 'pending' because pending means
+  // invisible — backfilling that way would hide the whole history behind a
+  // queue of work nobody asked for. They export by encoding on demand, exactly
+  // as they always have, and the first export or playback of one stores the
+  // mix it made.
+  //
+  // After the ended_at block above, which is what creates that column on a
+  // database old enough not to have it. Safe to run every boot: a live run's
+  // ended_at is null, and a finished run always has its state set by fileRun.
+  db.exec(`UPDATE recordings SET mix_state = 'unmixed'
+           WHERE mix_state IS NULL AND ended_at IS NOT NULL`);
 }
 
 export function sha256(value: string): string {

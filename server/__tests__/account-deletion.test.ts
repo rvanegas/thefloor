@@ -34,6 +34,9 @@ beforeEach(() => {
     media,
     mediaUrl: 'wss://example.livekit.cloud',
     store,
+    // Nothing uploads a stem here, so a mix has nothing to wait for: it fails
+    // at once and the recording is filed unmixed, which is visible.
+    mixWaitMs: 0,
     now: () => clock,
     roomCloseGraceMs: 0,
   });
@@ -292,6 +295,9 @@ describe('what happens to channels', () => {
       type: 'STOP_RECORDING',
     });
     await settle();
+    // A recording is shown to nobody until its mix has resolved one way or
+    // the other.
+    await app.channels.mixesSettled();
     expect(app.channels.recordingsFor(alice.account.id)).toHaveLength(1);
 
     await remove(alice);
@@ -321,6 +327,9 @@ describe('what happens to channels', () => {
       type: 'STOP_RECORDING',
     });
     await settle();
+    // A recording is shown to nobody until its mix has resolved one way or
+    // the other.
+    await app.channels.mixesSettled();
 
     await remove(alice);
 

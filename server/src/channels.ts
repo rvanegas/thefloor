@@ -36,8 +36,9 @@ import {
   type Db,
   type RecordingRow,
 } from './db';
+import { encodeRecording } from './export';
 import type { MediaServer, PlaybackSession } from './media';
-import type { RecordingStore } from './storage';
+import { getWhenReady, type RecordingStore } from './storage';
 import { createPushNotifier, type PushNotifier } from './push';
 
 /**
@@ -279,6 +280,11 @@ export class ChannelRegistry {
   private persisted = new Map<string, string>();
   /** When each live run's row was last checkpointed. Keyed by run id. */
   private checkpointedAt = new Map<string, number>();
+  /**
+   * Mixes in flight, keyed by recording id. A recording is invisible for
+   * exactly as long as it is in here.
+   */
+  private mixing = new Map<string, Promise<void>>();
 
   /**
    * When each channel last announced itself, so a flapping connection cannot
@@ -298,7 +304,13 @@ export class ChannelRegistry {
     private roomCloseGraceMs: number = ROOM_CLOSE_GRACE_MS,
     private push: PushNotifier = createPushNotifier(),
     /** Read and delete on the recordings bucket; absent in tests that do not need it. */
-    private store?: RecordingStore
+    private store?: RecordingStore,
+    /**
+     * How long a mix waits for a stem that is not in the bucket yet. See
+     * `getWhenReady` for why it waits at all; zero means one attempt, which is
+     * what a test wants when the objects are never going to appear.
+     */
+    private mixWaitMs?: number
   ) {}
 
   // --- Lifecycle ----------------------------------------------------------
@@ -1188,11 +1200,18 @@ export class ChannelRegistry {
         // under, whoever was in the run. Four existed, they were deleted on
         // 2026-08-12, and nothing can enter that state now that ending a channel
         // means deleting it. The branch went with them.
+        //
+        // Mixed ones only — see `mix_state`. A recording whose mix is still
+        // being made is not shown at all, so that every card on the screen is
+        // one that plays and exports the moment it is tapped. The window is
+        // seconds, and it is the whole point of mixing when the run ends
+        // rather than when somebody asks.
         `SELECT r.* FROM recordings r
          JOIN channels c ON c.id = r.channel_id
          WHERE r.ended_at IS NOT NULL
            AND r.deleted_at IS NULL
            AND c.deleted_at IS NULL
+           AND (r.mix_state IS NULL OR r.mix_state != 'pending')
            AND EXISTS (
              SELECT 1 FROM json_each(c.participants) WHERE json_each.value = ?
            )
@@ -1207,8 +1226,12 @@ export class ChannelRegistry {
     if (!channel || !isParticipant(channel, userId)) return [];
     return this.db
       .prepare(
+        // The same mix rule as `recordingsFor`, and it has to be: this is the
+        // channel screen's list and that is Home's, and a recording appearing
+        // on one and not the other is a bug you find by being asked about it.
         `SELECT * FROM recordings
          WHERE ended_at IS NOT NULL AND deleted_at IS NULL AND channel_id = ?
+           AND (mix_state IS NULL OR mix_state != 'pending')
          ORDER BY started_at DESC`
       )
       .all(channelId) as unknown as RecordingRow[];
@@ -1332,10 +1355,11 @@ export class ChannelRegistry {
     const cutoff = now - DELETED_RETENTION_MS;
     const due = this.db
       .prepare(
-        'SELECT id, s3_key, segment_keys, stems FROM recordings WHERE deleted_at IS NOT NULL AND deleted_at <= ?'
+        'SELECT id, channel_id, s3_key, segment_keys, stems FROM recordings WHERE deleted_at IS NOT NULL AND deleted_at <= ?'
       )
       .all(cutoff) as unknown as Array<{
       id: string;
+      channel_id: string;
       s3_key: string;
       segment_keys: string | null;
       stems: string | null;
@@ -1343,7 +1367,13 @@ export class ChannelRegistry {
 
     let recordings = 0;
     for (const row of due) {
-      const keys = objectKeysOf(row);
+      // The mix is asked for unconditionally rather than only when the state
+      // says 'ready'. It is derived, so deleting one that was never written
+      // costs a no-op, where skipping one that was — a mix stored a moment
+      // before the crash that lost the state update — leaves a conversation in
+      // the bucket after its row has gone, which is the failure this whole
+      // ordering exists to prevent.
+      const keys = [...objectKeysOf(row), mixKeyFor(row.channel_id, row.id)];
       // Without a store configured there is nothing to empty and no way to
       // know the objects are gone, so the row stays: a marked recording is
       // already unreachable, and keeping it costs a row rather than an
@@ -2257,7 +2287,8 @@ export class ChannelRegistry {
       ).map((w) => ({ ...w, toMs: w.toMs ?? stray.duration_ms }));
       this.db
         .prepare(
-          'UPDATE recordings SET ended_at = ?, failure = ?, floor_timeline = ? WHERE id = ?'
+          `UPDATE recordings SET ended_at = ?, failure = ?, floor_timeline = ?,
+                  mix_state = 'pending' WHERE id = ?`
         )
         .run(
           now,
@@ -2265,6 +2296,29 @@ export class ChannelRegistry {
           JSON.stringify(windows),
           stray.id
         );
+    }
+
+    // Every run whose mix was never finished: the strays just filed, and any
+    // the previous process was part way through when it stopped. Both are
+    // invisible until this clears them, so it is not optional — a deploy timed
+    // badly enough would otherwise hide a recording for good.
+    //
+    // Without a store there is nothing to mix from, and leaving them pending
+    // would hide them on a server that is never going to change its mind.
+    const unfinished = this.db
+      .prepare(
+        `SELECT id, channel_id FROM recordings
+         WHERE ended_at IS NOT NULL AND deleted_at IS NULL AND mix_state = 'pending'`
+      )
+      .all() as unknown as Array<{ id: string; channel_id: string }>;
+    for (const row of unfinished) {
+      if (this.store) {
+        this.startMix(row.id, row.channel_id);
+      } else {
+        this.db
+          .prepare("UPDATE recordings SET mix_state = 'unmixed' WHERE id = ?")
+          .run(row.id);
+      }
     }
 
     const rows = this.db
@@ -2492,12 +2546,19 @@ export class ChannelRegistry {
     const name =
       channel.name ?? nameRecording(ordered.map((id) => names[id]));
 
+    // Pending only where there is a bucket to mix from and into. Without a
+    // store nothing was captured that this process can reach, so the row goes
+    // straight to displayable and behaves as every recording did before mixes
+    // existed — which is also what keeps a test harness with no storage
+    // showing the recordings it makes.
+    const mixable = !!this.store;
+
     this.db
       .prepare(
         `UPDATE recordings SET participants = ?, participant_names = ?,
                 name = ?, duration_ms = ?, s3_key = ?,
                 segment_keys = ?, stems = ?, floor_timeline = ?, ended_at = ?,
-                failure = ? WHERE id = ?`
+                failure = ?, mix_state = ? WHERE id = ?`
       )
       .run(
         JSON.stringify(ordered),
@@ -2510,8 +2571,145 @@ export class ChannelRegistry {
         JSON.stringify(windows),
         run.endedAt,
         run.failure,
+        mixable ? 'pending' : 'unmixed',
         runId
       );
+
+    if (mixable) this.startMix(runId, channel.id);
+  }
+
+  /**
+   * Makes a filed run's mix, and shows the recording once it exists.
+   *
+   * The recording is invisible until this resolves, which is the point: by the
+   * time a card appears, playing it and exporting it are a fetch rather than a
+   * fetch and an encode. What used to happen when somebody tapped Play — the
+   * several seconds a long recording takes to mix, spent looking at "Loading…"
+   * — happens here instead, while nobody is waiting for it.
+   *
+   * A failure is not fatal to the recording. It becomes `'unmixed'`, which is
+   * displayable and exports by encoding on demand: exactly the behaviour every
+   * recording had before this existed, so the worst case is the old speed
+   * rather than a conversation nobody can reach.
+   */
+  private startMix(recordingId: string, channelId: string): void {
+    // Not through `this.run`, which reports a failure in a continuation of a
+    // promise it has already handed back. Everything that decides whether this
+    // recording is visible has to have happened by the time the tracked
+    // promise settles, or `mixesSettled` resolves before the row is right and
+    // a test — or a shutdown — reads a state that is still moving.
+    const work = (async () => {
+      try {
+        await this.mix(recordingId, { wait: true });
+      } catch (error) {
+        this.onMediaError(error, `mix ${recordingId}`);
+        this.db
+          .prepare(
+            `UPDATE recordings SET mix_state = 'unmixed'
+             WHERE id = ? AND mix_state = 'pending'`
+          )
+          .run(recordingId);
+      } finally {
+        this.mixing.delete(recordingId);
+        // Both paths emit: one has a recording to show and the other has a
+        // recording to stop hiding, and neither can wait for whatever else
+        // might next happen in that channel.
+        this.emit([channelId]);
+      }
+    })();
+    this.mixing.set(recordingId, work);
+  }
+
+  /**
+   * Resolves once no mix is in flight.
+   *
+   * Exposed for the same reason `tick` is: mixing is the one thing a recording
+   * now waits on before it exists, and a test that cannot await it is left
+   * racing a promise chain with a `setTimeout(0)`.
+   */
+  async mixesSettled(): Promise<void> {
+    while (this.mixing.size > 0) {
+      await Promise.allSettled([...this.mixing.values()]);
+    }
+  }
+
+  /**
+   * Encodes one recording and stores the result beside its stems.
+   *
+   * `wait` is whether a stem that is not in the bucket yet is worth waiting
+   * for. It is, immediately after a run: `stopEgress` returns when LiveKit has
+   * accepted the stop, not when the upload has landed. It is not when somebody
+   * is holding an HTTP request open — there, a missing object means missing,
+   * and the caller should be told so rather than left hanging.
+   */
+  private async mix(
+    recordingId: string,
+    { wait }: { wait: boolean }
+  ): Promise<Buffer> {
+    const store = this.store;
+    if (!store) throw new Error('Recording storage is not configured.');
+
+    const row = this.db
+      .prepare('SELECT * FROM recordings WHERE id = ?')
+      .get(recordingId) as unknown as RecordingRow | undefined;
+    if (!row) throw new Error(`No such recording: ${recordingId}`);
+
+    const { data } = await encodeRecording(
+      {
+        stems: parseJson(row.stems) ?? {},
+        timeline: parseJson(row.floor_timeline) ?? [],
+      },
+      (key) =>
+        wait
+          ? getWhenReady(store, key, { waitMs: this.mixWaitMs })
+          : store.get(key)
+    );
+
+    // Stored before the row says it exists, so a crash between the two leaves
+    // an object nobody reads rather than a row promising one that is not
+    // there. The sweep deletes the key whether or not the state says 'ready',
+    // so the orphan is not permanent either.
+    await store.put(mixKeyFor(row.channel_id, row.id), data);
+    this.db
+      .prepare("UPDATE recordings SET mix_state = 'ready' WHERE id = ?")
+      .run(row.id);
+    return data;
+  }
+
+  /**
+   * One recording's finished audio, with the floor applied — the bytes both
+   * exporting it and playing it back into its channel are made of.
+   *
+   * Normally one GetObject, because the mix was made when the run ended. The
+   * fallbacks are what make that an optimisation rather than a dependency: a
+   * row from before mixes existed, or one whose mix failed, is encoded here
+   * and stored on the way past, so it is only ever slow once.
+   *
+   * **This does not decide who may hear it.** The caller has already asked
+   * `recordingsFor`, which is the one place that rule lives.
+   */
+  async recordingAudio(recordingId: string): Promise<Buffer> {
+    const store = this.store;
+    if (!store) throw new Error('Recording storage is not configured.');
+
+    const row = this.db
+      .prepare('SELECT id, channel_id, mix_state FROM recordings WHERE id = ?')
+      .get(recordingId) as unknown as
+      | Pick<RecordingRow, 'id' | 'channel_id' | 'mix_state'>
+      | undefined;
+    if (!row) throw new Error(`No such recording: ${recordingId}`);
+
+    if (row.mix_state === 'ready') {
+      try {
+        return await store.get(mixKeyFor(row.channel_id, row.id));
+      } catch (error) {
+        // The row says there is a mix and the bucket disagrees. Making it
+        // again is both the fix and the answer, and it costs the caller what
+        // an export used to cost everybody.
+        this.onMediaError(error, `mix missing ${recordingId}`);
+      }
+    }
+    return this.mix(recordingId, { wait: false });
   }
 
   /**
@@ -2592,6 +2790,22 @@ export class ChannelRegistry {
  * *that*. A key missed here is an object nobody can ever identify again once
  * the row is gone, so this reads all of them and lets the overlap be harmless.
  */
+/**
+ * Where a recording's mix lives, beside the stems it was made from.
+ *
+ * The same `<channel>/<run>/` prefix `startEgress` writes stems under, so
+ * everything one run produced is in one place in the bucket — which is what
+ * makes an orphaned object identifiable by eye when something has gone wrong.
+ * `mixed` cannot collide with a stem, whose name is always `<identity>-<nnn>`.
+ *
+ * Derived rather than stored: unlike the stems, there is exactly one of these
+ * per recording and it is rewritten in place whenever the mix is remade, so a
+ * column would only be a second place for the same fact to be wrong.
+ */
+export function mixKeyFor(channelId: string, recordingId: string): string {
+  return `${channelId}/${recordingId}/mixed.ogg`;
+}
+
 function objectKeysOf(row: {
   s3_key: string;
   segment_keys: string | null;
