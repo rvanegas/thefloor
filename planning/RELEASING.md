@@ -98,6 +98,22 @@ writing it back before it prebuilds. Bumping it by hand first is not an error
 Apple will complain about, but it skips a number: doing both is what turned 23
 into 25 and left build 24 never existing.
 
+**And what Apple receives can be one higher than what was archived.** The export
+that uploads re-signs, and Xcode's automatic build-number management can bump
+`CFBundleVersion` while it does — so build 43 was archived on 2026-08-16 with
+`CFBundleVersion` 43 in `/tmp/thefloor.xcarchive/Info.plist` and appeared in
+TestFlight as **44**. AGENTS.md already records this happening to the local
+entitlement check, where it does not matter because that copy is never uploaded.
+On the upload it matters twice: the `build/<n>` tag names a binary by a number
+the binary does not carry, and `app.json` is left a number behind what Apple
+holds, so the *next* release bumps into a build number already taken and the
+upload is refused.
+
+**After an upload, read the number off TestFlight and make `app.json` match it**
+— not the archive, and not what the script echoed. The tag is the thing that
+cannot be corrected afterwards; treat it as naming the commit rather than the
+binary.
+
 ---
 
 ## `prebuild --clean` drops the signing team
