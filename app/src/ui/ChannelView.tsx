@@ -74,19 +74,18 @@ export function ChannelView({
   onExit: () => void;
 }) {
   const app = useApp();
-  const view = app.channelView;
-  const channel = view?.channel.id === channelId ? view.channel : null;
-  // Only ever this channel's, and only while the snapshot is this channel's:
-  // showing the previous channel's recordings for a frame while the next
-  // snapshot arrives would be showing them to somebody who may not be a member.
-  //
+  // This channel's snapshot, and nothing else's. Picked out by id rather than
+  // taken from a single slot, so a snapshot arriving for another watched
+  // channel cannot empty this screen — which it did, and which also hung up
+  // the audio. See AppProvider.
+  const view = app.channelViews[channelId] ?? null;
+  const channel = view?.channel ?? null;
   // `?? []` is load-bearing rather than defensive. A server that predates this
   // field sends a snapshot without it, which is exactly what this build meets
   // between its release and the deploy that follows — the field is additive,
   // so the old server keeps working, and reading `.length` off nothing is the
   // one way that could still crash the screen.
-  const recordings =
-    view?.channel.id === channelId ? (view.recordings ?? []) : [];
+  const recordings = view?.recordings ?? [];
   const me = app.me?.id ?? '';
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -106,12 +105,32 @@ export function ChannelView({
   }, [channelId]);
 
   if (!view || !channel) {
+    // A channel the server has said is gone is not one a snapshot is coming
+    // for, so saying "Loading channel…" is a wait with no end: the ended
+    // channel below is kept for thirty seconds and then deleted, and anybody
+    // still standing here when that happens used to be left reading it
+    // forever.
+    const gone = app.goneChannels.includes(channelId);
     return (
       <View style={styles.centered}>
-        <Text style={type.body}>
-          {app.status === 'open' ? 'Loading channel…' : 'Reconnecting…'}
-        </Text>
-        <Button label="Back to home" variant="ghost" onPress={onExit} />
+        {gone ? (
+          <>
+            <Text style={type.heading}>Channel gone</Text>
+            <Text style={[type.muted, styles.centeredText]}>
+              This channel is no longer there. It may have ended a while ago,
+              or you may no longer be part of it.
+            </Text>
+          </>
+        ) : (
+          <Text style={type.body}>
+            {app.status === 'open' ? 'Loading channel…' : 'Reconnecting…'}
+          </Text>
+        )}
+        <Button
+          label="Back to home"
+          variant={gone ? 'primary' : 'ghost'}
+          onPress={onExit}
+        />
       </View>
     );
   }
@@ -682,7 +701,7 @@ function ParticipantCard({
   now,
   onPress,
 }: {
-  channel: NonNullable<ReturnType<typeof useApp>['channelView']>['channel'];
+  channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   participant: { id: string; displayName: string };
   self: boolean;
   speaking: boolean;
@@ -788,7 +807,7 @@ function InviteList({
   me,
   onInvite,
 }: {
-  channel: NonNullable<ReturnType<typeof useApp>['channelView']>['channel'];
+  channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   me: string;
   onInvite: (contactId: string) => void;
 }) {

@@ -2,8 +2,7 @@
 # TASKS
 
 These are new items on the roadmap — features, but also audits, open questions
-and things to go and find out, which is why this is not called FEATURES. There
-are more in BACKLOG.md.
+and things to go and find out. There are more in BACKLOG.md.
 
 ## Stepping into Channel Distinct from Tapping on Card
 

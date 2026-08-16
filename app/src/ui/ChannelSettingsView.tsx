@@ -35,10 +35,7 @@ export function ChannelSettingsView({
   // What deleting would take with it. Read from the snapshot the channel
   // screen is already showing, so the number in the warning is the number of
   // rows the person can see above it.
-  const recordingCount =
-    app.channelView?.channel.id === channel.id
-      ? (app.channelView.recordings?.length ?? 0)
-      : 0;
+  const recordingCount = app.channelViews[channel.id]?.recordings?.length ?? 0;
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
 

@@ -1579,3 +1579,58 @@ first, because which half it is is a decision and belongs somewhere legible.
 grey. The background *image* covers it, so it is only what shows if that ever
 fails to load — but a fallback in a colour from nowhere in the design was
 worse than one that matches.
+
+## One snapshot slot for many watched channels, 2026-08-16
+
+Reported from a phone: sitting in a channel, *listening*, the audio went silent
+and the screen fell back to "Loading channel…" with no way forward but Back to
+home. 11:05 PDT, which is 18:05 UTC, and the server log for that minute shows
+what it looked like from the other end — a media token taken for
+`chan_k2WGas_exwcD` ("Piano") at 18:05:37 and another for
+`chan_H90XCmha58Cs` ("A Priori") seven seconds later, then the same pair again
+at 18:10:08 and 18:10:23. The audio was walking between two channels on its
+own. Both were alive and both held the same three people the whole time, so
+nothing had ended and nobody had been removed.
+
+**The app kept one snapshot, and the server sends snapshots for every channel
+a socket is watching.** `AppState.channelView` was a single slot that
+`onChannel` overwrote with whatever arrived, whichever channel it was about.
+Two things read it, and both were wrong the moment a second channel was in
+play: the channel screen, which rendered "Loading channel…" whenever the slot
+held some other channel's id, and `App.tsx`, which decided *where you are
+standing* — and therefore which media room to be connected to — from that same
+slot. A snapshot for a channel nobody was looking at said "you are not present
+here", which the app read as "you are not present anywhere", and hung up.
+
+**The watches accumulate on purpose, so the fix belongs on the client.** The
+server's `connection.watchingChannels` is a Set that only `unwatch.channel`
+removes from, and the client sends that only when you actually leave a channel
+— walking back to Home deliberately does not, because presence outlives the
+screen. It is more than a subscription: on `close`, every watched channel is
+told this user is DISCONNECTED, which is what starts the grace period.
+Unwatching the previous channel on each `watch.channel` would have been a
+one-line fix and would have left somebody who is present in A while looking at
+B standing in A forever after a dropped socket. So the server was left alone.
+
+`channelView` became `channelViews: Record<string, ChannelView>`, keyed by the
+channel each snapshot is about. The screen looks up its own id; nothing else
+can empty it. Where you are standing moved into `state/live.ts` as
+`liveChannelView`, which searches every held snapshot for the one that is
+active and lists you as present — the server allows presence in one channel at
+a time and `stepOutOfOthers` enforces it, so at most one matches. Where two do,
+the newer `serverNow` wins: after a move, the channel you left has not been
+re-sent yet and still says you are there. That tie-break is new, and a map is
+what made it expressible at all.
+
+**And "Loading channel…" was a dead end in its own right.** A channel that
+genuinely goes — ended, then deleted thirty seconds later, or no longer yours
+to see — produces `channel.gone`, which cleared the slot and left that screen
+waiting for a snapshot that was never coming. `goneChannels` now records the
+ids and the screen says "Channel gone". An id comes back off that list if a
+snapshot for it ever arrives, so the two cannot disagree.
+
+Covered by `app/src/state/__tests__/live.test.ts`,
+`app/src/state/__tests__/twoChannels.test.tsx`, and two cases in
+`views.test.tsx`. What none of them can cover is the shape of the report: the
+symptom was heard before it was seen, and the screenshot showed the *less*
+serious half of it.

@@ -34,12 +34,16 @@ const mockApp = {
   token: 'token',
   me: { id: ME, displayName: 'Me' },
   home: null as HomeViewData | null,
-  channelView: null as {
-    channel: ChannelState;
-    participants: Array<{ id: string; displayName: string }>;
-    recordings: RecordingView[];
-    serverNow: number;
-  } | null,
+  channelViews: {} as Record<
+    string,
+    {
+      channel: ChannelState;
+      participants: Array<{ id: string; displayName: string }>;
+      recordings: RecordingView[];
+      serverNow: number;
+    }
+  >,
+  goneChannels: [] as string[],
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -193,7 +197,7 @@ function showChannel(channel: ChannelState, recordings: RecordingView[] = []) {
     acct_3: 'Miro Okafor',
     acct_4: 'Priya Raman',
   };
-  mockApp.channelView = {
+  mockApp.channelViews[channel.id] = {
     channel,
     participants: channel.participants.map((id) => ({
       id,
@@ -206,7 +210,8 @@ function showChannel(channel: ChannelState, recordings: RecordingView[] = []) {
 
 beforeEach(() => {
   mockApp.home = null;
-  mockApp.channelView = null;
+  mockApp.channelViews = {};
+  mockApp.goneChannels = [];
   mockApp.status = 'open';
   mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
@@ -581,6 +586,42 @@ describe('Channel', () => {
       />);
     expect(textOf(tree)).toContain('Loading channel');
     expect(mockApp.watchChannel).toHaveBeenCalledWith('sess_1');
+    act(() => tree.unmount());
+  });
+
+  it('is not emptied by a snapshot for another channel', () => {
+    // The app watches several channels and is sent a snapshot for each. This
+    // screen reads the one it is about; taking whichever arrived last is what
+    // put a live conversation behind "Loading channel…" and hung up its audio.
+    showChannel(channelOf());
+    mockApp.channelViews['chan_elsewhere'] = {
+      ...mockApp.channelViews['sess_1']!,
+      channel: { ...channelOf(), id: 'chan_elsewhere' },
+      serverNow: NOW + 1000,
+    };
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(textOf(tree)).not.toContain('Loading channel');
+    act(() => tree.unmount());
+  });
+
+  it('says a gone channel is gone rather than loading forever', () => {
+    // An ended channel is kept for half a minute and then deleted, and the
+    // server reports it gone. No snapshot is ever coming, so a wait is a lie.
+    mockApp.goneChannels = ['sess_1'];
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(textOf(tree)).toContain('Channel gone');
+    expect(textOf(tree)).not.toContain('Loading channel');
+    expect(findButton(tree, 'Back to home')).toBeDefined();
     act(() => tree.unmount());
   });
 
@@ -1299,8 +1340,8 @@ describe('Channel', () => {
     // The field is additive, so a build carrying this screen meets a server
     // without it between its release and the deploy that follows.
     showChannel(channelOf());
-    mockApp.channelView = {
-      ...mockApp.channelView!,
+    mockApp.channelViews['sess_1'] = {
+      ...mockApp.channelViews['sess_1']!,
       recordings: undefined as never,
     };
     const tree = render(<ChannelView

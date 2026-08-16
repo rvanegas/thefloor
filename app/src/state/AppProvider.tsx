@@ -63,7 +63,28 @@ interface AppState {
   token: string | null;
   me: PublicAccount | null;
   home: HomeView | null;
-  channelView: ChannelView | null;
+  /**
+   * The latest snapshot of each channel this client is watching, by id.
+   *
+   * A map rather than a single slot, and that is the whole point. A watch is
+   * not exclusive: the server pushes a snapshot for *every* channel this
+   * socket has said it is watching, and it goes on watching one after the
+   * screen has moved to another — deliberately, since a watch is also what
+   * reports presence when the socket dies. One slot meant the last snapshot to
+   * arrive won, whichever channel it was about, so a change in a channel
+   * nobody was looking at overwrote the one on screen: the channel screen fell
+   * back to "Loading channel…" and, worse, the audio hung up, because the
+   * connection follows the channel the snapshot says you are present in and
+   * that snapshot was now about somewhere else. Two people idly moving between
+   * two channels is enough to produce it. See planning/DECISIONS.md.
+   */
+  channelViews: Record<string, ChannelView>;
+  /**
+   * Channels the server has said are gone — ended and cleaned up, or no longer
+   * ours to see. Kept so a screen still open on one can say so, rather than
+   * waiting forever for a snapshot that is never coming.
+   */
+  goneChannels: string[];
   /**
    * The last move the server reported: a conversation that changed channels
    * because somebody was asked into an unnamed one and arrived.
@@ -188,7 +209,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     token: null,
     me: null,
     home: null,
-    channelView: null,
+    channelViews: {},
+    goneChannels: [],
     movedChannel: null,
     status: 'closed',
     lastError: null,
@@ -224,13 +246,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // — the whole floor mechanic — silently compares against nothing.
         onHello: (account) => setState((s) => ({ ...s, me: account })),
         onHome: (home) => setState((s) => ({ ...s, home })),
-        onChannel: (view) => setState((s) => ({ ...s, channelView: view })),
+        // Keyed by the channel the snapshot is about, never by which screen
+        // asked for it: whoever is looking picks out the one they want.
+        onChannel: (view) =>
+          setState((s) => ({
+            ...s,
+            channelViews: { ...s.channelViews, [view.channel.id]: view },
+            // A channel that is sending snapshots is not gone, whatever it was
+            // a moment ago — an id can only be reported gone once, but this
+            // keeps the two from ever disagreeing.
+            goneChannels: s.goneChannels.includes(view.channel.id)
+              ? s.goneChannels.filter((id) => id !== view.channel.id)
+              : s.goneChannels,
+          })),
         onChannelGone: (channelId) =>
-          setState((s) =>
-            s.channelView?.channel.id === channelId
-              ? { ...s, channelView: null }
-              : s
-          ),
+          setState((s) => {
+            const { [channelId]: gone, ...rest } = s.channelViews;
+            return {
+              ...s,
+              channelViews: rest,
+              goneChannels: s.goneChannels.includes(channelId)
+                ? s.goneChannels
+                : [...s.goneChannels, channelId],
+            };
+          }),
         // The conversation is in another channel now. Recorded rather than
         // acted on here: the screen showing it has to follow, and only it
         // knows whether it is the screen in question.
@@ -315,11 +354,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => onNotificationTap(setPendingChannelId), []);
 
   // Drives countdowns while a channel is on screen.
+  const watchingAny = Object.keys(state.channelViews).length > 0;
   useEffect(() => {
-    if (!state.channelView) return;
+    if (!watchingAny) return;
     const timer = setInterval(() => forceTick((n) => n + 1), 500);
     return () => clearInterval(timer);
-  }, [state.channelView !== null]);
+  }, [watchingAny]);
 
   /**
    * Turns a refused credential — from any request, any file transfer, or a
@@ -340,7 +380,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         token: null,
         me: null,
         home: null,
-        channelView: null,
+        channelViews: {},
+        goneChannels: [],
         movedChannel: null,
         status: 'closed',
         lastError:
@@ -414,7 +455,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           token: null,
           me: null,
           home: null,
-          channelView: null,
+          channelViews: {},
+          goneChannels: [],
           movedChannel: null,
           status: 'closed',
           lastError: null,
@@ -446,7 +488,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           token: null,
           me: null,
           home: null,
-          channelView: null,
+          channelViews: {},
+          goneChannels: [],
           movedChannel: null,
           status: 'closed',
           lastError: null,
@@ -523,9 +566,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       watchChannel: (channelId) => realtime.watchChannel(channelId),
 
+      // Only this channel's snapshot goes: leaving one is not leaving the
+      // others, and dropping the lot would hang up on a conversation being
+      // held somewhere else.
       leaveChannelView: (channelId) => {
         realtime.unwatchChannel(channelId);
-        setState((s) => ({ ...s, channelView: null }));
+        setState((s) => {
+          const { [channelId]: left, ...rest } = s.channelViews;
+          return { ...s, channelViews: rest };
+        });
       },
 
       act: (channelId, action) => realtime.act(channelId, action),

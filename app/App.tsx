@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AppProvider, useApp } from './src/state/AppProvider';
+import { liveChannelView } from './src/state/live';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
@@ -40,12 +41,12 @@ function Root() {
     null
   );
 
-  const view = app.channelView;
   const me = app.me?.id ?? '';
-  const live =
-    view && view.channel.status === 'active' && view.channel.present.includes(me)
-      ? view.channel
-      : null;
+  // Where this person is standing, across every snapshot held rather than read
+  // off whichever one arrived last — which is what used to hang the audio up
+  // when a channel nobody was looking at changed. See state/live.ts.
+  const view = liveChannelView(app.channelViews, me);
+  const live = view ? view.channel : null;
 
   const micNeeded = !!live && microphoneNeeded(live, me);
 
