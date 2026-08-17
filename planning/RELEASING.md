@@ -123,6 +123,44 @@ harmless, the checked copy never being uploaded.
 
 ---
 
+## The build number never resets, and Apple would let it
+
+Apple's rule is narrower than the habit. `CFBundleVersion` must be unique
+among the builds sharing a `CFBundleShortVersionString`, and must increase
+within that train — you cannot upload build 51 for 1.0.0 twice, and you cannot
+follow it with 50. It says nothing across versions: 1.0.0 build 51 followed by
+**1.1.0 build 1** is accepted, and plenty of projects do exactly that, because
+Apple scopes the number to the version. So counting up forever is a choice, and
+it is the choice made here.
+
+Three things depend on it, and each breaks quietly rather than loudly:
+
+- **`MIN_SUPPORTED_BUILD` is a bare integer with no version beside it.** It
+  says 36 and means the thirty-sixth build ever made. Reset the counter and
+  `36` names two binaries — one from 1.0.0 and one from whatever came next —
+  and the rule it exists to make decidable, that a shim goes once the floor has
+  passed the build that needed it, stops being decidable. The same holds on the
+  wire: `x-thefloor-build` carries a build and no version, so a reset makes
+  every claimed build ambiguous, including the ones already recorded.
+- **`build/<n>` tags are one flat namespace.** git has no notion of the version
+  they belong to. A reset either collides with an existing tag, which git
+  refuses, or gets disambiguated by hand into something the release script does
+  not produce.
+- **`bin/release-ios` reads `app.json`, adds one, and writes it back.** It
+  knows nothing about the version and is not asked to. Resetting means editing
+  the number by hand, which is the operation that skipped a build above.
+
+`CFBundleShortVersionString` — `expo.version` in `app.json`, `1.0.0` — moves on
+its own schedule and must match the version record in App Store Connect or the
+build picker is silently empty. Bumping it is a separate act from a release and
+`bin/release-ios` does not touch it.
+
+So: yes, indefinitely, and 51 is the fifty-first build across all versions. The
+question was TASKS.md's `## Relation of Version and Build`, answered
+2026-08-17.
+
+---
+
 ## `prebuild --clean` drops the signing team
 
 `expo prebuild --platform ios --clean` regenerates `ios/` from scratch, which

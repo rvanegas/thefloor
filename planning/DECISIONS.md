@@ -1678,3 +1678,24 @@ screen's own contents load async. That marker is now `Home`, which appears
 nowhere on the Home view — the obvious alternative, the screen's `Settings`
 heading, is also the label of the button that opens it, so it would match both
 sides of the assertion.
+
+## The build number is global and never resets, 2026-08-17
+
+TASKS.md asked whether the build number increases indefinitely, even when the
+version is bumped. Apple does not require it to: `CFBundleVersion` is scoped to
+`CFBundleShortVersionString`, so it need only be unique and increasing *within
+a version train*, and 1.0.0 build 51 may be followed by 1.1.0 build 1. Counting
+up forever is therefore a choice, and it is made here.
+
+The reasoning is in RELEASING.md under `## The build number never resets, and
+Apple would let it`, next to the other things `bin/release-ios` does to the
+number. The short of it: `MIN_SUPPORTED_BUILD` and the `x-thefloor-build`
+header both carry a build with no version beside it, so a reset makes `36` name
+two binaries and stops the shim-deletion rule being decidable; `build/<n>` tags
+are one flat namespace; and `bin/release-ios` derives the next number from
+`app.json` alone, so resetting means the hand edit that already lost build 24.
+
+Nothing was built. The value of answering it is that the constraint on
+`MIN_SUPPORTED_BUILD` was implicit until now — the floor has always been read
+as an absolute build ordinal, and nothing said that the release process had to
+keep making that true.
