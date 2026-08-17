@@ -86,6 +86,22 @@ export interface RecordingView {
    */
   endedAt: number;
   durationMs: number;
+  /**
+   * Whether its mix is still being made, and so whether playing and exporting
+   * it are available yet.
+   *
+   * A finished run is filed, mixed, and only then playable as one file. That
+   * takes seconds — five, for a hundred-second run — and recordings in that
+   * state used to be withheld from both lists entirely, so what somebody had
+   * just made was missing from the screen with nothing to say why. Showing the
+   * card and disabling the two actions that need the mix is the honest version:
+   * the recording exists, and part of it is not ready.
+   *
+   * Optional because a server that predates it sends nothing, which reads as
+   * false — the same answer it would have given, since such a server never
+   * listed a recording that was still mixing.
+   */
+  mixing?: boolean;
 }
 
 /**

@@ -327,11 +327,26 @@ export function RecordingRow({
       {open && !renaming ? (
         <View style={recordingStyles.actions}>
           {playable ? (
-            <PlayButton recording={recording} disabled={playDisabled} />
+            <PlayButton
+              recording={recording}
+              disabled={playDisabled || !!recording.mixing}
+            />
           ) : null}
-          <ExportButton recording={recording} />
+          <ExportButton recording={recording} disabled={!!recording.mixing} />
           <Button label="Rename" onPress={() => setRenaming(true)} />
           <DeleteButton recording={recording} />
+          {/*
+            Said once, beside the two controls it applies to. Renaming and
+            deleting are unaffected — they are about the row rather than the
+            audio — so a recording that has only just stopped is not a card you
+            can do nothing with.
+          */}
+          {recording.mixing ? (
+            <Text style={type.muted}>
+              Still being prepared — playing and exporting will be available in
+              a moment.
+            </Text>
+          ) : null}
           {/*
             Beside the disabled button rather than up in the summary line,
             where it was explaining a control that is no longer visible until
@@ -512,14 +527,21 @@ function PlayButton({
  * encoded on demand, so this is a wait of seconds rather than an instant
  * download, and a shared flag would show every row as busy.
  */
-export function ExportButton({ recording }: { recording: RecordingView }) {
+export function ExportButton({
+  recording,
+  disabled = false,
+}: {
+  recording: RecordingView;
+  /** The mix is not made yet, so there is nothing to encode from. */
+  disabled?: boolean;
+}) {
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
 
   return (
     <Button
       label={busy ? 'Preparing…' : 'Export'}
-      disabled={busy}
+      disabled={busy || disabled}
       onPress={async () => {
         if (!app.token) return;
         setBusy(true);

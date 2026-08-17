@@ -144,12 +144,17 @@ const stateOf = (id: string) =>
   )?.mix_state;
 
 describe('a recording that has just been made', () => {
-  it('is shown to nobody until its mix exists, then to everybody', async () => {
+  it('is listed at once, marked as still being prepared, then ready', async () => {
     const { alice, bob, channelId } = await record({ uploaded: true });
 
-    // The run is filed and the row is there — it is the *card* that waits.
-    expect(app.channels.recordingsFor(alice.account.id)).toHaveLength(0);
-    expect(app.channels.recordingsInChannel(channelId, bob.account.id)).toHaveLength(0);
+    // Listed immediately. It used to be withheld from both lists until the mix
+    // existed, so that every card played and exported the instant it was
+    // tapped — but the wait is seconds, and what it looked like was the
+    // recording you had just made being absent with nothing to say why.
+    const [beforeMix] = app.channels.recordingsFor(alice.account.id);
+    expect(beforeMix).toBeDefined();
+    expect(stateOf(beforeMix.id)).toBe('pending');
+    expect(app.channels.recordingsInChannel(channelId, bob.account.id)).toHaveLength(1);
 
     await app.channels.mixesSettled();
 
@@ -158,6 +163,35 @@ describe('a recording that has just been made', () => {
     expect(stateOf(recording.id)).toBe('ready');
     expect(store.keys()).toContain(mixKeyFor(channelId, recording.id));
     expect(app.channels.recordingsInChannel(channelId, bob.account.id)).toHaveLength(1);
+  }, 60_000);
+
+  /**
+   * The flag the card reads, which is the whole point of listing it early:
+   * without it a row would offer Play and Export against a mix that does not
+   * exist yet.
+   */
+  it('reports itself as mixing over the wire, and stops when it is done', async () => {
+    const { alice } = await record({ uploaded: true });
+
+    const during = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(alice.token),
+    });
+    const [pending] = (during.json() as { recordings: Array<{ mixing?: boolean }> })
+      .recordings;
+    expect(pending.mixing).toBe(true);
+
+    await app.channels.mixesSettled();
+
+    const after = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(alice.token),
+    });
+    const [ready] = (after.json() as { recordings: Array<{ mixing?: boolean }> })
+      .recordings;
+    expect(ready.mixing).toBe(false);
   }, 60_000);
 
   it('exports the stored mix rather than encoding one again', async () => {

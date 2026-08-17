@@ -1201,17 +1201,18 @@ export class ChannelRegistry {
         // 2026-08-12, and nothing can enter that state now that ending a channel
         // means deleting it. The branch went with them.
         //
-        // Mixed ones only — see `mix_state`. A recording whose mix is still
-        // being made is not shown at all, so that every card on the screen is
-        // one that plays and exports the moment it is tapped. The window is
-        // seconds, and it is the whole point of mixing when the run ends
-        // rather than when somebody asks.
+        // Including ones still being mixed, which this used to withhold so that
+        // every card played and exported the moment it was tapped. The cost was
+        // worse than the tidiness: what somebody had just recorded was absent
+        // from the screen for as long as the mix took — measured at five
+        // seconds for a hundred-second run — with nothing to say why, which
+        // reads as the recording having failed. The card now appears and says
+        // what is not ready yet; see `RecordingView.mixing`.
         `SELECT r.* FROM recordings r
          JOIN channels c ON c.id = r.channel_id
          WHERE r.ended_at IS NOT NULL
            AND r.deleted_at IS NULL
            AND c.deleted_at IS NULL
-           AND (r.mix_state IS NULL OR r.mix_state != 'pending')
            AND EXISTS (
              SELECT 1 FROM json_each(c.participants) WHERE json_each.value = ?
            )
@@ -1226,12 +1227,11 @@ export class ChannelRegistry {
     if (!channel || !isParticipant(channel, userId)) return [];
     return this.db
       .prepare(
-        // The same mix rule as `recordingsFor`, and it has to be: this is the
+        // The same rule as `recordingsFor`, and it has to be: this is the
         // channel screen's list and that is Home's, and a recording appearing
         // on one and not the other is a bug you find by being asked about it.
         `SELECT * FROM recordings
          WHERE ended_at IS NOT NULL AND deleted_at IS NULL AND channel_id = ?
-           AND (mix_state IS NULL OR mix_state != 'pending')
          ORDER BY started_at DESC`
       )
       .all(channelId) as unknown as RecordingRow[];

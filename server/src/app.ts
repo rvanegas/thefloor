@@ -1139,6 +1139,10 @@ export function buildApp(options: BuildOptions = {}): App {
       // migration, so it is the same answer rather than a guess.
       endedAt: row.ended_at ?? row.started_at + row.duration_ms,
       durationMs: row.duration_ms,
+      // Only 'pending' means the mix is being made. 'unmixed' is a settled
+      // answer — a failed mix, or a run that predates mixing — and those play
+      // and export by encoding on demand, exactly as everything used to.
+      mixing: row.mix_state === 'pending',
     };
   }
 
