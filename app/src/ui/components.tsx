@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,7 +11,6 @@ import {
   TextInput,
   View,
   type StyleProp,
-  type ViewProps,
   type ViewStyle,
 } from 'react-native';
 import { MAX_RECORDING_NAME_LENGTH } from '../../../core/constants';
@@ -18,7 +18,7 @@ import type { RecordingView } from '../../../core/protocol';
 import { exportRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
-import { offsetToReveal, type Region } from './reveal';
+import { offsetToReveal } from './reveal';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 export function Button({
@@ -162,7 +162,13 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
 }) {
   const scroll = React.useRef<ScrollView>(null);
-  /** What the scroll view is showing, kept current so `reveal` can do sums. */
+  /**
+   * The scroll view's own frame, which has to be measured rather than
+   * inferred: `reveal` works in window coordinates, and this is what converts
+   * them back into offsets within the content.
+   */
+  const frame = React.useRef<View>(null);
+  /** Where the content currently sits under that frame. */
   const viewport = React.useRef({ offset: 0, height: 0 });
 
   /**
@@ -174,9 +180,23 @@ export function Screen({
    * the fold, the second under the keyboard, leaving the person to scroll to
    * the control they had just asked for.
    */
-  const reveal = React.useCallback((region: Region) => {
-    const to = offsetToReveal(region, viewport.current);
-    if (to !== null) scroll.current?.scrollTo({ y: to, animated: true });
+  const reveal = React.useCallback((node: React.RefObject<View | null>) => {
+    const target = node.current;
+    const container = frame.current;
+    if (!target || !container) return;
+
+    // Window coordinates, deliberately. `onLayout` reports a position relative
+    // to the immediate parent, and a recording card sits inside the list's own
+    // View — so its `y` is an offset within that list, not within the content.
+    // Feeding that to the arithmetic scrolled almost to the top and took the
+    // card off screen, which is how this was found.
+    target.measureInWindow((_x, cardTop, _w, height) => {
+      container.measureInWindow((_cx, frameTop) => {
+        const top = cardTop - frameTop + viewport.current.offset;
+        const to = offsetToReveal({ top, height }, viewport.current);
+        if (to !== null) scroll.current?.scrollTo({ y: to, animated: true });
+      });
+    });
   }, []);
 
   return (
@@ -187,6 +207,9 @@ export function Screen({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <RevealContext.Provider value={reveal}>
+        {/* `collapsable={false}` keeps this view in the native tree, without
+            which it cannot be measured. */}
+        <View ref={frame} collapsable={false} style={styles.screen}>
         <ScrollView
           ref={scroll}
           style={styles.screen}
@@ -206,6 +229,7 @@ export function Screen({
         >
           {children}
         </ScrollView>
+        </View>
       </RevealContext.Provider>
     </KeyboardAvoidingView>
   );
@@ -215,11 +239,11 @@ export function Screen({
  * How a card asks to be seen. Null outside a `Screen`, where there is nothing
  * to scroll and asking is a no-op rather than an error.
  */
-const RevealContext = React.createContext<((region: Region) => void) | null>(
-  null
-);
+const RevealContext = React.createContext<
+  ((node: React.RefObject<View | null>) => void) | null
+>(null);
 
-export function useReveal(): (region: Region) => void {
+export function useReveal(): (node: React.RefObject<View | null>) => void {
   const reveal = React.useContext(RevealContext);
   return reveal ?? (() => {});
 }
@@ -231,21 +255,11 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 export function Card({
   children,
   style,
-  onLayout,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-  /**
-   * Forwarded so a card can know where it sits and how tall it has become —
-   * which is how a row that has just expanded asks to be scrolled into view.
-   */
-  onLayout?: ViewProps['onLayout'];
 }) {
-  return (
-    <View style={[styles.card, style]} onLayout={onLayout}>
-      {children}
-    </View>
-  );
+  return <View style={[styles.card, style]}>{children}</View>;
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
@@ -346,32 +360,35 @@ export function RecordingRow({
   const [renaming, setRenaming] = React.useState(false);
 
   const reveal = useReveal();
-  /**
-   * Where this card sits in the scrollable content, and how tall it is now.
-   *
-   * Read from `onLayout` rather than measured on demand: the layout that
-   * matters is the one *after* whatever just expanded, and onLayout fires
-   * exactly then. Asking for a measurement in the press handler would ask
-   * before the growth it is about.
-   */
-  const region = React.useRef<Region>({ top: 0, height: 0 });
+  /** Measured, not laid out — see `Screen`'s `reveal`. */
+  const row = React.useRef<View>(null);
   /** Set when something has grown, cleared by the layout that follows it. */
   const wants = React.useRef(false);
 
+  /**
+   * The keyboard arrives after the field does, and shortens the viewport when
+   * it comes. A reveal that ran on the rename alone measured against the tall
+   * viewport and left everything below the field underneath the keyboard —
+   * which is the original complaint, arrived at a second way.
+   */
+  React.useEffect(() => {
+    if (!renaming) return;
+    const shown = Keyboard.addListener('keyboardDidShow', () => reveal(row));
+    return () => shown.remove();
+  }, [renaming, reveal]);
+
   return (
-    <Card
-      style={recordingStyles.row}
-      onLayout={(e) => {
-        region.current = {
-          top: e.nativeEvent.layout.y,
-          height: e.nativeEvent.layout.height,
-        };
-        if (wants.current) {
-          wants.current = false;
-          reveal(region.current);
-        }
+    <View
+      ref={row}
+      // Kept in the native tree so it can be measured.
+      collapsable={false}
+      onLayout={() => {
+        if (!wants.current) return;
+        wants.current = false;
+        reveal(row);
       }}
     >
+    <Card style={recordingStyles.row}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${recording.name}, ${formatDuration(
@@ -456,6 +473,7 @@ export function RecordingRow({
         </View>
       ) : null}
     </Card>
+    </View>
   );
 }
 
