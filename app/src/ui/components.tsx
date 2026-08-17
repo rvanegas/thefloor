@@ -80,6 +80,11 @@ export function Button({
   );
 }
 
+/** Keyboards with digits and no return key. */
+function isKeypad(keyboardType?: string): boolean {
+  return keyboardType === 'number-pad' || keyboardType === 'phone-pad';
+}
+
 export function Field({
   value,
   onChangeText,
@@ -124,11 +129,18 @@ export function Field({
       autoCapitalize={autoCapitalize}
       autoCorrect={false}
       multiline={multiline}
-      returnKeyType={!multiline && onSubmit ? submitLabel : undefined}
+      // Not on a number pad, which has no return key to label. Asking anyway
+      // makes iOS float a detached "Go" pill above the keypad, over whatever
+      // the screen was showing — on the sign-in screen it landed in the middle
+      // of nothing, beside the button it duplicates. The form is submitted by
+      // the button under the fields, which is where it has always been.
+      returnKeyType={
+        !multiline && onSubmit && !isKeypad(keyboardType)
+          ? submitLabel
+          : undefined
+      }
       onSubmitEditing={multiline ? undefined : onSubmit}
       onBlur={onBlur}
-      // A number-pad has no return key, so the form would otherwise be
-      // unsubmittable from the keyboard alone.
       submitBehavior={multiline ? 'newline' : 'blurAndSubmit'}
       style={[styles.field, multiline && styles.fieldMultiline]}
     />
