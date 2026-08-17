@@ -53,6 +53,27 @@ export interface InviteView {
   channelId: string;
   from: PublicAccount;
   createdAt: number;
+  /**
+   * What the channel is called, if anyone has named it — and who else is in
+   * it, so an unnamed one can be described the way every other list describes
+   * one.
+   *
+   * Without these an invitation could only say who sent it, and two from the
+   * same person were the same banner twice with no way to tell which was
+   * which. Optional, so a server that predates them leaves a client with the
+   * old text rather than a broken screen.
+   */
+  name?: string | null;
+  others?: PublicAccount[];
+  /**
+   * How many people are in the channel right now.
+   *
+   * The banner said somebody "is waiting in a channel" whatever the truth of
+   * it, so an invitation to an empty room summoned you to nobody. An
+   * invitation outlives the moment it was sent; what it cannot do is keep
+   * claiming that moment is still happening.
+   */
+  presentCount?: number;
 }
 
 export interface RejoinableView {

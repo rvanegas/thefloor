@@ -131,6 +131,38 @@ describe('inviting into an unnamed channel', () => {
     expect(invites[0].from.id).toBe(alice.account.id);
   });
 
+  /**
+   * An invitation has to be identifiable and honest about the room.
+   *
+   * It used to carry only who sent it, so two invitations from one person were
+   * indistinguishable — the App Review account met exactly that on
+   * 2026-08-17, two banners reading "Johnny Tahoe is waiting in a channel" for
+   * two different channels — and the banner claimed somebody was waiting even
+   * after they had stepped out.
+   */
+  it('says which channel it is for, and whether anyone is in it', async () => {
+    const { alice, bob, carol, channelId } = await pair();
+    expect(invite(channelId, alice, carol).ok).toBe(true);
+
+    const [unnamed] = app.channels.invitesFor(carol.account.id);
+    // Unnamed, so it is describable rather than nameable — by its roster, the
+    // way every other list describes one.
+    expect(unnamed.name).toBeNull();
+    expect(unnamed.others?.map((o) => o.id).sort()).toEqual(
+      [alice.account.id, bob.account.id].sort()
+    );
+
+    // Alice and Bob are both in it, having been paired into it.
+    expect(unnamed.presentCount).toBeGreaterThan(0);
+
+    // Everyone steps out: the invitation stands, and stops saying otherwise.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    const [empty] = app.channels.invitesFor(carol.account.id);
+    expect(empty.channelId).toBe(channelId);
+    expect(empty.presentCount).toBe(0);
+  });
+
   it('refuses the same people an invitation into a named channel refuses', async () => {
     const { alice, bob, carol, channelId } = await pair();
     // Carol is Alice's contact, not Bob's.

@@ -257,6 +257,71 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * Two invitations from one person used to be the same banner twice: it named
+   * only the sender, so there was no way to tell which channel either was for.
+   * The App Review account met exactly that on 2026-08-17.
+   */
+  it('says which channel each invitation is for', () => {
+    mockApp.home = {
+      invites: [
+        {
+          channelId: 'sess_a',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+          name: 'Weekly Convo',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 1,
+        },
+        {
+          channelId: 'sess_b',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+          name: null,
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 1,
+        },
+      ],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('Weekly Convo');
+    // The unnamed one is described by its roster rather than left blank.
+    expect(text).toContain('Dana Chu');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * An invitation outlives the moment it was sent. What it must not do is go on
+   * claiming that moment is still happening — the banner said somebody "is
+   * waiting in a channel" after they had stepped out of it.
+   */
+  it('does not say somebody is waiting in an empty channel', () => {
+    mockApp.home = {
+      invites: [
+        {
+          channelId: 'sess_a',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+          name: 'Weekly Convo',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 0,
+        },
+      ],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const text = textOf(tree);
+    expect(text).not.toContain('is waiting');
+    expect(text).toContain('nobody here right now');
+    act(() => tree.unmount());
+  });
+
   it('does not list recordings, which belong to their channel', () => {
     // They were here, as one flat list belonging to nothing. The server still
     // sends the field for build 20, which renders it; this screen ignores it.

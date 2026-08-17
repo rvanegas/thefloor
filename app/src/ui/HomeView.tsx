@@ -404,8 +404,17 @@ function describeStatus(status: string): string {
 }
 
 /**
- * Live invites are in-app only and persist until acted on or the underlying
- * channel ends. Several contacts can be inviting at once, so these stack.
+ * Invitations are in-app only and persist until acted on or the underlying
+ * channel ends. Several contacts can be inviting at once, so these stack — and
+ * that stacking is what made two of them being identical a real problem rather
+ * than a cosmetic one.
+ *
+ * It says which channel, and whether anybody is in it. Both were missing: the
+ * banner named only the sender and asserted they were "waiting in a channel"
+ * whatever the truth, so two invitations from one person were the same banner
+ * twice, and an invitation to a room somebody had since left still summoned you
+ * to them. An invitation outlives the moment it was sent; it must not go on
+ * claiming that moment is still happening.
  */
 function InviteBanner({
   invite,
@@ -416,11 +425,33 @@ function InviteBanner({
   onJoin: () => void;
   onDismiss: () => void;
 }) {
+  // Named where it has a name, described by its roster where it has not —
+  // exactly as a channel row does, since the reader is choosing between the
+  // two lists and they should speak the same way.
+  const title =
+    invite.name ??
+    (invite.others?.length
+      ? describeChannel(invite.others.map((other) => other.displayName))
+      : null);
+  // Absent from an older server, and then the old sentence is still the best
+  // available answer rather than a claim invented here.
+  const present = invite.presentCount;
+  const live = present === undefined || present > 0;
+
   return (
-    <Pressable onPress={onJoin} style={styles.banner}>
+    <Pressable
+      onPress={onJoin}
+      style={[styles.banner, !live && styles.bannerQuiet]}
+    >
       <View style={styles.rowMain}>
-        <Text style={styles.bannerTitle}>{invite.from.displayName}</Text>
-        <Text style={styles.bannerSub}>is waiting in a channel — tap to join</Text>
+        <Text style={styles.bannerTitle} numberOfLines={1}>
+          {title ?? invite.from.displayName}
+        </Text>
+        <Text style={styles.bannerSub}>
+          {live
+            ? `${invite.from.displayName} is waiting — tap to join`
+            : `${invite.from.displayName} asked you in · nobody here right now`}
+        </Text>
       </View>
       <Pressable
         onPress={onDismiss}
@@ -809,6 +840,12 @@ const styles = StyleSheet.create({
     padding: spacing(2),
     marginBottom: spacing(1),
   },
+  /**
+   * An invitation nobody is waiting in is still worth answering, and is not
+   * worth shouting. It keeps its shape and loses the floor-coloured urgency,
+   * which is reserved for a room with somebody in it.
+   */
+  bannerQuiet: { backgroundColor: 'transparent', borderColor: colors.border },
   bannerTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
   bannerSub: { fontSize: 13, color: colors.textMuted },
   bannerDismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },

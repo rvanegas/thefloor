@@ -28,7 +28,11 @@ import type {
   ChannelAction,
   ChannelState,
 } from '../../core/types';
-import type { InviteView, RejoinableView } from '../../core/protocol';
+import type {
+  InviteView,
+  PublicAccount,
+  RejoinableView,
+} from '../../core/protocol';
 import type { Accounts } from './accounts';
 import {
   insertWithUniqueKey,
@@ -1118,7 +1122,19 @@ export class ChannelRegistry {
       // conversation it continues — so without this, the person who started it
       // is invited by themselves to the room they are standing in.
       if (from && from.id !== userId) {
-        invites.push({ channelId: channel.id, from, createdAt: channel.createdAt });
+        invites.push({
+          channelId: channel.id,
+          from,
+          createdAt: channel.createdAt,
+          // The same three facts a rejoinable channel carries, and for the same
+          // reason: an invitation has to be identifiable and has to be honest
+          // about whether anyone is there.
+          name: isNamed(channel) ? channel.name : null,
+          others: otherParticipants(channel, userId)
+            .map((id) => this.accounts.public(id))
+            .filter((account): account is PublicAccount => !!account),
+          presentCount: channel.present.length,
+        });
       }
     }
     return invites.sort((a, b) => a.createdAt - b.createdAt);
