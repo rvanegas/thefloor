@@ -5,7 +5,8 @@ when the app is approved, with whatever is still true afterwards moving to
 DECISIONS.md. TASKS.md points here.
 
 **Submitted 2026-08-14 as build 36. Rejected 2026-08-15 under Guideline 2.1 —
-Information Needed. Resubmitting build 44.** Not a functional finding: Apple did not
+Information Needed. Resubmitted 2026-08-17 as build 51, state
+`WAITING_FOR_REVIEW`.** Not a functional finding: Apple did not
 report a bug, a crash or a policy breach, and did not say they failed to sign
 in. They asked for the seven-item information pack that a first submission is
 expected to carry, and the notes that went in answered perhaps three of them.

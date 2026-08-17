@@ -7,8 +7,15 @@ the submission itself — the reply, the shooting notes, the App Store Connect
 material.
 
 Build 36 was submitted 2026-08-14 and rejected 2026-08-15 under **Guideline 2.1
-— Information Needed**. Build 51 is the resubmission. Fifteen builds separate
-them, and only the first of those was about the rejection.
+— Information Needed**. Build 51 was resubmitted 2026-08-17 at 09:33 UTC and is
+`WAITING_FOR_REVIEW`. Fifteen builds separate them, and only the first of those
+was about the rejection.
+
+The reply went in two messages: the seven answers, then the screen recording,
+which the first said was attached and was not. The recording is also on the
+version's App Review Information, which is where it persists for any future
+submission. The Notes field holds the same seven answers — 3,994 characters
+against a 4,000 limit, which is the constraint that shaped them.
 
 ---
 
