@@ -425,6 +425,98 @@ a device model** — so the list of handsets and iOS versions came from whoever
 did the testing, and is the internal testers' own hardware rather than a matrix
 chosen for coverage.
 
+### The reply that fits, verbatim — 3994 characters
+
+**Use this one.** App Store Connect caps the reply box as well as the Notes
+field, so the 10,520-character version below has nowhere to go. This says the
+same seven things in a quarter of the space.
+
+What survived the cutting is worth naming, since it is what a reviewer needs
+rather than what reads well: the credentials, the fact that one person alone can
+use the app, and the two behaviours that look like defects — the floor
+unavailable while alone, and Play and Export greyed while a mix is made. What
+went was adjectives, the target-audience paragraph, and the second sentence of
+several answers. Every one of Apple's seven items is still answered.
+
+```
+The information requested, in order.
+
+1. SCREEN RECORDING
+Attached. Physical iPhone, current iOS, build 51 — the one submitted. Cold
+launch, sign-in, the microphone prompt, creating and using a channel, recording,
+playback, rename, export, delete, the donation link, the privacy policy, and
+account deletion.
+
+No purchase, subscription or paid-content flow exists, and no App Tracking
+Transparency prompt, because the app does no tracking. The microphone is the
+only permission requested. Sign-up and sign-in share one screen, so the
+recording shows both. It was shot on a separate test account, leaving the review
+account below intact; the deletion shown is real.
+
+2. DEVICES AND OS TESTED
+iPhone 16 Pro Max, 16 Pro, 13 mini, 12 Pro Max on iOS 26.6; iPhone 16e on 18.5.
+Also iPad Pro 12.9" (4th gen) on iPadOS 26.5 and iPad (7th gen) on 18.7.9, in
+iPhone compatibility mode — the app is iPhone-only. All physical devices, our
+internal testers' own. Portrait-only.
+
+3. WHAT IT DOES AND WHO FOR
+A voice app for talking with people you already know. A call demands to be
+answered now; a group chat never finishes a thought. A channel is a place rather
+than a call — up to six people, keeping its name and recordings between
+conversations, still there after everyone closes the app. Anyone present may claim
+"the floor", and while they hold it every other microphone is withheld: a way to
+be heard without being interrupted. Recording captures each person separately. For small groups who already know each other. Not a social
+network.
+
+4. GETTING IN AND REACHING FEATURES
+No passwords; a six-digit code is normally emailed. This account has a fixed
+code: appreview@rvanegas.co / 194399
+
+You do not need a second person: a channel can be started with nobody in it, and
+recording needs only that you are present. The account holds one contact, Sam
+Rivera, and three channels — "Weekly Convo" with her, holding a recording called
+"Short Sample"; an older unnamed one with her, described by who is in it; and
+"Just you", which is what starting a channel alone looks like.
+
+Open "Weekly Convo" > Step in (microphone prompt). Record/Stop; nothing asks for
+a name — a channel lends its name to what it records, and Rename, Play, Export
+and Delete are on the recording's row. "Play something together" plays a phone
+file into the room. "Start a channel" is the last row on Home. Contacts are
+added by email at the foot of Home. Settings holds Privacy policy, Sign out,
+Delete account.
+
+TWO THINGS THAT LOOK LIKE BUGS AND ARE NOT: "Claim the floor" is unavailable
+while you are alone — claiming it asks a room to be quiet, and there is no room
+to ask; and a recording just stopped shows Play and Export greyed for a few
+seconds while its mix is made.
+
+5. EXTERNAL SERVICES
+LiveKit (open-source, self-hosted by us) carries audio and produces recordings;
+Amazon S3 stores them; Amazon SES sends sign-in codes; Apple Push Notification
+service delivers notifications; Ko-fi hosts the donation page. No third-party
+sign-in, payment processor, advertising, analytics or AI service, and no usage
+data is collected.
+
+6. REGIONAL DIFFERENCES
+Identical everywhere but one: the Support screen's external Ko-fi link is shown
+only in the US storefront, per 3.1.1(a). Voluntary, unlocks nothing; the app is
+free everywhere with no in-app purchase.
+
+7. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+Not applicable. All content is user-created. One surface worth naming: a member
+may play their own audio file into a channel, which a recording captures — their
+file, their choice, in a private room.
+
+
+GUIDELINE 1.2: no discovery, no directory, no way for a stranger to reach
+anyone. Every contact requires acceptance on both sides. Any member of a channel
+can delete any recording in it and may leave at any time. Recording is never
+automatic and is visible to everyone present.
+
+PLEASE TEST ACCOUNT DELETION LAST — it works and takes effect immediately, but
+removes this account's contacts, leaving a working but empty app.
+```
+
 ### The Notes field, verbatim
 
 **App Review Information → Notes takes 4,000 characters, and the reply below is
