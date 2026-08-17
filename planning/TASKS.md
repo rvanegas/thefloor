@@ -6,7 +6,9 @@ and things to go and find out. There are more in BACKLOG.md.
 
 ## Stepping into Channel Distinct from Tapping on Card
 
-## Recency per Channel
+## Recency Distinctions
+
+Home View idleness measures time since user has viewed the Home View, not time since active on the app. So, being in a channel for an hour without looking at Home updates only idleness in channel, not in Home.
 
 ## Effect of Quitting App
 
@@ -18,7 +20,7 @@ and things to go and find out. There are more in BACKLOG.md.
 
 ## Notify Channel Member
 
-Ping specific member with a notification with specific text. Limited char count.
+Ping specific member with a notification with specific text. Limited char count. All channel presence notifications should mention the channel name as well as username and the optional custom text.
 
 ## Review Logic for States
 
