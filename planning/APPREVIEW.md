@@ -519,19 +519,34 @@ Enter the address, tap through, then enter the code.
 You do not need a second person, and this is structural rather than a
 convenience: a channel can be started with nobody in it, and recording requires
 only that you are present. One reviewer alone can exercise every feature in the
-app. The account is also set up rather than empty — one accepted contact ("Sam
-Rivera"), one channel between them, and one existing recording in it.
+app.
+
+The account is set up rather than empty. Signing in, you will find one accepted
+contact, Sam Rivera, and three channels:
+
+- "Weekly Convo", shared with Sam Rivera, holding one recording called "Short
+  Sample". This is the one to start with; everything below can be done in it.
+- "Sam Rivera" — an older channel shared with her that nobody has named, so it
+  is described by who is in it rather than titled. The italics on Home mean
+  exactly that: named channels are asserted, unnamed ones are only described.
+- "Just you" — a channel with nobody else in it, which is what starting one
+  alone looks like. It is there because a channel can be started with no
+  invitees at all, and you are welcome to do the same.
 
 To reach each feature from a signed-in Home screen:
-- Open the existing channel from "Your channels". Tap "Step in" to join it;
-  the microphone prompt appears here.
-- "Claim the floor" takes the floor and "Release the floor" gives it back.
+- Open "Weekly Convo" from "Your channels". Tap "Step in" to join it; the
+  microphone prompt appears here.
+- "Claim the floor" takes the floor and "Release the floor" gives it back. It
+  is available only when somebody else is present, since claiming it is asking
+  the room to be quiet and there is no room to ask when you are alone. With one
+  reviewer this control will be unavailable, which is correct rather than
+  broken.
 - Record starts a recording and Stop ends it. Nothing asks for a name: the
   channel lends its name to what it records, so every member sees the same
   name without anyone being asked. Renaming is on the recording's own row.
-- Recordings are listed inside the channel, under "Recordings" — including the
-  one already there. Each row offers Play (which plays it into the channel for
-  everyone present), Export, Rename and Delete.
+- Recordings are listed inside the channel, under "Recordings" — including
+  "Short Sample", which is already there. Each row offers Play (which plays it
+  into the channel for everyone present), Export, Rename and Delete.
 - "Play something together" in the same channel picks an audio file from the
   phone and plays it into the room.
 - "Start a channel" is the last row of the channel list on Home. It opens a
