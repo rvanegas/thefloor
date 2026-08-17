@@ -20,6 +20,41 @@ DSA declaration" below. It does not block review; it governs EU availability.
 
 ---
 
+## The branches, which diverge on purpose until approval
+
+Decided 2026-08-16. **Two branches serve the submission and are not to be
+landed or deleted while it is open** — which reads against AGENTS.md's "there
+is no develop branch and no release branches", and is deliberately not written
+there: this is one submission's arrangement rather than a convention, and the
+conventions are worth settling once rather than growing an exception at a time.
+Somebody finding a long-lived branch and reaching for AGENTS.md should find this
+paragraph instead.
+
+**`keyboard-rename-fix` is the binary App Review is looking at**: `build/36`
+plus only the fixes that submission needs. Cut from the tag rather than from
+`master` so that the review notes, the screen recording and the binary all
+describe the same app — `master` had by then moved the start-channel affordance
+and added recording mixdown, and a video showing controls the reviewer's copy
+does not have is how an information request becomes a real 2.1. It also means
+no server deploy is needed for that build to work, the protocol being build
+36's.
+
+**`app-review-2-1-reply` holds what was said to Apple** — the rejection, the
+seven-item reply and the shooting script for the recording. It is prose, so it
+diverges from `master` harmlessly, and it is where APPREVIEW.md is current.
+**Reading this file on `master` gets you the version from before the
+rejection.**
+
+The cost is real and worth stating: a fix made for the reviewer does not reach
+testers, and a fix made for testers does not reach the reviewer, until somebody
+carries it across deliberately. The keyboard fix was carried both ways on the
+day it was made — released from the branch, and merged to `master` as `bdf68b2`
+— which is the pattern to follow rather than an accident.
+
+**On approval, land both and delete them.**
+
+---
+
 ## Built
 
 
