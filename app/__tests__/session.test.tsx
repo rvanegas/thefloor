@@ -1,0 +1,149 @@
+import React from 'react';
+import renderer, {
+  act,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
+
+/**
+ * What survives a sign-out, which is a question about `Root` rather than about
+ * any screen — and so has no home in `src/ui/__tests__/views.test.tsx`, which
+ * renders each view directly and never exercises the thing that chooses
+ * between them.
+ *
+ * The bug this exists for: `Root` does not unmount when the session ends. A
+ * null token changes what it renders, not whether it exists, so every screen
+ * stacked over Home outlived the account that opened it. Signing out is only
+ * reachable from the settings screen, so the settings case was not occasional —
+ * every sign-in after a sign-out landed back on Settings.
+ */
+
+const NOW = 1_700_000_000_000;
+
+const mockApp = {
+  ready: true,
+  token: 'token' as string | null,
+  me: { id: 'acct_me', displayName: 'Me' },
+  home: null,
+  channelViews: {},
+  goneChannels: [] as string[],
+  status: 'open' as const,
+  lastError: null,
+  serverNow: () => NOW,
+  requestCode: jest.fn(),
+  verify: jest.fn(),
+  signOut: jest.fn(),
+  deleteAccount: jest.fn(async () => {}),
+  requestContact: jest.fn(),
+  acceptContact: jest.fn(),
+  declineContact: jest.fn(),
+  startChannel: jest.fn(),
+  loadProfile: jest.fn(),
+  saveProfile: jest.fn(async () => {}),
+  loadSupport: jest.fn(async () => ({ url: null, identifier: null, mine: null })),
+  connectWith: jest.fn(),
+  watchChannel: jest.fn(),
+  leaveChannelView: jest.fn(),
+  act: jest.fn(),
+  clearError: jest.fn(),
+  dismissedInvites: [] as string[],
+  dismissInvite: jest.fn(),
+  appearance: 'system' as const,
+  setAppearance: jest.fn(),
+  pendingChannelId: null,
+  clearPendingChannel: jest.fn(),
+  movedChannel: null,
+};
+
+jest.mock('../src/state/AppProvider', () => ({
+  useApp: () => mockApp,
+  AppProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+// No microphone in a render test, for the reason views.test.tsx gives: the
+// LiveKit packages ship untranspiled ESM, and opening an audio session is not
+// this file's business.
+jest.mock('../src/audio/useSessionAudio', () => ({
+  useSessionAudio: () => ({
+    status: 'idle',
+    message: null,
+    mutedByServer: false,
+    othersAudible: 0,
+    speaking: [],
+    micOpen: true,
+  }),
+}));
+
+import App from '../App';
+
+function textOf(tree: ReactTestRenderer): string {
+  const strings: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') strings.push(node);
+    else if (Array.isArray(node)) node.forEach(walk);
+    else if (node && typeof node === 'object' && 'children' in node) {
+      walk((node as { children: unknown }).children);
+    }
+  };
+  walk(tree.toJSON());
+  return strings.join(' ');
+}
+
+/** The visible text inside one instance, used to identify a button by label. */
+function labelOf(instance: ReactTestInstance): string {
+  const out: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') out.push(node);
+    else if (Array.isArray(node)) node.forEach(walk);
+    else if (node && typeof node === 'object') {
+      const props = (node as { props?: { children?: unknown } }).props;
+      if (props?.children !== undefined) walk(props.children);
+    }
+  };
+  walk(instance.props.children);
+  return out.join(' ');
+}
+
+function pressButton(tree: ReactTestRenderer, label: string): void {
+  const target = tree.root
+    .findAll((n) => n.props?.accessibilityRole === 'button')
+    .find((n) => labelOf(n).includes(label));
+  if (!target) throw new Error(`no button labelled ${label}`);
+  act(() => target.props.onPress());
+}
+
+describe('a session ending', () => {
+  beforeEach(() => {
+    mockApp.token = 'token';
+  });
+
+  it('closes the settings screen, so signing back in lands on Home', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    // "Done" is the settings screen's own way off it, and appears nowhere
+    // else — a surer marker than any of its contents, which load async.
+    pressButton(tree, 'Settings');
+    expect(textOf(tree)).toContain('Done');
+
+    // Signing out. Root stays mounted throughout — that is the whole point.
+    act(() => {
+      mockApp.token = null;
+      tree.update(<App />);
+    });
+    // Not asserting on what AuthView shows: with no EXPO_PUBLIC_API_URL in the
+    // jest environment it renders its "not configured" notice rather than the
+    // sign-in form, which is correct behaviour and beside the point here.
+
+    act(() => {
+      mockApp.token = 'token';
+      tree.update(<App />);
+    });
+
+    expect(textOf(tree)).not.toContain('Done');
+    expect(textOf(tree)).toContain('Contacts');
+    act(() => tree.unmount());
+  });
+});

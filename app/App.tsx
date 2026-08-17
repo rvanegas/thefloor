@@ -102,6 +102,34 @@ function Root() {
     clearPendingChannel();
   }, [pendingChannelId, ready, token, watchChannel, clearPendingChannel]);
 
+  /**
+   * Signing out closes every screen stacked over Home.
+   *
+   * **This component does not unmount when the session ends.** A null `token`
+   * changes what `Root` renders, not whether it exists, so without this each of
+   * these outlives the account that opened it. Signing out is only reachable
+   * from the settings screen, which made the settings case certain rather than
+   * occasional: sign out, sign in, and you were looking at Settings again,
+   * holding the previous session's `settingsOpen`.
+   *
+   * `channelId` is the one worth closing on its own account. Signing out inside
+   * a channel and back in as somebody else left this rendering `ChannelView`
+   * for a channel the new account may not be a member of — the server refuses
+   * the snapshot, so it is a confused screen rather than a leak, but it is the
+   * same staleness and it has no business surviving.
+   *
+   * Keyed on the token being gone rather than on it changing, because a
+   * sign-in always passes through null within a session, while a token
+   * refreshed for the same account should disturb nothing.
+   */
+  useEffect(() => {
+    if (token) return;
+    setChannelId(null);
+    setSettingsOpen(false);
+    setSupportOpen(false);
+    setProfile(null);
+  }, [token]);
+
   if (!ready) {
     return (
       <View style={styles.loading}>
