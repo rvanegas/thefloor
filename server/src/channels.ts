@@ -2575,6 +2575,13 @@ export class ChannelRegistry {
         runId
       );
 
+    // The row only now qualifies for either list — `ended_at IS NOT NULL` is
+    // what moves it from in flight to existing — and the push that followed
+    // STOP_RECORDING went out before this, synchronously, when dispatch
+    // returned. Without saying so here, the recording somebody had just made
+    // did not appear until an unrelated snapshot happened to be sent.
+    this.emit([channel.id]);
+
     if (mixable) this.startMix(runId, channel.id);
   }
 
@@ -2673,6 +2680,10 @@ export class ChannelRegistry {
     this.db
       .prepare("UPDATE recordings SET mix_state = 'ready' WHERE id = ?")
       .run(row.id);
+    // The card is on screen with Play and Export greyed; this is what ungreys
+    // them. Nothing else would: a mix finishing is not an action anybody took,
+    // so no dispatch is going to push a snapshot on its behalf.
+    this.emit([row.channel_id]);
     return data;
   }
 
