@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
   type StyleProp,
+  type ViewProps,
   type ViewStyle,
 } from 'react-native';
 import { MAX_RECORDING_NAME_LENGTH } from '../../../core/constants';
@@ -17,6 +18,7 @@ import type { RecordingView } from '../../../core/protocol';
 import { exportRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
+import { offsetToReveal, type Region } from './reveal';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 
 export function Button({
@@ -159,6 +161,24 @@ export function Screen({
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
 }) {
+  const scroll = React.useRef<ScrollView>(null);
+  /** What the scroll view is showing, kept current so `reveal` can do sums. */
+  const viewport = React.useRef({ offset: 0, height: 0 });
+
+  /**
+   * Brings a region of the content wholly into view, if it is not already.
+   *
+   * Offered rather than imposed: only the caller knows when something has
+   * grown. A recording row expands twice — once into its actions, once into a
+   * rename field with a Save button under it — and both used to appear below
+   * the fold, the second under the keyboard, leaving the person to scroll to
+   * the control they had just asked for.
+   */
+  const reveal = React.useCallback((region: Region) => {
+    const to = offsetToReveal(region, viewport.current);
+    if (to !== null) scroll.current?.scrollTo({ y: to, animated: true });
+  }, []);
+
   return (
     <KeyboardAvoidingView
       style={styles.screen}
@@ -166,16 +186,42 @@ export function Screen({
       // double-counts the keyboard and leaves a gap the height of it.
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={contentStyle}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        {children}
-      </ScrollView>
+      <RevealContext.Provider value={reveal}>
+        <ScrollView
+          ref={scroll}
+          style={styles.screen}
+          contentContainerStyle={contentStyle}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          // The height shrinks when the keyboard opens, which is exactly the
+          // measurement `reveal` needs and the reason it is read here rather
+          // than from the window.
+          onLayout={(e) => {
+            viewport.current.height = e.nativeEvent.layout.height;
+          }}
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            viewport.current.offset = e.nativeEvent.contentOffset.y;
+          }}
+        >
+          {children}
+        </ScrollView>
+      </RevealContext.Provider>
     </KeyboardAvoidingView>
   );
+}
+
+/**
+ * How a card asks to be seen. Null outside a `Screen`, where there is nothing
+ * to scroll and asking is a no-op rather than an error.
+ */
+const RevealContext = React.createContext<((region: Region) => void) | null>(
+  null
+);
+
+export function useReveal(): (region: Region) => void {
+  const reveal = React.useContext(RevealContext);
+  return reveal ?? (() => {});
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -185,11 +231,21 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 export function Card({
   children,
   style,
+  onLayout,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  /**
+   * Forwarded so a card can know where it sits and how tall it has become —
+   * which is how a row that has just expanded asks to be scrolled into view.
+   */
+  onLayout?: ViewProps['onLayout'];
 }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+  return (
+    <View style={[styles.card, style]} onLayout={onLayout}>
+      {children}
+    </View>
+  );
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
@@ -289,8 +345,33 @@ export function RecordingRow({
    */
   const [renaming, setRenaming] = React.useState(false);
 
+  const reveal = useReveal();
+  /**
+   * Where this card sits in the scrollable content, and how tall it is now.
+   *
+   * Read from `onLayout` rather than measured on demand: the layout that
+   * matters is the one *after* whatever just expanded, and onLayout fires
+   * exactly then. Asking for a measurement in the press handler would ask
+   * before the growth it is about.
+   */
+  const region = React.useRef<Region>({ top: 0, height: 0 });
+  /** Set when something has grown, cleared by the layout that follows it. */
+  const wants = React.useRef(false);
+
   return (
-    <Card style={recordingStyles.row}>
+    <Card
+      style={recordingStyles.row}
+      onLayout={(e) => {
+        region.current = {
+          top: e.nativeEvent.layout.y,
+          height: e.nativeEvent.layout.height,
+        };
+        if (wants.current) {
+          wants.current = false;
+          reveal(region.current);
+        }
+      }}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${recording.name}, ${formatDuration(
@@ -301,7 +382,13 @@ export function RecordingRow({
           // offers the actions again rather than the half-typed name of
           // whatever the person had changed their mind about.
           setRenaming(false);
-          setOpen((current) => !current);
+          setOpen((current) => {
+            // Only opening needs revealing. Closing can only make the card
+            // smaller, and scrolling after it would move the list under a
+            // finger that asked for nothing of the sort.
+            if (!current) wants.current = true;
+            return !current;
+          });
         }}
         style={({ pressed }) => (pressed ? recordingStyles.pressed : undefined)}
       >
@@ -333,7 +420,18 @@ export function RecordingRow({
             />
           ) : null}
           <ExportButton recording={recording} disabled={!!recording.mixing} />
-          <Button label="Rename" onPress={() => setRenaming(true)} />
+          <Button
+            label="Rename"
+            onPress={() => {
+              // The field is taller than the actions it replaces, and the
+              // keyboard takes the bottom of the screen as it arrives — so the
+              // card has to be brought in against a viewport that is about to
+              // shrink. `Screen` reads that height from its own layout, which
+              // changes for the same reason and at the same time.
+              wants.current = true;
+              setRenaming(true);
+            }}
+          />
           <DeleteButton recording={recording} />
           {/*
             Said once, beside the two controls it applies to. Renaming and
