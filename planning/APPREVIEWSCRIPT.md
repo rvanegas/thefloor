@@ -32,5 +32,5 @@ The script
 Notes
 
 - Before rolling: confirm johnny@rvanegas.co receives mail (you must sign out for the login flow, and Johnny has no fixed code), sign out, and reset Location & Privacy in iOS Settings so the microphone prompt fires again.
-- Shoot on build 49 or later. Earlier builds lose short recordings silently, hide a card until its mix finishes, and put the rename field under the keyboard.
+- Shoot on build 51 or later. Earlier builds lose short recordings silently, hide a card until its mix finishes, and put the rename field under the keyboard.
 - "Pause a beat" means hold still two or three seconds so the screen is legible. Screen recordings run faster than they feel.

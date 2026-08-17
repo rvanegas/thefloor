@@ -352,7 +352,7 @@ information request into a real 2.1:
 ### The one item that needs a decision rather than a sentence
 
 **Item 1, the screen recording, has to be shot on a physical device, against
-the build being submitted — which is 44.** Decided 2026-08-16, having first gone
+the build being submitted — which is 51.** Decided 2026-08-16, having first gone
 the other way. The argument for a minimal build (build 36 plus the keyboard fix,
 which reached TestFlight as 42 and 43) was that the binary, the notes and the
 video should describe the same app. But the video had not been shot yet, so
@@ -436,7 +436,7 @@ Thank you — here is the information requested, in the order asked.
 
 1. SCREEN RECORDING
 Attached: a recording captured on a physical iPhone running the current release
-of iOS, of build 49, the build submitted. It begins with a cold launch and
+of iOS, of build 51, the build submitted. It begins with a cold launch and
 runs through sign-in, the microphone permission prompt, creating and using a
 channel, recording a conversation, playing that recording back, renaming,
 exporting and deleting it, the external donation link, the privacy policy link,
