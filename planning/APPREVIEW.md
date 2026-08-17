@@ -4,7 +4,12 @@
 when the app is approved, with whatever is still true afterwards moving to
 DECISIONS.md. TASKS.md points here.
 
-**Submitted 2026-08-14: version 1.0.0, build 36, state `WAITING_FOR_REVIEW`.**
+**Submitted 2026-08-14: version 1.0.0, build 36. Rejected 2026-08-15 under
+Guideline 2.1 — Information Needed.** Not a functional finding: Apple did not
+report a bug, a crash or a policy breach, and did not say they failed to sign
+in. They asked for the seven-item information pack that a first submission is
+expected to carry, and the notes that went in answered perhaps three of them.
+The rejection, what it asked for and the reply are in "The 2.1 rejection" below.
 Release is manual, so approval will not put it live — that stays a separate
 decision. The submitted text is at the end of this file, because a rejection is
 answered by editing what was said rather than by remembering it.
@@ -349,10 +354,261 @@ Store Connect, because only Apple can clear an account-level flag.
 
 ---
 
+## The 2.1 rejection, 2026-08-15
+
+Apple's message is the standard Guideline 2.1 information request. **Read what
+it is before deciding what to do about it:** it does not name a bug, does not
+say the reviewer could not sign in, and does not dispute a design decision. It
+asks for seven pieces of information, and the notes that were submitted answered
+items 3 and 4 well, item 6 by accident, and the rest not at all. The fix is
+prose and a video, not a build.
+
+Verified 2026-08-16, before writing the reply, because each of these is the kind
+that goes stale between a submission and an answer and each would turn an
+information request into a real 2.1:
+
+- `GET /healthz` ok, `/privacy` and `/support` both 200.
+- `REVIEW_IDENTIFIER` is live on the box and names `appreview@rvanegas.co`;
+  `POST /auth/request-code` then `/auth/verify` with the published code returns
+  a token. **The reviewer's way in works.**
+- `GET /home` for that account still shows one accepted contact (Sam Rivera),
+  one channel, and the one 5.68-second recording. Nothing a reviewer did
+  disturbed the demo data — which also says they did not test deletion.
+- Both stored demo bearer tokens in `~/.config/thefloor/demo-account.txt` are
+  now **dead** — 401 against `/home`. They are 90-day tokens and this is only
+  the second day, so something revoked them rather than expiring them, most
+  likely a sign-out. It does not matter while the bypass is configured, since a
+  fresh token is one sign-in away, but it does matter for teardown: DEMO-ACCOUNT
+  step 2 deletes both accounts with those tokens. **Mint fresh ones before
+  unsetting the bypass**, or the rows become unreachable — which is the exact
+  failure that document's ordering exists to prevent, arriving by a route it did
+  not anticipate.
+
+### The one item that needs a decision rather than a sentence
+
+**Item 1, the screen recording, has to be shot on a physical device, and the
+build it shows should be 36** — that is what is under review, and `dc18d82`
+changed where starting a channel lives in the list, so a video of 37 or later
+shows a Home screen the reviewer's copy does not have. Builds 37, 38 and 39 are
+tagged and 36 is what was submitted; shoot from whatever TestFlight will still
+install as 1.0.0 (36).
+
+The shooting order matters, for the reason DEMO-ACCOUNT.md already gives.
+Apple asks the recording to include account deletion, and deleting the demo
+account takes its contacts with it in both directions, leaving an account that
+cannot create a channel. So either:
+
+- **Shoot on a throwaway account** — point `REVIEW_IDENTIFIER` at a spare
+  address, sign in, and delete that one on camera. The demo account is never
+  touched and needs no repair. This is the better option and costs two restarts.
+- **Shoot on the demo account and repair afterwards** — everything else first,
+  deletion last, then rebuild the pairing with the bypass flip. One less setup
+  step and one more thing to forget.
+
+What the recording has to contain, in order, because Apple names each of these
+and a missing one is another round trip: launching the app cold; the sign-in
+flow, address then code; Home with a contact and a channel on it; opening the
+channel and the **microphone permission prompt** with its purpose string
+visible; recording, stopping, naming; playing the recording back into the
+channel; renaming and exporting it; deleting it; the Support card and the Ko-fi
+link opening in the browser; the Privacy card; and Settings → Delete account
+with its confirmation, last. There is no purchase flow, no subscription and no
+paid content to show, and no App Tracking Transparency prompt, because there is
+no tracking.
+
+Item 2 is the only one that cannot be answered from the repository: **nothing
+on the wire carries a device model** — `release.ts` says so about build numbers
+and the same is true here — so the list of handsets and iOS versions has to come
+from whoever did the testing.
+
+### The reply, verbatim
+
+Sent as a reply to the review message, with the recording attached, and copied
+into the App Review Information → Notes field, which is where Apple asked for it
+to live for future submissions.
+
+```
+Thank you — here is the information requested, in the order asked.
+
+1. SCREEN RECORDING
+Attached: a recording captured on a physical iPhone running the current release
+of iOS, of build 36, the build under review. It begins with a cold launch and
+runs through sign-in, the microphone permission prompt, creating and using a
+channel, recording a conversation, playing that recording back, renaming,
+exporting and deleting it, the external donation link, the privacy policy link,
+and finally account deletion.
+
+There is no purchase, subscription or paid-content flow in the app, and no App
+Tracking Transparency prompt, because the app does no tracking. The only
+permission the app requests is the microphone, and the recording shows that
+prompt and the purpose string that accompanies it.
+
+2. DEVICES AND OPERATING SYSTEMS TESTED
+
+iPhone 16 Pro Max — iOS 26.6
+iPhone 16 Pro — iOS 26.6
+iPhone 16e — iOS 18.5
+iPhone 13 mini — iOS 26.6
+iPhone 12 Pro Max — iOS 26.6
+
+The app is iPhone-only; it does not declare iPad support. It was nonetheless
+exercised on iPad in iPhone compatibility mode, so that the experience there is
+known rather than assumed:
+
+iPad Pro (12.9-inch, 4th generation) — iPadOS 26.5
+iPad (7th generation) — iPadOS 18.7.9
+
+This is the hardware belonging to the app's internal testers, so the list is
+what real people were carrying rather than a matrix chosen for coverage. It is
+all physical hardware in daily use, on the versions of iOS those people were
+actually running. The app is portrait-only.
+
+3. WHAT THE APP DOES, WHO IT IS FOR, AND WHY
+The Floor is a voice app for talking with people you already know.
+
+The problem it addresses is that a phone call demands to be answered now and a
+group chat never finishes a thought. A channel in The Floor is a place rather
+than a call: it holds up to six people, keeps its name, description and
+recordings between conversations, and is still there when everyone has closed
+the app. Nobody has to answer it. You drop in, and whoever is there is there.
+
+Conversation is open by default — everyone present can speak. Anyone may also
+claim "the floor", and for as long as they hold it every other microphone is
+withheld, which is a way to be heard without being interrupted. Releasing it
+returns the room to normal. Anyone can mute themselves at any time.
+
+Anybody in a channel can start a recording. It captures each person as a
+separate track, follows the floor so that whoever is silenced is silent in the
+file, and when it stops it is named once for everyone. A finished recording can
+be played back into the channel for everyone to hear together, renamed,
+exported, or deleted — by any member, not only whoever started it. A member can
+also pick an audio file from their phone and play it into the channel the same
+way.
+
+The target audience is small groups of people who already know each other —
+families, friends, collaborators, remote colleagues — who want to talk rather
+than type, and who want the conversation to be somewhere rather than to be an
+event that has to be scheduled. It is not a social network: there is no feed, no
+directory, no discovery, and no way for a stranger to reach anyone.
+
+4. SETTING UP AND REACHING THE MAIN FEATURES
+
+Signing in. There are no passwords. Normally a six-digit code is emailed. The
+review account has a fixed code so that no inbox is needed:
+
+  Email: appreview@rvanegas.co
+  Code:  194399
+
+Enter the address, tap through, then enter the code.
+
+You do not need a second person. The account already has one accepted contact
+("Sam Rivera") and one channel between them, and it holds one existing
+recording. Recording requires only that you are present, so one reviewer alone
+can exercise the entire feature.
+
+To reach each feature from a signed-in Home screen:
+- Open the existing channel from "Your channels". Tap "Step in" to join it;
+  the microphone prompt appears here.
+- "Claim the floor" takes the floor and "Release the floor" gives it back.
+- Record starts a recording and Stop ends it, asking for a name once, for
+  everybody.
+- Recordings are listed inside the channel, under "Recordings" — including the
+  one already there. Each row offers Play (which plays it into the channel for
+  everyone present), Export, Rename and Delete.
+- "Play something together" in the same channel picks an audio file from the
+  phone and plays it into the room.
+- To start a new channel, tap "Sam Rivera" under Contacts on Home and then
+  "Start channel". (A channel can only be started with accepted contacts, so
+  that is the route with one contact; with two or more, Home also offers
+  "Start a channel with several people".)
+- Contacts are added by email address at the foot of Home, or by tapping
+  someone met in a channel. Nothing happens until the other person accepts.
+- "Chip in" under Support on Home is the external donation link — see item 6
+  for why it may not be shown to you.
+- Settings, from the top of Home, holds "Privacy policy" (which opens the
+  policy in the browser), Sign out, and Delete account.
+
+Please test account deletion LAST. It works and you are welcome to use it, and
+it takes effect immediately. It also removes the account's contacts in both
+directions, and an account with no contacts cannot start a channel — so signing
+in again at the same address yields a working but empty app, and the rest of the
+review would be conducted against one.
+
+No sample files are needed. If you would like to try playing an audio file into
+a channel, any audio file already on the device will do; the app uses the
+document browser to pick one.
+
+5. EXTERNAL SERVICES USED
+- LiveKit — the open-source WebRTC media server, self-hosted by us on our own
+  server, carrying live audio and producing the recordings. No third party
+  receives the audio.
+- Amazon S3 (US region) — storage for finished recordings.
+- Amazon SES — sends the six-digit sign-in codes.
+- Apple Push Notification service — notifies you when somebody asks you into a
+  conversation.
+- Ko-fi — an external donation page, opened in the browser. See item 6.
+
+There is no third-party authentication provider, no payment processor, no
+advertising network, no analytics or attribution SDK, and no AI or machine
+learning service. The app collects no usage data. Sign-in is first-party.
+
+6. REGIONAL DIFFERENCES
+The app functions identically everywhere, with one deliberate exception.
+
+The Support screen offers an external link to a Ko-fi donation page. Guideline
+3.1.1(a) permits an external link to a payment mechanism in the United States
+storefront and prohibits it elsewhere, so the server decides per person whether
+to send the link, and shows it only where it appears the person is in the
+United States. Every ambiguous case resolves to hiding the link. Where the link
+is withheld, the "Chip in" card does not appear on Home at all, and the app is
+otherwise identical.
+
+The donation is voluntary and unlocks nothing. An account that has never given
+behaves exactly like one that has. The app is free everywhere and there is no
+in-app purchase or subscription of any kind. If you are reviewing from outside
+the United States and wish to see the link, we can enable it for the review
+account on request.
+
+Nothing else varies by region: no content, no feature, and no restriction.
+
+7. REGULATED INDUSTRY OR THIRD-PARTY MATERIAL
+Not applicable. The app does not operate in a regulated industry — no health,
+financial, gambling, medical or legal services — and ships no third-party
+material of its own. All content in the app is created by its users.
+
+One surface is worth naming rather than leaving for you to find: a member can
+play an audio file from their own device into a channel, and a recording made
+while that is happening captures it. That is the user's own file and the user's
+own choice, in a private room whose members all consented to be there, and the
+app supplies no catalogue, library or store of content.
+
+ADDITIONAL — USER-GENERATED CONTENT (Guideline 1.2)
+Included because it is what a reviewer reading "multi-user audio with
+recording" will look for.
+
+There is no discovery, no directory, no search, and no way for a stranger to
+reach anyone. Every contact requires a request that the other person accepts;
+until they do, nothing happens and no channel can be created. A channel can only
+contain accepted contacts. Every member of a channel can delete any recording in
+it, and any member can leave at any time, which removes them from the channel.
+Removal is therefore available to the person affected, at the moment of harm,
+without waiting on us.
+
+RECORDING AND CONSENT
+Recording is never automatic. Somebody in the channel starts it deliberately,
+and while it runs it is visible on screen to everyone in that channel.
+```
+
+---
+
 ## What was submitted, verbatim
 
 Kept because a rejection is answered by editing what was said, and because App
 Store Connect is not a place anything can be diffed.
+
+**These are the notes submitted on 2026-08-14, which the 2.1 rejection found
+insufficient.** The replacement is the reply above, which goes in the Notes
+field for the resubmission. Kept for the diff.
 
 ### Review notes
 
