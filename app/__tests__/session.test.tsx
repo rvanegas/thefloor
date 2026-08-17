@@ -129,10 +129,11 @@ describe('a session ending', () => {
       tree = renderer.create(<App />);
     });
 
-    // "Done" is the settings screen's own way off it, and appears nowhere
-    // else — a surer marker than any of its contents, which load async.
+    // "Home" is the settings screen's own way off it, and appears nowhere
+    // else — a surer marker than any of its contents, which load async, and
+    // than its "Settings" heading, which is also the button that opened it.
     pressButton(tree, 'Settings');
-    expect(textOf(tree)).toContain('Done');
+    expect(textOf(tree)).toContain('Home');
 
     // Signing out. Root stays mounted throughout — that is the whole point.
     act(() => {
@@ -148,7 +149,7 @@ describe('a session ending', () => {
       tree.update(<App />);
     });
 
-    expect(textOf(tree)).not.toContain('Done');
+    expect(textOf(tree)).not.toContain('Home');
     expect(textOf(tree)).toContain('Contacts');
     act(() => tree.unmount());
   });

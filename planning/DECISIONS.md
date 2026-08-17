@@ -1634,3 +1634,47 @@ Covered by `app/src/state/__tests__/live.test.ts`,
 `views.test.tsx`. What none of them can cover is the shape of the report: the
 symptom was heard before it was seen, and the screenshot showed the *less*
 serious half of it.
+
+## The way off a settings screen names where it goes, 2026-08-17
+
+Both settings screens said **Done**, which is a word about the *edit* on a
+screen that no longer has one to finish — saving happens on blur, so by the time
+you reach for that button everything is already kept. What it actually does is
+go somewhere, and the two screens go to different places. The button now reads
+**Home** on `HomeSettingsView` and **Channel** on `ChannelSettingsView`, so it
+says the destination rather than implying a commit.
+
+Behaviour is unchanged. Home settings still `persist()`es and declines to close
+if the write fails, which is the thing the old label was quietly wrong about in
+the other direction — "Done" on a screen that had refused to save.
+
+**Only one of the two has a "Saving…" state, and asking why turned up a defect.**
+Home settings awaits `app.saveProfile`, an HTTP call, so there is an interval to
+show and a failure to report. Channel settings dispatches `app.act` and returns,
+so there is nothing to await — which is *not* the same as nothing going wrong: a
+`channel.action` sent while the socket is down is queued for ten seconds and then
+dropped in silence, a refused one is answered with a snapshot carrying no error,
+and `persist` records the value as saved the instant it dispatches. The screen
+believes a write it has no way to confirm. That is now known defect 9 in
+BACKLOG.md, with the reasoning at `socket.ts:88` that already named this shape as
+the worst a bug can take.
+
+It was deliberately not fixed here. The honest repair is an acknowledgement for
+`channel.action`, which is a wire change under the two-step-deploy rule and
+touches every caller of `act`; the tempting one — give the channel button a
+matching in-flight state — would be worse than the inconsistency, because it
+would assert a round trip that does not exist. So both screens carry a comment
+pointing at each other, and the difference reads as chosen rather than missed.
+
+**`ProfileView` and `SupportView` keep Done, deliberately.** Neither has
+anything to save, and neither has one destination: you reach a profile from Home
+or from inside a channel and it returns you to whichever it was, so naming the
+place would be wrong half the time. The rule is that the label names a
+destination when there is exactly one, and only then.
+
+One test had to change for a reason worth writing down. `session.test.tsx` uses
+the settings screen's exit as the marker for "settings is open", because the
+screen's own contents load async. That marker is now `Home`, which appears
+nowhere on the Home view — the obvious alternative, the screen's `Settings`
+heading, is also the label of the button that opens it, so it would match both
+sides of the assertion.

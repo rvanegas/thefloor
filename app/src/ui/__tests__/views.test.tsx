@@ -1564,9 +1564,9 @@ describe('Channel', () => {
     expect(textOf(tree)).not.toContain('](https://notes.example)');
     expect(linksIn(tree)).toContain('notes');
 
-    // Tapping Done straight from the field keeps it, which is the trap the
-    // old pair of Save buttons set: Done sat above both and discarded.
-    act(() => findButton(tree, 'Done')!.props.onPress());
+    // Tapping the way back straight from the field keeps it, which is the trap
+    // the old pair of Save buttons set: Done sat above both and discarded.
+    act(() => findButton(tree, 'Channel')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_DESCRIPTION',
       description: 'See [notes](https://notes.example)',
@@ -1603,7 +1603,7 @@ describe('Channel', () => {
     // And it does not close the screen out from under somebody who was also
     // going to write a description.
     expect(textOf(tree)).toContain('Channel settings');
-    act(() => findButton(tree, 'Done')!.props.onPress());
+    act(() => findButton(tree, 'Channel')!.props.onPress());
     expect(textOf(tree)).toContain('The floor');
     act(() => tree.unmount());
   });
@@ -1649,9 +1649,9 @@ describe('Home settings', () => {
     act(() => tree.unmount());
   });
 
-  it('keeps an edit that Done is tapped on directly', async () => {
-    // The trap this replaced: Done was nearer and more obvious than Save, and
-    // discarded the edit without saying so.
+  it('keeps an edit that Home is tapped on directly', async () => {
+    // The trap this replaced: the way back was nearer and more obvious than
+    // Save, and discarded the edit without saying so.
     const onBack = jest.fn();
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -1659,7 +1659,7 @@ describe('Home settings', () => {
     });
     act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
 
-    await act(async () => findButton(tree, 'Done')!.props.onPress());
+    await act(async () => findButton(tree, 'Home')!.props.onPress());
     expect(mockApp.saveProfile).toHaveBeenCalledWith({
       displayName: 'Alice Nkemdirim',
     });
@@ -1670,7 +1670,7 @@ describe('Home settings', () => {
   it('writes nothing when nothing was changed', async () => {
     const tree = await openSettings();
     await act(async () => nameField(tree).props.onBlur());
-    await act(async () => findButton(tree, 'Done')!.props.onPress());
+    await act(async () => findButton(tree, 'Home')!.props.onPress());
     expect(mockApp.saveProfile).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
@@ -1684,7 +1684,7 @@ describe('Home settings', () => {
     });
     act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
 
-    await act(async () => findButton(tree, 'Done')!.props.onPress());
+    await act(async () => findButton(tree, 'Home')!.props.onPress());
     // Closing anyway would be the silent discard again, wearing a hat.
     expect(onBack).not.toHaveBeenCalled();
     expect(textOf(tree)).toContain('server said no');

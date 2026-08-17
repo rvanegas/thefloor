@@ -52,7 +52,8 @@ export function ChannelSettingsView({
    *
    * There were two Save buttons here and each of them closed the screen, so
    * naming a channel took you out of the settings you were halfway through —
-   * and Done, sitting above both, discarded everything without a word. Saving
+   * and the way back, sitting above both and reading "Done" then, discarded
+   * everything without a word. Saving
    * as you leave a field means the only button left is the one that means what
    * it says.
    *
@@ -70,6 +71,21 @@ export function ChannelSettingsView({
     }
   };
 
+  /**
+   * Synchronous, and so the button has no "Saving…" state where
+   * `HomeSettingsView`'s does. That is not an oversight and not a difference in
+   * taste: a profile is an awaited HTTP call that can report a failure and
+   * refuse to close, and `app.act` is a fire-and-forget dispatch down the
+   * socket with nothing to await.
+   *
+   * What it costs is that a write which never lands is not reported either —
+   * `socket.send` drops a queued action past ten seconds, and a *refused* one
+   * comes back as a snapshot with no error. `persist` above has already
+   * recorded it as saved by then. Known, and BACKLOG.md's known defects has the
+   * full account under "A channel action that never lands"; do not add an
+   * in-flight state here to make the two screens match, because there is no
+   * flight to be in until `channel.action` is acknowledged.
+   */
   const done = () => {
     persist();
     onBack();
@@ -155,7 +171,7 @@ export function ChannelSettingsView({
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Channel settings</Text>
-        <Button label="Done" variant="ghost" onPress={done} />
+        <Button label="Channel" variant="ghost" onPress={done} />
       </View>
 
       <SectionLabel>Channel name</SectionLabel>

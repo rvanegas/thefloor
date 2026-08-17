@@ -74,10 +74,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
    * This screen has no Save button. Appearance and signing out always took
    * effect the moment they were touched, and the two text fields did not,
    * which made one button on the screen mean "keep my work" and the other —
-   * Done, nearer and more obvious — mean "throw it away, silently". Saving on
+   * the way back, nearer and more obvious — mean "throw it away, silently"
+   * (it read "Done" then, which made it worse). Saving on
    * blur removes the choice rather than explaining it.
    *
-   * Rethrows so that Done can decline to close on a failure. A screen that
+   * Rethrows so that Home can decline to close on a failure. A screen that
    * closed anyway would be the silent discard again, wearing a different hat.
    */
   const persist = async () => {
@@ -168,8 +169,12 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Settings</Text>
+        {/* "Saving…" is here and not on the channel settings screen because
+            this write is an awaited HTTP call that can fail and hold the screen
+            open, and that one is a socket dispatch with nothing to await. See
+            `done` in ChannelSettingsView. */}
         <Button
-          label={saving ? 'Saving…' : 'Done'}
+          label={saving ? 'Saving…' : 'Home'}
           variant="ghost"
           disabled={saving}
           onPress={() => void done()}
