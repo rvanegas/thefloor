@@ -1,13 +1,19 @@
 /**
  * Following a conversation that changes channels.
  *
- * Somebody asked into an unnamed channel moves everybody to the unnamed
- * channel for the wider set, and the server says so rather than leaving the
- * client to infer it from an empty room. Two things have to follow here: what
- * this socket watches, and what it would re-enter if the connection dropped.
+ * **No server sends `channel.moved` any more.** Being asked into an unnamed
+ * channel widens it in place rather than moving everybody to the channel for
+ * the wider set — see planning/DECISIONS.md — so this exercises a path that
+ * nothing now reaches.
  *
- * The audio deliberately does *not* follow, because it never left — the
- * destination inherits the room, and the connection keyed on it is untouched.
+ * It stays because the handler stays, and the handler stays because removing
+ * it would mean shipping a build to delete code that never runs. Whatever
+ * release does finally drop the message from `ServerMessage` should take this
+ * file with it.
+ *
+ * What it asserts, for as long as both are here: two things follow a move —
+ * what this socket watches, and what it would re-enter if the connection
+ * dropped. The audio deliberately does *not*, because it never left.
  */
 
 const OPEN = 1;

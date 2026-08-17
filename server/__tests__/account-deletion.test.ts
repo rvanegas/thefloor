@@ -398,27 +398,30 @@ describe('what happens to channels', () => {
     expect(app.channels.get(channelId)!.floor.holder).toBeNull();
   });
 
-  it('withdraws an invitation nobody will answer now', async () => {
-    // An invitation is not membership, so it is not reached by leaving — and an
-    // unanswered one to somebody who no longer exists would sit there for ever.
+  it('takes somebody out of a channel they were asked into and never entered', async () => {
+    // An invitation is membership now, whatever the channel is called, so it is
+    // reached by the ordinary departure rather than needing a withdrawal of its
+    // own. It used to need one: an unnamed channel's invitation was not
+    // membership, and an unanswered one to somebody who no longer existed sat
+    // on the channel for ever.
     const alice = await signIn('alice@example.com', 'Alice');
     const bob = await signIn('bob@example.com', 'Bob');
     const carol = await signIn('carol@example.com', 'Carol');
     await befriend(alice, bob, 'bob@example.com');
     await befriend(bob, carol, 'carol@example.com');
-    // Unnamed, deliberately: a named channel widens on INVITE and the invitee
-    // becomes a participant outright, so `invited` is only ever populated by an
-    // unnamed channel's invitation — the one that moves the conversation when
-    // it is answered, and the only kind that can be left unanswered.
     const channelId = await channelOf(bob, [carol]);
     app.channels.dispatch(channelId, bob.account.id, {
       type: 'INVITE',
       contactId: alice.account.id,
     } as never);
-    expect(alice.account.id in app.channels.get(channelId)!.invited).toBe(true);
+    const channel = app.channels.get(channelId)!;
+    expect(channel.participants).toContain(alice.account.id);
+    expect(channel.everPresent).not.toContain(alice.account.id);
 
     await remove(alice);
 
-    expect(alice.account.id in app.channels.get(channelId)!.invited).toBe(false);
+    const after = app.channels.get(channelId)!;
+    expect(after.participants).not.toContain(alice.account.id);
+    expect(after.status).toBe('active');
   });
 });

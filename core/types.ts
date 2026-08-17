@@ -119,15 +119,13 @@ export interface ChannelState {
    * plane's word for a media thing and never appears in the interface, which
    * only ever says channel.
    *
-   * It was the channel id, and stopped being able to be when a conversation
-   * gained the ability to move: a move that changed the room name would tear
-   * down and rebuild every participant's connection to say something that is
-   * pure bookkeeping. So the destination *inherits* this from the channel
-   * people are walking out of, and the sockets never notice.
-   *
-   * The channel left behind takes a fresh one in the same breath. Two channels
-   * naming one room would put whoever later walked into the empty one inside
-   * the conversation that moved on without them.
+   * It is the channel id for everything made since conversations stopped
+   * moving between channels, and the field could in principle go. It does not,
+   * because rows written while they did move are still on disk: a destination
+   * inherited this from the channel people walked out of, so that the room name
+   * never changed under a live connection, and the channel left behind took a
+   * fresh one. Restoring either as its own id would put whoever walks in now
+   * into a room somebody else is still holding tokens for.
    */
   mediaRoom: string;
   /**
@@ -170,23 +168,6 @@ export interface ChannelState {
    * whoever actually asked, not whoever happened to create the channel.
    */
   invitedBy: Record<UserId, UserId>;
-  /**
-   * Who has been *asked* into this channel but is not in it: invitee → whoever
-   * asked. Only an unnamed channel ever has these.
-   *
-   * Distinct from `invitedBy`, which records how somebody who *is* a
-   * participant got here. The difference is what an unnamed channel's invite
-   * now means. Naming a channel makes it a place, and a place takes new people
-   * in; an unnamed one is only ever "these people talking", so adding someone
-   * does not widen it — the conversation moves to the unnamed channel for the
-   * wider set, which either already exists or is created on the spot.
-   *
-   * The invitation therefore cannot be membership, because the channel it
-   * would be membership of is not this one and may not exist yet. It hangs
-   * here until the invitee arrives, and their arrival is what settles where
-   * everybody ends up.
-   */
-  invited: Record<UserId, UserId>;
   createdAt: number;
   /**
    * The last time anybody was in the channel — set on creation, on every
@@ -265,25 +246,14 @@ export type ChannelAction =
    * contacts is the server's to check, contacts being a server-side concern
    * the reducer knows nothing about.
    *
-   * What it does depends on whether the channel has a name, and that is the
-   * whole of the difference between the two kinds of channel. A named channel
-   * is a place, so this adds a participant to it. An unnamed one is only its
-   * people, so nothing is added — the invitation is recorded in `invited`, and
-   * the conversation moves when the invitee arrives.
+   * Adds a participant, whether or not the channel has a name. It did not
+   * always: an unnamed channel used to refuse to widen, parking the invitation
+   * until the invitee arrived and then moving everybody to the unnamed channel
+   * for the wider set. That left every recording behind on a channel nobody was
+   * looking at any more, which people reported as their recordings having
+   * disappeared. See planning/DECISIONS.md.
    */
   | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
-  /**
-   * The invitation to `inviteeId` has been acted on, and this channel is no
-   * longer where it points. Bookkeeping that follows a move, so it carries no
-   * actor: the invitee's arrival elsewhere is what performed it.
-   */
-  | { type: 'INVITE_TAKEN'; inviteeId: UserId }
-  /**
-   * Take over `room` as this channel's audio. Reported by the server as it
-   * moves a conversation, not performed by anyone, so there is no actor to
-   * authorise — the same shape as the transport reports above.
-   */
-  | { type: 'TAKE_MEDIA_ROOM'; room: string }
   /**
    * Destroy the channel and everything recorded in it. Only its last member
    * may, there being nobody left to disagree — see `canDeleteChannel`.

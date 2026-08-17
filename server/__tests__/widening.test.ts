@@ -1,22 +1,25 @@
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
-import type { Move } from '../src/channels';
 
 /**
  * What an unnamed channel's invitation means.
  *
- * An unnamed channel is its people — there is one per set, and it is described
- * on screen by who is in it rather than named. So it cannot be widened: asking
- * somebody in moves the conversation to the unnamed channel for the wider set,
- * which either already exists or is created on the spot.
+ * It widens the channel, exactly as an invitation into a named one does. That
+ * is the whole of it, and it is worth a file because it did not use to be: an
+ * unnamed channel was its people and could not be widened, so asking somebody
+ * in moved the conversation to the unnamed channel for the wider set, creating
+ * it if it did not exist.
  *
- * The audio does not move with it. The destination takes over the room the
- * people are already talking in, which is the whole reason a channel has a
- * `mediaRoom` distinct from its id, and is asserted here more than once
- * because a regression would be inaudible in tests and very audible on a
- * phone: everybody's call would drop and rebuild to say something that is pure
- * bookkeeping.
+ * The move worked and was invisible, which was the problem. Recordings stayed
+ * with the channel they were made in — correctly, they being a record of what
+ * was said there — but the conversation was now somewhere else, so people
+ * reported that their recordings had disappeared. See planning/DECISIONS.md.
+ *
+ * What the move bought was one unnamed channel per set of people. That is now
+ * given up: widening can leave two with the same roster, indistinguishable on
+ * Home. `create` still refuses to make a second, which is what keeps the
+ * Start-a-channel button idempotent, and is asserted at the foot of this file.
  */
 
 let app: App;
@@ -114,14 +117,22 @@ const invite = (channelId: string, by: User, contact: User) =>
   } as never);
 
 describe('inviting into an unnamed channel', () => {
-  it('records the invitation without widening the channel', async () => {
+  it('adds a participant to the channel, creating nothing', async () => {
     const { alice, bob, carol, channelId } = await pair();
+    const before = countChannels();
 
     expect(invite(channelId, alice, carol).ok).toBe(true);
 
     const channel = app.channels.get(channelId)!;
-    expect(channel.participants).toEqual([alice.account.id, bob.account.id]);
-    expect(channel.invited).toEqual({ [carol.account.id]: alice.account.id });
+    expect(channel.participants).toEqual([
+      alice.account.id,
+      bob.account.id,
+      carol.account.id,
+    ]);
+    expect(channel.invitedBy[carol.account.id]).toBe(alice.account.id);
+    expect(countChannels()).toBe(before);
+    // Membership without presence: she has been asked, not moved.
+    expect(channel.present).not.toContain(carol.account.id);
 
     // Carol is asked, and told who asked — the same shape as any invitation,
     // because to her it is one.
@@ -178,192 +189,171 @@ describe('inviting into an unnamed channel', () => {
     });
   });
 
-  it('gives the invitee no other way to act on the channel', async () => {
+  it('lets the invitee see the channel, being a member of it now', async () => {
     const { alice, carol, channelId } = await pair();
     invite(channelId, alice, carol);
 
-    // Being asked in is not being in. Everything except answering is refused,
-    // and answering is `ENTER` alone.
+    // She could not see it at all before: an unnamed channel's invitation was
+    // not membership, so `viewableBy` refused her the snapshot.
+    expect(app.channels.viewableBy(channelId, carol.account.id)).toBeDefined();
+  });
+
+  it('refuses somebody who was never asked, there being no exception left', async () => {
+    const { alice, bob, channelId } = await pair();
+    const dave = await signIn('dave@example.com', 'Dave');
+    await befriend(alice, dave, 'dave@example.com');
+
+    // `dispatch` used to let a non-participant ENTER when the channel held an
+    // invitation for them. Nothing is parked anywhere now, so the ordinary
+    // refusal is the only answer.
     expect(
-      app.channels.dispatch(channelId, carol.account.id, { type: 'CLAIM_FLOOR' })
+      app.channels.dispatch(channelId, dave.account.id, { type: 'ENTER' })
     ).toEqual({ ok: false, error: 'Not your channel.', code: 'forbidden' });
-    expect(app.channels.viewableBy(channelId, carol.account.id)).toBeUndefined();
+    expect(app.channels.get(channelId)!.participants).toEqual([
+      alice.account.id,
+      bob.account.id,
+    ]);
   });
 });
 
 describe('the invitee arriving', () => {
-  it('moves everybody to the unnamed channel for the wider set', async () => {
+  it('lands in the channel they were asked into, moving nobody', async () => {
     const { alice, bob, carol, channelId } = await pair();
     invite(channelId, alice, carol);
+    const before = countChannels();
 
     const entered = app.channels.dispatch(channelId, carol.account.id, {
       type: 'ENTER',
     });
     expect(entered.ok).toBe(true);
+    expect((entered as { ok: true; channel: { id: string } }).channel.id).toBe(
+      channelId
+    );
+    expect(countChannels()).toBe(before);
 
-    const moved = (entered as { ok: true; channel: { id: string } }).channel;
-    expect(moved.id).not.toBe(channelId);
-
-    const target = app.channels.get(moved.id)!;
-    expect(target.name).toBeNull();
-    expect(target.participants.sort()).toEqual(
+    const channel = app.channels.get(channelId)!;
+    expect(channel.present.sort()).toEqual(
       [alice.account.id, bob.account.id, carol.account.id].sort()
     );
-    expect(target.present.sort()).toEqual(
-      [alice.account.id, bob.account.id, carol.account.id].sort()
-    );
-
-    // The channel they left is empty, still theirs, and still unnamed — which
-    // is what keeps it the one channel for that pair.
-    const source = app.channels.get(channelId)!;
-    expect(source.present).toEqual([]);
-    expect(source.participants).toEqual([alice.account.id, bob.account.id]);
-    expect(source.status).toBe('active');
-    expect(source.invited).toEqual({});
+    // Still unnamed, and now described by three names instead of two — which is
+    // the whole of what "its display name is recalculated" means.
+    expect(channel.name).toBeNull();
   });
 
-  it('carries the audio across, so nobody reconnects', async () => {
-    const { alice, bob, carol, channelId } = await pair();
+  it('leaves the audio room alone, nothing having gone anywhere', async () => {
+    const { alice, carol, channelId } = await pair();
     const room = app.channels.get(channelId)!.mediaRoom;
     expect(room).toBe(channelId);
 
     invite(channelId, alice, carol);
-    const entered = app.channels.dispatch(channelId, carol.account.id, {
-      type: 'ENTER',
-    });
-    const targetId = (entered as { ok: true; channel: { id: string } }).channel.id;
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
 
-    // The destination is holding the room those two were already talking in.
-    expect(app.channels.get(targetId)!.mediaRoom).toBe(room);
-
-    // And the token the app would fetch for the new channel names that same
-    // room, which is the whole claim: an unchanged room is an unchanged
-    // connection.
+    // No hand-over, so no chance of a reconnection: it is the same room it was.
+    expect(app.channels.get(channelId)!.mediaRoom).toBe(room);
     const token = await app.fastify.inject({
       method: 'POST',
-      url: `/channels/${targetId}/media-token`,
-      headers: auth(alice.token),
+      url: `/channels/${channelId}/media-token`,
+      headers: auth(carol.token),
     });
     expect(token.statusCode).toBe(200);
     expect(media.issued.at(-1)!.room).toBe(room);
-
-    // The channel left behind takes a fresh one. Sharing would put whoever
-    // walked back into it inside the conversation that moved on.
-    expect(app.channels.get(channelId)!.mediaRoom).not.toBe(room);
-    expect(app.channels.get(channelId)!.mediaRoom).not.toBe(
-      app.channels.get(targetId)!.mediaRoom
-    );
   });
 
-  it('changes channel rather than creating one when the wider set already has an unnamed channel', async () => {
-    const { alice, bob, carol, channelId } = await pair();
-    // The three of them already have one, from some earlier conversation.
-    const existing = await createChannel(alice, [bob.account.id, carol.account.id]);
-    app.channels.dispatch(existing, alice.account.id, { type: 'STEP_OUT' });
-    // Alice is back with Bob in the pair channel.
-    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
-    const before = countChannels();
-
-    invite(channelId, alice, carol);
-    const entered = app.channels.dispatch(channelId, carol.account.id, {
-      type: 'ENTER',
-    });
-
-    expect((entered as { ok: true; channel: { id: string } }).channel.id).toBe(
-      existing
-    );
-    expect(countChannels()).toBe(before);
-    expect(app.channels.get(existing)!.present.sort()).toEqual(
-      [alice.account.id, bob.account.id, carol.account.id].sort()
-    );
-  });
-
-  it('leaves the recordings with the channel they were made in', async () => {
-    const { alice, bob, carol, channelId } = await pair();
+  it('keeps the recordings on the channel, which is the point of all this', async () => {
+    const { alice, carol, channelId } = await pair();
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     clock += 5_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
     await settle();
-    expect(app.channels.recordingsInChannel(channelId, alice.account.id)).toHaveLength(1);
+    expect(
+      app.channels.recordingsInChannel(channelId, alice.account.id)
+    ).toHaveLength(1);
 
     invite(channelId, alice, carol);
-    const entered = app.channels.dispatch(channelId, carol.account.id, {
-      type: 'ENTER',
-    });
-    const targetId = (entered as { ok: true; channel: { id: string } }).channel.id;
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
 
-    // What was said stays where it was said. Carol was not there and does not
-    // acquire it by joining the conversation that followed.
-    expect(app.channels.recordingsInChannel(channelId, alice.account.id)).toHaveLength(1);
-    expect(app.channels.recordingsInChannel(targetId, alice.account.id)).toEqual([]);
+    // Alice's recording is where she made it and where she is still standing.
+    // It used to be on a channel she had been walked out of, which is what
+    // people reported as their recordings having disappeared.
+    expect(
+      app.channels.recordingsInChannel(channelId, alice.account.id)
+    ).toHaveLength(1);
+    expect(app.channels.recordingsFor(alice.account.id)).toHaveLength(1);
+  });
+
+  /**
+   * A consequence of widening rather than moving, and the one worth stating
+   * out loud: recordings are reachable by membership, so somebody asked into a
+   * channel can hear what was recorded in it before they arrived.
+   *
+   * The move used to prevent this for unnamed channels by leaving the
+   * recordings behind. Naming a channel never prevented it, so this is not a
+   * new rule so much as the same rule now applying everywhere — which is the
+   * price of there being one kind of channel again.
+   */
+  it('gives the newcomer the channel’s existing recordings', async () => {
+    const { alice, carol, channelId } = await pair();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
     expect(app.channels.recordingsFor(carol.account.id)).toEqual([]);
+    invite(channelId, alice, carol);
+    expect(app.channels.recordingsFor(carol.account.id)).toHaveLength(1);
   });
 
-  it('announces where everybody went, to exactly the people it moved', async () => {
+  it('joins in place whether or not the channel has a name', async () => {
     const { alice, bob, carol, channelId } = await pair();
-    const moves: Move[] = [];
-    app.channels.onMove((move) => moves.push(move));
-
-    invite(channelId, alice, carol);
-    const entered = app.channels.dispatch(channelId, carol.account.id, {
-      type: 'ENTER',
-    });
-    const targetId = (entered as { ok: true; channel: { id: string } }).channel.id;
-
-    expect(moves).toHaveLength(1);
-    expect(moves[0].from).toBe(channelId);
-    expect(moves[0].to).toBe(targetId);
-    expect(moves[0].userIds.sort()).toEqual(
-      [alice.account.id, bob.account.id, carol.account.id].sort()
-    );
-  });
-
-  it('moves nobody when there was nobody there, and hands over no audio', async () => {
-    const { alice, bob, carol, channelId } = await pair();
-    invite(channelId, alice, carol);
-    const room = app.channels.get(channelId)!.mediaRoom;
-    // Both walk away before Carol answers.
-    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
-    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
-
-    const entered = app.channels.dispatch(channelId, carol.account.id, {
-      type: 'ENTER',
-    });
-    const targetId = (entered as { ok: true; channel: { id: string } }).channel.id;
-
-    expect(app.channels.get(targetId)!.present).toEqual([carol.account.id]);
-    // Nothing was being said, so nothing was carried: the pair channel keeps
-    // the room it never left.
-    expect(app.channels.get(channelId)!.mediaRoom).toBe(room);
-    expect(app.channels.get(targetId)!.mediaRoom).toBe(targetId);
-  });
-
-  it('joins in place when the channel has been named since the invitation', async () => {
-    const { alice, bob, carol, channelId } = await pair();
-    invite(channelId, alice, carol);
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_NAME',
       name: 'Product Meeting',
     } as never);
+    invite(channelId, alice, carol);
 
     const entered = app.channels.dispatch(channelId, carol.account.id, {
       type: 'ENTER',
     });
-    // A named channel is a place, and a place takes people in. Nothing moves.
     expect((entered as { ok: true; channel: { id: string } }).channel.id).toBe(
       channelId
     );
-    const channel = app.channels.get(channelId)!;
-    expect(channel.participants).toContain(carol.account.id);
-    expect(channel.present.sort()).toEqual(
+    expect(app.channels.get(channelId)!.present.sort()).toEqual(
       [alice.account.id, bob.account.id, carol.account.id].sort()
     );
-    expect(channel.invited).toEqual({});
   });
 });
 
-describe('one unnamed channel per set of people', () => {
+describe('two unnamed channels with the same people', () => {
+  it('can exist, one made by widening and one by starting a channel', async () => {
+    const { alice, bob, carol, channelId } = await pair();
+    // Alice and Bob widen theirs to include Carol.
+    invite(channelId, alice, carol);
+    expect(app.channels.get(channelId)!.participants).toHaveLength(3);
+
+    // The trio now has an unnamed channel. Alice starts one with the same three
+    // and finds it rather than making a second.
+    const found = await createChannel(alice, [bob.account.id, carol.account.id]);
+    expect(found).toBe(channelId);
+
+    // But a second pair channel, widened again, is a genuine duplicate — two
+    // unnamed channels of the same three people, indistinguishable on Home.
+    // Accepted deliberately; the alternative was moving conversations.
+    const second = await createChannel(alice, [bob.account.id]);
+    expect(second).not.toBe(channelId);
+    invite(second, alice, carol);
+
+    const trios = [channelId, second].map(
+      (id) => app.channels.get(id)!.participants.length
+    );
+    expect(trios).toEqual([3, 3]);
+    expect(app.channels.get(second)!.name).toBeNull();
+    expect(app.channels.get(channelId)!.name).toBeNull();
+  });
+});
+
+describe('one unnamed channel per set of people, in create only', () => {
   it('reuses the unnamed one and ignores a named one with the same people', async () => {
     const { alice, bob } = await circle();
     const unnamed = await createChannel(alice, [bob.account.id]);
@@ -383,49 +373,24 @@ describe('one unnamed channel per set of people', () => {
     expect(third).toBe(second);
   });
 
-  it('refuses to clear a name that would make a second unnamed channel', async () => {
+  it('allows clearing a name even when that makes a second unnamed channel', async () => {
     const { alice, bob } = await circle();
     const named = await createChannel(alice, [bob.account.id]);
     app.channels.dispatch(named, alice.account.id, {
       type: 'SET_NAME',
       name: 'Product Meeting',
     } as never);
-    await createChannel(alice, [bob.account.id]);
+    const other = await createChannel(alice, [bob.account.id]);
 
+    // Refused once, on the grounds that it would leave two unnamed channels of
+    // the same people. Widening can do that anyway, so the guard was buying a
+    // dead button rather than an invariant.
     const cleared = app.channels.dispatch(named, alice.account.id, {
       type: 'SET_NAME',
       name: '',
     } as never);
-    expect(cleared).toEqual({
-      ok: false,
-      error:
-        'You already have a channel with these people and no name. Rename this one instead of clearing it.',
-      code: 'conflict',
-    });
-    expect(app.channels.get(named)!.name).toBe('Product Meeting');
-
-    // Renaming is always free — a name is what tells two channels of the same
-    // people apart, so there is no limit on having one.
-    const renamed = app.channels.dispatch(named, alice.account.id, {
-      type: 'SET_NAME',
-      name: 'Retro',
-    } as never);
-    expect(renamed.ok).toBe(true);
-  });
-
-  it('allows clearing a name when nothing else answers for those people', async () => {
-    const { alice, bob } = await circle();
-    const only = await createChannel(alice, [bob.account.id]);
-    app.channels.dispatch(only, alice.account.id, {
-      type: 'SET_NAME',
-      name: 'Product Meeting',
-    } as never);
-
-    const cleared = app.channels.dispatch(only, alice.account.id, {
-      type: 'SET_NAME',
-      name: '',
-    } as never);
     expect(cleared.ok).toBe(true);
-    expect(app.channels.get(only)!.name).toBeNull();
+    expect(app.channels.get(named)!.name).toBeNull();
+    expect(app.channels.get(other)!.name).toBeNull();
   });
 });

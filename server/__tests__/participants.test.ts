@@ -198,15 +198,14 @@ describe('creating a channel with several people', () => {
 describe('mid-channel invites', () => {
   /**
    * The whole of what "Start a channel" now means, end to end: open one alone,
-   * ask somebody in from inside it, and the conversation is where both of you
-   * are when they answer.
+   * ask somebody in from inside it, and they arrive in the channel you are
+   * already standing in.
    *
-   * Nothing here is new machinery. A channel of one is unnamed, so the
-   * invitation behaves as it does in any unnamed channel — it does not widen
-   * the channel, it moves the conversation — and the channel of one is left
-   * standing, which is what makes the button idempotent the next time.
+   * Nothing here is special to a channel of one. It is unnamed, and an unnamed
+   * channel widens like any other — it used to refuse, moving the conversation
+   * to a channel for the wider set and leaving this one standing empty.
    */
-  it('moves the conversation when somebody answers an invitation to a channel of one', async () => {
+  it('widens a channel of one when somebody is asked in', async () => {
     const { alice, bob } = await circle();
     const { channelId } = (await createSessionWith(alice, []).then((r) =>
       r.json()
@@ -220,9 +219,9 @@ describe('mid-channel invites', () => {
       contactId: bob.account.id,
     } as never);
     expect(invited.ok).toBe(true);
-    // Not widened — an unnamed channel is its people, so this waits.
     expect(app.channels.get(channelId)!.participants).toEqual([
       alice.account.id,
+      bob.account.id,
     ]);
     expect(app.channels.invitesFor(bob.account.id)).toHaveLength(1);
 
@@ -230,23 +229,21 @@ describe('mid-channel invites', () => {
       type: 'ENTER',
     });
     expect(arrived.ok).toBe(true);
-    const target = (arrived as { ok: true; channel: { id: string } }).channel;
-    expect(target.id).not.toBe(channelId);
-    const moved = app.channels.get(target.id)!;
-    expect([...moved.participants].sort()).toEqual(
-      [alice.account.id, bob.account.id].sort()
+    expect((arrived as { ok: true; channel: { id: string } }).channel.id).toBe(
+      channelId
     );
-    expect([...moved.present].sort()).toEqual(
+    const channel = app.channels.get(channelId)!;
+    expect([...channel.present].sort()).toEqual(
       [alice.account.id, bob.account.id].sort()
     );
 
-    // The channel of one stays behind, empty and still alice's, so the next
-    // tap of the button lands back in it rather than making another.
-    const left = app.channels.get(channelId)!;
-    expect(left.status).toBe('active');
-    expect(left.present).toEqual([]);
+    // There is no channel of one any more — this one grew into a pair — so the
+    // next tap of the button opens a fresh one rather than walking back into a
+    // conversation Alice is having with Bob.
     const again = await createSessionWith(alice, []);
-    expect((again.json() as { channelId: string }).channelId).toBe(channelId);
+    const next = (again.json() as { channelId: string }).channelId;
+    expect(next).not.toBe(channelId);
+    expect(app.channels.get(next)!.participants).toEqual([alice.account.id]);
   });
 
 

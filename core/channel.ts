@@ -86,7 +86,6 @@ export function createChannel(params: {
     initiator,
     participants,
     invitedBy: Object.fromEntries(invitees.map((i) => [i, initiator])),
-    invited: {},
     createdAt: now,
     lastActiveAt: now,
     status: 'active',
@@ -113,26 +112,23 @@ export function isParticipant(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
- * Whether anybody has named this channel — the one distinction that decides
- * what an invitation does.
+ * Whether anybody has named this channel.
  *
- * A named channel is a place. It has a name its members say to each other, it
- * keeps its recordings under that name, and people can be brought into it; a
- * second named channel with the same members is perfectly sensible, because
- * the name is what tells them apart.
+ * A named channel is a place: it has a name its members say to each other, and
+ * it keeps its recordings under that name. An unnamed one is described by its
+ * roster instead — see `describeChannel` — so what it is called changes as
+ * people join and leave.
  *
- * An unnamed channel is not a place but a set of people talking, described
- * rather than named — which is why there can only ever be one per set. Two
- * would be indistinguishable on Home, both rendered as the same list of names,
- * and nothing could tell you which one anybody meant.
+ * This used to be the one distinction deciding what an invitation does, a
+ * named channel taking newcomers in and an unnamed one moving the conversation
+ * to a wider set. It no longer decides anything about `INVITE`: both widen.
+ * What survives is that **only `create` still refuses to make a second unnamed
+ * channel for a set of people** — two would be indistinguishable on Home, both
+ * rendered as the same list of names. Widening can produce such a pair anyway,
+ * and that is accepted; what is avoided is a button that makes one per tap.
  */
 export function isNamed(state: ChannelState): boolean {
   return state.name !== null;
-}
-
-/** Whether `userId` has an outstanding invitation here without belonging yet. */
-export function isInvited(state: ChannelState, userId: UserId): boolean {
-  return userId in state.invited;
 }
 
 /** Everyone in the channel except `userId`, in participant order. */
@@ -407,19 +403,6 @@ export function reduce(
     };
   }
 
-  // Bookkeeping that follows a move. Both are the server reporting something
-  // it has already done elsewhere, so neither carries an actor to authorise.
-  if (action.type === 'TAKE_MEDIA_ROOM') {
-    if (state.mediaRoom === action.room) return state;
-    return { ...state, mediaRoom: action.room };
-  }
-
-  if (action.type === 'INVITE_TAKEN') {
-    if (!(action.inviteeId in state.invited)) return state;
-    const { [action.inviteeId]: _taken, ...invited } = state.invited;
-    return { ...state, invited };
-  }
-
   if (!isParticipant(state, action.userId)) return state;
 
   switch (action.type) {
@@ -460,17 +443,9 @@ export function reduce(
     case 'INVITE': {
       if (!canInvite(state, action.userId, action.inviteeId)) return state;
 
-      // An unnamed channel does not widen. It is its people and nothing else,
-      // so asking somebody in cannot mean "and now we are four" — it means the
-      // conversation is going somewhere that is those four. The invitation
-      // waits here; the server settles where when they arrive.
-      if (!isNamed(state)) {
-        return {
-          ...state,
-          invited: { ...state.invited, [action.inviteeId]: action.userId },
-        };
-      }
-
+      // One path, whether or not the channel has a name. An unnamed channel
+      // used to refuse to widen and move the conversation elsewhere instead;
+      // see the action's doc comment in types.ts for why that was undone.
       return {
         ...state,
         participants: [...state.participants, action.inviteeId],

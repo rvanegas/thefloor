@@ -5,7 +5,6 @@ import {
   canInvite,
   canLeaveChannel,
   createChannel,
-  isInvited,
   isParticipant,
   otherParticipants,
   reduce,
@@ -26,8 +25,8 @@ function trio(now = T0): ChannelState {
   return s;
 }
 
-/** The same three, in a channel somebody has named — which changes what an
- *  invitation means, and nothing else. */
+/** The same three, in a channel somebody has named. Naming used to change what
+ *  an invitation means; it no longer changes anything the reducer does. */
 function named(now = T0): ChannelState {
   return reduce(trio(now), { type: 'SET_NAME', userId: A, name: 'Standup' }, now);
 }
@@ -88,9 +87,6 @@ describe('INVITE into a named channel', () => {
     expect(next.present).not.toContain(D);
     const entered = reduce(next, { type: 'ENTER', userId: D }, T0 + 1);
     expect(entered.present).toContain(D);
-    // Nothing pending: a named channel takes people in, so there is nothing
-    // waiting to be settled elsewhere.
-    expect(next.invited).toEqual({});
   });
 
   it('is a no-op for a non-participant inviter, a duplicate, or past the cap', () => {
@@ -121,38 +117,35 @@ describe('INVITE into a named channel', () => {
 });
 
 describe('INVITE into an unnamed channel', () => {
-  // An unnamed channel is its people. Asking somebody in cannot widen it — it
-  // says the conversation is moving to the unnamed channel for the wider set,
-  // and the reducer's whole part in that is to remember who was asked.
-  it('records the invitation instead of adding a participant', () => {
+  // An unnamed channel widens like any other. It used to refuse, parking the
+  // invitation until the invitee arrived and then moving everybody to the
+  // unnamed channel for the wider set — which left the recordings behind.
+  it('adds a participant, exactly as a named channel does', () => {
     const s = trio();
     const next = reduce(s, { type: 'INVITE', userId: B, inviteeId: D }, T0);
-    expect(next.participants).toEqual([A, B, C]);
-    expect(next.invited).toEqual({ [D]: B });
-    expect(isInvited(next, D)).toBe(true);
-    expect(isParticipant(next, D)).toBe(false);
-    // And nothing of the channel itself has changed but that.
-    expect(next.invitedBy).toEqual(s.invitedBy);
-    expect(next.selfMuted).toEqual(s.selfMuted);
+    expect(next.participants).toEqual([A, B, C, D]);
+    expect(isParticipant(next, D)).toBe(true);
+    expect(next.invitedBy[D]).toBe(B);
+    expect(next.selfMuted[D]).toBe(false);
+    // Membership, not presence: they still have to walk in.
     expect(next.present).toEqual(s.present);
   });
 
-  it('leaves an invitee unable to act here, invited being not belonging', () => {
-    const s = reduce(trio(), { type: 'INVITE', userId: A, inviteeId: D }, T0);
-    // Every ordinary action is still refused: an invitation is a question, and
-    // answering it happens elsewhere.
-    expect(reduce(s, { type: 'ENTER', userId: D }, T0 + 1)).toBe(s);
-    expect(reduce(s, { type: 'CLAIM_FLOOR', userId: D }, T0 + 1)).toBe(s);
-    expect(reduce(s, { type: 'SET_NAME', userId: D, name: 'Mine' }, T0 + 1)).toBe(s);
+  it('produces the same state as inviting into a named one', () => {
+    const unnamed = reduce(trio(), { type: 'INVITE', userId: B, inviteeId: D }, T0);
+    const withName = reduce(named(), { type: 'INVITE', userId: B, inviteeId: D }, T0);
+    expect(unnamed.participants).toEqual(withName.participants);
+    expect(unnamed.invitedBy).toEqual(withName.invitedBy);
+    expect(unnamed.selfMuted).toEqual(withName.selfMuted);
   });
 
-  it('forgets the invitation once it has been acted on', () => {
-    let s = reduce(trio(), { type: 'INVITE', userId: A, inviteeId: D }, T0);
-    s = reduce(s, { type: 'INVITE_TAKEN', inviteeId: D }, T0 + 1);
-    expect(s.invited).toEqual({});
-    // Idempotent: the server reports the move once, but a replay must not
-    // resurrect anything.
-    expect(reduce(s, { type: 'INVITE_TAKEN', inviteeId: D }, T0 + 2)).toBe(s);
+  it('lets the newcomer act here, being a member now rather than a question', () => {
+    const s = reduce(trio(), { type: 'INVITE', userId: A, inviteeId: D }, T0);
+    const entered = reduce(s, { type: 'ENTER', userId: D }, T0 + 1);
+    expect(entered.present).toContain(D);
+    expect(entered.everPresent).toContain(D);
+    // And the channel they walked into is the one they were asked into.
+    expect(entered.id).toBe(s.id);
   });
 
   it('refuses the same people the named branch refuses', () => {
@@ -162,25 +155,16 @@ describe('INVITE into an unnamed channel', () => {
   });
 });
 
-describe('TAKE_MEDIA_ROOM', () => {
-  it('starts as the channel id and can be handed over', () => {
+describe('mediaRoom', () => {
+  it('starts as the channel id', () => {
     const s = trio();
     expect(s.mediaRoom).toBe(s.id);
-
-    const moved = reduce(s, { type: 'TAKE_MEDIA_ROOM', room: 'chan_other' }, T0);
-    expect(moved.mediaRoom).toBe('chan_other');
-    expect(moved.id).toBe(s.id);
-    // No actor, so nothing about presence or membership moves with it.
-    expect(moved.participants).toEqual(s.participants);
-    expect(moved.present).toEqual(s.present);
   });
 
-  it('is a no-op when it already holds that room', () => {
-    const s = trio();
-    expect(reduce(s, { type: 'TAKE_MEDIA_ROOM', room: s.id }, T0)).toBe(s);
-  });
-
-  it('can be given one at creation, for a conversation walking in', () => {
+  // Nothing hands a room over any more — `TAKE_MEDIA_ROOM` went with the move —
+  // but rows written while things did move are still on disk and restore with a
+  // room that is not their id, so creation has to keep accepting one.
+  it('can be given one at creation', () => {
     const s = createChannel({
       id: 'chan_new',
       initiator: A,

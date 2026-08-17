@@ -1699,3 +1699,142 @@ Nothing was built. The value of answering it is that the constraint on
 `MIN_SUPPORTED_BUILD` was implicit until now — the floor has always been read
 as an absolute build ordinal, and nothing said that the release process had to
 keep making that true.
+
+---
+
+## An unnamed channel widens instead of moving, 2026-08-17
+
+Inviting somebody into an unnamed channel now adds them to it. It used to do
+something else entirely, and undoing that is the largest deletion this codebase
+has had.
+
+### What it did before
+
+`ChannelState` had two invitation fields. `invitedBy` recorded how somebody who
+*is* a participant got here; `invited` held an invitation that was not
+membership — invitee → whoever asked — and only an unnamed channel ever had one.
+The reasoning was that a named channel is a place and takes people in, whereas an
+unnamed one is not a place but a set of people talking, described on screen by
+its roster rather than named. So it could not widen. Asking a third person into
+`<A,B>` did not make it `<A,B,C>`; it parked the invitation, and when the invitee
+answered, `acceptInvitation` walked everybody present out of `<A,B>` and into the
+unnamed channel for `<A,B,C>`, creating it if it did not exist.
+
+That machinery worked. Presence moved and membership did not, so the source kept
+its roster, its description and its recordings. The audio moved without a
+reconnection: the destination took over the source's LiveKit room via
+`TAKE_MEDIA_ROOM` and the source was handed a fresh one in the same breath, since
+two channels naming one room would put whoever walked back into the empty one
+inside the conversation that had left it. Clients were told by `channel.moved`,
+which no snapshot could express — the people are simply absent from one channel
+and present in another, and a client watching the first cannot guess where they
+went.
+
+### Why it is gone
+
+**People reported that their recordings had disappeared.**
+
+They had not. They were on the channel they were made in, which is the correct
+place for them — a recording is a record of what was said *there*. But the
+conversation was now somewhere else, and the channel holding the recordings was
+one nobody was looking at any more. The mechanism was invisible and the loss was
+not, which is the worst combination available: nothing on screen was wrong, and
+the thing people wanted was gone from where they expected it.
+
+That is the whole argument. The move was elegant and cost a user their
+recordings, in the only sense that matters, which is the sense of not being able
+to find them.
+
+### What it cost to undo
+
+One unnamed channel per set of people. That invariant existed because two
+unnamed channels with the same roster are indistinguishable on Home — both
+rendered by `describeChannel` as the same list of names, with nothing to say
+which one anybody meant — and the move was what maintained it: widening was
+impossible, so a wider set always resolved to the single channel for it.
+
+Widening can now produce such a pair. `<A,B>` invites C and becomes `<A,B,C>`;
+A and B start a fresh `<A,B>` and widen it again, and there are two. Accepted
+deliberately. Two channels with the same names on Home is a puzzle; a
+conversation that silently relocates and takes the recordings out of view is a
+loss.
+
+**`create` keeps the rule, and that is not an inconsistency.** The guard does two
+jobs and only one of them was about moving. The other is making the
+Start-a-channel button idempotent: everybody has exactly one channel that is only
+themselves, and tapping again walks back into it rather than filing a row per
+tap. Dropping it there would put a second identical "Just you" on Home for every
+tap, which is the same confusion this change exists to remove. So duplicates
+arise by invitation and never by the button. `unnamedChannelFor` survives with
+one caller.
+
+The `SET_NAME` guard that refused to *clear* a name when these people already had
+an unnamed channel went too. It was the same invariant defended on the one other
+path that could breach it, and with widening able to breach it anyway the guard
+bought a dead button rather than a guarantee.
+
+### The consequence worth stating out loud
+
+Recordings are reachable by channel membership — `recordingsFor` and
+`recordingsInChannel` both ask who belongs, not who was there — so **somebody
+asked into a channel can now hear what was recorded in it before they arrived**,
+and can delete it, `deleteRecording` using the same reach test.
+
+This was already true of named channels and always had been. What has changed is
+that it is now true of unnamed ones, where the move used to prevent it as a side
+effect of leaving the recordings behind. It is not a new rule; it is the same
+rule no longer having an exception. Anyone who wants the old privacy boundary
+back should reach for stopping the recording or naming a new channel, not for
+reinstating the move — but it is a real change in who can hear what, and it was
+not the point of the exercise, merely its price.
+
+### What was deleted
+
+`ChannelState.invited`, `isInvited`, the `INVITE_TAKEN` action and its reducer
+case, the `TAKE_MEDIA_ROOM` action and its reducer case, the `!isNamed` branch
+of `INVITE`, `acceptInvitation`, `createMoved`, `applyServer` (whose whole
+purpose was those two actions), `Move`/`onMove`/`emitMove`/`moveListeners`, the
+`channel.moved` emission in `ws.ts`, the `SET_NAME` clear guard, the `isInvited`
+block in `removeMember`, and the exception in `dispatch` that let a
+non-participant `ENTER` a channel holding an invitation for them. `invitesFor`
+lost half its body: it had two shapes presented identically because they were the
+same question, and there is one shape now.
+
+`ChannelState.mediaRoom` **stays**, though nothing varies it any more. Rows
+written while conversations did move carry a room that is not the channel id, and
+restoring either end as its own id would put somebody into a room another channel
+still holds tokens for.
+
+`channel.moved` stays in `ServerMessage`, and the client keeps its handler and
+its test. Nothing sends it. Removing an inert path from installed builds is worth
+nothing and costs a release; whichever release next touches the app can drop all
+three together.
+
+### The migration, which is the part that could have lost data
+
+Outstanding invitations were persisted in the durable blob. With
+`acceptInvitation` gone and `dispatch` refusing every non-participant, nothing
+could answer one — those rows would have become permanently unreachable
+invitations to channels their holders could not see.
+
+`restoreChannel` folds each `invited[user] = inviter` into `participants` with
+`invitedBy[user] = inviter`, capped at `MAX_CHANNEL_PARTICIPANTS` and dropping
+the overflow rather than throwing: a channel already full is one they were never
+going to join, and a restore is not the place to fail loudly. The read stays
+tolerant of the key so a rollback strands nothing. `durableOf` stops writing it.
+
+### No client change, and no new build
+
+Verified rather than assumed, because this is a behaviour change under a wire
+shape that barely moves. The app never runs the reducer — there is no `reduce(`
+in `app/src` outside tests — so an installed build's bundled `core`, which still
+knows all of the above, never executes any of it against channel state. It does
+use `core` for guards, and `canInvite` was not touched, so an old client's
+enabled controls still agree with what the server accepts. The invite tap never
+depended on the move: `HomeView` dispatches `ENTER` and navigates itself to the
+channel the invitation named, which the old server then corrected with
+`channel.moved` and the new one has no need to correct. And `rejoinableFor`
+filters on `everPresent`, so a directly-added participant appears as an
+invitation and not also as a channel row.
+
+`MIN_SUPPORTED_BUILD` stays at 36.
