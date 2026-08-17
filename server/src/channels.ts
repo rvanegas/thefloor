@@ -2489,10 +2489,10 @@ export class ChannelRegistry {
 
     this.checkpointedAt.delete(runId);
 
-    // `lastRecording` is the reducer's account of the run that just ended; it
-    // is null when nothing was captured, and then the run did not happen —
-    // its open row goes with it, or the boot sweep would one day mark a
-    // non-event as a failed recording.
+    // `lastRecording` is the reducer's account of the run that just ended. Its
+    // absence means the reducer never had a run to report, and then nothing
+    // happened at all — the open row goes with it, or the boot sweep would one
+    // day mark a non-event as a failed recording.
     const run = channel.lastRecording;
     const stems = Object.fromEntries(perParticipant) as Record<
       string,
@@ -2501,10 +2501,24 @@ export class ChannelRegistry {
     const flat = Object.values(stems)
       .flat()
       .map((segment) => segment.key);
-    if (!run || run.runId !== runId || run.durationMs <= 0 || flat.length === 0) {
+    if (!run || run.runId !== runId || run.durationMs <= 0) {
       this.db.prepare('DELETE FROM recordings WHERE id = ?').run(runId);
       return;
     }
+
+    // A run that ran and captured nothing is filed as a failure rather than
+    // deleted, which is what it used to be. Deleting it made a real event
+    // invisible: somebody started a recording, watched a timer, stopped it, and
+    // was left with no card, no error and nothing in the log to say it had ever
+    // happened. It cost an evening on 2026-08-16 to find, and the person it
+    // happened to could only conclude the button did not work.
+    //
+    // The common way in is a solo run. Alone in a channel the microphone is
+    // closed — see app/src/audio/micNeeded.ts — and starting a recording is
+    // what reopens it, which the app cannot know to do until this server's
+    // snapshot reaches it. Capture is running by then, against nobody
+    // publishing, so a short enough run ends with no stems at all.
+    const captured = flat.length > 0;
 
     // Who the recording belongs to: everyone who took part. Presence and
     // stems are unioned rather than one trusted over the other — presence
@@ -2551,7 +2565,9 @@ export class ChannelRegistry {
     // straight to displayable and behaves as every recording did before mixes
     // existed — which is also what keeps a test harness with no storage
     // showing the recordings it makes.
-    const mixable = !!this.store;
+    // Nothing to mix from, so the row goes straight to displayable — the same
+    // answer a storeless test harness gets, and for the same reason.
+    const mixable = !!this.store && captured;
 
     this.db
       .prepare(
@@ -2570,7 +2586,10 @@ export class ChannelRegistry {
         JSON.stringify(stems),
         JSON.stringify(windows),
         run.endedAt,
-        run.failure,
+        run.failure ??
+          (captured
+            ? null
+            : 'Nothing was captured — no audio was being published.'),
         mixable ? 'pending' : 'unmixed',
         runId
       );

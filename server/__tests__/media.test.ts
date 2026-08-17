@@ -750,6 +750,38 @@ describe('when capture cannot start', () => {
     expect(media.recordings.map((r) => r.identity)).toEqual([alice.account.id]);
   });
 
+  /**
+   * The failure that hid for an evening. Alone in a channel the microphone is
+   * closed on purpose, and starting a recording is what reopens it — which the
+   * app cannot know to do until this server's snapshot reaches it. Capture runs
+   * against nobody for that round trip, so a short run ends with no stems.
+   *
+   * The row used to be deleted at that point and the function returned, so
+   * somebody who started a recording, watched the timer run and stopped it was
+   * left with no card, no error, and nothing in the log. It has to be filed as
+   * a failure instead: it happened, and it did not work.
+   */
+  it('files a run that captured nothing rather than deleting it', async () => {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    media.unpublished.add(`${channelId}/${alice.account.id}`);
+    media.unpublished.add(`${channelId}/${bob.account.id}`);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    await settle();
+
+    const rows = app.db
+      .prepare('SELECT id, ended_at, failure FROM recordings WHERE channel_id = ?')
+      .all(channelId) as Array<{ ended_at: number | null; failure: string | null }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].ended_at).not.toBeNull();
+    expect(rows[0].failure).toMatch(/captured/i);
+    // And it is a card, not a ghost: whoever made it can see that it failed.
+    expect(app.channels.recordingsInChannel(channelId, alice.account.id)).toHaveLength(1);
+  });
+
   it('picks somebody up when their microphone opens mid-run', async () => {
     // The same path a late arrival takes, which is what makes this cheap: a
     // track appearing ten seconds in yields a stem from ten seconds in.
