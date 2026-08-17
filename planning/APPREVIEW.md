@@ -425,6 +425,99 @@ a device model** — so the list of handsets and iOS versions came from whoever
 did the testing, and is the internal testers' own hardware rather than a matrix
 chosen for coverage.
 
+### The Notes field, verbatim
+
+**App Review Information → Notes takes 4,000 characters, and the reply below is
+10,520.** They are not the same document and should not be. The reply answers
+Apple's seven questions once, for the person handling this rejection. Notes is
+what a reviewer reads *while using the app*, on this submission and every one
+after it — so it is written to get them signed in and to stop them filing
+correct behaviour as a bug, and it drops the parts that only answer a question
+that was asked once.
+
+What it keeps that the reply nearly buried: the two things that look like
+defects and are not. The floor being unavailable to a lone reviewer, and Play
+and Export greyed while a mix is made. Both are correct, both are invisible
+reasoning, and both are what an unaided reviewer would report.
+
+Currently 3696 characters.
+
+```
+SIGNING IN
+There are no passwords — a six-digit code is normally emailed. This account has
+a fixed code so no inbox is needed:
+
+  Email: appreview@rvanegas.co
+  Code:  194399
+
+WHAT IT IS
+A voice app for talking with people you already know. A channel is a place
+rather than a call: it holds up to six people, keeps its name and recordings
+between conversations, and is still there when everyone has closed the app.
+Anyone present may claim "the floor", and while they hold it every other
+microphone is withheld — a way to be heard without being interrupted.
+
+YOU DO NOT NEED A SECOND PERSON
+A channel can be started with nobody in it, and recording needs only that you
+are present, so one reviewer alone can exercise every feature.
+
+TWO THINGS THAT LOOK LIKE BUGS AND ARE NOT
+- "Claim the floor" is unavailable while you are alone. Claiming it asks the
+  room to be quiet, and there is no room to ask when you are by yourself. With
+  a second device signed in, it becomes available.
+- A recording just stopped shows Play and Export greyed for a few seconds while
+  its mix is made. The card appears immediately; those two actions wait.
+
+WHAT THIS ACCOUNT HOLDS
+One contact, Sam Rivera, and three channels: "Weekly Convo", shared with her,
+holding a recording called "Short Sample"; an older channel with her that nobody
+named, so it is described by who is in it rather than titled; and "Just you",
+which is what starting a channel alone looks like.
+
+REACHING EACH FEATURE
+- Open "Weekly Convo" from Your channels, then Step in. The microphone prompt
+  appears here.
+- Record starts a recording, Stop ends it. Nothing asks for a name: a channel
+  lends its name to what it records. Renaming is on the recording's own row,
+  with Play, Export and Delete.
+- Play plays a recording into the channel for everyone present.
+- "Play something together" picks an audio file from the phone and plays it in.
+- "Start a channel" is the last row of the channel list on Home.
+- Contacts are added by email at the foot of Home. Nothing happens until the
+  other person accepts.
+- Settings holds Privacy policy, Sign out and Delete account.
+
+USER-GENERATED CONTENT (1.2)
+There is no discovery, no directory, and no way for a stranger to reach anyone.
+Every contact requires an accepted request on both sides, and a channel can only
+contain accepted contacts. Every member of a channel can delete any recording in
+it, and any member may leave at any time — removal is available to the person
+affected, at the moment of harm, without waiting on us.
+
+RECORDING AND CONSENT
+Never automatic. Somebody in the channel starts it deliberately, and while it
+runs it is visible on screen to everyone in that channel.
+
+DONATIONS (3.1.1(a))
+The Support screen links out to Ko-fi in the browser. External, unlocks nothing,
+and shown only in the United States storefront. The app is free everywhere with
+no in-app purchase or subscription.
+
+EXTERNAL SERVICES
+LiveKit (self-hosted by us) carries the audio and makes the recordings; Amazon
+S3 stores them; Amazon SES sends sign-in codes; Apple Push Notification service
+delivers notifications; Ko-fi hosts the donation page. No third-party sign-in,
+no payment processor, no advertising, no analytics, no AI service. The app
+collects no usage data and does no tracking. It functions identically in every
+region apart from the donation link above.
+
+PLEASE TEST ACCOUNT DELETION LAST
+Settings > Delete account works, takes effect immediately, and you are welcome
+to use it. It also removes the account's contacts, so signing in again at the
+same address gives a working but empty app — everything still functions, but the
+contact, channels and recording set up for you will be gone.
+```
+
 ### The reply, verbatim
 
 Sent as a reply to the review message, with the recording attached, and copied
