@@ -4,8 +4,8 @@
 when the app is approved, with whatever is still true afterwards moving to
 DECISIONS.md. TASKS.md points here.
 
-**Submitted 2026-08-14: version 1.0.0, build 36. Rejected 2026-08-15 under
-Guideline 2.1 — Information Needed.** Not a functional finding: Apple did not
+**Submitted 2026-08-14 as build 36. Rejected 2026-08-15 under Guideline 2.1 —
+Information Needed. Resubmitting build 44.** Not a functional finding: Apple did not
 report a bug, a crash or a policy breach, and did not say they failed to sign
 in. They asked for the seven-item information pack that a first submission is
 expected to carry, and the notes that went in answered perhaps three of them.
@@ -22,41 +22,6 @@ free, worldwide, and both served pages live. The demo channel holds one clean
 
 **The one thing unresolved at submission** is the EU trader banner — see "The
 DSA declaration" below. It does not block review; it governs EU availability.
-
----
-
-## The branches, which diverge on purpose until approval
-
-Decided 2026-08-16. **Two branches serve the submission and are not to be
-landed or deleted while it is open** — which reads against AGENTS.md's "there
-is no develop branch and no release branches", and is deliberately not written
-there: this is one submission's arrangement rather than a convention, and the
-conventions are worth settling once rather than growing an exception at a time.
-Somebody finding a long-lived branch and reaching for AGENTS.md should find this
-paragraph instead.
-
-**`keyboard-rename-fix` is the binary App Review is looking at**: `build/36`
-plus only the fixes that submission needs. Cut from the tag rather than from
-`master` so that the review notes, the screen recording and the binary all
-describe the same app — `master` had by then moved the start-channel affordance
-and added recording mixdown, and a video showing controls the reviewer's copy
-does not have is how an information request becomes a real 2.1. It also means
-no server deploy is needed for that build to work, the protocol being build
-36's.
-
-**`app-review-2-1-reply` holds what was said to Apple** — the rejection, the
-seven-item reply and the shooting script for the recording. It is prose, so it
-diverges from `master` harmlessly, and it is where APPREVIEW.md is current.
-**Reading this file on `master` gets you the version from before the
-rejection.**
-
-The cost is real and worth stating: a fix made for the reviewer does not reach
-testers, and a fix made for testers does not reach the reviewer, until somebody
-carries it across deliberately. The keyboard fix was carried both ways on the
-day it was made — released from the branch, and merged to `master` as `bdf68b2`
-— which is the pattern to follow rather than an accident.
-
-**On approval, land both and delete them.**
 
 ---
 
@@ -386,40 +351,79 @@ information request into a real 2.1:
 
 ### The one item that needs a decision rather than a sentence
 
-**Item 1, the screen recording, has to be shot on a physical device, and the
-build it shows should be 36** — that is what is under review, and `dc18d82`
-changed where starting a channel lives in the list, so a video of 37 or later
-shows a Home screen the reviewer's copy does not have. Builds 37, 38 and 39 are
-tagged and 36 is what was submitted; shoot from whatever TestFlight will still
-install as 1.0.0 (36).
+**Item 1, the screen recording, has to be shot on a physical device, against
+the build being submitted — which is 44.** Decided 2026-08-16, having first gone
+the other way. The argument for a minimal build (build 36 plus the keyboard fix,
+which reached TestFlight as 42 and 43) was that the binary, the notes and the
+video should describe the same app. But the video had not been shot yet, so
+shooting it against 44 satisfied that at no cost, and 44 additionally carries
+"Hold a snapshot per channel, not one for all of them" — a live conversation
+dropping behind "Loading channel…" and hanging up its audio, which is exactly
+the kind of thing a reviewer finds and files under 2.1.
 
-The shooting order matters, for the reason DEMO-ACCOUNT.md already gives.
+44 also improves the review itself. `dc18d82` made "Start a channel" the last
+row of the channel list, and it creates a channel with **no invitees** —
+`ChannelRegistry.create` runs its `areContacts` check per invitee, so an empty
+list passes. A reviewer can therefore start a channel alone, which makes "you do
+not need a second person" structurally true and defuses the old hazard of
+deleting the demo account early and being left with an app that appeared to do
+nothing.
+
+### What is set up for the recording, 2026-08-16
+
 Apple asks the recording to include account deletion, and deleting the demo
-account takes its contacts with it in both directions, leaving an account that
-cannot create a channel. So either:
+account takes its contacts with it in both directions. So the recording is shot
+on a **separate account, `johnny@rvanegas.co`**, and that is the one deleted on
+camera. The review account is never touched and needs no repair afterwards.
 
-- **Shoot on a throwaway account** — point `REVIEW_IDENTIFIER` at a spare
-  address, sign in, and delete that one on camera. The demo account is never
-  touched and needs no repair. This is the better option and costs two restarts.
-- **Shoot on the demo account and repair afterwards** — everything else first,
-  deletion last, then rebuild the pairing with the bypass flip. One less setup
-  step and one more thing to forget.
+Getting there needed no production change and no bypass flip. The demo account
+sent `johnny@` a contact request over `POST /contacts/request`, using a token
+minted with `REVIEW_IDENTIFIER`/`REVIEW_CODE`, and it was accepted in the app.
+Johnny then created and **named** a channel, "Weekly Convo" — the naming is
+load-bearing rather than cosmetic, because `core/channel.ts` does not widen an
+*unnamed* channel: an invite into one only parks the invitee in `invited`, and
+`SET_NAME` does not promote them later. With it named, the demo account invited
+Sam over the websocket (`canInvite` needs the inviter to be a participant, not
+present, so nobody had to sign in as Sam, whose token is dead and who has no
+code). Sam landed in `participants` directly.
 
-What the recording has to contain, in order, because Apple names each of these
-and a missing one is another round trip: launching the app cold; the sign-in
-flow, address then code; Home with a contact and a channel on it; opening the
+So "Weekly Convo" holds Johnny, App Review and Sam. When Johnny deletes on
+camera, the channel survives with App Review and Sam in it, and the demo account
+lands back on one contact, one channel and one recording — which is what the
+reply describes.
+
+**Before rolling**, three things, two of which cannot be fixed once recording:
+
+- **Confirm `johnny@rvanegas.co` receives mail.** Apple wants the login flow, so
+  the app has to be signed out first — and `POST /auth/sign-out` revokes the
+  token. Johnny has no fixed code, so a dead inbox means a locked-out account
+  and a lost setup.
+- **Sign out**, off camera.
+- **Reset the microphone prompt**, which has already been granted on that
+  device and so will not fire again. iOS Settings → General → Transfer or Reset
+  iPhone → Reset → Reset Location & Privacy. Apple names permission prompts
+  specifically.
+
+**What the recording has to contain, in order**, because Apple names each and a
+missing one is another round trip: launching the app cold; the sign-in flow,
+address then code, pausing on the display-name field that doubles as
+registration; Home; sending a contact request to any address, which shows a
+request going out and nothing happening, the whole 1.2 answer; entering the
 channel and the **microphone permission prompt** with its purpose string
-visible; recording, stopping, naming; playing the recording back into the
-channel; renaming and exporting it; deleting it; the Support card and the Ko-fi
-link opening in the browser; the Privacy card; and Settings → Delete account
-with its confirmation, last. There is no purchase flow, no subscription and no
-paid content to show, and no App Tracking Transparency prompt, because there is
-no tracking.
+readable; claiming and releasing the floor; recording, stopping, naming it
+something neutral rather than the participant-derived default; playing it back
+into the channel; renaming; exporting; "Play something together"; deleting a
+recording, with its confirmation; Settings → Privacy policy opening in the
+browser; "Chip in" opening Ko-fi; and Settings → Delete account last, ending on
+the sign-in screen. Do not sign in again — that creates a fresh empty account.
 
-Item 2 is the only one that cannot be answered from the repository: **nothing
-on the wire carries a device model** — `release.ts` says so about build numbers
-and the same is true here — so the list of handsets and iOS versions has to come
-from whoever did the testing.
+There is no purchase flow, no subscription and no paid content to show, and no
+App Tracking Transparency prompt, because there is no tracking.
+
+Item 2 could not be answered from the repository — **nothing on the wire carries
+a device model** — so the list of handsets and iOS versions came from whoever
+did the testing, and is the internal testers' own hardware rather than a matrix
+chosen for coverage.
 
 ### The reply, verbatim
 
@@ -432,7 +436,7 @@ Thank you — here is the information requested, in the order asked.
 
 1. SCREEN RECORDING
 Attached: a recording captured on a physical iPhone running the current release
-of iOS, of build 36, the build under review. It begins with a cold launch and
+of iOS, of build 44, the build submitted. It begins with a cold launch and
 runs through sign-in, the microphone permission prompt, creating and using a
 channel, recording a conversation, playing that recording back, renaming,
 exporting and deleting it, the external donation link, the privacy policy link,
@@ -442,6 +446,16 @@ There is no purchase, subscription or paid-content flow in the app, and no App
 Tracking Transparency prompt, because the app does no tracking. The only
 permission the app requests is the microphone, and the recording shows that
 prompt and the purpose string that accompanies it.
+
+The recording was made on a separate test account rather than on the review
+account below, so that the account you sign in to is left with its contact, its
+channel and its recording intact. The account deletion shown at the end is that
+test account's, and it is a real deletion.
+
+Sign-up and sign-in are the same screen in this app: an address, a six-digit
+code, and a display-name field that names a new account or renames an existing
+one. The recording therefore shows the registration screen and every field on
+it.
 
 2. DEVICES AND OPERATING SYSTEMS TESTED
 
@@ -501,10 +515,11 @@ review account has a fixed code so that no inbox is needed:
 
 Enter the address, tap through, then enter the code.
 
-You do not need a second person. The account already has one accepted contact
-("Sam Rivera") and one channel between them, and it holds one existing
-recording. Recording requires only that you are present, so one reviewer alone
-can exercise the entire feature.
+You do not need a second person, and this is structural rather than a
+convenience: a channel can be started with nobody in it, and recording requires
+only that you are present. One reviewer alone can exercise every feature in the
+app. The account is also set up rather than empty — one accepted contact ("Sam
+Rivera"), one channel between them, and one existing recording in it.
 
 To reach each feature from a signed-in Home screen:
 - Open the existing channel from "Your channels". Tap "Step in" to join it;
@@ -517,10 +532,9 @@ To reach each feature from a signed-in Home screen:
   everyone present), Export, Rename and Delete.
 - "Play something together" in the same channel picks an audio file from the
   phone and plays it into the room.
-- To start a new channel, tap "Sam Rivera" under Contacts on Home and then
-  "Start channel". (A channel can only be started with accepted contacts, so
-  that is the route with one contact; with two or more, Home also offers
-  "Start a channel with several people".)
+- "Start a channel" is the last row of the channel list on Home. It opens a
+  new channel immediately, with nobody else in it — no contact is required.
+  You can also start one with somebody by tapping them under Contacts.
 - Contacts are added by email address at the foot of Home, or by tapping
   someone met in a channel. Nothing happens until the other person accepts.
 - "Chip in" under Support on Home is the external donation link — see item 6
@@ -528,11 +542,13 @@ To reach each feature from a signed-in Home screen:
 - Settings, from the top of Home, holds "Privacy policy" (which opens the
   policy in the browser), Sign out, and Delete account.
 
-Please test account deletion LAST. It works and you are welcome to use it, and
-it takes effect immediately. It also removes the account's contacts in both
-directions, and an account with no contacts cannot start a channel — so signing
-in again at the same address yields a working but empty app, and the rest of the
-review would be conducted against one.
+Settings > Delete account works, takes effect immediately, and you are welcome
+to use it. One thing worth knowing rather than a warning: it removes the
+account's contacts in both directions, so signing in again at the same address
+gives you a working but empty app. Everything still functions — you can start a
+channel and record in it with no contacts at all — but the contact, the channel
+and the recording set up for you will be gone. Testing it last costs you
+nothing.
 
 No sample files are needed. If you would like to try playing an audio file into
 a channel, any audio file already on the device will do; the app uses the
