@@ -1,0 +1,291 @@
+#!/usr/bin/env node
+//
+// Renders a Claude Code session as a Markdown transcript.
+//
+//   bin/transcript                    list the recent sessions and stop
+//   bin/transcript <session-id>       one named session, by id or a prefix
+//   bin/transcript --latest           whichever log was written to last
+//   bin/transcript <file.jsonl>       a log anywhere on disk
+//   bin/transcript <src> <dest.md>    an explicit destination
+//
+// There is no default session on purpose: a background job and a foreground
+// one both append as they go, so the newest log is frequently not the
+// conversation you meant, and nothing downstream would catch the substitution.
+//
+// Writes planning/TRANSCRIPT-<the day it ended>.md unless told otherwise.
+//
+// Claude Code keeps each session as JSONL under ~/.claude/projects/<the repo
+// path with every non-alphanumeric character turned into a dash>. That format
+// exists to be replayed into a model rather than read by a person, and there is
+// no export command in the CLI — hence this.
+//
+// Two things about the source are worth knowing before trusting any rendering
+// of it, including this one:
+//
+//   - **The reasoning is not in it.** Every `thinking` block is an empty string
+//     carrying a signature and nothing else. It is not persisted and cannot be
+//     recovered, so a transcript is what was said and done, never what was
+//     weighed. The blocks are dropped rather than rendered as empty boxes.
+//   - **Not every user-role record is the user.** The harness injects context as
+//     `<system-reminder>` blocks in user-role messages. Counting those as
+//     prompts is the obvious mistake and it inflates the turn count — this one
+//     session had 13 real prompts and 19 user-role records. They are kept, and
+//     labelled as what they are.
+//
+// The only change made to any body text is that headings inside replies are
+// demoted by two levels, so they cannot collide with the turn headings and
+// leave the document with no usable outline.
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const repoRoot = path.resolve(__dirname, '..');
+const logDir = path.join(
+  os.homedir(),
+  '.claude',
+  'projects',
+  repoRoot.replace(/[^A-Za-z0-9]/g, '-')
+);
+
+const REMINDER = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
+
+const textOf = (content) => {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n\n');
+};
+
+function sessions() {
+  if (!fs.existsSync(logDir)) return [];
+  return fs
+    .readdirSync(logDir)
+    .filter((f) => f.endsWith('.jsonl'))
+    .map((f) => {
+      const full = path.join(logDir, f);
+      return { id: f.replace(/\.jsonl$/, ''), path: full, at: fs.statSync(full).mtime };
+    })
+    .sort((a, b) => b.at - a.at);
+}
+
+/** The first thing a person actually typed, to tell one session from another. */
+function opener(file) {
+  try {
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      let r;
+      try {
+        r = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (r.type !== 'user') continue;
+      const c = r.message && r.message.content;
+      if (Array.isArray(c) && c.some((b) => b.type === 'tool_result')) continue;
+      const spoken = textOf(c).replace(REMINDER, '').trim();
+      if (spoken) return spoken.split('\n')[0].slice(0, 60);
+    }
+  } catch {
+    // Unreadable is not fatal here; the row just goes without a label.
+  }
+  return '';
+}
+
+function resolveSource(arg) {
+  if (arg && arg !== '--latest' && fs.existsSync(arg)) return arg;
+
+  const all = sessions();
+  if (!all.length) {
+    console.error(`No .jsonl session logs for this repo in ${logDir}`);
+    process.exit(1);
+  }
+
+  if (arg === '--latest') return all[0].path;
+
+  if (arg) {
+    const named = all.find((s) => s.id === arg || s.id.startsWith(arg));
+    if (named) return named.path;
+    console.error(`No session log matching "${arg}" — looked in ${logDir}`);
+    process.exit(1);
+  }
+
+  // Deliberately no default. Sessions run concurrently — a background job and
+  // whatever is in the foreground both append — so "the newest log" is very
+  // often somebody else's conversation, and rendering the wrong one is a
+  // mistake nothing downstream catches. It cost exactly that once. Name the
+  // session, or ask for --latest and mean it.
+  console.error('Which session? Recent ones for this repo:\n');
+  for (const s of all.slice(0, 10)) {
+    const line = opener(s.path);
+    console.error(
+      `  ${s.id}  ${s.at.toISOString().replace('T', ' ').slice(0, 16)}  ${line}`
+    );
+  }
+  console.error('\n  bin/transcript <session-id>     that session');
+  console.error('  bin/transcript --latest         the most recently active');
+  process.exit(1);
+}
+
+const src = resolveSource(process.argv[2]);
+const records = fs
+  .readFileSync(src, 'utf8')
+  .trim()
+  .split('\n')
+  .map((l) => {
+    try {
+      return JSON.parse(l);
+    } catch {
+      return null;
+    }
+  })
+  .filter(Boolean);
+
+const esc = (s) => String(s).replace(/\r/g, '');
+
+// A body containing a fence needs a longer one, or it closes early.
+const fence = (body, lang = '') => {
+  const text = esc(body);
+  let ticks = '```';
+  while (text.includes(ticks)) ticks += '`';
+  return `${ticks}${lang}\n${text}\n${ticks}`;
+};
+
+const demote = (s) =>
+  esc(s).replace(/^(#{1,4}) /gm, (_m, h) => `${'#'.repeat(h.length + 2)} `);
+
+// Whoever is at the keyboard, so a turn heading names a person rather than a
+// role. Falls back when git has no name configured.
+let who = 'User';
+try {
+  who =
+    require('node:child_process')
+      .execSync('git config user.name', { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim() || 'User';
+} catch {
+  // No git, or no name set. 'User' is fine.
+}
+
+const out = [];
+let turn = 0;
+let firstTs = null;
+let lastTs = null;
+const stats = { prompts: 0, replies: 0, tools: 0, results: 0, injected: 0, errors: 0 };
+
+for (const r of records) {
+  if (r.timestamp) {
+    if (firstTs === null) firstTs = r.timestamp;
+    lastTs = r.timestamp;
+  }
+
+  if (r.type === 'user') {
+    const c = r.message && r.message.content;
+    const results = Array.isArray(c) ? c.filter((b) => b.type === 'tool_result') : [];
+    if (results.length) {
+      for (const res of results) {
+        stats.results++;
+        if (res.is_error) stats.errors++;
+        const body =
+          typeof res.content === 'string'
+            ? res.content
+            : Array.isArray(res.content)
+              ? res.content.map((b) => (b.type === 'text' ? b.text : `[${b.type}]`)).join('\n')
+              : JSON.stringify(res.content == null ? '' : res.content, null, 2);
+        out.push(
+          `<details><summary>result${res.is_error ? ' — error' : ''}</summary>\n\n${fence(body)}\n\n</details>\n`
+        );
+      }
+      continue;
+    }
+
+    const raw = textOf(c);
+    const reminders = raw.match(REMINDER) || [];
+    const spoken = raw.replace(REMINDER, '').trim();
+
+    if (!spoken) {
+      if (reminders.length) {
+        stats.injected++;
+        out.push(
+          `<details><summary>injected context</summary>\n\n${fence(reminders.join('\n\n'))}\n\n</details>\n`
+        );
+      }
+      continue;
+    }
+
+    stats.prompts++;
+    turn++;
+    out.push(`\n---\n\n## ${turn}. ${who}\n\n${demote(spoken)}\n`);
+    if (reminders.length) {
+      stats.injected++;
+      out.push(
+        `<details><summary>injected context delivered with this message</summary>\n\n${fence(reminders.join('\n\n'))}\n\n</details>\n`
+      );
+    }
+    continue;
+  }
+
+  if (r.type === 'assistant') {
+    const c = r.message && r.message.content;
+    if (!Array.isArray(c)) continue;
+    for (const b of c) {
+      if (b.type === 'text') {
+        const t = b.text.trim();
+        if (t) {
+          stats.replies++;
+          out.push(`${demote(t)}\n`);
+        }
+      } else if (b.type === 'tool_use') {
+        stats.tools++;
+        out.push(`**→ ${b.name}**\n\n${fence(JSON.stringify(b.input, null, 2), 'json')}\n`);
+      }
+      // `thinking` is skipped; see the header.
+    }
+    continue;
+  }
+
+  if (r.type === 'system' && r.content) {
+    out.push(`> _system:_ ${esc(r.content).trim().split('\n').join('\n> ')}\n`);
+  }
+}
+
+const sessionId = (records.find((r) => r.sessionId) || {}).sessionId || 'unknown';
+const day = (lastTs || new Date().toISOString()).slice(0, 10);
+const dest =
+  process.argv[3] || path.join(repoRoot, 'planning', `TRANSCRIPT-${day}.md`);
+
+const header = [
+  '# Session transcript',
+  '',
+  'Generated by `bin/transcript` from the Claude Code JSONL log. Every prompt,',
+  'reply, tool call and tool result, in order and in full.',
+  '',
+  'Three things to know about what is here:',
+  '',
+  "- **The model's reasoning is not in it.** Every `thinking` block in the log is",
+  '  an empty string carrying only a signature, so it is not persisted and cannot',
+  '  be recovered. What is below is what was said and done, not what was weighed.',
+  '- **Tool results and injected context are collapsed.** Expand them for the',
+  '  detail; the conversation reads straight through without. Context the harness',
+  '  injected is labelled as such rather than counted as something anybody said.',
+  '- **Only headings were altered.** Heading levels inside replies are demoted by',
+  '  two so they do not collide with the turn headings. Nothing else is changed.',
+  '',
+  '| | |',
+  '| --- | --- |',
+  `| Session | \`${sessionId}\` |`,
+  `| Began | ${firstTs || 'unknown'} |`,
+  `| Ended | ${lastTs || 'unknown'} |`,
+  `| Prompts | ${stats.prompts} |`,
+  `| Replies | ${stats.replies} |`,
+  `| Tool calls | ${stats.tools} |`,
+  `| Tool results | ${stats.results}, of which ${stats.errors} errors |`,
+  `| Injected-context blocks | ${stats.injected} |`,
+  '',
+].join('\n');
+
+fs.writeFileSync(dest, header + out.join('\n'));
+console.log(
+  `${path.relative(repoRoot, dest)} — ${stats.prompts} prompts, ${stats.replies} replies, ${stats.tools} tool calls`
+);
