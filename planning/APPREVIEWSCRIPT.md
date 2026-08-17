@@ -8,17 +8,17 @@ The script
 
 4. Send a contact request to any address at the foot of Home. This is the Guideline 1.2 beat — a request goes out and nothing happens. Don't skip it; a reviewer hunting for blocking tooling needs to see why there isn't any.
 
-5. Start a channel from the "Start a channel" row at the foot of the channel list. It opens one with nobody in it. This is new in 44 and it's the strongest thing in the video — it proves one reviewer alone can use the app. Step back out to Home afterwards.
+5. Start a channel from the "Start a channel" row at the foot of the channel list. It opens one with nobody in it — no contact required. This is the strongest thing in the video: it proves one reviewer alone can use the app. Step back out to Home afterwards.
 
 6. Enter "Weekly Convo" → Step in. Microphone prompt fires here; let the purpose string be readable.
 
 7. The floor. Claim it, talk a few seconds, release it.
 
-8. Record. Record → talk → Stop → name it. Something neutral, not the participant-derived default — Johnny becomes a tombstone after deletion.
+8. Record. Record → talk for a good while → Stop. Nothing asks for a name: the server names the recording after the channel, so it arrives as "Weekly Convo". Record generously rather than briefly — the card is what the next two steps act on.
 
-9. Fix the mangled name. Rename Weekly Convolast week. This is your keyboard-fix proof: the field sits above the keyboard now.
+9. Rename it. Open the row you just made and rename it to something of your own — this is where naming actually happens, and it doubles as the keyboard-fix proof: the whole card, Save included, clears the keyboard.
 
-10. Play it back into the channel, then Export — let the share sheet open and dismiss.
+10. Play it back into the channel, then Export — let the share sheet open and dismiss. Both are on the same row, which scrolls into view when the card is opened.
 
 11. Play something together. Pick any audio file. Brief, but it's named in your App Store description and it's the 5.2 surface.
 
@@ -28,3 +28,9 @@ The script
 
 14. Settings → Delete account → confirm → the app drops to the sign-in screen. Stop recording there. Don't sign in again; that makes a fresh empty account.
 
+
+Notes
+
+- Before rolling: confirm johnny@rvanegas.co receives mail (you must sign out for the login flow, and Johnny has no fixed code), sign out, and reset Location & Privacy in iOS Settings so the microphone prompt fires again.
+- Shoot on build 49 or later. Earlier builds lose short recordings silently, hide a card until its mix finishes, and put the rename field under the keyboard.
+- "Pause a beat" means hold still two or three seconds so the screen is legible. Screen recordings run faster than they feel.

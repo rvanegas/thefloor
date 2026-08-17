@@ -436,7 +436,7 @@ Thank you — here is the information requested, in the order asked.
 
 1. SCREEN RECORDING
 Attached: a recording captured on a physical iPhone running the current release
-of iOS, of build 44, the build submitted. It begins with a cold launch and
+of iOS, of build 49, the build submitted. It begins with a cold launch and
 runs through sign-in, the microphone permission prompt, creating and using a
 channel, recording a conversation, playing that recording back, renaming,
 exporting and deleting it, the external donation link, the privacy policy link,
@@ -495,9 +495,10 @@ Anybody in a channel can start a recording. It captures each person as a
 separate track, follows the floor so that whoever is silenced is silent in the
 file, and when it stops it is named once for everyone. A finished recording can
 be played back into the channel for everyone to hear together, renamed,
-exported, or deleted — by any member, not only whoever started it. A member can
-also pick an audio file from their phone and play it into the channel the same
-way.
+exported, or deleted — by any member, not only whoever started it. It takes its
+name from the channel, so everyone refers to it by the same name, and any member
+may rename it for everyone. A member can also pick an audio file from their
+phone and play it into the channel the same way.
 
 The target audience is small groups of people who already know each other —
 families, friends, collaborators, remote colleagues — who want to talk rather
@@ -525,8 +526,9 @@ To reach each feature from a signed-in Home screen:
 - Open the existing channel from "Your channels". Tap "Step in" to join it;
   the microphone prompt appears here.
 - "Claim the floor" takes the floor and "Release the floor" gives it back.
-- Record starts a recording and Stop ends it, asking for a name once, for
-  everybody.
+- Record starts a recording and Stop ends it. Nothing asks for a name: the
+  channel lends its name to what it records, so every member sees the same
+  name without anyone being asked. Renaming is on the recording's own row.
 - Recordings are listed inside the channel, under "Recordings" — including the
   one already there. Each row offers Play (which plays it into the channel for
   everyone present), Export, Rename and Delete.
