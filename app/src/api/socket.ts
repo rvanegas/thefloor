@@ -43,6 +43,22 @@ const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
 
 /**
+ * How long a action taken while the socket was down is still worth sending.
+ *
+ * An action is a thing somebody did at a moment, not a standing instruction.
+ * Tapping Record during a handshake should survive the two hundred
+ * milliseconds it takes to finish; the same tap should not resurface after a
+ * minute in a lift and start recording a conversation nobody is having. Ten
+ * seconds is longer than any reconnect that is going to succeed soon — the
+ * backoff caps at `RECONNECT_MAX_MS` — and short enough that the room has not
+ * moved on.
+ */
+const QUEUE_TTL_MS = 10_000;
+
+/** Enough for any plausible burst of taps; a cap so an offline hour cannot grow without bound. */
+const QUEUE_LIMIT = 32;
+
+/**
  * The channel channel. Everything the client shows is pushed from the server;
  * nothing here computes channel state.
  *
@@ -66,6 +82,17 @@ export class Realtime {
   /** When anything was last heard from the server. */
   private lastSeen = 0;
   private closedByUs = false;
+  /**
+   * Actions taken while the socket was not open, waiting for one that is.
+   *
+   * `send` used to drop anything it could not write, silently and with no way
+   * for the caller to know — so a tap that landed in the gap between arriving
+   * in a channel and the handshake completing simply ceased to exist. No row,
+   * no state change, no error, and a button that appeared to do nothing. That
+   * is the worst shape a bug can take: the user is told they did something and
+   * the system disagrees.
+   */
+  private queued: Array<{ at: number; message: ClientMessage }> = [];
 
   connect(token: string, handlers: RealtimeHandlers): void {
     this.disconnect();
@@ -109,6 +136,7 @@ export class Realtime {
           action: { type: 'ENTER' },
         });
       }
+      this.flushQueued();
     };
 
     socket.onmessage = (event) => {
@@ -263,7 +291,36 @@ export class Realtime {
   private send(message: ClientMessage): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
+      return;
     }
+
+    // Only actions are worth keeping. `watch.home`, `watch.channel` and the
+    // re-entry are re-sent by `onopen` from the state this class already holds,
+    // so queueing them would send each twice; a `ping` for a socket that was
+    // not there proves nothing about the one that replaces it.
+    //
+    // ENTER is excluded for the same reason: `act` records `enteredChannel`
+    // before calling this, and `onopen` re-enters from that.
+    if (message.type !== 'channel.action' || message.action.type === 'ENTER') {
+      return;
+    }
+
+    this.queued.push({ at: Date.now(), message });
+    if (this.queued.length > QUEUE_LIMIT) this.queued.shift();
+  }
+
+  /**
+   * Sends what was taken while the socket was down, oldest first, dropping
+   * anything that has waited past the point of being what the person meant.
+   *
+   * Called after the restore in `onopen`, so an action lands on a connection
+   * that is already watching the right channel and standing in the right room.
+   */
+  private flushQueued(): void {
+    const cutoff = Date.now() - QUEUE_TTL_MS;
+    const live = this.queued.filter((entry) => entry.at >= cutoff);
+    this.queued = [];
+    for (const { message } of live) this.send(message);
   }
 
   watchHome(): void {
@@ -303,6 +360,10 @@ export class Realtime {
     this.watchingHome = false;
     this.watchedChannel = null;
     this.enteredChannel = null;
+    // Signing out is not a gap to be bridged. Anything still waiting belongs to
+    // the session being ended, and replaying it into the next one would act as
+    // whoever signs in next.
+    this.queued = [];
     this.reconnectAttempt = 0;
   }
 }
