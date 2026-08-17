@@ -25,7 +25,8 @@ const mockApp = {
   token: 'token' as string | null,
   me: { id: 'acct_me', displayName: 'Me' },
   home: null,
-  channelViews: {},
+  channelViews: {} as Record<string, unknown>,
+  recordingAsked: null as string | null,
   goneChannels: [] as string[],
   status: 'open' as const,
   lastError: null,
@@ -63,15 +64,20 @@ jest.mock('../src/state/AppProvider', () => ({
 // No microphone in a render test, for the reason views.test.tsx gives: the
 // LiveKit packages ship untranspiled ESM, and opening an audio session is not
 // this file's business.
+const audioCalls: unknown[][] = [];
+
 jest.mock('../src/audio/useSessionAudio', () => ({
-  useSessionAudio: () => ({
+  useSessionAudio: (...args: unknown[]) => (
+    audioCalls.push(args),
+    {
     status: 'idle',
     message: null,
     mutedByServer: false,
     othersAudible: 0,
     speaking: [],
     micOpen: true,
-  }),
+    }
+  ),
 }));
 
 import App from '../App';
@@ -144,6 +150,67 @@ describe('a session ending', () => {
 
     expect(textOf(tree)).not.toContain('Done');
     expect(textOf(tree)).toContain('Contacts');
+    act(() => tree.unmount());
+  });
+});
+
+
+/**
+ * The microphone has to open on the tap, not on the server's answer.
+ *
+ * Alone in a channel it is closed on purpose, and a recording is what reopens
+ * it — but "a recording is running" is learned from a snapshot, a round trip
+ * after the button. Capture is running during that round trip, against nobody
+ * publishing, and a short enough run ends with no audio at all. `recordingAsked`
+ * is the intent, known here first.
+ */
+describe('asking to record', () => {
+  const CHANNEL = 'chan_1';
+
+  function withChannel(present: string[]) {
+    mockApp.channelViews = {
+      [CHANNEL]: {
+        channel: {
+          id: CHANNEL,
+          mediaRoom: CHANNEL,
+          status: 'active',
+          participants: ['acct_me'],
+          present,
+          selfMuted: {},
+          disconnectedAt: {},
+          floor: { holder: null, claimedAt: null, lastClaimedAt: {}, lastReleasedAt: null },
+          recording: { status: 'idle', runId: null, startedAt: null, accumulatedMs: 0, segmentStartedAt: null, failure: null },
+          playback: { track: null },
+          invited: {},
+          invitedBy: {},
+          everPresent: ['acct_me'],
+          name: null,
+        },
+        participants: [{ id: 'acct_me', displayName: 'Me' }],
+        recordings: [],
+        serverNow: NOW,
+      },
+    };
+  }
+
+  it('opens the microphone before the server has confirmed', () => {
+    withChannel(['acct_me']);
+    mockApp.recordingAsked = null;
+    audioCalls.length = 0;
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    // Alone and not recording: nothing is listening, so it stays shut.
+    expect(audioCalls.at(-1)?.[4]).toBe(false);
+
+    act(() => {
+      mockApp.recordingAsked = CHANNEL;
+      tree.update(<App />);
+    });
+    expect(audioCalls.at(-1)?.[4]).toBe(true);
+
     act(() => tree.unmount());
   });
 });

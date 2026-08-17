@@ -18,6 +18,7 @@ import type {
   ChannelView,
   SupportView,
 } from '../../../core/protocol';
+import { isRecordingActive } from '../../../core/recording';
 import { api, ApiError, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
 import { onNotificationTap, registerForPush } from '../push';
@@ -94,6 +95,21 @@ interface AppState {
    * to a channel you were in should land you where its people actually are.
    */
   movedChannel: { from: string; to: string } | null;
+  /**
+   * A channel where recording has been asked for and not yet confirmed.
+   *
+   * Only the microphone reads it. Alone in a channel the microphone is closed
+   * — see audio/micNeeded.ts — and a recording is what reopens it, but "a
+   * recording is running" is a fact this client learns from the server. So
+   * capture began a round trip before anything was published, and a run short
+   * enough ended having captured nothing at all.
+   *
+   * The intent is known here the moment the button is pressed, which is the
+   * round trip. Cleared when the snapshot confirms the run, and on a timer in
+   * case it never does — a request the server declines would otherwise hold
+   * the microphone open for as long as the screen stayed put.
+   */
+  recordingAsked: string | null;
   status: ConnectionStatus;
   lastError: string | null;
 }
@@ -204,6 +220,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * goes on receiving somebody else's notifications.
    */
   const deviceToken = useRef<string | null>(null);
+  /** Gives up on a recording request the server never confirmed. */
+  const askedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, setState] = useState<AppState>({
     ready: false,
     token: null,
@@ -211,6 +229,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     home: null,
     channelViews: {},
     goneChannels: [],
+    recordingAsked: null,
     movedChannel: null,
     status: 'closed',
     lastError: null,
@@ -252,6 +271,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setState((s) => ({
             ...s,
             channelViews: { ...s.channelViews, [view.channel.id]: view },
+            // Confirmed: the real rule takes over from here, and it says the
+            // same thing for as long as the run lasts.
+            recordingAsked:
+              s.recordingAsked === view.channel.id &&
+              isRecordingActive(view.channel.recording)
+                ? null
+                : s.recordingAsked,
             // A channel that is sending snapshots is not gone, whatever it was
             // a moment ago — an id can only be reported gone once, but this
             // keeps the two from ever disagreeing.
@@ -382,6 +408,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         home: null,
         channelViews: {},
         goneChannels: [],
+        recordingAsked: null,
         movedChannel: null,
         status: 'closed',
         lastError:
@@ -457,6 +484,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           home: null,
           channelViews: {},
           goneChannels: [],
+          recordingAsked: null,
           movedChannel: null,
           status: 'closed',
           lastError: null,
@@ -490,6 +518,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           home: null,
           channelViews: {},
           goneChannels: [],
+          recordingAsked: null,
           movedChannel: null,
           status: 'closed',
           lastError: null,
@@ -577,7 +606,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       },
 
-      act: (channelId, action) => realtime.act(channelId, action),
+      act: (channelId, action) => {
+        // Before the send, not after it: the point is to be ahead of the
+        // server, and the send is where the round trip starts.
+        if (action.type === 'START_RECORDING') {
+          setState((s) => ({ ...s, recordingAsked: channelId }));
+          // Long enough to cover a round trip and a reconnect, short enough
+          // that a request nobody answered stops mattering. The server has no
+          // way to decline audibly — a refused action returns a snapshot and no
+          // error — so this is the only thing that ends the wait.
+          if (askedTimer.current) clearTimeout(askedTimer.current);
+          askedTimer.current = setTimeout(() => {
+            setState((s) =>
+              s.recordingAsked === channelId ? { ...s, recordingAsked: null } : s
+            );
+          }, 10_000);
+        }
+        realtime.act(channelId, action);
+      },
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),
     }),

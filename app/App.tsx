@@ -48,7 +48,13 @@ function Root() {
   const view = liveChannelView(app.channelViews, me);
   const live = view ? view.channel : null;
 
-  const micNeeded = !!live && microphoneNeeded(live, me);
+  // Or asked for and not yet confirmed. The rule in `microphoneNeeded` is
+  // right — a recording is something listening, so it opens the microphone —
+  // but it reads server state, which arrives a round trip after the tap. That
+  // round trip is when capture starts against nobody publishing, and a short
+  // run ended having recorded nothing at all. See AppProvider.recordingAsked.
+  const micNeeded =
+    !!live && (microphoneNeeded(live, me) || app.recordingAsked === live.id);
 
   const audio = useSessionAudio(
     // Keyed on the audio rather than on the channel, which are no longer the
