@@ -90,7 +90,10 @@ interface AppState {
   goneChannels: string[];
   /**
    * The last move the server reported: a conversation that changed channels
-   * because somebody was asked into an unnamed one and arrived.
+   * because somebody was asked into an unnamed one and arrived. **The server
+   * stopped sending `channel.moved` on 2026-08-17** — unnamed channels widen
+   * rather than move — so this is never set any more, and is kept only so an
+   * old server would still be understood.
    *
    * Kept as state rather than delivered as an event because the screen that
    * has to follow it may not be mounted at the moment it lands — coming back
@@ -213,9 +216,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * Keyed by channel, so it is permanent for that invitation and no longer.
    * Being asked again raises a new banner whenever it is a different channel
    * asking, which is what gives both halves of what a dismissal should mean
-   * without a second rule. Two people do share one unnamed channel, though, so
-   * a second invitation from the same person into the same unnamed channel is
-   * the case this does *not* re-raise.
+   * without a second rule. A second invitation from the same person into the
+   * same channel is the case this does *not* re-raise — which used to cover
+   * every repeat ask from one person, two people sharing a single unnamed
+   * channel. They can now share more than one, so a repeat ask can arrive as a
+   * different channel and does raise a fresh banner.
    *
    * It does not survive relaunching the app. Channels are short-lived, and
    * reopening to see what is currently live is reasonable rather than a fault.

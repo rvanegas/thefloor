@@ -772,9 +772,9 @@ describe('Channel', () => {
     const text = textOf(tree);
     expect(text).toContain('Recording failed');
     expect(text).toContain('no supported codec');
-    // And it can be attempted again — a failure must not consume the channel's
-    // one recording.
-    expect(findButton(tree, 'Try recording again')).toBeDefined();
+    // And it can be attempted again: the failure is stated above the button,
+    // which is offered unchanged rather than relabelled about it.
+    expect(findButton(tree, 'Record')).toBeDefined();
     act(() => tree.unmount());
   });
 

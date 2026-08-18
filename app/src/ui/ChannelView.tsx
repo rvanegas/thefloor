@@ -591,13 +591,7 @@ export function ChannelView({
           {channel.recording.status === 'idle' ? (
             <>
               <Button
-                label={
-                  channel.recording.failure
-                    ? 'Try recording again'
-                    : channel.lastRecording
-                      ? 'Record again'
-                      : 'Start recording'
-                }
+                label="Record"
                 disabled={!canStartRecording(channel, me)}
                 onPress={() => act({ type: 'START_RECORDING' })}
               />

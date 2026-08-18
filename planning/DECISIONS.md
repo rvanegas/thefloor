@@ -1081,3 +1081,23 @@ though it is no longer unchanged since `build/51` for other reasons — see
 **Home was already right.** `accounts.last_seen_at` has always been written per
 message rather than at the socket's edges, so it has always measured evidence.
 The name is the only thing about it that says "seen" rather than "heard from".
+
+## The record button is called Record, 2026-08-18
+
+It had three labels: `Start recording` the first time, `Record again` once the
+channel had one, and `Try recording again` after a failure. The state each
+reported is already on the screen — the previous recording is listed directly
+below the button, and a failure is stated directly above it — so the label was
+spending the one place a person looks to find out what a tap does on saying
+something they could already see.
+
+Three labels also make the button read as three different things, and the
+recording it starts is the same in all three cases. It is `Record` now,
+unconditionally.
+
+The test that covered the failure case asserted `Try recording again`, and its
+point was that a failure does not consume the channel's recording — which was
+written when a channel held one. It now asserts the button is offered
+unchanged, which is the same guarantee under a label that no longer varies.
+
+**Needs a build to reach anybody**, as any copy change does.

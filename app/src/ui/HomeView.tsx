@@ -119,9 +119,12 @@ export function HomeView({
    * have opened something else entirely: Erta showed as open because she was
    * in Product Meeting with two other people.
    *
-   * The rule it must mirror is the server's. One unnamed channel per set of
-   * people, so a 1:1 tap on somebody you have an unnamed channel with reopens
-   * that one rather than making a second — and nothing else answers for it. A
+   * The rule it must mirror is the server's `create`: one unnamed channel per
+   * set of people, so a 1:1 tap on somebody you have an unnamed channel with
+   * reopens that one rather than making a second — and nothing else answers
+   * for it. Only `create` keeps that rule now; inviting somebody into an
+   * unnamed channel widens it, which can land on a set that already has one,
+   * so a duplicate is possible and this answers with one of them. A
    * named channel does not, because a name is exactly what makes a second
    * channel with the same people sensible. A wider channel does not either: it
    * is a different set of people.
