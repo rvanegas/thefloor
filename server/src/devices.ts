@@ -81,15 +81,32 @@ export class Devices {
   /**
    * Forgets one address.
    *
-   * Called on sign-out, and on every token Apple reports as dead. Nothing else
-   * bounds this table: an install that is deleted rather than signed out of
-   * would otherwise be sent to for the life of the database.
+   * Called on sign-out, and on every token Apple answers 410 Unregistered for
+   * — which is what an install that was deleted rather than signed out of
+   * eventually becomes. Deleting the app invalidates the token at Apple's end,
+   * so that case cleans itself up rather than needing to be noticed here.
+   *
+   * **Lazily, though: 410 only arrives in reply to a send.** An address nobody
+   * is ever notified at is never tested and never removed. That is a row, not
+   * a leak — `register` keeps one per account, so the table is bounded by how
+   * many accounts exist rather than by how many phones have ever held one.
+   *
+   * Which is also why nothing reads `last_seen_at`. It was written against a
+   * pruning sweep that the 410 reply and that invariant between them made
+   * unnecessary; it survives as a record of when somebody last opened the app,
+   * which is worth having and is not a garbage collector.
    */
   forget(token: string): void {
     this.db.prepare('DELETE FROM device_tokens WHERE token = ?').run(token);
   }
 
-  /** Forgets every address for one person. */
+  /**
+   * Forgets every address for one person.
+   *
+   * Two callers, and the second is not obvious: deleting an account, and
+   * *signing in*, which revokes every other session and so must drop the
+   * addresses those sessions were reachable at. See `/auth/verify`.
+   */
   forgetAccount(accountId: string): void {
     this.db
       .prepare('DELETE FROM device_tokens WHERE account_id = ?')
