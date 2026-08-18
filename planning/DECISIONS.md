@@ -1861,3 +1861,54 @@ filters on `everPresent`, so a directly-added participant appears as an
 invitation and not also as a channel row.
 
 `MIN_SUPPORTED_BUILD` stays at 36.
+
+## A worktree installs its own dependencies, 2026-08-17
+
+`bin/worktree-setup`, and the reason it exists rather than a symlink.
+
+The repo is three independent npm packages, not an npm workspace. `core/`,
+`app/` and `server/` each own a `package-lock.json` and a `node_modules`, and
+there is no root `node_modules` at all — the root `package.json` only shells out
+with `--prefix`. Git populates a new worktree with tracked files, `node_modules`
+is ignored in all three, so a fresh worktree has no jest, no tsc and no tsx.
+Every entry point in AGENTS.md fails on its first command, and it fails as
+`jest: command not found`, which points at the toolchain rather than at the
+install that is missing. That misdirection is most of the cost.
+
+### Why not the symlink
+
+Linking each `node_modules` at the main checkout is the obvious fix and was in
+use in one worktree. It works, and it is wrong twice.
+
+It has already put a self-referential link into a commit: `node_modules/` with a
+trailing slash matches a directory and not a symlink, so `git add -A` staged the
+links and the next checkout replaced the real directories with links to
+themselves. The trailing slash is gone and that specific failure cannot recur,
+but the fix is one absent character wide.
+
+The larger one is that a shared `node_modules` is shared for writes. `npm
+install` in a worktree resolves the link and installs into the main checkout, so
+a branch that bumps a dependency silently changes what master builds against,
+with nothing to warn anyone. A per-worktree install costs disk and a few minutes
+and buys the property the worktree was for — that the branch cannot reach the
+tree beside it. `bin/worktree-setup` refuses to run against a tree set up the old
+way rather than repairing it silently, since a link here suggests another one
+elsewhere.
+
+`npm ci` rather than `npm install`, so a worktree gets exactly what the lockfile
+pins and its results are comparable to the main checkout's. It also refuses when
+package.json and the lockfile disagree; the script passes that refusal through
+with the fix rather than falling back to `npm install`, which would quietly
+install something the lockfile does not describe.
+
+### Workspaces, deliberately not now
+
+Real npm workspaces are the structural answer — one `node_modules`, one
+lockfile, hoisted binaries, and no per-worktree install to remember. Deferred on
+purpose: Expo and Metro are sensitive to hoisting, `app/` is the package most
+likely to fight it, and build 51 is in App Review. The cheap fix does not
+foreclose it.
+
+`.claude/worktrees/` is now ignored. The worktrees live inside the repo and each
+holds a `.git` file, so `git add -A` in the main checkout warned about an
+embedded repository and offered to stage a worktree as a gitlink.

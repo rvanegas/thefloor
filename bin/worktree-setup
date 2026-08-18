@@ -1,0 +1,67 @@
+#!/bin/bash
+#
+# Installs dependencies for a checkout that has none — which is every fresh git
+# worktree.
+#
+# This repo is three independent npm packages, not an npm workspace: core/, app/
+# and server/ each own a package-lock.json and a node_modules, and there is no
+# root node_modules at all. Git populates a new worktree with tracked files only,
+# node_modules is ignored in all three, so a worktree starts with no jest, no tsc
+# and no tsx. Every entry point in AGENTS.md — `npm test`, `npm run typecheck` —
+# fails on its first command, and it fails as `jest: command not found`, which
+# reads like a broken toolchain rather than the missing install it is.
+#
+# The tempting fix is to symlink each node_modules at the main checkout, and it
+# is a trap twice over. It put a self-referential link into a commit once already
+# — see the node_modules comment in .gitignore, where the fix is one absent
+# trailing slash and is still load-bearing. And a shared node_modules is shared
+# for writes: `npm install` in the worktree resolves the link and writes into the
+# main checkout, so a branch that bumps a dependency silently changes what master
+# builds against. Installing per worktree costs disk and a few minutes; it does
+# not cost that.
+#
+# `npm ci` rather than `npm install`, deliberately: it installs exactly what the
+# lockfile pins, which is what makes a worktree's results comparable to the main
+# checkout's. It also refuses when package.json and the lockfile disagree, and
+# that refusal is worth having rather than papering over — see the handler below.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+PACKAGES=(core app server)
+
+# A leftover symlink from the old workaround has to go before npm runs. `npm ci`
+# removes node_modules before it installs, and pointed at a link into the main
+# checkout that is the main checkout's modules it would be removing. Refuse and
+# say so, rather than repairing it silently: a link here means someone set this
+# tree up the old way and may have another one elsewhere.
+for pkg in "${PACKAGES[@]}"; do
+  if [ -L "$pkg/node_modules" ]; then
+    echo "✗ $pkg/node_modules is a symlink to $(readlink "$pkg/node_modules")" >&2
+    echo "  That is the old shared-modules workaround, and npm would install through it" >&2
+    echo "  into the checkout it points at. Remove it and re-run:" >&2
+    echo "      rm $pkg/node_modules" >&2
+    exit 1
+  fi
+done
+
+echo "→ installing into $(pwd)"
+echo "  three packages, from their lockfiles; app/ is the slow one (Expo)."
+
+for pkg in "${PACKAGES[@]}"; do
+  echo
+  echo "→ $pkg"
+  if ! npm ci --prefix "$pkg"; then
+    echo >&2
+    echo "✗ npm ci failed in $pkg/" >&2
+    echo "  If it reported the lockfile being out of sync with package.json, this" >&2
+    echo "  branch changed a dependency without updating $pkg/package-lock.json." >&2
+    echo "  Fix it at the source rather than here — run the install that updates" >&2
+    echo "  the lockfile, and commit the result:" >&2
+    echo "      npm install --prefix $pkg" >&2
+    exit 1
+  fi
+done
+
+echo
+echo "✓ installed. Verify with: npm test && npm run typecheck"

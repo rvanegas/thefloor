@@ -89,7 +89,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 512 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 521 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -223,6 +223,15 @@ reasoning is in planning/DECISIONS.md; these are the rules.
   and the error names neither the worktree nor which one. A session working
   inside a worktree has to leave it first, since the merge has to happen where
   `master` is checked out.
+- **A fresh worktree has no dependencies. Run `bin/worktree-setup` in it first.**
+  The three packages are not an npm workspace: each owns a lockfile and a
+  `node_modules`, all ignored, so git populates a worktree with none of them and
+  the first `npm test` fails as `jest: command not found` — which reads like a
+  broken toolchain rather than the missing install it is. **Do not symlink the
+  main checkout's modules.** `npm install` resolves the link and writes through
+  it, so a branch that bumps a dependency changes what master builds against;
+  the script refuses a tree set up that way, and one such link reached a commit
+  already. Installing per worktree costs disk and a few minutes and nothing else.
 - **`bin/deploy` rsyncs the working tree, not a git ref**, deliberately — so it
   stamps `server/deployed.json` with the sha, marked `-dirty` when the tree
   was. `GET /healthz` and the startup log report it, and the deploy now fails

@@ -2,9 +2,11 @@
 
 # dependencies. No trailing slash, deliberately: `node_modules/` matches a
 # directory and not a *symlink* named node_modules, so a link into another
-# checkout's modules — the ordinary way to run tests in a git worktree — was
+# checkout's modules — once the way to run tests in a git worktree — was
 # not ignored, was picked up by `git add -A`, and replaced the real directories
-# with links to themselves on the next checkout.
+# with links to themselves on the next checkout. That link is no longer the way
+# and is now refused: `bin/worktree-setup` installs into the worktree instead.
+# The missing slash still matters, for any link that predates it.
 node_modules
 
 # Expo
@@ -70,3 +72,9 @@ server/deployed.json
 # editor lock files
 .#*
 #*#
+
+# git worktrees, which live inside the repo so they are easy to find. Each holds
+# its own .git file, so `git add -A` in the main checkout does not merely add
+# noise — it warns about an embedded repository and stages the worktree as a
+# gitlink, which is never what was meant.
+.claude/worktrees/
