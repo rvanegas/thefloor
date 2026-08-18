@@ -31,10 +31,12 @@ convention is extended to cover them.
 
 `DECISIONS` is **more than one file**. `planning/DECISIONS.md` is always the
 live volume and the only one new decisions are appended to; closed volumes are
-`planning/DECISIONS-<first date>-to-<last date>.md`, and the first is
-`planning/DECISIONS-2026-08-07-to-2026-08-13.md`, which runs from the beginning
-to the day the media server came off LiveKit Cloud. The live volume's header
-carries the index and the rule for closing it. **Grep across the set** —
+`planning/DECISIONS-<first date>-to-<last date>.md`. The first,
+`planning/DECISIONS-2026-08-07-to-2026-08-13.md`, runs from the beginning to the
+day the media server came off LiveKit Cloud; the second ends at the first App
+Review submission, which is the seam between a project with no installed
+population and one with. The live volume's header carries the index and the rule
+for closing it. **Grep across the set** —
 `planning/DECISIONS*.md` — rather than the live one alone, or you will search
 only the last few days of the project's reasoning.
 
@@ -89,7 +91,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 525 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 530 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -142,9 +144,10 @@ the material, while the judgement about what is durable is still fresh.
 context — nothing loads them unprompted — but because a plain read stops at
 2,000 and what it drops is the tail, which in an append-only file is the newest
 material and the most likely to matter. The notice is easy to miss in a file
-that reads like an archive. The single `DECISIONS.md` hit 2,433 lines on
-2026-08-15 and was split; the live volume's header says how to close it and
-start the next. Cut on a section boundary and on a seam that means something.
+that reads like an archive. It has been split twice — at 2,433 lines on
+2026-08-15, and again on 2026-08-18 at the App Review seam — and the live
+volume's header says how to close one and start the next. Cut on a section
+boundary and on a seam that means something.
 
 Line *length* is not a constraint worth thinking about — a read truncates at
 2,000 characters and the prose here wraps at 79.
@@ -200,7 +203,8 @@ record.
 ## Branches, tags, and what is actually in people's hands
 
 Adopted 2026-08-15, once there was a submitted build to be wrong about. The
-reasoning is in planning/DECISIONS.md; these are the rules.
+reasoning is in planning/DECISIONS-2026-08-13-to-2026-08-15.md; these are the
+rules.
 
 - **`master` is trunk and is the only thing deployed.** Work on short-lived
   branches, merge back. There is no develop branch and no release branches.
@@ -309,7 +313,7 @@ accepted only because the only installs were the author's. **It is not a choice
 that survives having users.** The way to avoid it is the ordinary two-step:
 teach the server the old names as aliases, deploy that first, ship the client,
 remove the aliases a release later. What broke, and the migration that went with
-it, is in planning/DECISIONS.md.
+it, is in the first `DECISIONS` volume.
 
 ### What is where
 
@@ -485,7 +489,8 @@ Two more things that fail quietly and are worth checking before anything else:
   `reconcileSilence` compares what was stated against what the room is actually
   carrying, once a tick, and restates the difference. **The transition is for
   latency and the reconciliation is for truth** — do not collapse one into the
-  other. planning/DECISIONS.md carries the logs that show it.
+  other. planning/DECISIONS-2026-08-13-to-2026-08-15.md carries the logs.
+
 
   The same change retired what used to be the loudest thing in the log by a wide
   margin — `participant does not exist`, twice a second for as long as a claim

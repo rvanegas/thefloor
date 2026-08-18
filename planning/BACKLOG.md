@@ -41,8 +41,9 @@ follows is what is actually outstanding.
 ## Presence follows the websocket, not the room
 
 **Status:** not started. This is what survives the 2026-08 backgrounding
-investigation, which is otherwise closed — see DECISIONS.md for what that
-settled and how to instrument a phone if it ever needs doing again.
+investigation, which is otherwise closed — see
+DECISIONS-2026-08-07-to-2026-08-13.md for what that settled and how to
+instrument a phone if it ever needs doing again.
 
 Presence is derived from the app's websocket; participation is what happens in
 the LiveKit room. These can disagree for a long time in either direction, and
@@ -72,7 +73,8 @@ Every hard problem in this project has been an iOS problem, and each was solved
 against iOS's rules:
 
 - **Background audio** was chased for two days through `UIBackgroundModes`,
-  AVAudioSession ownership and CallKit (see DECISIONS.md). Android's
+  AVAudioSession ownership and CallKit (see
+  DECISIONS-2026-08-07-to-2026-08-13.md). Android's
   foreground-service model is different in every particular, and the work does
   not transfer.
 - **The audio channel** is started explicitly through
@@ -101,8 +103,9 @@ first one baked in.
 
 ## Notifications do not ring — they are alerts
 
-**Status:** the alert shipped 2026-08-10 (see DECISIONS.md). This is what was
-deliberately left out of it.
+**Status:** the alert shipped 2026-08-10 (see
+DECISIONS-2026-08-07-to-2026-08-13.md). This is what was deliberately left out
+of it.
 
 A notification arrives, sits on the lock screen, and opens the app into the
 channel when tapped. What it does not do is behave like an incoming call:
@@ -114,7 +117,8 @@ UI, and nothing wakes the app before the tap.
 - **PushKit** to wake a closed app, which in turn requires **CallKit** — Apple
   requires a PushKit VoIP push to report an incoming call, and will terminate
   an app that takes one without doing so. Note CallKit was ruled out for
-  background *audio* (see DECISIONS.md); this is the other thing it is for, and
+  background *audio* (see DECISIONS-2026-08-07-to-2026-08-13.md); this is the
+  other thing it is for, and
   here it would be the right tool.
 - `voip` in `UIBackgroundModes`, removed before the first TestFlight build
   because it did nothing, becomes load bearing again.
@@ -219,7 +223,8 @@ Delivery sits behind the `Mailer` interface in `server/src/mail.ts`.
    **And in `POST /contacts/request`**, which was widened to accept a phone
    shape and then narrowed back to `isEmailAddress` on 2026-08-15 for exactly
    this reason. `isPhoneNumber` and `isPlausibleIdentifier` are still in
-   `mail.ts`, unreachable, waiting for this — see DECISIONS.md.
+   `mail.ts`, unreachable, waiting for this — see
+   DECISIONS-2026-08-13-to-2026-08-15.md.
 3. Phone number normalisation to E.164. Absent today, and it matters:
    `+1 555 000 0001` and `+15550000001` would otherwise be different accounts,
    and contact search is an exact string match.
@@ -357,7 +362,7 @@ Two gaps, and one tool closes both:
   address lands with `account_id` and `matched_by` null. This is the *expected*
   case rather than a failure — deliberately, since the alternative was guessing
   from who last opened the app, which credits the wrong person undetectably
-  (see DECISIONS.md).
+  (see DECISIONS-2026-08-13-to-2026-08-15.md).
 - **Deliveries missed entirely.** Rare enough not to engineer against on its
   own: the window is the few seconds of a deploy's restart, which at any
   plausible rate of donations and deploys is a fraction of a percent. It was
@@ -385,7 +390,8 @@ privileged surface in a server that has none, for a job done a few times a year.
 
 ## Inviting a stranger now sends mail, and nothing bounds how much
 
-Built 2026-08-15 — see DECISIONS.md. `POST /contacts/request` sends an email to
+Built 2026-08-15 — see DECISIONS-2026-08-13-to-2026-08-15.md.
+`POST /contacts/request` sends an email to
 any address that has no account, and two things about it are outstanding.
 
 - **`INSTALL_URL` in `server/src/mail.ts` is null.** The invitation says the app
@@ -438,21 +444,6 @@ stamped on `SET_SELF_MUTE` and cleared on unmute and on the way out, rendered
 through the same `ago` as everything else. It claims nothing about presence and
 hands the reader the fact that bears on it, the reader being far better placed
 to know what twenty minutes means than the server is.
-
-## `DECISIONS.md` is over its 2,000-line cap
-
-2,156 lines as of 2026-08-18, against a cap AGENTS.md sets at 2,000 for the
-reason that a plain read stops there and silently drops the tail — which in an
-append-only file is the newest material. The rule and the procedure for closing
-a volume are in the file's own header: rename to the dated form, give it the
-closed-volume header, start a fresh live volume with the preamble, add a row to
-the index. Two sections stay in whichever volume is live — `## The deploy
-history` and `## The Android adaptive icon` — so they move with it, which is
-what makes this more than a rename.
-
-Cut on a seam that means something. The obvious one is the App Store
-submission: everything before build 51 going into review is one epoch, and what
-follows is a project with a population to be compatible with.
 
 ## Known defects
 
