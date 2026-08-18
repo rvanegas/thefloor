@@ -2,7 +2,14 @@ import { createPrivateKey, createPublicKey, generateKeyPairSync, verify } from '
 import WebSocket from 'ws';
 import { buildApp, type App } from '../src/app';
 import { ANNOUNCE_INTERVAL_MS } from '../src/channels';
-import { isDeadToken, MemoryPusher, mintProviderToken } from '../src/push';
+import {
+  isDeadToken,
+  MemoryPusher,
+  mintProviderToken,
+  notifications,
+  PARTICIPATION_LIFETIME_MS,
+  PRESENCE_LIFETIME_MS,
+} from '../src/push';
 
 /**
  * What reaches somebody whose app is not running, and — as often — what does
@@ -145,7 +152,12 @@ describe('an invite', () => {
     await settle();
 
     expect(pusher.messagesFor('bob-phone')).toEqual([
-      { title: 'Alice', body: 'Started a channel with you.', channelId },
+      {
+        title: 'Alice',
+        body: 'Started a channel with you.',
+        channelId,
+        lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      },
     ]);
   });
 
@@ -203,7 +215,12 @@ describe('a channel becoming active', () => {
     await settle();
 
     expect(pusher.messagesFor('bob-phone')).toEqual([
-      { title: 'Alice', body: 'Alice stepped in.', channelId },
+      {
+        title: 'Alice',
+        body: 'Alice stepped in.',
+        channelId,
+        lifetimeMs: PRESENCE_LIFETIME_MS,
+      },
     ]);
   });
 
@@ -486,7 +503,12 @@ describe('what an unnamed channel is called on the lock screen', () => {
     // Bob's side of the roster, which is the only side this notification has.
     // It used to read "3 people", counting Bob himself among strangers.
     expect(pusher.messagesFor('bob-phone')).toEqual([
-      { title: 'Alice and Carol', body: 'Alice stepped in.', channelId },
+      {
+        title: 'Alice and Carol',
+        body: 'Alice stepped in.',
+        channelId,
+        lifetimeMs: PRESENCE_LIFETIME_MS,
+      },
     ]);
   });
 
@@ -506,7 +528,44 @@ describe('what an unnamed channel is called on the lock screen', () => {
         title: 'Thursday rehearsal',
         body: 'Alice stepped in.',
         channelId,
+        lifetimeMs: PRESENCE_LIFETIME_MS,
       },
     ]);
+  });
+});
+
+/**
+ * Two of the three report who belongs to a channel and one reports who is
+ * standing in it, and they are given different lifetimes on that basis. The
+ * cases above already prove each kind carries its own as far as the pusher;
+ * these state the distinction itself, which is what a later change could
+ * quietly flatten by giving everything one window again.
+ */
+describe('how long a notification stays worth delivering', () => {
+  it('keeps an invitation alive long after an arrival would have lapsed', () => {
+    const started = notifications.started('Alice', 'chan_1');
+    const invited = notifications.invited('Alice', 'Standup', 'chan_1');
+    const arrived = notifications.arrived('Standup', 'Alice', 'chan_1');
+
+    expect(started.lifetimeMs).toBe(PARTICIPATION_LIFETIME_MS);
+    expect(invited.lifetimeMs).toBe(PARTICIPATION_LIFETIME_MS);
+    expect(arrived.lifetimeMs).toBe(PRESENCE_LIFETIME_MS);
+    expect(arrived.lifetimeMs).toBeLessThan(started.lifetimeMs);
+  });
+
+  /**
+   * Zero is not "no expiry" — APNs reads it as attempt once and store nothing,
+   * which is the opposite of what the long window is for. A lifetime that
+   * reached zero by arithmetic or by some later default would fail silently,
+   * reaching only the phones that happened to be awake.
+   */
+  it('never asks APNs to store nothing', () => {
+    for (const message of [
+      notifications.started('Alice', 'chan_1'),
+      notifications.invited('Alice', null, 'chan_1'),
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
+    ]) {
+      expect(message.lifetimeMs).toBeGreaterThan(0);
+    }
   });
 });

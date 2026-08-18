@@ -10,6 +10,35 @@ import { createPrivateKey, sign, type KeyObject } from 'node:crypto';
  * network. Android will arrive later as a second implementation rather than a
  * rewrite of the callers.
  */
+/**
+ * How long a presence announcement stays worth delivering.
+ *
+ * "Somebody is here now" is false within minutes, and Apple will hold an
+ * undeliverable push for as long as it is allowed to. Five minutes is roughly
+ * how long it stays true that walking over to your phone would let you join
+ * the conversation being announced.
+ */
+export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;
+
+/**
+ * How long a change to who belongs to a channel stays worth delivering.
+ *
+ * Long, because what these announce does not stop being true. Being asked into
+ * a channel **makes you a participant immediately** — `dispatch` says so where
+ * it refuses everybody else — so the notification reports a state the server is
+ * still holding when the phone comes back, rather than a moment that has
+ * passed. A presence announcement delivered late is a lie; an invitation
+ * delivered late is merely late.
+ *
+ * **Thirty days rather than never, because APNs has no never.**
+ * `apns-expiration` is a timestamp, and its one special value is 0, which means
+ * the opposite of what is wanted here — attempt once, store nothing. So a
+ * far-future date is the only way to say "keep trying", and thirty days is past
+ * the point where a phone that has been off that long makes the invitation
+ * stale on its own account.
+ */
+export const PARTICIPATION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface PushMessage {
   title: string;
   body: string;
@@ -20,6 +49,16 @@ export interface PushMessage {
    * channel replaces its predecessor on the lock screen instead of stacking.
    */
   channelId: string;
+  /**
+   * How long APNs should keep trying before discarding this undelivered.
+   *
+   * Carried per message rather than fixed by the transport, because the three
+   * do not decay alike and that difference is the point: two of them report who
+   * *belongs* to a channel, which stays true, and one reports who is *standing
+   * in* it, which does not. The constructors below choose it; nothing else
+   * should have an opinion.
+   */
+  lifetimeMs: number;
 }
 
 /**
@@ -69,6 +108,7 @@ export const notifications = {
       title: initiator,
       body: 'Started a channel with you.',
       channelId,
+      lifetimeMs: PARTICIPATION_LIFETIME_MS,
     };
   },
 
@@ -89,6 +129,7 @@ export const notifications = {
         ? `Invited you to ${channelName}.`
         : 'Invited you to a channel.',
       channelId,
+      lifetimeMs: PARTICIPATION_LIFETIME_MS,
     };
   },
 
@@ -108,6 +149,7 @@ export const notifications = {
       title: channelName,
       body: `${whoArrived} stepped in.`,
       channelId,
+      lifetimeMs: PRESENCE_LIFETIME_MS,
     };
   },
 };
@@ -156,16 +198,6 @@ export interface PushNotifier {
 export function createPushNotifier(): PushNotifier {
   return { notify: () => {} };
 }
-
-/**
- * How long a notification stays worth delivering.
- *
- * "Somebody is here now" is false within minutes, and Apple will hold an
- * undeliverable push for as long as it is allowed to. Five minutes is roughly
- * how long it stays true that walking over to your phone would let you join
- * the conversation being announced.
- */
-const EXPIRY_MS = 5 * 60 * 1000;
 
 export interface ApnsPusherOptions {
   /** Contents of the `.p8`, as downloaded. */
@@ -271,8 +303,11 @@ export class ApnsPusher implements Pusher {
         // in five minutes.
         'apns-priority': '10',
         'apns-collapse-id': message.channelId,
+        // Whose window the message brought with it. Never zero, which APNs
+        // reads as "attempt once and store nothing" rather than as "no
+        // expiry" — the two are easy to conflate and mean opposite things.
         'apns-expiration': String(
-          Math.floor((this.now() + EXPIRY_MS) / 1000)
+          Math.floor((this.now() + message.lifetimeMs) / 1000)
         ),
       });
 
