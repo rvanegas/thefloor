@@ -18,10 +18,6 @@ Home View idleness measures time since user has viewed the Home View, not time s
 
 ## Contact Card Sorting and Classes
 
-## Notify Channel Member
-
-Ping specific member with a notification with specific text. Limited char count. All channel presence notifications should mention the channel name as well as username and the optional custom text.
-
 ## Review Logic for States
 
 Self-Mute, Muted-by-Claim, Claimed Floor, In-App, Present-in-Channel, Mic Open, Speaking, Recording, Playing, Audio Connected, Audio Output Selection.
