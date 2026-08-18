@@ -1382,8 +1382,31 @@ Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and
 was being paid for in every session's context. What a fresh reader needs at the
 root is the current state and the traps; the sequence that produced it is this.
 Newest first, and it picks up where AGENTS.md leaves off — that file keeps the
-most recent deploy, so the first "before that" below refers to the four deploys
-of 2026-08-14 described there.
+most recent deploy, which is now 2026-08-17's.
+
+On **2026-08-14, four times**. The last was **everything App Store
+review needed**: in-app account deletion (`DELETE /me`), a privacy policy link
+inside the app, a support page at `GET /support`, and the donations routes moved
+to `/donations` to free that name. **Build 36 is the first build containing any
+of it**, uploaded the same day; every earlier build's Delete account and privacy
+link do not exist, so a submission cannot use one.
+
+Two things about that deploy are worth carrying. **The Ko-fi webhook URL lives
+in Ko-fi's dashboard and nowhere in this repository**, so moving the route meant
+editing it there by hand — done first, deliberately, so the window in which a
+donation could 404 was the deploy rather than however long a dashboard edit
+takes. And **installed builds up to 35 call `GET /support` expecting JSON and
+now receive HTML**; `SupportView` optional-chains the snapshot, so the screen
+reads "There is no way to give from here at the moment" rather than crashing.
+One such call was in the log within seconds of the restart.
+
+Verified against production afterwards: `/support` serving HTML naming
+`support@rvanegas.co`, `/donations` answering 401, `POST /donations/kofi`
+refusing a bad token with 401 and writing nothing, `POST /support/kofi` gone with
+a 404, `DELETE /me` answering 401 rather than 404 to an unauthenticated caller,
+and data untouched at 7 accounts, 25 channels, 20 recordings with 7 marked, and
+the one real donation row. Somebody took a media token seconds after the restart
+and stayed connected.
 
 Before that, three times the same day: **voluntary donations**, the fix for
 the mistake the first deploy shipped, and then the region filter.

@@ -254,29 +254,29 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-14, four times. The last was **everything App Store
-review needed**: in-app account deletion (`DELETE /me`), a privacy policy link
-inside the app, a support page at `GET /support`, and the donations routes moved
-to `/donations` to free that name. **Build 36 is the first build containing any
-of it**, uploaded the same day; every earlier build's Delete account and privacy
-link do not exist, so a submission cannot use one.
+Most recently on 2026-08-17: **the ping**, `POST /channels/:id/ping`, which is
+the first notification a person composes rather than the channel sending it
+about itself. With it, per-message notification lifetimes — an invitation now
+outlives an arrival by a month, `apns-expiration` having been one five-minute
+constant for everything — and **one device row per account**, matching the one
+session per account `issueToken` has always enforced.
 
-Two things about that deploy are worth carrying. **The Ko-fi webhook URL lives
-in Ko-fi's dashboard and nowhere in this repository**, so moving the route meant
-editing it there by hand — done first, deliberately, so the window in which a
-donation could 404 was the deploy rather than however long a dashboard edit
-takes. And **installed builds up to 35 call `GET /support` expecting JSON and
-now receive HTML**; `SupportView` optional-chains the snapshot, so the screen
-reads "There is no way to give from here at the moment" rather than crashing.
-One such call was in the log within seconds of the restart.
+**This deploy was checked against build 51 before it went, because 51 is in
+App Review and `oldestBuild` on `/healthz` says it is also the oldest build
+installed anywhere.** Two changes since that build was cut could have broken it
+and do not: `channel.moved` is no longer *sent*, and build 51 keeps a handler
+that now never fires; and `ChannelState.invited` is gone, which build 51 never
+read. **`core/protocol.ts` is unchanged since `build/51`** — that is the check
+worth repeating before any deploy while a build is in review, and it is one
+`git diff build/<n>..HEAD -- core/protocol.ts` away.
 
-Verified against production afterwards: `/support` serving HTML naming
-`support@rvanegas.co`, `/donations` answering 401, `POST /donations/kofi`
-refusing a bad token with 401 and writing nothing, `POST /support/kofi` gone with
-a 404, `DELETE /me` answering 401 rather than 404 to an unauthenticated caller,
-and data untouched at 7 accounts, 25 channels, 20 recordings with 7 marked, and
-the one real donation row. Somebody took a media token seconds after the restart
-and stayed connected.
+Verified against production afterwards: `/healthz` reporting the sha just sent,
+`POST /channels/:id/ping` answering 401 unauthenticated and to a bad token,
+`/support` still serving HTML, and data untouched at 8 accounts, 32 channels, 40
+recordings, 6 device rows and the one donation. One account still holds two
+device rows, which is the pre-existing case the invariant now prevents and does
+not retroactively clean — it goes on that account's next launch, or on the first
+410 Apple returns for the address.
 
 The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
