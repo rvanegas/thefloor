@@ -505,6 +505,22 @@ commits record them.
 
 ---
 
+## `APP_STORE_URL` is unset, so the update screen has no button
+
+The expiry screen — what a build below `MIN_SUPPORTED_BUILD` sees instead of the
+app, built 2026-08-17 — offers a way to the App Store only when `/healthz`
+carries an `updateUrl`, which comes from `APP_STORE_URL` in `server/.env`. It is
+unset, because the listing has no numeric id anybody has written down yet. The
+screen still appears and still says what to do; it simply cannot open anything.
+
+Set it on the box once the app is approved and the listing has an id:
+`https://apps.apple.com/app/id<id>`. No deploy is needed beyond a restart, and
+no new build is — which is the whole reason the address is served rather than
+compiled in. Until then, expiring a build leaves people to find the update
+themselves, which is one tap they should not have to work out.
+
+---
+
 ## Untested behaviour
 
 No assertions exist for these. Ordered by how likely they are to be wrong.

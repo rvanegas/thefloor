@@ -6,6 +6,7 @@ import type {
 } from '../../../core/protocol';
 import { appBuild, BUILD_HEADER } from './build';
 import { API_URL } from './config';
+import type { HealthReport } from './expiry';
 import { deviceRegion } from './region';
 
 export class ApiError extends Error {
@@ -94,6 +95,16 @@ async function request<T>(
 }
 
 export const api = {
+  /**
+   * What the server is and what it still answers to.
+   *
+   * Unauthenticated, and asked before anyone has signed in: a build below the
+   * floor is one that should not be signing in either. It rejects like any
+   * other request when the server cannot be reached, and the caller treats
+   * that as no answer rather than as an expiry. See expiry.ts.
+   */
+  health: () => request<HealthReport>('/healthz'),
+
   requestCode: (identifier: string) =>
     request<{ sent: true }>('/auth/request-code', {
       method: 'POST',

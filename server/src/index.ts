@@ -158,6 +158,11 @@ const app = buildApp({
   review,
   kofi,
   contactEmail: process.env.CONTACT_EMAIL,
+  // Where a build below MIN_SUPPORTED_BUILD is sent. Configuration rather than
+  // a constant because the App Store id is not known in this repository, and
+  // because the client that reads it cannot be given a new one. See
+  // BuildOptions.updateUrl.
+  updateUrl: process.env.APP_STORE_URL,
   mailer,
   media,
   mediaUrl: liveKitUrl,

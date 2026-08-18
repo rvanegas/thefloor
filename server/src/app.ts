@@ -91,6 +91,20 @@ export interface BuildOptions {
    * address worth publishing.
    */
   contactEmail?: string;
+  /**
+   * Where somebody whose build has fallen below `MIN_SUPPORTED_BUILD` goes to
+   * get a newer one.
+   *
+   * Served from here rather than compiled into the app, because the client
+   * that needs it is by definition one that cannot be shipped anything: an
+   * install too old to talk to this server is also too old to have been given
+   * a corrected address. The one place both ends can still agree is the
+   * unauthenticated endpoint the client is already asking for `minBuild`.
+   *
+   * Unset, the screen says to update from the App Store and offers no button,
+   * which is honest — a link that opens nothing is worse than a sentence.
+   */
+  updateUrl?: string;
 }
 
 export interface App {
@@ -1162,6 +1176,9 @@ export function buildApp(options: BuildOptions = {}): App {
       minBuild: MIN_SUPPORTED_BUILD,
       oldestBuild: builds.oldest,
       silentBuilds: builds.silent,
+      // Only ever read by a client that has just discovered it is below the
+      // floor, and null far more often than not. See BuildOptions.updateUrl.
+      updateUrl: options.updateUrl ?? null,
     };
   });
 

@@ -19,6 +19,8 @@ import type {
   SupportView,
 } from '../../../core/protocol';
 import { isRecordingActive } from '../../../core/recording';
+import { appBuild } from '../api/build';
+import { mustUpdate } from '../api/expiry';
 import { api, ApiError, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
 import { onNotificationTap, registerForPush } from '../push';
@@ -177,6 +179,18 @@ interface AppValue extends AppState {
   /** Invites this user has dismissed, by channel id. */
   dismissedInvites: string[];
   dismissInvite: (channelId: string) => void;
+  /**
+   * This build is below the floor the server still answers, so nothing it
+   * does can be trusted to mean what the screens say it means.
+   *
+   * True only on a positive answer — a build this app knows, a `minBuild` the
+   * server gave, and the first below the second. An unreachable server leaves
+   * it false, which is the pre-existing behaviour and the safe one: see
+   * api/expiry.ts for why the two failures are not symmetric.
+   */
+  expired: boolean;
+  /** Where to get a newer build, when the server has been told. */
+  updateUrl: string | null;
   /** Light, dark, or follow the phone. Applied to the window immediately. */
   appearance: ColorSchemePreference;
   setAppearance: (preference: ColorSchemePreference) => void;
@@ -230,6 +244,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * goes on receiving somebody else's notifications.
    */
   const deviceToken = useRef<string | null>(null);
+  /**
+   * What the last reachable `/healthz` said about this install: whether it is
+   * below the server's floor, and where to go if it is.
+   *
+   * Both come from the same answer, so they are one piece of state. A check
+   * that fails to reach the server changes neither — an expiry already
+   * discovered stays discovered rather than being cleared by a tunnel, and one
+   * not yet discovered is not invented from a timeout.
+   */
+  const [expiry, setExpiry] = useState<{
+    expired: boolean;
+    updateUrl: string | null;
+  }>({ expired: false, updateUrl: null });
   /** Gives up on a recording request the server never confirmed. */
   const askedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, setState] = useState<AppState>({
@@ -429,6 +456,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [realtime]);
 
   /**
+   * Asks the server what it still supports: once at launch, and again on every
+   * return to the foreground.
+   *
+   * Those two moments rather than a poll. The answer changes only when the
+   * *server* is deployed, and what it changes is the whole app — a poll would
+   * buy somebody being ejected mid-sentence in exchange for nothing that the
+   * next foreground does not catch anyway.
+   *
+   * Runs signed out as well as in, and before the stored token has been
+   * restored. A build below the floor should not be signing in either, and the
+   * sign-in path is exactly where a wire change is most likely to have moved
+   * under it.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const check = () => {
+      void api
+        .health()
+        .then((health) => {
+          if (cancelled) return;
+          setExpiry({
+            expired: mustUpdate(appBuild(), health.minBuild),
+            updateUrl: health.updateUrl ?? null,
+          });
+        })
+        // Silent on purpose. An unreachable server is not an answer about this
+        // build, this runs on every foreground, and Home already says when the
+        // app cannot reach the server.
+        .catch(() => {});
+    };
+    check();
+    const subscription = NativeAppState.addEventListener('change', (next) => {
+      if (next === 'active') check();
+    });
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, []);
+
+  /**
+   * Hangs up, once, on discovering this build is expired.
+   *
+   * The screen replacing itself is what the user sees; this is the half they
+   * do not. A socket left open goes on watching channels, marking this account
+   * present in them, and answering snapshots that the app has stopped drawing
+   * — so everybody else would see somebody standing in the channel who cannot
+   * hear them. Disabling functionality has to include the functionality that
+   * runs without anybody looking at it.
+   */
+  useEffect(() => {
+    if (expiry.expired) realtime.disconnect();
+  }, [expiry.expired, realtime]);
+
+  /**
    * Reconnects when the app comes back to the foreground.
    *
    * Nothing else does. iOS suspends the process and the socket does not
@@ -437,13 +519,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * announcing the disconnection at the moment the user had just returned.
    * Foregrounding is the commonest thing anyone does with a phone, and it was
    * the one transition the socket knew nothing about.
+   *
+   * Not while expired, which is the same reasoning as the disconnect above:
+   * the foreground that re-asks `/healthz` must not also undo the answer it is
+   * about to get.
    */
   useEffect(() => {
     const subscription = NativeAppState.addEventListener('change', (next) => {
-      if (next === 'active') realtime.resume();
+      if (next === 'active' && !expiry.expired) realtime.resume();
     });
     return () => subscription.remove();
-  }, [realtime]);
+  }, [realtime, expiry.expired]);
 
   useEffect(() => () => realtime.disconnect(), [realtime]);
 
@@ -451,6 +537,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...state,
       serverNow,
+      expired: expiry.expired,
+      updateUrl: expiry.updateUrl,
       dismissedInvites,
       pendingChannelId,
       clearPendingChannel: () => setPendingChannelId(null),
@@ -659,6 +747,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dismissedInvites,
       pendingChannelId,
       appearance,
+      expiry,
     ]
   );
 

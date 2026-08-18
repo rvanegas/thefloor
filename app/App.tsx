@@ -11,6 +11,7 @@ import { HomeSettingsView } from './src/ui/HomeSettingsView';
 import { SupportView } from './src/ui/SupportView';
 import { ChannelView } from './src/ui/ChannelView';
 import { ProfileView } from './src/ui/ProfileView';
+import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { describeChannel } from '../core/naming';
 import { microphoneNeeded } from './src/audio/micNeeded';
 import { colors } from './src/ui/theme';
@@ -46,7 +47,11 @@ function Root() {
   // off whichever one arrived last — which is what used to hang the audio up
   // when a channel nobody was looking at changed. See state/live.ts.
   const view = liveChannelView(app.channelViews, me);
-  const live = view ? view.channel : null;
+  // Nothing is live once this build is expired, whatever the last snapshot to
+  // arrive said. The provider has already hung the socket up; this is the
+  // audio, which follows the channel rather than the socket and would
+  // otherwise keep a microphone open behind a screen that says to update.
+  const live = view && !app.expired ? view.channel : null;
 
   // Or asked for and not yet confirmed. The rule in `microphoneNeeded` is
   // right — a recording is something listening, so it opens the microphone —
@@ -135,6 +140,17 @@ function Root() {
     setSupportOpen(false);
     setProfile(null);
   }, [token]);
+
+  /**
+   * Below the server's floor, and therefore not an app any more.
+   *
+   * Ahead of `ready` and of the token, because both of those are about a
+   * session this build should not be starting: the restore that `ready` waits
+   * for ends in a request whose answer this build may no longer read
+   * correctly. The hooks above still run — they must, unconditionally — but
+   * every one of them is inert with no socket and no live channel.
+   */
+  if (app.expired) return <UpdateRequiredView />;
 
   if (!ready) {
     return (

@@ -1912,3 +1912,70 @@ foreclose it.
 `.claude/worktrees/` is now ignored. The worktrees live inside the repo and each
 holds a `.git` file, so `git add -A` in the main checkout warned about an
 embedded repository and offered to stage a worktree as a gitlink.
+## A build below the floor stops rather than misbehaves, 2026-08-17
+
+`MIN_SUPPORTED_BUILD` has always been half a mechanism. It declares the oldest
+build the server still answers correctly, and until now nothing acted on it: a
+build below it went on making requests and got whatever the current wire
+happened to give it, which is not an error message but a confused screen. The
+client-side half is this. The app asks `/healthz`, compares `minBuild` with its
+own `CFBundleVersion`, and if it is below, replaces itself with a screen saying
+to update.
+
+**Replaces, rather than covers.** `Root` returns `UpdateRequiredView` before it
+reads `ready` or the token, so there is no app behind it and nothing to dismiss
+back to. A banner over a working-looking Home would leave every screen reachable,
+and every one of those screens is exactly what the floor says can no longer be
+trusted. Signing in is refused on the same reasoning — the auth path is where an
+old build is most likely to have been moved out from under, and there is nothing
+worth signing in for.
+
+Disabling the screens is the visible half; the socket is the other. An expired
+client that stays connected goes on watching channels and reporting this account
+*present* in them, so everybody else sees somebody standing in the room who
+cannot hear them. So discovering the expiry disconnects, and the foreground
+handler stops calling `resume()`. `App.tsx` also drops `live` to null, because
+the audio follows the channel a snapshot says you are present in rather than the
+socket, and would otherwise hold a microphone open behind the update screen.
+
+### Two absences that are deliberately not expiry
+
+The rule is in `app/src/api/expiry.ts` as `mustUpdate`, on its own so both
+directions are testable without a server. A client that cannot say which build
+it is — `appBuild()` returns null where the platform will not answer — is never
+expired, and neither is one whose `/healthz` could not be reached or answered
+without a usable `minBuild`. **The failure modes are not symmetric.** Refusing to
+run is total and the user cannot argue with it; running one release too long is
+what this app did for its entire life until today. A tunnel, an airport wifi
+portal or a server restart must not brick the app. The comparison is strictly
+below, too: `MIN_SUPPORTED_BUILD` names the oldest build still supported, not
+the first unsupported one.
+
+Checked at launch and on every foreground, not on a timer. The answer only
+changes when the *server* is deployed, and a poll would buy somebody being
+ejected mid-sentence in exchange for nothing the next foreground does not catch.
+
+### Where to update comes from the server
+
+`/healthz` gained `updateUrl`, from `APP_STORE_URL` in `server/.env`. It is
+configuration rather than a constant in the app because of what this feature is:
+**the client that needs the address is by definition one that cannot be shipped
+anything.** A URL compiled into the app could only be corrected by releasing the
+app, which is the thing that is not happening. Unset — as it is now, the listing
+having no numeric id in this repository — the screen appears with no button,
+which is honest; a link that opens nothing is worse than a sentence.
+
+### The server still enforces nothing
+
+Deliberate. `MIN_SUPPORTED_BUILD` stays a declaration: requests from old builds
+are answered exactly as before, and nothing new returns 4xx on a build number.
+Enforcing it server-side would lock out every *silent* build as well — every
+install predating build 37 sends no header at all, and `silentBuilds` on
+`/healthz` is still above zero. The client refusing itself is a decision made
+where the build number is known for certain.
+
+**Raising `MIN_SUPPORTED_BUILD` now has teeth.** It used to cost nothing but the
+right to delete a shim; from this build on it is what takes an installed app off
+the air. Read `oldestBuild` and `silentBuilds` before moving it, and do not move
+it while `silentBuilds` is above zero unless the intent is to expire everything
+that has never spoken.

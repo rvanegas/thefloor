@@ -36,6 +36,10 @@ jest.mock('../../api/http', () => ({
   ApiError: class ApiError extends Error {},
   onSignedOut: jest.fn(),
   api: {
+    // Asked on mount, signed in or not, to find out whether this build is
+    // still one the server answers. A floor no real build is below keeps
+    // these tests about what they were about.
+    health: jest.fn(async () => ({ ok: true, minBuild: 1, updateUrl: null })),
     home: jest.fn(async () => ({
       invites: [],
       rejoinable: [],

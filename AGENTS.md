@@ -89,7 +89,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 521 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 525 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -244,8 +244,12 @@ reasoning is in planning/DECISIONS.md; these are the rules.
   manual. `git diff released..master` is the drift users cannot see.
 - **`MIN_SUPPORTED_BUILD` in `server/src/release.ts` is the compatibility
   floor**: a shim may be deleted only once the floor has passed the build that
-  needed it. A declaration, not a measurement — nothing on the wire carries a
-  build number. See planning/BACKLOG.md.
+  needed it. The server enforces nothing, but **the client does, since
+  2026-08-17** — an app below the floor replaces itself with an update screen
+  and disconnects, so raising this number now ends sessions on phones rather
+  than merely licensing a deletion. Builds before 37 send no build number at
+  all and are counted as `silentBuilds` on `/healthz`; raising the floor past
+  them expires installs nobody can see.
 
 The thing to hold on to: **the App Store is not a version, it is a
 population.** What the server owes compatibility to is the oldest build still

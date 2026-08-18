@@ -37,6 +37,28 @@ describe('release identity', () => {
     // 'unknown' would fail for a reason having nothing to do with the code.
     expect(typeof body.commit).toBe('string');
     expect(body.commit).not.toHaveLength(0);
+    // Null rather than absent, so a client below the floor can tell "nowhere
+    // to send you" from a field it failed to parse.
+    expect(body.updateUrl).toBeNull();
+  });
+
+  it('tells an expired client where to update, when it has been told', async () => {
+    // The one thing an install below the floor can still be given, since by
+    // definition it cannot be given a new build. See BuildOptions.updateUrl.
+    const configured = buildApp({
+      updateUrl: 'https://apps.apple.com/app/id123456789',
+    });
+    try {
+      const body = (
+        await configured.fastify.inject({ method: 'GET', url: '/healthz' })
+      ).json();
+      expect(body.updateUrl).toBe('https://apps.apple.com/app/id123456789');
+      // Unauthenticated, like the rest of this endpoint: the client that needs
+      // it is one that should not be signing in.
+      expect(body.minBuild).toBe(MIN_SUPPORTED_BUILD);
+    } finally {
+      await configured.fastify.close();
+    }
   });
 
   it('reads what bin/deploy stamped, and survives there being nothing to read', () => {

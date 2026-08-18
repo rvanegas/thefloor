@@ -24,6 +24,14 @@ import { readFileSync } from 'node:fs';
  * rather than measured. Making it measurable is in BACKLOG.md and is the thing
  * that would give this number a source other than judgement.
  *
+ * **Raising it now takes installed apps off the air.** As of 2026-08-17 the
+ * client acts on this number: an app whose build is below it replaces itself
+ * with a screen saying to update and disconnects, so what used to cost only
+ * the right to delete a shim now ends sessions on phones. Read `oldestBuild`
+ * and `silentBuilds` on `/healthz` before moving it, and note that every build
+ * before 37 is silent — raising the floor past those expires installs nobody
+ * can see. See planning/DECISIONS.md.
+ *
  * Raising it is the release decision that costs something. Build numbers rise
  * on upload; this rises only when the builds below it are gone from every
  * phone that matters, which after a public release means waiting rather than
