@@ -3,6 +3,7 @@ import {
   SPEAKING_HOLD_MS,
   nextReleaseAt,
   onActiveSpeakers,
+  onParticipantGone,
   shownAsSpeaking,
 } from '../speaking';
 
@@ -85,5 +86,67 @@ describe('holding the speaking indicator', () => {
   it('ignores a repeated identity in one event', () => {
     const hold = onActiveSpeakers(NOBODY_SPEAKING, [A, A], T);
     expect(shownAsSpeaking(hold, T)).toEqual([A]);
+  });
+});
+
+describe('somebody leaving the room', () => {
+  it('stops showing whoever stepped out mid-word', () => {
+    // The bug this exists for: talking at the moment of departure, so no
+    // speaker event ever names them again and `active` has no expiry.
+    const hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
+    expect(shownAsSpeaking(onParticipantGone(hold, A), T)).toEqual([]);
+  });
+
+  it('never clears them without this, however long you wait', () => {
+    // Guards the claim above by showing what the speaker event alone does.
+    // In a two-person channel there is nobody left to speak, so this is the
+    // whole rest of the session, not a two-second glitch.
+    const hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
+    expect(shownAsSpeaking(hold, T + 3_600_000)).toEqual([A]);
+    expect(nextReleaseAt(hold, T)).toBeNull();
+  });
+
+  it('drops them outright rather than holding them', () => {
+    // A departure is not a breath. Two more seconds of a lit dot would sit
+    // beside a card that already reads "Stepped out".
+    const hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
+    const gone = onParticipantGone(hold, A);
+    expect(nextReleaseAt(gone, T)).toBeNull();
+  });
+
+  it('clears somebody who was mid-hold when they left', () => {
+    // They stopped talking, then left before the hold ran out — so they are
+    // in `releaseAt` rather than `active`, and both have to be swept.
+    let hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
+    hold = onActiveSpeakers(hold, [], T);
+    expect(shownAsSpeaking(onParticipantGone(hold, A), T)).toEqual([]);
+  });
+
+  it('leaves everybody else alone', () => {
+    let hold = onActiveSpeakers(NOBODY_SPEAKING, [A, B], T);
+    hold = onParticipantGone(hold, A);
+    expect(shownAsSpeaking(hold, T)).toEqual([B]);
+    // And B's own hold still runs from when B stops, untouched by the
+    // departure.
+    hold = onActiveSpeakers(hold, [], T);
+    expect(shownAsSpeaking(hold, T + SPEAKING_HOLD_MS - 1)).toEqual([B]);
+    expect(shownAsSpeaking(hold, T + SPEAKING_HOLD_MS)).toEqual([]);
+  });
+
+  it('returns the hold untouched when they were not being shown', () => {
+    // Most departures are of somebody silent. The caller compares by
+    // identity to decide whether to publish, so this must not be a copy.
+    const hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
+    expect(onParticipantGone(hold, B)).toBe(hold);
+  });
+
+  it('does not resurrect them when the next event arrives', () => {
+    // `onActiveSpeakers` reads `hold.active` to decide who just stopped. If
+    // the departed id were still in there, somebody else speaking would put
+    // the gone participant into a fresh hold and light them up again.
+    let hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
+    hold = onParticipantGone(hold, A);
+    hold = onActiveSpeakers(hold, [B], T + 5_000);
+    expect(shownAsSpeaking(hold, T + 5_000)).toEqual([B]);
   });
 });

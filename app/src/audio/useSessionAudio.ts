@@ -18,6 +18,7 @@ import {
   NOBODY_SPEAKING,
   nextReleaseAt,
   onActiveSpeakers,
+  onParticipantGone,
   shownAsSpeaking,
   type SpeakingHold,
 } from './speaking';
@@ -252,12 +253,26 @@ export function useSessionAudio(
       publish(at);
     };
 
+    /**
+     * Somebody left the room, which is the departure the speaker event does
+     * not report — see `onParticipantGone`. Without this the indicator of
+     * whoever was talking when they stepped out stayed lit until somebody
+     * else spoke, and in a two-person channel that is nobody.
+     */
+    const onGone = (participant: Participant) => {
+      const next = onParticipantGone(hold, participant.identity);
+      if (next === hold) return;
+      hold = next;
+      publish(Date.now());
+    };
+
     room
       .on(RoomEvent.TrackMuted, onMuted)
       .on(RoomEvent.TrackUnmuted, onUnmuted)
       .on(RoomEvent.TrackSubscribed, onSubscribed)
       .on(RoomEvent.TrackUnsubscribed, onUnsubscribed)
       .on(RoomEvent.ActiveSpeakersChanged, onSpeakers)
+      .on(RoomEvent.ParticipantDisconnected, onGone)
       // Nobody is speaking on a connection that is gone, and the last thing
       // heard would otherwise stay lit for as long as the screen is open. The
       // hold is dropped outright rather than allowed to run out: it is a

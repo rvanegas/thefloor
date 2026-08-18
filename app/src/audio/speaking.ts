@@ -74,6 +74,38 @@ export function onActiveSpeakers(
 }
 
 /**
+ * Takes somebody's departure from the room.
+ *
+ * Dropped outright rather than given a hold. The hold is a smoothing of live
+ * speech — it exists so a breath does not put the dot out — and somebody who
+ * has left is not between two words. Holding them would show a person as
+ * speaking for two seconds after their card already reads "Stepped out", which
+ * is the same contradiction in miniature.
+ *
+ * This is the one transition `ActiveSpeakersChanged` does not cover, and the
+ * reason the indicator could stick indefinitely before it existed. The event
+ * fires when the *set* changes, so it says nothing about somebody who leaves
+ * mid-word: LiveKit drops them from the room without re-emitting, so they stay
+ * in `active` — and `active` has no expiry, only `releaseAt` does. With two
+ * people in a channel there was then nobody left to speak and produce the
+ * event that would have cleared them, so the dot stayed lit for the rest of
+ * the session.
+ */
+export function onParticipantGone(
+  hold: SpeakingHold,
+  id: string
+): SpeakingHold {
+  // Returned untouched when they were not being shown, so the caller's
+  // identity check sees no change. Most departures are of somebody silent.
+  if (!hold.active.includes(id) && hold.releaseAt[id] === undefined) {
+    return hold;
+  }
+  const releaseAt = { ...hold.releaseAt };
+  delete releaseAt[id];
+  return { active: hold.active.filter((each) => each !== id), releaseAt };
+}
+
+/**
  * Who to show, active first and then whoever is still within their hold.
  *
  * Order is stable rather than alphabetical: the caller indexes into it by id,

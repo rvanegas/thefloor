@@ -1101,3 +1101,61 @@ written when a channel held one. It now asserts the button is offered
 unchanged, which is the same guarantee under a label that no longer varies.
 
 **Needs a build to reach anybody**, as any copy change does.
+
+## The speaking dot outlived the speaker, 2026-08-18
+
+Observed from a screenshot: a card reading `Stepped out a few seconds ago` with
+the speaking dot still lit beside it. It had been that way for well over the
+two-second hold, which is the fact that identifies the cause rather than
+complicating it.
+
+**The hold was never involved.** `speaking.ts` keeps two sets — `active`, who
+the room says is speaking now, and `releaseAt`, who has stopped and when to drop
+them. Only `releaseAt` has a clock; `shownAsSpeaking` emits `active`
+unconditionally, deliberately, because `ActiveSpeakersChanged` fires on
+*changes* and somebody talking uninterrupted for a minute produces one event and
+nothing after it. Somebody who leaves mid-word never transitions from `active`
+to `releaseAt` — no event names them again — so they were never on a clock at
+all. The dot was not lit for two seconds too long. It was lit indefinitely.
+
+**LiveKit does not re-emit on a departure, and this is worth knowing before
+trusting the event for anything else.** `Room.handleParticipantDisconnected` in
+`livekit-client` deletes the participant and emits `ParticipantDisconnected`; it
+never prunes `activeSpeakers` and never emits `ActiveSpeakersChanged`. Worse, a
+later delta saying the departed participant is no longer active hits an early
+`if (!p) return` in `handleSpeakersChanged`, because they are already out of
+`remoteParticipants` — so the `lastSpeakers.delete` on the next line is never
+reached, and the rebuild above it puts them back. They are sticky in LiveKit's
+own list too, not merely in ours.
+
+So the clearing paths were: our own disconnect, an effect teardown, or somebody
+*else* speaking. **In a two-person channel that last one is nobody**, which is
+why this was not a flicker but the rest of the session.
+
+The fix is `onParticipantGone` in `speaking.ts`, wired to
+`RoomEvent.ParticipantDisconnected` in `useSessionAudio.ts`. **The departure is
+dropped outright rather than given the hold**: the hold smooths live speech so a
+breath does not put the dot out, and somebody who has left is not between two
+words — holding them would light a card that already reads "Stepped out". It
+sweeps `releaseAt` as well as `active`, since they may have stopped talking and
+left before the hold ran out.
+
+**Not fixed at the render site**, which was the other candidate — intersecting
+`audio.speaking` against `isPresent` in `ChannelView.tsx`. That masks a stale
+set rather than emptying it, and leaves it wrong for anything else that reads
+`audio.speaking`.
+
+**The information was already arriving at the hook.** `TrackUnsubscribed` fires
+on a departure and prunes its own set, but that set feeds `othersAudible` and
+nothing else. The event needed was one listener away the whole time.
+
+Seven tests, in the pure module where the existing eight live. One of them
+asserts the *old* behaviour deliberately — that without this, an hour passes and
+the id is still shown — so the claim about what the speaker event alone does is
+guarded rather than merely described here. There are still no tests for
+`useSessionAudio` itself, which is where the listener now sits; that gap is
+unchanged and is the reason this class of bug is cheap to reintroduce.
+
+**Needs a build to reach anybody.** The server is not involved: the speaking
+indicator is driven by the room rather than the reducer, which is the whole
+reason presence changing did not clear it.
