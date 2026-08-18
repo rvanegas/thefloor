@@ -25,7 +25,6 @@ import {
   canSetSelfMute,
   canStartRecording,
   canStopRecording,
-  isNamed,
   isPresent,
 } from '../../../core/channel';
 import type { SessionAudio } from '../audio/useSessionAudio';
@@ -863,21 +862,6 @@ function InviteList({
       <Text style={type.muted}>
         They see the invitation on their home screen and join when they like.
       </Text>
-      {/*
-        What the tap will actually do, which is not the same in the two kinds
-        of channel and is not guessable from a button marked Invite. In a named
-        channel somebody joins you here. In an unnamed one there is nothing to
-        join — it is these people and no others — so everybody moves to the
-        channel that is these people plus them, and this one stays behind with
-        whatever was recorded in it.
-      */}
-      {isNamed(channel) ? null : (
-        <Text style={type.muted}>
-          This channel has no name, so it is just the people in it. When they
-          join, everyone moves to a channel with all of you — and this one stays
-          here, with its recordings.
-        </Text>
-      )}
     </>
   );
 }

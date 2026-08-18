@@ -103,14 +103,12 @@ async function applyFor(open: boolean, othersAudible: number): Promise<void> {
 
 /**
  * @param mediaRoom the audio to be in, or null to stay disconnected. The
- *                  connection is keyed on this rather than on the channel,
- *                  because a conversation that moves to another channel takes
- *                  its room with it — the point of the move being that nobody
- *                  reconnects. Rebuilding here on the channel id would undo
- *                  exactly what the server went to the trouble of preserving.
+ *                  connection is keyed on this rather than on the channel. The
+ *                  two have been equal since unnamed channels stopped moving,
+ *                  but the server names the room separately and this hook does
+ *                  not assume otherwise.
  * @param channelId the channel to ask for a credential for. Only ever read
- *                  when a connection is being made, so a move that leaves the
- *                  room alone never re-reads it.
+ *                  when a connection is being made.
  * @param token     the app's own auth token, used to fetch a join credential
  * @param selfMuted the user's own mute, which is theirs alone and unrelated to
  *                  the floor

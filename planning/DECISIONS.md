@@ -732,6 +732,26 @@ invitation and not also as a channel row.
 
 `MIN_SUPPORTED_BUILD` stays at 36.
 
+**The audit was of behaviour, and the copy was stale for a day.** Corrected
+2026-08-18. `ChannelView`'s invite section carried a second paragraph, shown
+only in an unnamed channel, telling people that when the invitee joined
+everybody would move to a channel with all of them and this one would stay
+behind with its recordings. All of it had just stopped being true. The check
+above asked what an old build would *do* and was right that the answer was
+nothing; what an old build *says* is a separate question and was not asked.
+The paragraph is gone, there being no longer two cases to tell apart, and the
+`isNamed` import with it. The dead rationale in `useSessionAudio`'s
+`@param mediaRoom` — keyed on the room because a moving conversation carried
+its room with it — went the same day; `mediaRoom` has equalled the channel id
+since `TAKE_MEDIA_ROOM` was deleted.
+
+**A screen is a wire surface too.** The reason it survived the audit is that
+the audit's question was about the reducer and the protocol, and a string is
+neither. Anything that ships in the bundle and describes behaviour — copy,
+empty states, button labels — needs reading when the behaviour it describes
+changes, and it does not reach anybody until a build carries it, which this
+one needs and the widening did not.
+
 ## A worktree installs its own dependencies, 2026-08-17
 
 `bin/worktree-setup`, and the reason it exists rather than a symlink.
