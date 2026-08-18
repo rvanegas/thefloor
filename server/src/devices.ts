@@ -22,6 +22,25 @@ export class Devices {
    * belongs to the previous account — which is how one person's conversations
    * end up on another person's lock screen. Moving the row is the only correct
    * reading of the same address arriving under a new name.
+   *
+   * **One address per account, which mirrors one session per account.**
+   * `Accounts.issueToken` revokes every other session on sign-in, deliberately
+   * — so an account with two live addresses is describing a state the auth
+   * layer forbids, and the older of them is a device that was signed out and
+   * does not know it. This table used to model many, and the disagreement was
+   * only visible as a phone still receiving notifications for an account it had
+   * been signed out of.
+   *
+   * **If the multi-device trade named in BACKLOG is ever revisited, this comes
+   * out with it.** The two rules are one decision expressed twice, and leaving
+   * this behind would silently delete the second device somebody had just been
+   * allowed to have.
+   *
+   * Belt to the braces of `/auth/verify`, which clears the account at the
+   * moment the sessions are revoked. That one fires whether or not the new
+   * device ever registers; this one holds the invariant against every other
+   * route to a row — notably a reinstall, which mints a fresh token for the
+   * same phone and would otherwise leave its predecessor behind forever.
    */
   register(
     token: string,
@@ -29,6 +48,11 @@ export class Devices {
     platform: DevicePlatform,
     now: number
   ): void {
+    // Before the upsert, and excluding this address, so re-registering the
+    // same device is untouched rather than deleted and rewritten.
+    this.db
+      .prepare('DELETE FROM device_tokens WHERE account_id = ? AND token != ?')
+      .run(accountId, token);
     this.db
       .prepare(
         `INSERT INTO device_tokens
