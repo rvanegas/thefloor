@@ -144,13 +144,17 @@ export function isPresent(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
- * How long this user has been away from the channel, or null when that is not
- * a question with an answer.
+ * How long it is since anything was heard from this user in this channel, or
+ * null when that is not a question with an answer.
  *
- * Null covers three cases deliberately, because none of them is a duration:
- * they are here now; they have never been here; or they were here when the
- * server last restarted, which drops presence without anybody leaving. The
- * caller shows nothing for all three rather than guessing at one.
+ * Null covers two cases deliberately, neither of them a duration: they are
+ * here now, or nothing has ever been heard from them here. The caller shows
+ * nothing for both rather than guessing at one.
+ *
+ * A restart is no longer one of them. `lastPresentAt` is refreshed by
+ * STILL_HERE while somebody is present, so what survives a restart is the last
+ * heartbeat before it — which is the honest answer to how long it is since
+ * anybody heard from them, and self-corrects the moment they reconnect.
  *
  * Clamped at zero. A client computes this against the server's clock, which it
  * learns with a round trip's lag, so a departure a moment ago can arrive as a
@@ -382,6 +386,19 @@ export function reduce(
     return {
       ...state,
       disconnectedAt: { ...state.disconnectedAt, [action.userId]: now },
+    };
+  }
+
+  // Evidence rather than an event, and the only thing that keeps
+  // `lastPresentAt` true for somebody who is here and saying nothing. Guarded
+  // on presence, not membership: a socket watching a channel its owner has
+  // stepped out of is still sending heartbeats, and letting those land would
+  // overwrite the departure with a stream of proof that they are gone.
+  if (action.type === 'STILL_HERE') {
+    if (!isPresent(state, action.userId)) return state;
+    return {
+      ...state,
+      lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
     };
   }
 
@@ -664,9 +681,12 @@ function stepOut(
       // is ordered by when it emptied rather than by when it was entered.
       lastActiveAt: now,
       disconnectedAt: stillConnected,
-      // Every way out passes through here — a tap, a grace period running
-      // out, and leaving the channel outright — which is the reason to stamp
-      // it here rather than in the three cases above.
+      // The last observation of them, and the only one made at a moment
+      // anybody chose. Every way out passes through here — a tap, a grace
+      // period running out, and leaving the channel outright — which is the
+      // reason to stamp it here rather than in the three cases above.
+      // STILL_HERE has been keeping this value fresh all along; this is the
+      // final entry rather than the only one.
       lastPresentAt: { ...state.lastPresentAt, [userId]: now },
       // A departing floor-holder's claim is force-released, exactly as if
       // released voluntarily. Dropped connections take this same path.

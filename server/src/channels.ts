@@ -95,6 +95,31 @@ export const MEDIA_IDENTITY = 'media';
 export const playbackIdentity = (channelId: string) => `media:${channelId}`;
 
 /**
+ * The resolution `lastPresentAt` is stored at. See `durableOf`: a heartbeating
+ * conversation moves those numbers every five seconds, and this is what stops
+ * that turning into a row rewrite every five seconds.
+ */
+const PRESENCE_RESOLUTION_MS = 60_000;
+
+/** Every stamp floored to `PRESENCE_RESOLUTION_MS`, for the durable projection. */
+function quantise(
+  stamps: ChannelState['lastPresentAt']
+): ChannelState['lastPresentAt'] {
+  return Object.fromEntries(
+    Object.entries(stamps).flatMap(([id, at]) =>
+      at === undefined
+        ? []
+        : [
+            [
+              id,
+              Math.floor(at / PRESENCE_RESOLUTION_MS) * PRESENCE_RESOLUTION_MS,
+            ] as const,
+          ]
+    )
+  );
+}
+
+/**
  * The actions a client is allowed to send, as opposed to the ones the server
  * raises about itself.
  *
@@ -780,6 +805,32 @@ export class ChannelRegistry {
       this.commit(channel, next);
       this.emit([channelId]);
     }
+  }
+
+  /**
+   * Evidence that somebody present in this channel is still there, from
+   * whatever the transport last heard.
+   *
+   * **Deliberately does not `commit` and does not `emit`.** Nothing a client
+   * can read changes while somebody is present — `idleMs` returns null for
+   * them whatever this value is — so pushing a snapshot every five seconds per
+   * participant would spend a fan-out to redraw an identical screen. The value
+   * becomes readable only when they stop being present, and every route out of
+   * a channel emits on its own account, so the number is always fresh at the
+   * one moment anybody can see it.
+   *
+   * It skips `commit` for the same reason: that path reconciles the floor,
+   * the recording, the egresses and the media room against a *transition*, and
+   * a heartbeat is not one. Setting the map and writing the projection is the
+   * whole of what this does.
+   */
+  stillHere(channelId: string, userId: string): void {
+    const channel = this.channels.get(channelId);
+    if (!channel) return;
+    const next = reduce(channel, { type: 'STILL_HERE', userId }, this.now());
+    if (next === channel) return;
+    this.channels.set(channelId, next);
+    this.persistChannel(next);
   }
 
   /**
@@ -2090,7 +2141,17 @@ export class ChannelRegistry {
       // Durable for the same reason as those two: when somebody was last in
       // this channel is a fact about the channel, and a deploy is not a thing
       // that should make everybody look freshly arrived.
-      lastPresentAt: channel.lastPresentAt,
+      //
+      // Rounded down to the minute, which is what makes it affordable to keep
+      // fresh. STILL_HERE moves this value every five seconds for every
+      // present participant, and `persistChannel` writes whenever the
+      // projection changes — so at full resolution a four-person conversation
+      // would rewrite its row forty-eight times a minute to record something
+      // no screen can show, every reader of it going through dayjs thresholds
+      // that move at minutes. The cost is that a restored value can be up to
+      // a minute earlier than the truth, which is inside the sixty seconds
+      // `agoOrNull` already treats as no gap at all.
+      lastPresentAt: quantise(channel.lastPresentAt),
       lastRecording: channel.lastRecording,
     });
   }

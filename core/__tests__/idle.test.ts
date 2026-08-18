@@ -56,6 +56,55 @@ describe('how long somebody has been away from a channel', () => {
     expect(idleMs(s, B, T0)).toBe(0);
   });
 
+  it('is refreshed by evidence, so a live conversation keeps its stamp fresh', () => {
+    // The point of the whole field. Nothing on screen changes while somebody
+    // is present — `idleMs` says null for them either way — but this is the
+    // value a restart leaves behind, and it has to be the last thing heard
+    // rather than the last thing chosen.
+    let s = pair();
+    s = reduce(s, { type: 'STILL_HERE', userId: B }, T0 + 5_000);
+    expect(s.lastPresentAt[B]).toBe(T0 + 5_000);
+    s = reduce(s, { type: 'STILL_HERE', userId: B }, T0 + 10_000);
+    expect(s.lastPresentAt[B]).toBe(T0 + 10_000);
+    // Still not an absence: they are here, and the number is not for reading
+    // until they are not.
+    expect(idleMs(s, B, T0 + 10_000)).toBeNull();
+  });
+
+  it('overwrites a stale departure once they are back', () => {
+    // The bug this design replaces. Stepping out on Monday and returning on
+    // Thursday used to leave Monday in the durable state, gated only by
+    // `present` — which a restart drops, un-gating a three-day-old departure
+    // for somebody who had been talking a second earlier.
+    const monday = T0;
+    const thursday = T0 + 3 * 24 * 60 * 60 * 1_000;
+    let s = reduce(pair(), { type: 'STEP_OUT', userId: B }, monday);
+    s = reduce(s, { type: 'ENTER', userId: B }, thursday);
+    expect(s.lastPresentAt[B]).toBe(monday);
+    s = reduce(s, { type: 'STILL_HERE', userId: B }, thursday + 5_000);
+    expect(s.lastPresentAt[B]).toBe(thursday + 5_000);
+  });
+
+  it('takes no evidence from somebody who is only watching', () => {
+    // A phone that has stepped out is still on the channel screen and still
+    // sending heartbeats. Counting those would overwrite the departure with a
+    // stream of proof that they are gone.
+    const left = T0 + 1_000;
+    const s = reduce(pair(), { type: 'STEP_OUT', userId: B }, left);
+    const after = reduce(s, { type: 'STILL_HERE', userId: B }, left + 30_000);
+    expect(after).toBe(s);
+    expect(idleMs(after, B, left + 30_000)).toBe(30_000);
+  });
+
+  it('says nothing about somebody who has never been here', () => {
+    // An invitee's socket watches the channel before they ever enter it. The
+    // presence guard is what stops that inventing an arrival they never made.
+    const s = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    const after = reduce(s, { type: 'STILL_HERE', userId: B }, T0 + 5_000);
+    expect(after).toBe(s);
+    expect(after.lastPresentAt[B]).toBeUndefined();
+  });
+
   it('leaves the other person alone', () => {
     const s = reduce(pair(), { type: 'STEP_OUT', userId: B }, T0);
     expect(idleMs(s, A, T0 + 60_000)).toBeNull();

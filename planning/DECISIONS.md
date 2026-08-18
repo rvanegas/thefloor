@@ -2071,3 +2071,111 @@ predates it sends no key and the app falls back to exactly its old arithmetic,
 with no version check. Build 51 was in App Review when this was written and
 reads neither field. `core/protocol.ts` is no longer unchanged since `build/51`
 — check it before the deploy rather than discovering it.
+
+---
+
+## "Are you there" is measured by evidence, not by departures, 2026-08-18
+
+The channel-side idle timer built on 2026-08-13 — see `## Two idle timers`
+above — stamped `lastPresentAt` in one place, `stepOut`, on the reasoning that
+one route out means one place to write. That is true and it was the wrong
+place, because a departure is an *event* and what the timer answers is a
+question about *evidence*: how long is it since anybody heard from you here.
+
+**The bug that showed it.** `lastPresentAt` is durable and `present` is not, so
+a restart drops the presence that gates the value without touching the value.
+For anybody who had stepped out earlier in the channel's life and come back,
+the stamp still held that old departure — unreachable while they were present,
+because `idleMs` returns null for anyone present, and un-gated the moment a
+deploy dropped `present`. Enter Monday, step out Monday, return Thursday, be
+talking when `bin/deploy` restarts the server: everyone else's roster then
+reported you as having stepped out three days ago. Reproduced before it was
+believed; the audit that found it is what prompted the change.
+
+The near fix was to drop present users' stamps from the durable projection, so
+the restart produced "not known" and a bare "Stepped out". It patches this
+case and leaves the model wrong, which is the reason it was not taken.
+
+**What the field means now.** The last evidence that somebody was in this
+channel, refreshed by a new transport-reported action, `STILL_HERE`, on every
+message a socket carries — the same messages that already write
+`accounts.last_seen_at` for Home, so the two clocks are fed by one signal and
+cannot drift apart. `stepOut` still stamps, as the final entry rather than the
+only one. An observation cannot fail the way a claim about an event did: an
+older one is only ever replaced by a newer one, and nothing reads it on the
+assumption that presence was dropped for the right reason.
+
+**A restart now has an honest answer rather than none.** The stamp it leaves
+behind is the last heartbeat before it, and "stepped out a minute ago" about
+somebody who was talking when the process died is both true and actionable —
+they are not reachable, and that is what the reader is deciding about. It
+self-corrects the moment their app reconnects. The earlier reasoning against
+stamping the restart still stands and is untouched: the restart itself is not
+stamped, and a person nothing was ever heard from still shows nothing.
+
+**Voice was proposed as the signal and rejected as the primary one.** The
+proposal that opened this was to stamp on activity — voice detected or an
+action taken — since one can be absent through a crash or a force-quit without
+ever stepping out. That half is right and is what the change implements. Voice
+is the wrong half here, because this app silences the room by design: with one
+person holding the floor, a voice-driven timer would mark the entire listening
+audience idle while they are doing exactly what the product is for, which is
+worse than what it replaced. A socket held while present is the activity that
+answers "are you there" for a listener as well as a speaker. Voice would answer
+a second question — connected but disengaged, the phone in a pocket — which is
+real, unaddressed, and deliberately not blended into this number. The server
+does not currently know who is speaking at all: `ActiveSpeakersChanged` goes
+from LiveKit to the client, and nothing in `server/` subscribes to it.
+
+**What the socket cannot see, and self-mute is the sharpest case.** This entry
+first claimed that a socket held while present answers "are you there" for a
+listener as well as a speaker. That is too strong, and the correction is worth
+more than the claim was. A self-muted participant publishes nothing, taps
+nothing, and holds a socket that stays open *because the audio session holds
+the process up* — `UIBackgroundModes: ["audio"]`, measured on 2026-08-08 at six
+minutes backgrounded with zero suspensions, in the closed volume's
+`## Backgrounded audio was ruled out`. So in a channel the socket is evidence
+that the machinery is running; outside one, where iOS suspends the process, it
+is evidence about a person. Mute, pocket, walk away, and the roster says
+"Present · muted" for as long as the battery lasts, with the idle clock
+starting only when the process finally dies.
+
+**And nothing else can see it either, which is why no rule was built on it.**
+Reading mute or backgrounding as absence is the same mistake in the other
+direction: a locked phone, headphones in, mic muted, listening closely is
+indistinguishable at every layer — same socket, same subscription, same
+silence — from the phone being in a bag in another room. Voice cannot separate
+them, a muted track producing no samples to detect. The limit is real and it is
+a limit rather than a defect: what the number reports is the last evidence of
+the *client*, which is the most anybody here can honestly claim. The reader is
+given the declaration instead — see BACKLOG's `## Nothing distinguishes
+connected from engaged` for showing how long a mute has been held, which is the
+part of this that has a fix rather than a limit.
+
+**Not emitted, and not committed.** A heartbeat pushes no snapshot. Nothing a
+client can read changes while somebody is present — `idleMs` is null for them
+whatever the stamp says — so a push per heartbeat per participant would spend a
+fan-out redrawing an identical screen. The value becomes readable only when
+presence ends, and every route out of a channel emits on its own account, so it
+is fresh at the one moment anybody can see it. It skips `commit` too: that path
+reconciles the floor, the recording, the egresses and the room against a
+transition, and a heartbeat is not one.
+
+**Stored at minute resolution.** `durableOf` floors the stamps, because
+`persistChannel` writes whenever the projection changes and at full resolution
+a four-person conversation would rewrite its row forty-eight times a minute to
+move a number no screen can show. A restored value can be up to a minute early,
+which is inside the sixty seconds `agoOrNull` already treats as no gap at all.
+The live value stays exact.
+
+**No wire change.** `lastPresentAt` keeps its name and its type; only what
+feeds it changed, and the new meaning is a strictly better answer to the
+question the old clients were already asking. Build 51, in App Review as this
+was written, reads it through its own bundled copy of `idleMs` and needs no
+alias, no shim and no two-step. `core/protocol.ts` is untouched by this change,
+though it is no longer unchanged since `build/51` for other reasons — see the
+entry above.
+
+**Home was already right.** `accounts.last_seen_at` has always been written per
+message rather than at the socket's edges, so it has always measured evidence.
+The name is the only thing about it that says "seen" rather than "heard from".

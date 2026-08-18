@@ -334,6 +334,20 @@ export function registerWebsocket(deps: {
       // would be when they connected, and somebody talking right now would
       // read as having been away since this morning.
       accounts.markSeen(connection.userId, connection.lastSeen, connection.build);
+      // And again per channel, which is a different question with a different
+      // answer. `markSeen` says whether this person is in the app at all;
+      // this says whether they are still in *that room*, and somebody can be
+      // demonstrably in the app and gone from a channel they stepped out of an
+      // hour ago. Sent for everything this socket watches and filtered by
+      // presence inside the reducer, since watching is not being there.
+      //
+      // Every message counts, not only `ping`. A client that is claiming the
+      // floor or naming the channel is as present as one that is heartbeating,
+      // and making this the ping's job would have meant a second thing to
+      // remember whenever a message type was added.
+      for (const channelId of connection.watchingChannels) {
+        channels.stillHere(channelId, connection.userId);
+      }
 
       let message: ClientMessage;
       try {

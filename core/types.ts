@@ -223,19 +223,37 @@ export interface ChannelState {
    */
   disconnectedAt: Partial<Record<UserId, number>>;
   /**
-   * When each user's presence last ended — stamped on the way out, by every
-   * route out there is, and never while somebody is here.
+   * The last evidence that each user was in this channel — refreshed by
+   * STILL_HERE while they are here, and stamped a final time on the way out by
+   * every route out there is.
    *
-   * Absent has two meanings and the interface treats them alike, because it
-   * has nothing to say about either: they have never been present, or they
-   * were present when the server last restarted. A restart drops `present`
-   * without anybody stepping out, so there is no moment to record — and
-   * stamping the restart itself would report the deploy as the time they left,
-   * which is a confident answer to a question nothing here can answer.
+   * **It records an observation, not an event**, and that distinction is the
+   * whole design. It used to be written only by `stepOut`, which made it a
+   * claim about a departure — so it could answer only for people who had left
+   * deliberately, and it went badly wrong for everyone else. A user present
+   * when the process died had no departure to stamp, and if they had stepped
+   * out *earlier in the channel's life* the durable projection still carried
+   * that old moment, which a restart then un-gated: the screen reported
+   * somebody who had been talking a second ago as having left three days
+   * earlier. Evidence cannot fail that way. An older observation is only ever
+   * replaced by a newer one, and no reading of it depends on presence having
+   * been dropped for the right reason.
+   *
+   * What it answers is "are you there", which is a question a force-quit, a
+   * dead battery and a deploy all answer the same way: nothing has been heard
+   * since. That the last thing heard was a heartbeat rather than a goodbye is
+   * not a difference anybody on the other end can act on.
+   *
+   * Absent means nothing has ever been heard from them here — they have never
+   * been present. Nothing is invented for a restart: the stamp a restart
+   * leaves behind is the last heartbeat before it, which was true when it was
+   * written and stays true.
    *
    * Durable, unlike `present` and `disconnectedAt`. When somebody was last in
    * a channel is a fact about the channel rather than about the process
-   * serving it.
+   * serving it. The server persists it at minute resolution — see
+   * `durableOf` — so a heartbeating conversation does not rewrite a row every
+   * five seconds to move a number nobody can see change.
    */
   lastPresentAt: Partial<Record<UserId, number>>;
 }
@@ -331,6 +349,19 @@ export type ChannelAction =
    */
   | { type: 'CONNECTED'; userId: UserId }
   | { type: 'DISCONNECTED'; userId: UserId }
+  /**
+   * Transport again, and the least eventful thing in this union: something was
+   * heard from somebody who is present. It changes no rule and enables no
+   * control — it moves `lastPresentAt` and nothing else.
+   *
+   * Reported per channel rather than per person, because presence is per
+   * channel: a heartbeat from a socket watching two channels is evidence about
+   * whichever of them its owner is actually in, and the reducer's own
+   * `isPresent` guard is what draws that line. Merely watching a channel is
+   * not being in it, so a spectator's heartbeat stamps nothing — otherwise a
+   * departure would be overwritten by the departed person's own screen.
+   */
+  | { type: 'STILL_HERE'; userId: UserId }
   /**
    * The grace period ran out: the same departure a tap makes, minus the
    * intent. Issued by `TICK` and by nothing else — it is deliberately absent

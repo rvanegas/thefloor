@@ -503,6 +503,94 @@ describe('websocket', () => {
     b.close();
   }, 20_000);
 
+  describe('evidence that somebody is still in a channel', () => {
+    /** Present in the channel, on a live socket, watching it. */
+    async function present() {
+      const { bob, channelId } = await pairInSession();
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.channel', channelId });
+      await b.next('channel');
+      b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+      await b.next('channel', (m) =>
+        m.view.channel.present.includes(bob.account.id)
+      );
+      return { bob, channelId, b };
+    }
+
+    it('moves with every message, not only with a departure', async () => {
+      // What makes `lastPresentAt` an observation rather than a claim about an
+      // event. Somebody sitting in a channel saying nothing is still heard
+      // from every few seconds, and this is the value a restart inherits.
+      const { bob, channelId, b } = await present();
+
+      clock += 30_000;
+      b.send({ type: 'ping' });
+      await b.next('pong', (m) => m.serverNow === clock);
+      expect(app.channels.get(channelId)!.lastPresentAt[bob.account.id]).toBe(
+        clock
+      );
+
+      clock += 30_000;
+      b.send({ type: 'ping' });
+      await b.next('pong', (m) => m.serverNow === clock);
+      expect(app.channels.get(channelId)!.lastPresentAt[bob.account.id]).toBe(
+        clock
+      );
+      b.close();
+    });
+
+    it('is not pushed, because nothing readable has changed', async () => {
+      // The whole reason this is affordable. While somebody is present their
+      // idle time is not a question with an answer, so a snapshot per
+      // heartbeat per participant would redraw an identical screen — and the
+      // value is fresh at the one moment it becomes readable, because every
+      // route out of a channel emits on its own account.
+      const { channelId, b } = await present();
+      const delivered = b.received.filter((m) => m.type === 'channel').length;
+
+      clock += 30_000;
+      b.send({ type: 'ping' });
+      await b.next('pong', (m) => m.serverNow === clock);
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect(b.received.filter((m) => m.type === 'channel').length).toBe(
+        delivered
+      );
+      expect(channelId).toBeTruthy();
+      b.close();
+    });
+
+    it('takes nothing from a socket whose owner has stepped out', async () => {
+      // The screen stays open after stepping out, and the heartbeat goes on.
+      // Counting it would overwrite the departure with a stream of proof that
+      // they are gone, and the idle time would never start.
+      const { bob, channelId, b } = await present();
+      const left = (clock += 10_000);
+      b.send({ type: 'channel.action', channelId, action: { type: 'STEP_OUT' } });
+      // `everPresent` in the predicate as well as `present`, so this cannot
+      // match the snapshot from before he entered — which is also a channel
+      // he is not present in, and arrived first.
+      await b.next(
+        'channel',
+        (m) =>
+          m.view.channel.everPresent.includes(bob.account.id) &&
+          m.view.channel.present.every((id) => id !== bob.account.id)
+      );
+      expect(app.channels.get(channelId)!.lastPresentAt[bob.account.id]).toBe(
+        left
+      );
+
+      clock += 30_000;
+      b.send({ type: 'ping' });
+      await b.next('pong', (m) => m.serverNow === clock);
+      expect(app.channels.get(channelId)!.lastPresentAt[bob.account.id]).toBe(
+        left
+      );
+      b.close();
+    });
+  });
+
   describe('when somebody was last in the app', () => {
     /** What a contact of Bob's is told about Alice. */
     const aliceAsSeenByBob = (bobId: string, aliceId: string) =>

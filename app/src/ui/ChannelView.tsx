@@ -724,9 +724,17 @@ function ParticipantCard({
   // Somebody who is neither speaking nor able to be heard: the badge would be
   // dead space, so the status carries it instead.
   /**
-   * How long they have been gone, in words, or null when there is no such
-   * duration — they are here, they have never been here, or the server was
-   * restarted while they were, which drops presence with nobody leaving.
+   * How long it is since anything was heard from them here, in words, or null
+   * when there is no such duration — they are here, or nothing has ever been
+   * heard from them in this channel.
+   *
+   * A restart is no longer one of those. The server refreshes this while
+   * somebody is present, so what a deploy leaves behind is the last heartbeat
+   * before it: "stepped out a minute ago" about somebody who was talking when
+   * the process died, which is what anyone on this end can act on and
+   * self-corrects the moment their app reconnects. It used to be stamped only
+   * at departures, which meant a stale one could survive a restart and report
+   * a person who had just been speaking as having left days earlier.
    *
    * Appended rather than given its own line: it qualifies "Stepped out", and a
    * second line under every absent person would make the roster twice as tall

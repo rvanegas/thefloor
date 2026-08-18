@@ -152,11 +152,18 @@ describe('a channel across a restart', () => {
     await shutdown(second);
   });
 
+  /** What `durableOf` stores: the stamp, floored to the minute. */
+  const asStored = (at: number) => Math.floor(at / 60_000) * 60_000;
+
   it('remembers when somebody stepped out, across a restart', async () => {
     // "Stepped out an hour ago" has to survive a deploy. When somebody was
     // last in a channel is a fact about the channel rather than about the
     // process serving it, which is what puts it in the durable projection
     // beside the name and the roster.
+    //
+    // At minute resolution, deliberately — the live value is exact and this
+    // one is what a heartbeat would otherwise rewrite every five seconds. See
+    // `durableOf`.
     const first = boot();
     const { alice, bob, channelId } = await pair(first);
     first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
@@ -169,16 +176,47 @@ describe('a channel across a restart', () => {
 
     const second = boot();
     expect(second.channels.get(channelId)!.lastPresentAt[bob.account.id]).toBe(
-      left
+      asStored(left)
     );
     await shutdown(second);
   });
 
-  it('invents no departure for somebody who was present at the restart', async () => {
-    // A restart drops presence without anybody stepping out, so there is no
-    // moment to record. Stamping the restart would report the deploy as the
-    // time they left — a confident answer to a question nothing here can
-    // answer — and the screen says only "Stepped out" instead.
+  it('carries the last evidence of somebody who was present at the restart', async () => {
+    // The restart is not a departure and nothing pretends it is — but it is
+    // the end of the evidence, and the honest report is when that evidence
+    // stops. Before this, presence at a restart left whatever `stepOut` had
+    // written, which for somebody who had stepped out earlier in the
+    // channel's life was a departure days old: the screen reported a person
+    // who had been talking a second earlier as having left on Monday. The
+    // heartbeat is what overwrites it.
+    const first = boot();
+    const { bob, channelId } = await pair(first);
+    first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    const monday = (clock += 60_000);
+    first.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    expect(first.channels.get(channelId)!.lastPresentAt[bob.account.id]).toBe(
+      monday
+    );
+
+    clock += 3 * 24 * 60 * 60 * 1_000;
+    first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    const heard = (clock += 5_000);
+    first.channels.stillHere(channelId, bob.account.id);
+    expect(first.channels.get(channelId)!.present).toContain(bob.account.id);
+    await shutdown(first);
+
+    const second = boot();
+    const after = second.channels.get(channelId)!;
+    expect(after.present).toEqual([]);
+    expect(after.lastPresentAt[bob.account.id]).toBe(asStored(heard));
+    await shutdown(second);
+  });
+
+  it('invents nothing for somebody nothing was ever heard from', async () => {
+    // A member who has never entered, and an entry with no socket behind it:
+    // no evidence either way, and none is manufactured. The screen shows no
+    // idle time rather than guessing at one. Evidence in the ordinary case
+    // comes from the socket — see ws.test.ts.
     const first = boot();
     const { bob, channelId } = await pair(first);
     first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });

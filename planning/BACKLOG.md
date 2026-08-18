@@ -407,6 +407,53 @@ any address that has no account, and two things about it are outstanding.
 
 ---
 
+## Nothing distinguishes connected from engaged
+
+Left over from the 2026-08-18 change that made channel idleness a matter of
+evidence rather than departures — see `## "Are you there" is measured by
+evidence` in DECISIONS.md. A socket held while present is now what answers "are
+you there", and it answers it identically for somebody listening intently and
+for a phone face-down on a table with the app still open.
+
+Voice was considered for this and rejected as the *primary* signal, because the
+floor silences the room by design and a voice-driven idle timer would report the
+whole audience as absent. As a *second* signal it is the obvious candidate, and
+it is unbuilt: the server does not know who is speaking at all. LiveKit's
+`ActiveSpeakersChanged` goes to the client, which uses it for the speaking dot;
+making the server aware means either a debounced client report over the socket
+or subscribing to LiveKit's webhooks.
+
+Worth having only alongside an answer to what it would *say*. "Engaged" and
+"present but quiet" are different words on a card, and inventing a third status
+for the roster is a design question rather than a plumbing one.
+
+**Self-mute is the sharpest instance, and the one piece of it with a fix.** A
+muted participant publishes nothing and taps nothing, and their socket stays
+open because `UIBackgroundModes: ["audio"]` keeps the process alive — so
+"Present · muted" can outlast the person by as long as the battery. No signal
+separates that from somebody listening closely with a locked phone, so nothing
+should try. What can be done is to stop showing the mute as a flat state and
+show how long it has been held: `Present · muted 20 minutes`, from a `mutedAt`
+stamped on `SET_SELF_MUTE` and cleared on unmute and on the way out, rendered
+through the same `ago` as everything else. It claims nothing about presence and
+hands the reader the fact that bears on it, the reader being far better placed
+to know what twenty minutes means than the server is.
+
+## `DECISIONS.md` is over its 2,000-line cap
+
+2,156 lines as of 2026-08-18, against a cap AGENTS.md sets at 2,000 for the
+reason that a plain read stops there and silently drops the tail — which in an
+append-only file is the newest material. The rule and the procedure for closing
+a volume are in the file's own header: rename to the dated form, give it the
+closed-volume header, start a fresh live volume with the preamble, add a row to
+the index. Two sections stay in whichever volume is live — `## The deploy
+history` and `## The Android adaptive icon` — so they move with it, which is
+what makes this more than a rename.
+
+Cut on a seam that means something. The obvious one is the App Store
+submission: everything before build 51 going into review is one epoch, and what
+follows is a project with a population to be compatible with.
+
 ## Known defects
 
 Real, reproducible, and left alone. Resolved entries have been dropped — the

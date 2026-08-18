@@ -5,8 +5,9 @@ import relativeTime from 'dayjs/plugin/relativeTime';
  * How long ago something was, in words.
  *
  * Both idle timers read through here — the one on Home saying when a contact
- * last had the app open, and the one on a channel card saying when somebody
- * was last in the room — so the two cannot describe the same gap differently.
+ * was last heard from at all, and the one on a channel card saying when
+ * somebody was last heard from in that room — so the two cannot describe the
+ * same gap differently.
  *
  * **The conventions are dayjs's rather than ours, deliberately.** Where the
  * boundaries fall is a solved problem with unobvious answers: 45 seconds is
@@ -29,7 +30,8 @@ dayjs.extend(relativeTime);
  * It is also what absorbs the imprecision in the Home-side clock. `last_seen_at`
  * is written on every message a socket carries, so somebody sitting in the app
  * is up to one heartbeat stale; anything under this reads as present rather
- * than as freshly departed.
+ * than as freshly departed. The channel's copy of that stamp is written the
+ * same way, by the same messages — see `STILL_HERE`.
  */
 const PRESENT_MS = 60_000;
 
@@ -37,8 +39,10 @@ const PRESENT_MS = 60_000;
  * `ms` ago, in words, or null when the gap is too small to be worth naming.
  *
  * Null rather than a string, so the caller decides what "no gap worth naming"
- * looks like in its own context — "In the app now" on Home, nothing at all on
- * a channel card where presence is already spelt out beside it.
+ * looks like in its own context — which today means Home, saying "In the app
+ * now". The channel roster calls `ago` directly and needs no floor: a gap that
+ * small there is a connection flapping, and the grace period already covers it
+ * by keeping the person present and saying "reconnecting" instead.
  */
 export function agoOrNull(ms: number): string | null {
   if (ms < PRESENT_MS) return null;
