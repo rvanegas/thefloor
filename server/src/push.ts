@@ -22,6 +22,96 @@ export interface PushMessage {
   channelId: string;
 }
 
+/**
+ * The three notifications this server sends, each with a name.
+ *
+ * There have always been exactly three, and until now none of them was called
+ * anything: each was a title and a body composed at the point it was sent, two
+ * of them in `create` and `dispatch` and the third four hundred lines away in
+ * `announceActive`. Nothing was wrong with that except that there was no way
+ * to *refer* to one — a question about a whole class of them had to be asked
+ * about a fragment of prose, and answering it meant finding every site that
+ * happened to compose the same sentence.
+ *
+ * The names are words the code already used rather than new coinages.
+ * `started` and `invited` are the first word of the body each one sends, so
+ * the name and the sentence on the lock screen cannot drift apart; `arrived`
+ * is what `announceActive` already calls the person walking in.
+ *
+ * - `started` — somebody opened a channel with you. It did not exist a moment
+ *   ago, and you are being asked into it.
+ * - `invited` — somebody asked you into a channel already under way. Since an
+ *   unnamed channel widens in place rather than moving the conversation, this
+ *   is now the only way anybody joins one in progress.
+ * - `arrived` — somebody stepped into a channel you already belong to. Nobody
+ *   is asking for you; the room simply has someone in it.
+ *
+ * **The seam is after the second.** The first two are addressed to the
+ * recipient and are answerable — they exist to be acted on. The third is
+ * ambient. Nothing distinguishes them today: all three are composed the same
+ * way, sent the same way, and collapse against each other on the lock screen
+ * because they share a channel. Anything that ought to treat a summons
+ * differently from a report — an interruption level, a separate collapse key,
+ * a preference somebody can turn off — begins by being able to say which is
+ * which, which is what these names are for.
+ *
+ * They compose messages and send nothing. Deciding that somebody should be
+ * told remains the registry's, exactly as before.
+ */
+export const notifications = {
+  /** A channel has just been started, and you are one of the invitees. */
+  started(initiator: string, channelId: string): PushMessage {
+    // Titled with whoever asked rather than with the channel: a channel is
+    // never named at creation, so every perspective-dependent fallback would
+    // reduce to the roster anyway, and the one thing the recipient wants to
+    // know is who is asking.
+    return {
+      title: initiator,
+      body: 'Started a channel with you.',
+      channelId,
+    };
+  },
+
+  /**
+   * You have been asked into a channel that already exists.
+   *
+   * `channelName` is null when the channel has none, which is the ordinary
+   * case: a channel is named only if somebody has bothered to.
+   */
+  invited(
+    inviter: string,
+    channelName: string | null,
+    channelId: string
+  ): PushMessage {
+    return {
+      title: inviter,
+      body: channelName
+        ? `Invited you to ${channelName}.`
+        : 'Invited you to a channel.',
+      channelId,
+    };
+  },
+
+  /**
+   * Somebody stepped into a channel you belong to and were not in.
+   *
+   * `channelName` is what that one recipient calls it — an unnamed channel is
+   * named after whoever else is in it, so there is no single answer and the
+   * caller has to have resolved it already.
+   */
+  arrived(
+    channelName: string,
+    whoArrived: string,
+    channelId: string
+  ): PushMessage {
+    return {
+      title: channelName,
+      body: `${whoArrived} stepped in.`,
+      channelId,
+    };
+  },
+};
+
 /** What one address's send did, for the caller to log. */
 export interface PushResult {
   token: string;

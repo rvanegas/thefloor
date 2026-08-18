@@ -42,7 +42,7 @@ import {
 import { encodeRecording } from './export';
 import type { MediaServer, PlaybackSession } from './media';
 import { getWhenReady, type RecordingStore } from './storage';
-import { createPushNotifier, type PushNotifier } from './push';
+import { createPushNotifier, notifications, type PushNotifier } from './push';
 
 export const TICK_INTERVAL_MS = 500;
 
@@ -490,21 +490,15 @@ export class ChannelRegistry {
     // banner is still the primary path, and the notifier drops anyone who is
     // already looking.
     //
-    // Titled with whoever asked rather than with the channel: a channel is
-    // never named at creation, so every perspective-dependent fallback would
-    // reduce to the roster anyway, and the one thing the recipient wants to
-    // know is who is asking.
-    //
     // Skipped outright when there is nobody to tell, rather than left to the
     // notifier's own empty case: that path logs why it sent nothing, and a
     // channel of one would file a "push skipped" line every time somebody
     // tapped Start a channel.
     if (unique.length > 0) {
-      this.push.notify(unique, {
-        title: this.displayName(initiator),
-        body: 'Started a channel with you.',
-        channelId: channel.id,
-      });
+      this.push.notify(
+        unique,
+        notifications.started(this.displayName(initiator), channel.id)
+      );
     }
     return { ok: true, channel };
   }
@@ -565,13 +559,14 @@ export class ChannelRegistry {
       // invitation is now the only way anyone else joins a conversation in
       // progress, and it is answered rather than merely noticed.
       if (invited.ok) {
-        this.push.notify([contactId], {
-          title: this.displayName(userId),
-          body: isNamed(channel)
-            ? `Invited you to ${channel.name}.`
-            : 'Invited you to a channel.',
-          channelId,
-        });
+        this.push.notify(
+          [contactId],
+          notifications.invited(
+            this.displayName(userId),
+            isNamed(channel) ? channel.name : null,
+            channelId
+          )
+        );
       }
       return invited;
     }
@@ -1287,13 +1282,17 @@ export class ChannelRegistry {
     );
     // Each is titled from its own recipient's point of view, because an
     // unnamed channel is called after whoever else is in it and there is no
-    // one answer to that.
+    // one answer to that — which is why the name is resolved per recipient
+    // here rather than once, outside the loop.
     for (const userId of absent) {
-      this.push.notify([userId], {
-        title: this.nameFor(channel, userId),
-        body: `${this.displayName(arrived)} stepped in.`,
-        channelId: channel.id,
-      });
+      this.push.notify(
+        [userId],
+        notifications.arrived(
+          this.nameFor(channel, userId),
+          this.displayName(arrived),
+          channel.id
+        )
+      );
     }
   }
 
