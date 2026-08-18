@@ -1,7 +1,8 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, verify } from 'node:crypto';
 import WebSocket from 'ws';
 import { buildApp, type App } from '../src/app';
-import { ANNOUNCE_INTERVAL_MS } from '../src/channels';
+import { ANNOUNCE_INTERVAL_MS, PING_INTERVAL_MS } from '../src/channels';
+import { MAX_PING_TEXT_LENGTH } from '../../core/constants';
 import {
   isDeadToken,
   MemoryPusher,
@@ -208,6 +209,7 @@ describe('an invite', () => {
         title: 'Alice',
         body: 'Started a channel with you.',
         channelId,
+        collapseKey: channelId,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
       },
     ]);
@@ -271,6 +273,7 @@ describe('a channel becoming active', () => {
         title: 'Alice',
         body: 'Alice stepped in.',
         channelId,
+        collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
       },
     ]);
@@ -559,6 +562,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         title: 'Alice and Carol',
         body: 'Alice stepped in.',
         channelId,
+        collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
       },
     ]);
@@ -580,9 +584,193 @@ describe('what an unnamed channel is called on the lock screen', () => {
         title: 'Thursday rehearsal',
         body: 'Alice stepped in.',
         channelId,
+        collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
       },
     ]);
+  });
+});
+
+/**
+ * The one notification a person decides to send, which is why almost all of
+ * this is about refusing it. The other three answer to the channel; this one
+ * answers to somebody with a button, and the person on the receiving end has no
+ * way to reply to it and no way to turn it off.
+ */
+describe('a ping', () => {
+  /** Alice and Bob in a channel, with Bob stepped out and reachable. */
+  async function bobStepsOut() {
+    const { alice, bob } = await twoContacts();
+    const channelId = await createChannel(alice.token, [bob.account.id]);
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    await settle();
+    await registerDevice(bob.token, 'bob-phone');
+    pusher.sent.length = 0;
+    return { alice, bob, channelId };
+  }
+
+  const ping = (token: string, channelId: string, body: unknown) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/ping`,
+      headers: auth(token),
+      payload: body as Record<string, unknown>,
+    });
+
+  it('reaches the person it names, in the sender’s words', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+      text: 'we are starting',
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(200);
+    expect(pusher.messagesFor('bob-phone')).toEqual([
+      {
+        title: 'Alice',
+        body: 'Alice: we are starting',
+        channelId,
+        // Its own stream. An arrival must not overwrite what somebody typed.
+        collapseKey: `${channelId}:ping`,
+        lifetimeMs: PRESENCE_LIFETIME_MS,
+      },
+    ]);
+  });
+
+  it('says something worth saying with no words at all', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+
+    await ping(alice.token, channelId, { targetId: bob.account.id });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')[0].body).toBe(
+      'Alice is asking for you.'
+    );
+  });
+
+  /** Whitespace is not words: it must not produce a body ending in a colon. */
+  it('treats a composer full of spaces as no words', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+
+    await ping(alice.token, channelId, { targetId: bob.account.id, text: '   ' });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')[0].body).toBe(
+      'Alice is asking for you.'
+    );
+  });
+
+  it('refuses to ping somebody standing in the room', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    await settle();
+    pusher.sent.length = 0;
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(409);
+    expect(pusher.messagesFor('bob-phone')).toEqual([]);
+  });
+
+  it('refuses somebody who is not in the channel', async () => {
+    const { alice, channelId } = await bobStepsOut();
+    const carol = await signIn('carol@example.com', 'Carol');
+    await registerDevice(carol.token, 'carol-phone');
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: carol.account.id,
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(403);
+    expect(pusher.messagesFor('carol-phone')).toEqual([]);
+  });
+
+  it('refuses a sender who is not in the channel', async () => {
+    const { bob, channelId } = await bobStepsOut();
+    const carol = await signIn('carol@example.com', 'Carol');
+
+    const reply = await ping(carol.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(403);
+    expect(pusher.messagesFor('bob-phone')).toEqual([]);
+  });
+
+  it('refuses more words than a lock screen will hold', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+      text: 'x'.repeat(MAX_PING_TEXT_LENGTH + 1),
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(400);
+    expect(pusher.messagesFor('bob-phone')).toEqual([]);
+  });
+
+  /**
+   * The limit is per target, not per sender: two people taking turns must not
+   * add up to twice what one of them could send, the point being to protect
+   * whoever is being pinged rather than to ration the senders.
+   */
+  it('will not let one person be pinged twice in a few minutes', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    await ping(alice.token, channelId, { targetId: bob.account.id });
+    await settle();
+
+    const again = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    expect(again.statusCode).toBe(409);
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+  });
+
+  it('lets the same person be pinged again once the window has passed', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    await ping(alice.token, channelId, { targetId: bob.account.id });
+    await settle();
+
+    clock += PING_INTERVAL_MS;
+    const again = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    expect(again.statusCode).toBe(200);
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(2);
+  });
+
+  it('is not sent to somebody who already has the app open', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    const socket = new WebSocket(`ws://${baseUrl}/ws?token=${bob.token}`);
+    await new Promise((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    // Accepted, and deliberately not delivered by this route: the in-app form
+    // of a ping is being built, and a lock-screen notification routed into a
+    // foregrounded app is not it.
+    expect(reply.statusCode).toBe(200);
+    expect(pusher.messagesFor('bob-phone')).toEqual([]);
+    socket.close();
   });
 });
 

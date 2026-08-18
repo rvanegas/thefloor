@@ -2,15 +2,6 @@ import { connect, constants, type ClientHttp2Session } from 'node:http2';
 import { createPrivateKey, sign, type KeyObject } from 'node:crypto';
 
 /**
- * Delivery of notifications to a device whose app is not running.
- *
- * Kept behind an interface for the same reasons `Mailer` is: the transport is
- * the only thing that needs credentials, local development should not need
- * any, and tests should be able to assert what would have been sent without a
- * network. Android will arrive later as a second implementation rather than a
- * rewrite of the callers.
- */
-/**
  * How long a presence announcement stays worth delivering.
  *
  * "Somebody is here now" is false within minutes, and Apple will hold an
@@ -39,6 +30,15 @@ export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;
  */
 export const PARTICIPATION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Delivery of notifications to a device whose app is not running.
+ *
+ * Kept behind an interface for the same reasons `Mailer` is: the transport is
+ * the only thing that needs credentials, local development should not need
+ * any, and tests should be able to assert what would have been sent without a
+ * network. Android will arrive later as a second implementation rather than a
+ * rewrite of the callers.
+ */
 export interface PushMessage {
   title: string;
   body: string;
@@ -50,23 +50,36 @@ export interface PushMessage {
    */
   channelId: string;
   /**
+   * What this replaces on the lock screen.
+   *
+   * APNs shows one notification per collapse key and discards the rest, so this
+   * decides what a new one overwrites. `channelId` for everything a channel
+   * does by itself, which is the point — a room that fills and empties all
+   * evening leaves one line rather than nine.
+   *
+   * A ping takes a key of its own, because collapsing it into that stream would
+   * mean a person typed something to somebody and the next arrival silently
+   * threw it away. Automatic traffic may overwrite automatic traffic.
+   */
+  collapseKey: string;
+  /**
    * How long APNs should keep trying before discarding this undelivered.
    *
-   * Carried per message rather than fixed by the transport, because the three
-   * do not decay alike and that difference is the point: two of them report who
-   * *belongs* to a channel, which stays true, and one reports who is *standing
-   * in* it, which does not. The constructors below choose it; nothing else
-   * should have an opinion.
+   * Carried per message rather than fixed by the transport, because they do not
+   * decay alike and that difference is the point: two of them report who
+   * *belongs* to a channel, which stays true, while the other two report that
+   * somebody wants you there now, which does not. The constructors below choose
+   * it; nothing else should have an opinion.
    */
   lifetimeMs: number;
 }
 
 /**
- * The three notifications this server sends, each with a name.
+ * The notifications this server sends, each with a name.
  *
- * There have always been exactly three, and until now none of them was called
- * anything: each was a title and a body composed at the point it was sent, two
- * of them in `create` and `dispatch` and the third four hundred lines away in
+ * There were three for a long time and none of them was called anything: each
+ * was a title and a body composed at the point it was sent, two of them in
+ * `create` and `dispatch` and the third four hundred lines away in
  * `announceActive`. Nothing was wrong with that except that there was no way
  * to *refer* to one — a question about a whole class of them had to be asked
  * about a fragment of prose, and answering it meant finding every site that
@@ -84,15 +97,25 @@ export interface PushMessage {
  *   is now the only way anybody joins one in progress.
  * - `arrived` — somebody stepped into a channel you already belong to. Nobody
  *   is asking for you; the room simply has someone in it.
+ * - `pinged` — somebody in a channel asked for you by name, in their own words.
+ *   The only one a person sits down and decides to send.
  *
- * **The seam is after the second.** The first two are addressed to the
- * recipient and are answerable — they exist to be acted on. The third is
- * ambient. Nothing distinguishes them today: all three are composed the same
- * way, sent the same way, and collapse against each other on the lock screen
- * because they share a channel. Anything that ought to treat a summons
- * differently from a report — an interruption level, a separate collapse key,
- * a preference somebody can turn off — begins by being able to say which is
- * which, which is what these names are for.
+ * **Two seams, and they do not fall in the same place**, which is why the names
+ * earn their keep rather than merely tidying.
+ *
+ * By *what stays true*: `started` and `invited` change who belongs to a channel
+ * and go on being true while a phone is off, so they get a month. `arrived` and
+ * `pinged` both say come now, which stops being worth saying almost at once, so
+ * they get five minutes.
+ *
+ * By *who decided to send it*: `pinged` is the only one a person composed. The
+ * other three are the channel reporting on itself, which is what lets them
+ * overwrite one another on the lock screen — one line about a room that filled
+ * and emptied all evening is a mercy. That is not safe for something somebody
+ * typed and aimed, so `pinged` carries a collapse key of its own.
+ *
+ * Cut the set either way and the members swap sides. That is the argument for
+ * naming them rather than sorting them into two piles once.
  *
  * They compose messages and send nothing. Deciding that somebody should be
  * told remains the registry's, exactly as before.
@@ -108,6 +131,7 @@ export const notifications = {
       title: initiator,
       body: 'Started a channel with you.',
       channelId,
+      collapseKey: channelId,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
     };
   },
@@ -129,6 +153,7 @@ export const notifications = {
         ? `Invited you to ${channelName}.`
         : 'Invited you to a channel.',
       channelId,
+      collapseKey: channelId,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
     };
   },
@@ -149,6 +174,56 @@ export const notifications = {
       title: channelName,
       body: `${whoArrived} stepped in.`,
       channelId,
+      collapseKey: channelId,
+      lifetimeMs: PRESENCE_LIFETIME_MS,
+    };
+  },
+
+  /**
+   * Somebody in a channel asked for one particular absent person by name.
+   *
+   * The only one of the four a person decides to send. The other three are the
+   * channel reporting on itself, which is why they may overwrite one another
+   * freely; this one was typed and aimed, and is the reason `collapseKey` is a
+   * field rather than a constant in the transport.
+   *
+   * It is still withheld from anybody holding a live socket, like the rest.
+   * That is not because it would duplicate anything — nothing in the app renders
+   * a ping today — but because the in-app path for it is being built, and
+   * routing a lock-screen notification into a foregrounded app would be a
+   * workaround with a short life and a permission prompt attached.
+   *
+   * Titled with the channel and not the sender, unlike `started` and `invited`.
+   * Those announce a channel you may not know exists, so the name is the useful
+   * half; this arrives about a channel you are already a member of, and what
+   * you want to know first is where you are being called to. The sender leads
+   * the body instead.
+   *
+   * `text` is optional and is the sender's own words. Without it the ping still
+   * says something worth saying — somebody wants you there — so an empty
+   * composer is a usable ping rather than a refused one.
+   *
+   * It keeps the presence lifetime: a summons is not an invitation. Being asked
+   * to come now stops being actionable at about the speed "somebody is here"
+   * does, and a ping surfacing tomorrow about a conversation that ended is
+   * worse than one that quietly lapsed.
+   */
+  pinged(
+    channelName: string,
+    sender: string,
+    text: string | null,
+    channelId: string
+  ): PushMessage {
+    return {
+      title: channelName,
+      // The sender's name leads either way, so the two forms read alike and a
+      // ping with words is recognisably the same thing as one without.
+      body: text ? `${sender}: ${text}` : `${sender} is asking for you.`,
+      channelId,
+      // Its own stream, so an arrival cannot overwrite what somebody typed.
+      // Still a stream: a second ping replaces the first, because two lines
+      // from one person about one channel is nagging rather than information.
+      collapseKey: `${channelId}:ping`,
       lifetimeMs: PRESENCE_LIFETIME_MS,
     };
   },
@@ -267,6 +342,8 @@ export class ApnsPusher implements Pusher {
       aps: {
         alert: { title: message.title, body: message.body },
         sound: 'default',
+        // Grouping, not replacing: everything about one channel stacks
+        // together in Notification Center whatever its collapse key.
         'thread-id': message.channelId,
       },
       channelId: message.channelId,
@@ -302,7 +379,7 @@ export class ApnsPusher implements Pusher {
         // battery, which is the wrong trade for an announcement that expires
         // in five minutes.
         'apns-priority': '10',
-        'apns-collapse-id': message.channelId,
+        'apns-collapse-id': message.collapseKey,
         // Whose window the message brought with it. Never zero, which APNs
         // reads as "attempt once and store nothing" rather than as "no
         // expiry" — the two are easy to conflate and mean opposite things.

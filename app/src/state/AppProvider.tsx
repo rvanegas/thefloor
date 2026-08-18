@@ -137,6 +137,16 @@ interface AppValue extends AppState {
   declineContact: (contactId: string) => Promise<void>;
   /** Reads a profile. Rejects when it is not yours to see. */
   loadProfile: (accountId: string) => Promise<ProfileView>;
+  /**
+   * Asks one absent participant to come to a channel, in your own words.
+   *
+   * Nothing about the channel changes, so this is not an action and no
+   * snapshot follows it — the only thing that happens is a notification on
+   * somebody else's phone. Rejects with a message worth showing when the
+   * server refuses, which it does for ordinary reasons: they have walked in
+   * since the screen was drawn, or somebody pinged them a moment ago.
+   */
+  ping: (channelId: string, targetId: string, text: string) => Promise<void>;
   /** Where to donate, and what you have already given. */
   loadSupport: () => Promise<SupportView>;
   /**
@@ -557,6 +567,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadProfile: async (accountId) => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         return api.profile(state.token, accountId);
+      },
+
+      ping: async (channelId, targetId, text) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        // Empty means no words rather than an empty sentence, and the server
+        // reads it the same way — a ping with nothing in it still says
+        // somebody is asking.
+        await api.pingParticipant(
+          state.token,
+          channelId,
+          targetId,
+          text || undefined
+        );
       },
 
       /**

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   DELETED_RETENTION_MS,
   MAX_CHANNEL_PARTICIPANTS,
+  MAX_PING_TEXT_LENGTH,
   MAX_RECORDING_NAME_LENGTH,
 } from '../../core/constants';
 import { playbackPositionMs } from '../../core/playback';
@@ -59,6 +60,23 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
  * through.
  */
 export const ANNOUNCE_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * How often one person may be pinged in one channel.
+ *
+ * Not a flap suppressor like the interval above — nothing here is automatic, so
+ * there is no artefact to absorb. It bounds a person: somebody who wants you in
+ * a channel can say so, and can say so again in a while, and cannot sit on the
+ * button. The recipient has no way to answer a ping and no way to turn one off,
+ * which is exactly the shape that needs a limit imposed for them.
+ *
+ * Five minutes, which is the same figure the notification's own lifetime and
+ * the announcement window use, and here it means: not before the last one has
+ * stopped being worth delivering. A second ping inside the window would in any
+ * case replace the first on the lock screen, so what the limit really prevents
+ * is a queue of pings nobody will ever see, each overwriting the last.
+ */
+export const PING_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
  * The stem key for shared playback, and the identity it publishes under.
@@ -285,6 +303,16 @@ export class ChannelRegistry {
    * notification, which is not worth a column.
    */
   private lastAnnouncedAt = new Map<string, number>();
+  /**
+   * When each person was last pinged in each channel, keyed channel-and-target.
+   *
+   * Per target rather than per sender: the limit protects whoever is being
+   * pinged, so three people taking turns must not add up to three times the
+   * traffic one of them could send. Held in memory like `lastAnnouncedAt`, so a
+   * restart forgives everybody — which is the right way for this to fail, a
+   * restart being no reason to refuse somebody a ping.
+   */
+  private lastPingedAt = new Map<string, number>();
 
   constructor(
     private db: Db,
@@ -1294,6 +1322,85 @@ export class ChannelRegistry {
         )
       );
     }
+  }
+
+  /**
+   * Asks one absent participant to come to a channel, in the sender's words.
+   *
+   * The only notification anybody decides to send, which is why every guard
+   * here is about a person rather than about the room. It is refused out loud,
+   * unlike the announcements, because somebody is waiting to be told it worked.
+   *
+   * **Absent only.** Pinging somebody standing in the room is not a thing that
+   * makes sense — they can hear you — and the app hides the affordance for
+   * anyone present, so a ping arriving for one is a stale screen rather than an
+   * intention. Refusing it agrees with the button that is not there.
+   *
+   * The text is trimmed, and empty becomes null rather than an empty body: a
+   * composer somebody tabbed through should send the plain form, not a ping
+   * with a colon and nothing after it.
+   *
+   * Nothing about the channel changes, so this does not go through `dispatch`
+   * and there is no action, no reducer, and nothing to persist. A ping is a
+   * message about a channel, not a move within one.
+   */
+  ping(
+    channelId: string,
+    senderId: string,
+    targetId: string,
+    text: string | null
+  ): { ok: true } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (!isParticipant(channel, senderId)) {
+      return { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    if (!isParticipant(channel, targetId)) {
+      return { ok: false, error: 'Not in this channel.', code: 'forbidden' };
+    }
+    if (senderId === targetId) {
+      return { ok: false, error: 'You are already here.', code: 'invalid' };
+    }
+    if (channel.present.includes(targetId)) {
+      return { ok: false, error: 'They are already here.', code: 'conflict' };
+    }
+
+    const trimmed = text?.trim() ?? '';
+    if (trimmed.length > MAX_PING_TEXT_LENGTH) {
+      return {
+        ok: false,
+        error: `A ping holds up to ${MAX_PING_TEXT_LENGTH} characters.`,
+        code: 'invalid',
+      };
+    }
+
+    const now = this.now();
+    const key = `${channelId}:${targetId}`;
+    const last = this.lastPingedAt.get(key);
+    if (last !== undefined && now - last < PING_INTERVAL_MS) {
+      return {
+        ok: false,
+        error: 'They have just been pinged. Try again in a few minutes.',
+        code: 'conflict',
+      };
+    }
+    this.lastPingedAt.set(key, now);
+
+    this.push.notify(
+      [targetId],
+      notifications.pinged(
+        // Named as the person being pinged sees it, the same way an arrival is
+        // — an unnamed channel is called after whoever else is in it, and the
+        // sender's view of that includes the sender.
+        this.nameFor(channel, targetId),
+        this.displayName(senderId),
+        trimmed || null,
+        channelId
+      )
+    );
+    return { ok: true };
   }
 
   /**

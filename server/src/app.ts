@@ -836,6 +836,50 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * Asks one absent participant to come to the channel.
+   *
+   * Over HTTP rather than the websocket, and it is worth saying why, since
+   * every other thing done from inside a channel is an action on the socket.
+   * Those are moves in the channel: they go through the reducer, change the
+   * state, and are answered by the snapshot everybody receives. A ping changes
+   * nothing — no participant list, no floor, no recording — so putting it
+   * through `dispatch` would mean inventing an action the reducer must ignore.
+   *
+   * It also wants a reply addressed to the sender alone. Whether a ping was
+   * accepted, refused as too soon, or refused because they have walked in since
+   * the screen was drawn is the sender's business and nobody else's, and the
+   * socket only knows how to tell everybody the same thing.
+   */
+  fastify.post('/channels/:id/ping', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as
+      | { targetId?: unknown; text?: unknown }
+      | undefined;
+
+    if (typeof body?.targetId !== 'string' || !body.targetId) {
+      return reply.code(400).send({ error: 'targetId is required' });
+    }
+    // Absent and null are the same thing — no words — while a non-string is a
+    // client sending something it has not thought about.
+    if (body.text !== undefined && body.text !== null && typeof body.text !== 'string') {
+      return reply.code(400).send({ error: 'text must be a string' });
+    }
+
+    const result = channels.ping(
+      id,
+      account.id,
+      body.targetId,
+      typeof body.text === 'string' ? body.text : null
+    );
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true };
+  });
+
+  /**
    * A join credential for the channel's audio room. Minted per participant and
    * short-lived, and refused to anyone who is not in the channel — the room
    * name is the channel id, so this is the only thing standing between knowing

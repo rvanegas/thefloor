@@ -221,6 +221,26 @@ export const api = {
       token,
     }),
 
+  /**
+   * Asks one absent participant to come to a channel, in the sender's words.
+   *
+   * `text` is optional; without it the notification still says somebody is
+   * asking. Refusals here are ordinary and expected rather than faults — they
+   * have walked in since the screen was drawn, or were pinged a moment ago —
+   * so the caller shows what came back instead of treating it as an error.
+   */
+  pingParticipant: (
+    token: string,
+    channelId: string,
+    targetId: string,
+    text?: string
+  ) =>
+    request<{ ok: true }>(`/channels/${channelId}/ping`, {
+      method: 'POST',
+      body: { targetId, text: text ?? null },
+      token,
+    }),
+
   mediaToken: (token: string, channelId: string) =>
     request<{ token: string; url?: string }>(
       `/channels/${channelId}/media-token`,

@@ -8,8 +8,9 @@ import {
 } from 'react-native';
 import type { ProfileView as Profile } from '../../../core/protocol';
 import { describeChannel } from '../../../core/naming';
+import { MAX_PING_TEXT_LENGTH } from '../../../core/constants';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Screen, SectionLabel } from './components';
+import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
 import { colors, radius, spacing, type } from './theme';
 
@@ -30,6 +31,7 @@ export function ProfileView({
   fallbackName,
   onBack,
   onEnterChannel,
+  onPing,
 }: {
   accountId: string;
   /**
@@ -47,12 +49,30 @@ export function ProfileView({
    * reached — and the section is then left out rather than shown dead.
    */
   onEnterChannel?: (channelId: string) => void;
+  /**
+   * Asks this person to come to the channel you are both in, in your words.
+   *
+   * Supplied only where a ping means something: from inside a channel, about
+   * somebody who belongs to it and is not standing in it. Everywhere else the
+   * section is left out rather than shown dead, the same way the channels
+   * section is — an affordance that is present but refuses is worse than one
+   * that is honestly absent.
+   *
+   * Rejects with a message meant to be read. The server refuses a ping for
+   * ordinary reasons — they walked in a moment ago, somebody pinged them
+   * already — and those are answers rather than faults.
+   */
+  onPing?: (text: string) => Promise<void>;
 }) {
   const app = useApp();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'refused'>('loading');
   const [asking, setAsking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
+  const [pingText, setPingText] = useState('');
+  const [pinging, setPinging] = useState(false);
+  const [pingError, setPingError] = useState<string | null>(null);
+  const [pingSent, setPingSent] = useState(false);
 
   // Their standing with you, if any. Absent from the list means a stranger —
   // which, on a profile reached from a channel roster, is the whole point.
@@ -99,6 +119,23 @@ export function ProfileView({
       setAskError(e instanceof Error ? e.message : String(e));
     } finally {
       setAsking(false);
+    }
+  };
+
+  const sendPing = async () => {
+    if (!onPing) return;
+    setPinging(true);
+    setPingError(null);
+    try {
+      await onPing(pingText.trim());
+      // Cleared on the way out so that reopening the card does not offer to
+      // send the same words again, which the interval would refuse anyway.
+      setPingText('');
+      setPingSent(true);
+    } catch (e) {
+      setPingError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPinging(false);
     }
   };
 
@@ -174,6 +211,53 @@ export function ProfileView({
         </>
       ) : null}
 
+      {/*
+        Somebody who belongs to this channel and is not in it. The one
+        notification in the app that a person composes and aims, so it is the
+        one place worth spending a text field on.
+
+        Words are optional. An empty ping still says somebody is asking for
+        you, which is the whole of what most pings mean, and requiring a
+        sentence would make the common case the slow one.
+      */}
+      {onPing ? (
+        <>
+          <SectionLabel>Ping</SectionLabel>
+          <Card style={styles.stack}>
+            <Field
+              value={pingText}
+              onChangeText={(v) => {
+                setPingText(v.slice(0, MAX_PING_TEXT_LENGTH));
+                // The confirmation belongs to the ping that was sent, not to
+                // the field; typing again is the start of a different one.
+                setPingSent(false);
+              }}
+              placeholder="Anything you want to say (optional)"
+              autoCapitalize="sentences"
+            />
+            <View style={styles.pingFoot}>
+              <Text style={type.muted}>
+                {pingText.length > 0
+                  ? `${MAX_PING_TEXT_LENGTH - pingText.length} left`
+                  : 'They will get a notification.'}
+              </Text>
+              <Button
+                label={pinging ? 'Sending…' : 'Send ping'}
+                variant="primary"
+                disabled={pinging}
+                onPress={() => void sendPing()}
+              />
+            </View>
+            {pingSent ? (
+              <Text style={type.muted}>
+                Sent. They will not be pinged again for a few minutes.
+              </Text>
+            ) : null}
+            {pingError ? <Text style={styles.error}>{pingError}</Text> : null}
+          </Card>
+        </>
+      ) : null}
+
       <SectionLabel>Contact</SectionLabel>
       <Card style={styles.stack}>
         {contact?.status === 'accepted' ? (
@@ -230,5 +314,11 @@ const styles = StyleSheet.create({
   /** Italic when nobody has named it; see core/naming.ts. */
   channelDescribed: { ...type.body, fontStyle: 'italic' },
   bio: { ...type.muted, lineHeight: 20 },
+  pingFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1),
+  },
   error: { color: colors.danger, fontSize: 13 },
 });

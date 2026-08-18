@@ -2713,6 +2713,89 @@ describe('channels you share with somebody', () => {
 });
 
 /**
+ * The one notification a person composes and aims, so the composer is the one
+ * place in the app where a text field feeds a push.
+ *
+ * The gating is what these are about. It is offered for somebody who is not in
+ * the room and withheld for somebody who is, and the server refuses on the same
+ * test — so a screen left open while they walked in is refused rather than
+ * silently sending.
+ */
+describe('pinging somebody who is not in the room', () => {
+  /** Button carries no accessibility label, so it is found by its own props. */
+  const buttonFor = (tree: ReactTestRenderer, label: string) =>
+    tree.root.findAll((n) => n.props?.label === label)[0];
+
+  const renderProfile = async (onPing?: (text: string) => Promise<void>) => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView
+          accountId={THEM}
+          fallbackName="Dana Chu"
+          onBack={() => {}}
+          onPing={onPing}
+        />
+      );
+    });
+    return tree;
+  };
+
+  it('offers the composer when a ping is possible', async () => {
+    const tree = await renderProfile(async () => {});
+
+    expect(textOf(tree)).toContain('Ping');
+    expect(textOf(tree)).toContain('They will get a notification.');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Not disabled — absent. An affordance that is present and refuses is worse
+   * than one that was never offered, which is the same rule the channels
+   * section above follows.
+   */
+  it('says nothing at all about pinging somebody who is here', async () => {
+    const tree = await renderProfile(undefined);
+
+    expect(textOf(tree)).not.toContain('Send ping');
+    act(() => tree.unmount());
+  });
+
+  it('sends what was typed, and says so afterwards', async () => {
+    const onPing = jest.fn(async () => {});
+    const tree = await renderProfile(onPing);
+
+    const field = tree.root.findAll(
+      (n) => n.props?.placeholder === 'Anything you want to say (optional)'
+    )[0];
+    await act(async () => field.props.onChangeText('we are starting'));
+    await act(async () => buttonFor(tree, 'Send ping').props.onPress());
+
+    expect(onPing).toHaveBeenCalledWith('we are starting');
+    expect(textOf(tree)).toContain('Sent.');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * A refusal here is an answer rather than a fault — they walked in, or
+   * somebody pinged them a moment ago — so it is shown where it was asked for.
+   */
+  it('shows what the server said when it refuses', async () => {
+    const onPing = jest.fn(async () => {
+      throw new Error('They have just been pinged. Try again in a few minutes.');
+    });
+    const tree = await renderProfile(onPing);
+
+    await act(async () => buttonFor(tree, 'Send ping').props.onPress());
+
+    expect(textOf(tree)).toContain('They have just been pinged');
+    expect(textOf(tree)).not.toContain('Sent.');
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * A microphone that is closed because nobody is there to hear it.
  *
  * Being alone in a channel no longer takes the audio session as a call, which

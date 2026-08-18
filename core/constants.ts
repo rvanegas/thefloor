@@ -86,6 +86,21 @@ export const MAX_DISPLAY_NAME_LENGTH = 40;
 export const MAX_BIO_LENGTH = 2_000;
 
 /**
+ * The most characters somebody may put in a ping.
+ *
+ * A ping is a notification and nothing else — there is no thread it lands in
+ * and no way to answer it except by walking into the channel, so anything long
+ * enough to be a conversation is length the medium cannot honour. Short enough,
+ * too, that the whole of it survives a lock screen: iOS truncates a notification
+ * body at about this, and a limit the sender can see beats a sentence that
+ * silently loses its end.
+ *
+ * Shared with the client because the composer counts characters against it, and
+ * a counter that disagrees with what the server accepts is worse than none.
+ */
+export const MAX_PING_TEXT_LENGTH = 100;
+
+/**
  * How long a user may be disconnected before they stop being present.
  *
  * Connectivity is not presence. A socket that drops and returns inside this

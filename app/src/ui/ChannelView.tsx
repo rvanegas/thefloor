@@ -163,6 +163,16 @@ export function ChannelView({
         accountId={viewing.id}
         fallbackName={viewing.displayName}
         onBack={() => setViewing(null)}
+        // Offered only for somebody who is not standing in the room, because
+        // pinging a person who can hear you is not a thing that means
+        // anything. The server refuses it on the same test, so a screen that
+        // has gone stale — they walked in while this was open — is refused
+        // rather than silently sending.
+        onPing={
+          channel && !isPresent(channel, viewing.id)
+            ? (text) => app.ping(channel.id, viewing.id, text)
+            : undefined
+        }
       />
     );
   }
