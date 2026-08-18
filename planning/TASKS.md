@@ -4,6 +4,11 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+## Expire Client
+
+If client's build is less than minBuild from /healthz, disable functionality and
+instruct user to update the app.
+
 ## Stepping into Channel Distinct from Tapping on Card
 
 ## Recency Distinctions
@@ -24,13 +29,15 @@ Self-Mute, Muted-by-Claim, Claimed Floor, In-App, Present-in-Channel, Mic Open, 
 
 For each of these and perhaps others: determine its name in the source code, determine its conditions according to the source, and further specify its conditions where these disagree.
 
-Allow recording when alone.
+1. Allow recording when alone.
 
-Multiple members present, audio from background app with its output set to bluetooth speakers. Does audio loop back into mic and into channel?
+2. Question: Suppose multiple members present, audio from background app with its output set to bluetooth speakers. Does audio loop back into mic and into channel?
 
-Self-muting in a channel with other speakers should not disconnect output from bluetooth headphones.
+3. Self-muting in a channel with other speakers should not disconnect output from bluetooth headphones.
 
-Regression: Running Zoom client on phone at the same time aggressively holds audio for itself, muting and/or silencing TheFloor.
+4. Regression: Running Zoom client on phone at the same time aggressively holds audio for itself, muting and/or silencing TheFloor.
+
+5. Stepping out should clear muted state.
 
 ## Channel Admins
 
