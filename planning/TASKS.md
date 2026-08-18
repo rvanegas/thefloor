@@ -4,11 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Expire Client
-
-If client's build is less than minBuild from /healthz, disable functionality and
-instruct user to update the app.
-
 ## Stepping into Channel Distinct from Tapping on Card
 
 ## What a Restart Does to Last-Seen
@@ -48,6 +43,14 @@ For each of these and perhaps others: determine its name in the source code, det
 
 5. Stepping out should clear muted state.
 
+## Redesign User Cards
+
+In both Home and Channel views, user cards need redeign. Their cards can be horizontally thinner, and include name and time strings on same line. Omit indication of whether there exists a channel already. This information is on the User View. Is that what the source calls it? A User View? Also, do not display all contacts. Only six. If user has more contacts, then after these display a control (with same icon as "start a channel") with label "See All" and opens a new View "Contacts". On both Home View and User View, sort contacts by a key to be determined later.
+
+## Media Playback quality
+
+Suppose two users are in a channel, both are muted and they are playing media. Is the quality of the playback equivalent to playing it directly or is it diminished by passing over webrtc? I sometimes get the impression that quality varies even during the playbook of a single file. Volume also seems to rise and fall, without manual intervention. Maybe this is a feature of webrtc?
+
 ## Channel Admins
 
 Channels, by default, have no admins or owner. In channel settings, a user can declare himself owner, and then give admin status to others. Certain functions are now available only to admins, and owner who is an admin implicitly.
@@ -57,14 +60,6 @@ Channels, by default, have no admins or owner. In channel settings, a user can d
 Per user tracking of minutes and timestamps of webrtc usage, minutes and timestamps of media playback including recordings playback, minutes and timestamps of recordings associated to user who initiates the recording, GBs of recording egress/exports. Also, track minutes and timestamps of conversation shared by pairs of users. This tracking expires if more than one week old. 
 
 All of this is saved in db.
-
-## Redesign User Cards
-
-In both Home and Channel views, user cards need redeign. Their cards can be horizontally thinner, and include name and time strings on same line. Omit indication of whether there exists a channel already. This information is on the User View. Is that what the source calls it? A User View? Also, do not display all contacts. Only six. If user has more contacts, then after these display a control (with same icon as "start a channel") with label "See All" and opens a new View "Contacts". On both Home View and User View, sort contacts by a key to be determined later.
-
-## Media Playback quality
-
-Suppose two users are in a channel, both are muted and they are playing media. Is the quality of the playback equivalent to playing it directly or is it diminished by passing over webrtc? I sometimes get the impression that quality varies even during the playbook of a single file. Volume also seems to rise and fall, without manual intervention. Maybe this is a feature of webrtc?
 
 ## Transcripts
 

@@ -37,12 +37,27 @@ import { readFileSync } from 'node:fs';
  * phone that matters, which after a public release means waiting rather than
  * deciding.
  *
- * 36 because that is the first submitted build and nothing has ever been
- * public. Every earlier build is a TestFlight install on the author's own
- * devices, updatable on demand, and TestFlight expires them in 90 days anyway.
- * The moment 36 is released this number stops being free to move.
+ * **51 since 2026-08-18**, and still on the same reasoning that made 36 free to
+ * move: nothing has ever been public. Build 36 was submitted and rejected
+ * rather than released, so every build below 51 is a TestFlight install on
+ * devices whose owners update on demand — and `oldestBuild` on `/healthz` read
+ * 51 when this was raised, meaning every install that says which build it is
+ * was already there. The three `silentBuilds` are pre-37 and cannot be stranded
+ * by this: they predate the header, and `mustUpdate` reads a null build as not
+ * expired, so they were never going to act on this number at all.
+ *
+ * Nothing was waiting on the raise. The wire had gained four optional fields
+ * — `RecordingView.mixing`, and `InviteView`'s `name`, `others` and
+ * `presentCount` — and every one is additive, so no shim existed to delete.
+ * That is worth writing down because it is the wrong reason to move this
+ * number, and it was nearly moved for it: the floor is permission to delete a
+ * shim, not a record of what the population is running.
+ *
+ * **It stops being free the moment build 51 is released.** After that, raising
+ * it expires installs belonging to people who cannot be asked to update, and
+ * the cost is theirs rather than ours.
  */
-export const MIN_SUPPORTED_BUILD = 36;
+export const MIN_SUPPORTED_BUILD = 51;
 
 /**
  * The header an iOS build uses to say which build it is, mirrored as a
