@@ -413,38 +413,6 @@ any address that has no account, and two things about it are outstanding.
 
 ---
 
-## Nothing distinguishes connected from engaged
-
-Left over from the 2026-08-18 change that made channel idleness a matter of
-evidence rather than departures — see `## "Are you there" is measured by
-evidence` in DECISIONS.md. A socket held while present is now what answers "are
-you there", and it answers it identically for somebody listening intently and
-for a phone face-down on a table with the app still open.
-
-Voice was considered for this and rejected as the *primary* signal, because the
-floor silences the room by design and a voice-driven idle timer would report the
-whole audience as absent. As a *second* signal it is the obvious candidate, and
-it is unbuilt: the server does not know who is speaking at all. LiveKit's
-`ActiveSpeakersChanged` goes to the client, which uses it for the speaking dot;
-making the server aware means either a debounced client report over the socket
-or subscribing to LiveKit's webhooks.
-
-Worth having only alongside an answer to what it would *say*. "Engaged" and
-"present but quiet" are different words on a card, and inventing a third status
-for the roster is a design question rather than a plumbing one.
-
-**Self-mute is the sharpest instance, and the one piece of it with a fix.** A
-muted participant publishes nothing and taps nothing, and their socket stays
-open because `UIBackgroundModes: ["audio"]` keeps the process alive — so
-"Present · muted" can outlast the person by as long as the battery. No signal
-separates that from somebody listening closely with a locked phone, so nothing
-should try. What can be done is to stop showing the mute as a flat state and
-show how long it has been held: `Present · muted 20 minutes`, from a `mutedAt`
-stamped on `SET_SELF_MUTE` and cleared on unmute and on the way out, rendered
-through the same `ago` as everything else. It claims nothing about presence and
-hands the reader the fact that bears on it, the reader being far better placed
-to know what twenty minutes means than the server is.
-
 ## Known defects
 
 Real, reproducible, and left alone. Resolved entries have been dropped — the

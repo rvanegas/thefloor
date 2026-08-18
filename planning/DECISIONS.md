@@ -949,9 +949,10 @@ reads neither field. `core/protocol.ts` is no longer unchanged since `build/51`
 
 The channel-side idle timer built on 2026-08-13 — see `## Two idle timers`
 in `DECISIONS-2026-08-13-to-2026-08-15.md` — stamped `lastPresentAt` in one
-place, `stepOut`, on the reasoning that one route out means one place to write. That is true and it was the wrong
-place, because a departure is an *event* and what the timer answers is a
-question about *evidence*: how long is it since anybody heard from you here.
+place, `stepOut`, on the reasoning that one route out means one place to
+write. That is true and it was the wrong place, because a departure is an
+*event* and what the timer answers is a question about *evidence*: how long is
+it since anybody heard from you here.
 
 **The bug that showed it.** `lastPresentAt` is durable and `present` is not, so
 a restart drops the presence that gates the value without touching the value.
@@ -994,7 +995,7 @@ audience idle while they are doing exactly what the product is for, which is
 worse than what it replaced. A socket held while present is the activity that
 answers "are you there" for a listener as well as a speaker. Voice would answer
 a second question — connected but disengaged, the phone in a pocket — which is
-real, unaddressed, and deliberately not blended into this number. The server
+real, left to the reader, and deliberately not blended into this number. The server
 does not currently know who is speaking at all: `ActiveSpeakersChanged` goes
 from LiveKit to the client, and nothing in `server/` subscribes to it.
 
@@ -1019,10 +1020,19 @@ indistinguishable at every layer — same socket, same subscription, same
 silence — from the phone being in a bag in another room. Voice cannot separate
 them, a muted track producing no samples to detect. The limit is real and it is
 a limit rather than a defect: what the number reports is the last evidence of
-the *client*, which is the most anybody here can honestly claim. The reader is
-given the declaration instead — see BACKLOG's `## Nothing distinguishes
-connected from engaged` for showing how long a mute has been held, which is the
-part of this that has a fix rather than a limit.
+the *client*, which is the most anybody here can honestly claim.
+
+**And the mute is not annotated, which was the near miss.** The tempting
+consolation was to show how long a self-mute had been held — `Present · muted
+20 minutes`, from a `mutedAt` stamped on `SET_SELF_MUTE` — on the grounds that
+it asserts nothing about presence and hands the reader a fact that bears on it.
+Declined the same day as complication for something the reader does without
+help: somebody who is present, silent and quite possibly muted already reads as
+somebody who may not be paying attention, and putting a number under that
+inference does not make it more available, only more official. **Idleness
+measures one thing — the time since an open socket last checked in — and the
+roster says `Present · muted` as it always has.** A settled negative rather
+than deferred work, which is why it is written here and not in BACKLOG.
 
 **Not emitted, and not committed.** A heartbeat pushes no snapshot. Nothing a
 client can read changes while somebody is present — `idleMs` is null for them
