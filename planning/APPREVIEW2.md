@@ -6,6 +6,13 @@ approved, with whatever is still true moving to DECISIONS.md. APPREVIEW.md is
 the submission itself — the reply, the shooting notes, the App Store Connect
 material.
 
+**What recurs is already out of here.** RELEASING.md carries it, moved
+2026-08-18: what a release costs each time, and what App Store Connect will not
+tell you — the 4,000-character caps, that a sent reply cannot be edited, that
+resubmission runs from the version's "Update Review", and the API queries that
+answer what state a submission is really in. Deleting this file on approval
+therefore loses nothing that a later release needs.
+
 Build 36 was submitted 2026-08-14 and rejected 2026-08-15 under **Guideline 2.1
 — Information Needed**. Build 51 was resubmitted 2026-08-17 at 09:33 UTC and is
 `WAITING_FOR_REVIEW`. Fifteen builds separate them, and only the first of those

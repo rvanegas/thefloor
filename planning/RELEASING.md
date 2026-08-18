@@ -2,7 +2,8 @@
 
 Everything only somebody producing an iOS build needs: what `app.json` is set
 to and why, what `prebuild --clean` takes away, the icon rules that fail at
-upload rather than at build, and the state of the first submission.
+upload rather than at build, what a release costs each time, and what App Store
+Connect will not tell you about the state of a submission.
 
 Split out of AGENTS.md on 2026-08-15, when that file reached its 650-line
 limit. It is loaded into every session before anybody types anything, and none
@@ -179,19 +180,87 @@ the rename that caused it.
 
 ---
 
-## Submitted to the App Store, 2026-08-14
+## What a release actually costs, once
 
-Version 1.0.0, build 36, `WAITING_FOR_REVIEW`, release set to manual so approval
-and release stay two decisions. **planning/APPREVIEW.md carries everything**:
-what was built for it, what was typed into App Store Connect, the submitted
-review notes and description verbatim, and the six things filling in the listing
-taught — among them that the App Store version record and `CFBundleVersion`'s
-sibling `CFBundleShortVersionString` must agree or the build picker is silently
-empty, and that a screenshot showing the donate card would defeat
-`server/src/region.ts` in every storefront at once.
+Everything below this line recurs. Everything in APPREVIEW.md does not — that
+file is the *first* submission and is deleted when the app is approved, so what
+was learned there and goes on being true was moved here on 2026-08-18 rather
+than deleted with it.
+
+1. **Deploy the server first**, if it changed. A client that speaks to a server
+   that has not caught up is the one failure mode nothing else here prevents.
+2. **`git diff build/<n>..HEAD -- core/protocol.ts`**, against the oldest build
+   still installed rather than the newest released. `oldestBuild` on `/healthz`
+   reports it. This is the discipline that matters most and the only one no
+   tooling enforces.
+3. **`bin/release-ios`.** One command: refuses a dirty tree, bumps and commits
+   the build number, prebuilds, archives, uploads, tags.
+4. **Select the build in App Store Connect and submit.**
+
+And the thing that is not a command: **walk the app on a device first, in the
+order a stranger would, with nothing skipped.** Answering the 2.1 rejection
+meant making a screen recording, which meant exactly that walk, and it found
+eight defects in an app that had been used daily for months — including a
+recording feature that silently discarded what people had just recorded. Twenty
+minutes, and it is the highest-yield thing on this list.
+
+## App Store Connect, and what it will not tell you
+
+Learned the hard way on 2026-08-17, resubmitting after the 2.1 rejection.
+
+**The reply box and the Notes field are both capped at 4,000 characters.** A
+long reply has nowhere to go — there is no larger field, and the answer is to
+say it in 4,000 rather than to hunt for one. Both counters count down from
+4,000, so paste and read the number.
+
+**A sent reply cannot be edited.** One went out saying the screen recording was
+attached when it was not; the repair was a second message carrying the file,
+because the first could not be corrected. Attach before sending, not after.
+
+**Resubmission runs from the version, not from the submission.** On the
+submission detail page "Resubmit to App Review" stays greyed; the live control
+is **Update Review** on the version page. The red banner there is informational
+and does not need clearing.
+
+**The UI is a poor witness to what state a submission is in.** The API is the
+authority, and answers in a second:
+
+    GET /v1/apps/<appId>/reviewSubmissions        → state, submittedDate
+    GET /v1/apps/<appId>/appStoreVersions         → versionString, appStoreState
+    GET /v1/appStoreVersions/<id>/build           → which build is attached
+    GET /v1/builds?filter[app]=<appId>            → what Apple actually received
+
+Signed with the same App Store Connect key `bin/release-ios` uploads with — an
+ES256 JWT, `aud: appstoreconnect-v1`. `WAITING_FOR_REVIEW` with a fresh
+`submittedDate` is what a successful resubmission looks like;
+`UNRESOLVED_ISSUES` with the old one is a rejection nobody has answered yet.
+
+The build list is worth its own mention: it is the only thing that says what
+Apple *received*, as opposed to what was archived, tagged or echoed by the
+script. Those four agreed for the first time on build 45.
+
+---
+
+## Submitted to the App Store, 2026-08-14; resubmitted 2026-08-17
+
+Version 1.0.0. Build 36 was rejected 2026-08-15 under Guideline 2.1 —
+Information Needed; build 51 was resubmitted 2026-08-17 and is
+`WAITING_FOR_REVIEW`. Release is manual, so approval and release stay two
+decisions.
+
+**planning/APPREVIEW.md carries the submission itself** — what was built for it,
+what was typed into App Store Connect, three versions of the reply, and the six
+things filling in the listing taught, among them that the App Store version
+record and `CFBundleVersion`'s sibling `CFBundleShortVersionString` must agree
+or the build picker is silently empty, and that a screenshot showing the donate
+card would defeat `server/src/region.ts` in every storefront at once.
+**planning/APPREVIEW2.md** is what answering the rejection changed. Both are
+deleted on approval.
 
 The demo accounts are planning/DEMO-ACCOUNT.md; their credentials are in
 `~/.config/thefloor/demo-account.txt`, mode 600, and `REVIEW_IDENTIFIER` /
-`REVIEW_CODE` on the box are what make the review sign-in work.
+`REVIEW_CODE` on the box are what make the review sign-in work. **Do not unset
+those before deleting the accounts** — that ordering is the whole point of that
+file.
 
 ---
