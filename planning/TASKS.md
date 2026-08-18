@@ -11,9 +11,18 @@ instruct user to update the app.
 
 ## Stepping into Channel Distinct from Tapping on Card
 
-## Recency Distinctions
+## What a Restart Does to Last-Seen
 
-Home View idleness measures time since user has viewed the Home View, not time since active on the app. So, being in a channel for an hour without looking at Home updates only idleness in channel, not in Home.
+Left open by the "Recency Distinctions" audit and worth observing rather than
+reasoning about. Whether a socket's `close` handler runs when systemd restarts
+the service decides which of two untrue things `accounts.last_seen_at` says
+afterwards: everybody stamped at the moment of the deploy, or everybody frozen
+at their last message before it. The channel clock has a documented null case
+for exactly this and says nothing rather than something false; Home has none.
+
+`inApp` made it matter less — that is recomputed from live sockets whenever a
+snapshot is composed, so a wrong timestamp is only read once somebody has
+genuinely gone — but it did not settle it. Watch the column across one deploy.
 
 ## Effect of Quitting App
 

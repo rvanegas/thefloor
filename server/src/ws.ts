@@ -109,6 +109,29 @@ export function registerWebsocket(deps: {
     [...connections].some((c) => c.userId === userId);
 
   /**
+   * Tells this user's contacts that they have arrived in the app or left it.
+   *
+   * Called on the two transitions only — the first socket opening and the last
+   * one closing — which is the whole delivery cost of the Home indicator.
+   * `ContactView.inApp` is a fact rather than a timestamp, so a snapshot
+   * carrying it stays true until the fact changes; there is nothing to refresh
+   * in between, and no heartbeat and no timer push anything.
+   *
+   * Accepted contacts only. An incoming request is somebody who can already
+   * see the row, and an outgoing one is an address whose `inApp` is withheld
+   * anyway — pushing to the latter would spend a snapshot to deliver a field
+   * that is deliberately absent.
+   */
+  const announcePresence = (userId: string): void => {
+    homeNotifier.notify(
+      accounts
+        .contactsFor(userId)
+        .filter((contact) => contact.status === 'accepted')
+        .map((contact) => contact.account.id)
+    );
+  };
+
+  /**
    * Closes connections that have gone quiet.
    *
    * A TCP connection can die without either end being told — no close arrives,
@@ -197,16 +220,42 @@ export function registerWebsocket(deps: {
   // client keeps its handler; removing an inert path from installed builds is
   // worth nothing and costs a release. See planning/DECISIONS.md.
 
-  // Any channel change can alter both parties' Home (an invite appears, a
-  // rejoinable channel shows up), so both views refresh together.
+  // Any channel change can alter its participants' Home (an invite appears, a
+  // rejoinable channel changes its order or its count), so both views refresh
+  // together.
+  //
+  // The Home half is aimed rather than broadcast, and it did not used to be:
+  // this call sat outside the loop over `changedIds`, so every change to any
+  // channel pushed a fresh Home to every watcher on the server. Nothing was
+  // visibly wrong with that — it was, accidentally, most of what kept the
+  // contact rows current — but it made one person's Home accurate in
+  // proportion to how busy strangers were, which is not a property anybody
+  // chose and not one that survives having users. Presence now arrives on its
+  // own transitions, so the broadcast has nothing left to carry.
+  //
+  // Participants, not the people present: somebody invited is a participant
+  // and has yet to enter, and the invitation appearing on their Home is
+  // exactly what this delivers.
   channels.onChange((changedIds) => {
-    for (const connection of connections) {
-      for (const channelId of changedIds) {
+    for (const channelId of changedIds) {
+      for (const connection of connections) {
         if (connection.watchingChannels.has(channelId)) {
           pushChannel(connection, channelId);
         }
       }
-      if (connection.watchingHome) pushHome(connection);
+      const channel = channels.get(channelId);
+      if (channel) {
+        homeNotifier.notify(channel.participants);
+        continue;
+      }
+      // A change to a channel this registry can no longer describe. Nothing
+      // emits one today — an ended channel is kept for thirty seconds and its
+      // deletion is silent — so this is a backstop for a future emitter, and
+      // it deliberately errs the old way: tell everybody, rather than work out
+      // an audience from a channel that is gone and get it wrong.
+      for (const connection of connections) {
+        if (connection.watchingHome) pushHome(connection);
+      }
     }
   });
 
@@ -242,10 +291,19 @@ export function registerWebsocket(deps: {
       lastSeen: now(),
       build: claimedBuild(url.searchParams.get('build')),
     };
+    // Asked before the add, so it answers about the sockets that were already
+    // here: a second device connecting is not an arrival, and announcing one
+    // would spend a fan-out saying what every contact already believes.
+    const arriving = !hasConnection(account.id);
     connections.add(connection);
     // Having the app open is exactly this: a live socket. Stamped as it opens
     // so somebody who connects and says nothing still counts as here.
     accounts.markSeen(account.id, now(), connection.build);
+    // The arrival itself, to whoever has this account as a contact. Without
+    // it their Home learns nothing until something unrelated happens to push
+    // one, which is how "in the app now" used to mean "as of whenever your
+    // last snapshot was".
+    if (arriving) announcePresence(account.id);
 
     // Deliberately nothing about presence here.
     //
@@ -348,6 +406,19 @@ export function registerWebsocket(deps: {
         if (!hasConnection(connection.userId)) {
           channels.report(channelId, connection.userId, 'DISCONNECTED');
         }
+      }
+      // The departure, on the same test the loop above uses and for the same
+      // reason: a socket dying after its replacement has connected is not
+      // somebody leaving. Sent after `markSeen` above, so the snapshot it
+      // produces carries the moment they went rather than the one before it.
+      //
+      // No grace period here, deliberately, though a channel gives one. A
+      // flap pushes `inApp: false` with `lastSeenAt` a moment ago, and the
+      // sixty-second floor in `agoOrNull` still reads that as being in the
+      // app — so the display is already steady across a tunnel or a lift
+      // without a timer existing to make it so.
+      if (!hasConnection(connection.userId)) {
+        announcePresence(connection.userId);
       }
     });
   });

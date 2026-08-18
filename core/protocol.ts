@@ -47,6 +47,28 @@ export interface ContactView {
    * is what makes it do so.
    */
   lastSeenAt?: number | null;
+  /**
+   * Whether they hold a socket right now — the fact `lastSeenAt` was being
+   * asked to imply, and could not.
+   *
+   * The two are not redundant, and the difference is the whole reason this
+   * exists. `lastSeenAt` is a number fixed when the server composed the
+   * snapshot, so a client subtracting it from its own advancing clock reports
+   * the age of the snapshot on top of the real gap. This is a fact, and a
+   * fact does not decay: a snapshot saying somebody is in the app is wrong
+   * only once they leave, which is an event the server pushes, and one saying
+   * they left at T stays true for ever. That is what lets Home refresh on two
+   * socket transitions rather than on a timer.
+   *
+   * Optional for the same wire reason as `lastSeenAt`: a server that predates
+   * it sends no such key, which is what an installed build meets between its
+   * release and the deploy that follows.
+   *
+   * Withheld for an outgoing request, exactly as `lastSeenAt` is, and for the
+   * same reason: that row is an address rather than a person, and whether
+   * anybody is behind it is precisely what must not be revealed.
+   */
+  inApp?: boolean;
 }
 
 export interface InviteView {

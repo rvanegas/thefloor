@@ -380,8 +380,8 @@ export function HomeView({
 }
 
 /**
- * Named channels first, then the ones only being described; most recently
- * used first within each.
+ * Named channels first, then the ones only being described; occupied ones at
+ * the top of each, then most recently used.
  *
  * A name is a thing somebody chose to write, so the channels that have one are
  * the ones being kept deliberately, and burying them among the rest costs the
@@ -389,10 +389,21 @@ export function HomeView({
  *
  * Recency is `lastActiveAt` rather than `createdAt`: channels are permanent
  * now, so creation order has nothing to do with what anybody is using.
+ *
+ * Occupancy is asked separately rather than folded into that stamp, and this
+ * is the same distinction the contact rows above turn on. `lastActiveAt` is
+ * written on entry and on the way out and never in between, so a channel two
+ * people have been talking in for an hour carries the hour-old moment the
+ * second of them arrived, and sinks past one somebody stepped out of five
+ * minutes ago. Stamping it while occupied would need something to do the
+ * stamping every so often; `presentCount` is already here, already true, and
+ * already what the line under the name reads. So the sort asks it, and the
+ * stamp goes on meaning the one thing it can mean without a timer.
  */
 function orderChannels(channels: RejoinableView[]): RejoinableView[] {
+  const occupied = (c: RejoinableView) => (c.presentCount > 0 ? 1 : 0);
   const byRecency = (a: RejoinableView, b: RejoinableView) =>
-    b.lastActiveAt - a.lastActiveAt;
+    occupied(b) - occupied(a) || b.lastActiveAt - a.lastActiveAt;
   return [
     ...channels.filter((c) => c.name).sort(byRecency),
     ...channels.filter((c) => !c.name).sort(byRecency),
@@ -574,13 +585,25 @@ function ContactRow({
    * When they last had the app open, which is what makes this row a judgement
    * about whether to try them rather than just a button.
    *
-   * Three states, and the empty one is deliberate: a server that predates the
-   * field sends nothing, and somebody who has not connected since it was added
-   * has nothing recorded. Saying "last seen: unknown" about both would be
-   * noise on every row of an old snapshot, so an unknown says nothing at all.
+   * `inApp` first, because it is a fact and the subtraction below is an
+   * inference. Somebody sitting in a channel for an hour is in the app, and
+   * the number under that reads as an hour idle for exactly as long as this
+   * phone has gone without a snapshot — which is the whole of what this row
+   * used to get wrong.
+   *
+   * The subtraction survives as the branch for a server that predates the
+   * field, which sends no key at all: `undefined` is falsy, so an old server
+   * gets precisely the behaviour it got before, with no version check.
+   *
+   * Three states below, and the empty one is deliberate: a server that
+   * predates `lastSeenAt` too sends nothing, and somebody who has not
+   * connected since it was added has nothing recorded. Saying "last seen:
+   * unknown" about both would be noise on every row of an old snapshot, so an
+   * unknown says nothing at all.
    */
-  const lastSeen =
-    entry.lastSeenAt == null
+  const lastSeen = entry.inApp
+    ? 'In the app now'
+    : entry.lastSeenAt == null
       ? ''
       : (agoOrNull(app.serverNow() - entry.lastSeenAt) ?? 'In the app now');
 

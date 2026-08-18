@@ -170,9 +170,17 @@ export interface ChannelState {
   invitedBy: Record<UserId, UserId>;
   createdAt: number;
   /**
-   * The last time anybody was in the channel — set on creation, on every
-   * entry, and again when somebody steps out, so it freezes at the moment a
-   * channel emptied and reads as "now" for one still occupied.
+   * The last time anybody entered or left the channel — set on creation, on
+   * every entry, and again when somebody steps out, so it freezes at the
+   * moment a channel emptied.
+   *
+   * It says nothing about a channel that is occupied now, and this comment
+   * used to claim that it did — that it "reads as now for one still occupied"
+   * — which nothing here has ever done. There is no write between an entry and
+   * an exit, so an hour of conversation moves it not at all. Whoever orders on
+   * it must ask about occupancy separately; `RejoinableView.presentCount`
+   * carries that, and `orderChannels` in the app is where the two are put
+   * together.
    *
    * Existing because `createdAt` is no use for ordering once channels are
    * permanent: a channel opened months ago and used every day would sink to

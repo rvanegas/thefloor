@@ -2916,7 +2916,10 @@ describe('the appearance setting', () => {
 });
 
 describe('when a contact was last in the app', () => {
-  function homeWith(lastSeenAt: number | null | undefined) {
+  function homeWith(
+    lastSeenAt: number | null | undefined,
+    inApp?: boolean
+  ) {
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -2926,6 +2929,7 @@ describe('when a contact was last in the app', () => {
           account: { id: 'acct_q', displayName: 'Quinn Ito' },
           status: 'accepted',
           lastSeenAt,
+          inApp,
         },
       ],
     };
@@ -3005,6 +3009,115 @@ describe('when a contact was last in the app', () => {
       expect(text).not.toContain('In the app now');
       act(() => tree.unmount());
     }
+  });
+
+  it('believes the fact over the arithmetic', () => {
+    // The worked case, on this side of the wire. Quinn has been sitting in a
+    // channel for an hour, so the timestamp in this snapshot is an hour old —
+    // it was true when the server composed it and nothing has been sent
+    // since, because nothing needed to be. Reading it as an hour idle is the
+    // whole of what this row used to get wrong.
+    mockApp.serverNow = () => NOW + 3_600_000;
+    const tree = homeWith(NOW, true);
+    const text = textOf(tree);
+    expect(text).toContain('In the app now');
+    expect(text).not.toContain('ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('counts from the moment they went, once they have gone', () => {
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = homeWith(NOW, false);
+    expect(textOf(tree)).toContain('5 minutes ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('does not flicker while they are reconnecting', () => {
+    // A tunnel or a lift closes the socket, so `inApp` goes false with the
+    // departure a moment ago. No grace period exists on this clock; the
+    // sixty-second floor is what keeps the row steady, and it has to keep
+    // doing so or every flap shows as a departure.
+    mockApp.serverNow = () => NOW + 3_000;
+    const tree = homeWith(NOW, false);
+    expect(textOf(tree)).toContain('In the app now');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('falls back to the old reading when the server sends no such field', () => {
+    // An installed build meets this between its release and the deploy that
+    // follows, and gets exactly the behaviour it had before.
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = homeWith(NOW, undefined);
+    expect(textOf(tree)).toContain('5 minutes ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+});
+
+describe('the order channels are listed in', () => {
+  const channel = (
+    id: string,
+    name: string | null,
+    presentCount: number,
+    lastActiveAt: number
+  ) => ({
+    channelId: id,
+    name,
+    others: [{ id: 'acct_q', displayName: 'Quinn Ito' }],
+    presentCount,
+    createdAt: NOW,
+    lastActiveAt,
+  });
+
+  const namesInOrder = (tree: ReturnType<typeof render>) => {
+    const text = textOf(tree);
+    return ['Occupied', 'Emptied', 'Older'].filter((n) => text.includes(n))
+      .sort((a, b) => text.indexOf(a) - text.indexOf(b));
+  };
+
+  it('puts an occupied channel above one that emptied more recently', () => {
+    // `lastActiveAt` is written on entry and on the way out and never in
+    // between, so a channel two people have been talking in for an hour
+    // carries the hour-old moment the second of them arrived. Ordering on it
+    // alone sinks the live conversation under an abandoned one.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        channel('chan_b', 'Emptied', 0, NOW - 5 * 60_000),
+        channel('chan_a', 'Occupied', 2, NOW - 3_600_000),
+        channel('chan_c', 'Older', 0, NOW - 86_400_000),
+      ],
+      recordings: [],
+      contacts: [],
+    };
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    expect(namesInOrder(tree)).toEqual(['Occupied', 'Emptied', 'Older']);
+    act(() => tree.unmount());
+  });
+
+  it('still keeps named channels above unnamed ones', () => {
+    // Occupancy sorts within each group, not across them. A name is something
+    // somebody chose to write, and that grouping is older than this rule.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        channel('chan_a', null, 2, NOW),
+        channel('chan_b', 'Emptied', 0, NOW - 3_600_000),
+      ],
+      recordings: [],
+      contacts: [],
+    };
+    const tree = render(
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+    );
+    const text = textOf(tree);
+    expect(text.indexOf('Emptied')).toBeLessThan(text.indexOf('Quinn Ito'));
+    act(() => tree.unmount());
   });
 });
 

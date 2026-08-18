@@ -1247,6 +1247,18 @@ export function buildApp(options: BuildOptions = {}): App {
         account: entry.account,
         status: entry.status as 'accepted' | 'outgoing' | 'incoming',
         lastSeenAt: entry.lastSeenAt,
+        // Asked here rather than inside `contactsFor`, which is a database
+        // query and has no business knowing about sockets. Whether somebody
+        // holds one is a fact about this process, so it is composed in at the
+        // point the two are put on the wire together.
+        //
+        // Withheld from an outgoing request for the same reason the name and
+        // the time are: that row is an address, and `undefined` is what the
+        // absence of an answer looks like on this wire.
+        inApp:
+          entry.status === 'outgoing'
+            ? undefined
+            : reachability.inApp(entry.account.id),
       })),
       // Still sent, though the app now shows recordings on the channel they
       // were made in. Build 20 and earlier render this list on Home and would

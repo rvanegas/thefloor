@@ -1979,3 +1979,95 @@ right to delete a shim; from this build on it is what takes an installed app off
 the air. Read `oldestBuild` and `silentBuilds` before moving it, and do not move
 it while `silentBuilds` is above zero unless the intent is to expire everything
 that has never spoken.
+---
+
+## Home says whether you are in the app, rather than working it out, 2026-08-17
+
+Built for TASKS.md's "Recency Distinctions", which reported that Home's idleness
+measured time since the viewer last looked at Home rather than time since the
+other person was active. The audit that preceded it found the report accurate
+and the cause somewhere else, so both are written down here.
+
+**The two clocks were never the problem.** They are described above under "Two
+idle timers, and one place that turns a gap into words", and that reasoning
+stands: a channel card asks when you were last *in this channel*, Home asks when
+you were last *in the app*, and only the second can be a socket. `last_seen_at`
+was already correct — written on every message a socket carries, so never more
+than a heartbeat stale.
+
+**What was wrong was that Home shipped a number where the channel side keeps a
+fact.** `idleMs` holds `present` beside `lastPresentAt`, so it returns null for
+somebody who is here rather than a duration that has to be recent to be true.
+Home held only `lastSeenAt`, fixed when the server composed the snapshot, and
+the app subtracted it from a clock that keeps advancing. That difference is
+*the age of the snapshot*, added to the real gap, and there was nothing bounding
+it: a Home push happened on `watch.home`, on contact mutations, and on channel
+changes, and on no timer and no heartbeat at all.
+
+**The accidental part is the part worth remembering.** The channel-change push
+sat *outside* the loop over the changed ids, so any change to any channel
+anywhere pushed a whole fresh Home to every watcher on the server. That was most
+of what kept contact rows current, which is why nobody had noticed: on a busy
+server every Home is continuously accurate, and on a quiet one it is arbitrarily
+stale. One person's view was accurate in proportion to how busy strangers were.
+Nobody chose that, and it is not a property that survives having users.
+
+**The fix is to send the fact.** `ContactView.inApp` is a boolean, composed in
+`homeFor` from the reachability the websocket layer already publishes. A fact
+does not decay: a snapshot saying somebody is in the app is wrong only once they
+leave, and one saying they left at T is true for ever. So Home needs no timer
+and no per-heartbeat fan-out — only a push on the two transitions, the first
+socket opening and the last one closing, to that account's accepted contacts.
+Twice per app session, bounded by contact count.
+
+**No grace period on this clock, though a channel has one.** A flap pushes
+`inApp: false` with a departure a moment old, and `agoOrNull`'s sixty-second
+floor already reads that as being in the app. The floor was put there to absorb
+heartbeat imprecision and absorbs a tunnel or a lift for free. Building a second
+grace mechanism would have been a timer to reproduce something that already
+worked.
+
+**The client tick was a second, opposite bug.** The 500 ms tick is gated on
+holding a channel snapshot, not on displaying one — and pressing Home from a
+channel deliberately keeps the snapshot. So Home's rows aged in real time *only*
+for a viewer who was in a channel, climbing from a stale base; for anybody else
+the row was drawn once and then stopped, and kept saying "In the app now" long
+after the person had quit. Whether the number was wrong loudly or wrong silently
+turned on something with no relationship to the person being described. A slow
+20-second interval now runs when the fast one does not, which is enough because
+the words come from dayjs's thresholds and move at minutes.
+
+**`lastActiveAt` was not a specification change, but a comment that had never
+been true.** It claimed to freeze when a channel emptied *and* to "read as now
+for one still occupied". Nothing ever did the second: it is written on entry and
+on exit and never in between, so an hour of conversation moves it not at all and
+a live channel sinks below one somebody walked out of five minutes ago.
+`orderChannels` now asks `presentCount`, which was already on the wire and
+already rendered two lines away, and the comment says what the field does. The
+alternative — a fourth stamp site, or a server-side "now" for occupied channels
+— would have transported another decaying fact, which is the thing being fixed.
+
+**The broadcast was narrowed last, deliberately.** It was what masked the
+staleness, so removing it before the rest would have made Home visibly worse. It
+now aims at the changed channel's `participants` — participants and not the
+present, because somebody invited has yet to enter and the invitation appearing
+is exactly what the push delivers. A channel the registry can no longer describe
+falls back to the old broadcast; nothing emits such a change today, since an
+ended channel is kept for thirty seconds and its deletion is silent.
+
+**What the tests were not doing.** Every existing test supplied `lastSeenAt`
+directly, which is the one thing production never does, so the whole delivery
+path was outside the suite — which is how four documented behaviours went
+unnoticed. The new server tests drive real sockets and assert on what a
+*watcher's* snapshot says, including the worked case: Alice in the app for an
+hour, Bob holding one snapshot, nothing sent in between, and his copy still
+right. Each was checked against the unmodified server and fails there; the
+arrival test was written wrong first time and passed instantly, because
+`Client.next` scans from the beginning and Bob's first snapshot says `inApp:
+false` quite truthfully.
+
+**On the wire, this is additive.** `inApp` is optional, so a server that
+predates it sends no key and the app falls back to exactly its old arithmetic,
+with no version check. Build 51 was in App Review when this was written and
+reads neither field. `core/protocol.ts` is no longer unchanged since `build/51`
+— check it before the deploy rather than discovering it.

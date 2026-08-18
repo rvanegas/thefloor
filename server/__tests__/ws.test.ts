@@ -564,4 +564,227 @@ describe('websocket', () => {
       expect(outgoing.lastSeenAt).toBeNull();
     });
   });
+
+  describe('whether somebody is in the app', () => {
+    /** Alice's row in the most recent Home snapshot Bob's socket received. */
+    const aliceOnBobsHome = (bob: Client, aliceId: string) => {
+      const homes = bob.received.filter((m) => m.type === 'home');
+      const latest = homes[homes.length - 1];
+      if (!latest || latest.type !== 'home') return undefined;
+      return latest.home.contacts.find((c) => c.account.id === aliceId);
+    };
+
+    /**
+     * Waits for a snapshot whose Alice row satisfies `predicate`, and answers
+     * with that row rather than with whatever is latest by the time it lands.
+     *
+     * The distinction is not pedantry. `Client.next` scans from the beginning,
+     * and Bob's very first snapshot — taken before Alice ever connected — has
+     * `inApp: false` on it quite truthfully. Waiting for "false" therefore
+     * matches instantly and proves nothing, which is exactly the trap this
+     * suite fell into first time.
+     */
+    const aliceBecomes = async (
+      bob: Client,
+      aliceId: string,
+      predicate: (row: { inApp?: boolean; lastSeenAt?: number | null }) => boolean
+    ) => {
+      const message = await bob.next('home', (m) => {
+        const row = m.home.contacts.find((c) => c.account.id === aliceId);
+        return row !== undefined && predicate(row);
+      });
+      return message.home.contacts.find((c) => c.account.id === aliceId);
+    };
+
+    it('reaches a watching contact when she arrives, unprompted', async () => {
+      const { alice, bob } = await pairInSession();
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await b.next('home');
+      expect(aliceOnBobsHome(b, alice.account.id)?.inApp).toBe(false);
+
+      // Bob does nothing at all from here. Before the transition push, his
+      // Home learned about Alice only when something unrelated happened to
+      // regenerate it, which is what made "in the app now" mean "as of
+      // whenever your last snapshot was".
+      const a = new Client(alice.token, baseUrl);
+      await a.open();
+      const arrived = await aliceBecomes(
+        b,
+        alice.account.id,
+        (row) => row.inApp === true
+      );
+      expect(arrived?.inApp).toBe(true);
+
+      a.close();
+      b.close();
+    });
+
+    it('stays true across an hour of heartbeats, with nothing pushed', async () => {
+      // The worked case. Alice sits in the app for an hour; Bob holds the one
+      // snapshot he was sent as she arrived. A fact does not decay, so his
+      // copy is still right without anything having been sent to refresh it —
+      // which is the whole reason Home needs no timer.
+      const { alice, bob } = await pairInSession();
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await b.next('home');
+
+      const a = new Client(alice.token, baseUrl);
+      await a.open();
+      await aliceBecomes(b, alice.account.id, (row) => row.inApp === true);
+      const delivered = b.received.filter((m) => m.type === 'home').length;
+
+      clock += 3_600_000;
+      a.send({ type: 'ping' });
+      await a.next('pong');
+      await new Promise((r) => setTimeout(r, 200));
+
+      expect(b.received.filter((m) => m.type === 'home').length).toBe(delivered);
+      expect(aliceOnBobsHome(b, alice.account.id)?.inApp).toBe(true);
+
+      a.close();
+      b.close();
+    });
+
+    it('turns false as her last socket goes, carrying the moment she went', async () => {
+      const { alice, bob } = await pairInSession();
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await b.next('home');
+
+      const a = new Client(alice.token, baseUrl);
+      await a.open();
+      await aliceBecomes(b, alice.account.id, (row) => row.inApp === true);
+
+      const left = (clock += 60_000);
+      a.close();
+      const gone = await aliceBecomes(
+        b,
+        alice.account.id,
+        (row) => row.inApp === false && row.lastSeenAt === left
+      );
+      // The timestamp beside it is the departure, so the count the app starts
+      // from is fixed and correct and never needs refreshing again.
+      expect(gone?.lastSeenAt).toBe(left);
+
+      b.close();
+    });
+
+    it('is not announced by a second device, or by one of two going', async () => {
+      // Arrival and departure are transitions, not connections. A phone and a
+      // tablet are one person being in the app once.
+      const { alice, bob } = await pairInSession();
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await b.next('home');
+
+      const phone = new Client(alice.token, baseUrl);
+      await phone.open();
+      await aliceBecomes(b, alice.account.id, (row) => row.inApp === true);
+      const afterArrival = b.received.filter((m) => m.type === 'home').length;
+
+      const tablet = new Client(alice.token, baseUrl);
+      await tablet.open();
+      await new Promise((r) => setTimeout(r, 200));
+      expect(b.received.filter((m) => m.type === 'home').length)
+        .toBe(afterArrival);
+
+      tablet.close();
+      await new Promise((r) => setTimeout(r, 200));
+      expect(b.received.filter((m) => m.type === 'home').length)
+        .toBe(afterArrival);
+      expect(aliceOnBobsHome(b, alice.account.id)?.inApp).toBe(true);
+
+      const departed = (clock += 1_000);
+      phone.close();
+      const gone = await aliceBecomes(
+        b,
+        alice.account.id,
+        (row) => row.inApp === false && row.lastSeenAt === departed
+      );
+      expect(gone?.inApp).toBe(false);
+
+      b.close();
+    });
+
+    it('does not reach somebody with no part in a channel that changed', async () => {
+      // The property the narrowing exists for. Carol is a contact of Alice's
+      // and has nothing to do with the channel Alice and Bob are in, so a
+      // change to it is not news she is owed. This used to push her a whole
+      // fresh Home — which was, accidentally, most of what kept her contact
+      // rows current, and made her view's accuracy a function of how busy
+      // other people were.
+      const { alice, bob, channelId } = await pairInSession();
+      const carol = await signIn('user3@example.com', 'Carol');
+      await app.fastify.inject({
+        method: 'POST',
+        url: '/contacts/request',
+        headers: auth(alice.token),
+        payload: { identifier: 'user3@example.com' },
+      });
+      await app.fastify.inject({
+        method: 'POST',
+        url: `/contacts/${alice.account.id}/accept`,
+        headers: auth(carol.token),
+      });
+
+      const c = new Client(carol.token, baseUrl);
+      await c.open();
+      c.send({ type: 'watch.home' });
+      await c.next('home');
+
+      const a = new Client(alice.token, baseUrl);
+      await a.open();
+      // Alice arriving *is* Carol's business, and reaches her.
+      await aliceBecomes(c, alice.account.id, (row) => row.inApp === true);
+      const delivered = c.received.filter((m) => m.type === 'home').length;
+
+      // Bob entering the channel is not. It has to be a real change to the
+      // channel's state, or this passes for the wrong reason: Alice created
+      // it and is present already, so her merely watching moves nothing and
+      // emits nothing. Bob is watching, and must still be told — which is the
+      // other half of what keeps the aiming honest.
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.channel', channelId });
+      await b.next('channel');
+      b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+      await b.next('channel', (m) => m.view.channel.present.length === 2);
+      await new Promise((r) => setTimeout(r, 200));
+
+      expect(c.received.filter((m) => m.type === 'home').length).toBe(delivered);
+
+      a.close();
+      b.close();
+      c.close();
+    }, 20_000);
+
+    it('is withheld from a request sent to an address', async () => {
+      // Same reason the name and the time are: that row is an address, and
+      // whether anybody is behind it is what it must not answer. A boolean
+      // would answer it more plainly than a timestamp does.
+      const alice = await signIn('user1@example.com', 'Alice');
+      await app.fastify.inject({
+        method: 'POST',
+        url: '/contacts/request',
+        headers: auth(alice.token),
+        payload: { identifier: 'user9@example.com' },
+      });
+      const home = await app.fastify.inject({
+        method: 'GET',
+        url: '/home',
+        headers: auth(alice.token),
+      });
+      const { contacts } = home.json() as {
+        contacts: Array<{ status: string; inApp?: boolean }>;
+      };
+      expect(contacts[0].status).toBe('outgoing');
+      expect(contacts[0].inApp).toBeUndefined();
+    });
+  });
 });

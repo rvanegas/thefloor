@@ -416,11 +416,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // read before the stored token has been restored.
   useEffect(() => onNotificationTap(setPendingChannelId), []);
 
-  // Drives countdowns while a channel is on screen.
+  // Drives countdowns while a channel *snapshot is held*, which is not the
+  // same as while one is on screen: pressing Home from a channel deliberately
+  // keeps the snapshot, because dropping it would be leaving the channel.
   const watchingAny = Object.keys(state.channelViews).length > 0;
   useEffect(() => {
     if (!watchingAny) return;
     const timer = setInterval(() => forceTick((n) => n + 1), 500);
+    return () => clearInterval(timer);
+  }, [watchingAny]);
+
+  /**
+   * Ages the words on Home when the fast tick above is not running.
+   *
+   * Without it a contact row repaints only when a snapshot lands, so "three
+   * minutes ago" is drawn once and then simply stops — and whether it stops
+   * depended on whether the viewer happened to be holding a channel, which is
+   * nothing to do with the person being described.
+   *
+   * Twenty seconds rather than five hundred milliseconds because the strings
+   * come from dayjs's relative-time thresholds, which move at minutes and then
+   * hours; anything finer redraws the list to produce the same words. Somebody
+   * currently in the app does not need this at all — `inApp` is a fact and
+   * says so without arithmetic — so this is only carrying the absent ones.
+   */
+  useEffect(() => {
+    if (watchingAny) return;
+    const timer = setInterval(() => forceTick((n) => n + 1), 20_000);
     return () => clearInterval(timer);
   }, [watchingAny]);
 
