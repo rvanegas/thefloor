@@ -25,6 +25,22 @@ genuinely gone — but it did not settle it. Watch the column across one deploy.
 
 ## Idleness Privacy
 
+## Contacts View
+
+Home stopped being a screen with a contact list on it on 2026-08-18: an accepted
+contact now *is* an unnamed one-to-one channel, so contacts appear as the thing
+you would talk to them in. Four things went with the rows and are owed a home.
+The contact list itself, as a list of people rather than of rooms — sorted by a
+key still to be decided, which is what `## Contact Card Sorting and Classes`
+above is about. A profile reachable without entering a channel; `ProfileView`
+and its route in `App.tsx` are both still wired and reachable from a channel
+roster, so this is a way in rather than a screen to build. The requests and
+`Add contact`, which are on Home in the meantime only because an incoming
+request is time-sensitive and would be invisible behind a screen nobody has
+built yet. And the availability line — "In the app now", "last seen 3 hours
+ago" — which is on the profile now and was on every contact row before; the
+server never stopped composing it, so showing it again is a rendering change.
+
 ## Contact Card Sorting and Classes
 
 ## Review Logic for States
@@ -42,10 +58,6 @@ For each of these and perhaps others: determine its name in the source code, det
 4. Regression: Running Zoom client on phone at the same time aggressively holds audio for itself, muting and/or silencing TheFloor.
 
 5. Stepping out should clear muted state.
-
-## Redesign User Cards
-
-In both Home and Channel views, user cards need redeign. Their cards can be horizontally thinner, and include name and time strings on same line. Omit indication of whether there exists a channel already. This information is on the User View. Is that what the source calls it? A User View? Also, do not display all contacts. Only six. If user has more contacts, then after these display a control (with same icon as "start a channel") with label "See All" and opens a new View "Contacts". On both Home View and User View, sort contacts by a key to be determined later.
 
 ## Media Playback quality
 

@@ -1,4 +1,4 @@
-import { createChannel, idleMs, reduce } from '../channel';
+import { createChannel, idleMs, lastPresenceAt, reduce } from '../channel';
 import { DISCONNECT_GRACE_MS } from '../constants';
 import type { ChannelState } from '../types';
 
@@ -109,5 +109,56 @@ describe('how long somebody has been away from a channel', () => {
     const s = reduce(pair(), { type: 'STEP_OUT', userId: B }, T0);
     expect(idleMs(s, A, T0 + 60_000)).toBeNull();
     expect(s.lastPresentAt[A]).toBeUndefined();
+  });
+});
+
+/**
+ * The same question asked about the room rather than about a person, which is
+ * what a channel card on Home reads. `idleMs` cannot answer it: it is per
+ * person, and null both for somebody who is here and for somebody who never
+ * was, which are opposite facts about the channel.
+ */
+describe('how long it is since anybody was in a channel', () => {
+  it('is the moment it was made, before anybody has moved', () => {
+    const s = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    expect(lastPresenceAt(s)).toBe(T0);
+  });
+
+  it('is the *least* idle member, not the most', () => {
+    // B wandered off on Monday; A was here an hour ago. The room is an hour
+    // idle. Taking the minimum would describe it by whoever has been away
+    // longest, which is a fact about a person and not about the place.
+    const monday = T0;
+    const recent = T0 + 3 * 24 * 60 * 60 * 1_000;
+    let s = reduce(pair(), { type: 'STEP_OUT', userId: B }, monday);
+    s = reduce(s, { type: 'STILL_HERE', userId: A }, recent);
+    expect(lastPresenceAt(s)).toBe(recent);
+  });
+
+  it('keeps moving while somebody is in it', () => {
+    // What `lastActiveAt` cannot do: it is written on an entry and an exit and
+    // at no point between, so an hour of conversation leaves it where it was.
+    let s = pair();
+    const started = s.lastActiveAt;
+    s = reduce(s, { type: 'STILL_HERE', userId: A }, T0 + 3_600_000);
+    expect(s.lastActiveAt).toBe(started);
+    expect(lastPresenceAt(s)).toBe(T0 + 3_600_000);
+  });
+
+  it('falls back to the last entry or exit when no stamp is fresher', () => {
+    // A channel revived from a durable projection carries stamps floored to
+    // the minute, so the exit recorded in `lastActiveAt` can be the better
+    // evidence of the very same departure. Taking the maximum of the two kinds
+    // is what makes that impossible to get wrong.
+    const s = reduce(pair(), { type: 'STEP_OUT', userId: B }, T0 + 90_000);
+    const quantised: typeof s = { ...s, lastPresentAt: { [B]: T0 + 60_000 } };
+    expect(lastPresenceAt(quantised)).toBe(T0 + 90_000);
+  });
+
+  it('never goes backwards when somebody leaves', () => {
+    const s = reduce(pair(), { type: 'STEP_OUT', userId: B }, T0 + 10_000);
+    expect(lastPresenceAt(s)).toBe(T0 + 10_000);
+    const later = reduce(s, { type: 'STEP_OUT', userId: A }, T0 + 20_000);
+    expect(lastPresenceAt(later)).toBe(T0 + 20_000);
   });
 });

@@ -140,6 +140,12 @@ interface AppValue extends AppState {
   withdrawContact: (identifier: string) => Promise<void>;
   acceptContact: (contactId: string) => Promise<void>;
   declineContact: (contactId: string) => Promise<void>;
+  /**
+   * Ends an accepted contact. Mutual, and it takes the channels that held only
+   * the two of you — which is why it is offered from a profile, where there is
+   * room to say so, rather than from a row in a list.
+   */
+  removeContact: (contactId: string) => Promise<void>;
   /** Reads a profile. Rejects when it is not yours to see. */
   loadProfile: (accountId: string) => Promise<ProfileView>;
   /**
@@ -675,6 +681,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       declineContact: async (contactId) => {
         if (!state.token) return;
         await api.declineContact(state.token, contactId);
+        const home = await api.home(state.token);
+        setState((s) => ({ ...s, home }));
+      },
+
+      removeContact: async (contactId) => {
+        if (!state.token) return;
+        await api.removeContact(state.token, contactId);
         const home = await api.home(state.token);
         setState((s) => ({ ...s, home }));
       },

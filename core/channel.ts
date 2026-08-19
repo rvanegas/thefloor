@@ -172,6 +172,36 @@ export function idleMs(
 }
 
 /**
+ * The most recent moment anybody is known to have been in this channel —
+ * which is what a channel's idleness is measured from.
+ *
+ * `idleMs` above answers this about one person; this answers it about the
+ * room, and is the *maximum* rather than the minimum because a channel is as
+ * idle as its least idle member. Somebody who wandered off a week ago says
+ * nothing about a room two other people were in an hour ago.
+ *
+ * Always a number, never null, which is the difference from `idleMs`. Two
+ * kinds of fact feed it and one of them is always there: the `lastPresentAt`
+ * stamps, and `lastActiveAt`, which is set on creation and on every entry and
+ * exit and so is itself a moment somebody was here. Taking the maximum across
+ * both kinds is not belt and braces — persisted stamps are floored to the minute
+ * (`quantise`, in the server), so after a restart the exit stamp in
+ * `lastActiveAt` can be the fresher evidence of the very same departure.
+ *
+ * While anybody is present this reads as roughly now, STILL_HERE refreshing a
+ * present member's stamp every few seconds. So a caller does not have to
+ * special-case an occupied channel to keep it out of the idle end of a list —
+ * though `presentCount` is the fact to *show*, this being an inference.
+ */
+export function lastPresenceAt(state: ChannelState): number {
+  let latest = state.lastActiveAt;
+  for (const at of Object.values(state.lastPresentAt)) {
+    if (at !== undefined && at > latest) latest = at;
+  }
+  return latest;
+}
+
+/**
  * Whether there is anyone to talk to. The generalisation of "both present":
  * the floor means nothing to someone alone in the channel.
  */

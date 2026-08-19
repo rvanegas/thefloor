@@ -179,6 +179,18 @@ export class Accounts {
     };
   }
 
+  /**
+   * When somebody last had the app open, or null if never.
+   *
+   * Kept out of `profile()` rather than folded into it, because a profile goes
+   * to a wider audience than this may: only a contact sees availability, and a
+   * shape that carries it by default is one every caller has to remember to
+   * strip. Asked for explicitly, by the one route entitled to answer.
+   */
+  lastSeenAt(id: string): number | null {
+    return this.byId(id)?.last_seen_at ?? null;
+  }
+
   public(id: string): PublicAccount | null {
     const row = this.byId(id);
     return row ? { id: row.id, displayName: row.display_name } : null;
@@ -555,6 +567,39 @@ export class Accounts {
 
   areContacts(x: string, y: string): boolean {
     return this.contactState(x, y)?.state === 'accepted';
+  }
+
+  /** Every accepted pair, for the one-to-one channel each of them is owed. */
+  acceptedPairs(): Array<[string, string]> {
+    const rows = this.db
+      .prepare("SELECT a_id, b_id FROM contacts WHERE state = 'accepted'")
+      .all() as unknown as Array<{ a_id: string; b_id: string }>;
+    return rows.map((row) => [row.a_id, row.b_id] as [string, string]);
+  }
+
+  /**
+   * Ends an accepted contact.
+   *
+   * **Mutual, because the row is the pair.** One row holds both directions and
+   * has done since contacts existed, so there is no way to stop being somebody's
+   * contact while they go on being yours — and no half-state worth inventing
+   * for it here. Either of them may do this and it means the same thing.
+   *
+   * Only an accepted one. A pending row is withdrawn by its requester or
+   * declined by its recipient, and those say what they are; routing a third
+   * verb through the same delete would let a request be cancelled by whichever
+   * side found this endpoint first.
+   *
+   * The channels the pair shared are not this class's business — see
+   * `Channels.leavePairChannels`, which the route calls next.
+   */
+  removeContact(userId: string, otherId: string): boolean {
+    if (!this.areContacts(userId, otherId)) return false;
+    const [a, b] = pairKey(userId, otherId);
+    const result = this.db
+      .prepare("DELETE FROM contacts WHERE a_id = ? AND b_id = ? AND state = 'accepted'")
+      .run(a, b);
+    return result.changes > 0;
   }
 
   /** Adding is never one-directional; the pair is mutual only once accepted. */

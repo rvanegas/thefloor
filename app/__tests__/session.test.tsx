@@ -150,7 +150,7 @@ describe('a session ending', () => {
     });
 
     expect(textOf(tree)).not.toContain('Home');
-    expect(textOf(tree)).toContain('Contacts');
+    expect(textOf(tree)).toContain('Start a channel');
     act(() => tree.unmount());
   });
 });

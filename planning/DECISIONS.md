@@ -1159,3 +1159,139 @@ unchanged and is the reason this class of bug is cheap to reintroduce.
 **Needs a build to reach anybody.** The server is not involved: the speaking
 indicator is driven by the room rather than the reducer, which is the whole
 reason presence changing did not clear it.
+
+## Home is a list of channels, and a contact is one of them, 2026-08-18
+
+Four things at once, because they are one thing: Home now shows channels in
+three sections ordered by how long since anybody was in them, and the contact
+list is gone because an accepted contact *is* a channel.
+
+**`lastActiveAt` could not carry idleness, and pretending otherwise was the old
+sort's whole complexity.** It is written on an entry and on an exit and at no
+point between — `core/types.ts` has said so at length since it was added — so a
+channel two people had been talking in for an hour carried the hour-old moment
+the second of them arrived, and sank below one somebody had walked out of five
+minutes ago. `orderChannels` corrected for that by asking `presentCount`
+separately and sorting occupied channels to the top of each group. That works
+and says nothing: a card could not tell you whether the room went quiet four
+minutes ago or in March, which is the fact that decides whether stepping in is
+joining something or turning a light on in an empty house.
+
+The number was already in the state and Home had never seen it.
+`ChannelState.lastPresentAt` is per participant and is refreshed by
+`STILL_HERE` every few seconds while somebody is present — it exists for the
+channel roster's "Stepped out an hour ago". `lastPresenceAt` in `core/channel.ts`
+is the maximum across participants, and it is the **maximum** rather than the
+minimum on purpose: a channel is as idle as its *least* idle member. Somebody
+who wandered off a week ago says nothing about a room two other people were in
+an hour ago. It folds in `lastActiveAt` as well, which is not belt and braces —
+the server floors persisted stamps to the minute (`quantise`), so after a
+restart the exit recorded in `lastActiveAt` can be the fresher evidence of the
+very same departure.
+
+**The sections are a priority ladder, not a taxonomy.** Live, Invitations, the
+rest; each channel appears once, in the first section it qualifies for. So an
+invitation with somebody in it sits under Live rather than under Invitations,
+which is the case worth getting right — it is the most urgent thing on the
+screen, and filing it by classification would bury it under channels nobody is
+in. Its card still says who asked you in.
+
+**The named-above-unnamed grouping went, deliberately.** It held that a name is
+a thing somebody chose to write, so named channels were the ones being kept and
+should not be buried among the rest. The cost was that the stalest named channel
+outranked the freshest unnamed one, and most channels have no name — so the rule
+sorted the screen by an attribute rather than by what was happening in it. The
+distinction survives where it was always doing the work: a name is asserted in
+`type.body`, a description is italic.
+
+**A contact is a channel, which deletes `channelWith` and everything under it.**
+The contact list was the only way to open a one-to-one channel with somebody, so
+a contact row had to work out whether such a channel already existed, say
+"Channel already open", offer to join rather than start — sixty lines of comment
+about a question that need never have been asked, and wrong twice (it matched
+any channel the contact appeared in, so a named three-person channel made a
+contact read as already open). `ensurePairChannel` gives every accepted pair an
+unnamed channel at the moment they accept, from all three routes that make a
+contact, and `backfillPairChannels` gives one to every pair that predates the
+rule. `unnamedChannelFor` — the one-unnamed-channel-per-set rule `create`
+already enforced — is what makes all of that idempotent.
+
+Three things had to give way, and each was a real bug rather than a fixture
+change:
+
+- **`rejoinableFor` and `invitesFor` read one rule from opposite ends.** A
+  standing channel fails the "have you ever been present" test for *both*
+  members, so it appeared in neither list. It is now in `rejoinableFor` when
+  nobody has been present, and skipped by `invitesFor` on the same condition:
+  nobody asked anybody into a standing place. Change either without the other
+  and a channel is on nobody's screen.
+- **The first entry into a standing channel is a start, not an arrival.** It
+  used to be `create` that said "Started a channel with you", with a month of
+  notification lifetime; now the first tap usually takes `create`'s
+  already-exists branch, or comes from a Home card as a bare ENTER and never
+  touches that route at all. So `announceStarted` fires from `commit` on
+  `everPresent` going from empty, and without it the invitation arrived as
+  "Alice stepped in", five minutes' lifetime, about a channel the recipient had
+  never heard of. It deliberately does not stamp `lastAnnouncedAt`: that map
+  absorbs a flapping connection's repeated empty-to-occupied transitions, and
+  stamping would silence the next genuine arrival.
+- **An invitation is from whoever walked in, not from the recorded initiator.**
+  A standing channel has an arbitrary initiator and an `invitedBy` naming them,
+  neither describing anything that happened, so `invitesFor` credited the viewer
+  with inviting themselves about half the time — and then dropped the invitation
+  by its own never-from-yourself guard. It now falls through to
+  `everPresent[0]`, which is the honest answer generally.
+
+**`everUsed` on the wire, because the stamp alone lies about these channels.** A
+standing channel's `lastPresenceAt` is the moment it was created, so a contact
+you have never spoken to would read "Last here 3 weeks ago" and — worse — sort
+to the top of the list as the freshest thing on it. The card says "Not used yet"
+and sinks to the bottom of its section, ordered among the others by name.
+
+**Availability moved to the profile rather than being deleted.** "In the app
+now" and "last seen 3 hours ago" were the contact rows' second line, and a
+channel's idleness is not the same fact: a room nobody has been in for a week
+says nothing about whether its other member is holding a phone right now.
+Nothing that computes it changed — `accounts.last_seen_at`, `ContactView.inApp`
+and `ContactView.lastSeenAt` are all untouched and still on the wire — and
+`GET /profiles/:id` composes the same two fields for a contact and **withholds
+them from everybody else**. That last part is the point: a profile is readable
+by anyone sharing a channel, which is a wider audience than a contact list ever
+had, so the audience for this one fact is narrowed back to the one it always
+had. It must not pre-empt the open "Idleness Privacy" entry in `TASKS.md`.
+
+The cost, taken knowingly: being in the app without entering a channel now goes
+unnoticed unless somebody opens your profile.
+
+**Removing a contact leaves every two-person channel, named or not.** A channel
+with a third person in it is a place that survives the pair falling out — it is
+not *about* them. A channel of exactly the two is the relationship. A name
+distinguishes two channels holding the same people; it does not make one of them
+about somebody else, so leaving the standing channel while staying in "Weekly
+Convo" would be a half-exit that left the removed contact on Home under another
+heading.
+
+The far side turns on whether anything was ever kept there. **Nothing recorded**
+— nearly all of them, these being created by the dozen for pairs who have not
+spoken — and the channel goes for both: left behind, it is a member-of-one
+channel reading "Just you", one per contact who ever removed them, each naming
+nobody. **Recordings in it** and it stays, and they keep it: those are as much
+theirs as yours, and a channel is what names a recording and holds it, so ending
+it would delete another person's audio as a side effect of your tap. Asked
+before the first leave, while the row is still there to ask about.
+
+Deletion is mutual because the contacts row *is* the pair. A one-sided block
+would need a new state and is not this change; the confirmation says so in
+words, since neither consequence is guessable from the button.
+
+**What Home gave up and has not got back yet** is in `TASKS.md` under
+`## Contacts View`: the contact list itself, a profile reachable without
+entering a channel, and the availability display whose data never stopped being
+sent. Requests and "Add contact" are still on Home in the meantime, because an
+incoming request is time-sensitive and would be invisible behind a screen nobody
+has built.
+
+**Needs a deploy before a build.** Every wire change is additive and optional —
+`lastPresenceAt`, `everUsed`, the two profile fields — so build 51 ignores them
+and a pair channel is an ordinary channel to it. The server half is safe alone;
+the client half is not, since it reads fields an older server does not send.

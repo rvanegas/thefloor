@@ -174,6 +174,56 @@ describe('reading somebody else’s profile', () => {
     expect((response.json() as { bio: string }).bio).toBe('Harpsichord.');
   });
 
+  /**
+   * Where somebody is, which used to be a line on Home's contact rows and
+   * moved here when Home became a list of channels. A profile has a wider
+   * audience than a contact list did, so the audience for this one fact is
+   * narrowed back to the one it always had.
+   */
+  it('tells a contact when the person was last about', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+
+    // Written by the socket rather than by signing in — see `markSeen`, which
+    // this stands in for, there being no socket in an injected request.
+    app.accounts.markSeen(bob.account.id, clock);
+
+    const profile = (await read(alice, bob.account.id)).json() as {
+      inApp?: boolean;
+      lastSeenAt?: number | null;
+    };
+    // False rather than absent: nobody is holding a socket here, and that is
+    // an answer where a non-contact gets no answer at all.
+    expect(profile.inApp).toBe(false);
+    expect(profile.lastSeenAt).toBe(clock);
+  });
+
+  it('says nothing about it to somebody who merely shares a channel', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(alice, carol, 'carol@example.com');
+    app.channels.create(alice.account.id, [bob.account.id, carol.account.id]);
+
+    const profile = (await read(bob, carol.account.id)).json() as
+      Record<string, unknown>;
+    // Absent rather than null: an acquaintance brought into a conversation
+    // gets the bio, and the question of where its author is does not arise.
+    expect(profile).not.toHaveProperty('inApp');
+    expect(profile).not.toHaveProperty('lastSeenAt');
+  });
+
+  it('says nothing about it on your own profile either', async () => {
+    // You are the one person whose whereabouts you already know, and a line
+    // saying so would be the screen talking to itself.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const own = (await read(alice, alice.account.id)).json() as
+      Record<string, unknown>;
+    expect(own).not.toHaveProperty('lastSeenAt');
+  });
+
   it('is refused for a stranger, the same way a missing one is', async () => {
     // Identical answers, so the endpoint cannot be used to discover which
     // account ids exist.

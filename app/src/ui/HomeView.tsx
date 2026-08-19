@@ -9,40 +9,47 @@ import {
 import type {
   ContactView,
   InviteView,
-  RecordingView,
   RejoinableView,
 } from '../../../core/protocol';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
-import { exportRecording } from '../api/download';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
 import { agoOrNull } from './relativeTime';
-import { colors, formatDuration, radius, spacing, type } from './theme';
+import { colors, radius, spacing, type } from './theme';
 
 /**
- * Signed in, not in a channel. Ordered by priority: live invites, channels you
- * left and can still re-enter, contacts, adding a contact, then past
- * recordings. Everything here is a server snapshot — nothing is computed
- * locally.
+ * Signed in, not in a channel. A list of channels in three sections — the ones
+ * somebody is in, the ones you have been asked into, and the rest — and then
+ * the contact requests that have not turned into either yet.
+ *
+ * **There is no contact list, and that is the shape of this screen.** There
+ * used to be one, and it was the only way to open a one-to-one channel with
+ * somebody, so the two lists overlapped and argued: a contact row had to work
+ * out whether a channel with that person already existed, say so, and offer to
+ * join it rather than start a second — sixty lines of comment about a question
+ * that need never have been asked. Every accepted contact now *has* an unnamed
+ * one-to-one channel, made when the pair accept and guaranteed by the server,
+ * so a contact appears here as the thing you would talk to them in.
+ *
+ * What went with the contact rows was availability — "In the app now", "last
+ * seen 3 hours ago". It is not deleted, only moved: the server still sends it
+ * and `ProfileView` shows it, to contacts alone. Everything else the contact
+ * list did — adding one, answering a request, reading a profile — is either
+ * still below or waiting on the Contacts View; see planning/TASKS.md.
+ *
+ * Everything here is a server snapshot. Nothing is computed locally except
+ * which section a channel belongs in, which is a display question.
  */
 export function HomeView({
   onEnterChannel,
   onOpenSettings,
-  onOpenProfile = () => {},
   onOpenSupport = () => {},
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
   onEnterChannel: (channelId: string) => void;
   onOpenSettings: () => void;
-  /**
-   * Reads somebody's profile. A contact row is now a way to *find out who
-   * somebody is* rather than only a button to start something with them —
-   * which is what makes a profile reachable at all, it having previously
-   * needed you to already be in a channel with the person.
-   */
-  onOpenProfile?: (accountId: string, displayName: string) => void;
   /** Opens the screen that explains donating, and carries the link out. */
   onOpenSupport?: () => void;
   /**
@@ -90,71 +97,44 @@ export function HomeView({
   }, [app.token]);
 
   const home = app.home;
-  const invites = (home?.invites ?? []).filter(
-    (i) => !dismissed.includes(i.channelId)
-  );
-  // Every channel you belong to is listed, minus the one the banner is already
+  const now = app.serverNow();
+
+  // One list from two sources, minus the channel the banner is already
   // showing — the two are alternative presentations of the same row, not a
   // list and an exception to it. The server no longer withholds the channel it
   // thinks you are in, because it can be wrong about that and used to hide the
   // channel entirely when it was; whether you are *live* somewhere is settled
   // here, where the app knows what it is actually connected to.
-  const rejoinable = orderChannels(home?.rejoinable ?? []);
-  const live = rejoinable.filter(
-    (channel) => channel.channelId !== liveChannel?.channelId
-  );
-  const contacts = home?.contacts ?? [];
-  // Recordings are not on this screen at all: they live on the channel they
-  // were made in, which names them and takes them when it goes. The server
-  // still sends `home.recordings` for build 20, which renders it — see
-  // planning/BACKLOG.md for when that field goes too.
+  const cards = [
+    ...(home?.invites ?? [])
+      .filter((invite) => !dismissed.includes(invite.channelId))
+      .map(inviteCard),
+    ...(home?.rejoinable ?? []).map(memberCard),
+  ].filter((card) => card.channelId !== liveChannel?.channelId);
 
   /**
-   * The channel that tapping a contact would reopen, if there is one — which
-   * is the *unnamed* channel holding exactly the two of you, and nothing else.
+   * The three sections, as a priority ladder: each channel appears once, in
+   * the first one it qualifies for.
    *
-   * Both halves of that are load-bearing, and this used to have neither. It
-   * matched any channel the contact appeared in, so a named three-person
-   * channel made a contact read "Channel already open" when tapping them would
-   * have opened something else entirely: Erta showed as open because she was
-   * in Product Meeting with two other people.
-   *
-   * The rule it must mirror is the server's `create`: one unnamed channel per
-   * set of people, so a 1:1 tap on somebody you have an unnamed channel with
-   * reopens that one rather than making a second — and nothing else answers
-   * for it. Only `create` keeps that rule now; inviting somebody into an
-   * unnamed channel widens it, which can land on a set that already has one,
-   * so a duplicate is possible and this answers with one of them. A
-   * named channel does not, because a name is exactly what makes a second
-   * channel with the same people sensible. A wider channel does not either: it
-   * is a different set of people.
-   *
-   * `shown` is whether that channel already has its own affordance above, as a
-   * banner or a rejoin row. When it does, the contact row says so and offers
-   * nothing; when it does not — a dismissed invite — the row is the only way
-   * back, and offers to join rather than to start.
+   * So an invitation with somebody in it is *live* rather than invited, which
+   * is the case worth getting right — it is the most urgent thing on the
+   * screen, and burying it under channels nobody is in to keep the categories
+   * tidy would be sorting by taxonomy rather than by what to do next. Its card
+   * still says who asked you in.
    */
-  const channelWith = new Map<string, { channelId: string; shown: boolean }>();
-  for (const invite of home?.invites ?? []) {
-    channelWith.set(invite.from.id, {
-      channelId: invite.channelId,
-      shown: !dismissed.includes(invite.channelId),
-    });
-  }
-  // Every channel you belong to, *including* the one you are standing in — not
-  // `live`, which has that one filtered out because the banner is showing it
-  // instead of a row. A banner is an affordance like any other, so the contact
-  // you are talking to right now is exactly the one who must not be offered a
-  // fresh start; reading the filtered list offered it, which is the one case
-  // where the offer is plainly absurd.
-  for (const channel of rejoinable) {
-    if (channel.name !== null) continue;
-    if (channel.others.length !== 1) continue;
-    channelWith.set(channel.others[0].id, {
-      channelId: channel.channelId,
-      shown: true,
-    });
-  }
+  const live = cards.filter(isLive).sort(byIdleness);
+  const invited = cards
+    .filter((card) => !isLive(card) && card.kind === 'invite')
+    .sort(byIdleness);
+  const rest = cards
+    .filter((card) => !isLive(card) && card.kind === 'member')
+    .sort(byIdleness);
+
+  // Everything that is not yet a contact, and so is not yet a channel. The
+  // accepted ones are in the lists above, as the channels they now come with.
+  const requests = (home?.contacts ?? []).filter(
+    (entry) => entry.status !== 'accepted'
+  );
 
   const showOffline = useOfflineNotice(app.status);
 
@@ -183,6 +163,11 @@ export function HomeView({
         e instanceof Error ? e.message : String(e)
       );
     }
+  };
+
+  const stepIn = (channelId: string) => {
+    app.act(channelId, { type: 'ENTER' });
+    onEnterChannel(channelId);
   };
 
   return (
@@ -267,17 +252,43 @@ export function HomeView({
         </View>
       ) : null}
 
-      {invites.map((invite) => (
-        <InviteBanner
-          key={invite.channelId}
-          invite={invite}
-          onJoin={() => {
-            app.act(invite.channelId, { type: 'ENTER' });
-            onEnterChannel(invite.channelId);
-          }}
-          onDismiss={() => app.dismissInvite(invite.channelId)}
-        />
-      ))}
+      {live.length > 0 ? (
+        <>
+          <SectionLabel>Live</SectionLabel>
+          <View style={styles.list}>
+            {live.map((card) => (
+              <ChannelCard
+                key={card.channelId}
+                card={card}
+                now={now}
+                onPress={() => stepIn(card.channelId)}
+                onDismiss={
+                  card.kind === 'invite'
+                    ? () => app.dismissInvite(card.channelId)
+                    : undefined
+                }
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      {invited.length > 0 ? (
+        <>
+          <SectionLabel>Invitations</SectionLabel>
+          <View style={styles.list}>
+            {invited.map((card) => (
+              <ChannelCard
+                key={card.channelId}
+                card={card}
+                now={now}
+                onPress={() => stepIn(card.channelId)}
+                onDismiss={() => app.dismissInvite(card.channelId)}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
 
       {/*
         The channels, and at the foot of them the way to make another.
@@ -286,9 +297,9 @@ export function HomeView({
         "Start a channel with several people" — was describing a mode rather
         than an outcome, and it only appeared once you had two contacts, so the
         one affordance that opens an empty channel was hidden from exactly the
-        people who had nowhere to talk yet. That is still the rule: it is
-        outside the `live.length` guard, so an account with no channels sees it
-        as the only row.
+        people who had nowhere to talk yet. That is still the rule: this
+        section is drawn whether or not it has any channels in it, because the
+        row at its foot is the way out of an empty screen.
 
         It sat above this list as a filled black button, which made the loudest
         thing on the screen a thing to do rather than the conversations already
@@ -296,61 +307,50 @@ export function HomeView({
         already looking when nothing there is the one they want, and it reads
         as one more channel — the one that does not exist yet.
       */}
-      {live.length > 0 ? <SectionLabel>Your channels</SectionLabel> : null}
-      <View style={[styles.list, live.length === 0 && styles.listUnlabelled]}>
-        {live.map((channel) => (
-          <ChannelRow
-            key={channel.channelId}
-            channel={channel}
-            onStepIn={() => {
-              app.act(channel.channelId, { type: 'ENTER' });
-              onEnterChannel(channel.channelId);
-            }}
+      {rest.length > 0 ? <SectionLabel>Your channels</SectionLabel> : null}
+      {/*
+        Before the first snapshot there are no channels *and* no evidence that
+        there are none. Saying so beats drawing an empty screen, which reads as
+        an account with nothing in it — and this is a cold launch, so it is the
+        first thing anybody sees.
+      */}
+      {!home ? <Empty>Loading…</Empty> : null}
+      <View style={[styles.list, rest.length === 0 && styles.listUnlabelled]}>
+        {rest.map((card) => (
+          <ChannelCard
+            key={card.channelId}
+            card={card}
+            now={now}
+            onPress={() => stepIn(card.channelId)}
           />
         ))}
         <StartChannelRow onPress={startAlone} />
       </View>
 
-      <SectionLabel>Contacts</SectionLabel>
-      {!home ? (
-        <Empty>Loading…</Empty>
-      ) : contacts.length === 0 ? (
-        <Empty>No contacts yet. Add one below.</Empty>
-      ) : (
-        <View style={styles.list}>
-          {contacts.map((entry) => (
-            <ContactRow
-              // An outgoing request carries no account id — deliberately, so
-              // that one sent to an address without an account is
-              // indistinguishable from one sent to a user. Its identity is the
-              // address, which is what `displayName` holds for these rows and
-              // is unique: there cannot be two requests to the same address.
-              key={entry.account.id || `sent:${entry.account.displayName}`}
-              entry={entry}
-              existing={channelWith.get(entry.account.id)}
-              onOpenProfile={() =>
-                onOpenProfile(entry.account.id, entry.account.displayName)
-              }
-              onStartChannel={async () => {
-                try {
-                  const id = await app.startChannel([entry.account.id]);
-                  app.act(id, { type: 'ENTER' });
-                  onEnterChannel(id);
-                } catch (e) {
-                  Alert.alert(
-                    'Could not start channel',
-                    e instanceof Error ? e.message : String(e)
-                  );
-                }
-              }}
-              onJoinExisting={(channelId) => {
-                app.act(channelId, { type: 'ENTER' });
-                onEnterChannel(channelId);
-              }}
-            />
-          ))}
-        </View>
-      )}
+      {/*
+        Requests, which are the one part of the old contact list that cannot be
+        a channel: there is nobody to talk to until they are answered. Drawn
+        only when there are any, so an account with nothing outstanding sees a
+        screen about channels and nothing else.
+      */}
+      {requests.length > 0 ? (
+        <>
+          <SectionLabel>Requests</SectionLabel>
+          <View style={styles.list}>
+            {requests.map((entry) => (
+              <RequestRow
+                // An outgoing request carries no account id — deliberately, so
+                // that one sent to an address without an account is
+                // indistinguishable from one sent to a user. Its identity is
+                // the address, which is what `displayName` holds for these rows
+                // and is unique: there cannot be two requests to one address.
+                key={entry.account.id || `sent:${entry.account.displayName}`}
+                entry={entry}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <SectionLabel>Add contact</SectionLabel>
       <AddContact />
@@ -383,112 +383,178 @@ export function HomeView({
 }
 
 /**
- * Named channels first, then the ones only being described; occupied ones at
- * the top of each, then most recently used.
- *
- * A name is a thing somebody chose to write, so the channels that have one are
- * the ones being kept deliberately, and burying them among the rest costs the
- * naming its point. Sorting by recency alone would do exactly that.
- *
- * Recency is `lastActiveAt` rather than `createdAt`: channels are permanent
- * now, so creation order has nothing to do with what anybody is using.
- *
- * Occupancy is asked separately rather than folded into that stamp, and this
- * is the same distinction the contact rows above turn on. `lastActiveAt` is
- * written on entry and on the way out and never in between, so a channel two
- * people have been talking in for an hour carries the hour-old moment the
- * second of them arrived, and sinks past one somebody stepped out of five
- * minutes ago. Stamping it while occupied would need something to do the
- * stamping every so often; `presentCount` is already here, already true, and
- * already what the line under the name reads. So the sort asks it, and the
- * stamp goes on meaning the one thing it can mean without a timer.
+ * A channel as this screen needs it, from either of the two lists the server
+ * sends. Flattened deliberately: which section a channel goes in and how idle
+ * it is are the same questions for an invitation and for a channel you belong
+ * to, and answering them twice is how the two drift apart.
  */
-function orderChannels(channels: RejoinableView[]): RejoinableView[] {
-  const occupied = (c: RejoinableView) => (c.presentCount > 0 ? 1 : 0);
-  const byRecency = (a: RejoinableView, b: RejoinableView) =>
-    occupied(b) - occupied(a) || b.lastActiveAt - a.lastActiveAt;
-  return [
-    ...channels.filter((c) => c.name).sort(byRecency),
-    ...channels.filter((c) => !c.name).sort(byRecency),
-  ];
+type Card = {
+  channelId: string;
+  kind: 'invite' | 'member';
+  title: string;
+  /** Whether the title is a name somebody wrote or a description of a roster. */
+  named: boolean;
+  /**
+   * How many people are in it. `undefined` from a server that predates the
+   * field on an invitation, and read as occupied — the old text asserted
+   * somebody was waiting, so this preserves it rather than inventing an
+   * emptiness nothing reported.
+   */
+  presentCount: number | undefined;
+  /** The most recent moment anybody was in it. */
+  lastPresenceAt: number | undefined;
+  /** False only for a channel nobody has ever been in. */
+  everUsed: boolean;
+  /** Who asked you in, for an invitation. */
+  from?: string;
+};
+
+function inviteCard(invite: InviteView): Card {
+  // Named where it has a name, described by its roster where it has not —
+  // exactly as a channel row does, since the reader is choosing between them
+  // and they should speak the same way. An older server sends neither, and
+  // then the sender's name is the only thing there is to call it.
+  const described = invite.others?.length
+    ? describeChannel(invite.others.map((other) => other.displayName))
+    : null;
+  return {
+    channelId: invite.channelId,
+    kind: 'invite',
+    title: invite.name ?? described ?? invite.from.displayName,
+    named: invite.name != null,
+    presentCount: invite.presentCount,
+    lastPresenceAt: invite.lastPresenceAt,
+    // Somebody has been in it: that is what makes it an invitation rather than
+    // the standing channel a pair of contacts share.
+    everUsed: true,
+    from: invite.from.displayName,
+  };
 }
+
+function memberCard(channel: RejoinableView): Card {
+  return {
+    channelId: channel.channelId,
+    kind: 'member',
+    title:
+      channel.name ??
+      describeChannel(channel.others.map((other) => other.displayName)),
+    named: channel.name != null,
+    presentCount: channel.presentCount,
+    // `lastActiveAt` is the fallback for a server that predates the better
+    // stamp, and is the same answer for every channel nobody is in — which are
+    // the only ones an idleness line is drawn for.
+    lastPresenceAt: channel.lastPresenceAt ?? channel.lastActiveAt,
+    everUsed: channel.everUsed ?? true,
+  };
+}
+
+const isLive = (card: Card) =>
+  card.presentCount === undefined || card.presentCount > 0;
+
+/**
+ * Least idle first, and the channels nobody has ever been in last.
+ *
+ * One sort, replacing one that grouped named channels above unnamed ones and
+ * asked about occupancy separately. Both of those were working around
+ * `lastActiveAt`, which moves on an entry and an exit and at no point between:
+ * a channel two people had been talking in for an hour carried the moment the
+ * second of them arrived, and sank below one somebody had walked out of five
+ * minutes ago. `lastPresenceAt` is kept fresh by the heartbeat, so recency
+ * means the same thing for an occupied channel as for an empty one and the
+ * sort no longer needs help.
+ *
+ * The never-used ones are pinned to the bottom because their stamp is the
+ * moment they were created, which is not a visit. A contact you have not
+ * spoken to yet would otherwise arrive at the top of the list as the freshest
+ * thing on it. Among themselves they go by name, there being nothing else true
+ * to order them by.
+ */
+function byIdleness(a: Card, b: Card): number {
+  if (a.everUsed !== b.everUsed) return a.everUsed ? -1 : 1;
+  if (!a.everUsed) return a.title.localeCompare(b.title);
+  return (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0);
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+/** How cold the room is, in the four steps the dot has. */
+function idleness(card: Card, now: number): 'live' | 'fresh' | 'recent' | 'cold' {
+  if (isLive(card)) return 'live';
+  if (!card.everUsed || card.lastPresenceAt === undefined) return 'cold';
+  const idle = Math.max(0, now - card.lastPresenceAt);
+  if (idle < HOUR_MS) return 'fresh';
+  if (idle < DAY_MS) return 'recent';
+  return 'cold';
+}
+
+/**
+ * How long since anybody was here, in words, lower case so it can be the
+ * second half of a sentence about an invitation.
+ *
+ * "Nobody here right now" covers both the gap too small for `agoOrNull` to
+ * name and the server that sends no stamp at all. Neither is worth a number: a
+ * channel somebody left forty seconds ago is one they have just left, and one
+ * we know nothing about must not be described as though we did.
+ */
+function quietFor(card: Card, now: number): string {
+  if (!card.everUsed) return 'not used yet';
+  const ago =
+    card.lastPresenceAt === undefined
+      ? null
+      : agoOrNull(now - card.lastPresenceAt);
+  return ago ? `last here ${ago}` : 'nobody here right now';
+}
+
+const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 function describeStatus(status: string): string {
   return status === 'connecting' ? 'reconnecting' : 'offline';
 }
 
 /**
- * Invitations are in-app only and persist until acted on or the underlying
- * channel ends. Several contacts can be inviting at once, so these stack — and
- * that stacking is what made two of them being identical a real problem rather
- * than a cosmetic one.
+ * One card for both kinds of channel.
  *
- * It says which channel, and whether anybody is in it. Both were missing: the
- * banner named only the sender and asserted they were "waiting in a channel"
- * whatever the truth, so two invitations from one person were the same banner
- * twice, and an invitation to a room somebody had since left still summoned you
- * to them. An invitation outlives the moment it was sent; it must not go on
- * claiming that moment is still happening.
+ * They were two components, and the differences between them had grown into
+ * differences of kind: an invitation was a banner above the list with its own
+ * shape, so the same channel looked like two unrelated things depending on
+ * whether you had answered it. What actually differs is one line of text, a
+ * dismiss control, and whether the accent is on — and an invitation nobody is
+ * waiting in is not urgent, so it loses the accent and keeps the shape.
  */
-function InviteBanner({
-  invite,
-  onJoin,
+function ChannelCard({
+  card,
+  now,
+  onPress,
   onDismiss,
 }: {
-  invite: InviteView;
-  onJoin: () => void;
-  onDismiss: () => void;
-}) {
-  // Named where it has a name, described by its roster where it has not —
-  // exactly as a channel row does, since the reader is choosing between the
-  // two lists and they should speak the same way.
-  const title =
-    invite.name ??
-    (invite.others?.length
-      ? describeChannel(invite.others.map((other) => other.displayName))
-      : null);
-  // Absent from an older server, and then the old sentence is still the best
-  // available answer rather than a claim invented here.
-  const present = invite.presentCount;
-  const live = present === undefined || present > 0;
-
-  return (
-    <Pressable
-      onPress={onJoin}
-      style={[styles.banner, !live && styles.bannerQuiet]}
-    >
-      <View style={styles.rowMain}>
-        <Text style={styles.bannerTitle} numberOfLines={1}>
-          {title ?? invite.from.displayName}
-        </Text>
-        <Text style={styles.bannerSub}>
-          {live
-            ? `${invite.from.displayName} is waiting — tap to join`
-            : `${invite.from.displayName} asked you in · nobody here right now`}
-        </Text>
-      </View>
-      <Pressable
-        onPress={onDismiss}
-        hitSlop={12}
-        accessibilityLabel="Dismiss invite"
-      >
-        <Text style={styles.bannerDismiss}>✕</Text>
-      </Pressable>
-    </Pressable>
-  );
-}
-
-function ChannelRow({
-  channel,
-  onStepIn,
-}: {
-  channel: RejoinableView;
+  card: Card;
+  now: number;
   /** Presence, not membership — you never stopped belonging to it. */
-  onStepIn: () => void;
+  onPress: () => void;
+  /** Invitations only; hides it until the channel is offered again. */
+  onDismiss?: () => void;
 }) {
-  const title =
-    channel.name ??
-    describeChannel(channel.others.map((other) => other.displayName));
+  const live = isLive(card);
+  const grade = idleness(card, now);
+  /**
+   * An invitation outlives the moment it was sent. What it must not do is go
+   * on claiming that moment is still happening — the banner used to say
+   * somebody "is waiting in a channel" whatever the truth of it, so an
+   * invitation to a room they had left summoned you to nobody.
+   */
+  const line =
+    card.kind === 'invite'
+      ? live
+        ? `${card.from} is waiting — tap to join`
+        : `${card.from} asked you in · ${quietFor(card, now)}`
+      : live
+        ? `${card.presentCount} present`
+        : // An empty channel used to be sixty seconds from destruction, and
+          // saying so was a reason to hurry back. Channels are permanent now:
+          // nobody being in one is a resting state, not a countdown.
+          sentence(quietFor(card, now));
+
   return (
     // The whole row, rather than a button on the end of it. There is only one
     // thing to do with a channel you are not in, so a target the size of the
@@ -496,37 +562,46 @@ function ChannelRow({
     // which has always worked this way.
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${title}. Step in.`}
-      onPress={onStepIn}
+      accessibilityLabel={`${card.title}. ${line}. ${
+        card.kind === 'invite' ? 'Join.' : 'Step in.'
+      }`}
+      onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
     >
-      <Card style={styles.row}>
-      <View style={styles.rowMain}>
+      <Card
+        style={[
+          styles.row,
+          card.kind === 'invite' && (live ? styles.invite : styles.inviteQuiet),
+        ]}
+      >
         {/*
-          A named channel is asserted; an unnamed one is only described, and
-          the muted italic says so. Without it the two sit in one list looking
-          alike, and a description written from your side alone reads as a
-          name every member would recognise — which it is not. See
-          core/naming.ts.
+          The mark carries the same fact the second line says in words, so it
+          is decoration and says nothing to a screen reader — the label on the
+          row above is where that lives, exactly as on the live bar.
         */}
-        <Text
-          style={channel.name ? type.body : styles.described}
-          numberOfLines={1}
-        >
-          {title}
-        </Text>
-        <Text style={type.muted}>
+        <View style={[styles.dot, styles[`dot_${grade}`]]} />
+        <View style={styles.rowMain}>
           {/*
-            An empty channel used to be sixty seconds from destruction, and
-            saying so was a reason to hurry back. Channels are permanent now:
-            nobody being in one is a resting state, not a countdown, and the
-            old line was the app promising something that could not happen.
+            A named channel is asserted; an unnamed one is only described, and
+            the muted italic says so. Without it the two sit in one list looking
+            alike, and a description written from your side alone reads as a
+            name every member would recognise — which it is not. See
+            core/naming.ts.
           */}
-          {channel.presentCount > 0
-            ? `${channel.presentCount} present`
-            : 'Nobody here right now'}
-        </Text>
-      </View>
+          <Text style={card.named ? type.body : styles.described} numberOfLines={1}>
+            {card.title}
+          </Text>
+          <Text style={type.muted}>{line}</Text>
+        </View>
+        {onDismiss ? (
+          <Pressable
+            onPress={onDismiss}
+            hitSlop={12}
+            accessibilityLabel="Dismiss invite"
+          >
+            <Text style={styles.dismiss}>✕</Text>
+          </Pressable>
+        ) : null}
       </Card>
     </Pressable>
   );
@@ -561,100 +636,28 @@ function StartChannelRow({ onPress }: { onPress: () => void }) {
   );
 }
 
-function ContactRow({
-  entry,
-  existing,
-  onStartChannel,
-  onJoinExisting,
-  onOpenProfile,
-}: {
-  entry: ContactView;
-  /** A live channel containing this contact, if one has already begun. */
-  existing?: { channelId: string; shown: boolean };
-  onStartChannel: () => void;
-  onJoinExisting: (channelId: string) => void;
-  onOpenProfile: () => void;
-}) {
+/**
+ * A contact request, incoming or outgoing — the one part of the old contact
+ * list that cannot be expressed as a channel, there being nobody to talk to
+ * until it is answered.
+ *
+ * No profile behind it and no availability on it, both deliberately. An
+ * outgoing request is an address rather than a person: whether anybody is
+ * behind it is exactly what must not be revealed, which is why the server
+ * withholds the id and the name.
+ */
+function RequestRow({ entry }: { entry: ContactView }) {
   const app = useApp();
   const { account, status } = entry;
-  /**
-   * An outgoing request is a row for an address, not a person — `displayName`
-   * holds the address and there is no account behind it yet, so there is no
-   * profile to open.
-   */
-  const hasProfile = status === 'accepted' || status === 'incoming';
-
-  /**
-   * When they last had the app open, which is what makes this row a judgement
-   * about whether to try them rather than just a button.
-   *
-   * `inApp` first, because it is a fact and the subtraction below is an
-   * inference. Somebody sitting in a channel for an hour is in the app, and
-   * the number under that reads as an hour idle for exactly as long as this
-   * phone has gone without a snapshot — which is the whole of what this row
-   * used to get wrong.
-   *
-   * The subtraction survives as the branch for a server that predates the
-   * field, which sends no key at all: `undefined` is falsy, so an old server
-   * gets precisely the behaviour it got before, with no version check.
-   *
-   * Three states below, and the empty one is deliberate: a server that
-   * predates `lastSeenAt` too sends nothing, and somebody who has not
-   * connected since it was added has nothing recorded. Saying "last seen:
-   * unknown" about both would be noise on every row of an old snapshot, so an
-   * unknown says nothing at all.
-   */
-  const lastSeen = entry.inApp
-    ? 'In the app now'
-    : entry.lastSeenAt == null
-      ? ''
-      : (agoOrNull(app.serverNow() - entry.lastSeenAt) ?? 'In the app now');
-
-  /**
-   * What this row's second line says, which is up to two separate facts.
-   *
-   * They are joined rather than ranked, and that is the whole of what was
-   * wrong here first time: the idle time was written as the last branch of a
-   * ternary, so "Channel already open" claimed the line and the time never
-   * appeared for anybody you had a 1:1 channel with — which is everybody you
-   * talk to, and therefore everybody the timer is for.
-   */
-  const secondLine = [
-    status !== 'accepted'
-      ? 'Pending'
-      : existing?.shown
-        ? 'Channel already open'
-        : '',
-    lastSeen,
-  ]
-    .filter(Boolean)
-    .join(' · ');
   return (
-    <Pressable
-      accessibilityRole={hasProfile ? 'button' : undefined}
-      accessibilityLabel={
-        hasProfile ? `${account.displayName}. Open profile.` : undefined
-      }
-      disabled={!hasProfile}
-      onPress={onOpenProfile}
-      style={({ pressed }) => pressed && hasProfile && styles.rowPressed}
-    >
-      <Card style={styles.row}>
+    <Card style={styles.row}>
       <View style={styles.rowMain}>
         <Text style={type.body}>{account.displayName}</Text>
-        <Text style={type.muted}>{secondLine}</Text>
+        <Text style={type.muted}>
+          {status === 'incoming' ? 'Wants to be a contact' : 'Pending'}
+        </Text>
       </View>
-
-      {status === 'accepted' ? (
-        existing?.shown ? null : existing ? (
-          <Button
-            label="Join channel"
-            onPress={() => onJoinExisting(existing.channelId)}
-          />
-        ) : (
-          <Button label="Start channel" onPress={onStartChannel} />
-        )
-      ) : status === 'incoming' ? (
+      {status === 'incoming' ? (
         <View style={styles.rowActions}>
           <Button
             label="Accept"
@@ -688,8 +691,7 @@ function ContactRow({
           />
         </View>
       )}
-      </Card>
-    </Pressable>
+    </Card>
   );
 }
 
@@ -804,7 +806,7 @@ const styles = StyleSheet.create({
   /**
    * The gap a SectionLabel would have left. With no channels there is no
    * heading, and the start row would otherwise sit against whatever is above
-   * it — the header, or an invite banner.
+   * it — the header, or an invitation.
    */
   listUnlabelled: { marginTop: spacing(2) },
   row: {
@@ -816,6 +818,24 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 2 },
   /** Feedback on a row whose whole surface is the target. */
   rowPressed: { opacity: 0.7 },
+  /**
+   * The idleness mark: one shape, four steps, and no new colour.
+   *
+   * The floor colour means somebody is in there, which is the same thing it
+   * means on the live bar. The rest fade rather than changing hue — this is a
+   * quantity, and three greys read as one scale where three colours would read
+   * as three states. The last is hollow, which is where a fading scale runs
+   * out: a channel nobody has touched in a day, or ever.
+   */
+  dot: { width: 9, height: 9, borderRadius: 5, alignSelf: 'center' },
+  dot_live: { backgroundColor: colors.floor },
+  dot_fresh: { backgroundColor: colors.textMuted },
+  dot_recent: { backgroundColor: colors.textFaint },
+  dot_cold: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.textFaint,
+  },
   /**
    * A channel nobody has named: described rather than called something.
    *
@@ -855,26 +875,19 @@ const styles = StyleSheet.create({
   },
   startLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
   pendingTag: { ...type.muted, color: colors.textFaint },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing(1.5),
+  /** An invitation somebody is waiting in, which is worth shouting about. */
+  invite: {
     backgroundColor: colors.floorDim,
     borderColor: colors.floor,
     borderWidth: 1,
-    borderRadius: radius.lg,
-    padding: spacing(2),
-    marginBottom: spacing(1),
   },
   /**
-   * An invitation nobody is waiting in is still worth answering, and is not
-   * worth shouting. It keeps its shape and loses the floor-coloured urgency,
-   * which is reserved for a room with somebody in it.
+   * And one nobody is waiting in, which is still worth answering and is not
+   * worth shouting. It keeps its shape and loses the urgency, which is
+   * reserved for a room with somebody in it.
    */
-  bannerQuiet: { backgroundColor: 'transparent', borderColor: colors.border },
-  bannerTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
-  bannerSub: { fontSize: 13, color: colors.textMuted },
-  bannerDismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
+  inviteQuiet: { borderColor: colors.border, borderWidth: 1 },
+  dismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
   addContact: { gap: spacing(1) },
   message: { fontSize: 13 },
 });

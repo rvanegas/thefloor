@@ -172,6 +172,13 @@ export function ChannelView({
             ? (text) => app.ping(channel.id, viewing.id, text)
             : undefined
         }
+        // Removing a contact leaves every channel that held only the two of
+        // you, and this screen is reached from inside one — which, for a
+        // one-to-one channel, is exactly the channel that has just gone. So
+        // the way out is Home rather than back: closing the profile onto a
+        // channel you have left would land on "Channel gone", which is a true
+        // sentence and a strange answer to a tap about a contact.
+        onRemoved={onExit}
       />
     );
   }

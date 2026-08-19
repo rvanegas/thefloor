@@ -215,6 +215,63 @@ describe('an invite', () => {
     ]);
   });
 
+  /**
+   * The same invitation by the other route. Every pair of contacts has a
+   * standing channel from the moment they accept, so the first entry into one
+   * is what used to be a creation — and it arrives as an ordinary ENTER from a
+   * card on Home rather than through `create`. Announced from `commit` for
+   * exactly that reason: this path never touches the route that used to say it.
+   */
+  it('reaches them when the standing channel is entered from Home', async () => {
+    const { alice, bob } = await twoContacts();
+    await registerDevice(bob.token, 'bob-phone');
+    const [standing] = app.channels.rejoinableFor(alice.account.id);
+
+    app.channels.dispatch(standing.channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')).toEqual([
+      {
+        title: 'Alice',
+        body: 'Started a channel with you.',
+        channelId: standing.channelId,
+        collapseKey: standing.channelId,
+        lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      },
+    ]);
+  });
+
+  /**
+   * And the second entry is not. Once somebody has been in it the channel is a
+   * place they both know about, so the next arrival is an arrival — five
+   * minutes' worth, in the words `announceActive` uses.
+   */
+  it('gives way to an ordinary arrival once the channel has been used', async () => {
+    const { alice, bob } = await twoContacts();
+    await registerDevice(bob.token, 'bob-phone');
+    const [standing] = app.channels.rejoinableFor(alice.account.id);
+    const id = standing.channelId;
+
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(id, alice.account.id, { type: 'STEP_OUT' });
+    await settle();
+    pusher.sent.length = 0;
+    clock += ANNOUNCE_INTERVAL_MS + 1;
+
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')).toEqual([
+      {
+        title: 'Alice',
+        body: 'Alice stepped in.',
+        channelId: id,
+        collapseKey: id,
+        lifetimeMs: PRESENCE_LIFETIME_MS,
+      },
+    ]);
+  });
+
   it('does not reach the person who sent it', async () => {
     const { alice, bob } = await twoContacts();
     await registerDevice(alice.token, 'alice-phone');

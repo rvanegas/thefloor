@@ -225,6 +225,16 @@ export const api = {
       token,
     }),
 
+  /**
+   * Ends a contact, for both of them, and leaves the channels that held only
+   * the two of them. The server does the second half; see `leavePairChannels`.
+   */
+  removeContact: (token: string, contactId: string) =>
+    request<{ ok: true }>(`/contacts/${contactId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
   startChannel: (token: string, contactIds: string[]) =>
     request<{ channelId: string }>('/channels', {
       method: 'POST',

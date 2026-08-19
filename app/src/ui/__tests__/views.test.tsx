@@ -8,6 +8,7 @@ import { createChannel, reduce } from '../../../../core/channel';
 import type { ChannelState } from '../../../../core/types';
 import type {
   HomeView as HomeViewData,
+  ProfileView as ProfileViewData,
   RecordingView,
 } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
@@ -15,7 +16,7 @@ import { ChannelView } from '../ChannelView';
 import { ProfileView } from '../ProfileView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
-import { KeyboardAvoidingView, StyleSheet } from 'react-native';
+import { Alert, KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { colors } from '../theme';
 
 /**
@@ -57,13 +58,18 @@ const mockApp = {
   startChannel: jest.fn(),
   // Answers for whoever is asked about, as the server does — a mock that
   // returns one person regardless would hide a component reading the wrong id.
-  loadProfile: jest.fn(async (accountId: string) => ({
-    account: {
-      id: accountId,
-      displayName: accountId === ME ? 'Me' : 'Dana Chu',
-    },
-    bio: 'Cellist. **Bach** mostly.',
-  })),
+  // Typed as the protocol shape rather than inferred from this one answer, so
+  // a test can hand back a profile with no bio, or with the availability
+  // fields a contact's profile carries.
+  loadProfile: jest.fn(
+    async (accountId: string): Promise<ProfileViewData> => ({
+      account: {
+        id: accountId,
+        displayName: accountId === ME ? 'Me' : 'Dana Chu',
+      },
+      bio: 'Cellist. **Bach** mostly.',
+    })
+  ),
   saveProfile: jest.fn(async () => {}),
   // Configured by default, so the Support section is exercised rather than
   // skipped; the tests that care about it absent override this.
@@ -81,6 +87,7 @@ const mockApp = {
   leaveChannelView: jest.fn(),
   act: jest.fn(),
   clearError: jest.fn(),
+  removeContact: jest.fn(async () => {}),
   dismissedInvites: [] as string[],
   dismissInvite: jest.fn((channelId: string) => {
     mockApp.dismissedInvites = [...mockApp.dismissedInvites, channelId];
@@ -219,7 +226,7 @@ beforeEach(() => {
 });
 
 describe('Home', () => {
-  it('renders contacts, invites and rejoinable channels from a snapshot', () => {
+  it('renders the channels and the requests from a snapshot', () => {
     mockApp.home = {
       invites: [
         {
@@ -240,6 +247,8 @@ describe('Home', () => {
       ],
       contacts: [
         { account: { id: 'acct_p', displayName: 'Priya Raman' }, status: 'incoming' },
+        // An accepted contact is a channel now, and appears in the list above
+        // rather than in a list of its own. Nothing on this screen draws it.
         { account: { id: 'acct_q', displayName: 'Quinn Ito' }, status: 'accepted' },
       ],
       recordings: [],
@@ -252,8 +261,139 @@ describe('Home', () => {
     expect(text).toContain('1 present');
     expect(text).toContain('Priya Raman');
     expect(text).toContain('Accept');
-    expect(text).toContain('Quinn Ito');
-    expect(text).toContain('Start channel');
+    expect(text).not.toContain('Quinn Ito');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Three sections, in one order, and each channel in exactly the first one it
+   * qualifies for.
+   */
+  it('sections the channels into live, invited and the rest', () => {
+    mockApp.home = {
+      invites: [
+        {
+          channelId: 'sess_quiet',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+          name: 'Asked In',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 0,
+          lastPresenceAt: NOW - 3_600_000,
+        },
+      ],
+      rejoinable: [
+        {
+          channelId: 'sess_live',
+          name: 'Talking Now',
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 2,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+          lastPresenceAt: NOW,
+        },
+        {
+          channelId: 'sess_cold',
+          name: 'Long Quiet',
+          others: [{ id: 'acct_y', displayName: 'Priya Raman' }],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW - 3 * 86_400_000,
+          lastPresenceAt: NOW - 3 * 86_400_000,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const text = textOf(tree);
+    const order = ['Live', 'Talking Now', 'Invitations', 'Asked In', 'Your channels', 'Long Quiet'];
+    expect(order.map((t) => text.indexOf(t))).toEqual(
+      [...order.map((t) => text.indexOf(t))].sort((a, b) => a - b)
+    );
+    act(() => tree.unmount());
+  });
+
+  it('puts an invitation somebody is waiting in under Live, not Invitations', () => {
+    // The sections are a ladder rather than a taxonomy. An invitation with
+    // people in it is the most urgent thing on the screen, and burying it
+    // under channels nobody is in to keep the categories tidy would be sorting
+    // by classification instead of by what to do next.
+    mockApp.home = {
+      invites: [
+        {
+          channelId: 'sess_a',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+          name: 'Come In',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 2,
+        },
+      ],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('Live');
+    expect(text).not.toContain('Invitations');
+    // Still says who asked, which is the thing a live channel of your own
+    // would not have to say.
+    expect(text).toContain('Dana Chu is waiting');
+    act(() => tree.unmount());
+  });
+
+  it('says how long a quiet channel has been quiet', () => {
+    mockApp.serverNow = () => NOW + 2 * 3_600_000;
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name: 'Standup',
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+          lastPresenceAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    expect(textOf(tree)).toContain('Last here 2 hours ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('invents no idleness for a server that sends no stamp', () => {
+    // An installed build meets this between its release and the deploy that
+    // follows. `lastActiveAt` is the fallback and is the same answer for a
+    // channel nobody is in — but a gap under the minute floor still reads as
+    // resting rather than as a count of seconds.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name: 'Standup',
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const text = textOf(tree);
+    expect(text).toContain('Nobody here right now');
+    expect(text).not.toContain('Last here');
+    expect(text).not.toContain('Not used yet');
     act(() => tree.unmount());
   });
 
@@ -350,159 +490,10 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
-  it('does not offer to start a channel that has already begun', () => {
-    // A pair has at most one channel. When it exists, the invite above is the
-    // way in, and the contact row must not offer to start a second.
-    mockApp.home = {
-      invites: [
-        {
-          channelId: 'sess_a',
-          from: { id: THEM, displayName: 'Dana Chu' },
-          createdAt: NOW,
-        },
-      ],
-      rejoinable: [],
-      contacts: [
-        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
-      ],
-      recordings: [],
-    };
-
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
-    expect(findButton(tree, 'Start channel')).toBeUndefined();
-    expect(textOf(tree)).toContain('Channel already open');
-    expect(textOf(tree)).toContain('tap to join');
-    act(() => tree.unmount());
-  });
-
-  it('does not offer to start one you have left either', () => {
-    mockApp.home = {
-      invites: [],
-      rejoinable: [
-        {
-          channelId: 'sess_b',
-          name: null,
-          others: [{ id: THEM, displayName: 'Dana Chu' }],
-          presentCount: 1,
-          createdAt: NOW,
-          lastActiveAt: NOW,
-        },
-      ],
-      contacts: [
-        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
-      ],
-      recordings: [],
-    };
-
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
-    expect(findButton(tree, 'Start channel')).toBeUndefined();
-    expect(textOf(tree)).toContain('Channel already open');
-    act(() => tree.unmount());
-  });
-
-  it('goes on offering to start one when the only channel with them is named', () => {
-    // From a screenshot: Erta read "Channel already open" because Erta was in
-    // Product Meeting, a named three-person channel. Tapping her would not
-    // have opened that — a name is exactly what makes a second channel with
-    // the same people sensible, and there was no unnamed one to reopen.
-    mockApp.home = {
-      invites: [],
-      rejoinable: [
-        {
-          channelId: 'sess_named',
-          name: 'Product Meeting',
-          others: [{ id: THEM, displayName: 'Dana Chu' }],
-          presentCount: 0,
-          createdAt: NOW,
-          lastActiveAt: NOW,
-        },
-      ],
-      contacts: [
-        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
-      ],
-      recordings: [],
-    };
-
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
-    expect(findButton(tree, 'Start channel')).toBeDefined();
-    expect(textOf(tree)).not.toContain('Channel already open');
-    act(() => tree.unmount());
-  });
-
-  it('goes on offering to start one when the unnamed channel is a wider one', () => {
-    // Three people is a different set from two, and it has its own unnamed
-    // channel. Tapping this contact opens the one that is just the two of you.
-    mockApp.home = {
-      invites: [],
-      rejoinable: [
-        {
-          channelId: 'sess_trio',
-          name: null,
-          others: [
-            { id: THEM, displayName: 'Dana Chu' },
-            { id: 'usr_c', displayName: 'Sam Reyes' },
-          ],
-          presentCount: 0,
-          createdAt: NOW,
-          lastActiveAt: NOW,
-        },
-      ],
-      contacts: [
-        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
-      ],
-      recordings: [],
-    };
-
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
-    expect(findButton(tree, 'Start channel')).toBeDefined();
-    expect(textOf(tree)).not.toContain('Channel already open');
-    act(() => tree.unmount());
-  });
-
-  it('does not offer to start the one you are standing in', () => {
-    // The channel you are in is shown as the banner rather than as a row, and
-    // reading the list with that row filtered out left the person you are
-    // talking to right now being offered a fresh start with you.
-    mockApp.home = {
-      invites: [],
-      rejoinable: [
-        {
-          channelId: 'sess_live',
-          name: null,
-          others: [{ id: THEM, displayName: 'Dana Chu' }],
-          presentCount: 1,
-          createdAt: NOW,
-          lastActiveAt: NOW,
-        },
-      ],
-      contacts: [
-        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
-      ],
-      recordings: [],
-    };
-
-    const tree = render(
-      <HomeView
-        onEnterChannel={() => {}}
-        onOpenSettings={() => {}}
-        liveChannel={{
-          channelId: 'sess_live',
-          title: 'Dana Chu',
-          present: 1,
-          muted: false,
-        }}
-        onReturnToChannel={() => {}}
-      />
-    );
-    expect(findButton(tree, 'Start channel')).toBeUndefined();
-    expect(findButton(tree, 'Join channel')).toBeUndefined();
-    expect(textOf(tree)).toContain('Channel already open');
-    act(() => tree.unmount());
-  });
-
-  it('offers to join, not start, once the invite has been dismissed', () => {
-    // Dismissing the banner removes the only other way in. Suppressing the
-    // contact row as well would leave no route to a channel that still exists.
+  it('takes the invitation off the screen when it is dismissed', () => {
+    // It used to leave a contact row offering to join instead, the contact
+    // list being the other way in. There is no such row now: the channel is
+    // the row, and dismissing one is saying not this, not now.
     mockApp.home = {
       invites: [
         {
@@ -528,23 +519,7 @@ describe('Home', () => {
 
     // Dismissal lives in the provider now, so re-render with it applied.
     act(() => tree.update(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />));
-    expect(findButton(tree, 'Start channel')).toBeUndefined();
-    expect(findButton(tree, 'Join channel')).toBeDefined();
-    act(() => tree.unmount());
-  });
-
-  it('still offers to start when there is no channel yet', () => {
-    mockApp.home = {
-      invites: [],
-      rejoinable: [],
-      contacts: [
-        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
-      ],
-      recordings: [],
-    };
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
-    expect(findButton(tree, 'Start channel')).toBeDefined();
-    expect(textOf(tree)).not.toContain('Channel already open');
+    expect(textOf(tree)).not.toContain('tap to join');
     act(() => tree.unmount());
   });
 
@@ -2372,13 +2347,16 @@ describe('the order of your channels', () => {
     name: string | null,
     lastActiveAt: number,
     other = 'Miro Okafor'
-  ) => ({
+  ): HomeViewData['rejoinable'][number] => ({
     channelId: id,
     name,
     others: [{ id: `acct_${id}`, displayName: other }],
     presentCount: 0,
     createdAt: NOW,
     lastActiveAt,
+    // The two are the same by default: a channel that has been used, last used
+    // when it was last entered or left. The tests that care set them apart.
+    lastPresenceAt: lastActiveAt,
   });
 
   /** The rendered titles, in the order they appear. */
@@ -2398,15 +2376,66 @@ describe('the order of your channels', () => {
     );
   };
 
-  it('puts every named channel above every described one', () => {
-    // The stalest named channel still outranks the freshest unnamed one.
+  it('ranks a described channel above a staler named one', () => {
+    // The old rule was the other way about — every named channel above every
+    // described one, on the reasoning that a name is something somebody chose
+    // to write. It buried the freshest conversation on the screen under
+    // whatever had been named and abandoned. One list, one order: least idle
+    // first, and the name still reads as a name.
     const tree = show([
       channel('a', null, NOW),
       channel('b', 'Thursday rehearsal', NOW - 900_000),
     ]);
     expect(titlesIn(tree, ['Thursday rehearsal', 'Miro Okafor'])).toEqual([
-      'Thursday rehearsal',
       'Miro Okafor',
+      'Thursday rehearsal',
+    ]);
+    act(() => tree.unmount());
+  });
+
+  it('sinks a channel nobody has ever been in, whatever its stamp says', () => {
+    // The standing channel a pair of contacts get. Its `lastPresenceAt` is the
+    // moment it was made, which is not a visit — without `everUsed` it would
+    // arrive at the top of the list as the freshest thing on it.
+    const tree = show([
+      { ...channel('a', null, NOW, 'Dana Chu'), everUsed: false },
+      channel('b', 'Standup', NOW - 900_000),
+    ]);
+    expect(titlesIn(tree, ['Standup', 'Dana Chu'])).toEqual([
+      'Standup',
+      'Dana Chu',
+    ]);
+    expect(textOf(tree)).toContain('Not used yet');
+    act(() => tree.unmount());
+  });
+
+  it('orders the never-used ones by name, there being nothing else true', () => {
+    const tree = show([
+      { ...channel('a', null, NOW, 'Priya Raman'), everUsed: false },
+      { ...channel('b', null, NOW - 900_000, 'Dana Chu'), everUsed: false },
+    ]);
+    expect(titlesIn(tree, ['Dana Chu', 'Priya Raman'])).toEqual([
+      'Dana Chu',
+      'Priya Raman',
+    ]);
+    act(() => tree.unmount());
+  });
+
+  it('reads recency from the presence stamp, not from the last entry', () => {
+    // `lastActiveAt` freezes for the whole of a conversation — it moves on an
+    // entry and an exit and at no point between. A channel two people have
+    // been talking in for an hour must not sink below one somebody walked out
+    // of five minutes ago.
+    const tree = show([
+      { ...channel('a', 'Talking now', NOW - 3_600_000), lastPresenceAt: NOW },
+      {
+        ...channel('b', 'Left recently', NOW - 300_000),
+        lastPresenceAt: NOW - 300_000,
+      },
+    ]);
+    expect(titlesIn(tree, ['Talking now', 'Left recently'])).toEqual([
+      'Talking now',
+      'Left recently',
     ]);
     act(() => tree.unmount());
   });
@@ -2439,10 +2468,10 @@ describe('the order of your channels', () => {
 /**
  * Rows you tap.
  *
- * A profile used to be reachable only from a channel roster, which meant you
- * had to already be in a channel with somebody to read who they were. Contact
- * rows are now the way in, and a channel row is a single target rather than a
- * button on the end of one.
+ * A channel row is a single target rather than a button on the end of one:
+ * there is one thing to do with a channel you are not in. Contact rows were
+ * briefly the way to a profile and are gone with the contact list; the roster
+ * inside a channel opens one, and the Contacts View will.
  */
 describe('tapping a row', () => {
   /** The pressable whose accessibility label starts with `prefix`. */
@@ -2454,36 +2483,10 @@ describe('tapping a row', () => {
         n.props.accessibilityLabel.startsWith(prefix)
     )[0];
 
-  it('opens a profile from a contact, naming who to fetch', () => {
-    const onOpenProfile = jest.fn();
-    mockApp.home = {
-      invites: [],
-      rejoinable: [],
-      contacts: [
-        {
-          account: { id: 'acct_q', displayName: 'Quinn Ito' },
-          status: 'accepted',
-        },
-      ],
-      recordings: [],
-    };
-    const tree = render(
-      <HomeView
-        onEnterChannel={() => {}}
-        onOpenSettings={() => {}}
-        onOpenProfile={onOpenProfile}
-      />
-    );
-
-    act(() => pressableFor(tree, 'Quinn Ito').props.onPress());
-    expect(onOpenProfile).toHaveBeenCalledWith('acct_q', 'Quinn Ito');
-    act(() => tree.unmount());
-  });
-
   it('leaves a sent request alone, there being no account behind it yet', () => {
-    // `displayName` holds the address for these rows, and there is no profile
-    // to open — pressing one would fetch a person who does not exist.
-    const onOpenProfile = jest.fn();
+    // `displayName` holds the address for these rows, and there is no person
+    // behind it to open — which is the point of the row carrying no id. A
+    // request is listed and answered, and is not a target.
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -2496,13 +2499,10 @@ describe('tapping a row', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView
-        onEnterChannel={() => {}}
-        onOpenSettings={() => {}}
-        onOpenProfile={onOpenProfile}
-      />
+      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
     );
 
+    expect(textOf(tree)).toContain('nobody@example.com');
     expect(pressableFor(tree, 'nobody@example.com')).toBeUndefined();
     act(() => tree.unmount());
   });
@@ -2603,37 +2603,6 @@ describe('tapping a row', () => {
     }
   });
 
-  it('opens a profile from a contact row, there being no selection mode', () => {
-    const onOpenProfile = jest.fn();
-    mockApp.home = {
-      invites: [],
-      rejoinable: [],
-      contacts: [
-        {
-          account: { id: 'acct_q', displayName: 'Quinn Ito' },
-          status: 'accepted',
-        },
-        {
-          account: { id: 'acct_p', displayName: 'Priya Raman' },
-          status: 'accepted',
-        },
-      ],
-      recordings: [],
-    };
-    const tree = render(
-      <HomeView
-        onEnterChannel={() => {}}
-        onOpenSettings={() => {}}
-        onOpenProfile={onOpenProfile}
-      />
-    );
-
-    act(() => pressableFor(tree, 'Quinn Ito').props.onPress());
-
-    expect(onOpenProfile).toHaveBeenCalledWith('acct_q', 'Quinn Ito');
-    expect(textOf(tree)).not.toContain('Picked');
-    act(() => tree.unmount());
-  });
 });
 
 /**
@@ -2915,43 +2884,62 @@ describe('the appearance setting', () => {
   });
 });
 
-describe('when a contact was last in the app', () => {
-  function homeWith(
+/**
+ * Where somebody is, which decides whether to try them at all.
+ *
+ * It lived on Home's contact rows until Home became a list of channels and
+ * those rows went. Moved rather than deleted: the server still composes it —
+ * `ContactView` carries it untouched — and it is shown here, to contacts
+ * alone, which is exactly the audience that could see it before.
+ */
+describe('when somebody was last in the app', () => {
+  function profileWith(
     lastSeenAt: number | null | undefined,
-    inApp?: boolean
+    inApp?: boolean,
+    status: 'accepted' | 'incoming' = 'accepted'
   ) {
     mockApp.home = {
       invites: [],
       rejoinable: [],
       recordings: [],
       contacts: [
-        {
-          account: { id: 'acct_q', displayName: 'Quinn Ito' },
-          status: 'accepted',
-          lastSeenAt,
-          inApp,
-        },
+        { account: { id: THEM, displayName: 'Dana Chu' }, status },
       ],
     };
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: THEM, displayName: 'Dana Chu' },
+      bio: null,
+      ...(lastSeenAt === undefined ? {} : { lastSeenAt }),
+      ...(inApp === undefined ? {} : { inApp }),
+    });
     return render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <ProfileView accountId={THEM} fallbackName="Dana Chu" onBack={() => {}} />
     );
   }
 
-  it('says how long ago, in words', () => {
+  /** Renders and waits for the fetch, which lands in a microtask. */
+  async function shown(...args: Parameters<typeof profileWith>) {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = profileWith(...args);
+    });
+    return tree;
+  }
+
+  it('says how long ago, in words', async () => {
     mockApp.serverNow = () => NOW + 5 * 60_000;
-    const tree = homeWith(NOW);
-    expect(textOf(tree)).toContain('5 minutes ago');
+    const tree = await shown(NOW);
+    expect(textOf(tree)).toContain('Last seen 5 minutes ago');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });
 
-  it('says they are here rather than counting the seconds', () => {
+  it('says they are here rather than counting the seconds', async () => {
     // "A few seconds ago" about somebody sitting in the app is true and
     // useless — and the stored time is a heartbeat stale, so a live user
     // would otherwise flicker between a count and nothing.
     mockApp.serverNow = () => NOW + 3_000;
-    const tree = homeWith(NOW);
+    const tree = await shown(NOW);
     const text = textOf(tree);
     expect(text).toContain('In the app now');
     expect(text).not.toContain('seconds ago');
@@ -2959,66 +2947,29 @@ describe('when a contact was last in the app', () => {
     act(() => tree.unmount());
   });
 
-  it('shows the time even when the row already has something to say', () => {
-    // The bug this exists to stop coming back. The idle time was the last
-    // branch of a ternary, so "Channel already open" took the line and the
-    // time never rendered — for everybody you have a 1:1 channel with, which
-    // is everybody you actually talk to. The one untested case was the only
-    // case a real account had.
-    mockApp.serverNow = () => NOW + 5 * 60_000;
-    mockApp.home = {
-      invites: [],
-      rejoinable: [
-        {
-          channelId: 'chan_1',
-          name: null,
-          others: [{ id: 'acct_q', displayName: 'Quinn Ito' }],
-          presentCount: 0,
-          createdAt: NOW,
-          lastActiveAt: NOW,
-        },
-      ],
-      recordings: [],
-      contacts: [
-        {
-          account: { id: 'acct_q', displayName: 'Quinn Ito' },
-          status: 'accepted',
-          lastSeenAt: NOW,
-        },
-      ],
-    };
-    const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
-    );
-    const text = textOf(tree);
-    expect(text).toContain('Channel already open');
-    expect(text).toContain('5 minutes ago');
-    mockApp.serverNow = () => NOW;
-    act(() => tree.unmount());
-  });
-
-  it('says nothing at all when it does not know', () => {
-    // Two ways to get here and neither is worth a word on screen: a server
-    // that predates the field sends none, and somebody who has not connected
-    // since it existed has nothing recorded.
-    for (const unknown of [null, undefined]) {
-      const tree = homeWith(unknown);
+  it('says nothing at all when it does not know', async () => {
+    // Three ways to get here and none is worth a word on screen: a server that
+    // predates the fields sends none, somebody who has not connected since
+    // they existed has nothing recorded, and a reader who is not a contact is
+    // told nothing whatever the record says.
+    for (const unknown of [null, undefined] as const) {
+      const tree = await shown(unknown);
       const text = textOf(tree);
-      expect(text).toContain('Quinn Ito');
-      expect(text).not.toContain('ago');
+      expect(text).toContain('Dana Chu');
+      expect(text).not.toContain('Last seen');
       expect(text).not.toContain('In the app now');
       act(() => tree.unmount());
     }
   });
 
-  it('believes the fact over the arithmetic', () => {
-    // The worked case, on this side of the wire. Quinn has been sitting in a
+  it('believes the fact over the arithmetic', async () => {
+    // The worked case, on this side of the wire. Dana has been sitting in a
     // channel for an hour, so the timestamp in this snapshot is an hour old —
     // it was true when the server composed it and nothing has been sent
     // since, because nothing needed to be. Reading it as an hour idle is the
-    // whole of what this row used to get wrong.
+    // whole of what the old contact row got wrong.
     mockApp.serverNow = () => NOW + 3_600_000;
-    const tree = homeWith(NOW, true);
+    const tree = await shown(NOW, true);
     const text = textOf(tree);
     expect(text).toContain('In the app now');
     expect(text).not.toContain('ago');
@@ -3026,33 +2977,149 @@ describe('when a contact was last in the app', () => {
     act(() => tree.unmount());
   });
 
-  it('counts from the moment they went, once they have gone', () => {
+  it('counts from the moment they went, once they have gone', async () => {
     mockApp.serverNow = () => NOW + 5 * 60_000;
-    const tree = homeWith(NOW, false);
-    expect(textOf(tree)).toContain('5 minutes ago');
+    const tree = await shown(NOW, false);
+    expect(textOf(tree)).toContain('Last seen 5 minutes ago');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });
 
-  it('does not flicker while they are reconnecting', () => {
+  it('does not flicker while they are reconnecting', async () => {
     // A tunnel or a lift closes the socket, so `inApp` goes false with the
     // departure a moment ago. No grace period exists on this clock; the
-    // sixty-second floor is what keeps the row steady, and it has to keep
+    // sixty-second floor is what keeps the line steady, and it has to keep
     // doing so or every flap shows as a departure.
     mockApp.serverNow = () => NOW + 3_000;
-    const tree = homeWith(NOW, false);
+    const tree = await shown(NOW, false);
     expect(textOf(tree)).toContain('In the app now');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });
 
-  it('falls back to the old reading when the server sends no such field', () => {
+  it('falls back to the old reading when the server sends no such field', async () => {
     // An installed build meets this between its release and the deploy that
-    // follows, and gets exactly the behaviour it had before.
+    // follows: `lastSeenAt` without `inApp` is what the server sent before the
+    // fact existed, and the subtraction is still the best answer available.
     mockApp.serverNow = () => NOW + 5 * 60_000;
-    const tree = homeWith(NOW, undefined);
-    expect(textOf(tree)).toContain('5 minutes ago');
+    const tree = await shown(NOW, undefined);
+    expect(textOf(tree)).toContain('Last seen 5 minutes ago');
     mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * Ending a contact, which is more than forgetting a name: it takes the
+ * channels that held only the two of you, and it takes them for both.
+ */
+describe('removing a contact', () => {
+  function shownFor(status: 'accepted' | 'incoming') {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status },
+      ],
+    };
+    return render(
+      <ProfileView accountId={THEM} fallbackName="Dana Chu" onBack={() => {}} />
+    );
+  }
+
+  it('is offered for a contact and for nobody else', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = shownFor('accepted');
+    });
+    expect(findButton(tree, 'Remove contact')).toBeDefined();
+    act(() => tree.unmount());
+
+    // Somebody who has asked and not been answered is not a contact to remove;
+    // the answer to them is Accept, which is already on this screen.
+    await act(async () => {
+      tree = shownFor('incoming');
+    });
+    expect(findButton(tree, 'Remove contact')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('asks first, and says what it costs', async () => {
+    const alert = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = shownFor('accepted');
+    });
+
+    await act(async () => findButton(tree, 'Remove contact')!.props.onPress());
+    expect(mockApp.removeContact).not.toHaveBeenCalled();
+
+    const [, body, buttons] = alert.mock.calls[0] as [
+      string,
+      string,
+      Array<{ text: string; onPress?: () => void }>,
+    ];
+    // Both consequences named, because neither is guessable from the button.
+    expect(body).toContain('each stop being');
+    expect(body).toContain('only the two of you');
+    expect(body).toContain('other people');
+
+    await act(async () => {
+      buttons.find((b) => b.text === 'Remove')!.onPress!();
+    });
+    expect(mockApp.removeContact).toHaveBeenCalledWith(THEM);
+    alert.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The profile can be open over the very channel the removal empties — a
+   * one-to-one channel is exactly the case — so closing it onto that channel
+   * would land on "Channel gone", which is true and a strange answer to a tap
+   * about a person. The caller decides where to go; ChannelView sends it Home.
+   */
+  it('leaves by the route the caller chose', async () => {
+    const alert = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
+    const onBack = jest.fn();
+    const onRemoved = jest.fn();
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+      ],
+    };
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = render(
+        <ProfileView
+          accountId={THEM}
+          fallbackName="Dana Chu"
+          onBack={onBack}
+          onRemoved={onRemoved}
+        />
+      );
+    });
+
+    await act(async () => findButton(tree, 'Remove contact')!.props.onPress());
+    const [, , buttons] = alert.mock.calls[0] as [
+      string,
+      string,
+      Array<{ text: string; onPress?: () => void }>,
+    ];
+    await act(async () => {
+      buttons.find((b) => b.text === 'Remove')!.onPress!();
+    });
+
+    expect(onRemoved).toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+    alert.mockRestore();
     act(() => tree.unmount());
   });
 });
@@ -3100,9 +3167,12 @@ describe('the order channels are listed in', () => {
     act(() => tree.unmount());
   });
 
-  it('still keeps named channels above unnamed ones', () => {
-    // Occupancy sorts within each group, not across them. A name is something
-    // somebody chose to write, and that grouping is older than this rule.
+  it('separates the occupied ones under their own heading', () => {
+    // The sections are the coarse sort, and they are a ladder rather than a
+    // taxonomy: a channel appears once, in the first one it qualifies for.
+    // Occupancy is what the top one is for, so an unnamed channel with two
+    // people in it outranks a named one with nobody — which is the opposite of
+    // the rule this list used to keep, and the right way round.
     mockApp.home = {
       invites: [],
       rejoinable: [
@@ -3116,7 +3186,9 @@ describe('the order channels are listed in', () => {
       <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
     );
     const text = textOf(tree);
-    expect(text.indexOf('Emptied')).toBeLessThan(text.indexOf('Quinn Ito'));
+    expect(text.indexOf('Live')).toBeLessThan(text.indexOf('Quinn Ito'));
+    expect(text.indexOf('Quinn Ito')).toBeLessThan(text.indexOf('Your channels'));
+    expect(text.indexOf('Your channels')).toBeLessThan(text.indexOf('Emptied'));
     act(() => tree.unmount());
   });
 });
@@ -3350,7 +3422,7 @@ describe('Support', () => {
     mockApp.loadSupport.mockRejectedValueOnce(new Error('nope'));
     const tree = await home();
     expect(findButton(tree, 'Chip in')).toBeUndefined();
-    expect(textOf(tree)).toContain('Contacts');
+    expect(textOf(tree)).toContain('Start a channel');
     act(() => tree.unmount());
   });
 

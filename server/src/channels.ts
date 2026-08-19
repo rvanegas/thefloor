@@ -16,6 +16,7 @@ import {
   createChannel,
   isNamed,
   isParticipant,
+  lastPresenceAt,
   otherParticipants,
   reduce,
 } from '../../core/channel';
@@ -495,6 +496,10 @@ export class ChannelRegistry {
         { type: 'ENTER', userId: initiator },
         this.now()
       );
+      // Notifying the others is `commit`'s, not this branch's: the first entry
+      // into a standing channel is a start and is announced as one from there,
+      // because the tap that makes it need not come through `create` at all —
+      // Home lists these channels, and a card dispatches ENTER directly.
       if (rejoined !== existing) this.commit(existing, rejoined);
       this.emit([existing.id]);
       return { ok: true, channel: this.channels.get(existing.id)! };
@@ -554,6 +559,90 @@ export class ChannelRegistry {
       );
     }
     return { ok: true, channel };
+  }
+
+  /**
+   * The standing one-to-one channel a pair have for being contacts, made if it
+   * is not there already.
+   *
+   * Home is a list of channels now and nothing else, so becoming somebody's
+   * contact has to *produce* the thing you would talk to them in — otherwise
+   * accepting a request adds a person to a screen that no longer has anywhere
+   * to put them. This is what the contact list used to be, expressed as the
+   * only object the screen understands.
+   *
+   * Idempotent, and `unnamedChannelFor` is what makes it so: it is the same
+   * one-unnamed-channel-per-set rule `create` enforces, asked of the pair. So
+   * this is safe on every acceptance path, safe to run again over the whole
+   * table at boot, and safe against a `create` that got there first — tapping
+   * somebody before this ever ran reuses that channel rather than making a
+   * second.
+   *
+   * **Nobody is placed in it and nobody is told.** `present` is empty, so
+   * `everPresent` is too, and that emptiness is the marker both `invitesFor`
+   * and `rejoinableFor` read to tell a standing place from a summons — see
+   * them. No push either: a contact accepting is not somebody waiting for you
+   * in a room, and a notification saying so would be the app inventing an
+   * event.
+   *
+   * `invitedBy` comes out naming the initiator, which is incidental and is
+   * never read for this shape: the one thing that reads it is `invitesFor`,
+   * which skips these channels entirely.
+   */
+  ensurePairChannel(
+    a: string,
+    b: string
+  ): { channelId: string; created: boolean } | null {
+    if (a === b) return null;
+    const existing = this.unnamedChannelFor([a, b]);
+    if (existing) return { channelId: existing.id, created: false };
+
+    const createdAt = this.now();
+    const id = insertWithUniqueKey(
+      () => newId('chan'),
+      (candidate) =>
+        this.db
+          .prepare(
+            `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
+             VALUES (?, ?, ?, ?, ?)`
+          )
+          .run(candidate, a, b, createdAt, JSON.stringify([a, b]))
+    );
+    // Row first, then memory — the same order and the same reason as `create`:
+    // a live channel with no row behind it would be adopted by the guard above
+    // on every retry, so the row could never be written.
+    const channel = createChannel({
+      id,
+      initiator: a,
+      invitees: [b],
+      now: createdAt,
+      present: [],
+    });
+    this.channels.set(channel.id, channel);
+    this.persistChannel(channel);
+    this.emit([channel.id]);
+    return { channelId: channel.id, created: true };
+  }
+
+  /**
+   * Every accepted pair given the channel this invariant promises them.
+   *
+   * For the accounts that were contacts before the promise existed: without
+   * this their Home is empty of exactly the people they talk to, the contact
+   * list having been the only place those people appeared. Run at boot, after
+   * the channels are revived — `ensurePairChannel` reads the live registry to
+   * decide whether one is needed, so running it against an unrevived one would
+   * duplicate every channel in the database.
+   *
+   * Idempotent, so the honest check that it worked is that a second boot
+   * creates nothing.
+   */
+  backfillPairChannels(pairs: Array<[string, string]>): number {
+    let created = 0;
+    for (const [a, b] of pairs) {
+      if (this.ensurePairChannel(a, b)?.created) created += 1;
+    }
+    return created;
   }
 
   /**
@@ -889,6 +978,75 @@ export class ChannelRegistry {
   }
 
   /**
+   * Leaves every channel that holds these two people and nobody else.
+   *
+   * What deleting a contact costs, and the reason it is a channel operation at
+   * all. A channel with a third person in it is a place that survives the pair
+   * falling out — it is not *about* them — so it is untouched however the
+   * relationship ends. A channel of exactly the two is the relationship, and
+   * leaving it is what removing somebody means.
+   *
+   * **Named ones go too.** A name distinguishes two channels holding the same
+   * people; it does not make a two-person channel about somebody else. Leaving
+   * the standing one while staying in "Weekly Convo" would be a half-exit that
+   * left the removed contact still on Home under another heading.
+   *
+   * The far side is the delicate part, and it turns on whether anything was
+   * ever kept there:
+   *
+   * - **Nothing recorded**, which is nearly all of them, these channels being
+   *   created by the dozen for pairs who have not spoken: the channel goes for
+   *   both. Left behind it would be a member-of-one channel described as "Just
+   *   you", which is what the other person's Home would fill with, one card per
+   *   contact who ever removed them, each naming nobody.
+   * - **Recordings in it**: it stays, and they keep it. Those are as much
+   *   theirs as yours, and a channel is what names a recording and holds it —
+   *   so ending it here would delete another person's audio as a side effect of
+   *   your tap. Their card reads "Just you" and that is the honest description
+   *   of what they are left with.
+   *
+   * Asked before the first leave, while the row is still there to ask about.
+   *
+   * Returns the channels touched, so the caller can tell both ends that
+   * something on their screen has changed.
+   */
+  leavePairChannels(userId: string, otherId: string): string[] {
+    const touched: string[] = [];
+    // A snapshot: `apply` writes to `this.channels` as it commits, and the
+    // second of these actions removes an entry from it.
+    for (const channel of [...this.channels.values()]) {
+      if (channel.status !== 'active') continue;
+      if (channel.participants.length !== 2) continue;
+      if (!isParticipant(channel, userId)) continue;
+      if (!isParticipant(channel, otherId)) continue;
+
+      const keep = this.holdsRecordings(channel.id);
+      touched.push(channel.id);
+      this.apply(channel.id, userId, { type: 'LEAVE_CHANNEL' });
+      if (keep) continue;
+      // The other is now its last member, and the last member cannot leave —
+      // there is nobody to leave it to. Destroying it is the action that
+      // exists for that position, and it is safe to take on their behalf
+      // precisely because the branch above established there is nothing in it
+      // to destroy.
+      this.apply(channel.id, otherId, { type: 'DELETE_CHANNEL' });
+    }
+    return touched;
+  }
+
+  /** Whether anything finished and undeleted was ever recorded in a channel. */
+  private holdsRecordings(channelId: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 FROM recordings
+          WHERE channel_id = ? AND ended_at IS NOT NULL AND deleted_at IS NULL
+          LIMIT 1`
+      )
+      .get(channelId);
+    return row !== undefined;
+  }
+
+  /**
    * Steps `userId` out of every channel but `keep`.
    *
    * **Presence is exclusive.** A person has one microphone and one pair of
@@ -950,10 +1108,23 @@ export class ChannelRegistry {
       if (channel.status !== 'active') continue;
       if (!isParticipant(channel, userId)) continue;
       if (channel.everPresent.includes(userId)) continue;
+      // Nobody has ever been in it, so nobody is asking you anywhere: this is
+      // the standing one-to-one channel a pair get for being contacts, and it
+      // is a place rather than a summons. Without this every new contact would
+      // raise a permanent invitation from whoever accepted first — one that
+      // could not be answered, since answering means entering, which is what
+      // the channel is for anyway.
+      if (channel.everPresent.length === 0) continue;
       // Named after whoever actually asked, which for a mid-channel invite is
-      // not necessarily the initiator.
+      // not necessarily the initiator — and for a standing contact channel is
+      // nobody at all. Those are created with an arbitrary initiator and an
+      // `invitedBy` naming them, neither of which describes anything that
+      // happened; what makes one an invitation is somebody walking into it, so
+      // whoever did that is who this is from. Falling through to `initiator`
+      // named the viewer as their own inviter about half the time, and the
+      // invitation was then dropped by the guard below.
       const from = this.accounts.public(
-        channel.invitedBy[userId] ?? channel.initiator
+        channel.invitedBy[userId] ?? channel.everPresent[0] ?? channel.initiator
       );
       // Never from yourself. `invitedBy` has no entry for an initiator, so
       // without this the fallback would credit them with inviting themselves
@@ -971,6 +1142,7 @@ export class ChannelRegistry {
             .map((id) => this.accounts.public(id))
             .filter((account): account is PublicAccount => !!account),
           presentCount: channel.present.length,
+          lastPresenceAt: lastPresenceAt(channel),
         });
       }
     }
@@ -1002,7 +1174,20 @@ export class ChannelRegistry {
     for (const channel of this.channels.values()) {
       if (channel.status !== 'active') continue;
       if (!isParticipant(channel, userId)) continue;
-      if (!channel.everPresent.includes(userId)) continue;
+      // Having been here, **or** nobody having been. The first is the original
+      // test and still does the work it was written for: a channel somebody
+      // asked you into is an invitation until you answer it, and belongs in
+      // that list rather than this one.
+      //
+      // The second is the standing one-to-one channel a pair get for being
+      // contacts. Nobody opened it and nobody was asked into it, so it fails
+      // the first test for both of them at once — and `invitesFor` skips it on
+      // exactly this condition, so without the alternative here it would appear
+      // on nobody's screen at all. The two lists share one rule read from
+      // opposite ends; changing either without the other loses a channel.
+      if (!channel.everPresent.includes(userId) && channel.everPresent.length > 0) {
+        continue;
+      }
 
       const others = otherParticipants(channel, userId)
         .map((id) => this.accounts.public(id))
@@ -1019,11 +1204,22 @@ export class ChannelRegistry {
         presentCount: channel.present.length,
         createdAt: channel.createdAt,
         lastActiveAt: channel.lastActiveAt,
+        lastPresenceAt: lastPresenceAt(channel),
+        everUsed: channel.everPresent.length > 0,
       });
     }
-    // Most recently used first. Home groups named channels above unnamed ones
-    // and preserves this order inside each group.
-    return rejoinable.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+    // Least idle first. Home sections this list — live, invited, the rest —
+    // and preserves this order inside each section, with the never-used
+    // channels sunk to the bottom of theirs.
+    //
+    // `lastPresenceAt` rather than `lastActiveAt`, which moves on an entry and
+    // an exit and at no point between, so an hour of conversation left it
+    // where it was and a channel two people were talking in sank below one
+    // somebody had walked out of. Home used to correct for that by asking
+    // `presentCount` separately; it no longer has to.
+    return rejoinable.sort(
+      (a, b) => (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0)
+    );
   }
 
   /**
@@ -1289,7 +1485,16 @@ export class ChannelRegistry {
       after.participants.length > before.participants.length ||
       after.present.some((id) => !before.present.includes(id));
     if (before.present.length === 0 && after.present.length > 0) {
-      this.announceActive(after);
+      // Nobody had ever been in it, so this is not somebody arriving where you
+      // both have been before: it is the channel starting, and until contacts
+      // came with a standing channel each it could only happen inside `create`,
+      // which said so itself. Now the first entry into one of those is an
+      // ordinary ENTER from a Home card, and without this branch the other
+      // person's invitation would arrive as "Alice stepped in" — five minutes'
+      // lifetime, about a channel they had never heard of, in place of the
+      // month an invitation is given.
+      if (before.everPresent.length === 0) this.announceStarted(after);
+      else this.announceActive(after);
     }
     if (after.status === 'active' && arrived) {
       if (after.floor.holder !== null) this.assertSilence(after);
@@ -1348,6 +1553,23 @@ export class ChannelRegistry {
    * run of empty-to-occupied transitions that are a network artefact rather
    * than anything happening in the room.
    */
+  private announceStarted(channel: ChannelState): void {
+    if (channel.status !== 'active') return;
+    const opener = channel.present[0];
+    if (opener === undefined) return;
+    const absent = channel.participants.filter((id) => id !== opener);
+    if (absent.length === 0) return;
+    this.push.notify(
+      absent,
+      notifications.started(this.displayName(opener), channel.id)
+    );
+    // Deliberately *not* stamping `lastAnnouncedAt`. That map exists to absorb
+    // a flapping connection's run of empty-to-occupied transitions, and this
+    // fires at most once in a channel's life — while stamping it would silence
+    // the next genuine arrival, which is a different event about a room the
+    // recipient now knows exists.
+  }
+
   private announceActive(channel: ChannelState): void {
     if (channel.status !== 'active') return;
     const now = this.now();

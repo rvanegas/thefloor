@@ -37,7 +37,7 @@ function Root() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** The screen explaining what donating is for, reached from Home. */
   const [supportOpen, setSupportOpen] = useState(false);
-  /** Somebody's profile, opened from a contact row. */
+  /** Somebody's profile, opened from a channel roster. */
   const [profile, setProfile] = useState<{ id: string; name: string } | null>(
     null
   );
@@ -186,6 +186,10 @@ function Root() {
     return <SupportView onBack={() => setSupportOpen(false)} />;
   }
 
+  // Nothing on Home opens this any more — the contact rows that used to are
+  // gone, Home being a list of channels now. The route stays because the
+  // channel roster opens profiles and because the Contacts View will; see
+  // planning/TASKS.md.
   if (profile) {
     return (
       <ProfileView
@@ -204,7 +208,6 @@ function Root() {
     <HomeView
       onEnterChannel={setChannelId}
       onOpenSettings={() => setSettingsOpen(true)}
-      onOpenProfile={(id, name) => setProfile({ id, name })}
       onOpenSupport={() => setSupportOpen(true)}
       // What Home needs to show that a conversation is still going without you
       // looking at it. An open microphone behind a screen that gives no sign of

@@ -28,6 +28,26 @@ export interface ProfileView {
   account: PublicAccount;
   /** Markdown, as typed. Null when they have not written one. */
   bio: string | null;
+  /**
+   * Whether they are in the app right now, and when they last were — the same
+   * two facts `ContactView` carries, with the same meanings and the same
+   * reasons for being two rather than one. Read `inApp` first: it is a fact,
+   * where subtracting `lastSeenAt` from an advancing clock is an inference
+   * that ages badly.
+   *
+   * **Both are withheld from anybody who is not a contact.** A profile is
+   * readable by a contact, by anyone sharing a live channel, and by yourself;
+   * availability is for the first of those alone, which is exactly the audience
+   * that could already see it when it lived on Home's contact rows. Somebody an
+   * acquaintance brought into a conversation gets the bio and nothing about
+   * where its author is.
+   *
+   * Optional therefore twice over: absent for a non-contact, and absent from a
+   * server that predates them. A client cannot tell those apart and does not
+   * need to — it shows nothing for both.
+   */
+  inApp?: boolean;
+  lastSeenAt?: number | null;
 }
 
 export type ContactStatus = 'accepted' | 'outgoing' | 'incoming';
@@ -96,6 +116,14 @@ export interface InviteView {
    * claiming that moment is still happening.
    */
   presentCount?: number;
+  /**
+   * The most recent moment anybody was in the channel — see `lastPresenceAt`
+   * in core/channel.ts. What Home measures idleness from, and orders on.
+   *
+   * Optional for the wire's sake: a server that predates it sends no such key,
+   * and a client meeting that shows no idleness rather than inventing one.
+   */
+  lastPresenceAt?: number;
 }
 
 export interface RejoinableView {
@@ -107,8 +135,39 @@ export interface RejoinableView {
   /** How many participants are currently present. */
   presentCount: number;
   createdAt: number;
-  /** When anybody was last in it, which is what Home orders on. */
+  /** The last entry or exit. Ordering reads `lastPresenceAt` instead. */
   lastActiveAt: number;
+  /**
+   * The most recent moment anybody was in the channel — see `lastPresenceAt`
+   * in core/channel.ts. What Home measures idleness from, and orders on.
+   *
+   * Not `lastActiveAt`, which moves only on an entry or an exit and so freezes
+   * for the whole of a conversation. This one is kept fresh by the heartbeat,
+   * so it is the same measure whether the room emptied an hour ago or somebody
+   * is sitting in it now.
+   *
+   * Optional for the wire's sake: a server that predates it sends no such key,
+   * and a client meeting that falls back to `lastActiveAt`, which is the same
+   * answer for every channel nobody is in — the only ones the idleness line is
+   * shown for.
+   */
+  lastPresenceAt?: number;
+  /**
+   * Whether anybody has ever been in it — false only for a channel nobody has
+   * set foot in, which since contacts came to guarantee a one-to-one channel
+   * per pair is a shape that exists in numbers.
+   *
+   * It is what stops those channels lying. `lastPresenceAt` for one of them is
+   * the moment it was created, so without this a channel nobody has ever
+   * entered reads as having been used then — and, worse, sorts to the top of
+   * Home as the freshest thing there. The client says "Not used yet" instead
+   * and sinks it to the bottom of its section.
+   *
+   * Optional for the wire's sake, and absent means true: every channel an older
+   * server sends is one somebody had been present in, that having been the test
+   * for appearing in this list at all.
+   */
+  everUsed?: boolean;
 }
 
 export interface RecordingView {

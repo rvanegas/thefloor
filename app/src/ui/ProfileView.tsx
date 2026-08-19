@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import { MAX_PING_TEXT_LENGTH } from '../../../core/constants';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
+import { agoOrNull } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
 
 /**
@@ -32,6 +34,7 @@ export function ProfileView({
   onBack,
   onEnterChannel,
   onPing,
+  onRemoved,
 }: {
   accountId: string;
   /**
@@ -63,6 +66,13 @@ export function ProfileView({
    * already — and those are answers rather than faults.
    */
   onPing?: (text: string) => Promise<void>;
+  /**
+   * What to do when this person stops being a contact, which takes with it
+   * every channel that held only the two of you — possibly the one this screen
+   * was opened from. The caller is the only end that knows whether that is
+   * where it is, so it decides where to go; the default is simply back.
+   */
+  onRemoved?: () => void;
 }) {
   const app = useApp();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -73,6 +83,7 @@ export function ProfileView({
   const [pinging, setPinging] = useState(false);
   const [pingError, setPingError] = useState<string | null>(null);
   const [pingSent, setPingSent] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   // Their standing with you, if any. Absent from the list means a stranger —
   // which, on a profile reached from a channel roster, is the whole point.
@@ -122,6 +133,43 @@ export function ProfileView({
     }
   };
 
+  /**
+   * Ends the contact, after saying what that costs.
+   *
+   * Confirmed rather than done, and the confirmation names both consequences
+   * because neither is guessable from the button: it is mutual — the contacts
+   * row *is* the pair, so they lose you as you lose them — and it leaves every
+   * channel that held only the two of you. Channels with anybody else in them
+   * are untouched, which is the reassurance worth giving in the same breath.
+   */
+  const removeContact = () => {
+    const name = profile?.account.displayName ?? fallbackName;
+    Alert.alert(
+      `Remove ${name}?`,
+      `You will each stop being the other's contact, and you will leave the ` +
+        `channels that hold only the two of you. Channels with other people ` +
+        `in them are not affected.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setRemoving(true);
+            setAskError(null);
+            app
+              .removeContact(accountId)
+              .then(() => (onRemoved ?? onBack)())
+              .catch((e: unknown) => {
+                setAskError(e instanceof Error ? e.message : String(e));
+                setRemoving(false);
+              });
+          },
+        },
+      ]
+    );
+  };
+
   const sendPing = async () => {
     if (!onPing) return;
     setPinging(true);
@@ -139,6 +187,15 @@ export function ProfileView({
     }
   };
 
+  /**
+   * `inApp` first, because it is a fact where the line below it is an
+   * inference. Somebody sitting in a channel for an hour is in the app, and a
+   * time subtracted from this device's clock reads as an hour idle for exactly
+   * as long as this screen has gone without a snapshot — which is the whole of
+   * what the old contact row got wrong.
+   */
+  const availability = describeAvailability(profile, app.serverNow());
+
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
@@ -147,6 +204,20 @@ export function ProfileView({
         </Text>
         <Button label="Done" variant="ghost" onPress={onBack} />
       </View>
+
+      {/*
+        Where they are, which is what decides whether to try them at all. It
+        lived on Home's contact rows until Home became a list of channels, and
+        it is here rather than nowhere because a channel's idleness is a
+        different fact: a room nobody has been in for a week says nothing about
+        whether its other member is holding a phone right now.
+
+        Only a contact is told, which is exactly the audience the contact rows
+        had. The server withholds both fields from anybody else, so an absent
+        pair is a stranger, an acquaintance from a shared channel, or a server
+        that predates this — and all three get no line rather than a hedge.
+      */}
+      {availability ? <Text style={styles.availability}>{availability}</Text> : null}
 
       <Card style={styles.stack}>
         {state === 'loading' ? (
@@ -261,7 +332,21 @@ export function ProfileView({
       <SectionLabel>Contact</SectionLabel>
       <Card style={styles.stack}>
         {contact?.status === 'accepted' ? (
-          <Text style={type.muted}>Already one of your contacts.</Text>
+          <>
+            <Text style={type.muted}>Already one of your contacts.</Text>
+            {/*
+              Filled red, as every other destructive action in the app is —
+              deleting an account, deleting a recording. It is at the bottom of
+              a screen somebody opened to read about a person, which is where
+              this belongs, and the confirmation is what actually guards it.
+            */}
+            <Button
+              label={removing ? 'Removing…' : 'Remove contact'}
+              variant="danger"
+              disabled={removing}
+              onPress={removeContact}
+            />
+          </>
         ) : contact?.status === 'outgoing' ? (
           <Text style={type.muted}>
             Request sent — waiting for them to accept.
@@ -294,6 +379,37 @@ export function ProfileView({
   );
 }
 
+/**
+ * "In the app now", "Last seen 3 hours ago", or nothing.
+ *
+ * `inApp` is read first, because it is a fact where the line below it is an
+ * inference. Somebody sitting in a channel for an hour is in the app, and the
+ * timestamp in that snapshot is an hour old — nothing has been sent since,
+ * because nothing needed to be. Subtracting it would report them as an hour
+ * idle, which is the whole of what the old contact row got wrong.
+ *
+ * A gap under `agoOrNull`'s floor reads as here rather than as "a few seconds
+ * ago". That floor is also what keeps a flapping connection steady: a tunnel
+ * closes the socket, `inApp` goes false with a departure a moment old, and
+ * without it every lift would show as somebody leaving.
+ *
+ * Null covers the three ways of not knowing, and none of them is worth a word:
+ * a server that predates the fields, somebody who has not connected since they
+ * existed, and a reader who is not a contact — the server withholds it from
+ * them, and a screen that said "unknown" would be reporting on the rule rather
+ * than on the person.
+ */
+function describeAvailability(
+  profile: Profile | null,
+  now: number
+): string | null {
+  if (!profile) return null;
+  if (profile.inApp) return 'In the app now';
+  if (profile.lastSeenAt == null) return null;
+  const ago = agoOrNull(now - profile.lastSeenAt);
+  return ago ? `Last seen ${ago}` : 'In the app now';
+}
+
 const styles = StyleSheet.create({
   container: { padding: spacing(2) },
   header: {
@@ -314,6 +430,8 @@ const styles = StyleSheet.create({
   /** Italic when nobody has named it; see core/naming.ts. */
   channelDescribed: { ...type.body, fontStyle: 'italic' },
   bio: { ...type.muted, lineHeight: 20 },
+  /** Sits under the name, quieter than it and above everything else. */
+  availability: { ...type.muted, marginBottom: spacing(1) },
   pingFoot: {
     flexDirection: 'row',
     alignItems: 'center',

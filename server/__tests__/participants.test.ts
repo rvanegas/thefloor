@@ -781,6 +781,13 @@ describe('presence is exclusive', () => {
     const second = (await createSessionWith(alice, [carol.account.id]).then(
       (r) => r.json()
     )) as { channelId: string };
+    // Opening the second stepped her out of the first, which is the rule these
+    // tests are about — but each of them starts from her being in the first, so
+    // the helper puts her back. It did not have to before contacts came with a
+    // standing channel each: opening a channel that did not exist yet left
+    // presence elsewhere alone, and only re-entering an existing one stepped
+    // you out. Every pair now has one, so both routes take the same path.
+    app.channels.dispatch(first.channelId, alice.account.id, { type: 'ENTER' });
     return { alice, bob, carol, first: first.channelId, second: second.channelId };
   }
 
@@ -907,6 +914,13 @@ describe('a channel everybody else has left', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'DELETE_CHANNEL' });
 
     expect(app.channels.get(channelId)!.status).toBe('ended');
-    expect(app.channels.rejoinableFor(alice.account.id)).toEqual([]);
+    // Her other contacts' standing channels remain — every accepted pair has
+    // one — so this asks about the deleted channel rather than about the list
+    // being empty, which it no longer is for anybody with a contact.
+    expect(
+      app.channels
+        .rejoinableFor(alice.account.id)
+        .find((entry) => entry.channelId === channelId)
+    ).toBeUndefined();
   });
 });

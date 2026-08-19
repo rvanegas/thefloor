@@ -269,6 +269,18 @@ export function buildApp(options: BuildOptions = {}): App {
   // tried.
   channels.restore();
 
+  // Every accepted pair is owed a one-to-one channel, and the pairs that
+  // became contacts before that was true have none. After `restore`, not
+  // before: the check for whether one already exists reads the live registry,
+  // so running this against an empty one would give every existing pair a
+  // second channel.
+  //
+  // Idempotent, so the reading that matters is the second boot's, which should
+  // create nothing. It is logged either way rather than only when it acts —
+  // silence would be indistinguishable from the pass having been skipped.
+  const backfilled = channels.backfillPairChannels(accounts.acceptedPairs());
+  fastify.log.info({ created: backfilled }, 'contact channels backfilled');
+
   // Expired one-time codes and invitations are dead the moment their deadline
   // passes, and nothing else ever removes them. Sweeping belongs to the
   // application rather than to any one entry point, so it starts here — a
@@ -510,6 +522,12 @@ export function buildApp(options: BuildOptions = {}): App {
       }
     }
 
+    // The same crossed-requests case as the by-id route below: they had asked
+    // first, so this accepted theirs, and the pair are owed their channel.
+    if (result.accepted && result.targetId) {
+      channels.ensurePairChannel(result.targetId, account.id);
+    }
+
     // The recipient is the whole point: without telling them, a request simply
     // never appears on their side.
     // No target to notify when the address has no account yet — the invitation
@@ -572,6 +590,10 @@ export function buildApp(options: BuildOptions = {}): App {
 
     const result = accounts.requestContactById(account.id, id, now());
     if (!result.ok) return reply.code(400).send({ error: result.error });
+    // They had asked first, so this request accepted theirs — one of the three
+    // ways a pair becomes contacts, and each owes the pair a channel. They are
+    // therefore the requester, and go first; see the accept route below.
+    if (result.accepted) channels.ensurePairChannel(id, account.id);
     homeNotifier.notify([account.id, id]);
     return { ok: true, accepted: result.accepted };
   });
@@ -583,6 +605,17 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!accounts.acceptContact(account.id, id)) {
       return reply.code(400).send({ error: 'No pending request from that user.' });
     }
+    // Becoming contacts is what creates the place the two of you talk. Home is
+    // a list of channels and nothing else now, so without this an acceptance
+    // adds a person to a screen with nowhere to put them.
+    //
+    // **The requester first**, here and in the two crossed-request cases above,
+    // which is the whole of what that argument order decides: a channel's
+    // participants keep it, and an unnamed one is described by reading them
+    // out. Whoever reached out is the nearest thing this channel has to an
+    // initiator, and the alternative was ordering it by which of them happened
+    // to tap accept.
+    channels.ensurePairChannel(id, account.id);
     homeNotifier.notify([account.id, id]);
     return { ok: true };
   });
@@ -594,6 +627,37 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!accounts.declineContact(account.id, id)) {
       return reply.code(400).send({ error: 'No pending request.' });
     }
+    homeNotifier.notify([account.id, id]);
+    return { ok: true };
+  });
+
+  /**
+   * Ends a contact, and with it the channels that existed only because of it.
+   *
+   * Two effects rather than one, and the second is the reason this is not a
+   * line in `Accounts`. Removing the row alone would leave the pair's
+   * one-to-one channel standing on both screens with no relationship behind it
+   * — reachable, enterable, and no longer meaning anything. `leavePairChannels`
+   * is where the rule about *which* channels lives, including the one about
+   * what the far side keeps.
+   *
+   * Mutual, because the contacts row is the pair. It is stated in the app's
+   * confirmation rather than hidden: whoever taps this ends it for both.
+   *
+   * `DELETE` rather than a `/remove` POST, this being the one contact verb that
+   * is a deletion of something that exists rather than an answer to a request.
+   */
+  fastify.delete('/contacts/:id', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!accounts.removeContact(account.id, id)) {
+      return reply.code(400).send({ error: 'Not a contact.' });
+    }
+    channels.leavePairChannels(account.id, id);
+    // Both, and for different reasons: one screen has lost a contact and some
+    // channels, the other has lost a contact and — where the channel held
+    // nothing worth keeping — a channel it did not act on.
     homeNotifier.notify([account.id, id]);
     return { ok: true };
   });
@@ -806,15 +870,35 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
     const { id } = request.params as { id: string };
 
+    const contact = accounts.areContacts(account.id, id);
     const allowed =
-      id === account.id ||
-      accounts.areContacts(account.id, id) ||
-      channels.shareAChannel(account.id, id);
+      id === account.id || contact || channels.shareAChannel(account.id, id);
     // Absent and not-allowed answer the same way, so this cannot be used to
     // discover which ids exist.
     const profile = allowed ? accounts.profile(id) : null;
     if (!profile) return reply.code(404).send({ error: 'No such profile.' });
-    return profile;
+
+    // Where somebody is, for the people who could already see it. This is the
+    // line Home's contact rows used to carry, and it moved here rather than
+    // being deleted — but a profile has a wider audience than a contact list
+    // ever did, so the audience is narrowed back to match. Somebody reading
+    // this because an acquaintance brought them into a channel gets the bio and
+    // nothing about when its author was last about. The fields are simply
+    // absent for them, which is the same shape an older server sends and gets
+    // the same treatment from the client: no line at all, rather than an empty
+    // one.
+    //
+    // Your own profile is not a contact of yours and so is not exempted here.
+    // Nothing is lost: you are the one person whose whereabouts you know.
+    if (!contact) return profile;
+    // `inApp` is composed at this point rather than in the query, for the
+    // reason `homeFor` gives: whether somebody holds a socket is a fact about
+    // this process and not a column.
+    return {
+      ...profile,
+      inApp: reachability.inApp(id),
+      lastSeenAt: accounts.lastSeenAt(id),
+    };
   });
 
   fastify.get('/home', async (request, reply) => {
