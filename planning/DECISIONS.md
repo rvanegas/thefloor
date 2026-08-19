@@ -1244,7 +1244,7 @@ change:
 
 **`everUsed` on the wire, because the stamp alone lies about these channels.** A
 standing channel's `lastPresenceAt` is the moment it was created, so a contact
-you have never spoken to would read "Last here 3 weeks ago" and — worse — sort
+you have never spoken to would read "3 weeks ago" and — worse — sort
 to the top of the list as the freshest thing on it. The card says "Not used yet"
 and sinks to the bottom of its section, ordered among the others by name.
 

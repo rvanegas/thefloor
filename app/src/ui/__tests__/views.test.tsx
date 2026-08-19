@@ -364,7 +364,7 @@ describe('Home', () => {
       recordings: [],
     };
     const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
-    expect(textOf(tree)).toContain('Last here 2 hours ago');
+    expect(textOf(tree)).toContain('2 hours ago');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });
@@ -392,7 +392,7 @@ describe('Home', () => {
     const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
     const text = textOf(tree);
     expect(text).toContain('Nobody here right now');
-    expect(text).not.toContain('Last here');
+    expect(text).not.toContain('ago');
     expect(text).not.toContain('Not used yet');
     act(() => tree.unmount());
   });

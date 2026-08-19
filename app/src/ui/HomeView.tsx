@@ -492,6 +492,12 @@ function idleness(card: Card, now: number): 'live' | 'fresh' | 'recent' | 'cold'
  * How long since anybody was here, in words, lower case so it can be the
  * second half of a sentence about an invitation.
  *
+ * The bare interval, with no "last here" in front of it. The line sits under a
+ * channel's name in a list where every other card says the same kind of thing,
+ * so the words were carried by every row to distinguish none of them — and
+ * they pushed the number, which is the part being scanned for, off the front
+ * of the line.
+ *
  * "Nobody here right now" covers both the gap too small for `agoOrNull` to
  * name and the server that sends no stamp at all. Neither is worth a number: a
  * channel somebody left forty seconds ago is one they have just left, and one
@@ -503,7 +509,7 @@ function quietFor(card: Card, now: number): string {
     card.lastPresenceAt === undefined
       ? null
       : agoOrNull(now - card.lastPresenceAt);
-  return ago ? `last here ${ago}` : 'nobody here right now';
+  return ago ?? 'nobody here right now';
 }
 
 const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
