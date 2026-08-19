@@ -35,9 +35,9 @@ export function ContactsView({ onHome }: { onHome: () => void }) {
   );
   const now = app.serverNow();
 
-  const contacts = (app.home?.contacts ?? []).filter(
-    (entry) => entry.status === 'accepted'
-  );
+  const contacts = (app.home?.contacts ?? [])
+    .filter((entry) => entry.status === 'accepted')
+    .sort(byAvailability);
 
   // Above the settings case rather than below it, so closing a profile returns
   // to whatever was underneath — Settings when Settings opened it, this list
@@ -109,6 +109,39 @@ export function ContactsView({ onHome }: { onHome: () => void }) {
       )}
     </Screen>
   );
+}
+
+/**
+ * Whoever is most likely to answer, first.
+ *
+ * The same shape as Home's `byIdleness`, and for the same reason: a list you
+ * open to decide who to talk to should not make you read all of it to find out
+ * who is about. Anybody in the app sorts above everybody who is not, and the
+ * rest fall by how recently they were — which is what the line under each name
+ * already says, so the order and the words agree rather than having to be
+ * reconciled by the reader.
+ *
+ * **Not known is last, not first.** A contact with no `lastSeenAt` has either
+ * never connected since the field existed or is being served by a server that
+ * predates it, and neither is evidence of being around. Treating a missing
+ * stamp as zero would be the same answer by accident; saying so is what stops
+ * somebody later "fixing" it to `Date.now()`.
+ *
+ * Ties break on the name, so the order is stable between snapshots. Without it
+ * two contacts who have never been seen would swap places on every render, and
+ * a list that reshuffles under a thumb is worse than one in any fixed order.
+ */
+function byAvailability(a: Contact, b: Contact): number {
+  if (!!a.inApp !== !!b.inApp) return a.inApp ? -1 : 1;
+  // Compared as "has a stamp at all" before "which stamp", rather than by
+  // standing in for a missing one with a sentinel — subtracting two of those
+  // is NaN, and a comparator that returns NaN sorts by nothing at all.
+  const seenA = a.lastSeenAt ?? null;
+  const seenB = b.lastSeenAt ?? null;
+  if (seenA !== null && seenB !== null && seenA !== seenB) return seenB - seenA;
+  if (seenA === null && seenB !== null) return 1;
+  if (seenB === null && seenA !== null) return -1;
+  return a.account.displayName.localeCompare(b.account.displayName);
 }
 
 function ContactRow({

@@ -3759,3 +3759,90 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 });
+
+describe('the order contacts are listed in', () => {
+  /**
+   * The names in the order the screen puts them, top to bottom.
+   *
+   * Consecutive duplicates are dropped: one row is several nodes carrying the
+   * same accessibilityLabel — the Pressable and what it renders through — so
+   * findAll reports each row once per layer. Only *consecutive* ones, so two
+   * contacts who genuinely share a display name still count twice.
+   */
+  const namesOn = (tree: ReactTestRenderer) =>
+    tree.root
+      .findAll(
+        (n) =>
+          typeof n.props?.accessibilityLabel === 'string' &&
+          n.props.accessibilityLabel.includes('Open their profile.')
+      )
+      .map((n) => String(n.props.accessibilityLabel).split('.')[0])
+      .filter((name, i, all) => i === 0 || all[i - 1] !== name);
+
+  const listed = (
+    contacts: Array<{
+      id: string;
+      displayName: string;
+      inApp?: boolean;
+      lastSeenAt?: number | null;
+    }>
+  ) => {
+    mockApp.serverNow = () => NOW;
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: contacts.map(({ id, displayName, ...rest }) => ({
+        account: { id, displayName },
+        status: 'accepted' as const,
+        ...rest,
+      })),
+    };
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<ContactsView onHome={() => {}} />);
+    });
+    const names = namesOn(tree);
+    act(() => tree.unmount());
+    return names;
+  };
+
+  it('puts whoever is in the app above everybody who is not', () => {
+    expect(
+      listed([
+        { id: 'a', displayName: 'Ana', lastSeenAt: NOW - 60_000 },
+        { id: 'b', displayName: 'Bo', inApp: true },
+      ])
+    ).toEqual(['Bo', 'Ana']);
+  });
+
+  it('falls back on how recently, which is what the line under each name says', () => {
+    expect(
+      listed([
+        { id: 'a', displayName: 'Ana', lastSeenAt: NOW - 3 * 60 * 60_000 },
+        { id: 'b', displayName: 'Bo', lastSeenAt: NOW - 60 * 60_000 },
+        { id: 'c', displayName: 'Cy', lastSeenAt: NOW - 24 * 60 * 60_000 },
+      ])
+    ).toEqual(['Bo', 'Ana', 'Cy']);
+  });
+
+  it('sinks anybody there is nothing known about', () => {
+    // No stamp is not evidence of being around — it is a contact who has not
+    // connected since the field existed, or a server that predates it.
+    expect(
+      listed([
+        { id: 'a', displayName: 'Ana' },
+        { id: 'b', displayName: 'Bo', lastSeenAt: NOW - 30 * 24 * 60 * 60_000 },
+      ])
+    ).toEqual(['Bo', 'Ana']);
+  });
+
+  it('breaks a tie on the name, so the list does not reshuffle', () => {
+    // Two contacts nothing is known about would otherwise swap places between
+    // renders, and a list that moves under a thumb is worse than any fixed one.
+    expect(listed([
+      { id: 'a', displayName: 'Zoe' },
+      { id: 'b', displayName: 'Ada' },
+    ])).toEqual(['Ada', 'Zoe']);
+  });
+});

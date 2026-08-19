@@ -126,7 +126,7 @@ export function ContactsSettingsView({
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading}>Settings</Text>
+        <Text style={type.heading}>Contact settings</Text>
         {/* "Saving…" is here for the same reason it was on the Home settings
             screen while these fields lived there: this write is an awaited HTTP
             call that can fail and hold the screen open. */}
