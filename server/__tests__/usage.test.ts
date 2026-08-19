@@ -232,7 +232,33 @@ describe('playback minutes', () => {
     app.channels.dispatch(channelId, alice.id, { type: 'PAUSE' });
     clock += 60_000;
 
-    expect(minutesOf('playback')).toBe(30_000);
+    // Both of them, since both were in the room to hear it. The stream was
+    // one; this is listening time and not stream time.
+    expect(spans('playback')).toHaveLength(2);
+    expect(minutesOf('playback', alice.id)).toBe(30_000);
+    expect(minutesOf('playback')).toBe(60_000);
+  });
+
+  it('start for somebody who arrives mid-track, and stop when they leave', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, bob.id, { type: 'STEP_OUT' });
+    await app.channels.loadTrack(channelId, alice.id, {
+      file: '/dev/null',
+      dir: '/tmp',
+      title: 'Something',
+      durationMs: 10 * 60_000,
+    });
+    app.channels.dispatch(channelId, alice.id, { type: 'PLAY' });
+
+    clock += 60_000;
+    app.channels.dispatch(channelId, bob.id, { type: 'ENTER' });
+    clock += 30_000;
+    app.channels.dispatch(channelId, bob.id, { type: 'STEP_OUT' });
+    clock += 30_000;
+
+    // Bob is charged the half he was there for, Alice the whole of it.
+    expect(minutesOf('playback', bob.id)).toBe(30_000);
+    expect(minutesOf('playback', alice.id)).toBe(120_000);
   });
 
   it('resume as a second span rather than extending the first', async () => {
@@ -251,8 +277,9 @@ describe('playback minutes', () => {
       clock += 5_000;
     }
 
-    expect(spans('playback')).toHaveLength(2);
-    expect(minutesOf('playback')).toBe(40_000);
+    // Two runs, two people in the room for both.
+    expect(spans('playback')).toHaveLength(4);
+    expect(minutesOf('playback', alice.id)).toBe(40_000);
   });
 });
 

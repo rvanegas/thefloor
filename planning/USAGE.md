@@ -124,9 +124,11 @@ and `trackFloorWindows` is the precedent for the shape — open-ended windows
 opened and closed off `before`/`after`, in the one place where the state
 transition is already known to be real.
 
-- **playback** — on `status` crossing `'playing'`. Note that the playback
-  *participant* opens on the first track and stays for the channel's life
-  publishing silence between tracks, so that its stem keeps its place in a
+- **playback** — one span per present person while `status` is `'playing'`,
+  restated whenever presence moves, so that arriving and leaving mid-track both
+  fall out of the restatement rather than needing a case each. Note that the
+  playback *participant* opens on the first track and stays for the channel's
+  life publishing silence between tracks, so that its stem keeps its place in a
   recording. Participant lifetime and playing time are different quantities and
   the meter wants the second one.
 - **egress** — one span per identity, opened as it joins `run.requested` and
@@ -241,7 +243,16 @@ nothing to sequence.
 
 ## Where the build differed from the design
 
-Five things, all found by writing it.
+Six things, all found by writing it.
+
+**Playback is metered per person, not per channel.** The design had one span
+for the channel, which is what the *stream* costs — the shared track is one
+publication however many people are in the room. But the request asks what each
+person played, and a track everybody hears is played by everybody. So there is
+a span per present listener, opened and closed as people come and go mid-track.
+Note what that does to the total: summing playback gives **listening time, not
+stream time**, and the stream's own cost is under `listen`. The two answer
+different questions and neither is the other's total.
 
 **`peer_id` carries two meanings, and the second one was not planned.** On a
 `pair` span it is the other person. On an `egress` span it is *whose stem is
@@ -278,7 +289,9 @@ fifteen seconds for a timer.
 Nothing in the codebase reads these tables. These are the point of them.
 
 ```sql
--- Minutes per person per stream, over whatever is retained.
+-- Minutes per person per stream, over whatever is retained. Read `playback`
+-- as listening time rather than stream time: a shared track is one publication
+-- heard by everyone, and its cost is under `listen`.
 SELECT account_id, kind,
        SUM(COALESCE(ended_at, unixepoch() * 1000) - started_at) / 60000.0 AS minutes
 FROM usage_spans

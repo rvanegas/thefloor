@@ -2414,22 +2414,42 @@ export class ChannelRegistry {
    * the room instead — see `meterRoom`.
    */
   private meterCommit(before: ChannelState, after: ChannelState): void {
-    // Playing, not loaded. The shared-track participant opens on the first
-    // track and stays for the channel's life publishing silence between them,
-    // so that a recording stem keeps its place; participant lifetime and
-    // playing time are different quantities and this is the second one.
-    const was = before.playback.status === 'playing';
-    const is = after.playback.status === 'playing';
-    const playback = { kind: 'playback', channelId: after.id };
-    if (is && !was) this.usage.openSpan({ ...playback, source: 'state' });
-    else if (!is && was) this.usage.closeSpan(playback);
+    // Playing, not loaded, and per person. The shared-track participant opens
+    // on the first track and stays for the channel's life publishing silence
+    // between them, so that a recording stem keeps its place; participant
+    // lifetime and playing time are different quantities and this is the
+    // second one.
+    //
+    // One span per present listener, because the request asks what each
+    // *person* played and a shared track is heard by everybody at once. Note
+    // what that makes the total: summing these gives listening time, not
+    // stream time — the stream is one however many people are in the room, and
+    // `listen` is where its cost is counted. The two answer different
+    // questions and neither is the other's total.
+    const presence =
+      before.present.length !== after.present.length ||
+      after.present.some((id) => !before.present.includes(id));
+    const playing = after.playback.status === 'playing';
+    if (presence || playing !== (before.playback.status === 'playing')) {
+      const keep = new Set<string>();
+      for (const identity of playing ? after.present : []) {
+        const span = {
+          kind: 'playback',
+          channelId: after.id,
+          accountId: identity,
+        };
+        this.usage.openSpan({ ...span, source: 'state' });
+        keep.add(this.usage.keyOf(span));
+      }
+      // Somebody who stepped out mid-track stops accruing, and somebody who
+      // arrived mid-track starts — both fall out of restating it rather than
+      // needing a case each.
+      this.usage.closeOthers(['playback'], after.id, keep);
+    }
 
     // Every pair present together, restated whenever presence moves. A third
     // person arriving adds two pairs and disturbs neither of the existing
     // ones, which is what `openSpan` being idempotent buys.
-    const presence =
-      before.present.length !== after.present.length ||
-      after.present.some((id) => !before.present.includes(id));
     if (presence) {
       const keep = new Set<string>();
       for (let i = 0; i < after.present.length; i += 1) {
