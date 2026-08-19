@@ -105,7 +105,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 559 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 568 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -505,11 +505,20 @@ Two more things that fail quietly and are worth checking before anything else:
   since 2026-08-13 the SFU is on that same box. The line above is still true —
   a deploy costs presence, not channels — but it used to also be true that a
   deploy could not touch a conversation, *because* the media was elsewhere. That
-  is no longer true and it has not been observed either way, since nobody was
-  talking during one. **A deploy that audibly interrupts a call is the signal to
+  is no longer true. **A deploy that audibly interrupts a call is the signal to
   move the media plane to its own $7 box**, which the first `DECISIONS` volume
-  argues and `bin/provision-livekit` exists to make cheap. It is worth listening for
-  rather than waiting to be told about.
+  argues and `bin/provision-livekit` exists to make cheap. It is worth listening
+  for rather than waiting to be told about.
+
+  **Half-observed on 2026-08-19**, and the half that was observed is the less
+  interesting one. Somebody was present in a channel through a restart and saw
+  nothing: the socket dropped, the client re-entered from the set of channels
+  `socket.ts` keeps for exactly that, and the screen never changed. So presence
+  recovery works outside its tests. But **nobody was talking**, so what a
+  restart does to audio in flight is still unheard — and the case worth hearing
+  is not silence but a claimed floor, since a restart drops the floor while the
+  mutes it implied are stated in LiveKit and get restated a tick later by
+  `reconcileSilence`. That gap is where an artefact would live.
 - **A floor claim is enforced against a *track*, and tracks are replaced under
   it.** Fixed on 2026-08-14 and worth knowing before touching `assertSilence`:
   a phone whose connection flaps rejoins publishing a new track id, which the
