@@ -195,6 +195,25 @@ built around rather than after.
 
 ---
 
+## Playing media into a channel is a copyright surface nobody has addressed
+
+**Guideline 5.2.** Somebody can pick an audio file and play it to the room, and
+a recording captures it — so a copyrighted track can be played, recorded, and
+exported as a file. Nothing anywhere a user or a reviewer would see says a word
+about it: not the listing, not the privacy page, not the app.
+
+Raised before the first submission on 2026-08-14 and carried through it
+unresolved; it survived review twice without being asked about, which is not the
+same as being settled. It is probably a line in the review notes and a line on
+the privacy page rather than anything built — but it should be a decision rather
+than an omission, and the cheap version costs an afternoon while the version
+Apple asks for under time pressure does not.
+
+Its neighbour is above: two-party consent is the same shape of problem, about
+who is recorded rather than about what is played.
+
+---
+
 ## SMS authentication — shelved indefinitely
 
 **Status:** shelved 2026-08-04. Not scheduled.

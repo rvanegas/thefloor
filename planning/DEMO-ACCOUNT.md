@@ -1,8 +1,12 @@
 # The App Review demo accounts
 
-**Temporary.** These accounts exist so App Review can sign in, and they are
-deleted once the app is approved. This file goes with them. Written 2026-08-14;
-APPREVIEW.md is the wider submission checklist and points here.
+**Standing, for as long as the app is on the store.** These accounts exist so
+App Review can sign in, and **every update is reviewed** — so the credentials in
+the notes have to work at each submission, not just the first. Written
+2026-08-14 as a temporary file to be deleted on approval; corrected 2026-08-19,
+when the app was approved and it became clear that deleting them would leave the
+next submission with a sign-in that fails. RELEASING.md is the wider release
+checklist and points here.
 
 Two real accounts and one real channel live on production. They are demo data
 and hold nothing that matters, which is deliberate: **the sign-in code is
@@ -51,7 +55,11 @@ create a new pairing, or re-pair the new account with Sam.
 
 ---
 
-## Teardown, after approval
+## Teardown, when the app is withdrawn
+
+**Not on approval.** These accounts outlive every review, because there is
+always another one — see the header. What ends them is the app leaving the
+store, or the review sign-in being replaced by something better.
 
 Do these in this order. The order is the whole point of writing this down.
 

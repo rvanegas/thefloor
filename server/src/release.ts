@@ -53,9 +53,19 @@ import { readFileSync } from 'node:fs';
  * number, and it was nearly moved for it: the floor is permission to delete a
  * shim, not a record of what the population is running.
  *
- * **It stops being free the moment build 51 is released.** After that, raising
- * it expires installs belonging to people who cannot be asked to update, and
- * the cost is theirs rather than ours.
+ * **It stopped being free on 2026-08-19**, when build 51 was released. Raising
+ * it now expires installs belonging to people who cannot be asked to update,
+ * and the cost is theirs rather than ours — so it moves only once `oldestBuild`
+ * on `/healthz` has already passed the number, never in advance to license a
+ * deletion.
+ *
+ * And for build 51 in particular it does nothing at all. The expiry client —
+ * `app/src/api/expiry.ts` and `UpdateRequiredView` — landed hours after
+ * `build/51` was tagged, so 51 sends its build number and reads neither
+ * `minBuild` nor `mustUpdate`. It cannot be shown the update screen, only
+ * waited out. Every build from 52 on can be retired properly; the first public
+ * one is the exception, and the floor cannot pass it without breaking it
+ * silently.
  */
 export const MIN_SUPPORTED_BUILD = 51;
 

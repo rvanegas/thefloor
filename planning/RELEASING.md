@@ -16,7 +16,8 @@ of AGENTS.md the same day and are in CREDENTIALS.md.
 
 **Read this before running `bin/release-ios`.** The branch and tag conventions
 around a release are in AGENTS.md under `## Branches, tags, and what is actually
-in people's hands`; what App Review was told is in APPREVIEW.md.
+in people's hands`; the accounts App Review signs in as are in
+DEMO-ACCOUNT.md.
 
 ---
 
@@ -182,10 +183,10 @@ the rename that caused it.
 
 ## What a release actually costs, once
 
-Everything below this line recurs. Everything in APPREVIEW.md does not — that
-file is the *first* submission and is deleted when the app is approved, so what
-was learned there and goes on being true was moved here on 2026-08-18 rather
-than deleted with it.
+Everything below this line recurs. It was gathered here on 2026-08-18 and again
+on 2026-08-19, out of the three App Store files that covered the first
+submission and were deleted when the app was approved — so what was learned
+there and goes on being true survives them.
 
 1. **Deploy the server first**, if it changed. A client that speaks to a server
    that has not caught up is the one failure mode nothing else here prevents.
@@ -203,6 +204,80 @@ meant making a screen recording, which meant exactly that walk, and it found
 eight defects in an app that had been used daily for months — including a
 recording feature that silently discarded what people had just recorded. Twenty
 minutes, and it is the highest-yield thing on this list.
+
+### What the second release costs that the first did not
+
+Five differences, none of them obvious from having done the first one.
+
+- **A new version record, and `expo.version` has to move with it.** A build
+  cannot be attached to a version already released. Create the next version in
+  App Store Connect *and* bump `expo.version` in `app.json` to the same string.
+  `bin/release-ios` bumps `buildNumber` and nothing else, deliberately — most
+  releases do not change the version — so this one is by hand, and it is the one
+  that bites: `CFBundleShortVersionString` and the App Store version record must
+  agree **or the build picker is silently empty**, with nothing on screen
+  saying why.
+- **"What's New in This Version" is required.** It is the only listing field an
+  update must have and a first submission does not. Everything else —
+  screenshots, description, keywords, age rating, review notes — carries
+  forward untouched, and should be changed only where it has stopped being true.
+- **The reviewer still has to sign in, so the demo accounts stay.** Every update
+  is reviewed, and the review notes' credentials have to work each time. This
+  is why DEMO-ACCOUNT.md's teardown now triggers on withdrawing the app rather
+  than on approval: deleting the accounts after the first approval leaves the
+  second submission with a sign-in that fails, and recreating a contact pair
+  under time pressure is worse than leaving them alone.
+- **Phased release exists for updates.** Seven days, 1% to 100%, pausable at
+  any point. A first release does not offer it. It is the cheapest insurance
+  there is on a change with any risk in it, and pausing is instant where pulling
+  a build is not.
+- **The compatibility floor stops being free.** While everything installed was
+  a tester, `MIN_SUPPORTED_BUILD` moved on judgement. With a public build out,
+  raising it ends sessions on phones belonging to people who cannot be asked to
+  update — so raise it only once `oldestBuild` on `/healthz` has already passed
+  the number, never in advance to license deleting a shim. See
+  `server/src/release.ts`, which carries the reasoning.
+
+## What every submission needs configured on the box
+
+Four settings in `server/.env`, none of them code, each of which is invisible
+when wrong and each of which a reviewer meets:
+
+- **`REVIEW_IDENTIFIER` and `REVIEW_CODE`**, or the reviewer cannot sign in at
+  all. Both are required; either alone configures nothing.
+- **`CONTACT_EMAIL`**, which is what the privacy page offers as the way to ask a
+  question. Unset, the page points at the App Store listing's support address
+  instead — true, but it reads as an app that will not say who runs it.
+- **`KOFI_URL`**, without which the Support card offers nothing and a reviewer
+  reading the notes about a donate link finds no donate link.
+
+And the review account has to hold something to look at, since an account
+holding nothing shows a reviewer an empty Home. The two accounts, why there are
+two, and how to get a session as either are in DEMO-ACCOUNT.md; their
+credentials are in `~/.config/thefloor/demo-account.txt`, mode 600.
+
+## To verify before pressing submit
+
+Ordinary things that are true today and are cheap to check again, because each
+is the kind that goes stale between a decision and a submission.
+
+- **`aps-environment` is `production` in the exported IPA** — the check at the
+  top of this file, run against the build being submitted rather than any
+  earlier one.
+- **`supportsTablet: false`,** so App Review does not open a phone layout on an
+  iPad and file what it finds.
+- **The review account holds demo data and nothing real**, since its code is
+  published in the notes and is public from the moment the notes are.
+- **`/privacy` is live and the date on it is right.** `PRIVACY_UPDATED` changes
+  when the substance does.
+- **A donation row is not needed, but `GET /donations` answering for the review
+  account is**, since the reviewer will open the Support card.
+- **`/support` answers as a page**, since it is what the App Store listing links
+  to and the first thing a reviewer can open without installing anything.
+- **The review notes ask for account deletion to be tested last.** Deleting the
+  demo account takes its contacts with it, and what signs back in is a fresh
+  account that cannot create a channel — so the rest of the review happens
+  against an app that appears to do nothing. DEMO-ACCOUNT.md has the repair.
 
 ## App Store Connect, and what it will not tell you
 
@@ -239,28 +314,49 @@ The build list is worth its own mention: it is the only thing that says what
 Apple *received*, as opposed to what was archived, tagged or echoed by the
 script. Those four agreed for the first time on build 45.
 
+### The DSA declaration, which is still a loose end
+
+Answered **non-trader**: the app is free, there are no in-app purchases, the
+Paid Apps Agreement is unsigned, and donations are voluntary, external and
+unlock nothing, so there is no transaction with a user to be commercial about.
+
+The red banner did not clear, and the Compliance row read `Digital Services
+Act · 27 Countries or Regions · Active`. Those two disagree and it was never
+resolved. It does not block review — the app was approved and released with the
+banner still red — but it governs **EU availability**, which is what the
+worldwide-availability decision rests on.
+
+**Do not clear the banner by completing "Contact Information Verification".**
+That is the trader path, and it ends with a home address published on the
+product page. The route is Contact Us in App Store Connect, because only Apple
+can clear an account-level flag.
+
 ---
 
-## Submitted to the App Store, 2026-08-14; resubmitted 2026-08-17
+## The release history
 
-Version 1.0.0. Build 36 was rejected 2026-08-15 under Guideline 2.1 —
-Information Needed; build 51 was resubmitted 2026-08-17 and is
-`WAITING_FOR_REVIEW`. Release is manual, so approval and release stay two
-decisions.
+**1.0.0, build 51, released 2026-08-19.** The first public build.
 
-**planning/APPREVIEW.md carries the submission itself** — what was built for it,
-what was typed into App Store Connect, three versions of the reply, and the six
-things filling in the listing taught, among them that the App Store version
-record and `CFBundleVersion`'s sibling `CFBundleShortVersionString` must agree
-or the build picker is silently empty, and that a screenshot showing the donate
-card would defeat `server/src/region.ts` in every storefront at once.
-**planning/APPREVIEW2.md** is what answering the rejection changed. Both are
-deleted on approval.
+Build 36 was submitted 2026-08-14 and rejected 2026-08-15 under **Guideline 2.1
+— Information Needed** — not a defect finding but the seven-item information
+pack a first submission is expected to carry. Fifteen builds separate 36 from
+51, and only the first of those was about the rejection: making the screen
+recording Apple asked for meant walking the app as a stranger would, and that
+walk found eight defects. What each of them was is in DECISIONS.md; the three
+files that carried the submission itself — the reply, the shooting script and
+the build-by-build account — were deleted on approval, having had everything
+recurring moved into this one first.
 
-The demo accounts are planning/DEMO-ACCOUNT.md; their credentials are in
-`~/.config/thefloor/demo-account.txt`, mode 600, and `REVIEW_IDENTIFIER` /
-`REVIEW_CODE` on the box are what make the review sign-in work. **Do not unset
-those before deleting the accounts** — that ordering is the whole point of that
-file.
+**51 was released rather than 52 deliberately**, though 52 was already in
+TestFlight and master was some 2,800 lines of `app/` and `core/` ahead of it.
+The declaration to Apple stays clear when what was approved is what ships.
+
+The cost is worth knowing, because it is permanent: **build 51 cannot be told
+to update.** The expiry client — `app/src/api/expiry.ts` and
+`UpdateRequiredView` — landed in `5739f45` on 2026-08-17, hours after `build/51`
+was tagged. 51 announces which build it is, so `oldestBuild` on `/healthz` can
+see it, but it reads neither `minBuild` nor `mustUpdate` and will never show the
+update screen. Every build from 52 on can be retired with a sentence on screen;
+the first public one has to be waited out instead.
 
 ---

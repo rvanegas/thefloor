@@ -55,14 +55,17 @@ The rest are temporary, and say so in their own first lines. Designs for
 unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`**,
 **`planning/USAGE.md`** — are deleted when the work ships, with whatever
 survives moving to `DECISIONS.md`.
-**`planning/APPREVIEW.md`** is the same kind of document for the first App Store
-submission: what has to be built before it can be made, what is already settled
-and where the reasoning is, and what has to be typed into App Store Connect. It
-goes when the app is approved.
+The three App Store files — `APPREVIEW.md`, `APPREVIEW2.md` and
+`APPREVIEWSCRIPT.md` — were exactly that, and were deleted on 2026-08-19 when
+1.0.0 was approved and released. Everything in them that recurs went to
+`planning/RELEASING.md` first, and the open policy questions they carried went
+to `planning/BACKLOG.md`.
 
-**`planning/DEMO-ACCOUNT.md`** is temporary in the same way, and narrower: the
+**`planning/DEMO-ACCOUNT.md`** looked temporary in the same way and is not: the
 two accounts App Review signs in as, why there are two rather than one, and the
-order they have to be torn down in afterwards. Read it before deleting them, or
+order they have to be torn down in. **They outlive approval, because every
+update is reviewed** and the notes' credentials have to work each time — the
+file said otherwise until the day it mattered. Read it before deleting them, or
 before touching `REVIEW_IDENTIFIER` / `REVIEW_CODE` on the box — unsetting those
 before the accounts are gone is how the rows become unreachable. The credentials
 are not in it; they are in `~/.config/thefloor/demo-account.txt`, mode 600, on
@@ -102,7 +105,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 541 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 550 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -254,9 +257,12 @@ rules.
 - **Every upload is tagged `build/<n>`, by `bin/release-ios`**, which refuses a
   dirty tree: a tag is permanent where a deploy is reversible. Tags are not
   pushed automatically; the command is printed.
-- **`released` points at what is downloadable**, and does not exist until
-  something is. It moves on release, not approval — which is why the release is
-  manual. `git diff released..master` is the drift users cannot see.
+- **`released` points at what is downloadable.** It moves on release, not
+  approval — which is why the release is manual. `git diff released..master` is
+  the drift users cannot see. **It is at `build/51` since 2026-08-19**, that
+  being the first public build; 52 was already in TestFlight and was passed
+  over, because the declaration to Apple stays clear when what was approved is
+  what ships.
 - **`MIN_SUPPORTED_BUILD` in `server/src/release.ts` is the compatibility
   floor**: a shim may be deleted only once the floor has passed the build that
   needed it. The server enforces nothing, but **the client does, since
@@ -264,7 +270,10 @@ rules.
   and disconnects, so raising this number now ends sessions on phones rather
   than merely licensing a deletion. Builds before 37 send no build number at
   all and are counted as `silentBuilds` on `/healthz`; raising the floor past
-  them expires installs nobody can see.
+  them expires installs nobody can see. **And build 51 is below all of that**:
+  it announces which build it is but predates the expiry client by hours, so
+  the first public build is one that can never be shown the update screen and
+  has to be waited out instead. See RELEASING.md.
 
 The thing to hold on to: **the App Store is not a version, it is a
 population.** What the server owes compatibility to is the oldest build still
