@@ -272,6 +272,50 @@ describe('an invite', () => {
     ]);
   });
 
+  /**
+   * And `create`'s own notification is still reachable, which is worth pinning
+   * now that most first taps do not get there. A channel of three has no
+   * standing channel to reuse — those exist per pair — so it is made outright
+   * and this is the path that says so. The two must not both fire: a channel
+   * built by `createChannel` is present-from-birth and never passes through
+   * the empty-to-occupied transition `announceStarted` watches for.
+   */
+  it('reaches everybody when the channel is a genuinely new one', async () => {
+    const { alice, bob } = await twoContacts();
+    const carol = await signIn('carol@example.com', 'Carol');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: 'carol@example.com' },
+    });
+    await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${alice.account.id}/accept`,
+      headers: auth(carol.token),
+    });
+    await registerDevice(bob.token, 'bob-phone');
+    await registerDevice(carol.token, 'carol-phone');
+
+    const channelId = await createChannel(alice.token, [
+      bob.account.id,
+      carol.account.id,
+    ]);
+    await settle();
+
+    for (const phone of ['bob-phone', 'carol-phone']) {
+      expect(pusher.messagesFor(phone)).toEqual([
+        {
+          title: 'Alice',
+          body: 'Started a channel with you.',
+          channelId,
+          collapseKey: channelId,
+          lifetimeMs: PARTICIPATION_LIFETIME_MS,
+        },
+      ]);
+    }
+  });
+
   it('does not reach the person who sent it', async () => {
     const { alice, bob } = await twoContacts();
     await registerDevice(alice.token, 'alice-phone');
