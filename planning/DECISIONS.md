@@ -252,7 +252,34 @@ Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and
 was being paid for in every session's context. What a fresh reader needs at the
 root is the current state and the traps; the sequence that produced it is this.
 Newest first, and it picks up where AGENTS.md leaves off — that file keeps the
-most recent deploy, which is now 2026-08-17's.
+most recent deploy, which is now 2026-08-19's.
+
+### 2026-08-17 — the ping
+
+**The ping**, `POST /channels/:id/ping`, which is
+the first notification a person composes rather than the channel sending it
+about itself. With it, per-message notification lifetimes — an invitation now
+outlives an arrival by a month, `apns-expiration` having been one five-minute
+constant for everything — and **one device row per account**, matching the one
+session per account `issueToken` has always enforced.
+
+**This deploy was checked against build 51 before it went, because 51 is in
+App Review and `oldestBuild` on `/healthz` says it is also the oldest build
+installed anywhere.** Two changes since that build was cut could have broken it
+and do not: `channel.moved` is no longer *sent*, and build 51 keeps a handler
+that now never fires; and `ChannelState.invited` is gone, which build 51 never
+read. **`core/protocol.ts` is unchanged since `build/51`** — that is the check
+worth repeating before any deploy while a build is in review, and it is one
+`git diff build/<n>..HEAD -- core/protocol.ts` away.
+
+Verified against production afterwards: `/healthz` reporting the sha just sent,
+`POST /channels/:id/ping` answering 401 unauthenticated and to a bad token,
+`/support` still serving HTML, and data untouched at 8 accounts, 32 channels, 40
+recordings, 6 device rows and the one donation. One account still holds two
+device rows, which is the pre-existing case the invariant now prevents and does
+not retroactively clean — it goes on that account's next launch, or on the first
+410 Apple returns for the address.
+
 
 On **2026-08-14, four times**. The last was **everything App Store
 review needed**: in-app account deletion (`DELETE /me`), a privacy policy link

@@ -105,7 +105,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 550 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 559 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -291,29 +291,38 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-17: **the ping**, `POST /channels/:id/ping`, which is
-the first notification a person composes rather than the channel sending it
-about itself. With it, per-message notification lifetimes — an invitation now
-outlives an arrival by a month, `apns-expiration` having been one five-minute
-constant for everything — and **one device row per account**, matching the one
-session per account `issueToken` has always enforced.
+Most recently on 2026-08-19, and it is the first deploy with **a public
+population on the other end of it** — 1.0.0 was approved and build 51 released
+that morning. It carried a fortnight of work in one go, master having been held
+back while 51 sat in review: Home as a list of channels ordered by how quiet
+each one is, an unnamed channel **widening** rather than moving the conversation,
+availability as a fact rather than an inference, the ping from inside a channel,
+usage metering, and the compatibility floor at 51.
 
-**This deploy was checked against build 51 before it went, because 51 is in
-App Review and `oldestBuild` on `/healthz` says it is also the oldest build
-installed anywhere.** Two changes since that build was cut could have broken it
-and do not: `channel.moved` is no longer *sent*, and build 51 keeps a handler
-that now never fires; and `ChannelState.invited` is gone, which build 51 never
-read. **`core/protocol.ts` is unchanged since `build/51`** — that is the check
-worth repeating before any deploy while a build is in review, and it is one
-`git diff build/<n>..HEAD -- core/protocol.ts` away.
+**Build 51 was checked against it before it went, and now that check is not a
+courtesy.** `git diff build/51..HEAD -- core/protocol.ts` is 82 lines and every
+one of them is an *optional* field — `lastPresenceAt`, `everUsed`, `inApp` on
+three different views — so a client that predates them reads what it always
+read. `channel.moved` is no longer sent, which leaves 51 holding a handler that
+never fires rather than missing one it needs. And `minBuild` is now 51, which
+is the floor 51 sits *at* rather than below.
 
-Verified against production afterwards: `/healthz` reporting the sha just sent,
-`POST /channels/:id/ping` answering 401 unauthenticated and to a bad token,
-`/support` still serving HTML, and data untouched at 8 accounts, 32 channels, 40
-recordings, 6 device rows and the one donation. One account still holds two
-device rows, which is the pre-existing case the invariant now prevents and does
-not retroactively clean — it goes on that account's next launch, or on the first
-410 Apple returns for the address.
+The migration was the part with teeth, this being the first deploy to add
+tables to a database with strangers' rows in it. `usage_bytes` and `usage_spans`
+are present afterwards, and the counts moved only where they should: 8 accounts,
+35 channels, 41 recordings, 1 donation, and **5 device rows where there were 6**
+— the duplicate the one-row-per-account invariant could not retroactively clean
+went on that account's next launch, exactly as 2026-08-17 predicted it would.
+
+Verified against production afterwards: `/healthz` reporting `f1aff87` and
+`minBuild: 51`, `/support` and `/privacy` serving pages, `/home` answering 401
+unauthenticated.
+
+`updateUrl` reads null, which is the one thing left undone. `APP_STORE_URL` is
+unset on the box, so the update screen a below-floor client shows would have no
+button on it. Nothing is below the floor today and 51 could not read it anyway,
+but the listing now has a URL and there is no longer a reason for it to be
+empty.
 
 The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
