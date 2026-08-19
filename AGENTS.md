@@ -52,8 +52,9 @@ costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 
 The rest are temporary, and say so in their own first lines. Designs for
-unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
-deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
+unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`**,
+**`planning/USAGE.md`** — are deleted when the work ships, with whatever
+survives moving to `DECISIONS.md`.
 **`planning/APPREVIEW.md`** is the same kind of document for the first App Store
 submission: what has to be built before it can be made, what is already settled
 and where the reasoning is, and what has to be typed into App Store Connect. It
@@ -101,7 +102,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 540 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 541 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a

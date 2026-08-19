@@ -278,5 +278,10 @@ The server needs the predicate to cross-check the room's answer, and it cannot
 reach it where it is. But the reason to move it rather than restate it is the
 reason `core/` exists at all: two statements of the same rule drift, and this
 one would drift silently — as wrong minutes, months later, with nothing to
-point at. STATES.md cites the old path in three sections and those references
-move with it.
+point at.
+
+The importers are `app/App.tsx:16` and the module's own test; the prose
+references in `session.ts`, `useSessionAudio.ts`, `speaking.ts` and
+`AppProvider.tsx` name the file rather than import it, and STATES.md cites the
+full path three times — § *Self-Mute* once, § *Mic Open* twice. All of them move
+with it.
