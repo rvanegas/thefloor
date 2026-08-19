@@ -475,19 +475,6 @@ function byIdleness(a: Card, b: Card): number {
   return (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0);
 }
 
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
-
-/** How cold the room is, in the four steps the dot has. */
-function idleness(card: Card, now: number): 'live' | 'fresh' | 'recent' | 'cold' {
-  if (isLive(card)) return 'live';
-  if (!card.everUsed || card.lastPresenceAt === undefined) return 'cold';
-  const idle = Math.max(0, now - card.lastPresenceAt);
-  if (idle < HOUR_MS) return 'fresh';
-  if (idle < DAY_MS) return 'recent';
-  return 'cold';
-}
-
 /**
  * How long since anybody was here, in words, lower case so it can be the
  * second half of a sentence about an invitation.
@@ -542,7 +529,6 @@ function ChannelCard({
   onDismiss?: () => void;
 }) {
   const live = isLive(card);
-  const grade = idleness(card, now);
   /**
    * An invitation outlives the moment it was sent. What it must not do is go
    * on claiming that moment is still happening — the banner used to say
@@ -580,12 +566,6 @@ function ChannelCard({
           card.kind === 'invite' && (live ? styles.invite : styles.inviteQuiet),
         ]}
       >
-        {/*
-          The mark carries the same fact the second line says in words, so it
-          is decoration and says nothing to a screen reader — the label on the
-          row above is where that lives, exactly as on the live bar.
-        */}
-        <View style={[styles.dot, styles[`dot_${grade}`]]} />
         <View style={styles.rowMain}>
           {/*
             A named channel is asserted; an unnamed one is only described, and
@@ -824,24 +804,6 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 2 },
   /** Feedback on a row whose whole surface is the target. */
   rowPressed: { opacity: 0.7 },
-  /**
-   * The idleness mark: one shape, four steps, and no new colour.
-   *
-   * The floor colour means somebody is in there, which is the same thing it
-   * means on the live bar. The rest fade rather than changing hue — this is a
-   * quantity, and three greys read as one scale where three colours would read
-   * as three states. The last is hollow, which is where a fading scale runs
-   * out: a channel nobody has touched in a day, or ever.
-   */
-  dot: { width: 9, height: 9, borderRadius: 5, alignSelf: 'center' },
-  dot_live: { backgroundColor: colors.floor },
-  dot_fresh: { backgroundColor: colors.textMuted },
-  dot_recent: { backgroundColor: colors.textFaint },
-  dot_cold: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: colors.textFaint,
-  },
   /**
    * A channel nobody has named: described rather than called something.
    *
