@@ -100,6 +100,62 @@ every session write, alongside the SDK's own `os_log` — see STATES.md for the
 `log stream` predicate and for the warning about the one instrumentation
 approach that would silently break the audio policy.
 
+## Self-Mute Still Moves the Audio Category
+
+**Reported 2026-08-19, from the phone: self-muting plays a tone and unmuting
+plays its inverse, with another person present and talking.** That is the sound
+of a Bluetooth profile handover, and under the channel-wide rule adopted
+2026-08-18 it should not happen — with somebody else's microphone open
+`anyMicrophoneOpen` stays true, `sessionFor` returns `CALL` both sides of the
+mute, and `useSessionAudio.ts`'s `appliedRef` comparison finds the configuration
+unchanged. Our writer did the right thing. The category moved anyway.
+
+**The mechanism is the native observer, and it is reinstating exactly the rule
+the fix replaced.** `app/index.ts` installs it as
+`setupIOSAudioManagement(true, { recording: CALL, playout: IDLE })`, and
+`@livekit/react-native/src/audio/AudioManager.ts` says what that means: *"The
+native observer applies `recording` while recording, `playout` while
+playout-only, and deactivates on full stop when requested."* The question it
+asks is whether **this device** is capturing — which is the per-self rule
+STATES.md's `Audio Session Configuration` entry says was wrong. So
+`setMicrophoneEnabled(false)` takes the engine to playout-only, the observer
+applies `IDLE`, and `playAndRecord` becomes `playback`: HFP down, A2DP up, one
+tone. Unmute reverses it for the other.
+
+It wins because it is not a competing JavaScript write. `applyFor` re-states
+`CALL` immediately afterwards, but that is a round trip through
+`LiveKitModule.setAppleAudioConfiguration` landing *after* a native policy that
+was applied on the audio worker thread at the transition itself.
+
+**This is disagreement 5 in STATES.md, and it is now a bug rather than a
+hazard.** `index.ts`'s comment licenses the two writers to differ and argues
+that licence entirely in terms of `mixWithOthers` — an unrequested write "can
+only ever let another app back in and never take one away." But `IDLE` and
+`CALL` also differ in **category**, and the category is the route boundary. The
+licence was written as though the observer could only cost somebody's music. It
+can also cost the profile, which is the thing the channel-wide rule exists to
+protect.
+
+**One link is inferred and wants the phone.** That `setMicrophoneEnabled(false)`
+drives the engine to playout-only, rather than merely disabling a track and
+leaving the audio unit running, is read off the SDK rather than observed. A
+development build writes an `[audio]` line on every write we make; the observer
+writes to `os_log`. If the diagnosis is right the observer's line precedes ours
+at each mute. Same predicate as item 2 above, and the same warning applies about
+the one instrumentation approach that would silently break the audio policy:
+
+    log stream --predicate 'subsystem == "com.livekit.react-native-webrtc"'
+
+**Two fix directions, different in kind.** Either make the policy track
+`anyMicOpen` — re-call `setupIOSAudioManagement` with `playout` set to whatever
+`sessionFor` would return, so the observer agrees with us instead of being
+licensed to differ — or stop the engine leaving recording on a self-mute at all,
+muting the track rather than tearing down capture, so there is no transition for
+the observer to fire on. The first collapses the `mixWithOthers` licence, which
+is an argument to have rather than wave through, and the SDK cautions about
+switching setup mid-call. The second is cleaner if it works and rests on the
+same unconfirmed fact. Confirm before choosing.
+
 ## Media Playback quality
 
 Suppose two users are in a channel, both are muted and they are playing media. Is the quality of the playback equivalent to playing it directly or is it diminished by passing over webrtc? I sometimes get the impression that quality varies even during the playbook of a single file. Volume also seems to rise and fall, without manual intervention. Maybe this is a feature of webrtc?
@@ -114,6 +170,12 @@ whole of it. Retest before investigating the codec — the remaining question is
 narrower than it was, and the rising and falling volume is a separate matter and
 most likely WebRTC's automatic gain control, which is worth confirming before
 anything is built.
+
+**And that claim is now in doubt** — see `## Self-Mute Still Moves the Audio
+Category` above. If the native observer moves the category on every mute
+regardless of what the channel-wide rule decided, then two muted people are not
+sitting in A2DP for the whole of a file; they crossed the profile boundary on
+the way in. Settle that before reading anything into a retest.
 
 ## Channel Admins
 
