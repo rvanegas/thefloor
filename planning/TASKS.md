@@ -4,7 +4,18 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+anonymous web pages
+admins
+watch party
+transcripts
+clipboard sharing
+publishable recordings
+
+
+
 ## Stepping into Channel Distinct from Tapping on Card
+
+Optional.
 
 ## What a Restart Does to Last-Seen
 
@@ -48,7 +59,8 @@ right or whether they should follow the contacts is a decision nobody has made.
 And the order is the server's, which is to say undecided — see
 `## Contact Card Sorting and Classes` below, which is still empty.
 
-## Contact Card Sorting and Classes`
+## Contact Card Sorting and Classes
+
 above is about. A profile reachable without entering a channel; `ProfileView`
 and its route in `App.tsx` are both still wired and reachable from a channel
 roster, so this is a way in rather than a screen to build. The requests and
@@ -57,8 +69,6 @@ request is time-sensitive and would be invisible behind a screen nobody has
 built yet. And the availability line — "In the app now", "last seen 3 hours
 ago" — which is on the profile now and was on every contact row before; the
 server never stopped composing it, so showing it again is a rendering change.
-
-## Contact Card Sorting and Classes
 
 ## Review Logic for States
 
