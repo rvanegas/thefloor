@@ -108,6 +108,15 @@ if [ "$ASSUME_YES" != yes ]; then
   case "$reply" in [yY]*) ;; *) echo "  nothing sent"; exit 1 ;; esac
 fi
 
+# When the running process started, so the restart can be proved rather than
+# assumed. bin/deploy settles the same question by checking the box reports the
+# sha it just sent; nothing changes here but the environment, so there is no sha
+# to compare and the process's own start time is what is left. A restart that
+# silently failed leaves the old process serving — with the old environment,
+# which is exactly the thing being changed.
+STARTED_BEFORE=$($SSH "$HOST" \
+  "systemctl show thefloor -p ExecMainStartTimestamp --value" 2>/dev/null || true)
+
 echo "→ sending"
 # Through a temp path owned by ubuntu, then moved: scp straight onto the live
 # file leaves a window where it is half-written and the server is one restart
@@ -123,6 +132,24 @@ echo "→ waiting for health"
 for _ in $(seq 1 20); do
   if curl -sf --max-time 5 https://thefloor.rvanegas.co/healthz >/dev/null; then
     echo "✓ $(curl -s https://thefloor.rvanegas.co/healthz)"
+
+    STARTED_AFTER=$($SSH "$HOST" \
+      "systemctl show thefloor -p ExecMainStartTimestamp --value" 2>/dev/null || true)
+    if [ -n "$STARTED_BEFORE" ] && [ "$STARTED_BEFORE" = "$STARTED_AFTER" ]; then
+      echo "✗ healthy, but the process did not restart — it is still the one that" >&2
+      echo "  started $STARTED_AFTER, serving the previous environment." >&2
+      exit 1
+    fi
+    echo "  restarted: $STARTED_AFTER"
+
+    # systemd runs the unit definition it has cached. If the file on disk has
+    # been edited since, the restart above used the old one and said so only in
+    # a warning that scrolls past — so it is worth ending on.
+    if [ "$($SSH "$HOST" "systemctl show thefloor -p NeedDaemonReload --value" 2>/dev/null || true)" = yes ]; then
+      echo "⚠ thefloor.service on disk differs from what systemd is running." >&2
+      echo "  sudo systemctl daemon-reload && sudo systemctl restart thefloor" >&2
+    fi
+
     # What the startup log says it configured, which is the only report of
     # whether a setting took. Not the values — the server does not log those.
     $SSH "$HOST" "journalctl -u thefloor -n 40 --no-pager | grep -i 'unset\|review' || true"
