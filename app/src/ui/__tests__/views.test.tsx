@@ -14,6 +14,8 @@ import type {
 import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
 import { ProfileView } from '../ProfileView';
+import { ContactsSettingsView } from '../ContactsSettingsView';
+import { ContactsView } from '../ContactsView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
 import { Alert, KeyboardAvoidingView, StyleSheet } from 'react-native';
@@ -1541,7 +1543,7 @@ describe('Channel', () => {
 
     // Tapping the way back straight from the field keeps it, which is the trap
     // the old pair of Save buttons set: Done sat above both and discarded.
-    act(() => findButton(tree, 'Channel')!.props.onPress());
+    act(() => findButton(tree, 'Back')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_DESCRIPTION',
       description: 'See [notes](https://notes.example)',
@@ -1578,7 +1580,7 @@ describe('Channel', () => {
     // And it does not close the screen out from under somebody who was also
     // going to write a description.
     expect(textOf(tree)).toContain('Channel settings');
-    act(() => findButton(tree, 'Channel')!.props.onPress());
+    act(() => findButton(tree, 'Back')!.props.onPress());
     expect(textOf(tree)).toContain('The floor');
     act(() => tree.unmount());
   });
@@ -1593,78 +1595,6 @@ describe('Home settings', () => {
     });
     return tree;
   }
-
-  it('loads the current profile into the fields', async () => {
-    const tree = await openSettings();
-    expect(mockApp.loadProfile).toHaveBeenCalledWith(ME);
-    // The bio renders as markdown in the preview, not as markup.
-    const text = textOf(tree);
-    expect(text).toContain('Preview');
-    expect(text).toContain('Bach');
-    expect(text).not.toContain('**Bach**');
-    act(() => tree.unmount());
-  });
-
-  const nameField = (tree: ReactTestRenderer) =>
-    tree.root.findAll(
-      (n) => n.props?.placeholder === 'What people should call you'
-    )[0];
-
-  it('keeps an edit when the field is left, with no button to press', async () => {
-    const tree = await openSettings();
-    expect(findButton(tree, 'Save')).toBeUndefined();
-
-    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
-    await act(async () => nameField(tree).props.onBlur());
-
-    // Only what changed: the bio was never touched, so it is not sent.
-    expect(mockApp.saveProfile).toHaveBeenCalledWith({
-      displayName: 'Alice Nkemdirim',
-    });
-    act(() => tree.unmount());
-  });
-
-  it('keeps an edit that Home is tapped on directly', async () => {
-    // The trap this replaced: the way back was nearer and more obvious than
-    // Save, and discarded the edit without saying so.
-    const onBack = jest.fn();
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(<HomeSettingsView onBack={onBack} />);
-    });
-    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
-
-    await act(async () => findButton(tree, 'Home')!.props.onPress());
-    expect(mockApp.saveProfile).toHaveBeenCalledWith({
-      displayName: 'Alice Nkemdirim',
-    });
-    expect(onBack).toHaveBeenCalled();
-    act(() => tree.unmount());
-  });
-
-  it('writes nothing when nothing was changed', async () => {
-    const tree = await openSettings();
-    await act(async () => nameField(tree).props.onBlur());
-    await act(async () => findButton(tree, 'Home')!.props.onPress());
-    expect(mockApp.saveProfile).not.toHaveBeenCalled();
-    act(() => tree.unmount());
-  });
-
-  it('stays put when the edit could not be kept', async () => {
-    const onBack = jest.fn();
-    mockApp.saveProfile.mockRejectedValueOnce(new Error('server said no'));
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(<HomeSettingsView onBack={onBack} />);
-    });
-    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
-
-    await act(async () => findButton(tree, 'Home')!.props.onPress());
-    // Closing anyway would be the silent discard again, wearing a hat.
-    expect(onBack).not.toHaveBeenCalled();
-    expect(textOf(tree)).toContain('server said no');
-    act(() => tree.unmount());
-  });
 
   /**
    * The privacy policy, which Guideline 5.1.1(i) requires to be reachable from
@@ -1787,20 +1717,6 @@ describe('Home settings', () => {
     });
   });
 
-  it('will not save an empty name, and says why', async () => {
-    // The server refuses this too; the point of refusing it here as well is
-    // that a disabled control and a rejected request cannot disagree.
-    const tree = await openSettings();
-    const name = tree.root.findAll(
-      (n) => n.props?.placeholder === 'What people should call you'
-    )[0];
-    act(() => name.props.onChangeText('   '));
-    await act(async () => name.props.onBlur());
-
-    expect(mockApp.saveProfile).not.toHaveBeenCalled();
-    expect(textOf(tree)).toContain('A name cannot be empty');
-    act(() => tree.unmount());
-  });
 
   it('holds signing out, which is no longer on Home', () => {
     // It sat in the header beside a dozen harmless taps. Here it is among the
@@ -3547,7 +3463,7 @@ describe('the way to your own profile', () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(
-        <HomeSettingsView onBack={() => {}} onOpenProfile={onOpenProfile} />
+        <ContactsSettingsView onBack={() => {}} onOpenProfile={onOpenProfile} />
       );
     });
     return tree;
@@ -3600,6 +3516,246 @@ describe('the way to your own profile', () => {
       findButton(tree, 'See your profile')!.props.onPress();
     });
     expect(opened).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+});
+
+
+describe('Contacts settings', () => {
+  /**
+   * Your name and your bio, which moved here from the Home settings screen
+   * when the contact list became a screen of its own. They are what a contact
+   * sees, so they sit behind the contact list rather than beside the appearance
+   * setting and the delete button.
+   *
+   * The view fetches on mount, so every case has to let that settle.
+   */
+  async function openSettings() {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<ContactsSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  }
+
+
+  it('loads the current profile into the fields', async () => {
+    const tree = await openSettings();
+    expect(mockApp.loadProfile).toHaveBeenCalledWith(ME);
+    // The bio renders as markdown in the preview, not as markup.
+    const text = textOf(tree);
+    expect(text).toContain('Preview');
+    expect(text).toContain('Bach');
+    expect(text).not.toContain('**Bach**');
+    act(() => tree.unmount());
+  });
+
+  const nameField = (tree: ReactTestRenderer) =>
+    tree.root.findAll(
+      (n) => n.props?.placeholder === 'What people should call you'
+    )[0];
+
+  it('keeps an edit when the field is left, with no button to press', async () => {
+    const tree = await openSettings();
+    expect(findButton(tree, 'Save')).toBeUndefined();
+
+    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
+    await act(async () => nameField(tree).props.onBlur());
+
+    // Only what changed: the bio was never touched, so it is not sent.
+    expect(mockApp.saveProfile).toHaveBeenCalledWith({
+      displayName: 'Alice Nkemdirim',
+    });
+    act(() => tree.unmount());
+  });
+
+  it('keeps an edit that Back is tapped on directly', async () => {
+    // The trap this replaced: the way back was nearer and more obvious than
+    // Save, and discarded the edit without saying so.
+    const onBack = jest.fn();
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<ContactsSettingsView onBack={onBack} />);
+    });
+    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
+
+    await act(async () => findButton(tree, 'Back')!.props.onPress());
+    expect(mockApp.saveProfile).toHaveBeenCalledWith({
+      displayName: 'Alice Nkemdirim',
+    });
+    expect(onBack).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('writes nothing when nothing was changed', async () => {
+    const tree = await openSettings();
+    await act(async () => nameField(tree).props.onBlur());
+    await act(async () => findButton(tree, 'Back')!.props.onPress());
+    expect(mockApp.saveProfile).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('stays put when the edit could not be kept', async () => {
+    const onBack = jest.fn();
+    mockApp.saveProfile.mockRejectedValueOnce(new Error('server said no'));
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<ContactsSettingsView onBack={onBack} />);
+    });
+    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
+
+    await act(async () => findButton(tree, 'Back')!.props.onPress());
+    // Closing anyway would be the silent discard again, wearing a hat.
+    expect(onBack).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain('server said no');
+    act(() => tree.unmount());
+  });
+
+  it('will not save an empty name, and says why', async () => {
+    // The server refuses this too; the point of refusing it here as well is
+    // that a disabled control and a rejected request cannot disagree.
+    const tree = await openSettings();
+    const name = tree.root.findAll(
+      (n) => n.props?.placeholder === 'What people should call you'
+    )[0];
+    act(() => name.props.onChangeText('   '));
+    await act(async () => name.props.onBlur());
+
+    expect(mockApp.saveProfile).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain('A name cannot be empty');
+    act(() => tree.unmount());
+  });
+});
+
+describe('Contacts', () => {
+  const withContacts = (
+    contacts: Array<{
+      id: string;
+      displayName: string;
+      /** Accepted unless a case is specifically about the other two. */
+      status?: 'accepted' | 'incoming' | 'outgoing';
+      inApp?: boolean;
+      lastSeenAt?: number | null;
+    }>
+  ) => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: contacts.map(({ id, displayName, status, ...rest }) => ({
+        account: { id, displayName },
+        status: status ?? 'accepted',
+        ...rest,
+      })),
+    };
+  };
+
+  const open = () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<ContactsView onHome={() => {}} />);
+    });
+    return tree;
+  };
+
+  it('says where each contact is, in the words the profile uses', () => {
+    mockApp.serverNow = () => NOW;
+    withContacts([
+      { id: 'a', displayName: 'Dana Chu', inApp: true },
+      { id: 'b', displayName: 'Sam Rivera', inApp: false, lastSeenAt: NOW - 3 * 60 * 60_000 },
+    ]);
+    const tree = open();
+    const text = textOf(tree);
+    expect(text).toContain('In the app now');
+    expect(text).toContain('Last seen 3 hours ago');
+    act(() => tree.unmount());
+  });
+
+  it('says nothing rather than hedging when it is not known', () => {
+    // A server that predates the fields, or somebody who has not connected
+    // since they existed. "Unknown" would report on the rule, not the person.
+    mockApp.serverNow = () => NOW;
+    withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
+    const tree = open();
+    expect(textOf(tree)).toContain('Dana Chu');
+    expect(textOf(tree)).not.toContain('Last seen');
+    expect(textOf(tree)).not.toContain('In the app');
+    act(() => tree.unmount());
+  });
+
+  it('lists people you are contacts with, and not requests', () => {
+    // Requests stay on Home: they are not contacts yet, and answering one is
+    // something to do rather than somebody to look up.
+    withContacts([
+      { id: 'a', displayName: 'Dana Chu', status: 'accepted' },
+      { id: 'b', displayName: 'Pat Ito', status: 'incoming' },
+      { id: '', displayName: 'someone@example.com', status: 'outgoing' },
+    ]);
+    const tree = open();
+    const text = textOf(tree);
+    expect(text).toContain('Dana Chu');
+    expect(text).not.toContain('Pat Ito');
+    expect(text).not.toContain('someone@example.com');
+    act(() => tree.unmount());
+  });
+
+  it('opens the person when their row is tapped', () => {
+    withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
+    const tree = open();
+    const row = tree.root.findAll(
+      (n) =>
+        typeof n.props?.accessibilityLabel === 'string' &&
+        n.props.accessibilityLabel.startsWith('Dana Chu.')
+    )[0];
+    act(() => row.props.onPress());
+    // The profile screen, which fetches on mount and offers the one
+    // destructive thing you can do about a person.
+    expect(mockApp.loadProfile).toHaveBeenCalledWith('a');
+    act(() => tree.unmount());
+  });
+
+  it('keeps the add-contact field folded away until it is wanted', () => {
+    withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
+    const tree = open();
+    const field = () =>
+      tree.root.findAll(
+        (n) => n.props?.placeholder === 'Search by email address'
+      )[0];
+
+    // A line, not a form: reading the list is what somebody came for.
+    expect(field()).toBeUndefined();
+    expect(findButton(tree, 'Add contact')).toBeDefined();
+
+    act(() => findButton(tree, 'Add contact')!.props.onPress());
+    expect(field()).toBeDefined();
+    expect(findButton(tree, 'Send request')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('sends the request, and folds away again on cancel', async () => {
+    withContacts([]);
+    const tree = open();
+    act(() => findButton(tree, 'Add contact')!.props.onPress());
+    const field = tree.root.findAll(
+      (n) => n.props?.placeholder === 'Search by email address'
+    )[0];
+    act(() => field.props.onChangeText('someone@example.com'));
+    await act(async () => findButton(tree, 'Send request')!.props.onPress());
+    expect(mockApp.requestContact).toHaveBeenCalledWith('someone@example.com');
+
+    act(() => findButton(tree, 'Cancel')!.props.onPress());
+    expect(
+      tree.root.findAll(
+        (n) => n.props?.placeholder === 'Search by email address'
+      )[0]
+    ).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('says so plainly when there is nobody yet', () => {
+    withContacts([]);
+    const tree = open();
+    expect(textOf(tree)).toContain('Nobody yet');
     act(() => tree.unmount());
   });
 });

@@ -1,127 +1,31 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../../core/constants';
+import React, { useState } from 'react';
+import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Field, Screen, SectionLabel } from './components';
-import { InlineMarkdown } from './markdown';
+import { Button, Card, Screen, SectionLabel } from './components';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 
 /**
- * Everything about you rather than about a conversation: the name people see,
- * what you say about yourself, and the way out.
+ * The app and the account: how it looks, what it stores, and the two ways out.
  *
- * The counterpart to ChannelSettingsView, and named to match — one settings
- * screen reached from Home, one reached from a channel, each holding what its
- * own scope owns.
+ * **Your name and your bio are not here.** They were, and they moved to
+ * ContactsSettingsView, behind the contact list — that is the scope they
+ * belong to, a name being how a contact finds you and a bio being what a
+ * contact reads. What is left is the scope Home actually owns, and it no
+ * longer writes anything: appearance takes effect on the tap, signing out and
+ * deleting take effect on the confirmation, and there is nothing on this
+ * screen to lose by leaving it. The awaited save, the baseline ref and the
+ * "Saving…" label went with the fields that needed them.
+ *
+ * One of the three settings screens, one per scope, each reached from the
+ * screen whose scope it is: this one from Home, ContactsSettingsView from the
+ * contact list, ChannelSettingsView from a channel.
  */
-export function HomeSettingsView({
-  onBack,
-  onOpenProfile,
-}: {
-  onBack: () => void;
-  /**
-   * Opens your own profile, which is the only screen that shows what a contact
-   * sees. Optional so a caller that has nowhere to put it simply leaves the
-   * button out, the same way ProfileView omits sections it was given no action
-   * for.
-   */
-  onOpenProfile?: () => void;
-}) {
+export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const app = useApp();
-  const [displayName, setDisplayName] = useState(app.me?.displayName ?? '');
-  const [bio, setBio] = useState('');
-  const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  /**
-   * What the server already has, so that leaving a field alone writes nothing.
-   *
-   * A ref rather than state: it is never rendered, and it has to be readable by
-   * a blur handler that fired before a re-render would have delivered it.
-   */
-  const saved = useRef({ displayName: '', bio: '' });
-
-  // The bio is not in the `hello` snapshot — it would ride on every roster for
-  // the sake of one screen — so it is fetched when that screen opens.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!app.token || !app.me) return;
-      try {
-        const profile = await app.loadProfile(app.me.id);
-        if (cancelled) return;
-        setDisplayName(profile.account.displayName);
-        setBio(profile.bio ?? '');
-        // The baseline every later comparison is against, so that opening this
-        // screen and closing it again writes nothing.
-        saved.current = {
-          displayName: profile.account.displayName,
-          bio: profile.bio ?? '',
-        };
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [app.me?.id]);
-
-  /**
-   * Writes whatever has actually changed.
-   *
-   * This screen has no Save button. Appearance and signing out always took
-   * effect the moment they were touched, and the two text fields did not,
-   * which made one button on the screen mean "keep my work" and the other —
-   * the way back, nearer and more obvious — mean "throw it away, silently"
-   * (it read "Done" then, which made it worse). Saving on
-   * blur removes the choice rather than explaining it.
-   *
-   * Rethrows so that Home can decline to close on a failure. A screen that
-   * closed anyway would be the silent discard again, wearing a different hat.
-   */
-  const persist = async () => {
-    const name = displayName.trim();
-    const text = bio.trim();
-    // A blank name is refused rather than written: it is how everybody else
-    // finds you, and the server ignores an empty one anyway. Saying so under
-    // the field is what stands in for a disabled button.
-    const nameChanged = name !== '' && name !== saved.current.displayName;
-    const bioChanged = text !== saved.current.bio;
-    if (!nameChanged && !bioChanged) return;
-
-    const changes: { displayName?: string; bio?: string } = {};
-    if (nameChanged) changes.displayName = name;
-    if (bioChanged) changes.bio = text;
-
-    setSaving(true);
-    setError(null);
-    try {
-      await app.saveProfile(changes);
-      saved.current = {
-        displayName: changes.displayName ?? saved.current.displayName,
-        bio: changes.bio ?? saved.current.bio,
-      };
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      throw e;
-    } finally {
-      setSaving(false);
-    }
-  };
 
   /**
    * Opens the privacy policy in the browser.
@@ -175,217 +79,129 @@ export function HomeSettingsView({
     }
   };
 
-  const named = displayName.trim() !== '';
-
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Settings</Text>
-        {/* "Saving…" is here and not on the channel settings screen because
-            this write is an awaited HTTP call that can fail and hold the screen
-            open, and that one is a socket dispatch with nothing to await. See
-            `done` in ChannelSettingsView. */}
-        <Button
-          label={saving ? 'Saving…' : 'Home'}
-          variant="ghost"
-          disabled={saving}
-          onPress={() => void done()}
-        />
+        {/* "Back" rather than "Home", which is what it said while this screen
+            was reachable from one place. It is not: the way off a settings
+            screen names the act rather than the destination, so the three of
+            them read alike and none of them has to be kept in step with where
+            it was opened from. */}
+        <Button label="Back" variant="ghost" onPress={onBack} />
       </View>
 
-      {!loaded ? (
-        <ActivityIndicator color={colors.textMuted} style={styles.loading} />
-      ) : (
-        <>
-          <SectionLabel>Name</SectionLabel>
-          <Card style={styles.stack}>
-            <Field
-              value={displayName}
-              onChangeText={(v) =>
-                setDisplayName(v.slice(0, MAX_DISPLAY_NAME_LENGTH))
-              }
-              placeholder="What people should call you"
-              autoCapitalize="words"
-              onBlur={() => void persist().catch(() => {})}
-            />
-            {!named ? (
-              <Text style={styles.error}>
-                A name cannot be empty — it is how everyone else finds you, so
-                this one is kept until you type another.
-              </Text>
-            ) : null}
-            <Text style={type.muted}>
-              Shown wherever you appear — the roster of a channel, a contact
-              list, an invitation.
-            </Text>
-          </Card>
-
-          <SectionLabel>About you</SectionLabel>
-          <Card style={styles.stack}>
-            <Field
-              value={bio}
-              onChangeText={(v) => setBio(v.slice(0, MAX_BIO_LENGTH))}
-              placeholder="Anything you would like people to know…"
-              autoCapitalize="sentences"
-              multiline
-              onBlur={() => void persist().catch(() => {})}
-            />
-
-            {/* Same reasoning as a channel's description: the field shows
-                markup and nowhere else will, so without a preview the only way
-                to find out what it becomes is to save and come back. */}
-            {bio.trim() ? (
-              <View style={styles.preview}>
-                <Text style={type.label}>Preview</Text>
-                <InlineMarkdown text={bio} style={styles.previewText} />
-              </View>
-            ) : null}
-
-            <Text style={type.muted}>
-              **Bold**, *italic*, `code`, ~~strikethrough~~ and
-              [links](https://example.com) work. Links open in your browser.
-            </Text>
-            <Text style={styles.count}>
-              {bio.length} / {MAX_BIO_LENGTH}
-            </Text>
-
-            {/*
-              The preview above shows the bio rendered; this shows the screen it
-              lands on. They are different questions — one is "did the markup
-              come out right", the other is "what does somebody who taps my name
-              actually get", and the second is the one nobody could answer
-              without another account to look from.
-
-              It saves first. Editing here and opening the profile without that
-              would show the version on the server, which is the last thing
-              anybody wants to be reading at that moment.
-            */}
-            {onOpenProfile ? (
-              <Button
-                label="See your profile"
-                onPress={() => {
-                  void persist()
-                    .catch(() => {})
-                    .then(onOpenProfile);
-                }}
-              />
-            ) : null}
-          </Card>
-
-          {/*
-            After the two things that are about *you* and before the account
-            itself: this is a setting about the phone, and the screen now reads
-            outwards — your name, what you say about yourself, how the app
-            looks, and then the account underneath all of it.
-          */}
-          <SectionLabel>Appearance</SectionLabel>
-          <Card style={styles.stack}>
-            <View style={styles.choices}>
-              {(
-                [
-                  ['light', 'Light'],
-                  ['dark', 'Dark'],
-                  ['system', 'System'],
-                ] as Array<[ColorSchemePreference, string]>
-              ).map(([value, label]) => (
-                <Button
-                  key={value}
-                  label={label}
-                  style={styles.choice}
-                  variant={app.appearance === value ? 'primary' : 'default'}
-                  onPress={() => app.setAppearance(value)}
-                />
-              ))}
-            </View>
-            <Text style={type.muted}>
-              System follows the phone, and changes with it — including on a
-              schedule, if you have one set.
-            </Text>
-          </Card>
-
-          {/*
-            Above the account itself, because it is what somebody reads *before*
-            deciding either of the things underneath it.
-
-            Guideline 5.1.1(i) asks for the policy to be reachable from inside
-            the application and not only from the App Store listing, which is
-            reasonable on its own terms: the listing is where you were before
-            you signed up, and this is the question you have after.
-
-            The page is served by the server it describes — `GET /privacy` — so
-            the link is the API's own address and nothing new has to be
-            threaded through the wire to find it.
-          */}
-          <SectionLabel>Privacy</SectionLabel>
-          <Card style={styles.stack}>
-            <Button label="Privacy policy" onPress={() => void openPrivacy()} />
-            <Text style={type.muted}>
-              What is stored, why, and for how long. It opens in your browser.
-            </Text>
-          </Card>
-
-          <SectionLabel>Account</SectionLabel>
-          <Card style={styles.stack}>
+      {/*
+        Appearance first, then what somebody reads before deciding either of
+        the things under it, then the account itself. The screen reads outwards:
+        the phone, the policy, and then the account underneath both.
+      */}
+      <SectionLabel>Appearance</SectionLabel>
+      <Card style={styles.stack}>
+        <View style={styles.choices}>
+          {(
+            [
+              ['light', 'Light'],
+              ['dark', 'Dark'],
+              ['system', 'System'],
+            ] as Array<[ColorSchemePreference, string]>
+          ).map(([value, label]) => (
             <Button
-              label="Sign out"
-              onPress={() =>
-                Alert.alert(
-                  'Sign out?',
-                  'You will need a fresh code by email to sign back in. Your channels and recordings are kept.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Sign out',
-                      style: 'destructive',
-                      onPress: () => void app.signOut(),
-                    },
-                  ]
-                )
-              }
+              key={value}
+              label={label}
+              style={styles.choice}
+              variant={app.appearance === value ? 'primary' : 'default'}
+              onPress={() => app.setAppearance(value)}
             />
-            <Text style={type.muted}>
-              Signing in elsewhere signs you out here, so this is only for the
-              device in your hand.
-            </Text>
+          ))}
+        </View>
+        <Text style={type.muted}>
+          System follows the phone, and changes with it — including on a
+          schedule, if you have one set.
+        </Text>
+      </Card>
 
-            {/*
-              Below Sign out, in the same card, because they are the two ways
-              out of an account and this is the one there is no way back from.
-              Not behind a submenu and not behind a typed confirmation: it has
-              to be as easy to find as signing up was, and a flow that makes
-              deletion harder to finish than it needs to be is itself a review
-              finding.
+      {/*
+        Above the account itself, because it is what somebody reads *before*
+        deciding either of the things underneath it.
 
-              What the confirmation says is the work here. "This cannot be
-              undone" is true of everything destructive and tells nobody
-              anything; what is not obvious is that channels are not yours to
-              take with you, and somebody who discovers that afterwards has no
-              remedy.
-            */}
-            <Button
-              label={deleting ? 'Deleting…' : 'Delete account'}
-              variant="danger"
-              disabled={deleting}
-              onPress={() =>
-                Alert.alert(
-                  'Delete your account?',
-                  'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nThis cannot be undone.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => void remove(),
-                    },
-                  ]
-                )
-              }
-            />
-          </Card>
+        Guideline 5.1.1(i) asks for the policy to be reachable from inside
+        the application and not only from the App Store listing, which is
+        reasonable on its own terms: the listing is where you were before
+        you signed up, and this is the question you have after.
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-        </>
-      )}
+        The page is served by the server it describes — `GET /privacy` — so
+        the link is the API's own address and nothing new has to be
+        threaded through the wire to find it.
+      */}
+      <SectionLabel>Privacy</SectionLabel>
+      <Card style={styles.stack}>
+        <Button label="Privacy policy" onPress={() => void openPrivacy()} />
+        <Text style={type.muted}>
+          What is stored, why, and for how long. It opens in your browser.
+        </Text>
+      </Card>
+
+      <SectionLabel>Account</SectionLabel>
+      <Card style={styles.stack}>
+        <Button
+          label="Sign out"
+          onPress={() =>
+            Alert.alert(
+              'Sign out?',
+              'You will need a fresh code by email to sign back in. Your channels and recordings are kept.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Sign out',
+                  style: 'destructive',
+                  onPress: () => void app.signOut(),
+                },
+              ]
+            )
+          }
+        />
+        <Text style={type.muted}>
+          Signing in elsewhere signs you out here, so this is only for the
+          device in your hand.
+        </Text>
+
+        {/*
+          Below Sign out, in the same card, because they are the two ways
+          out of an account and this is the one there is no way back from.
+          Not behind a submenu and not behind a typed confirmation: it has
+          to be as easy to find as signing up was, and a flow that makes
+          deletion harder to finish than it needs to be is itself a review
+          finding.
+
+          What the confirmation says is the work here. "This cannot be
+          undone" is true of everything destructive and tells nobody
+          anything; what is not obvious is that channels are not yours to
+          take with you, and somebody who discovers that afterwards has no
+          remedy.
+        */}
+        <Button
+          label={deleting ? 'Deleting…' : 'Delete account'}
+          variant="danger"
+          disabled={deleting}
+          onPress={() =>
+            Alert.alert(
+              'Delete your account?',
+              'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nThis cannot be undone.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: () => void remove(),
+                },
+              ]
+            )
+          }
+        />
+      </Card>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </Screen>
   );
 }
@@ -397,23 +213,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  loading: { marginTop: spacing(4) },
   stack: { gap: spacing(1) },
   choices: { flexDirection: 'row', gap: spacing(1) },
   choice: { flex: 1 },
-  preview: {
-    gap: spacing(0.5),
-    borderLeftWidth: 2,
-    borderLeftColor: colors.border,
-    paddingLeft: spacing(1.25),
-  },
-  previewText: { ...type.muted, lineHeight: 20 },
-  count: {
-    ...type.muted,
-    color: colors.textFaint,
-    fontSize: 12,
-    textAlign: 'right',
-    fontVariant: ['tabular-nums'],
-  },
   error: { color: colors.danger, fontSize: 13 },
 });

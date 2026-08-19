@@ -8,9 +8,9 @@ import { liveChannelView } from './src/state/live';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
+import { ContactsView } from './src/ui/ContactsView';
 import { SupportView } from './src/ui/SupportView';
 import { ChannelView } from './src/ui/ChannelView';
-import { ProfileView } from './src/ui/ProfileView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { anyMicrophoneOpen, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
@@ -18,7 +18,13 @@ import { colors } from './src/ui/theme';
 
 /**
  * Auth when signed out, Channel when you are looking at one, Settings or
- * Support or a profile when you open them, Home otherwise.
+ * Support or the contact list when you open them, Home otherwise.
+ *
+ * A profile is not among them, and has not been since the contact list became
+ * a screen. `ContactsView` and `ChannelView` each open the profiles they are
+ * about and own the state for it — routing that through here would put this
+ * component in the business of knowing which screen a profile was opened from
+ * so it could decide where closing one goes back to.
  *
  * **Presence is not a screen.** The audio connection is held here rather than
  * inside the channel screen, so walking back to Home leaves you in the
@@ -37,10 +43,13 @@ function Root() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** The screen explaining what donating is for, reached from Home. */
   const [supportOpen, setSupportOpen] = useState(false);
-  /** Somebody's profile, opened from a channel roster. */
-  const [profile, setProfile] = useState<{ id: string; name: string } | null>(
-    null
-  );
+  /**
+   * The contact list, reached from Home. It owns its own settings screen and
+   * its own profile screen, the way ChannelView does — the three of them are
+   * one scope, and routing them through here would put this component in the
+   * business of knowing which profile was opened from where.
+   */
+  const [contactsOpen, setContactsOpen] = useState(false);
 
   const me = app.me?.id ?? '';
   // Where this person is standing, across every snapshot held rather than read
@@ -120,6 +129,7 @@ function Root() {
     // open would be a surprise.
     setSettingsOpen(false);
     setSupportOpen(false);
+    setContactsOpen(false);
     clearPendingChannel();
   }, [pendingChannelId, ready, token, watchChannel, clearPendingChannel]);
 
@@ -148,7 +158,7 @@ function Root() {
     setChannelId(null);
     setSettingsOpen(false);
     setSupportOpen(false);
-    setProfile(null);
+    setContactsOpen(false);
   }, [token]);
 
   /**
@@ -186,55 +196,24 @@ function Root() {
     );
   }
 
-  // The settings screen opens this, on you, which is the only way to read your
-  // own profile as a contact reads it. It sits **above** the settings case
-  // rather than below: closing it returns to whatever was underneath, which is
-  // Settings when Settings opened it and Home otherwise, without either of them
-  // having to know.
-  //
-  // The channel roster opens it too, from inside ChannelView. Home does not —
-  // the contact rows that used to are gone, Home being a list of channels now,
-  // and the Contacts View will bring that back; see planning/TASKS.md.
-  if (profile) {
-    return (
-      <ProfileView
-        accountId={profile.id}
-        fallbackName={profile.name}
-        onBack={() => setProfile(null)}
-        onEnterChannel={(id) => {
-          setProfile(null);
-          // Leaving for a channel is leaving the settings screen too, whatever
-          // it was doing underneath — walking back out of a conversation to a
-          // settings form nobody remembers opening is the surprise this avoids.
-          setSettingsOpen(false);
-          setChannelId(id);
-        }}
-      />
-    );
-  }
-
   // Reached from Home rather than from a channel, because what is in here is
   // about you rather than about whichever conversation you happen to be in.
   if (settingsOpen) {
-    return (
-      <HomeSettingsView
-        onBack={() => setSettingsOpen(false)}
-        onOpenProfile={
-          app.me
-            ? () => setProfile({ id: app.me!.id, name: app.me!.displayName })
-            : undefined
-        }
-      />
-    );
+    return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
   }
 
   if (supportOpen) {
     return <SupportView onBack={() => setSupportOpen(false)} />;
   }
 
+  if (contactsOpen) {
+    return <ContactsView onHome={() => setContactsOpen(false)} />;
+  }
+
   return (
     <HomeView
       onEnterChannel={setChannelId}
+      onOpenContacts={() => setContactsOpen(true)}
       onOpenSettings={() => setSettingsOpen(true)}
       onOpenSupport={() => setSupportOpen(true)}
       // What Home needs to show that a conversation is still going without you

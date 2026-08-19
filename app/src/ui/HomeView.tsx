@@ -14,7 +14,7 @@ import type {
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
+import { Button, Card, Empty, Screen, SectionLabel } from './components';
 import { agoOrNull } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
 
@@ -23,7 +23,7 @@ import { colors, radius, spacing, type } from './theme';
  * somebody is in, the ones you have been asked into, and the rest — and then
  * the contact requests that have not turned into either yet.
  *
- * **There is no contact list, and that is the shape of this screen.** There
+ * **There is no contact list on this screen, and that is its shape.** There
  * used to be one, and it was the only way to open a one-to-one channel with
  * somebody, so the two lists overlapped and argued: a contact row had to work
  * out whether a channel with that person already existed, say so, and offer to
@@ -32,23 +32,31 @@ import { colors, radius, spacing, type } from './theme';
  * one-to-one channel, made when the pair accept and guaranteed by the server,
  * so a contact appears here as the thing you would talk to them in.
  *
- * What went with the contact rows was availability — "In the app now", "last
- * seen 3 hours ago". It is not deleted, only moved: the server still sends it
- * and `ProfileView` shows it, to contacts alone. Everything else the contact
- * list did — adding one, answering a request, reading a profile — is either
- * still below or waiting on the Contacts View; see planning/TASKS.md.
+ * The contacts themselves are a screen of their own, `ContactsView`, one tap
+ * away in the header — where a row opens the person rather than offering a
+ * channel, which is what kept the two lists from arguing again. Availability
+ * went with them: "In the app now", "last seen 3 hours ago", which a channel's
+ * idleness cannot stand in for, a room nobody has been in for a week saying
+ * nothing about whether its other member is holding a phone.
+ *
+ * What stays here is requests. They are not contacts yet, they are the one
+ * thing on this screen that cannot be a channel, and answering one is
+ * something to do rather than somebody to look up.
  *
  * Everything here is a server snapshot. Nothing is computed locally except
  * which section a channel belongs in, which is a display question.
  */
 export function HomeView({
   onEnterChannel,
+  onOpenContacts,
   onOpenSettings,
   onOpenSupport = () => {},
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
   onEnterChannel: (channelId: string) => void;
+  /** The contact list, which is a screen of its own. See ContactsView. */
+  onOpenContacts: () => void;
   onOpenSettings: () => void;
   /** Opens the screen that explains donating, and carries the link out. */
   onOpenSupport?: () => void;
@@ -184,11 +192,19 @@ export function HomeView({
           </Text>
         </View>
         {/*
-          One way off this screen that is not a channel. Signing out moved in
-          there with it: it is about the account rather than about the list,
-          and it sat beside a dozen taps that are not remotely destructive.
+          The two ways off this screen that are not a channel. Contacts is a
+          screen rather than a section here for the reason the doc comment
+          above gives — a contact row and a channel row answer different
+          questions, and the last time they shared a list they argued.
+
+          Signing out is in Settings rather than either of these: it is about
+          the account rather than about the list, and it sat beside a dozen
+          taps that are not remotely destructive.
         */}
-        <Button label="Settings" variant="ghost" onPress={onOpenSettings} />
+        <View style={styles.headerActions}>
+          <Button label="Contacts" variant="ghost" onPress={onOpenContacts} />
+          <Button label="Settings" variant="ghost" onPress={onOpenSettings} />
+        </View>
       </View>
 
       {/*
@@ -351,9 +367,6 @@ export function HomeView({
           </View>
         </>
       ) : null}
-
-      <SectionLabel>Add contact</SectionLabel>
-      <AddContact />
 
       {/*
         Last on the screen, and one line rather than three.
@@ -681,61 +694,6 @@ function RequestRow({ entry }: { entry: ContactView }) {
   );
 }
 
-function AddContact() {
-  const app = useApp();
-  const [query, setQuery] = useState('');
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
-    null
-  );
-  const [busy, setBusy] = useState(false);
-
-  async function send() {
-    setBusy(true);
-    try {
-      const { accepted } = await app.requestContact(query.trim());
-      setMessage({
-        ok: true,
-        text: accepted
-          ? 'They had already asked — you are now contacts.'
-          : 'Request sent — awaiting their acceptance.',
-      });
-      setQuery('');
-    } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <View style={styles.addContact}>
-      <Field
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Search by email address"
-        keyboardType="email-address"
-        onSubmit={query.trim() && !busy ? send : undefined}
-        submitLabel="send"
-      />
-      <Button
-        label={busy ? 'Sending…' : 'Send request'}
-        onPress={send}
-        disabled={!query.trim() || busy}
-      />
-      {message ? (
-        <Text
-          style={[
-            styles.message,
-            { color: message.ok ? colors.success : colors.danger },
-          ]}
-        >
-          {message.text}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
   header: {
@@ -745,6 +703,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing(1),
   },
   headerMain: { flex: 1 },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
   liveBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -856,6 +815,4 @@ const styles = StyleSheet.create({
    */
   inviteQuiet: { borderColor: colors.border, borderWidth: 1 },
   dismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
-  addContact: { gap: spacing(1) },
-  message: { fontSize: 13 },
 });

@@ -13,7 +13,7 @@ import { MAX_PING_TEXT_LENGTH } from '../../../core/constants';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
-import { agoOrNull } from './relativeTime';
+import { describeAvailability } from './availability';
 import { colors, radius, spacing, type } from './theme';
 
 /**
@@ -405,36 +405,6 @@ export function ProfileView({
   );
 }
 
-/**
- * "In the app now", "Last seen 3 hours ago", or nothing.
- *
- * `inApp` is read first, because it is a fact where the line below it is an
- * inference. Somebody sitting in a channel for an hour is in the app, and the
- * timestamp in that snapshot is an hour old — nothing has been sent since,
- * because nothing needed to be. Subtracting it would report them as an hour
- * idle, which is the whole of what the old contact row got wrong.
- *
- * A gap under `agoOrNull`'s floor reads as here rather than as "a few seconds
- * ago". That floor is also what keeps a flapping connection steady: a tunnel
- * closes the socket, `inApp` goes false with a departure a moment old, and
- * without it every lift would show as somebody leaving.
- *
- * Null covers the three ways of not knowing, and none of them is worth a word:
- * a server that predates the fields, somebody who has not connected since they
- * existed, and a reader who is not a contact — the server withholds it from
- * them, and a screen that said "unknown" would be reporting on the rule rather
- * than on the person.
- */
-function describeAvailability(
-  profile: Profile | null,
-  now: number
-): string | null {
-  if (!profile) return null;
-  if (profile.inApp) return 'In the app now';
-  if (profile.lastSeenAt == null) return null;
-  const ago = agoOrNull(now - profile.lastSeenAt);
-  return ago ? `Last seen ${ago}` : 'In the app now';
-}
 
 const styles = StyleSheet.create({
   container: { padding: spacing(2) },

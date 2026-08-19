@@ -27,11 +27,28 @@ genuinely gone — but it did not settle it. Watch the column across one deploy.
 
 ## Contacts View
 
-Home stopped being a screen with a contact list on it on 2026-08-18: an accepted
-contact now *is* an unnamed one-to-one channel, so contacts appear as the thing
-you would talk to them in. Four things went with the rows and are owed a home.
-The contact list itself, as a list of people rather than of rooms — sorted by a
-key still to be decided, which is what `## Contact Card Sorting and Classes`
+**Built 2026-08-19.** `app/src/ui/ContactsView.tsx`, reached from a link beside
+Settings in Home's header. A row is a person and their availability — "In the
+app now", "last seen 3 hours ago" — and tapping one opens `ProfileView`, which
+is where the bio, the shared channels and removing them already lived. There is
+deliberately no "step into a channel with them" on a contact row: that overlap
+is what took the old contact list apart, and Home owns the channel list.
+
+`Add contact` came with it, folded away at the top: a line until tapped, then a
+field, because reading the list is what somebody opens this screen for. The
+screen carries its own settings link, on the pattern Home and a channel already
+followed, and `Name` and `About you` moved into it from the Home settings screen
+— those are what a contact sees, so they belong behind the contact list rather
+than beside the appearance setting and the delete button.
+
+**Two things are still open.** Requests are still on Home, and were left there
+on purpose for now: an incoming request is time-sensitive, and a person is
+something you look up where a request is something you answer. Whether that is
+right or whether they should follow the contacts is a decision nobody has made.
+And the order is the server's, which is to say undecided — see
+`## Contact Card Sorting and Classes` below, which is still empty.
+
+## Contact Card Sorting and Classes`
 above is about. A profile reachable without entering a channel; `ProfileView`
 and its route in `App.tsx` are both still wired and reachable from a channel
 roster, so this is a way in rather than a screen to build. The requests and

@@ -129,11 +129,14 @@ describe('a session ending', () => {
       tree = renderer.create(<App />);
     });
 
-    // "Home" is the settings screen's own way off it, and appears nowhere
-    // else — a surer marker than any of its contents, which load async, and
-    // than its "Settings" heading, which is also the button that opened it.
+    // "Appearance" is a heading only the settings screen has. It used to be
+    // the "Home" button, which was that screen's own way off it — that reads
+    // "Back" now, and Back is a word other screens may grow. A heading cannot
+    // be confused with the button that opened the screen the way "Settings"
+    // could, and this one renders synchronously, the profile fetch having
+    // moved to the contacts settings screen with the fields that needed it.
     pressButton(tree, 'Settings');
-    expect(textOf(tree)).toContain('Home');
+    expect(textOf(tree)).toContain('Appearance');
 
     // Signing out. Root stays mounted throughout — that is the whole point.
     act(() => {
@@ -149,7 +152,7 @@ describe('a session ending', () => {
       tree.update(<App />);
     });
 
-    expect(textOf(tree)).not.toContain('Home');
+    expect(textOf(tree)).not.toContain('Appearance');
     expect(textOf(tree)).toContain('Start a channel');
     act(() => tree.unmount());
   });
