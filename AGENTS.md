@@ -391,7 +391,7 @@ its Admin-role requirement, and the **Ko-fi verification token**. Where each
 lives, what it can do and what losing it costs are in planning/CREDENTIALS.md.
 
 **Read that before touching any credential, `bin/provision`,
-`bin/provision-livekit`, or `server/.env`.** Moved there on 2026-08-15 when this
+`bin/provision-livekit`, `bin/env-pull`/`bin/env-push`, or `server/.env`.** Moved there on 2026-08-15 when this
 file hit its limit a second time: it is needed by somebody provisioning,
 rotating a key or debugging an auth failure, and by nobody writing app or core
 code.

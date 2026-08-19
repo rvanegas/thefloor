@@ -1,0 +1,58 @@
+#!/bin/bash
+#
+# Copies server/.env off the box into ~/.config/thefloor/server.env.
+#
+# The box holds the only live copy of seven credentials, and bin/deploy
+# deliberately refuses to touch it — so nothing has ever brought it back. What
+# stood in for a backup was ~/.config/thefloor/backup-2026-08-13/server.env, a
+# snapshot taken during a migration that was six days stale within a week.
+#
+# The local copy goes beside the .p8 keys and livekit.env, under
+# ~/.config/thefloor, mode 600, on the same reasoning: outside any tree
+# bin/deploy rsyncs with --delete, and outside git.
+#
+# Values are never printed. What changed is reported by key name alone, which
+# is enough to see that something moved and useless to anybody reading over a
+# shoulder or scrolling back through a terminal.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+SSH="ssh -i $KEY -o BatchMode=yes"
+LOCAL=${THEFLOOR_ENV:-$HOME/.config/thefloor/server.env}
+REMOTE=/home/ubuntu/thefloor/server/.env
+
+TMP=$(mktemp); chmod 600 "$TMP"; trap 'rm -f "$TMP"' EXIT
+
+echo "→ fetching $REMOTE"
+$SSH "$HOST" "cat $REMOTE" > "$TMP"
+
+# An empty answer is what a missing file, a wrong path or a silently failed ssh
+# all look like, and writing it over the local copy would destroy the thing
+# this script exists to protect.
+if [ ! -s "$TMP" ]; then
+  echo "✗ came back empty — not overwriting $LOCAL" >&2
+  exit 1
+fi
+
+names() { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | tr -d '=' | sort; }
+
+if [ -f "$LOCAL" ]; then
+  if cmp -s "$TMP" "$LOCAL"; then
+    echo "✓ already identical — $(names "$LOCAL" | wc -l | tr -d ' ') keys"
+    exit 0
+  fi
+  # Which keys moved, by name. A key whose value changed and a key that was
+  # added read the same way here, which is the intended amount of detail.
+  CHANGED=$(diff <(sort "$LOCAL") <(sort "$TMP") \
+    | grep -oE '^[<>] [A-Za-z_][A-Za-z0-9_]*=' | grep -oE '[A-Za-z_][A-Za-z0-9_]*' \
+    | sort -u | tr '\n' ' ')
+  echo "  differs in: ${CHANGED:-(comments or blank lines only)}"
+  cp "$LOCAL" "$LOCAL.bak"
+  echo "  previous copy kept at $LOCAL.bak"
+fi
+
+mkdir -p "$(dirname "$LOCAL")"
+cp "$TMP" "$LOCAL"
+chmod 600 "$LOCAL"
+echo "✓ $LOCAL — $(names "$LOCAL" | wc -l | tr -d ' ') keys, mode 600"

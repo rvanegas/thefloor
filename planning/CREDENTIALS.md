@@ -147,6 +147,13 @@ Deliberately separate, so no single leak is worse than it has to be:
   as the `.p8` keys.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
-sync so a deploy cannot overwrite it. `KOFI_URL`, `CONTACT_EMAIL` and the
+sync so a deploy cannot overwrite it — which also means nothing ever brought it
+back. **`bin/env-pull` and `bin/env-push`** keep `~/.config/thefloor/server.env`
+level with it, so the box stops being the only copy; edit in either place and
+run the matching direction afterwards. Neither script prints a value: what
+changed is reported by key name alone. `env-push` also names anything
+`.env.example` documents and the local file lacks entirely, which is how
+`MAIL_FROM` went unset once — and unset means one-time codes print to a console
+nobody is reading rather than reaching anybody. `KOFI_URL`, `CONTACT_EMAIL` and the
 `REVIEW_*` pair live there too and are settings rather than secrets —
 `server/.env.example` documents every one of them.

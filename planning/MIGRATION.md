@@ -246,6 +246,15 @@ day, before the LiveKit cutover rewrote the three `LIVEKIT_*` lines; it was
 byte-identical to `server.env` when taken, and is kept as the labelled copy of
 what Cloud looked like.
 
+**`server.env` in there is a snapshot and has been mistaken for a mirror.** It
+was taken on 2026-08-13 and was days stale within the week, while the box went
+on being the only live copy of seven credentials. Since 2026-08-19 the live
+local copy is `~/.config/thefloor/server.env`, mode 600, kept level with the box
+by **`bin/env-pull`** and **`bin/env-push`** — the same arrangement
+`bin/provision-livekit` has always had with `livekit.env`, and for the same
+reason: a credential authored locally can be backed up and diffed, and one that
+exists only on an instance cannot.
+
 Beside it and **not** in it: `~/.config/thefloor/livekit.env`, mode 600, holding
 the self-hosted LiveKit API key pair. Not folded into the dated backup because
 it is not a snapshot of anything — it is the live credential

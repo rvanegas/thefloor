@@ -1,0 +1,90 @@
+#!/bin/bash
+#
+# Copies ~/.config/thefloor/server.env onto the box and restarts the server.
+#
+# The pattern is bin/provision-livekit's, which has always read livekit.env from
+# ~/.config/thefloor rather than having somebody type secrets into a box: the
+# credential is authored locally, in a file that can be backed up and diffed,
+# and the box is a deployment target rather than the place state lives. This
+# extends that to the seven credentials in server/.env, which until now existed
+# in exactly one place.
+#
+# Editing on the box directly is still fine. Run bin/env-pull afterwards and the
+# local copy catches up; this script is what makes the reverse direction work.
+#
+# Values are never printed — see bin/env-pull.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+SSH="ssh -i $KEY -o BatchMode=yes"
+LOCAL=${THEFLOOR_ENV:-$HOME/.config/thefloor/server.env}
+REMOTE=/home/ubuntu/thefloor/server/.env
+
+cd "$(dirname "$0")/.."
+
+ASSUME_YES=no
+[ "${1:-}" = "-y" ] && ASSUME_YES=yes
+
+[ -f "$LOCAL" ] || { echo "✗ no $LOCAL — run bin/env-pull first" >&2; exit 1; }
+
+names() { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | tr -d '=' | sort; }
+
+# Every name .env.example documents and this file does not have at all. Not a
+# blank value: several are meant to be blank outside a submission, and blank is
+# a decision where absent is usually an accident. MAIL_FROM went missing exactly
+# this way, and unset means codes print to a console nobody is reading.
+MISSING=$(comm -23 <(names server/.env.example) <(names "$LOCAL") | tr '\n' ' ')
+if [ -n "$MISSING" ]; then
+  echo "⚠ documented in .env.example and absent here: $MISSING" >&2
+fi
+
+TMP=$(mktemp); chmod 600 "$TMP"; trap 'rm -f "$TMP"' EXIT
+if $SSH "$HOST" "cat $REMOTE" > "$TMP" 2>/dev/null && [ -s "$TMP" ]; then
+  if cmp -s "$TMP" "$LOCAL"; then
+    echo "✓ the box already has this — nothing to do"
+    exit 0
+  fi
+  CHANGED=$(diff <(sort "$TMP") <(sort "$LOCAL") \
+    | grep -oE '^[<>] [A-Za-z_][A-Za-z0-9_]*=' | grep -oE '[A-Za-z_][A-Za-z0-9_]*' \
+    | sort -u | tr '\n' ' ')
+  echo "  will change on the box: ${CHANGED:-(comments or blank lines only)}"
+else
+  echo "  the box has no readable $REMOTE — this will create it"
+fi
+
+# A restart drops every call in progress, and this one replaces credentials
+# rather than code, so a wrong file is a server that starts and quietly cannot
+# send mail. bin/deploy does not ask; it also runs the tests first and can check
+# afterwards that the right thing landed. This can do neither.
+if [ "$ASSUME_YES" != yes ]; then
+  printf '  push and restart? [y/N] '
+  read -r reply
+  case "$reply" in [yY]*) ;; *) echo "  nothing sent"; exit 1 ;; esac
+fi
+
+echo "→ sending"
+# Through a temp path owned by ubuntu, then moved: scp straight onto the live
+# file leaves a window where it is half-written and the server is one restart
+# away from reading it.
+scp -i "$KEY" -q "$LOCAL" "$HOST:/tmp/.thefloor-env"
+$SSH "$HOST" "
+  chmod 600 /tmp/.thefloor-env
+  mv /tmp/.thefloor-env $REMOTE
+  sudo systemctl restart thefloor
+"
+
+echo "→ waiting for health"
+for _ in $(seq 1 20); do
+  if curl -sf --max-time 5 https://thefloor.rvanegas.co/healthz >/dev/null; then
+    echo "✓ $(curl -s https://thefloor.rvanegas.co/healthz)"
+    # What the startup log says it configured, which is the only report of
+    # whether a setting took. Not the values — the server does not log those.
+    $SSH "$HOST" "journalctl -u thefloor -n 40 --no-pager | grep -i 'unset\|review' || true"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "✗ did not come back healthy; check: $SSH $HOST 'journalctl -u thefloor -n 40'" >&2
+exit 1
