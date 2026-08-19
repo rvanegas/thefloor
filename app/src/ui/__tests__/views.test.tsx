@@ -3468,3 +3468,138 @@ describe('Support', () => {
     act(() => tree.unmount());
   });
 });
+
+describe('your own profile', () => {
+  /**
+   * The screen as the settings button opens it: on you, with no action for
+   * entering a channel, since the only channels it could list are ones you
+   * share with yourself.
+   */
+  async function mine(bio: string | null = null) {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [],
+    };
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: ME, displayName: 'Me' },
+      bio,
+    });
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = render(
+        <ProfileView accountId={ME} fallbackName="Me" onBack={() => {}} />
+      );
+    });
+    return tree;
+  }
+
+  it('does not offer to make you a contact of yourself', async () => {
+    const tree = await mine();
+    expect(findButton(tree, 'Add contact')).toBeUndefined();
+    expect(findButton(tree, 'Remove contact')).toBeUndefined();
+    // The copy that goes with the button, in case the label ever changes but
+    // the card does not.
+    expect(textOf(tree)).not.toContain('They will see a request');
+    act(() => tree.unmount());
+  });
+
+  it('says an empty bio is yours to write, and where', async () => {
+    const tree = await mine();
+    expect(textOf(tree)).toContain('You have not written anything about yourself');
+    expect(textOf(tree)).not.toContain('They have not written');
+    act(() => tree.unmount());
+  });
+
+  it('shows the bio rendered, which is the point of looking', async () => {
+    const tree = await mine('**Loud** and clear');
+    const text = textOf(tree);
+    expect(text).toContain('Loud');
+    expect(text).not.toContain('**');
+    act(() => tree.unmount());
+  });
+
+  it('still offers the contact card for somebody who is not you', async () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [],
+    };
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: THEM, displayName: 'Dana Chu' },
+      bio: null,
+    });
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = render(
+        <ProfileView accountId={THEM} fallbackName="Dana Chu" onBack={() => {}} />
+      );
+    });
+    expect(findButton(tree, 'Add contact')).toBeDefined();
+    act(() => tree.unmount());
+  });
+});
+
+describe('the way to your own profile', () => {
+  const openSettings = async (onOpenProfile?: () => void) => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <HomeSettingsView onBack={() => {}} onOpenProfile={onOpenProfile} />
+      );
+    });
+    return tree;
+  };
+
+  it('is offered where the bio is written, and not otherwise', async () => {
+    const tree = await openSettings(() => {});
+    expect(findButton(tree, 'See your profile')).toBeDefined();
+    act(() => tree.unmount());
+
+    // A caller with nowhere to put the screen leaves the button out rather
+    // than showing one that does nothing — the same rule ProfileView follows
+    // for the sections it is given no action for.
+    const bare = await openSettings();
+    expect(findButton(bare, 'See your profile')).toBeUndefined();
+    act(() => bare.unmount());
+  });
+
+  it('writes an edited bio before opening it', async () => {
+    // Otherwise the screen shows what the server still holds, which is the
+    // version somebody has just finished editing away from. The edit is the
+    // point of the test: persist() returns early when nothing has changed, so
+    // a run without one proves only that the callback fires.
+    const opened = jest.fn();
+    const tree = await openSettings(opened);
+    const field = tree.root.findAll(
+      (n) => n.props?.placeholder === 'Anything you would like people to know…'
+    )[0];
+    act(() => field.props.onChangeText('Something new'));
+    await act(async () => {
+      findButton(tree, 'See your profile')!.props.onPress();
+    });
+    expect(mockApp.saveProfile).toHaveBeenCalledWith({ bio: 'Something new' });
+    expect(opened).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('opens it even when the save fails', async () => {
+    // The alternative is a button that silently does nothing on the one screen
+    // somebody opened to check their own work. The error is already shown
+    // under the field by persist()'s own handling.
+    mockApp.saveProfile.mockRejectedValueOnce(new Error('server said no'));
+    const opened = jest.fn();
+    const tree = await openSettings(opened);
+    const field = tree.root.findAll(
+      (n) => n.props?.placeholder === 'Anything you would like people to know…'
+    )[0];
+    act(() => field.props.onChangeText('Something new'));
+    await act(async () => {
+      findButton(tree, 'See your profile')!.props.onPress();
+    });
+    expect(opened).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+});

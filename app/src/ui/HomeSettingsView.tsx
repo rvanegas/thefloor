@@ -23,7 +23,19 @@ import type { ColorSchemePreference } from './appearance';
  * screen reached from Home, one reached from a channel, each holding what its
  * own scope owns.
  */
-export function HomeSettingsView({ onBack }: { onBack: () => void }) {
+export function HomeSettingsView({
+  onBack,
+  onOpenProfile,
+}: {
+  onBack: () => void;
+  /**
+   * Opens your own profile, which is the only screen that shows what a contact
+   * sees. Optional so a caller that has nowhere to put it simply leaves the
+   * button out, the same way ProfileView omits sections it was given no action
+   * for.
+   */
+  onOpenProfile?: () => void;
+}) {
   const app = useApp();
   const [displayName, setDisplayName] = useState(app.me?.displayName ?? '');
   const [bio, setBio] = useState('');
@@ -236,6 +248,28 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             <Text style={styles.count}>
               {bio.length} / {MAX_BIO_LENGTH}
             </Text>
+
+            {/*
+              The preview above shows the bio rendered; this shows the screen it
+              lands on. They are different questions — one is "did the markup
+              come out right", the other is "what does somebody who taps my name
+              actually get", and the second is the one nobody could answer
+              without another account to look from.
+
+              It saves first. Editing here and opening the profile without that
+              would show the version on the server, which is the last thing
+              anybody wants to be reading at that moment.
+            */}
+            {onOpenProfile ? (
+              <Button
+                label="See your profile"
+                onPress={() => {
+                  void persist()
+                    .catch(() => {})
+                    .then(onOpenProfile);
+                }}
+              />
+            ) : null}
           </Card>
 
           {/*

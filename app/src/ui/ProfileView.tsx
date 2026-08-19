@@ -75,6 +75,19 @@ export function ProfileView({
   onRemoved?: () => void;
 }) {
   const app = useApp();
+  /**
+   * This screen showing you to yourself, reached from the settings screen so
+   * somebody can read their own bio as a contact will read it — rendered,
+   * rather than as the Markdown they typed.
+   *
+   * Derived here rather than passed in, because every caller would compute the
+   * same comparison and one of them would eventually forget. What it changes is
+   * only what is left out: the Contact card, which would offer to add you to
+   * your own contacts. The availability line needs nothing — the server already
+   * withholds it, on the grounds that you are the one person whose whereabouts
+   * you know.
+   */
+  const isSelf = app.me?.id === accountId;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'refused'>('loading');
   const [asking, setAsking] = useState(false);
@@ -228,7 +241,9 @@ export function ProfileView({
           <Text style={type.muted}>
             {state === 'refused'
               ? 'There is no profile here to show you.'
-              : 'They have not written anything about themselves yet.'}
+              : isSelf
+                ? 'You have not written anything about yourself yet. The field is on the settings screen.'
+                : 'They have not written anything about themselves yet.'}
           </Text>
         )}
       </Card>
@@ -329,6 +344,15 @@ export function ProfileView({
         </>
       ) : null}
 
+      {/*
+        Left out entirely when this is you. Every branch below is about the
+        relationship between two people, and there is no such relationship to
+        report or to change — "Add contact" aimed at yourself is the one the
+        screen would otherwise offer, since you are not among your own
+        contacts.
+      */}
+      {isSelf ? null : (
+        <>
       <SectionLabel>Contact</SectionLabel>
       <Card style={styles.stack}>
         {contact?.status === 'accepted' ? (
@@ -375,6 +399,8 @@ export function ProfileView({
         )}
         {askError ? <Text style={styles.error}>{askError}</Text> : null}
       </Card>
+        </>
+      )}
     </Screen>
   );
 }

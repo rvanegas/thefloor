@@ -186,20 +186,15 @@ function Root() {
     );
   }
 
-  // Reached from Home rather than from a channel, because what is in here is
-  // about you rather than about whichever conversation you happen to be in.
-  if (settingsOpen) {
-    return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
-  }
-
-  if (supportOpen) {
-    return <SupportView onBack={() => setSupportOpen(false)} />;
-  }
-
-  // Nothing on Home opens this any more — the contact rows that used to are
-  // gone, Home being a list of channels now. The route stays because the
-  // channel roster opens profiles and because the Contacts View will; see
-  // planning/TASKS.md.
+  // The settings screen opens this, on you, which is the only way to read your
+  // own profile as a contact reads it. It sits **above** the settings case
+  // rather than below: closing it returns to whatever was underneath, which is
+  // Settings when Settings opened it and Home otherwise, without either of them
+  // having to know.
+  //
+  // The channel roster opens it too, from inside ChannelView. Home does not —
+  // the contact rows that used to are gone, Home being a list of channels now,
+  // and the Contacts View will bring that back; see planning/TASKS.md.
   if (profile) {
     return (
       <ProfileView
@@ -208,10 +203,33 @@ function Root() {
         onBack={() => setProfile(null)}
         onEnterChannel={(id) => {
           setProfile(null);
+          // Leaving for a channel is leaving the settings screen too, whatever
+          // it was doing underneath — walking back out of a conversation to a
+          // settings form nobody remembers opening is the surprise this avoids.
+          setSettingsOpen(false);
           setChannelId(id);
         }}
       />
     );
+  }
+
+  // Reached from Home rather than from a channel, because what is in here is
+  // about you rather than about whichever conversation you happen to be in.
+  if (settingsOpen) {
+    return (
+      <HomeSettingsView
+        onBack={() => setSettingsOpen(false)}
+        onOpenProfile={
+          app.me
+            ? () => setProfile({ id: app.me!.id, name: app.me!.displayName })
+            : undefined
+        }
+      />
+    );
+  }
+
+  if (supportOpen) {
+    return <SupportView onBack={() => setSupportOpen(false)} />;
   }
 
   return (
