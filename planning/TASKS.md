@@ -71,7 +71,7 @@ Channels, by default, have no admins or owner. In channel settings, a user can d
 
 Per user tracking of minutes and timestamps of webrtc usage, minutes and timestamps of media playback including recordings playback, minutes and timestamps of recordings associated to user who initiates the recording, GBs of recording egress/exports. Also, track minutes and timestamps of conversation shared by pairs of users. This tracking expires if more than one week old. 
 
-All of this is saved in db.
+Save all of this to db.
 
 ## Transcripts
 
