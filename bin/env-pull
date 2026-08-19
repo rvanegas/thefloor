@@ -35,18 +35,31 @@ if [ ! -s "$TMP" ]; then
   exit 1
 fi
 
-names() { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | tr -d '=' | sort; }
+names() { { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | tr -d '=' | sort; } || true; }
+
+# Which keys differ between two env files, by name. A key whose value changed
+# and a key that was added read the same way here, which is the intended amount
+# of detail — values are never printed.
+#
+# The `|| true` is load-bearing and cost an afternoon. `diff` exits 1 when the
+# files differ, `grep` exits 1 when it matches nothing, and under
+# `set -o pipefail` either sinks the whole pipeline — so an unguarded
+# assignment aborts the script under `set -e` exactly when there IS a
+# difference, which is the only case anybody runs this for. It printed nothing
+# and exited 1, which is indistinguishable from having found nothing to do.
+changed_keys() {
+  { diff <(sort "$1") <(sort "$2") \
+    | grep -oE '^[<>] [A-Za-z_][A-Za-z0-9_]*=' \
+    | grep -oE '[A-Za-z_][A-Za-z0-9_]*' \
+    | sort -u | tr '\n' ' '; } || true
+}
 
 if [ -f "$LOCAL" ]; then
   if cmp -s "$TMP" "$LOCAL"; then
     echo "✓ already identical — $(names "$LOCAL" | wc -l | tr -d ' ') keys"
     exit 0
   fi
-  # Which keys moved, by name. A key whose value changed and a key that was
-  # added read the same way here, which is the intended amount of detail.
-  CHANGED=$(diff <(sort "$LOCAL") <(sort "$TMP") \
-    | grep -oE '^[<>] [A-Za-z_][A-Za-z0-9_]*=' | grep -oE '[A-Za-z_][A-Za-z0-9_]*' \
-    | sort -u | tr '\n' ' ')
+  CHANGED=$(changed_keys "$LOCAL" "$TMP")
   echo "  differs in: ${CHANGED:-(comments or blank lines only)}"
   # Pulling over local edits is how work gets lost quietly — the local file is
   # the one somebody has just been typing in, and the box's copy is older by

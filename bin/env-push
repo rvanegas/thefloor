@@ -28,7 +28,24 @@ ASSUME_YES=no
 
 [ -f "$LOCAL" ] || { echo "✗ no $LOCAL — run bin/env-pull first" >&2; exit 1; }
 
-names() { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | tr -d '=' | sort; }
+names() { { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | tr -d '=' | sort; } || true; }
+
+# Which keys differ between two env files, by name. A key whose value changed
+# and a key that was added read the same way here, which is the intended amount
+# of detail — values are never printed.
+#
+# The `|| true` is load-bearing and cost an afternoon. `diff` exits 1 when the
+# files differ, `grep` exits 1 when it matches nothing, and under
+# `set -o pipefail` either sinks the whole pipeline — so an unguarded
+# assignment aborts the script under `set -e` exactly when there IS a
+# difference, which is the only case anybody runs this for. It printed nothing
+# and exited 1, which is indistinguishable from having found nothing to do.
+changed_keys() {
+  { diff <(sort "$1") <(sort "$2") \
+    | grep -oE '^[<>] [A-Za-z_][A-Za-z0-9_]*=' \
+    | grep -oE '[A-Za-z_][A-Za-z0-9_]*' \
+    | sort -u | tr '\n' ' '; } || true
+}
 
 # Every name .env.example documents and this file does not have at all. Not a
 # blank value: several are meant to be blank outside a submission, and blank is
@@ -67,9 +84,7 @@ if $SSH "$HOST" "cat $REMOTE" > "$TMP" 2>/dev/null && [ -s "$TMP" ]; then
     echo "✓ byte-identical — nothing to do"
     exit 0
   fi
-  CHANGED=$(diff <(sort "$TMP") <(sort "$LOCAL") \
-    | grep -oE '^[<>] [A-Za-z_][A-Za-z0-9_]*=' | grep -oE '[A-Za-z_][A-Za-z0-9_]*' \
-    | sort -u | tr '\n' ' ')
+  CHANGED=$(changed_keys "$TMP" "$LOCAL")
   echo "  will change on the box: ${CHANGED:-(comments or blank lines only)}"
 else
   echo "  the box has no readable $REMOTE — this will create it"
