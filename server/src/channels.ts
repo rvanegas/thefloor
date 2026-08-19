@@ -45,11 +45,28 @@ import { encodeRecording } from './export';
 import type { MediaServer, PlaybackSession } from './media';
 import { getWhenReady, type RecordingStore } from './storage';
 import { createPushNotifier, notifications, type PushNotifier } from './push';
+import { pairSpan, UsageMeter } from './usage';
 
 export const TICK_INTERVAL_MS = 500;
 
 /** How often deleted rows past their week are looked for. */
 export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * How often the meter asks the rooms what they are actually carrying.
+ *
+ * Its own timer rather than a fold into the 500ms tick, and the gap is the
+ * point. `reconcileSilence` runs at tick rate because a mute that has not
+ * landed means somebody is audible who should not be; a meter answers in
+ * minutes and gains nothing from latency. A per-channel round trip twice a
+ * second is exactly the cost that reconciliation is gated behind a floor claim
+ * to avoid, and metering would not be gated behind anything.
+ *
+ * It is a sampling rate, so it is also the accuracy: every mic and listen span
+ * has edges good to within one interval, and a microphone opened and closed
+ * inside one window is not recorded at all. See planning/USAGE.md.
+ */
+export const USAGE_POLL_INTERVAL_MS = 15_000;
 
 /**
  * How long a channel stays quiet after announcing itself.
@@ -305,6 +322,13 @@ export class ChannelRegistry {
   private listeners = new Set<(channelIds: string[]) => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
+  private usageTimer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * What this box carried. Owned here rather than passed in because every
+   * transition worth metering already goes through `commit`, and the poll
+   * needs the same rooms this registry is already holding. See usage.ts.
+   */
+  readonly usage: UsageMeter;
   /**
    * The durable projection last written per channel, as its JSON. What makes
    * writing on every commit affordable: a transition that changes only
@@ -315,6 +339,20 @@ export class ChannelRegistry {
   private persisted = new Map<string, string>();
   /** When each live run's row was last checkpointed. Keyed by run id. */
   private checkpointedAt = new Map<string, number>();
+  /**
+   * Who started each live run, keyed by run id.
+   *
+   * Nothing else knows. `RecordingState` does not carry an actor — it is the
+   * state of the recording rather than a record of who asked — and the
+   * `recordings` row's `initiator_id` is the *channel's* initiator, a legacy
+   * anchor column that predates channels holding more than two people. So the
+   * one place the answer exists is the action, and it is caught in `apply` on
+   * its way past.
+   *
+   * In memory, and lost with the process: a run does not survive a restart
+   * either, so there is never an entry here without a run to go with it.
+   */
+  private runInitiator = new Map<string, string>();
   /**
    * Mixes in flight, keyed by recording id. A recording is invisible for
    * exactly as long as it is in here.
@@ -356,7 +394,9 @@ export class ChannelRegistry {
      * what a test wants when the objects are never going to appear.
      */
     private mixWaitMs?: number
-  ) {}
+  ) {
+    this.usage = new UsageMeter(db, () => this.now());
+  }
 
   // --- Lifecycle ----------------------------------------------------------
 
@@ -367,11 +407,17 @@ export class ChannelRegistry {
     // Hourly rather than on the 500ms tick: what it looks for changes once a
     // week, and it reads two tables and talks to S3. A boot sweep runs from
     // restore(), so a server that is never up for an hour still sweeps.
-    this.sweepTimer = setInterval(
-      () => this.sweepDeleted(this.now()),
-      SWEEP_INTERVAL_MS
-    );
+    this.sweepTimer = setInterval(() => {
+      this.sweepDeleted(this.now());
+      this.usage.sweep(this.now());
+    }, SWEEP_INTERVAL_MS);
     this.sweepTimer.unref?.();
+    // Separate from both, on the reasoning at USAGE_POLL_INTERVAL_MS.
+    this.usageTimer = setInterval(
+      () => this.pollUsage(),
+      USAGE_POLL_INTERVAL_MS
+    );
+    this.usageTimer.unref?.();
   }
 
   stop(): void {
@@ -379,6 +425,8 @@ export class ChannelRegistry {
     this.timer = null;
     if (this.sweepTimer) clearInterval(this.sweepTimer);
     this.sweepTimer = null;
+    if (this.usageTimer) clearInterval(this.usageTimer);
+    this.usageTimer = null;
   }
 
   /** Advances every live channel's timers. Exposed so tests can step it. */
@@ -804,6 +852,11 @@ export class ChannelRegistry {
       { ...action, userId } as ChannelAction,
       this.now()
     );
+    // Before `commit`, which is where the egress spans that need it open.
+    const started = next.recording.runId;
+    if (started !== null && started !== channel.recording.runId) {
+      this.runInitiator.set(started, userId);
+    }
     if (next !== channel) {
       this.commit(channel, next);
       this.emit([channelId]);
@@ -1477,6 +1530,7 @@ export class ChannelRegistry {
     if (audience) for (const id of after.present) audience.add(id);
     this.applyPlaybackToMedia(before, after);
     this.trackFloorWindows(before, after);
+    this.meterCommit(before, after);
 
     // Someone arriving mid-claim must come back silenced, and someone arriving
     // mid-recording must get a stem. Both are re-stated on arrival because the
@@ -1508,6 +1562,9 @@ export class ChannelRegistry {
       for (const identity of before.present) {
         if (after.present.includes(identity)) continue;
         if (!run.requested.delete(identity)) continue;
+        this.usage.closeSpan(
+          this.egressSpan(after.id, after.recording.runId, identity)
+        );
         const live = run.handles.findIndex((h) => h.identity === identity);
         if (live >= 0) {
           const [{ handle }] = run.handles.splice(live, 1);
@@ -1520,6 +1577,9 @@ export class ChannelRegistry {
     }
 
     if (before.status === 'active' && after.status === 'ended') {
+      // Before the room is torn down, so nothing is left open pointing at a
+      // channel that no longer exists. The poll would never visit it again.
+      this.usage.closeChannel(after.id);
       this.closePlayback(after.id);
       // A backstop, not the mechanism: participants leave on their own once
       // told the channel ended. This guarantees the room does not outlive it.
@@ -1798,6 +1858,88 @@ export class ChannelRegistry {
    * it is what used to make `participant does not exist` the loudest line in
    * the log, twice a second for as long as a claim lasted.
    */
+  /**
+   * Asks every occupied room what it is carrying, and moves the meter's mic
+   * and listen spans to match.
+   *
+   * **Measured rather than modelled, and the difference is the reason this
+   * exists.** The server holds every input to what the app computes —
+   * `microphoneNeeded(channel, id) && !selfMuted[id]` — and the room is opened
+   * with `stopMicTrackOnMute`, so a closed microphone genuinely unpublishes
+   * and the predicate would name a real stream. It would work, except in the
+   * case planning/STATES.md records under `Audio Connected`: the LiveKit room
+   * can be dead while the websocket is alive, and then presence asserts a
+   * stream that does not exist. The over-count is rare, one-directional, and
+   * unbounded in duration — the socket recovers on foreground and the room
+   * does not. Asking removes the whole class for every installed build, with
+   * no wire change and nothing for a client to have to send.
+   *
+   * Playback and egress are deliberately *not* polled. Those are published by
+   * this process — its own participant, its own egress jobs — so asking
+   * LiveKit about them would introduce a second answer that can disagree with
+   * the one this server already has, for nothing.
+   *
+   * Exposed like `tick`, so a test can step it rather than wait fifteen
+   * seconds for a timer.
+   */
+  pollUsage(): void {
+    if (!this.media) return;
+    for (const [id, channel] of this.channels) {
+      if (channel.status !== 'active') continue;
+      if (channel.present.length === 0) {
+        this.usage.closeOthers(['mic', 'listen'], id, new Set());
+        continue;
+      }
+      this.run(() => this.meterRoom(channel), `meterRoom ${id}`);
+    }
+  }
+
+  /** One channel's half of `pollUsage`. */
+  private async meterRoom(state: ChannelState): Promise<void> {
+    const room = state.mediaRoom;
+    const roster = await this.media!.audioTracks(room);
+
+    // The channel may have ended or moved rooms while we asked. Metering the
+    // answer to a question about a room this channel no longer occupies would
+    // attribute somebody else's audio to it.
+    const now = this.channels.get(state.id);
+    if (!now || now.status !== 'active' || now.mediaRoom !== room) return;
+
+    // The shared-track participant is in the roster too, and is metered from
+    // state in `commit` — counting it here would double it, and under an
+    // identity that is not an account.
+    const media = playbackIdentity(state.id);
+    const publishing = now.participants.filter(
+      (id) => id !== media && (roster.get(id)?.length ?? 0) > 0
+    );
+
+    const keep = new Set<string>();
+    for (const identity of publishing) {
+      const span = { kind: 'mic', channelId: state.id, accountId: identity };
+      this.usage.openSpan({ ...span, source: 'room' });
+      keep.add(this.usage.keyOf(span));
+    }
+
+    // Downlink: what the SFU sends *to* each person, which is a stream per
+    // listener rather than per speaker — one person talking to four costs
+    // four. Anyone present hears everybody else, including the shared track,
+    // which is why `media` is counted here having been excluded above.
+    const audible = publishing.length + (roster.has(media) ? 1 : 0);
+    for (const identity of now.present) {
+      const others = audible - (publishing.includes(identity) ? 1 : 0);
+      if (others <= 0) continue;
+      const span = { kind: 'listen', channelId: state.id, accountId: identity };
+      this.usage.openSpan({ ...span, source: 'room' });
+      keep.add(this.usage.keyOf(span));
+    }
+
+    // Everything of these kinds that this pass did not find is over. Written
+    // as a statement of what is true rather than as a diff, which is what lets
+    // a poll that misses a beat — or a microphone that closed while its phone
+    // was unreachable — still close the span.
+    this.usage.closeOthers(['mic', 'listen'], state.id, keep);
+  }
+
   private async reconcileSilence(state: ChannelState): Promise<void> {
     if (!this.media || state.status !== 'active') return;
     const holder = state.floor.holder;
@@ -1879,6 +2021,8 @@ export class ChannelRegistry {
     } else if (!shouldCapture && isCapturing) {
       const run = this.capturing.get(after.id)!;
       this.capturing.delete(after.id);
+      // The run is over, so every stem is, whatever became of its handle.
+      this.usage.closeOthers(['egress'], after.id, new Set());
       for (const { identity, handle } of run.handles) {
         this.run(
           () => this.media?.stopRecording(handle),
@@ -1913,6 +2057,14 @@ export class ChannelRegistry {
     const run = this.capturing.get(state.id);
     if (!run || run.requested.has(identity)) return;
     run.requested.add(identity);
+    // Opened here rather than by the poll, because a run shorter than one
+    // sampling interval is exactly the run the poll would miss — and what
+    // egress spans exist to answer is how many were going at once.
+    this.usage.openSpan({
+      ...this.egressSpan(state.id, state.recording.runId, identity),
+      recordingId: state.recording.runId,
+      source: 'state',
+    });
 
     const perParticipant = this.segments.get(state.id) ?? new Map();
     this.segments.set(state.id, perParticipant);
@@ -1935,6 +2087,9 @@ export class ChannelRegistry {
     const tryAgainLater = () => {
       this.releaseSegment(state.id, identity, key);
       run.requested.delete(identity);
+      this.usage.closeSpan(
+        this.egressSpan(state.id, state.recording.runId, identity)
+      );
       run.retryAt.set(identity, this.now() + 5_000);
     };
 
@@ -2245,6 +2400,63 @@ export class ChannelRegistry {
         windows.push({ identity, fromMs: at, toMs: null });
       }
     }
+  }
+
+  /**
+   * The half of the meter that reads state rather than the room.
+   *
+   * Everything here is something this process is the authority for. Playback
+   * is published by its own participant and egress by its own jobs, so the
+   * transition *is* the truth and there is nothing to ask anybody. Pairs are a
+   * fact about presence, which is this server's to know.
+   *
+   * The microphone is the one stream a phone publishes, and it is metered from
+   * the room instead — see `meterRoom`.
+   */
+  private meterCommit(before: ChannelState, after: ChannelState): void {
+    // Playing, not loaded. The shared-track participant opens on the first
+    // track and stays for the channel's life publishing silence between them,
+    // so that a recording stem keeps its place; participant lifetime and
+    // playing time are different quantities and this is the second one.
+    const was = before.playback.status === 'playing';
+    const is = after.playback.status === 'playing';
+    const playback = { kind: 'playback', channelId: after.id };
+    if (is && !was) this.usage.openSpan({ ...playback, source: 'state' });
+    else if (!is && was) this.usage.closeSpan(playback);
+
+    // Every pair present together, restated whenever presence moves. A third
+    // person arriving adds two pairs and disturbs neither of the existing
+    // ones, which is what `openSpan` being idempotent buys.
+    const presence =
+      before.present.length !== after.present.length ||
+      after.present.some((id) => !before.present.includes(id));
+    if (presence) {
+      const keep = new Set<string>();
+      for (let i = 0; i < after.present.length; i += 1) {
+        for (let j = i + 1; j < after.present.length; j += 1) {
+          const span = pairSpan(after.present[i], after.present[j], after.id);
+          this.usage.openSpan({ ...span, source: 'state' });
+          keep.add(this.usage.keyOf(span));
+        }
+      }
+      this.usage.closeOthers(['pair'], after.id, keep);
+    }
+  }
+
+  /** One stem's span, identified the way `startEgress` opened it. */
+  private egressSpan(
+    channelId: string,
+    runId: string | null,
+    identity: string
+  ): { kind: string; channelId: string; accountId: string; peerId: string } {
+    return {
+      kind: 'egress',
+      channelId,
+      // Whoever started the recording, which the request asks these minutes be
+      // attributed to and which is not whose voice the stem carries.
+      accountId: (runId && this.runInitiator.get(runId)) || identity,
+      peerId: identity,
+    };
   }
 
   /**
@@ -2576,6 +2788,12 @@ export class ChannelRegistry {
     // Anything whose week ran out while this server was down, or while the
     // previous one was up for less than an hour at a time.
     this.sweepDeleted(now);
+    // Spans the dead process left open. Closed at their own start rather than
+    // at boot — see closeStrays — and swept on the same horizon as everything
+    // else, which the boot sweep applies now so a server that is never up for
+    // an hour still expires them.
+    this.usage.closeStrays();
+    this.usage.sweep(now);
   }
 
   /** A stored channel, made live again with everything volatile reset. */
@@ -2667,6 +2885,8 @@ export class ChannelRegistry {
    * back — with nothing to signal it.
    */
   private fileRun(channel: ChannelState, runId: string): void {
+    // The run is over and its spans are closed; nothing will ask again.
+    this.runInitiator.delete(runId);
     const present = this.recordingAudience.get(channel.id) ?? new Set<string>();
     const perParticipant = this.segments.get(channel.id) ?? new Map();
     const windows = this.floorWindows.get(channel.id) ?? [];
@@ -2872,10 +3092,19 @@ export class ChannelRegistry {
         stems: parseJson(row.stems) ?? {},
         timeline: parseJson(row.floor_timeline) ?? [],
       },
-      (key) =>
-        wait
+      async (key) => {
+        const stem = await (wait
           ? getWhenReady(store, key, { waitMs: this.mixWaitMs })
-          : store.get(key)
+          : store.get(key));
+        // Nobody asked for this, so no account is named. Mixing is what a
+        // recording costs by existing, and it is charged to the recording.
+        this.usage.recordBytes({
+          kind: 'mix-read',
+          bytes: stem.length,
+          recordingId,
+        });
+        return stem;
+      }
     );
 
     // Stored before the row says it exists, so a crash between the two leaves
@@ -2883,6 +3112,11 @@ export class ChannelRegistry {
     // there. The sweep deletes the key whether or not the state says 'ready',
     // so the orphan is not permanent either.
     await store.put(mixKeyFor(row.channel_id, row.id), data);
+    this.usage.recordBytes({
+      kind: 'mix-write',
+      bytes: data.length,
+      recordingId,
+    });
     this.db
       .prepare("UPDATE recordings SET mix_state = 'ready' WHERE id = ?")
       .run(row.id);

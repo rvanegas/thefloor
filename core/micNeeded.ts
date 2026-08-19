@@ -1,5 +1,5 @@
-import { isRecordingActive } from '../../../core/recording';
-import type { ChannelState, UserId } from '../../../core/types';
+import { isRecordingActive } from './recording';
+import type { ChannelState, UserId } from './types';
 
 /**
  * Whether the microphone has anything to capture *for*.

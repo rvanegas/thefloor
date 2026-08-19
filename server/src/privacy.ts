@@ -18,13 +18,18 @@ import { escapeHtml, page } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '14 August 2026';
+export const PRIVACY_UPDATED = '18 August 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
  * removes it. Mirrors DELETED_RETENTION_MS in core/constants.ts — stated in the
  * policy because "deleted" meaning "in a week" is exactly the sort of thing a
  * policy exists to say out loud.
+ *
+ * USAGE_RETENTION_MS is the same seven days and is a different promise: how
+ * long the operational record of minutes and bytes is kept. Both are stated
+ * below, separately, because they expire different things for different
+ * reasons and a reader should not have to infer that they happen to agree.
  */
 const RETENTION_DAYS = 7;
 
@@ -64,6 +69,13 @@ application collects little.</p>
   dead.</li>
   <li><strong>When you were last connected</strong>, shown to your contacts so
   they can tell whether it is a reasonable moment to talk.</li>
+  <li><strong>How much the server carried for you</strong>: how many minutes
+  your microphone was open, how many you spent listening, playing something or
+  recording, how many you shared a channel with each other person, and how many
+  bytes of recordings were downloaded. It is kept for ${RETENTION_DAYS} days and
+  then deleted, so there is no long-run history of anybody. It exists to size
+  and pay for the server, it is never shown to another user, and nothing in the
+  application behaves differently because of it.</li>
 </ul>
 
 <h2>Live audio is not recorded</h2>
@@ -71,10 +83,17 @@ application collects little.</p>
 written anywhere. Only a recording somebody deliberately started is stored.</p>
 
 <h2>What is not collected</h2>
-<p>There is no analytics, no advertising, no tracking of any kind, and no
-third-party service that receives your activity. Nothing about you is sold or
-shared for anyone else’s purposes. Your address book is never read — the
-contacts in The Floor are people who have accepted a request inside it.</p>
+<p>There is no advertising, no third-party analytics, and no service anywhere
+that receives your activity. Nothing about you is sold or shared for anyone
+else’s purposes, and nothing is used to profile you or to decide what you are
+shown. Your address book is never read — the contacts in The Floor are people
+who have accepted a request inside it.</p>
+
+<p>What is measured is the one thing above: how much of this server’s time and
+bandwidth went on each account, kept for ${RETENTION_DAYS} days. It records
+durations and sizes, never content — not what was said, not what was played,
+not what any recording contains. There is no record of which screens you
+opened, what you tapped, or how long you spent looking at anything.</p>
 
 <h2>Deleting things</h2>
 <p>Deleting a recording or a channel marks it immediately: it disappears for

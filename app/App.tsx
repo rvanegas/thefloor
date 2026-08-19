@@ -12,8 +12,8 @@ import { SupportView } from './src/ui/SupportView';
 import { ChannelView } from './src/ui/ChannelView';
 import { ProfileView } from './src/ui/ProfileView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
+import { anyMicrophoneOpen, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
-import { anyMicrophoneOpen, microphoneNeeded } from './src/audio/micNeeded';
 import { colors } from './src/ui/theme';
 
 /**

@@ -194,7 +194,7 @@ async function applyFor(
  *                  talking — and that case is the whole point, since keeping
  *                  the session a call across it is what stops a Bluetooth
  *                  route being lost to a profile handover nobody needed. See
- *                  `anyMicrophoneOpen` in ./micNeeded.ts.
+ *                  `anyMicrophoneOpen` in core/micNeeded.ts.
  */
 export function useSessionAudio(
   mediaRoom: string | null,

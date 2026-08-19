@@ -1,10 +1,17 @@
 # Metering what this box actually carries
 
-**Temporary.** This is the design for TASKS.md § *Track Usage*, written before
-any of it exists. It goes when the work ships, with whatever is still worth
-knowing moving to DECISIONS.md. If you are reading it and the tables described
-below are in `server/src/db.ts`, it is stale and should already have been
-deleted.
+**Temporary, and now half-spent.** This began as the design for TASKS.md
+§ *Track Usage* and the code is written: `server/src/usage.ts`, the two tables
+in `server/src/db.ts`, and the hooks in `ChannelRegistry`. **It has not been
+deployed** — see the deploy hold below, which is the only thing left between
+this and shipped.
+
+Until it ships it stays, because it is also the operating manual: nothing reads
+these tables in code, so the queries at the bottom are the entire read
+interface, and `db.ts` and `usage.ts` both point here for them. When it does
+ship, the reasoning goes to DECISIONS.md **and the queries go with it** —
+deleting this file without moving them would leave two tables nobody knows how
+to ask anything of.
 
 ---
 
@@ -226,7 +233,43 @@ had to update in order to re-consent, and a served page does not work that way.
 
 **Which is also why this does not deploy until build 51 is out of App Review.**
 The page is under review as it stands. The code can land on master; the deploy
-waits.
+waits. That is the one step still outstanding, and `bin/deploy` is all of it —
+`core/protocol.ts` is untouched by this work, so there is no client half and
+nothing to sequence.
+
+---
+
+## Where the build differed from the design
+
+Five things, all found by writing it.
+
+**`peer_id` carries two meanings, and the second one was not planned.** On a
+`pair` span it is the other person. On an `egress` span it is *whose stem is
+being captured*, because `account_id` there is whoever started the recording —
+which the request asks for and which is not usually the same person. Without
+the second column an egress span could say who was charged or whose voice it
+was, and not both.
+
+**Nothing knew who started a recording.** `RecordingState` carries no actor —
+it is the state of the recording rather than a record of who asked — and the
+`recordings` row's `initiator_id` is the *channel's* initiator, a legacy anchor
+column predating channels holding more than two people. So the answer exists
+only on the action, and `ChannelRegistry.apply` now catches it into a
+`runInitiator` map on its way past. In memory, like the run itself.
+
+**Listen spans are per listener, not per speaker.** One person talking to four
+costs four downlinks, and that is what the table says. Nobody alone in a room
+gets one, which is also what the SFU does.
+
+**The privacy page's guard fired, which is the system working.**
+`privacy.test.ts` asserted the page contained the words `no analytics`. It no
+longer does and no longer should, and the test's failure is what forced the
+paragraph to be rewritten rather than quietly outlived. The assertion now names
+the narrower claims that survived — no third-party analytics, nothing that
+profiles anyone — plus the two the meter obliges us to make.
+
+**`pollUsage` is public**, like `tick`, so a test can step it rather than wait
+fifteen seconds for a timer.
 
 ---
 

@@ -115,6 +115,70 @@ export interface RecordingRow {
   deleted_at: number | null;
 }
 
+/**
+ * One interval of one thing being carried, open until it is closed.
+ *
+ * Spans rather than counters because the request asks for timestamps as well
+ * as minutes, and because a counter cannot answer the question the egress cap
+ * makes urgent — how many stems were running *at once* — which needs to know
+ * when each one overlapped the others.
+ */
+export interface UsageSpanRow {
+  id: string;
+  /**
+   * `'mic'` — one participant publishing audio.
+   * `'listen'` — one participant subscribed to somebody else's audio.
+   * `'playback'` — the channel's shared track actually playing.
+   * `'egress'` — one recording stem being captured.
+   * `'pair'` — two people present in the same channel at the same time.
+   */
+  kind: string;
+  /** Null on a span that belongs to the channel rather than to a person. */
+  account_id: string | null;
+  /**
+   * The other party. On `'pair'` that is the second person, ordered against
+   * `account_id` by `pairKey` so a pair has one shape however it is asked
+   * about. On `'egress'` it is whose stem is being captured, `account_id`
+   * being whoever started the recording — the two differ whenever somebody
+   * records a conversation they are not the only voice in, which is most of
+   * them. Null on every other kind.
+   */
+  peer_id: string | null;
+  channel_id: string;
+  /** `'egress'` only: the run, which is also the recordings row. */
+  recording_id: string | null;
+  started_at: number;
+  /** Null while the span is open. closeStrays finalizes ones a restart left. */
+  ended_at: number | null;
+  /**
+   * Which authority wrote it: `'room'` for what LiveKit was asked, `'state'`
+   * for what this process knows because it did it.
+   *
+   * Not a hedge about confidence. The two are used for different streams on
+   * purpose, so a `'mic'` row reading `'state'` would mean the poll had stopped
+   * running and the meter had fallen back — a defect, and one that should be
+   * visible as a defect rather than averaged into a total.
+   */
+  source: string;
+}
+
+/**
+ * Bytes this server moved, and for whom.
+ *
+ * Not spans: a transfer is an event with a size, and giving it a duration
+ * would invite somebody to divide one by the other and call it bandwidth.
+ */
+export interface UsageBytesRow {
+  id: string;
+  /** `'export' | 'playback-fetch' | 'mix-read' | 'mix-write'` */
+  kind: string;
+  /** Null when nobody asked for it directly — see the mix kinds. */
+  account_id: string | null;
+  recording_id: string | null;
+  bytes: number;
+  at: number;
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
   id           TEXT PRIMARY KEY,
@@ -353,6 +417,60 @@ CREATE TABLE IF NOT EXISTS recordings (
 );
 CREATE INDEX IF NOT EXISTS recordings_participants
   ON recordings(initiator_id, invitee_id);
+
+-- What this box actually carried, for the last week and no longer.
+--
+-- Written so that claims about load stop being reasoned and start being
+-- counted: the egress cap of roughly ten simultaneous recorded participants
+-- has never been measured against anything, and neither has the sizing
+-- argument in planning/MIGRATION.md.
+--
+-- Nothing reads these tables in code, deliberately. There is no endpoint, no
+-- field on the wire and no screen — the queries are in planning/USAGE.md and
+-- are run by hand against the box. A number nobody can see cannot quietly
+-- start deciding things.
+--
+-- No foreign key to accounts, and that is the one interesting choice here. A
+-- span is evidence about a week, not a fact about a person, and it must not
+-- become a reason a row elsewhere cannot be removed; deleteAccount clears
+-- these explicitly instead, which is what keeps the privacy page's promise
+-- that nothing identifying remains.
+CREATE TABLE IF NOT EXISTS usage_spans (
+  id           TEXT PRIMARY KEY,
+  -- 'mic' | 'listen' | 'playback' | 'egress' | 'pair'
+  kind         TEXT NOT NULL,
+  -- Null on a channel-level span.
+  account_id   TEXT,
+  -- The other party: on 'pair' the second person, ordered against account_id
+  -- by pairKey; on 'egress' whose stem it is, where account_id is whoever
+  -- started the recording. Null on other kinds. See UsageSpanRow.peer_id.
+  peer_id      TEXT,
+  channel_id   TEXT NOT NULL,
+  -- 'egress' only: the run, which is also the recordings row id.
+  recording_id TEXT,
+  started_at   INTEGER NOT NULL,
+  -- Null while open, exactly as recordings.ended_at is, and for the same
+  -- reason: a span interrupted by a restart has to be recoverable rather than
+  -- silently absent. See UsageSpanRow.
+  ended_at     INTEGER,
+  -- 'room' | 'state'. See UsageSpanRow.source.
+  source       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS usage_spans_account
+  ON usage_spans(account_id, started_at);
+CREATE INDEX IF NOT EXISTS usage_spans_kind ON usage_spans(kind, started_at);
+CREATE INDEX IF NOT EXISTS usage_spans_ended ON usage_spans(ended_at);
+
+CREATE TABLE IF NOT EXISTS usage_bytes (
+  id           TEXT PRIMARY KEY,
+  -- 'export' | 'playback-fetch' | 'mix-read' | 'mix-write'
+  kind         TEXT NOT NULL,
+  account_id   TEXT,
+  recording_id TEXT,
+  bytes        INTEGER NOT NULL,
+  at           INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS usage_bytes_at ON usage_bytes(at);
 `;
 
 export type Db = DatabaseSync;

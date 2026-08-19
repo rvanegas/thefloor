@@ -104,7 +104,7 @@ interface AppState {
    * A channel where recording has been asked for and not yet confirmed.
    *
    * Only the microphone reads it. Alone in a channel the microphone is closed
-   * — see audio/micNeeded.ts — and a recording is what reopens it, but "a
+   * — see core/micNeeded.ts — and a recording is what reopens it, but "a
    * recording is running" is a fact this client learns from the server. So
    * capture began a round trip before anything was published, and a run short
    * enough ended having captured nothing at all.

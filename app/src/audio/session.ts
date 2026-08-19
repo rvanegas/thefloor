@@ -32,7 +32,7 @@ import type { AppleAudioConfiguration } from '@livekit/react-native';
  *
  * **`mixWithOthers` is here and in neither of the others**, which is the whole
  * of what "other apps keep playing while nothing is happening" means. Being in
- * an empty channel should cost the speakers nothing — `micNeeded.ts` makes the
+ * an empty channel should cost the speakers nothing — `core/micNeeded.ts` makes the
  * same argument about the microphone, and this is that argument applied to the
  * other end of the session.
  */
@@ -127,7 +127,7 @@ export const CALL: AppleAudioConfiguration = {
  *                      stereo mid-conversation; the two situations that do want
  *                      it — another app's audio, and the channel's own playback
  *                      — are both "nobody is talking", which is exactly this
- *                      test. `anyMicrophoneOpen` in ./micNeeded.ts carries the
+ *                      test. `anyMicrophoneOpen` in core/micNeeded.ts carries the
  *                      whole argument.
  * @param othersAudible how many remote tracks we can hear. Track
  *                      subscriptions rather than who is *speaking*: speech is

@@ -850,6 +850,14 @@ export function buildApp(options: BuildOptions = {}): App {
     const contacts = accounts.audienceFor(account.id);
     const left = channels.removeMember(account.id);
     devices.forgetAccount(account.id);
+    // Named here beside the other three owners rather than folded into
+    // `erase`, on the same reasoning that keeps devices out of it: this class
+    // owns identity, that one owns addresses, the registry owns what the box
+    // carried, and the route is what knows all of them.
+    //
+    // After `removeMember`, so the spans it closes on the way out are removed
+    // too rather than written a moment later.
+    channels.usage.forget(account.id);
     accounts.erase(account.id);
     // Contacts lose a contact and the rest lose somebody from a channel; both
     // are looking at a Home that now says something untrue.
@@ -1098,6 +1106,12 @@ export function buildApp(options: BuildOptions = {}): App {
       // Normally already mixed, and then this is one fetch. See
       // `recordingAudio` for what happens when it is not.
       const data = await channels.recordingAudio(id);
+      channels.usage.recordBytes({
+        kind: 'playback-fetch',
+        bytes: data.length,
+        accountId: account.id,
+        recordingId: id,
+      });
       await writeFile(file, data);
 
       // Probed rather than taken from `duration_ms`: that is what was
@@ -1217,6 +1231,12 @@ export function buildApp(options: BuildOptions = {}): App {
 
     try {
       const data = await channels.recordingAudio(id);
+      channels.usage.recordBytes({
+        kind: 'export',
+        bytes: data.length,
+        accountId: account.id,
+        recordingId: id,
+      });
       return reply
         .header('content-type', RECORDING_CONTENT_TYPE)
         .header('content-disposition', `attachment; filename="${id}.ogg"`)

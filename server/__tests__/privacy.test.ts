@@ -36,7 +36,16 @@ describe('The privacy policy', () => {
 
     // Each of these is a claim the codebase has to keep true, which is the
     // reason the policy lives beside the code rather than in a CMS.
-    expect(page).toContain('no analytics');
+    // Was `no analytics`, until the usage meter made that false. What
+    // survives is the part that was always the substance of it: nobody else
+    // receives anything, and nothing here profiles anyone. The narrowing is
+    // the point — this assertion is what made the claim get rewritten rather
+    // than quietly outlived.
+    expect(page).toContain('no third-party analytics');
+    expect(page).toContain('nothing is used to profile you');
+    // And the thing that replaced it has to be stated, not merely not-denied.
+    expect(page).toContain('How much the server carried for you');
+    expect(page).toContain('durations and sizes, never content');
     // Deleting is a mark swept later, and saying so is the point.
     expect(page).toContain('7 days later');
     // Live conversation is not stored; only a deliberate recording is.

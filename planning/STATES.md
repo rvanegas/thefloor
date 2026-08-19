@@ -47,7 +47,7 @@ by itself so nobody would be asked first.
 
 **Where the sources disagree.** *One person's self-mute is now an input to
 everybody's audio session.* Since 2026-08-18 the session configuration is chosen
-from `anyMicrophoneOpen` (`app/src/audio/micNeeded.ts:65`) — a question about
+from `anyMicrophoneOpen` (`core/micNeeded.ts:65`) — a question about
 the whole channel — while `micOpen` remains a question about you. So your
 session can be a call while your own microphone is shut, which is not a bug and
 is what stops a Bluetooth route being lost; see `Audio Session Configuration`.
@@ -157,7 +157,7 @@ all. Anyone ordering on it must ask about occupancy separately.
 
 **Name in source.** `SessionAudio.micOpen` (`useSessionAudio.ts:88`), computed
 as `micNeeded && !selfMuted`, where `micNeeded` is `microphoneNeeded`
-(`app/src/audio/micNeeded.ts:19`).
+(`core/micNeeded.ts:19`).
 
 **Conditions.** `microphoneNeeded` is true when somebody else is present, or
 when a recording is active — the exception being load-bearing, since one person
@@ -168,7 +168,7 @@ short run recorded nothing at all.
 
 **Where the sources disagree.** **There are now two senses of this state and
 they are both wanted.** `micOpen` decides whether *we publish*.
-`anyMicrophoneOpen` (`micNeeded.ts:65`) decides what configuration *everyone's
+`anyMicrophoneOpen` (`core/micNeeded.ts:65`) decides what configuration *everyone's
 session is in*. They part company in exactly one case — self-muted while
 somebody else is still talking — and that case is the whole point. Do not
 collapse them.

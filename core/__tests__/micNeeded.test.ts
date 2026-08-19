@@ -1,5 +1,5 @@
-import { createChannel, reduce } from '../../../../core/channel';
-import type { ChannelState } from '../../../../core/types';
+import { createChannel, reduce } from '../channel';
+import type { ChannelState } from '../types';
 import { anyMicrophoneOpen, microphoneNeeded } from '../micNeeded';
 
 /**
