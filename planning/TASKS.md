@@ -45,23 +45,48 @@ server never stopped composing it, so showing it again is a rendering change.
 
 ## Review Logic for States
 
-Self-Mute, Muted-by-Claim, Claimed Floor, In-App, Present-in-Channel, Mic Open, Speaking, Recording, Playing, Audio Connected, Audio Output Selection.
+**The audit is done and lives in STATES.md**, which is now the standing
+reference for what each state is called in each layer, when it holds, and where
+two layers describe the same thing. Its closing section numbers the
+disagreements it found; three of those are open by design and documented as
+such, and the rest are either closed or already handled.
 
-For each of these and perhaps others: determine its name in the source code, determine its conditions according to the source, and further specify its conditions where these disagree.
+Six of the seven numbered items are closed. 1 and 5 — recording alone, and
+stepping out clearing the mute — were already built and tested, and the audit
+only confirmed it. 3 and 7 were one bug: self-muting reconfigured the audio
+session, which forced a Bluetooth profile handover and lost the route. 4 and 6
+were another: a room that dropped had no path back, so a Telegram or Zoom call
+left the channel live with dead audio until the app was force-quit. Both fixed
+2026-08-18; the diagnoses are in DECISIONS.md.
 
-1. Allow recording when alone.
+**What is left is item 2, which needs a phone.** Multiple members present, audio
+from a background app with its output set to Bluetooth speakers: does it loop
+back into the mic and into the channel? The configuration half-answers it — with
+anybody's microphone open the session is `CALL`, which carries no
+`mixWithOthers`, so the background app is interrupted and there should be
+nothing left to loop back. What that does not settle is whether iOS honours the
+exclusivity against a route that is already active, which no log line here can
+report: nothing in this stack can read the audio route at all.
 
-2. Question: Suppose multiple members present, audio from background app with its output set to bluetooth speakers. Does audio loop back into mic and into channel?
-
-3. Self-muting in a channel with other speakers should not disconnect output from bluetooth headphones.
-
-4. Regression: Running Zoom client on phone at the same time aggressively holds audio for itself, muting and/or silencing TheFloor.
-
-5. Stepping out should clear muted state.
+To go and find out: run a development build, which writes an `[audio]` line on
+every session write, alongside the SDK's own `os_log` — see STATES.md for the
+`log stream` predicate and for the warning about the one instrumentation
+approach that would silently break the audio policy.
 
 ## Media Playback quality
 
 Suppose two users are in a channel, both are muted and they are playing media. Is the quality of the playback equivalent to playing it directly or is it diminished by passing over webrtc? I sometimes get the impression that quality varies even during the playbook of a single file. Volume also seems to rise and fall, without manual intervention. Maybe this is a feature of webrtc?
+
+**Part of this was Bluetooth rather than WebRTC, and changed on 2026-08-18.**
+Quality varying *during* one file is what the old audio rule produced on a
+headset: any mute or unmute moved the session between `playAndRecord` and
+`playback`, which is a switch between the mono hands-free profile and stereo
+A2DP, mid-track. Under the rule in STATES.md the category now follows whether
+*anybody* is capturing, so two muted people playing a file sit in A2DP for the
+whole of it. Retest before investigating the codec — the remaining question is
+narrower than it was, and the rising and falling volume is a separate matter and
+most likely WebRTC's automatic gain control, which is worth confirming before
+anything is built.
 
 ## Channel Admins
 

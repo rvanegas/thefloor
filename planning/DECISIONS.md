@@ -1295,3 +1295,149 @@ has built.
 `lastPresenceAt`, `everUsed`, the two profile fields — so build 51 ignores them
 and a pair channel is an ordinary channel to it. The server half is safe alone;
 the client half is not, since it reads fields an older server does not send.
+
+## The audio session follows the channel, not you — 2026-08-18
+
+Two bugs reported from a phone on the same day, both in the audio session, and
+both the same shape once diagnosed: **the session is reconfigured on an edge and
+nothing afterwards checks the reconfiguration took.** The audit that found them
+is `STATES.md`, which shipped with them and is the standing reference; this is
+the reasoning behind the two fixes.
+
+### Self-mute lost the Bluetooth route
+
+Reported: on Bluetooth headphones, self-muted mid-conversation, and the output
+jumped to the phone's loudspeaker. Unmuting brought the headphones back.
+
+The mechanism is physical rather than a bug in anybody's code. A headset cannot
+carry a microphone and high-quality stereo at the same time — A2DP is one-way
+and full-bandwidth, HFP is two-way and mono, and they are different link types.
+`CALL` is `playAndRecord` and so implies HFP; `LISTENING` is `playback` and so
+implies A2DP. Self-muting flipped `micOpen`, which flipped the category, which
+forced the profile handover — and the route was lost inside it. Unmuting
+rebuilt the route from scratch against the full eligibility list, which is why
+it came back and why the bug looked self-healing.
+
+The first fix considered was a **hold**: stop the microphone immediately but
+delay the session handover by thirty seconds, so a cough or an aside costs
+nothing and only a sustained mute pays for stereo. It follows the trailing-edge
+idiom `speaking.ts` already uses and for the same stated reason. It was
+abandoned because it infers intent from *duration*, which is a proxy, and
+because it needs a threshold constant that nobody can defend the value of.
+
+What shipped reads intent off the channel instead:
+
+> Stay in the mic-enabled configuration whenever **any present participant's**
+> microphone is open, whether or not that participant is you. Hand over to high
+> quality only when nobody's is.
+
+High-quality audio is wanted in exactly two situations and they are the same
+situation — nobody is talking, so what matters is either another app's audio or
+the channel's own playback. `anyMicrophoneOpen` in `app/src/audio/micNeeded.ts`
+tests precisely that. No timer, no threshold, and **no special case for
+playback**: a played track arrives as a remote track, so `othersAudible` already
+chooses between `LISTENING` and `IDLE` without anything naming playback.
+
+It asks about microphones rather than about `selfMuted` directly, and that is
+load-bearing. Alone and unmuted, "everybody present is muted" is *false*, so a
+literal reading takes the session as a call and silences the music somebody is
+sitting alone listening to — exactly what `IDLE` and its `mixWithOthers` exist
+to prevent. Being alone already closes the microphone via `microphoneNeeded`, so
+asking the question this way gets that case right without naming it.
+
+**It changes exactly one row of the decision table** — self-muted while somebody
+else is still talking — which is the buggy one. Everything else is what already
+shipped. That bound is why a change to the most delicate subsystem in the app
+was acceptable at all, and the tests in `micNeeded.test.ts` assert every row
+rather than only the one that moved, since the claim is about the others too.
+
+**The audible transition is a feature and is documented as one.** Crossing the
+boundary is a profile switch you can hear: a drop to mono says somebody's
+microphone is open in this channel, a bloom to stereo says nobody's is. The rule
+*extends* the first cue to the person who most needs it — somebody muted and
+lurking, who under the old rule stayed in `LISTENING` and got no signal at all
+when a person walked in. Stated precisely because it is otherwise a false safety
+cue: the mono drop means the room is live, which is a superset of *you are
+audible*. It is recorded in `STATES.md` under `Audio Session Configuration`
+with an instruction not to pin `CALL` on or debounce the switch, both of which
+read as obvious cleanups and both of which delete it.
+
+Two costs, accepted knowingly. Two people listening to the channel's music
+without muting stay in mono — "mute to get quality" has to be learnt, and the
+cue above is what teaches it. And the session now depends on somebody else's
+mute state, which arrives a round trip later, so an unmute-then-immediately-speak
+can clip the first moment during the switch; `App.tsx` already carries the same
+round-trip caveat for `recordingAsked`.
+
+### A dropped room was never rebuilt
+
+Reported: speaking in a channel, placed a Telegram VoIP call, came back to a
+live channel with dead audio. The only recovery was force-quitting the app.
+
+CallKit seizes the audio session and the LiveKit connection dies under it.
+`livekit-client` retries internally and fires `Disconnected` only once it has
+given up — and the handler turned that into `status: 'idle'` and stopped. The
+connect effect is keyed on `[mediaRoom, token]`, neither of which changes when a
+connection dies, so it never re-ran; the configuration effect early-returns
+unless the status is `connected`. **There was no path from `idle` back to
+`connecting` at all.** Remounting the hook was the only thing that rebuilt the
+room, which is precisely what force-quitting does.
+
+The socket never had this bug. `realtime.resume()` has run on foreground since
+long before, under a comment reading "Nothing else does." The audio had simply
+never learned the same lesson, and the asymmetry is the whole story: one
+connection knew about foregrounding and the other did not.
+
+Fixed with a reconnect generation in the connect effect's dependencies, bumped
+from the `Disconnected` handler and from an `AppState` `'active'` listener, with
+backoff mirroring `api/socket.ts` deliberately — the two connections fail
+together often enough that two rhythms would only make the pair harder to reason
+about. A foreground resets the backoff rather than waiting it out, for the reason
+`socket.resume` already gives: a delay grown to ten seconds was earned by
+failures in a network condition the phone may no longer be in.
+
+**Telegram is incidental.** Any permanent disconnect dead-ended identically — a
+long background, a tunnel, a network switch outlasting the retries — and the
+Zoom regression reported separately is the same bug reached by a different door.
+
+`describeAudio` gained `'reconnecting'` in the same change. Dead audio had been
+rendering as "Audio not connected", which is also what a channel nobody has
+joined says, so the screen was quietly wrong about the one thing it is there to
+report.
+
+The test asserts that a **second room is constructed** rather than asserting
+anything about the resulting state. The regression here is *nothing happening*,
+and a hook that has given up is indistinguishable from one about to try again
+for as long as the backoff lasts. Verified by reverting the fix: the test fails
+on that assertion and no other.
+
+### What the audit found that was already right
+
+Two of the five original items needed no work. Recording alone has been allowed
+since `canStartRecording` was written to require presence and nothing more, with
+the matching exception in `microphoneNeeded` so a solo run does not capture
+silence. Stepping out has cleared the self-mute since the rule that distinguishes
+it from `DISCONNECT_EXPIRED` was added. Both were tested already. Confirming
+them cost an hour and is why they are recorded here rather than rebuilt.
+
+### What could not be settled from the source
+
+Whether audio from a background app on a Bluetooth speaker loops back into the
+channel. The configuration half-answers it — `CALL` carries no `mixWithOthers`,
+so the background app is interrupted — but whether iOS honours that against an
+already-active external route is not something this codebase can observe.
+**Nothing in this stack can read the audio route**: `getAudioOutputs` offers iOS
+only `default` and `force_speaker`, and there is no route-change event. That is
+why the self-mute bug was found by ear and settled by reasoning, and it is the
+strongest argument for the route picker staying until something proves it is not
+needed.
+
+Development builds now write an `[audio]` line on every session write so that
+what is heard can be correlated with what was asked for. **The obvious way to
+extend that is a trap**: `audioDeviceModuleEvents.setWillEnableEngineHandler`
+looks like subscribing and is not — the setters hold a single handler each and
+`setupIOSAudioManagement` has already installed the native audio policy in both,
+so registering ours would silently replace it, with an echo or a lost route
+surfacing weeks later in a build nobody connects to logging. The ordering
+question it looks like it would answer needs no code: the observer already logs
+to `os_log` under `com.livekit.react-native-webrtc`.

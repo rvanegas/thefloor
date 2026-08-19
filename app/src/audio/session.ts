@@ -114,17 +114,44 @@ export const CALL: AppleAudioConfiguration = {
  * music stops, and it is short enough to look obviously right while being
  * wrong in either direction.
  *
- * @param micOpen       whether we are actually capturing. Wins outright — a
- *                      call needs `playAndRecord` whoever else is audible.
+ * @param anyMicOpen    whether **anybody present** is capturing, not merely
+ *                      whether we are. Wins outright — `playAndRecord` is
+ *                      needed whoever else is audible.
+ *
+ *                      Channel-wide rather than local because the boundary it
+ *                      guards is a Bluetooth profile handover, and crossing it
+ *                      costs a stereo route that can be lost in the crossing.
+ *                      Self-muting while the other party was still talking
+ *                      used to cross it, and dropped a tester's headphones to
+ *                      the phone speaker until they unmuted. Nobody wants
+ *                      stereo mid-conversation; the two situations that do want
+ *                      it — another app's audio, and the channel's own playback
+ *                      — are both "nobody is talking", which is exactly this
+ *                      test. `anyMicrophoneOpen` in ./micNeeded.ts carries the
+ *                      whole argument.
  * @param othersAudible how many remote tracks we can hear. Track
  *                      subscriptions rather than who is *speaking*: speech is
  *                      smoothed live signal and following it would reconfigure
  *                      the session at every pause in a sentence.
  */
 export function sessionFor(
-  micOpen: boolean,
+  anyMicOpen: boolean,
   othersAudible: number
 ): AppleAudioConfiguration {
-  if (micOpen) return CALL;
+  if (anyMicOpen) return CALL;
   return othersAudible > 0 ? LISTENING : IDLE;
+}
+
+/**
+ * Which of the three this is, for a log line.
+ *
+ * Identity comparison, which holds because every configuration this app applies
+ * comes from `sessionFor` and is therefore one of the constants themselves —
+ * the same property the hook's `appliedRef` already relies on.
+ */
+export function nameOf(config: AppleAudioConfiguration): string {
+  if (config === CALL) return 'CALL';
+  if (config === LISTENING) return 'LISTENING';
+  if (config === IDLE) return 'IDLE';
+  return 'unknown';
 }

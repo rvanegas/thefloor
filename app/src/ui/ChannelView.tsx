@@ -874,6 +874,12 @@ function describeAudio(audio: SessionAudio): string {
       return 'Audio not connected.';
     case 'connecting':
       return 'Connecting audio…';
+    // Distinct from 'idle' on purpose. Both used to read as "not connected",
+    // so audio that had died mid-conversation looked exactly like audio that
+    // had never started — and since the only recovery was force-quitting, the
+    // screen was quietly wrong about the one thing it is here to report.
+    case 'reconnecting':
+      return 'Audio dropped — reconnecting…';
     case 'connected':
       if (audio.othersAudible > 0) return 'Audio connected.';
       return audio.micOpen
@@ -889,7 +895,9 @@ function describeAudio(audio: SessionAudio): string {
 }
 
 function audioTone(status: string) {
-  return status === 'denied' || status === 'error'
+  // Reconnecting is coloured with the failures rather than the quiet states:
+  // it is a conversation that has stopped working, and it earns a glance.
+  return status === 'denied' || status === 'error' || status === 'reconnecting'
     ? styles.audioBad
     : styles.audioMuted;
 }

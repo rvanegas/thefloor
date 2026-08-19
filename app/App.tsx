@@ -13,7 +13,7 @@ import { ChannelView } from './src/ui/ChannelView';
 import { ProfileView } from './src/ui/ProfileView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { describeChannel } from '../core/naming';
-import { microphoneNeeded } from './src/audio/micNeeded';
+import { anyMicrophoneOpen, microphoneNeeded } from './src/audio/micNeeded';
 import { colors } from './src/ui/theme';
 
 /**
@@ -61,6 +61,15 @@ function Root() {
   const micNeeded =
     !!live && (microphoneNeeded(live, me) || app.recordingAsked === live.id);
 
+  // What the *session* is configured from, where `micNeeded` decides only
+  // whether we publish. The two differ in exactly one case — self-muted while
+  // somebody else is still talking — and keeping the session a call across it
+  // is what stops a Bluetooth route being lost to a profile handover nobody
+  // needed. Same round-trip caveat as above, and the same answer: a recording
+  // asked for and not yet confirmed already opens a microphone here.
+  const anyMicOpen =
+    !!live && (anyMicrophoneOpen(live) || app.recordingAsked === live.id);
+
   const audio = useSessionAudio(
     // Keyed on the audio rather than on the channel, which are no longer the
     // same thing: a conversation that moves takes its room with it, and this
@@ -70,7 +79,8 @@ function Root() {
     live ? live.id : null,
     token,
     !!live?.selfMuted[me],
-    micNeeded
+    micNeeded,
+    anyMicOpen
   );
 
   /**

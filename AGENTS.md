@@ -67,6 +67,16 @@ before the accounts are gone is how the rows become unreachable. The credentials
 are not in it; they are in `~/.config/thefloor/demo-account.txt`, mode 600, on
 the same reasoning as the `.p8` keys.
 
+**`planning/STATES.md`** is the third of the standing kind, split out
+2026-08-18: what each state in this system is called in each layer that has a
+word for it, when it holds, and where two layers describe the same thing and can
+differ. Read it before touching the floor, the microphone, presence, or the
+audio session — and before "simplifying" anything that looks stated twice, since
+several of those pairs are load-bearing. It carries the rule that the audio
+session is configured from whether **anybody** present is capturing rather than
+whether you are, and the reason the resulting mono/stereo transition is a
+feature rather than a blemish.
+
 Two are one-offs that stay. **`planning/POSTMORTEM-echo.md`** is the build 17
 echo bug, start to finish. Read it before touching the iOS audio session —
 three separate components configure it and the ways they disagree are not
@@ -91,7 +101,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 530 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 540 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
