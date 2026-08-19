@@ -48,6 +48,15 @@ if [ -f "$LOCAL" ]; then
     | grep -oE '^[<>] [A-Za-z_][A-Za-z0-9_]*=' | grep -oE '[A-Za-z_][A-Za-z0-9_]*' \
     | sort -u | tr '\n' ' ')
   echo "  differs in: ${CHANGED:-(comments or blank lines only)}"
+  # Pulling over local edits is how work gets lost quietly — the local file is
+  # the one somebody has just been typing in, and the box's copy is older by
+  # definition whenever a push is what was meant. The .bak makes it recoverable;
+  # -f makes it deliberate.
+  if [ "${1:-}" != "-f" ]; then
+    echo "✗ $LOCAL differs from the box and would be overwritten." >&2
+    echo "  bin/env-push to send yours, or bin/env-pull -f to take the box's." >&2
+    exit 1
+  fi
   cp "$LOCAL" "$LOCAL.bak"
   echo "  previous copy kept at $LOCAL.bak"
 fi

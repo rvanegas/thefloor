@@ -54,10 +54,17 @@ if [ -n "$MISSING" ]; then
   echo "⚠ documented in .env.example and absent here: $MISSING" >&2
 fi
 
+# Say what is being compared, always. The first version of this script printed
+# nothing at all when the two agreed, so a push that did not happen and a push
+# that was not needed looked identical — and the one time that mattered, the
+# box was missing a key the local file had. Silence is not evidence.
+echo "  local:  $LOCAL ($(names "$LOCAL" | wc -l | tr -d ' ') keys, $(date -r "$LOCAL" '+%H:%M'))"
+
 TMP=$(mktemp); chmod 600 "$TMP"; trap 'rm -f "$TMP"' EXIT
 if $SSH "$HOST" "cat $REMOTE" > "$TMP" 2>/dev/null && [ -s "$TMP" ]; then
+  echo "  box:    $REMOTE ($(names "$TMP" | wc -l | tr -d ' ') keys)"
   if cmp -s "$TMP" "$LOCAL"; then
-    echo "✓ the box already has this — nothing to do"
+    echo "✓ byte-identical — nothing to do"
     exit 0
   fi
   CHANGED=$(diff <(sort "$TMP") <(sort "$LOCAL") \
@@ -74,7 +81,15 @@ fi
 # afterwards that the right thing landed. This can do neither.
 if [ "$ASSUME_YES" != yes ]; then
   printf '  push and restart? [y/N] '
-  read -r reply
+  # `read` fails at end of input, and under `set -e` that would abort here with
+  # the prompt half-written and no explanation — which reads exactly like the
+  # script having done nothing. Answer for it instead, and say so.
+  if ! read -r reply; then
+    echo
+    echo "  no answer available (stdin is not a terminal) — nothing sent." >&2
+    echo "  run it from a terminal, or pass -y to skip the question." >&2
+    exit 1
+  fi
   case "$reply" in [yY]*) ;; *) echo "  nothing sent"; exit 1 ;; esac
 fi
 
