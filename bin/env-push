@@ -34,7 +34,22 @@ names() { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | tr -d '=' | sort; }
 # blank value: several are meant to be blank outside a submission, and blank is
 # a decision where absent is usually an accident. MAIL_FROM went missing exactly
 # this way, and unset means codes print to a console nobody is reading.
-MISSING=$(comm -23 <(names server/.env.example) <(names "$LOCAL") | tr '\n' ' ')
+#
+# A `# env-push: optional` line in .env.example exempts the next key, for the
+# ones that are alternatives rather than requirements — AWS_PROFILE is the
+# laptop's way of doing what AWS_ACCESS_KEY_ID does on the box, and warning
+# about it every time is how a warning stops being read.
+required() {
+  awk '
+    /^# *env-push: optional/ { skip = 1; next }
+    /^[A-Za-z_][A-Za-z0-9_]*=/ {
+      if (skip) { skip = 0; next }
+      sub(/=.*/, ""); print; next
+    }
+  ' "$1" | sort
+}
+
+MISSING=$(comm -23 <(required server/.env.example) <(names "$LOCAL") | tr '\n' ' ')
 if [ -n "$MISSING" ]; then
   echo "⚠ documented in .env.example and absent here: $MISSING" >&2
 fi
