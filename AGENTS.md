@@ -105,7 +105,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 568 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 577 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -519,6 +519,15 @@ Two more things that fail quietly and are worth checking before anything else:
   is not silence but a claimed floor, since a restart drops the floor while the
   mutes it implied are stated in LiveKit and get restated a tick later by
   `reconcileSilence`. That gap is where an artefact would live.
+
+  **And an `env-push` restart is the short version of this, not a sample of
+  it.** A deploy installs on the box first, so the process comes back with a
+  cold module cache on 2 vCPU while `tsx` strips the whole server at boot;
+  `env-push` restarts a box nobody touched. On top of that the client retries at
+  500ms × 2ⁿ capped at ten seconds, so what anybody sees is the outage rounded
+  *up* to the next attempt — a two-second restart costs two seconds and a
+  fifteen-second one can cost twenty-five. Each phone is on its own attempt
+  count, so a channel refills raggedly rather than at once.
 - **A floor claim is enforced against a *track*, and tracks are replaced under
   it.** Fixed on 2026-08-14 and worth knowing before touching `assertSilence`:
   a phone whose connection flaps rejoins publishing a new track id, which the
