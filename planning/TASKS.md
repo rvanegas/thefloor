@@ -30,26 +30,39 @@ microphone and stereo at the same time.
 **Three candidates, none tested, and this list is written out because the last
 fix was chosen without doing that.**
 
-1. **`stopMicTrackOnMute: false`** — mute in software and leave capture running,
-   so there is no transition to hear. Costs the orange microphone indicator
-   staying lit while the app says you are muted, which for a conversation app
-   may be worse than the tone. It does *not* cost the usage meter:
-   `server/src/channels.ts` deliberately polls the room rather than trusting
-   that predicate, and says so.
-2. **Drop `allowBluetooth` from `CALL` and keep `allowBluetoothA2DP`** — the
-   headset microphone is never used, input comes from the phone, output stays
-   A2DP stereo. No handover ever, including at the alone→somebody-arrives
-   boundary. Costs AirPods-style use, where the phone is in a pocket and the
-   voice ought to come from the ears.
+1. **Separate the two closes** — the leading candidate. `stopMicTrackOnMute:
+   false` so a self-mute leaves capture running and there is no transition to
+   hear, *plus* an explicit release when `micNeeded` goes false.
+   **The second half is not optional and the flag alone is not the fix.** That
+   setting is a room-level publish default and cannot tell the two reasons the
+   microphone closes apart; today they are deliberately conflated, both calling
+   `setMicrophoneEnabled(false)` and both stopping the track. Flip it and
+   neither stops, so an empty channel hands back to `playback` with the input
+   still running — which `useSessionAudio.ts` names as what silences the echo
+   canceller, and is the one-way door from the other side.
+   Costs the orange microphone indicator staying lit while the app says you are
+   muted. No audio leaves, the track being disabled, but iOS and the app then
+   disagree on screen about a thing users are right to care about. Does *not*
+   cost the usage meter: `server/src/channels.ts` deliberately polls the room
+   rather than trusting that predicate, and says so.
+2. **Drop `allowBluetooth` from `CALL` and keep `allowBluetoothA2DP`** —
+   *rejected 2026-08-20.* The headset microphone is never used, input comes from
+   the phone, output stays A2DP stereo, and there is no handover ever. It is the
+   right answer for a Bluetooth speaker and the wrong one here: **the tone was
+   reproduced on AirPods Pro**, and this would route a voice through a handset
+   that is usually in a pocket. Worth remembering if the hardware assumption
+   ever changes — for a speaker-in-a-room product this is the cheapest fix
+   there is.
 3. **Keep it and fix the story instead** — STATES.md frames the transition as an
    honest signal that the room is live. It has now been reported as a defect
    twice by the person who wrote that framing.
 
-**Test on device before choosing, and on both kinds of hardware**, because the
-symptom is not the same on each. The tone needs a device that *has* a
-microphone; a Bluetooth speaker usually has none, so the boundary is silent
-there and the audio is stereo throughout — which on 2026-08-20 was read as proof
-that a live microphone was shut. STATES.md carries that correction.
+**The tone was reproduced on AirPods Pro on 2026-08-20**, which is a device
+with a microphone and therefore an HFP link to lose — consistent with the
+diagnosis above. A Bluetooth speaker usually has no microphone, so the boundary
+is silent there and the audio is stereo throughout, which the same day was read
+as proof that a live microphone was shut. STATES.md carries that correction.
+**Test whatever is chosen on both, since the symptom differs by hardware.**
 
 The instrument, if one is wanted, needs no code:
 
