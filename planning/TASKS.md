@@ -4,29 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Should a Closing Socket Stamp Now, or the Last Thing It Heard
-
-Found while answering "What a Restart Does to Last-Seen", which is now in
-DECISIONS.md, and left as a question because the answer moves a user-visible
-number. The `close` handler in `server/src/ws.ts` writes
-`markSeen(connection.userId, now(), ...)` — the moment the socket ended. For a
-sign-out or a foregrounded app that is the truth. For a phone that froze in a
-pocket it is not: `sweep` needs HEARTBEAT_TIMEOUT_MS to notice, then
-`socket.close()` spends `ws`'s 30-second `closeTimeout` waiting for a close
-frame that is never coming, so the handler runs about 42 seconds after the last
-thing that actually proved the person was there, and stamps *that* as when they
-were last seen. On Home the 60-second floor in `agoOrNull` is laid on top, so
-somebody reads "In the app now" for roughly a hundred seconds after their last
-ping rather than sixty.
-
-`connection.lastSeen` is sitting right there, is never later than the truth,
-and is at worst one five-second heartbeat early — which the floor absorbs. So
-the change is one word. What makes it a question rather than a fix is that it
-shortens how long a pocketed phone looks present, and how long that should be
-is the same product question as "Is a Hundred Seconds the Right Time to Declare
-Somebody Gone" below. Decide them together; two independent nudges to the same
-number is how it ends up somewhere nobody chose.
-
 ## Is a Hundred Seconds the Right Time to Declare Somebody Gone
 
 Measured 2026-08-20 and left open deliberately. A suspended phone stops being
@@ -46,6 +23,14 @@ close handler, so the choice is cheap in either direction; what is wanted first
 is a view on what the number should be, and that is a product question about
 how long a tunnel is. Note the same delay sits in front of everything else that
 keys on a channel emptying — a forgotten recording's tail, most visibly.
+
+One thing it no longer sits in front of: Home's account of who is present. The
+close handler used to stamp `last_seen_at` with the moment it ran, so those 30
+seconds were also being filed as evidence somebody was there; since 2026-08-20
+it stamps the last thing the socket actually heard, and DECISIONS.md has the
+reasoning. So what is left to decide here is the departure itself — when a
+channel should let go of somebody — rather than a display that was inheriting
+the number by accident.
 
 ## Contacts View
 

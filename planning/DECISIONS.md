@@ -1922,3 +1922,42 @@ The experiment did cost one real sign-in code, sent through SES to
 the working directory, so a server started by hand in `server/` is a server
 holding production's mailer, LiveKit and S3 credentials. Blank them on the
 command line — `MAIL_FROM= LIVEKIT_URL= ...` — before running one locally.
+
+## A closing socket stamps what it last heard, and last-seen never goes backwards — 2026-08-20
+
+Decided by Rodrigo, in one word: sixty. TASKS.md's "Should a Closing Socket
+Stamp Now, or the Last Thing It Heard" asked whether somebody who has gone
+should stop reading as present after sixty seconds or a hundred, that being the
+only thing the change turns on. It is sixty, and the entry is closed.
+
+`ws.ts`'s close handler now passes `connection.lastSeen` instead of `now()`.
+The hundred seconds were never a chosen number: `sweep` takes up to
+HEARTBEAT_TIMEOUT_MS to notice a frozen phone, `socket.close()` then spends
+`ws`'s 30-second `closeTimeout` waiting for a close frame that is never coming,
+and stamping the moment the handler finally ran filed those forty-odd seconds
+as evidence of presence. `agoOrNull`'s sixty-second floor then sat on top of an
+already-inflated number. `connection.lastSeen` is never later than the truth
+and is at worst one five-second heartbeat early, which the same floor absorbs —
+the residual error now understates rather than overstates, which is the
+direction to be wrong in.
+
+**`markSeen` became monotonic in the same change, and had to.** It is a `MAX`
+now rather than an assignment. Stamping the close with what the socket last
+heard means a socket can write a time *older* than what is already stored — a
+flapping phone has its replacement connected and stamping the present while the
+corpse is still waiting on that close frame, and the corpse dies second. Under
+`now()` that could not happen, because `now()` only ever moved forward; it is
+created by the fix and is exactly the sort of thing that would have shown up
+months later as a contact reading "last seen 40 seconds ago" while they were
+demonstrably typing. Two tests cover the pair, and both were checked against
+the unmodified server and fail there, as were the two existing ones this
+rewrote.
+
+This does not touch the *other* thirty seconds. `closeTimeout` still delays the
+channel-side departure and everything keyed on a channel emptying, which is
+what "Is a Hundred Seconds the Right Time to Declare Somebody Gone" is about
+and is still open. What is settled is only that Home no longer inherits that
+delay as a claim about presence.
+
+Server-only. `lastSeenAt` is unchanged on the wire, so there is nothing for a
+client to learn and nothing to sequence around a release.

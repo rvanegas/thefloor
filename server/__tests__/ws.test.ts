@@ -621,19 +621,56 @@ describe('websocket', () => {
       a.close();
     });
 
-    it('is stamped again as the socket goes', async () => {
+    it('is what the socket last heard, not the moment it ended', async () => {
       const { alice, bob } = await pairInSession();
       const a = new Client(alice.token, baseUrl);
       await a.open();
       await a.next('hello');
 
-      const left = (clock += 60_000);
+      // The last thing she actually did.
+      const heard = (clock += 60_000);
+      a.send({ type: 'ping' });
+      await a.next('pong');
+
+      // The socket ends a good while after that, which is the ordinary case
+      // rather than the strange one: a phone that freezes in a pocket is
+      // closed by `sweep` some forty seconds later, and stamping the close
+      // would file those forty seconds as evidence she was there.
+      clock += 40_000;
       a.close();
       // The close handler runs on the server's own event loop, so this waits
       // for it rather than assuming it has already happened.
       await new Promise((r) => setTimeout(r, 200));
       expect(aliceAsSeenByBob(bob.account.id, alice.account.id)?.lastSeenAt)
-        .toBe(left);
+        .toBe(heard);
+    });
+
+    it('is not rewound by a dead socket closing after a live one opened', async () => {
+      // A flapping phone has both at once: the replacement is connected and
+      // stamping the present while the corpse is still waiting on a close
+      // frame it will never get. The one that dies second is the older.
+      const { alice, bob } = await pairInSession();
+      const dying = new Client(alice.token, baseUrl);
+      await dying.open();
+      await dying.next('hello');
+
+      const replaced = (clock += 60_000);
+      const live = new Client(alice.token, baseUrl);
+      await live.open();
+      await live.next('hello');
+
+      // And it takes a while to die, which is the whole point of it: the close
+      // frame it is waiting for is never coming. Neither of the two numbers in
+      // reach here is right — what it last heard is older than the live
+      // socket's stamp, and the moment it finally ends is newer than anything
+      // anybody proved.
+      clock += 40_000;
+      dying.close();
+      await new Promise((r) => setTimeout(r, 200));
+      expect(aliceAsSeenByBob(bob.account.id, alice.account.id)?.lastSeenAt)
+        .toBe(replaced);
+
+      live.close();
     });
 
     it('is withheld from a request sent to an address', async () => {
@@ -737,7 +774,7 @@ describe('websocket', () => {
       b.close();
     });
 
-    it('turns false as her last socket goes, carrying the moment she went', async () => {
+    it('turns false as her last socket goes, carrying the last thing it heard', async () => {
       const { alice, bob } = await pairInSession();
       const b = new Client(bob.token, baseUrl);
       await b.open();
@@ -748,16 +785,23 @@ describe('websocket', () => {
       await a.open();
       await aliceBecomes(b, alice.account.id, (row) => row.inApp === true);
 
-      const left = (clock += 60_000);
+      const heard = (clock += 60_000);
+      a.send({ type: 'ping' });
+      await a.next('pong');
+
+      clock += 40_000;
       a.close();
       const gone = await aliceBecomes(
         b,
         alice.account.id,
-        (row) => row.inApp === false && row.lastSeenAt === left
+        (row) => row.inApp === false && row.lastSeenAt === heard
       );
-      // The timestamp beside it is the departure, so the count the app starts
-      // from is fixed and correct and never needs refreshing again.
-      expect(gone?.lastSeenAt).toBe(left);
+      // The timestamp beside it is her last proof of life, so the count the app
+      // starts from is fixed and correct and never needs refreshing again — and
+      // it starts from when she was last there rather than from whenever the
+      // socket got around to ending, which is what made a pocketed phone read
+      // as present for a hundred seconds instead of sixty.
+      expect(gone?.lastSeenAt).toBe(heard);
 
       b.close();
     });
@@ -788,12 +832,16 @@ describe('websocket', () => {
         .toBe(afterArrival);
       expect(aliceOnBobsHome(b, alice.account.id)?.inApp).toBe(true);
 
-      const departed = (clock += 1_000);
+      // The tablet was the more recent of the two to say anything, so its
+      // stamp is the one that stands — the phone closing later does not drag
+      // the column back to whenever the phone last spoke.
+      const heard = clock;
+      clock += 1_000;
       phone.close();
       const gone = await aliceBecomes(
         b,
         alice.account.id,
-        (row) => row.inApp === false && row.lastSeenAt === departed
+        (row) => row.inApp === false && row.lastSeenAt === heard
       );
       expect(gone?.inApp).toBe(false);
 

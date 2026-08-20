@@ -405,10 +405,29 @@ export function registerWebsocket(deps: {
 
     socket.on('close', () => {
       connections.delete(connection);
-      // The moment they stopped being in the app, which is the one this is
-      // read for. Written before the presence reporting below, so a snapshot
-      // pushed as a result of it already carries the right time.
-      accounts.markSeen(connection.userId, now(), connection.build);
+      // The last moment this socket proved somebody was there — not the moment
+      // it ended, which is a different number and, for the departure that
+      // matters most, a wrong one.
+      //
+      // A phone that freezes in a pocket goes on holding an open socket:
+      // `sweep` takes up to HEARTBEAT_TIMEOUT_MS to notice, then
+      // `socket.close()` spends `ws`'s 30-second `closeTimeout` waiting for a
+      // close frame from a process that is never going to send one. So this
+      // handler runs some forty seconds after the last thing the person
+      // actually did, and `now()` here would write those forty seconds down as
+      // evidence of presence. With `agoOrNull`'s sixty-second floor on top,
+      // Home read "In the app now" for about a hundred seconds after the last
+      // ping. Sixty is the number that was wanted, and this is the whole of
+      // what was making it a hundred.
+      //
+      // `connection.lastSeen` is never later than the truth. It is at worst one
+      // HEARTBEAT_INTERVAL_MS early, which the same floor absorbs — the error
+      // this leaves is in the direction of saying less than is known rather
+      // than more.
+      //
+      // Written before the presence reporting below, so a snapshot pushed as a
+      // result of it already carries the right time.
+      accounts.markSeen(connection.userId, connection.lastSeen, connection.build);
       // Losing a socket is not leaving a channel. It starts the grace period,
       // and reconnecting inside that minute cancels it — so a tunnel, a lift
       // or a backgrounded app costs nobody their place.

@@ -217,15 +217,35 @@ export class Accounts {
    * that this person is on something current. Absence means "no news", and the
    * column keeps the last thing actually claimed.
    */
+  /**
+   * **The time never goes backwards**, which is why this is a `MAX` rather than
+   * an assignment. The socket close handler stamps `connection.lastSeen` — the
+   * last thing that socket heard, rather than the moment it ended — and a
+   * socket can end well after its replacement has connected: a phone that flaps
+   * has a new socket stamping the present while the dead one is still waiting
+   * on a close frame. Assigning would let the corpse rewind the column by
+   * however long it took to die. The column means the last moment anything
+   * proved this person was there, and nothing that arrives later can make that
+   * earlier.
+   *
+   * `build` is deliberately not guarded the same way: it is not a clock, and
+   * the rule above governs it instead.
+   */
   markSeen(id: string, now: number, build?: number | null): void {
     if (build == null) {
       this.db
-        .prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?')
+        .prepare(
+          'UPDATE accounts SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?) WHERE id = ?'
+        )
         .run(now, id);
       return;
     }
     this.db
-      .prepare('UPDATE accounts SET last_seen_at = ?, last_build = ? WHERE id = ?')
+      .prepare(
+        `UPDATE accounts
+            SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?), last_build = ?
+          WHERE id = ?`
+      )
       .run(now, build, id);
   }
 
