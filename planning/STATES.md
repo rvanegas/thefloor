@@ -345,6 +345,18 @@ signals for free:
 - **Drop to mono** — somebody's microphone is open in this channel.
 - **Bloom to stereo** — nobody's is, including yours.
 
+**And it is only a cue on hardware that has a microphone.** A Bluetooth
+*speaker* usually has none, so there is no hands-free link to move to:
+`CALL` carries `allowBluetoothA2DP`, iOS keeps stereo output and takes input
+from the phone instead, and nothing is audible at the boundary at all. The
+signal below is therefore absent on exactly the devices where the sound is
+nicest. **This misled the author on 2026-08-20** — alone on a Bluetooth
+speaker, a second person arrived, the audio stayed in stereo, and the good
+quality was read as proof the microphone was shut. It was open;
+`microphoneNeeded` opens it the moment anybody else is present, and
+`ChannelView` said "Open" on screen throughout. The screen is the truth here
+and the route is not.
+
 Stated precisely, because it is otherwise a false safety cue: the mono drop
 means *the room is live*, which is a **superset** of *you are audible* — when
 you are self-muted it fires while your own microphone stays shut. The
@@ -371,7 +383,13 @@ still talking dropped the engine to playout-only, the observer applied `IDLE`,
 and the route moved. Reported 2026-08-19 as a tone on self-mute and its inverse
 on unmute.
 
-**`policyFor` in `session.ts` is the fix**: the observer's playout value is
+**`policyFor` did not fix the reported tone, and the entry below says what is
+now believed instead.** It closes a real disagreement and is worth keeping —
+the observer should not be writing `IDLE` while somebody else is talking — but
+build 56 was tested on a device on 2026-08-20 and the tone was unchanged. Read
+the rest of this paragraph as *what `policyFor` does*, not as a cure.
+
+`policyFor` in `session.ts`: the observer's playout value is
 whatever `sessionFor` would return, re-pushed at every edge by `useSessionAudio`
 *before* the call that causes the transition. There is nothing left for a
 licence to permit, and the invariant — the two writers give the same answer for
@@ -417,11 +435,19 @@ closed say so.
    the code calling it so** — until this file. Open: it is one refactor away
    from being deleted as a blemish.
 5. **`app/index.ts`'s licensed writer disagreement is argued only about
-   `mixWithOthers`, never about the route.** *Fixed in source, unconfirmed on
-   device.* The licence is gone — `policyFor` gives the observer the same answer
-   we give — and a test pins the two together. What is not yet done is hearing
-   it: the report was a tone on self-mute, and nobody has held the phone since
-   the change. **Do not stamp this closed from the diff.**
+   `mixWithOthers`, never about the route.** *Closed.* The licence is gone —
+   `policyFor` gives the observer the same answer we give — and a test pins the
+   two together. **This did not stop the tone**, which was a separate fault
+   sharing a symptom; see 9. The lesson is the process one: this was reasoned
+   from source, shipped, and documented as a fix before anybody had heard it,
+   and the entry said so and was believed anyway.
+9. **A self-mute still moves the Bluetooth profile, and the category is not
+   why.** Open, and the live one. `stopMicTrackOnMute: true` means muting
+   genuinely stops capture, and stopping capture is what releases the hands-free
+   link — `useSessionAudio.ts` says as much in the comment arguing *for* that
+   setting. So the route moves while the category never does, and no policy
+   handed to the observer can prevent it. TASKS.md carries the three candidate
+   fixes and what each costs.
 6. **Membership, presence and connectivity are three states the request's list
    treats as one.** Closed by documentation; the code was always right.
 7. **`lastActiveAt` cannot answer whether a channel is occupied**, and anything
