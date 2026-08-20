@@ -57,7 +57,42 @@ Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and
 was being paid for in every session's context. What a fresh reader needs at the
 root is the current state and the traps; the sequence that produced it is this.
 Newest first, and it picks up where AGENTS.md leaves off — that file keeps the
-most recent deploy, which is now 2026-08-19's.
+most recent deploy, which is now 2026-08-20's.
+
+### 2026-08-19 — the first with a public population
+
+This was the first deploy with **a public
+population on the other end of it** — 1.0.0 was approved and build 51 released
+that morning. It carried a fortnight of work in one go, master having been held
+back while 51 sat in review: Home as a list of channels ordered by how quiet
+each one is, an unnamed channel **widening** rather than moving the conversation,
+availability as a fact rather than an inference, the ping from inside a channel,
+usage metering, and the compatibility floor at 51.
+
+**Build 51 was checked against it before it went, and now that check is not a
+courtesy.** `git diff build/51..HEAD -- core/protocol.ts` is 82 lines and every
+one of them is an *optional* field — `lastPresenceAt`, `everUsed`, `inApp` on
+three different views — so a client that predates them reads what it always
+read. `channel.moved` is no longer sent, which leaves 51 holding a handler that
+never fires rather than missing one it needs. And `minBuild` is now 51, which
+is the floor 51 sits *at* rather than below.
+
+The migration was the part with teeth, this being the first deploy to add
+tables to a database with strangers' rows in it. `usage_bytes` and `usage_spans`
+are present afterwards, and the counts moved only where they should: 8 accounts,
+35 channels, 41 recordings, 1 donation, and **5 device rows where there were 6**
+— the duplicate the one-row-per-account invariant could not retroactively clean
+went on that account's next launch, exactly as 2026-08-17 predicted it would.
+
+Verified against production afterwards: `/healthz` reporting `f1aff87` and
+`minBuild: 51`, `/support` and `/privacy` serving pages, `/home` answering 401
+unauthenticated.
+
+`updateUrl` reads null, which is the one thing left undone. `APP_STORE_URL` is
+unset on the box, so the update screen a below-floor client shows would have no
+button on it. Nothing is below the floor today and 51 could not read it anyway,
+but the listing now has a URL and there is no longer a reason for it to be
+empty.
 
 ### 2026-08-17 — the ping
 

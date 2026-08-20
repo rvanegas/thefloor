@@ -107,7 +107,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 580 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 573 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -293,38 +293,34 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-19, and it is the first deploy with **a public
-population on the other end of it** — 1.0.0 was approved and build 51 released
-that morning. It carried a fortnight of work in one go, master having been held
-back while 51 sat in review: Home as a list of channels ordered by how quiet
-each one is, an unnamed channel **widening** rather than moving the conversation,
-availability as a fact rather than an inference, the ping from inside a channel,
-usage metering, and the compatibility floor at 51.
+Most recently on 2026-08-20, carrying a week of server work that had
+accumulated behind the 08-19 release: last-seen made monotonic and stamped from
+what a closing socket last heard rather than when it gave up, presence
+distinguishing a phone in a pocket from a phone in the app, the per-target ping
+limit, and the usage meter's read interface. Plus the app-side self-mute audio
+fix, which a deploy cannot carry to anybody — it ships in build 56.
 
-**Build 51 was checked against it before it went, and now that check is not a
-courtesy.** `git diff build/51..HEAD -- core/protocol.ts` is 82 lines and every
-one of them is an *optional* field — `lastPresenceAt`, `everUsed`, `inApp` on
-three different views — so a client that predates them reads what it always
-read. `channel.moved` is no longer sent, which leaves 51 holding a handler that
-never fires rather than missing one it needs. And `minBuild` is now 51, which
-is the floor 51 sits *at* rather than below.
+**The wire check came out one field wide.** `git diff cc0e8a9..HEAD --
+core/protocol.ts` is a single *optional* addition, `pingableAt`, which only ever
+withdraws an affordance the server would refuse anyway — so every installed
+build behaves exactly as it did, offering the button and being told no. Against
+`build/51`, the oldest installed and the floor, the drift is 99 lines and all of
+it optional.
 
-The migration was the part with teeth, this being the first deploy to add
-tables to a database with strangers' rows in it. `usage_bytes` and `usage_spans`
-are present afterwards, and the counts moved only where they should: 8 accounts,
-35 channels, 41 recordings, 1 donation, and **5 device rows where there were 6**
-— the duplicate the one-row-per-account invariant could not retroactively clean
-went on that account's next launch, exactly as 2026-08-17 predicted it would.
-
-Verified against production afterwards: `/healthz` reporting `f1aff87` and
+Verified against production afterwards: `/healthz` reporting `3bf43cb` and
 `minBuild: 51`, `/support` and `/privacy` serving pages, `/home` answering 401
-unauthenticated.
+unauthenticated. `updateUrl` now reads the App Store listing rather than null,
+which was the one thing 08-19 left undone.
 
-`updateUrl` reads null, which is the one thing left undone. `APP_STORE_URL` is
-unset on the box, so the update screen a below-floor client shows would have no
-button on it. Nothing is below the floor today and 51 could not read it anyway,
-but the listing now has a URL and there is no longer a reason for it to be
-empty.
+**The box was at `cc0e8a9` before this, not at 08-19's `f1aff87`, from an
+accidental `bin/deploy` run that day.** Harmless as it happened — `cc0e8a9` is
+the build-55 bump, so it shipped the then-current master from a clean tree, and
+the script runs the tests before it syncs. Worth keeping for the general shape
+rather than the incident: **`bin/deploy` is one command with no confirmation
+step, and it ships the working tree rather than a ref.** So the sha on the box
+is not necessarily one anybody chose, and it costs a restart's presence on a box
+with a public population. Read `/healthz` before assuming this section is
+current; it was a day stale here, and that is how it will fail again.
 
 The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
