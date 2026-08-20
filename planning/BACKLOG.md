@@ -532,8 +532,15 @@ commits record them.
 
 ## The App Privacy label predates the meter
 
-App Store Connect's App Privacy declaration — the "nutrition label" on the
-product page — was written for 1.0.0 and does not mention the usage meter.
+**Nobody has looked at the label, and this entry is an inference until somebody
+does.** App Store Connect's App Privacy declaration — the "nutrition label" on
+the product page — was filled in for 1.0.0, before the meter existed, so it
+probably says nothing about it. That is reasoning from dates, not an
+observation: there is no API for the label (below), so it was never read. If the
+1.0.0 questionnaire already ticked Usage Data → Product Interaction, there is
+nothing wrong here at all. **Open App Privacy in App Store Connect and look**
+before acting on the rest of this entry; it settles in half a minute.
+
 Since 2026-08-19 the server records, per account, how many minutes a microphone
 was open, how many were spent listening, playing or recording, how many were
 shared with each other person, and how many bytes of recordings were
