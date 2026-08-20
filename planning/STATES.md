@@ -439,7 +439,9 @@ design**, 3 because the one case the two names differ in is deliberate and 7
 because `orderChannels` already consults `presentCount`. Both are written down
 here precisely so that a later reading does not "simplify" them; neither is
 waiting on work. The ones actually waiting are 1, 4, 8 and 9, and **9 is the
-live one**.
+live one** — waiting, since 2026-08-20, on somebody *hearing* it rather than on
+somebody writing anything. It has been fixed in source twice in a day and
+neither fix has been put to a Bluetooth headset.
 
 **The list is not in numeric order.** 9 sits between 5 and 6, next to the entry
 that hands off to it, since 5's closure is only legible alongside the fault it
