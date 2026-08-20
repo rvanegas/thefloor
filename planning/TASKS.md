@@ -4,98 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Is a Hundred Seconds the Right Time to Declare Somebody Gone
-
-Measured 2026-08-20 and left open deliberately. A suspended phone stops being
-present 105 seconds later, not the 72 to 77 that HEARTBEAT_TIMEOUT_MS and
-DISCONNECT_GRACE_MS account for between them; the rest is `ws`'s 30-second
-`closeTimeout`, spent waiting for a close frame from a process that is frozen.
-DECISIONS.md § *Backgrounding costs presence in about a hundred seconds* has
-the measurement and the mechanism, and `bin/suspend-log` is how to take it
-again.
-
-The question is not whether the 30 seconds is a bug — it may be exactly the
-slack wanted before declaring somebody gone. It is that nobody chose it. It
-arrived as a library default, through a `socket.close()` written to do
-something else, and it is 40% of a budget the repo believed was 72 seconds.
-`socket.terminate()` in `sweep` would remove it at a stroke and keep the same
-close handler, so the choice is cheap in either direction; what is wanted first
-is a view on what the number should be, and that is a product question about
-how long a tunnel is. Note the same delay sits in front of everything else that
-keys on a channel emptying — a forgotten recording's tail, most visibly.
-
-One thing it no longer sits in front of: Home's account of who is present. The
-close handler used to stamp `last_seen_at` with the moment it ran, so those 30
-seconds were also being filed as evidence somebody was there; since 2026-08-20
-it stamps the last thing the socket actually heard, and DECISIONS.md has the
-reasoning. So what is left to decide here is the departure itself — when a
-channel should let go of somebody — rather than a display that was inheriting
-the number by accident.
-
-## Contacts View
-
-**Built 2026-08-19.** `app/src/ui/ContactsView.tsx`, reached from a link beside
-Settings in Home's header. A row is a person and their availability — "In the
-app now", "last seen 3 hours ago" — and tapping one opens `ProfileView`, which
-is where the bio, the shared channels and removing them already lived. There is
-deliberately no "step into a channel with them" on a contact row: that overlap
-is what took the old contact list apart, and Home owns the channel list.
-
-`Add contact` came with it, folded away at the top: a line until tapped, then a
-field, because reading the list is what somebody opens this screen for. The
-screen carries its own settings link, on the pattern Home and a channel already
-followed, and `Name` and `About you` moved into it from the Home settings screen
-— those are what a contact sees, so they belong behind the contact list rather
-than beside the appearance setting and the delete button.
-
-**Two things are still open.** Requests are still on Home, and were left there
-on purpose for now: an incoming request is time-sensitive, and a person is
-something you look up where a request is something you answer. Whether that is
-right or whether they should follow the contacts is a decision nobody has made.
-And the order is the server's, which is to say undecided — see
-`## Contact Card Sorting and Classes` below, which is still empty.
-
-## Contact Card Sorting and Classes
-
-above is about. A profile reachable without entering a channel; `ProfileView`
-and its route in `App.tsx` are both still wired and reachable from a channel
-roster, so this is a way in rather than a screen to build. The requests and
-`Add contact`, which are on Home in the meantime only because an incoming
-request is time-sensitive and would be invisible behind a screen nobody has
-built yet. And the availability line — "In the app now", "last seen 3 hours
-ago" — which is on the profile now and was on every contact row before; the
-server never stopped composing it, so showing it again is a rendering change.
-
-## Review Logic for States
-
-**The audit is done and lives in STATES.md**, which is now the standing
-reference for what each state is called in each layer, when it holds, and where
-two layers describe the same thing. Its closing section numbers the
-disagreements it found; three of those are open by design and documented as
-such, and the rest are either closed or already handled.
-
-Six of the seven numbered items are closed. 1 and 5 — recording alone, and
-stepping out clearing the mute — were already built and tested, and the audit
-only confirmed it. 3 and 7 were one bug: self-muting reconfigured the audio
-session, which forced a Bluetooth profile handover and lost the route. 4 and 6
-were another: a room that dropped had no path back, so a Telegram or Zoom call
-left the channel live with dead audio until the app was force-quit. Both fixed
-2026-08-18; the diagnoses are in DECISIONS.md.
-
-**What is left is item 2, which needs a phone.** Multiple members present, audio
-from a background app with its output set to Bluetooth speakers: does it loop
-back into the mic and into the channel? The configuration half-answers it — with
-anybody's microphone open the session is `CALL`, which carries no
-`mixWithOthers`, so the background app is interrupted and there should be
-nothing left to loop back. What that does not settle is whether iOS honours the
-exclusivity against a route that is already active, which no log line here can
-report: nothing in this stack can read the audio route at all.
-
-To go and find out: run a development build, which writes an `[audio]` line on
-every session write, alongside the SDK's own `os_log` — see STATES.md for the
-`log stream` predicate and for the warning about the one instrumentation
-approach that would silently break the audio policy.
-
 ## Self-Mute Still Moves the Audio Category
 
 **Reported 2026-08-19, from the phone: self-muting plays a tone and unmuting
@@ -141,27 +49,6 @@ blocks the audio worker thread until it returns. The observer also logs to
 Its `Native auto-config: setting category …` lines interleave by timestamp with
 the `[audio]` lines `useSessionAudio` writes in development builds.
 
-## Media Playback quality
-
-Suppose two users are in a channel, both are muted and they are playing media. Is the quality of the playback equivalent to playing it directly or is it diminished by passing over webrtc? I sometimes get the impression that quality varies even during the playbook of a single file. Volume also seems to rise and fall, without manual intervention. Maybe this is a feature of webrtc?
-
-**Part of this was Bluetooth rather than WebRTC, and changed on 2026-08-18.**
-Quality varying *during* one file is what the old audio rule produced on a
-headset: any mute or unmute moved the session between `playAndRecord` and
-`playback`, which is a switch between the mono hands-free profile and stereo
-A2DP, mid-track. Under the rule in STATES.md the category now follows whether
-*anybody* is capturing, so two muted people playing a file sit in A2DP for the
-whole of it. Retest before investigating the codec — the remaining question is
-narrower than it was, and the rising and falling volume is a separate matter and
-most likely WebRTC's automatic gain control, which is worth confirming before
-anything is built.
-
-**And that claim is now in doubt** — see `## Self-Mute Still Moves the Audio
-Category` above. If the native observer moves the category on every mute
-regardless of what the channel-wide rule decided, then two muted people are not
-sitting in A2DP for the whole of a file; they crossed the profile boundary on
-the way in. Settle that before reading anything into a retest.
-
 ## Clipboard Sharing
 
 In channel, any user may paste his clipboard into the channel, after which any user may copy from the channel to his own clipboard. This is then a convenient way to share URLs or other small contents for which clipboards are typically used.
@@ -169,12 +56,6 @@ In channel, any user may paste his clipboard into the channel, after which any u
 ## Channel Admins
 
 Channels, by default, have no admins or owner. In channel settings, a user can declare himself owner, and then give admin status to others. Certain functions are now available only to admins, and owner who is an admin implicitly.
-
-## Track Usage
-
-Per user tracking of minutes and timestamps of webrtc usage, minutes and timestamps of media playback including recordings playback, minutes and timestamps of recordings associated to user who initiates the recording, GBs of recording egress/exports. Also, track minutes and timestamps of conversation shared by pairs of users. This tracking expires if more than one week old. 
-
-Save all of this to db.
 
 ## Anonymous Web Access
 
