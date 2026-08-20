@@ -1,4 +1,7 @@
-import type { AppleAudioConfiguration } from '@livekit/react-native';
+import type {
+  AppleAudioConfiguration,
+  IOSAudioSessionPolicy,
+} from '@livekit/react-native';
 
 /**
  * The three states the iOS audio session is ever in, and the single place they
@@ -9,16 +12,21 @@ import type { AppleAudioConfiguration } from '@livekit/react-native';
  * when it re-applies its own defaults. They all mutate the *same* process-wide
  * `RTCAudioSessionConfiguration.webRTCConfiguration`, so whoever wrote last
  * wins — which is survivable only if they all write the same thing. That is
- * what this module is for: `index.ts` hands these to the native policy at
- * startup, and `useSessionAudio` applies them at each edge.
+ * what this module is for: `useSessionAudio` applies them at each edge, and
+ * `policyFor` hands the native observer the same answer for the transition it
+ * is about to see.
  *
- * **The native policy takes two values and there are now three.** That is a
- * knowing break of the rule above, and it is broken in one direction only.
- * `index.ts` hands the observer `IDLE` as its playout value — the *mixing* one
- * — so a write we did not ask for can only ever let another app back in. It
- * can never take one away. Getting that backwards would silence somebody's
- * music while they sit alone in an empty channel, from a transition nobody
- * asked for and nothing reports.
+ * **The observer used to be handed a constant, and that was a knowing break of
+ * the rule above.** It took `IDLE` as its playout value — the *mixing* one —
+ * on the argument that a write we did not ask for could then only ever let
+ * another app back in and never take one away. The argument was about
+ * `mixWithOthers` alone, and `IDLE` and `CALL` also differ in **category**,
+ * which is the Bluetooth route boundary. So a self-mute with somebody else
+ * still talking took the engine to playout-only, the observer applied `IDLE`,
+ * and the route moved under a rule that exists to hold it still — the tone
+ * reported 2026-08-19. `policyFor` closes it by making the observer's playout
+ * value the one `sessionFor` would return, so there is nothing left to be
+ * licensed. See planning/STATES.md, disagreement 5.
  */
 
 /**
@@ -140,6 +148,43 @@ export function sessionFor(
 ): AppleAudioConfiguration {
   if (anyMicOpen) return CALL;
   return othersAudible > 0 ? LISTENING : IDLE;
+}
+
+/**
+ * The same answer, shaped for the native observer.
+ *
+ * **The observer is a second writer of this session and it cannot be argued
+ * with, only agreed with.** It runs on the audio worker thread at the engine
+ * transition itself, with no JavaScript in the path, so a re-statement from
+ * here always lands *after* it. Handing it the value `sessionFor` would return
+ * is what makes the two writers say the same thing, which is the invariant
+ * `__tests__/session.test.ts` pins.
+ *
+ * `recording` is `CALL` unconditionally and that is not a special case: the
+ * observer reads it only while *this* device is capturing, and our capturing
+ * implies `anyMicOpen`, so `sessionFor` would return `CALL` anyway.
+ *
+ * **Push it before the transition, never after.** The observer reads whatever
+ * is stored when the engine moves, so a policy pushed after
+ * `setMicrophoneEnabled` describes a transition that has already happened.
+ * Pushing is safe to do first in both directions because it is not a write to
+ * the session at all — natively it is one atomic property assignment, applied
+ * only when the engine next moves.
+ *
+ * **Push it with `setupIOSAudioManagement` rather than the native setter it
+ * wraps.** `AudioDeviceModule.setAutomaticAudioSessionConfiguration` takes
+ * `deactivateOnStop` and reads a missing key as *false*, where the SDK wrapper
+ * defaults it to true — so calling native directly and omitting it leaves the
+ * session active after the last engine stop, silently. Re-pushing mid-call is
+ * supported: activation is decided against `RTCAudioSession`'s own state, and
+ * the SDK's caution about switching mid-call is about switching *paths*
+ * (the deprecated JS callback against this native one), not about a policy.
+ */
+export function policyFor(
+  anyMicOpen: boolean,
+  othersAudible: number
+): IOSAudioSessionPolicy {
+  return { recording: CALL, playout: sessionFor(anyMicOpen, othersAudible) };
 }
 
 /**

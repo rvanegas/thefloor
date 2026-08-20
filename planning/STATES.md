@@ -358,28 +358,44 @@ obvious cleanups. Both delete the cue.
 **Where the sources disagree.** Three writers touch this, and it is **process-
 wide shared mutable state** (`RTCAudioSessionConfiguration.webRTCConfiguration`):
 this app, the SDK's native policy observer on every audio-engine transition, and
-WebRTC re-applying its own defaults. Last writer wins. `session.ts`'s header
-exists to make all three write the same thing, and `app/index.ts:34-40` is the
-one place they are deliberately allowed to differ — the observer is handed
-`IDLE`, the *mixing* value, so an unrequested write can only ever let another
-app back in and never take one away.
+WebRTC re-applying its own defaults. Last writer wins, and the observer wins
+every race it enters — it runs on the audio worker thread at the transition
+itself, so a re-statement from JavaScript always lands after it.
 
-**That licence is argued only in terms of `mixWithOthers`**, and the route was
-never part of the argument. `index.ts:29-31` records a tester watching this same
-observer drop audio to the earpiece. Under the channel-wide rule the boundary is
-crossed rarely and at a moment when nobody is speaking, so this is recorded as a
-known hazard rather than fixed blind.
+**The observer used to be handed a constant, and that cost the route.** It took
+`IDLE` as its playout value on the argument that an unrequested write could then
+only let another app back in and never take one away. That argument is about
+`mixWithOthers` alone, and the two configurations also differ in **category**,
+which is the Bluetooth profile boundary — so a self-mute with somebody else
+still talking dropped the engine to playout-only, the observer applied `IDLE`,
+and the route moved. Reported 2026-08-19 as a tone on self-mute and its inverse
+on unmute.
 
-**Do not instrument it with `audioDeviceModuleEvents`.** The obvious move —
-`setWillEnableEngineHandler` — looks like subscribing and is not: the setters
-hold a **single** handler each, and `setupIOSAudioManagement` has already
-installed the native policy in both. Registering yours silently replaces it. The
-ordering question needs no code anyway; the observer logs to `os_log`:
+**`policyFor` in `session.ts` is the fix**: the observer's playout value is
+whatever `sessionFor` would return, re-pushed at every edge by `useSessionAudio`
+*before* the call that causes the transition. There is nothing left for a
+licence to permit, and the invariant — the two writers give the same answer for
+the same inputs — is pinned by `app/src/audio/__tests__/session.test.ts`.
+Pushing a policy is not a write to the session: natively it is one atomic
+property assignment, read only when the engine next moves.
+
+**Two of the six handler slots are mined; the other four are not.** The native
+policy is applied from inside `willEnableEngine` and `didDisableEngine`, each
+guarded on whether a JS handler is registered — so
+`audioDeviceModuleEvents.setWillEnableEngineHandler` does not subscribe
+alongside the policy, it **replaces** it, and the setters hold one handler each.
+`willStartEngine` and `didStopEngine` are untouched by the policy, carry the
+same `isPlayoutEnabled` / `isRecordingEnabled` pair, and are the supported way
+to watch engine transitions from JS. Keep any such handler `__DEV__`-only and
+log-only: it blocks the audio worker thread until it returns.
+
+The observer also logs to `os_log`, which needs no code at all:
 
     log stream --predicate 'subsystem == "com.livekit.react-native-webrtc"'
 
-and its lines interleave by timestamp with the `[audio]` lines `useSessionAudio`
-writes in development builds.
+Its lines — including `Native auto-config: setting category …` — interleave by
+timestamp with the `[audio]` lines `useSessionAudio` writes in development
+builds.
 
 ---
 
@@ -401,8 +417,11 @@ closed say so.
    the code calling it so** — until this file. Open: it is one refactor away
    from being deleted as a blemish.
 5. **`app/index.ts`'s licensed writer disagreement is argued only about
-   `mixWithOthers`, never about the route.** Open, and the reason item 2 of the
-   TASKS entry cannot be closed from the source alone.
+   `mixWithOthers`, never about the route.** *Fixed in source, unconfirmed on
+   device.* The licence is gone — `policyFor` gives the observer the same answer
+   we give — and a test pins the two together. What is not yet done is hearing
+   it: the report was a tone on self-mute, and nobody has held the phone since
+   the change. **Do not stamp this closed from the diff.**
 6. **Membership, presence and connectivity are three states the request's list
    treats as one.** Closed by documentation; the code was always right.
 7. **`lastActiveAt` cannot answer whether a channel is occupied**, and anything

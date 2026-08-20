@@ -16,7 +16,7 @@ import {
 import { registerRootComponent } from 'expo';
 
 import App from './App';
-import { CALL, IDLE } from './src/audio/session';
+import { policyFor } from './src/audio/session';
 
 // Installs the WebRTC globals livekit-client expects (RTCPeerConnection and
 // friends). Must happen before any Room is constructed.
@@ -31,14 +31,13 @@ registerGlobals();
 // on some later engine transition and handing the call its own configuration.
 // Whichever writes last wins, and both write the same process-wide object.
 //
-// The playout value is `IDLE` and not `LISTENING`, which is the one place the
-// two writers are allowed to disagree. There are three configurations and this
-// hook takes two, so an observer firing while the session is `LISTENING` will
-// hand it `IDLE` — the mixing one. That lets another app back in, which is a
-// visible nuisance. The other way round, an observer that wrote the exclusive
-// value would silence somebody's music while they sat alone in an empty
-// channel, from a transition nothing reports. See src/audio/session.ts.
-setupIOSAudioManagement(true, { recording: CALL, playout: IDLE });
+// This is the *starting* policy only, and it is nobody-here-yet by
+// construction: not connected, nothing audible, no microphone open. Once there
+// is a connection, `useSessionAudio` re-pushes `policyFor` at every edge, which
+// is what keeps the observer's answer equal to ours rather than merely close to
+// it. It is written as a call rather than a constant so the two can never drift
+// apart in maintenance. See src/audio/session.ts.
+setupIOSAudioManagement(true, policyFor(false, 0));
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,

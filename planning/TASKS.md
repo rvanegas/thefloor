@@ -101,56 +101,45 @@ approach that would silently break the audio policy.
 **Reported 2026-08-19, from the phone: self-muting plays a tone and unmuting
 plays its inverse, with another person present and talking.** That is the sound
 of a Bluetooth profile handover, and under the channel-wide rule adopted
-2026-08-18 it should not happen — with somebody else's microphone open
-`anyMicrophoneOpen` stays true, `sessionFor` returns `CALL` both sides of the
-mute, and `useSessionAudio.ts`'s `appliedRef` comparison finds the configuration
-unchanged. Our writer did the right thing. The category moved anyway.
+2026-08-18 it should not happen.
 
-**The mechanism is the native observer, and it is reinstating exactly the rule
-the fix replaced.** `app/index.ts` installs it as
-`setupIOSAudioManagement(true, { recording: CALL, playout: IDLE })`, and
-`@livekit/react-native/src/audio/AudioManager.ts` says what that means: *"The
-native observer applies `recording` while recording, `playout` while
-playout-only, and deactivates on full stop when requested."* The question it
-asks is whether **this device** is capturing — which is the per-self rule
-STATES.md's `Audio Session Configuration` entry says was wrong. So
-`setMicrophoneEnabled(false)` takes the engine to playout-only, the observer
-applies `IDLE`, and `playAndRecord` becomes `playback`: HFP down, A2DP up, one
-tone. Unmute reverses it for the other.
+**Diagnosed and fixed in source on 2026-08-20; what is left is hearing it.** The
+mechanism was the SDK's native policy observer, which `app/index.ts` installed
+as `{ recording: CALL, playout: IDLE }` — a per-self rule reinstating exactly
+the one the channel-wide rule replaced. `setMicrophoneEnabled(false)` took the
+engine to playout-only, the observer applied `IDLE` on the audio worker thread
+at the transition itself, and `playAndRecord` became `playback`. It beat our own
+re-statement because anything crossing the bridge lands after it. `session.ts`'s
+`policyFor` now hands the observer the value `sessionFor` would return, pushed
+*before* each transition rather than restated after, so the two writers no
+longer have anything to disagree about. The reasoning, the two traps in pushing
+a policy, and the rejected alternative are in DECISIONS.md § *The native
+observer is agreed with rather than argued with*.
 
-It wins because it is not a competing JavaScript write. `applyFor` re-states
-`CALL` immediately afterwards, but that is a round trip through
-`LiveKitModule.setAppleAudioConfiguration` landing *after* a native policy that
-was applied on the audio worker thread at the transition itself.
+**What remains is a phone, a Bluetooth headset and a second person.** Self-mute
+and unmute should now be silent. This is a verification rather than a
+precondition: the fix does not rest on the link that was inferred, since it
+makes the observer agree with us whether or not a self-mute drives the engine to
+playout-only. But the report was a sound and the confirmation has to be a sound,
+so STATES.md's disagreement 5 is marked fixed-in-source, unconfirmed-on-device
+and says not to stamp it closed from the diff. Stamp it once somebody has heard
+it.
 
-**This is disagreement 5 in STATES.md, and it is now a bug rather than a
-hazard.** `index.ts`'s comment licenses the two writers to differ and argues
-that licence entirely in terms of `mixWithOthers` — an unrequested write "can
-only ever let another app back in and never take one away." But `IDLE` and
-`CALL` also differ in **category**, and the category is the route boundary. The
-licence was written as though the observer could only cost somebody's music. It
-can also cost the profile, which is the thing the channel-wide rule exists to
-protect.
-
-**One link is inferred and wants the phone.** That `setMicrophoneEnabled(false)`
-drives the engine to playout-only, rather than merely disabling a track and
-leaving the audio unit running, is read off the SDK rather than observed. A
-development build writes an `[audio]` line on every write we make; the observer
-writes to `os_log`. If the diagnosis is right the observer's line precedes ours
-at each mute. Same predicate as item 2 above, and the same warning applies about
-the one instrumentation approach that would silently break the audio policy:
+**If a tone survives, the next instrument is cheaper than it used to be.** The
+standing "do not instrument this with `audioDeviceModuleEvents`" warning was
+over-broad and has been narrowed in both places it appeared: only
+`willEnableEngine` and `didDisableEngine` are owned by the native policy.
+`setWillStartEngineHandler` and `setDidStopEngineHandler` are free, carry the
+same `isPlayoutEnabled` / `isRecordingEnabled` pair, and would say whether the
+engine transitioned at all — which distinguishes "our policy raced" from "not
+the observer after all". Keep any such handler `__DEV__`-only and log-only; it
+blocks the audio worker thread until it returns. The observer also logs to
+`os_log`, which needs no code:
 
     log stream --predicate 'subsystem == "com.livekit.react-native-webrtc"'
 
-**Two fix directions, different in kind.** Either make the policy track
-`anyMicOpen` — re-call `setupIOSAudioManagement` with `playout` set to whatever
-`sessionFor` would return, so the observer agrees with us instead of being
-licensed to differ — or stop the engine leaving recording on a self-mute at all,
-muting the track rather than tearing down capture, so there is no transition for
-the observer to fire on. The first collapses the `mixWithOthers` licence, which
-is an argument to have rather than wave through, and the SDK cautions about
-switching setup mid-call. The second is cleaner if it works and rests on the
-same unconfirmed fact. Confirm before choosing.
+Its `Native auto-config: setting category …` lines interleave by timestamp with
+the `[audio]` lines `useSessionAudio` writes in development builds.
 
 ## Media Playback quality
 

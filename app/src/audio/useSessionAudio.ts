@@ -10,10 +10,11 @@ import {
 } from 'livekit-client';
 import {
   AudioSession,
+  setupIOSAudioManagement,
   type AppleAudioConfiguration,
 } from '@livekit/react-native';
 import { api } from '../api/http';
-import { nameOf, sessionFor } from './session';
+import { nameOf, policyFor, sessionFor } from './session';
 import {
   NOBODY_SPEAKING,
   nextReleaseAt,
@@ -107,23 +108,33 @@ async function applyConfiguration(
  * has to be correlated against what was asked for, by hand, and that needs the
  * asks timestamped.
  *
- * **Do not extend this by registering audio-engine handlers.** The obvious
- * move — `audioDeviceModuleEvents.setWillEnableEngineHandler` — looks like
- * subscribing and is not: the setters hold a single handler each, and
- * `setupIOSAudioManagement` has already installed the native audio policy in
- * both of them (see `@livekit/react-native`'s `AudioManager`, and `index.ts`
- * for what that policy is for). Registering ours would silently replace it, and
- * the symptom would be an echo or a dropped route appearing weeks later in a
- * build nobody associates with logging.
+ * **Two of the six audio-engine handler slots are mined, and it is worth
+ * knowing which.** `audioDeviceModuleEvents`' setters hold a *single* handler
+ * each, and the native audio policy is applied from inside exactly two of the
+ * delegate callbacks — `willEnableEngine` and `didDisableEngine`. Both are
+ * guarded on whether a JS handler is registered (`if (!isWillEnableEngineActive
+ * && automaticAudioSessionConfig != nil)` in `AudioDeviceModuleObserver.m`), so
+ * registering yours on either does not sit alongside the policy, it *replaces*
+ * it. The symptom would be an echo or a dropped route appearing weeks later in
+ * a build nobody associates with logging.
  *
- * The ordering question those handlers look like they would answer — whether
- * the native observer writes its own configuration around ours — is already
- * answered without any code. The observer logs to `os_log`, so with the phone
- * attached:
+ * `willStartEngine` and `didStopEngine` are not read by the policy and are
+ * free. They carry the same `isPlayoutEnabled` / `isRecordingEnabled` pair, so
+ * a `__DEV__`-only handler that logs and returns 0 is the way to see engine
+ * transitions from JS, interleaved with these lines by construction. Keep it
+ * log-only: the handler blocks the audio worker thread until it returns
+ * (natively bounded at a couple of seconds), and calling into the engine or a
+ * peer connection from inside one can deadlock against the very operation it
+ * is holding up.
+ *
+ * And the ordering question — whether the native observer writes its own
+ * configuration around ours — can be answered with no code at all, which is
+ * where to start. The observer logs to `os_log`, so with the phone attached:
  *
  *     log stream --predicate 'subsystem == "com.livekit.react-native-webrtc"'
  *
- * and its lines interleave with these by timestamp.
+ * Its lines, `Native auto-config: setting category …` among them, interleave
+ * with these by timestamp.
  */
 function trace(
   config: AppleAudioConfiguration,
@@ -142,6 +153,22 @@ function trace(
       mode: config.audioMode,
     })
   );
+}
+
+/**
+ * Tells the native observer what to write at the next engine transition.
+ *
+ * Paired with `applyFor` and not merged into it, because the two are opposite
+ * in time: `applyFor` states the configuration *now*, and this states the one
+ * the observer will apply at a transition that has not happened yet. Which is
+ * why every caller pushes this *first* and applies second — see `policyFor`.
+ *
+ * Cheap enough to call on every edge: natively it is a single atomic property
+ * assignment, and it touches neither the session nor the engine.
+ */
+function pushPolicy(anyMicOpen: boolean, othersAudible: number): void {
+  if (Platform.OS !== 'ios') return;
+  setupIOSAudioManagement(true, policyFor(anyMicOpen, othersAudible));
 }
 
 /**
@@ -432,6 +459,7 @@ export function useSessionAudio(
         // music a moment before there is anything to hear would be a worse
         // failure than a moment after.
         const anyOpen = anyMicOpenRef.current;
+        pushPolicy(anyOpen, 0);
         await applyFor(anyOpen, 0);
         appliedRef.current = { open, config: sessionFor(anyOpen, 0) };
 
@@ -483,6 +511,12 @@ export function useSessionAudio(
       AudioSession.stopAudioSession().catch(() => {});
       roomRef.current = null;
       appliedRef.current = null;
+      // Back to the starting policy, or the observer keeps whatever this
+      // connection last needed. Leaving `CALL` behind is the live hazard:
+      // disconnecting while somebody was still talking would arm the observer
+      // to take `playAndRecord` — exclusive, and mono on a Bluetooth route —
+      // at some later transition with no channel to justify it.
+      pushPolicy(false, 0);
     };
   }, [mediaRoom, token, generation]);
 
@@ -543,6 +577,14 @@ export function useSessionAudio(
     const applied = appliedRef.current;
     if (applied && applied.open === open && applied.config === config) return;
     appliedRef.current = { open, config };
+
+    // Before either branch, and before the `await` in them, because the
+    // transition the observer reads this for is the one `setMicrophoneEnabled`
+    // is about to cause. This is the whole of the self-mute fix: with somebody
+    // else still talking the engine drops to playout-only and the observer
+    // applies its playout value, which is now `CALL` rather than `IDLE` — so
+    // the category does not move and the Bluetooth route is not handed over.
+    pushPolicy(anyMicOpen, state.othersAudible);
 
     // Order matters and is opposite in the two directions: the session must
     // already be a call before capture starts, and must stay one until capture
