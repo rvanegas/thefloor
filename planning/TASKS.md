@@ -25,12 +25,20 @@ misses. The common fault is not the reasoning at any step — it is that four
 rounds of reading were spent before one measurement, and the reading kept
 finding mechanisms that were real but not this one.
 
-**The instrument is `src/audio/engineState.ts` and it needs no syslog.** Every
-audio-engine reader is blocking-synchronous, so a full snapshot is taken either
-side of each microphone transition and the *difference* logged — `[engine]
-muted: recording: true -> false`, or `nothing moved`. Development builds only.
-Run `expo run:ios` on a phone, get into a channel with a second person and a
-Bluetooth headset, self-mute, and read Metro.
+**The instrument is `src/audio/engineState.ts` and it needs no syslog, no USB
+and no Mac.** Every audio-engine reader is blocking-synchronous, so a full
+snapshot is taken either side of each microphone transition and the
+*difference* kept — `recording: true -> false`, or `nothing moved`.
+
+**It reads on the phone, in a TestFlight build**, under the mute button in
+`ChannelView`, because the reading needs a Bluetooth headset and a second
+person and that is a situation which happens away from a desk. A development
+build would put the answer in Metro, where somebody who is not at home cannot
+get at it. Development builds log it as well, so `expo run:ios` still works.
+
+**All of it is temporary and comes out together**: `SessionAudio.engineLog`,
+`src/audio/engineState.ts`, and the block in `ChannelView` that renders it.
+Deleting one and leaving the others is how a diagnostic becomes furniture.
 
 **What each reading would mean** is written into that file's header so the next
 session does not re-argue it. In short: `recording` going false means the input

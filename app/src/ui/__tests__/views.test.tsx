@@ -123,6 +123,7 @@ const AUDIO = {
   othersAudible: 0,
   speaking: [] as string[],
   micOpen: true,
+  engineLog: [],
 };
 
 /** The same connection, with somebody audible on it. */

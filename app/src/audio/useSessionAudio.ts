@@ -96,7 +96,26 @@ export interface SessionAudio {
    * says the microphone is open when it is not.
    */
   micOpen: boolean;
+  /**
+   * What the audio engine did at each of the last few microphone transitions,
+   * newest last, for reading **on the phone**.
+   *
+   * **Not `__DEV__`-gated, deliberately, and that is the whole point of it.**
+   * The question this answers — what actually moves when somebody self-mutes —
+   * needs a Bluetooth headset and a second person, which is a situation that
+   * happens away from a Mac. A development build puts the answer in Metro,
+   * where it is no use to somebody who is not at their desk; this puts it on
+   * the screen next to the button that causes it.
+   *
+   * Diagnostic and temporary. It is rendered by `ChannelView` under the mute
+   * control, and the whole of it — this field, `engineState.ts`, and that
+   * block — comes out once the question is answered. See planning/TASKS.md.
+   */
+  engineLog: string[];
 }
+
+/** How many transitions to keep. Enough for a mute, an unmute and a mistake. */
+const ENGINE_LOG_LIMIT = 6;
 
 /** Apple-only; on Android the category model does not apply. */
 async function applyConfiguration(
@@ -323,6 +342,7 @@ export function useSessionAudio(
     othersAudible: 0,
     speaking: [],
     micOpen: false,
+    engineLog: [],
   });
   const roomRef = useRef<Room | null>(null);
   /**
@@ -692,14 +712,21 @@ export function useSessionAudio(
     // somebody else's microphone is open, so the configuration write below is
     // a no-op and the route never moves. That is the whole of the fix, and it
     // is why this branch does not re-state the configuration at all.
-    // Measured either side, in development builds, because four fixes for the
-    // audible profile handover were reasoned from source and none of them
-    // worked. `engineState.ts` says what each reading would mean.
-    const before = __DEV__ ? engineSnapshot() : null;
+    // Measured either side, in every build, because four fixes for the audible
+    // profile handover were reasoned from source and none of them worked.
+    // `engineState.ts` says what each reading would mean.
+    const before = engineSnapshot();
     const report = (): void => {
-      if (!__DEV__) return;
-      // eslint-disable-next-line no-console
-      console.log(`[engine] ${intent}: ${engineDiff(before, engineSnapshot())}`);
+      const at = new Date().toTimeString().slice(0, 8);
+      const line = `${at} ${intent}: ${engineDiff(before, engineSnapshot())}`;
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log(`[engine] ${line}`);
+      }
+      setState((s) => ({
+        ...s,
+        engineLog: [...s.engineLog, line].slice(-ENGINE_LOG_LIMIT),
+      }));
     };
 
     (intent === 'capturing'
