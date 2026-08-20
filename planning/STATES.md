@@ -426,6 +426,21 @@ with the `[audio]` lines `useSessionAudio` writes in development builds, and
 Each is phrased to lift into TASKS.md or BACKLOG.md as it stands. Those already
 closed say so.
 
+**Three are closed: 2, 5 and 6.** Everything else is open, but two of those are
+open in a way that reads like closure and is not — **3 and 7 are open by
+design**, 3 because the one case the two names differ in is deliberate and 7
+because `orderChannels` already consults `presentCount`. Both are written down
+here precisely so that a later reading does not "simplify" them; neither is
+waiting on work. The ones actually waiting are 1, 4, 8 and 9, and **9 is the
+live one**.
+
+**The list is not in numeric order.** 9 sits between 5 and 6, next to the entry
+that hands off to it, since 5's closure is only legible alongside the fault it
+was mistaken for. Scanning by number is how 9 gets missed, which is the wrong
+one to miss. The numbers are stable references and are not to be reassigned to
+tidy this up — renumbering would silently repoint anything that has already
+lifted an entry elsewhere.
+
 1. **"Silenced", `mutedByServer` and a withheld subscription are one state under
    three names**, in three layers, none derived from the others. Open. Nothing
    is wrong today; the risk is a fourth name.
