@@ -221,6 +221,22 @@ export interface ChannelState {
    * replacement has already connected can evict someone who is demonstrably
    * back.
    */
+  /**
+   * Everyone whose presence expired rather than being given up.
+   *
+   * A departure somebody chose and a connection that ran out of grace leave
+   * the same absence behind, and the roster used to describe them with the
+   * same words. This is the difference, and it is one bit because that is all
+   * the difference there is: *how long* is `idleMs`, the same clock either
+   * way, and how long it stays worth saying is WAITING_WINDOW_MS. Read through
+   * `isWaiting`, which applies the window; membership here alone outlives it.
+   *
+   * Volatile, like `present` and `disconnectedAt` and for the same reason: it
+   * describes a process rather than a channel, and a restart that dropped
+   * everybody's socket is not evidence that any of them were waiting for
+   * anything.
+   */
+  waiting: UserId[];
   disconnectedAt: Partial<Record<UserId, number>>;
   /**
    * The last evidence that each user was in this channel — refreshed by

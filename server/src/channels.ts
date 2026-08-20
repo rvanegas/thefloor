@@ -361,8 +361,22 @@ export class ChannelRegistry {
   private mixing = new Map<string, Promise<void>>();
 
   /**
-   * When each channel last announced itself, so a flapping connection cannot
-   * ring everybody repeatedly. See `announceActive`.
+   * When each person was last told that each channel had come alive, keyed
+   * channel-and-target. See `announceActive`.
+   *
+   * **Per target rather than per channel**, which it was until 2026-08-20, and
+   * the difference is not a refinement. `announceActive` only notifies people
+   * who are *absent*, so anybody who was in the room when it last fired was
+   * told nothing — and then inherited the suppression anyway. Three people, one
+   * of whom is in the channel: they leave, somebody else walks in four minutes
+   * later, and the one most likely to care is silenced by a notification they
+   * never received.
+   *
+   * **And an entry clears it**, which is the rest of the rule. The window
+   * exists because somebody probably still has the last notification on their
+   * lock screen; walking into the channel is direct evidence that they do not.
+   * A notice that was acted on is spent, and the next arrival is news rather
+   * than a repeat. See `consume`.
    *
    * In memory deliberately: a restart resetting it costs at most one extra
    * notification, which is not worth a column.
@@ -1540,6 +1554,15 @@ export class ChannelRegistry {
     const arrived =
       after.participants.length > before.participants.length ||
       after.present.some((id) => !before.present.includes(id));
+    // Whoever has just walked in has answered whatever they were last told
+    // about this channel. Done before the announcement below rather than
+    // after, so that the arrival cannot be the thing that silences its own
+    // audience — the arriver is never in `absent`, so the order is not
+    // load-bearing, but reading it in the other order invites the question.
+    this.consume(
+      after.id,
+      after.present.filter((id) => !before.present.includes(id))
+    );
     if (before.present.length === 0 && after.present.length > 0) {
       // Nobody had ever been in it, so this is not somebody arriving where you
       // both have been before: it is the channel starting, and until contacts
@@ -1635,10 +1658,6 @@ export class ChannelRegistry {
   private announceActive(channel: ChannelState): void {
     if (channel.status !== 'active') return;
     const now = this.now();
-    const last = this.lastAnnouncedAt.get(channel.id);
-    if (last !== undefined && now - last < ANNOUNCE_INTERVAL_MS) return;
-    this.lastAnnouncedAt.set(channel.id, now);
-
     const arrived = channel.present[0];
     const absent = channel.participants.filter(
       (id) => !channel.present.includes(id)
@@ -1647,7 +1666,17 @@ export class ChannelRegistry {
     // unnamed channel is called after whoever else is in it and there is no
     // one answer to that — which is why the name is resolved per recipient
     // here rather than once, outside the loop.
+    //
+    // The window is asked about per recipient for the same reason: whether
+    // somebody has been told recently is a fact about them, not about the room.
+    // The flap this absorbs is one connection ringing one phone repeatedly,
+    // which this still absorbs — the people who did not flap have no stamp to
+    // suppress them.
     for (const userId of absent) {
+      const key = this.announceKey(channel.id, userId);
+      const last = this.lastAnnouncedAt.get(key);
+      if (last !== undefined && now - last < ANNOUNCE_INTERVAL_MS) continue;
+      this.lastAnnouncedAt.set(key, now);
       this.push.notify(
         [userId],
         notifications.arrived(
@@ -1656,6 +1685,55 @@ export class ChannelRegistry {
           channel.id
         )
       );
+    }
+  }
+
+  private announceKey(channelId: string, userId: string): string {
+    return `${channelId}:${userId}`;
+  }
+
+  private pingKey(channelId: string, userId: string): string {
+    return `${channelId}:${userId}`;
+  }
+
+  /**
+   * When each participant may next be pinged, for those who may not be now.
+   *
+   * The same answer for everybody, the limit protecting whoever is being
+   * pinged rather than bounding whoever is sending — so this is composed once
+   * per snapshot rather than per viewer.
+   *
+   * Only the windows still open are listed. Absent means pingable, which keeps
+   * the map empty in the ordinary case and means a client can read a missing
+   * entry as "go ahead" without knowing the interval.
+   */
+  pingWindows(channelId: string): Record<string, number> {
+    const windows: Record<string, number> = {};
+    const channel = this.channels.get(channelId);
+    if (!channel) return windows;
+    const now = this.now();
+    for (const userId of channel.participants) {
+      const last = this.lastPingedAt.get(this.pingKey(channelId, userId));
+      if (last === undefined) continue;
+      const until = last + PING_INTERVAL_MS;
+      if (until > now) windows[userId] = until;
+    }
+    return windows;
+  }
+
+  /**
+   * Spends whatever announcement these people are holding.
+   *
+   * Called when somebody becomes present, because going is what answers a
+   * notification. Without this a person who was told, walked in, and left
+   * again would be refused the next arrival on the strength of a notice they
+   * have already acted on — and the case that matters most is the one where
+   * they walked in to *wait*, since their own entry is the announcement that
+   * starts the window they will later be silenced by.
+   */
+  private consume(channelId: string, userIds: readonly string[]): void {
+    for (const userId of userIds) {
+      this.lastAnnouncedAt.delete(this.announceKey(channelId, userId));
     }
   }
 
@@ -1712,7 +1790,7 @@ export class ChannelRegistry {
     }
 
     const now = this.now();
-    const key = `${channelId}:${targetId}`;
+    const key = this.pingKey(channelId, targetId);
     const last = this.lastPingedAt.get(key);
     if (last !== undefined && now - last < PING_INTERVAL_MS) {
       return {
@@ -2758,7 +2836,9 @@ export class ChannelRegistry {
       // deploy goes unannounced. That is the right way round: a missed
       // notification is quiet, and the alternative is every phone lighting up
       // every time the server is restarted.
-      this.lastAnnouncedAt.set(channel.id, now);
+      for (const userId of channel.participants) {
+        this.lastAnnouncedAt.set(this.announceKey(channel.id, userId), now);
+      }
       // The revived channel's room, which a channel that has moved does not
       // share with its id.
       const room = channel.mediaRoom;
@@ -2882,6 +2962,10 @@ export class ChannelRegistry {
       status: 'active',
       endedAt: null,
       present: [],
+      // Nobody comes back waiting. A restart dropped every socket at once, and
+      // that says nothing about whether any of them had walked into a channel
+      // to hold on for somebody — see `waiting` in core/types.ts.
+      waiting: [],
       everPresent: durable.everPresent ?? [],
       floor: initialFloorState(),
       selfMuted: Object.fromEntries(participants.map((id) => [id, false])),

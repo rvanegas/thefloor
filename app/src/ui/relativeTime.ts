@@ -57,6 +57,21 @@ export function agoOrNull(ms: number): string | null {
  * milliseconds can arrive negative — and dayjs renders that as "in a few
  * seconds", a future tense for something that has already happened.
  */
+/**
+ * How long `ms` is, in the same words as `ago` but as a length rather than a
+ * moment: "5 minutes", not "5 minutes ago".
+ *
+ * dayjs's own suffix-less form, so the two cannot drift into rendering the
+ * same span differently. It exists because the roster says both things about
+ * the same number — somebody waiting has been waiting *for* a length of time,
+ * and the moment they stopped being reachable is the same instant either way.
+ */
+export function duration(ms: number): string {
+  const elapsed = Math.max(0, ms);
+  const anchor = 0;
+  return dayjs(anchor - elapsed).from(dayjs(anchor), true);
+}
+
 export function ago(ms: number): string {
   const elapsed = Math.max(0, ms);
   // Anchored to a fixed instant and offset from it, rather than to the

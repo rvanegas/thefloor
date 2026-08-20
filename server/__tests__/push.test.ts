@@ -456,6 +456,75 @@ describe('a channel becoming active', () => {
     expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
   });
 
+  /**
+   * The window is there because the recipient probably still has the last
+   * notification on their lock screen. Walking into the channel is evidence
+   * that they do not: they answered it, and whoever arrives next is news.
+   */
+  it('tells somebody again once they have been in the room since', async () => {
+    const { alice, bob, channelId } = await emptyChannel();
+    await registerDevice(bob.token, 'bob-phone');
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    clock += ANNOUNCE_INTERVAL_MS - 1;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(2);
+  });
+
+  /**
+   * The window used to be keyed by channel, so telling one person silenced
+   * everybody else — including anybody who had been *in* the room when it
+   * fired, and had therefore been told nothing at all.
+   */
+  it('does not let one person\u2019s notification silence another\u2019s', async () => {
+    const { alice, bob } = await twoContacts();
+    const carol = await signIn('carol@example.com', 'Carol');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: 'carol@example.com' },
+    });
+    await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${alice.account.id}/accept`,
+      headers: auth(carol.token),
+    });
+    const channelId = await createChannel(alice.token, [
+      bob.account.id,
+      carol.account.id,
+    ]);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    await settle();
+    await registerDevice(bob.token, 'bob-phone');
+    await registerDevice(carol.token, 'carol-phone');
+    pusher.sent.length = 0;
+
+    // Alice arrives in an empty channel: both of the others are told.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+    expect(pusher.messagesFor('carol-phone')).toHaveLength(1);
+
+    // Bob answers his, and they both leave. Carol never moved.
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    clock += ANNOUNCE_INTERVAL_MS - 1;
+
+    // Alice comes back. Bob spent his notice and is told; Carol is still
+    // holding hers, and is not.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(2);
+    expect(pusher.messagesFor('carol-phone')).toHaveLength(1);
+  });
+
   it('announces again once the window has passed', async () => {
     const { alice, bob, channelId } = await emptyChannel();
     await registerDevice(bob.token, 'bob-phone');
@@ -836,6 +905,26 @@ describe('a ping', () => {
 
     expect(again.statusCode).toBe(409);
     expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+  });
+
+  it('reports when somebody may next be pinged, so the composer can say', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    // Nobody has been pinged, so there is nothing to report. Absent means
+    // pingable, which is what lets a client read a missing entry as "go
+    // ahead" without being told the interval.
+    expect(app.channels.pingWindows(channelId)).toEqual({});
+
+    const at = clock;
+    await ping(alice.token, channelId, { targetId: bob.account.id });
+    await settle();
+    expect(app.channels.pingWindows(channelId)).toEqual({
+      [bob.account.id]: at + PING_INTERVAL_MS,
+    });
+
+    // And it drops out again the moment the window closes, rather than sitting
+    // there as a deadline in the past for a client to have to compare.
+    clock += PING_INTERVAL_MS;
+    expect(app.channels.pingWindows(channelId)).toEqual({});
   });
 
   it('lets the same person be pinged again once the window has passed', async () => {

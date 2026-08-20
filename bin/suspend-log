@@ -1,0 +1,778 @@
+#!/usr/bin/env node
+//
+// How long iOS lets this app go on running once it is backgrounded, measured
+// rather than reasoned about.
+//
+//   bin/suspend-log collect          record; leave it running for hours or days
+//   bin/suspend-log read             the timeline, and the answer
+//   bin/suspend-log archive          add the back-history the device already kept
+//   bin/suspend-log --file PATH ...  somewhere other than the default
+//
+// The default log is ~/.local/state/thefloor/suspend.log, outside the tree on
+// purpose: `bin/deploy` rsyncs the working tree with --delete, so a capture
+// left inside it would be shipped to the box and then removed by the next
+// deploy.
+//
+// **What this exists to settle.** `UIBackgroundModes: ["audio"]` keeps the
+// process alive while it is playing or capturing, and presence in this system
+// is a websocket held by that process — so how long iOS waits before
+// suspending decides how long somebody who steps into a channel and puts their
+// phone away goes on being present in it. The answer is different for a
+// channel with somebody else in it, where the microphone is open and the
+// session is `CALL`, and an empty one, where `core/micNeeded.ts` closes the
+// microphone and the session is `IDLE`: an audio assertion with no audio
+// flowing is the kind iOS takes back. The 2026-08-08 investigation measured
+// six minutes with no suspension and a second person in the room; the empty
+// case has never been measured. See DECISIONS-2026-08-07-to-2026-08-13.md
+// § "Backgrounded audio was ruled out".
+//
+// **The three cases fall out of the log rather than needing to be set up.**
+// Every audio assertion iOS grants names the category it was granted for, so
+// `read` classifies each backgrounding by what it finds:
+//
+//   audio: none          not in a channel — the control, and the fastest
+//   audio: Playback…     in a channel, microphone closed — IDLE or LISTENING
+//   audio: PlayAndRecord… microphone open — CALL
+//
+// So the way to use this is not to stage an experiment. Start `collect`, use
+// the app normally for a day, and `read` will have episodes of all three.
+//
+// **Traps.**
+//
+//   * A build attached to a debugger is never suspended. Measure a TestFlight
+//     or App Store build, launched by tapping it. `expo run:ios` with Metro
+//     attached measures the debugger, not iOS.
+//   * The device must be visible to usbmuxd — a cable, or Xcode's "Show this
+//     iPhone when on Wi-Fi". `idevice_id -l` is the test. A cable does not
+//     change when a process is suspended; charging does not either.
+//   * Relay timestamps are the *device's* local clock and carry no year. This
+//     stamps a `# session` banner from the Mac's clock at each start, and the
+//     year is read from that.
+'use strict';
+
+const { spawn, spawnSync, execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const BUNDLE = readBundleId();
+const DEFAULT_LOG = path.join(
+  os.homedir(),
+  '.local',
+  'state',
+  'thefloor',
+  'suspend.log'
+);
+
+/**
+ * From `app.json` rather than written here, on the same reasoning AGENTS.md
+ * gives for the Expo version: a file that states a fact separately from the
+ * file that owns it is a file that can be wrong, and this one would be wrong
+ * silently — every pattern below would simply stop matching and the report
+ * would say "no episodes" rather than "I am looking for the wrong app".
+ */
+function readBundleId() {
+  const appJson = path.join(__dirname, '..', 'app', 'app.json');
+  const parsed = JSON.parse(fs.readFileSync(appJson, 'utf8'));
+  const id = parsed?.expo?.ios?.bundleIdentifier;
+  if (!id) die(`No expo.ios.bundleIdentifier in ${appJson}`);
+  return id;
+}
+
+function die(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}
+
+function help() {
+  const source = fs.readFileSync(__filename, 'utf8').split('\n');
+  for (const line of source.slice(1)) {
+    if (!line.startsWith('//')) break;
+    process.stdout.write(`${line.replace(/^\/\/ ?/, '')}\n`);
+  }
+}
+
+/** The one device, or the one named by --udid. */
+function resolveUdid(explicit) {
+  if (explicit) return explicit;
+  let out;
+  try {
+    out = execFileSync('idevice_id', ['-l'], { encoding: 'utf8' });
+  } catch {
+    die('idevice_id not found. brew install libimobiledevice');
+  }
+  const ids = out.split('\n').filter(Boolean);
+  if (ids.length === 0) {
+    die(
+      'No device. Plug the phone in, or turn on "Show this iPhone when on ' +
+        'Wi-Fi" in Finder, and trust the Mac if asked.'
+    );
+  }
+  if (ids.length > 1) die(`Several devices; pass --udid:\n  ${ids.join('\n  ')}`);
+  return ids[0];
+}
+
+// --- collect --------------------------------------------------------------
+
+/**
+ * Appends the device's log to the capture file, filtered down to the lines
+ * that name this app.
+ *
+ * The filter is what makes this something you can leave running. Unfiltered,
+ * `runningboardd` alone produces something like 180 lines a second; what
+ * mentions this app is about one line every three seconds, which is a few
+ * thousand lines a day. `-K` drops the kernel, which the match filter does not
+ * apply to, and the after-life line is a debug heartbeat that fires several
+ * times a second while the app is backgrounded and says nothing.
+ *
+ * Appends rather than truncating, so a capture accumulates across sessions —
+ * which is the whole point, and is why `-o` is not used: it overwrites.
+ */
+function collect(file, udid) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const out = fs.createWriteStream(file, { flags: 'a' });
+  out.write(`# session ${new Date().toISOString()} udid=${udid}\n`);
+
+  const child = spawn(
+    'idevicesyslog',
+    [
+      '-u', udid,
+      '--no-colors',
+      '-K',
+      '-m', 'thefloor',
+      '-m', 'TheFloor',
+      '-M', 'after-life.interrupted',
+    ],
+    { stdio: ['ignore', 'pipe', 'inherit'] }
+  );
+
+  child.stdout.pipe(out);
+  process.stderr.write(
+    `Recording to ${file}\n` +
+      'Leave this running. Use the app normally — step into a channel alone, ' +
+      'step into one with somebody else,\nand background the phone each time. ' +
+      'Ctrl-C when done, then: bin/suspend-log read\n'
+  );
+
+  // Not `-x`: without it the relay waits for the device to come back rather
+  // than exiting, so unplugging the phone is a gap in the capture rather than
+  // the end of it. The [disconnected]/[connected] markers it writes are what
+  // `read` uses to avoid reporting the gap as a suspension.
+  const stop = () => child.kill('SIGTERM');
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  child.on('exit', (code) => process.exit(code ?? 0));
+}
+
+// --- archive --------------------------------------------------------------
+
+/**
+ * Pulls the log the device kept for itself and folds it into the capture file.
+ *
+ * The relay only carries what happens while it is attached; the device has
+ * been writing its own log all along, so this reaches backwards. It is heavy —
+ * half an hour of device log is a few hundred megabytes over USB, all of it
+ * discarded except the handful of lines naming this app — which is why it is a
+ * separate command rather than something `collect` does at startup.
+ *
+ * The result is normalised into the relay's own line format, so `read` has one
+ * parser rather than two.
+ */
+function archive(file, udid, ageSeconds) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'suspend-log-'));
+  const tar = path.join(tmp, 'device.tar');
+  const dir = path.join(tmp, 'device.logarchive');
+
+  process.stderr.write(`Requesting ${Math.round(ageSeconds / 60)} minutes of device log…\n`);
+  run('idevicesyslog', ['-u', udid, 'archive', '--age-limit', String(ageSeconds), tar]);
+  fs.mkdirSync(dir, { recursive: true });
+  run('tar', ['xf', tar, '-C', dir]);
+
+  process.stderr.write('Extracting the lines that name the app…\n');
+  const ndjson = spawnSync(
+    'log',
+    [
+      'show',
+      '--archive', dir,
+      '--style', 'ndjson',
+      '--predicate', `eventMessage CONTAINS "thefloor" OR eventMessage CONTAINS "TheFloor"`,
+    ],
+    { encoding: 'utf8', maxBuffer: 1024 * 1024 * 512 }
+  );
+  if (ndjson.status !== 0) die(ndjson.stderr || 'log show failed');
+
+  const lines = [];
+  for (const raw of ndjson.stdout.split('\n')) {
+    if (!raw.trim()) continue;
+    let entry;
+    try {
+      entry = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (!entry.eventMessage || !entry.timestamp) continue;
+    if (entry.eventMessage.includes('after-life.interrupted')) continue;
+    const proc = path.basename(entry.processImagePath || entry.process || '?');
+    // The relay's own shape: "Aug 20 01:06:47.019360 proc[pid] <Notice>: msg".
+    const at = new Date(entry.timestamp);
+    const stamp =
+      at.toLocaleString('en-US', { month: 'short', day: '2-digit' }).replace(',', '') +
+      ' ' +
+      at.toTimeString().slice(0, 8) +
+      '.' +
+      String(at.getMilliseconds()).padStart(3, '0') +
+      '000';
+    lines.push(`${stamp} ${proc}[${entry.processID ?? 0}] <Notice>: ${entry.eventMessage.replace(/\n/g, ' ')}`);
+  }
+
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(
+    file,
+    `# session ${new Date().toISOString()} archive age=${ageSeconds}s\n` +
+      lines.join('\n') +
+      '\n'
+  );
+  fs.rmSync(tmp, { recursive: true, force: true });
+  process.stderr.write(`Added ${lines.length} lines to ${file}\n`);
+}
+
+function run(cmd, args) {
+  const result = spawnSync(cmd, args, { stdio: ['ignore', 'inherit', 'inherit'] });
+  if (result.status !== 0) die(`${cmd} failed`);
+}
+
+// --- read -----------------------------------------------------------------
+
+const RELAY =
+  /^([A-Z][a-z]{2}) {1,2}(\d{1,2}) (\d{2}):(\d{2}):(\d{2})\.(\d+) (\S+?)(?:\([^)]*\))?\[(\d+)\] <(\w+)>: (.*)$/;
+const MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
+
+/**
+ * Every line that says what state the process is in, and everything that bears
+ * on why.
+ *
+ * Two processes disagree about nothing here but say it at different rates.
+ * `Received state update` is broadcast to every observer, so it arrives many
+ * times for one transition and from several processes; `Calculated state` is
+ * runningboardd's own and arrives once. Both are read, and duplicates are
+ * collapsed by taking only the transitions.
+ */
+function patterns(bundle) {
+  const app = bundle.replace(/\./g, '\\.');
+  return {
+    // "Received state update for 63777 (app<co.rvanegas.thefloor(…)>, running-active-NotVisible"
+    update: new RegExp(`Received state update for \\d+ \\(app<${app}\\([^)]*\\)>, ([\\w-]+)`),
+    // "Calculated state for app<co.rvanegas.thefloor(…)>: running-active (role: NonUserInteractive)"
+    calculated: new RegExp(`Calculated state for app<${app}\\([^)]*\\)>: ([\\w-]+) \\(role: (\\w+)\\)`),
+    // The category the audio assertion was granted for, inside its own
+    // description: "…"PlayAndRecord_WithBluetooth_DefaultToSpeaker".isPlayingProcessAssertion"
+    category: /"([A-Za-z][A-Za-z_]*)"\.isPlayingProcessAssertion/,
+    // audiomxd publishing the app as a client that is *capturing*.
+    capturing: new RegExp(`PublishRecordingClientsInfo.*ActiveEntity ${app}`),
+    // powerd's periodic summary, which carries how long the audio assertion
+    // has been held — so a single sighting dates its beginning as well as
+    // proving it still stood.
+    holding: new RegExp(`'prim'\\(${app}\\)\\.isplaying" age:(\\d+):(\\d+):(\\d+)`),
+    // And the end of it, stated once and plainly. Without this the last
+    // category ever seen was inherited by every later backgrounding, so an
+    // app sitting on Home with no channel at all was filed under
+    // PlayAndRecord and its one-second suspension read as the answer for a
+    // conversation. The assertion going away is the whole difference between
+    // the cases this tool exists to separate.
+    ended: new RegExp(`SessionEnded NoIdleSleepAssertion "MediaExperience[^"]*\\(${app}\\)\\.isplaying`),
+    // symptomsd's snapshot of the app's TCP flows. The long-lived one is the
+    // websocket in `app/src/api/socket.ts`.
+    //
+    // **The packet counts cannot date a packet**, which is worth stating
+    // because the first version of this reported that they could. They are
+    // cumulative, and a snapshot is written when a flow opens, closes or is
+    // refreshed rather than on a schedule — so a count that has risen since
+    // the last look says only that something was sent somewhere in a window
+    // that can be minutes wide. It read "last packet sent 60s in" for a flow
+    // whose first snapshot since opening happened to land there.
+    //
+    // The *close* is exact, and is the thing worth having: it is the socket
+    // going away, which is the moment presence starts running out.
+    flow: /snapshot: \S+ TCP\d flow id (\d+) \((\w+)\).*pkts rx (\d+) tx (\d+)/,
+    gap: /^\[(dis)?connected/,
+    session: /^# session (\S+)/,
+  };
+}
+
+function parse(file, bundle) {
+  if (!fs.existsSync(file)) die(`No capture at ${file}. Run: bin/suspend-log collect`);
+  const p = patterns(bundle);
+  const events = [];
+  /** The year the relay's timestamps do not carry, from the last banner. */
+  let year = new Date().getFullYear();
+  let previous = null;
+  let previousProc = null;
+
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const banner = p.session.exec(line);
+    if (banner) {
+      year = new Date(banner[1]).getFullYear();
+      events.push({ at: new Date(banner[1]).getTime(), kind: 'session' });
+      continue;
+    }
+    if (p.gap.test(line)) {
+      // The device went away. Recorded so a capture that spans an unplugging
+      // does not read as the process having gone quiet.
+      if (previous) events.push({ at: previous, kind: line.startsWith('[dis') ? 'gone' : 'back' });
+      continue;
+    }
+
+    // A record can wrap onto lines of its own, and the wrapped part carries no
+    // timestamp and no process — symptomsd's flow snapshots are entirely of
+    // that shape, which is why they were being read as noise and dropped. A
+    // line that is not a new record is the continuation of the last one, and
+    // is timed by it.
+    const m = RELAY.exec(line);
+    let at;
+    let proc;
+    let message;
+    if (m) {
+      const [, mon, day, hh, mm, ss, frac] = m;
+      at = new Date(
+        year,
+        MONTHS.indexOf(mon),
+        Number(day),
+        Number(hh),
+        Number(mm),
+        Number(ss),
+        Number(frac.slice(0, 3))
+      ).getTime();
+      proc = m[7];
+      message = m[10];
+      previous = at;
+      previousProc = proc;
+    } else if (previous !== null) {
+      at = previous;
+      proc = previousProc;
+      message = line;
+    } else {
+      continue;
+    }
+
+    const update = p.update.exec(message);
+    if (update) {
+      // "running-active-NotVisible" — the visibility is the last segment, and
+      // the state is everything before it. "unknown-NotVisible" happens while
+      // a transition is in flight and is deliberately kept: it is not a state
+      // to report, but dropping it would merge two episodes into one.
+      const cut = update[1].lastIndexOf('-');
+      events.push({
+        at,
+        kind: 'state',
+        state: update[1].slice(0, cut),
+        visible: update[1].slice(cut + 1) === 'Visible',
+      });
+      continue;
+    }
+    const calculated = p.calculated.exec(message);
+    if (calculated) {
+      events.push({ at, kind: 'calculated', state: calculated[1], role: calculated[2] });
+      continue;
+    }
+    const category = p.category.exec(message);
+    if (category) {
+      events.push({ at, kind: 'audio', category: category[1] });
+      continue;
+    }
+    if (p.capturing.test(message)) {
+      events.push({ at, kind: 'capturing' });
+      continue;
+    }
+    const flow = p.flow.exec(message);
+    if (flow) {
+      events.push({ at, kind: 'flow', id: flow[1], event: flow[2], tx: Number(flow[4]) });
+      continue;
+    }
+    if (p.ended.test(message)) {
+      events.push({ at, kind: 'audio-ended' });
+      continue;
+    }
+    const holding = p.holding.exec(message);
+    if (holding) {
+      const held =
+        (Number(holding[1]) * 3600 + Number(holding[2]) * 60 + Number(holding[3])) * 1000;
+      events.push({ at, kind: 'holding', held, proc });
+    }
+  }
+
+  events.sort((a, b) => a.at - b.at);
+  return events;
+}
+
+/**
+ * The confirmed visibility changes, out of a burst of contradictory ones.
+ *
+ * One transition is broadcast to every process that has asked to observe this
+ * app — SpringBoard, audiomxd, CommCenter, wifid, a dozen more — and they are
+ * logged in the order they were *delivered*, which is not the order they
+ * happened. So a single tap into the foreground arrives as Visible,
+ * NotVisible, Visible, NotVisible, Visible across about a second, and read
+ * literally it is two backgroundings and two returns, each lasting no time at
+ * all. That is what filled the first report with 0s episodes.
+ *
+ * A change is taken as real only if nothing contradicts it for `window`, and
+ * is stamped at the first sighting rather than the last, that being when it
+ * actually happened. `unknown` is dropped outright: it is what a process
+ * reports mid-transition, and its visibility is not to be believed.
+ */
+function settle(events, window = 3000) {
+  const raw = events
+    .filter((e) => e.kind === 'state' && e.state !== 'unknown')
+    .map((e) => ({ at: e.at, visible: e.visible }));
+  const shifts = [];
+  let held = null;
+  for (let i = 0; i < raw.length; i += 1) {
+    const visible = raw[i].visible;
+    if (held !== null && visible === held) continue;
+    let contradicted = false;
+    for (let j = i + 1; j < raw.length && raw[j].at - raw[i].at <= window; j += 1) {
+      if (raw[j].visible !== visible) {
+        contradicted = true;
+        break;
+      }
+    }
+    if (contradicted) continue;
+    shifts.push({ at: raw[i].at, visible });
+    held = visible;
+  }
+  return shifts;
+}
+
+/**
+ * Backgroundings, and what became of each.
+ *
+ * An episode opens when the app stops being visible and closes when it becomes
+ * visible again or the capture ends. What is being looked for inside one is
+ * the first moment the state goes to something suspended — that is the number
+ * this whole tool exists to produce.
+ */
+function episodes(events) {
+  const shifts = settle(events);
+  // The raw state events keep their run state, which is where a suspension is
+  // seen, and give up their visibility to the settled timeline.
+  const merged = events
+    .map((e) => (e.kind === 'state' ? { at: e.at, kind: 'runstate', state: e.state } : e))
+    .concat(shifts.map((s) => ({ at: s.at, kind: 'visibility', visible: s.visible })))
+    .sort((a, b) => a.at - b.at);
+
+  const found = [];
+  let open = null;
+  let visible = shifts.length ? shifts[0].visible : null;
+  let category = null;
+  let capturingAt = null;
+  /**
+   * When the audio assertion currently standing was taken, or null if none is.
+   *
+   * This is what decides which case an episode belongs to, and it has to be a
+   * standing fact rather than a memory of the last category seen: the category
+   * is only ever *mentioned* in passing, while the assertion has a beginning
+   * and an end that are stated.
+   */
+  let heldSince = null;
+  /** TCP flows seen opening, so that a close can be matched to one. */
+  const sent = new Set();
+
+  // Already backgrounded when the capture began, which is the ordinary case
+  // for `archive` and for any `collect` started while the phone is in a
+  // pocket. The moment it went is not in the log, so the episode opens at the
+  // first thing that is and is reported as a bound rather than thrown away: a
+  // discarded episode is a measurement lost, an understated one is still true.
+  if (visible === false) {
+    open = {
+      from: events.length ? events[0].at : shifts[0].at,
+      category: null,
+      capturing: false,
+      audioHeld: false,
+      suspendedAt: null,
+      openAtStart: true,
+    };
+    found.push(open);
+  }
+
+  for (const event of merged) {
+    if (event.kind === 'flow') {
+      if (event.event === 'open') sent.add(event.id);
+      // A flow that was open during this episode and has now closed. The
+      // server gives up on a connection that has gone quiet, and this is that
+      // arriving — so it dates the socket's death from the phone's side,
+      // independently of anything the server says about it.
+      if (open && event.event === 'close' && sent.has(event.id)) {
+        open.socketClosed = event.at;
+        sent.delete(event.id);
+      }
+      continue;
+    }
+    if (event.kind === 'audio') {
+      category = event.category;
+      // An episode opened at the start of the capture has no history to read
+      // its category out of, so it takes the first one stated inside itself.
+      // Only the first: a session that changes category mid-episode — somebody
+      // arriving in the channel — is a different case, and the one that
+      // decided whether the process survived is the one it started under.
+      if (open && open.openAtStart && !open.category) open.category = category;
+      continue;
+    }
+    if (event.kind === 'capturing') {
+      capturingAt = event.at;
+      if (open && open.openAtStart) open.capturing = true;
+      continue;
+    }
+    if (event.kind === 'holding') {
+      // A sighting proves the assertion stands *and* says when it was taken,
+      // which is what lets an episode that opened before the capture did be
+      // classified at all: if it was taken before that episode began, it was
+      // standing throughout.
+      heldSince = event.at - event.held;
+      if (open && open.audioHeld !== true && open.from >= heldSince) {
+        open.audioHeld = true;
+        if (open.held === undefined) open.held = event.held;
+      }
+      continue;
+    }
+    if (event.kind === 'audio-ended') {
+      heldSince = null;
+      category = null;
+      continue;
+    }
+    if (event.kind === 'visibility') {
+      if (!event.visible && visible !== false) {
+        open = {
+          from: event.at,
+          category,
+          // Whether the microphone was seen open *near* the moment of
+          // backgrounding. audiomxd publishes this on a change rather than on
+          // a schedule, so a stale sighting is worse than none: two minutes is
+          // wide enough to catch the transition that put the app in this state
+          // and narrow enough not to inherit the previous channel's.
+          capturing: capturingAt !== null && event.at - capturingAt < 120_000,
+          audioHeld: heldSince !== null,
+          suspendedAt: null,
+        };
+        found.push(open);
+      }
+      if (event.visible && open) {
+        open.until = event.at;
+        open = null;
+      }
+      visible = event.visible;
+      continue;
+    }
+
+    const state = event.kind === 'runstate' || event.kind === 'calculated' ? event.state : null;
+    if (open && state && /suspend/.test(state) && open.suspendedAt === null) {
+      open.suspendedAt = event.at;
+    }
+    if (open && event.kind === 'gone') open.interrupted = true;
+  }
+
+  const end = events.length ? events[events.length - 1].at : Date.now();
+  for (const episode of found) if (episode.until === undefined) episode.until = end;
+  return found;
+}
+
+/**
+ * Which case an episode is, in the words iOS itself uses.
+ *
+ * There are two of these rather than the three the header promises, and
+ * finding that out is the result rather than a shortcoming of the reading.
+ * `IDLE` — `playback` with `mixWithOthers` and nothing actually playing — is
+ * granted **no background-audio assertion at all**, so a phone sitting alone
+ * in a channel is indistinguishable here from one sitting on Home with no
+ * channel open, and is suspended just as fast. The device log cannot separate
+ * them because at this level there is nothing to separate: the only thing that
+ * buys background time is audio actually flowing.
+ */
+function describe(episode) {
+  if (!episode.audioHeld) return 'no assertion';
+  return episode.category ?? 'held, category not seen';
+}
+
+function duration(ms) {
+  // Below a couple of seconds the tenths are the whole story — an app that
+  // goes at 0.3s and one that goes at 1.8s are both "suspended immediately",
+  // but rounding either to "0s" reads as a parsing failure rather than a
+  // measurement.
+  if (ms < 2000) return `${(ms / 1000).toFixed(1)}s`;
+  const s = Math.round(ms / 1000);
+  if (s < 90) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 90) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+function clock(at) {
+  return new Date(at).toLocaleString('en-GB', {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
+function read(file, bundle) {
+  const events = parse(file, bundle);
+  if (events.length === 0) {
+    die(
+      `Nothing in ${file} names ${bundle}.\n` +
+        'Either nothing has happened yet, or the app is not the one the capture was filtered for.'
+    );
+  }
+  const found = episodes(events);
+
+  process.stdout.write(`\n── Backgroundings in ${file} ${'─'.repeat(Math.max(0, 30 - file.length))}\n\n`);
+  if (found.length === 0) {
+    process.stdout.write(
+      'No complete backgrounding in the capture. The app has to be in the\n' +
+        'foreground when collection starts for the transition out of it to be seen.\n\n'
+    );
+  }
+
+  for (const episode of found) {
+    const audio = describe(episode);
+    const mic = episode.capturing ? ' · capturing' : '';
+    const how = episode.openAtStart ? 'already background' : 'backgrounded     ';
+    process.stdout.write(`${clock(episode.from)}  ${how}   audio: ${audio}${mic}\n`);
+    if (episode.held !== undefined) {
+      process.stdout.write(
+        `${' '.repeat(18)}  the audio assertion had by then been held ${duration(
+          episode.held
+        )}\n`
+      );
+    }
+    if (episode.suspendedAt !== null) {
+      const since = episode.openAtStart ? 'at most' : 'after';
+      process.stdout.write(
+        `${clock(episode.suspendedAt)}  suspended            ${since} ${duration(
+          episode.suspendedAt - episode.from
+        )}\n`
+      );
+    } else if (episode.interrupted) {
+      process.stdout.write(
+        `${' '.repeat(18)}  device went away — ran at least ${duration(
+          episode.until - episode.from
+        )}, and the rest was not seen\n`
+      );
+    } else {
+      process.stdout.write(
+        `${' '.repeat(18)}  never suspended — ran ${duration(episode.until - episode.from)}\n`
+      );
+    }
+    if (episode.socketClosed !== undefined) {
+      process.stdout.write(
+        `${clock(episode.socketClosed)}  socket closed        ${duration(
+          episode.socketClosed - episode.from
+        )} in — the server had given up on it\n`
+      );
+    }
+    process.stdout.write('\n');
+  }
+
+  summarise(found);
+}
+
+/**
+ * The answer, grouped by what the audio session was doing — which is the whole
+ * question. Episodes that never suspended are reported as a floor rather than
+ * folded into an average: "at least eleven minutes" and "eleven minutes" are
+ * different claims and only one of them is true.
+ */
+function summarise(found) {
+  const groups = new Map();
+  for (const episode of found) {
+    const key = describe(episode);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(episode);
+  }
+  if (groups.size === 0) return;
+
+  process.stdout.write('── Time to suspension, by what the audio session held ─────────\n\n');
+  for (const [audio, list] of groups) {
+    // Three kinds of evidence, and they are not interchangeable. Only an
+    // episode whose beginning *and* end were both seen is a measurement; the
+    // other two are bounds, and averaging a bound into a figure is how a
+    // number stops meaning anything.
+    const measured = list
+      .filter((e) => e.suspendedAt !== null && !e.openAtStart)
+      .map((e) => e.suspendedAt - e.from)
+      .sort((a, b) => a - b);
+    const atMost = list
+      .filter((e) => e.suspendedAt !== null && e.openAtStart)
+      .map((e) => e.suspendedAt - e.from)
+      .sort((a, b) => b - a);
+    const survived = list.filter((e) => e.suspendedAt === null && !e.interrupted);
+    const longest = survived.length
+      ? Math.max(...survived.map((e) => e.until - e.from))
+      : 0;
+
+    process.stdout.write(`  ${audio}\n`);
+    if (measured.length) {
+      const median = measured[Math.floor(measured.length / 2)];
+      process.stdout.write(
+        `    measured ${measured.length}: ` +
+          `${duration(measured[0])} to ${duration(measured[measured.length - 1])}` +
+          `, median ${duration(median)}\n`
+      );
+    }
+    if (atMost.length) {
+      process.stdout.write(
+        `    ${atMost.length} began before the capture did, so only an upper bound: ` +
+          `at most ${duration(atMost[0])}\n`
+      );
+    }
+    if (survived.length) {
+      process.stdout.write(
+        `    ${survived.length} never suspended, the longest running ${duration(longest)}` +
+          ' and still going when the capture ended\n'
+      );
+    }
+    process.stdout.write('\n');
+  }
+
+  process.stdout.write(
+    '`no assertion` covers two situations that look identical from here and are\n' +
+      'suspended alike: not in a channel, and alone in one. An IDLE session holds\n' +
+      'nothing, so nothing keeps the process up. `PlayAndRecord…` is a microphone\n' +
+      'actually capturing, which does.\n\n' +
+      'What suspension costs is presence, and it is slower than it looks: the\n' +
+      'server notices the silence within HEARTBEAT_TIMEOUT_MS, then `ws` spends\n' +
+      'its 30-second closeTimeout waiting for a close frame from a frozen phone\n' +
+      'that will never send one, and only then does DISCONNECT_GRACE_MS start.\n' +
+      'Measured end to end: 105 seconds from suspension to being gone.\n\n'
+  );
+}
+
+// --- entry ----------------------------------------------------------------
+
+function main(argv) {
+  let file = DEFAULT_LOG;
+  let udid = null;
+  let age = 1800;
+  const rest = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--file') file = argv[++i];
+    else if (argv[i] === '--udid') udid = argv[++i];
+    else if (argv[i] === '--age') age = Number(argv[++i]);
+    else if (argv[i] === '-h' || argv[i] === '--help') return help();
+    else rest.push(argv[i]);
+  }
+
+  switch (rest[0]) {
+    case 'collect':
+      return collect(file, resolveUdid(udid));
+    case 'archive':
+      return archive(file, resolveUdid(udid), age);
+    case 'read':
+      return read(file, BUNDLE);
+    default:
+      return help();
+  }
+}
+
+main(process.argv.slice(2));

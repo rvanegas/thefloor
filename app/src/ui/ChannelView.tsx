@@ -18,6 +18,7 @@ import {
   atLeastTwoPresent,
   canClaimFloor,
   idleMs,
+  isWaiting,
   canInvite,
   canControlPlayback,
   canPauseRecording,
@@ -41,7 +42,7 @@ import {
   Screen,
   SectionLabel,
 } from './components';
-import { ago } from './relativeTime';
+import { ago, duration } from './relativeTime';
 import { colors, formatDuration, radius, spacing, type } from './theme';
 import { louder, quieter } from './volume';
 import { describeChannel } from '../../../core/naming';
@@ -172,6 +173,12 @@ export function ChannelView({
             ? (text) => app.ping(channel.id, viewing.id, text)
             : undefined
         }
+        // When they may next be pinged, or null for now. The composer is
+        // replaced by the wait rather than left there to be refused: the
+        // server has always said no inside the window, and a button that is
+        // offered, pressed and rejected teaches nothing that saying so up
+        // front does not.
+        pingableAt={view.pingableAt?.[viewing.id] ?? null}
         // Removing a contact leaves every channel that held only the two of
         // you, and this screen is reached from inside one — which, for a
         // one-to-one channel, is exactly the channel that has just gone. So
@@ -748,11 +755,21 @@ function ParticipantCard({
       reconnecting
       ? 'Present · reconnecting…'
       : 'Present'
-    : channel.everPresent.includes(participant.id)
-      ? away === null
-        ? 'Stepped out'
-        : `Stepped out ${ago(away)}`
-      : 'Waiting for them to join…';
+    : away !== null && isWaiting(channel, participant.id, now)
+      ? // They did not leave; their phone did. Walking into a channel and
+        // pocketing the phone suspends the process in under a second, so this
+        // is what most absences from an otherwise empty channel actually are —
+        // and "Stepped out" told whoever arrived to give up on somebody who
+        // was one notification away. The clock is the same one the line below
+        // uses; only the name changes, and only for WAITING_WINDOW_MS. Said as
+        // a length rather than a moment, `away` being how long they have been
+        // at it rather than when it started.
+        `Waiting for ${duration(away)}`
+      : channel.everPresent.includes(participant.id)
+        ? away === null
+          ? 'Stepped out'
+          : `Stepped out ${ago(away)}`
+        : 'Invited';
 
   const body = (
     <>

@@ -5,6 +5,10 @@ import renderer, {
   type ReactTestRenderer,
 } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
+import {
+  DISCONNECT_GRACE_MS,
+  WAITING_WINDOW_MS,
+} from '../../../../core/constants';
 import type { ChannelState } from '../../../../core/types';
 import type {
   HomeView as HomeViewData,
@@ -998,8 +1002,12 @@ describe('Channel', () => {
     expect(text).toContain('Dana Chu');
     expect(text).toContain('Miro Okafor');
     expect(text).toContain('Priya Raman');
-    // acct_4 was invited and has never entered.
-    expect(text).toContain('Waiting for them to join…');
+    // acct_4 was invited and has never entered. "Invited" rather than
+    // "Waiting for them to join", which it read until 2026-08-20: the roster
+    // now has a genuine waiting state for somebody who is holding on for
+    // *others*, and two adjacent rows both beginning "Waiting" meant opposite
+    // things — one person who has not come, one who has and is still there.
+    expect(text).toContain('Invited');
     // The holder is named wherever the claim bites.
     expect(text).toContain('Miro Okafor has the floor — your mic is cut');
     expect(text).toContain("Silenced by Miro Okafor's floor claim.");
@@ -2623,7 +2631,10 @@ describe('pinging somebody who is not in the room', () => {
   const buttonFor = (tree: ReactTestRenderer, label: string) =>
     tree.root.findAll((n) => n.props?.label === label)[0];
 
-  const renderProfile = async (onPing?: (text: string) => Promise<void>) => {
+  const renderProfile = async (
+    onPing?: (text: string) => Promise<void>,
+    pingableAt?: number | null
+  ) => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -2633,6 +2644,7 @@ describe('pinging somebody who is not in the room', () => {
           fallbackName="Dana Chu"
           onBack={() => {}}
           onPing={onPing}
+          pingableAt={pingableAt}
         />
       );
     });
@@ -2656,6 +2668,27 @@ describe('pinging somebody who is not in the room', () => {
     const tree = await renderProfile(undefined);
 
     expect(textOf(tree)).not.toContain('Send ping');
+    act(() => tree.unmount());
+  });
+
+  it('says how long until the next ping instead of a button that would fail', async () => {
+    // The server has always refused inside the window. Offering the composer
+    // anyway meant the only way to learn that was to type something and be
+    // told no, which loses the words as well as the ping.
+    const tree = await renderProfile(async () => {}, NOW + 4 * 60_000);
+
+    expect(textOf(tree)).toContain('They have just been pinged.');
+    expect(textOf(tree)).toContain('You can ping them again in 4 minutes.');
+    expect(textOf(tree)).not.toContain('Send ping');
+    act(() => tree.unmount());
+  });
+
+  it('offers the composer again once the window has passed', async () => {
+    // A deadline in the past is not a wait of zero, it is no wait at all.
+    const tree = await renderProfile(async () => {}, NOW - 1_000);
+
+    expect(textOf(tree)).toContain('Send ping');
+    expect(textOf(tree)).not.toContain('You can ping them again');
     act(() => tree.unmount());
   });
 
@@ -3221,6 +3254,65 @@ describe('who is in the channel, and who is talking', () => {
       />
     );
     expect(textOf(tree)).toContain('Stepped out 5 minutes ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('says somebody is waiting when their connection went, not their finger', () => {
+    // A tap and a suspended phone leave the same absence and used to read the
+    // same. They do not mean the same thing to whoever has just walked in:
+    // this one is expecting company and has already been notified that some
+    // arrived. Said as a length rather than a moment, which is what `duration`
+    // is for.
+    showChannel(
+      channelOf((s) => {
+        const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
+        return reduce(
+          dropped,
+          { type: 'TICK' },
+          NOW + DISCONNECT_GRACE_MS + 1
+        );
+      })
+    );
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).toContain('Waiting for 5 minutes');
+    expect(textOf(tree)).not.toContain('Stepped out');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('goes back to having stepped out once the wait has gone stale', () => {
+    // The same clock throughout: fifteen minutes of waiting becomes sixteen
+    // minutes of absence, never a fresh zero.
+    showChannel(
+      channelOf((s) => {
+        const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
+        return reduce(
+          dropped,
+          { type: 'TICK' },
+          NOW + DISCONNECT_GRACE_MS + 1
+        );
+      })
+    );
+    mockApp.serverNow = () => NOW + WAITING_WINDOW_MS + 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).toContain('Stepped out 16 minutes ago');
+    expect(textOf(tree)).not.toContain('Waiting for');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });

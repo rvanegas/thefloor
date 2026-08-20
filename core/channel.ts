@@ -3,6 +3,7 @@ import {
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
+  WAITING_WINDOW_MS,
 } from './constants';
 import {
   claimFloor,
@@ -102,6 +103,7 @@ export function createChannel(params: {
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
+    waiting: [],
     disconnectedAt: {},
     lastPresentAt: {},
   };
@@ -169,6 +171,29 @@ export function idleMs(
   if (isPresent(state, userId)) return null;
   const since = state.lastPresentAt[userId];
   return since === undefined ? null : Math.max(0, now - since);
+}
+
+/**
+ * Whether somebody is still to be described as waiting rather than as gone.
+ *
+ * Three things at once, and all three matter. They are not here — somebody
+ * present is not waiting for anything. Their absence was not chosen, which is
+ * what `waiting` records. And it is recent enough to still mean something,
+ * which is WAITING_WINDOW_MS.
+ *
+ * A function rather than a field so that the window is applied in one place
+ * and cannot be forgotten by a caller reading the array directly — the array
+ * outlives the window on purpose, there being no tick worth spending to prune
+ * a set whose only reader already has the clock in its hand.
+ */
+export function isWaiting(
+  state: ChannelState,
+  userId: UserId,
+  now: number
+): boolean {
+  if (!state.waiting.includes(userId)) return false;
+  const away = idleMs(state, userId, now);
+  return away !== null && away < WAITING_WINDOW_MS;
 }
 
 /**
@@ -462,6 +487,21 @@ export function reduce(
         ...state,
         disconnectedAt: others,
         lastActiveAt: now,
+        // And proof of a live connection is what `lastPresentAt` records, so
+        // entering stamps it. In the server this is usually redundant —
+        // `stillHere` fires on every message a socket carries — but not always:
+        // `create` dispatches ENTER from an HTTP request that has no socket at
+        // all, and a phone can die between entering and its first heartbeat.
+        //
+        // Without it those cases had no stamp, `idleMs` answered null, and the
+        // roster rendered a bare "Stepped out" with no time under it — a
+        // departure asserted with nothing behind it, about somebody who had
+        // just walked in. A missing socket is not evidence of leaving, which
+        // is the rule; it is not a reason to discard evidence of arriving,
+        // which is what this is.
+        lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
+        // Whatever they were waiting for, they have stopped: they are here.
+        waiting: state.waiting.filter((id) => id !== action.userId),
         present: [...state.present, action.userId],
         everPresent: state.everPresent.includes(action.userId)
           ? state.everPresent
@@ -485,7 +525,7 @@ export function reduce(
     }
 
     case 'DISCONNECT_EXPIRED':
-      return stepOut(state, action.userId, now);
+      return stepOut(state, action.userId, now, { chosen: false });
 
     case 'INVITE': {
       if (!canInvite(state, action.userId, action.inviteeId)) return state;
@@ -690,11 +730,18 @@ function tick(state: ChannelState, now: number): ChannelState {
  *
  * Shared by the tap, by a grace period running out, and by LEAVE_CHANNEL,
  * which is what stops those three drifting apart.
+ *
+ * `chosen` is the one thing the three do not share. A tap happens at the
+ * moment somebody decides it does; a grace period running out happens
+ * DISCONNECT_GRACE_MS *after* the last thing anybody heard, and stamping
+ * `lastPresentAt` then would record a presence that was already over — see
+ * below, where the difference is the whole of it.
  */
 function stepOut(
   state: ChannelState,
   userId: UserId,
-  now: number
+  now: number,
+  { chosen = true }: { chosen?: boolean } = {}
 ): ChannelState {
   if (!isPresent(state, userId)) return state;
   const present = state.present.filter((id) => id !== userId);
@@ -711,13 +758,30 @@ function stepOut(
       // is ordered by when it emptied rather than by when it was entered.
       lastActiveAt: now,
       disconnectedAt: stillConnected,
-      // The last observation of them, and the only one made at a moment
-      // anybody chose. Every way out passes through here — a tap, a grace
-      // period running out, and leaving the channel outright — which is the
-      // reason to stamp it here rather than in the three cases above.
-      // STILL_HERE has been keeping this value fresh all along; this is the
-      // final entry rather than the only one.
-      lastPresentAt: { ...state.lastPresentAt, [userId]: now },
+      // The last observation of them. Every deliberate way out passes through
+      // here — a tap, and leaving the channel outright — which is the reason to
+      // stamp it here rather than in each of those cases.
+      //
+      // **A connection that expired does not stamp it**, and that is a
+      // correction rather than an omission. `stillHere` is called from the
+      // transport on every message received, not from the tick, so when a
+      // phone goes quiet this value stops by itself at the last thing anybody
+      // actually heard. Re-stamping at the moment the grace timer fires
+      // overwrote that honest value with one a whole DISCONNECT_GRACE_MS
+      // later, and `idleMs` reads it — so every dropped connection reported
+      // itself a minute less idle than it was, for ever, from a stamp made at
+      // a moment nobody was there.
+      lastPresentAt: chosen
+        ? { ...state.lastPresentAt, [userId]: now }
+        : state.lastPresentAt,
+      // The same distinction, kept rather than merely acted on. A tap is a
+      // departure and clears any earlier wait; a grace period running out is
+      // not one, and is the whole reason this exists.
+      waiting: chosen
+        ? state.waiting.filter((id) => id !== userId)
+        : state.waiting.includes(userId)
+          ? state.waiting
+          : [...state.waiting, userId],
       // A departing floor-holder's claim is force-released, exactly as if
       // released voluntarily. Dropped connections take this same path.
       floor:

@@ -266,6 +266,23 @@ export interface ChannelView {
    * in `channel.participants`, `present`, `floor.holder` and `selfMuted`.
    */
   participants: PublicAccount[];
+  /**
+   * When each participant may next be pinged, for the ones who may not be
+   * pinged right now. Absent from the map means now.
+   *
+   * Here rather than on `ChannelState` because the limit is not a channel rule:
+   * no reducer knows about it, `core/` has never heard of it, and it is server
+   * bookkeeping about who has recently been bothered. It rides on the channel
+   * snapshot because that is where the question is asked from, the profile
+   * card being reached from inside a channel and the window being per channel
+   * and target.
+   *
+   * Optional so that a client older than the field simply does not see it. It
+   * only ever *withdraws* an affordance the server would refuse anyway, so a
+   * client that ignores it behaves exactly as it did — it offers the button and
+   * is told no, which is what every build up to 55 does.
+   */
+  pingableAt?: Partial<Record<UserId, number>>;
   serverNow: number;
 }
 

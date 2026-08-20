@@ -1,5 +1,11 @@
-import { createChannel, idleMs, lastPresenceAt, reduce } from '../channel';
-import { DISCONNECT_GRACE_MS } from '../constants';
+import {
+  createChannel,
+  idleMs,
+  isWaiting,
+  lastPresenceAt,
+  reduce,
+} from '../channel';
+import { DISCONNECT_GRACE_MS, WAITING_WINDOW_MS } from '../constants';
 import type { ChannelState } from '../types';
 
 const A = 'usr_a';
@@ -30,14 +36,30 @@ describe('how long somebody has been away from a channel', () => {
     expect(idleMs(s, B, T0 + 61_000)).toBe(60_000);
   });
 
-  it('runs from a lost connection giving up, not from when it dropped', () => {
-    // The grace period is time they were still in the channel — they had a
-    // minute to come back and it was held for them. Dating the absence from
-    // the drop would report a minute they had not yet been away.
-    let s = reduce(pair(), { type: 'DISCONNECTED', userId: B }, T0);
-    s = reduce(s, { type: 'TICK' }, T0 + DISCONNECT_GRACE_MS + 1);
+  it('runs from when the connection dropped, not from the timer giving up', () => {
+    // Reversed on 2026-08-20, having asserted the opposite since the timer was
+    // built. The old reasoning was that the grace period is time they were
+    // still in the channel, so dating the absence from the drop would report a
+    // minute they had not yet been away — which reads presence as a *place
+    // held for them* rather than as evidence, and is the model the 2026-08-18
+    // change replaced without this assertion being revisited.
+    //
+    // Nobody heard anything from them after the drop. The grace is the
+    // server's optimism about whether they are coming back, and optimism is
+    // not an observation: a phone iOS suspended the instant it was pocketed is
+    // unreachable for the whole of that minute, and saying it had been idle
+    // for no time at all was the roster stating something nobody could check.
+    // The heartbeat is what production has and the reducer does not: in the
+    // server `stillHere` fires on every message a socket carries, so the last
+    // one before the silence is the evidence this is measured from.
+    const heard = T0 + 30_000;
+    let s = reduce(pair(), { type: 'STILL_HERE', userId: B }, heard);
+    s = reduce(s, { type: 'DISCONNECTED', userId: B }, heard);
+    s = reduce(s, { type: 'TICK' }, heard + DISCONNECT_GRACE_MS + 1);
     expect(s.present).not.toContain(B);
-    expect(idleMs(s, B, T0 + DISCONNECT_GRACE_MS + 1)).toBe(0);
+    expect(idleMs(s, B, heard + DISCONNECT_GRACE_MS + 1)).toBe(
+      DISCONNECT_GRACE_MS + 1
+    );
   });
 
   it('starts again when they come back and leave again', () => {
@@ -80,7 +102,12 @@ describe('how long somebody has been away from a channel', () => {
     const thursday = T0 + 3 * 24 * 60 * 60 * 1_000;
     let s = reduce(pair(), { type: 'STEP_OUT', userId: B }, monday);
     s = reduce(s, { type: 'ENTER', userId: B }, thursday);
-    expect(s.lastPresentAt[B]).toBe(monday);
+    // Walking in is itself the evidence, so Monday is gone at that moment
+    // rather than at the first heartbeat after it. This asserted `monday`
+    // until 2026-08-20, and that gap — one heartbeat in the server, unbounded
+    // in the reducer — was time during which the stale stamp was the only
+    // answer available.
+    expect(s.lastPresentAt[B]).toBe(thursday);
     s = reduce(s, { type: 'STILL_HERE', userId: B }, thursday + 5_000);
     expect(s.lastPresentAt[B]).toBe(thursday + 5_000);
   });
@@ -160,5 +187,70 @@ describe('how long it is since anybody was in a channel', () => {
     expect(lastPresenceAt(s)).toBe(T0 + 10_000);
     const later = reduce(s, { type: 'STEP_OUT', userId: A }, T0 + 20_000);
     expect(lastPresenceAt(later)).toBe(T0 + 20_000);
+  });
+});
+
+describe('waiting, which is an absence nobody chose', () => {
+  /** B present, then their connection expires at `heard + grace`. */
+  function dropped(heard = T0 + 30_000) {
+    let s = reduce(pair(), { type: 'STILL_HERE', userId: B }, heard);
+    s = reduce(s, { type: 'DISCONNECTED', userId: B }, heard);
+    return reduce(s, { type: 'TICK' }, heard + DISCONNECT_GRACE_MS + 1);
+  }
+
+  it('is not a thing somebody present is doing', () => {
+    expect(isWaiting(pair(), B, T0)).toBe(false);
+  });
+
+  it('is what a lost connection leaves behind', () => {
+    const heard = T0 + 30_000;
+    const s = dropped(heard);
+    expect(s.waiting).toContain(B);
+    expect(isWaiting(s, B, heard + DISCONNECT_GRACE_MS + 1)).toBe(true);
+  });
+
+  it('is not what a tap leaves behind', () => {
+    // The whole distinction. Stepping out is leaving, and somebody who left is
+    // not holding on for anybody.
+    const s = reduce(pair(), { type: 'STEP_OUT', userId: B }, T0);
+    expect(s.waiting).not.toContain(B);
+    expect(isWaiting(s, B, T0 + 60_000)).toBe(false);
+  });
+
+  it('stops being worth saying after the window', () => {
+    const heard = T0 + 30_000;
+    const s = dropped(heard);
+    expect(isWaiting(s, B, heard + WAITING_WINDOW_MS - 1)).toBe(true);
+    expect(isWaiting(s, B, heard + WAITING_WINDOW_MS)).toBe(false);
+  });
+
+  it('hands over to idleness without resetting the clock', () => {
+    // The point of measuring both from the same stamp: fifteen minutes of
+    // waiting becomes sixteen minutes of having stepped out, not a fresh zero
+    // that reads as though they were here until a moment ago.
+    const heard = T0 + 30_000;
+    const s = dropped(heard);
+    const lapsed = heard + WAITING_WINDOW_MS;
+    expect(isWaiting(s, B, lapsed)).toBe(false);
+    expect(idleMs(s, B, lapsed)).toBe(WAITING_WINDOW_MS);
+  });
+
+  it('ends when they come back', () => {
+    const heard = T0 + 30_000;
+    let s = dropped(heard);
+    s = reduce(s, { type: 'ENTER', userId: B }, heard + 60_000);
+    expect(s.waiting).not.toContain(B);
+    expect(isWaiting(s, B, heard + 60_000)).toBe(false);
+  });
+
+  it('ends when they come back and then step out on purpose', () => {
+    // Reconnecting clears it, and so does the departure that follows: coming
+    // back only to leave is leaving, and must not fall back into a wait that
+    // the earlier drop had started.
+    const heard = T0 + 30_000;
+    let s = dropped(heard);
+    s = reduce(s, { type: 'ENTER', userId: B }, heard + 60_000);
+    s = reduce(s, { type: 'STEP_OUT', userId: B }, heard + 90_000);
+    expect(s.waiting).not.toContain(B);
   });
 });

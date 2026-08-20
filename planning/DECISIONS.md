@@ -1692,3 +1692,179 @@ questions the tables could always answer and nobody had thought to ask.
 
 This is still not a read surface. It is a thing an operator runs, on a machine
 that is not the server, against a database no request handler consults.
+
+## Backgrounding costs presence in about a hundred seconds, and only a live microphone buys any of it back — 2026-08-20
+
+Measured rather than reasoned about, on putnam — iPhone 13 mini, iOS 26.6,
+build 55 installed from TestFlight, no debugger attached, which matters because
+a debugger-held process is never suspended and would have answered the question
+with its own reflection. The tool is `bin/suspend-log`, whose `--help` carries
+the method; what follows is what it found.
+
+**`UIBackgroundModes: ["audio"]` buys nothing unless audio is actually
+flowing.** Backgrounded while alone in a channel, the process was suspended
+**0.3 seconds** later. Backgrounded on Home with no channel at all: also 0.3
+seconds. The two are not merely similar, they are *indistinguishable in the
+device log* — `IDLE` is `playback` with `mixWithOthers` and nothing playing,
+and iOS grants it no background-audio assertion whatsoever, so there is nothing
+to tell apart. With the microphone capturing it is a different system entirely:
+one episode ran **twenty-five minutes and was still running** when the capture
+ended, its assertion already an hour old at the first sighting, which agrees
+with the six minutes seen on 2026-08-08 and extends it.
+
+So the shape of it is: the assertion is granted for audio *in flight*, not for
+intent, and `core/micNeeded.ts` closing the microphone when you are alone —
+correct on its own terms, and argued at length there — is also the thing that
+ends the process a moment after the phone goes in a pocket.
+
+**The presence chain, timed end to end for the first time.** Suspension at
+01:32:33.4 by the phone's clock; the server stamped the presence drop at
+01:34:18.27 by its own, the two clocks being within 400ms of each other.
+**104.9 seconds**, against the 72 to 77 that HEARTBEAT_TIMEOUT_MS and
+DISCONNECT_GRACE_MS predict between them. The missing half-minute is `ws`'s
+`closeTimeout`, 30 seconds by default in 8.21.2: `sweep` in `server/src/ws.ts`
+calls `socket.close()`, which sends a close frame and waits for one back from a
+phone that is frozen and is never going to send it, and only when that times
+out does the close handler run and the grace period begin.
+
+Worth being careful about what that is. It is not a defect and is not filed as
+one — 30 seconds of slack before declaring somebody gone may well be what is
+wanted. What is true is that nobody chose it: it is a library default that
+arrived through a call written for a different purpose, and the documented
+budget in this repo was 72 to 77 seconds while the real one was 105. Whether
+that is the right number is in TASKS.md.
+
+**What it means for the product.** Stepping into an empty channel to wait for
+somebody is not a thing that works, and the failure is invisible from inside:
+about a minute and three quarters after the phone goes into a pocket the room
+is empty to whoever arrives, while the person who went to wait in it has no
+indication anything happened. What actually serves waiting is the notification
+path — `announceActive` tells an absent participant that somebody has arrived,
+and absent is what you become. Presence was never going to survive a pocket;
+the value of measuring it is knowing that it lasts a hundred seconds rather
+than the several minutes the audio background mode makes it look like.
+
+## Waiting is an absence nobody chose, and it is the idle clock under another name — 2026-08-20
+
+Built the same day as the measurement above, which is what prompted it. Once
+you know that backgrounding suspends the process in 0.3 seconds, you know what
+the roster has been saying about anybody who stepped into an empty channel to
+wait for somebody: **"Stepped out 2 minutes ago"**, the one thing they did not
+do. A tap and a pocketed phone left the same absence behind and were described
+in the same words, and the words were the ones that tell whoever has just
+walked in to give up.
+
+**One bit, and the same clock.** `waiting` is a `UserId[]` on `ChannelState`,
+added by `stepOut` when its new `chosen` flag is false — which is to say by
+DISCONNECT_EXPIRED and nothing else — and cleared by `ENTER` and by either
+deliberate exit. There is deliberately no second timestamp: *how long* is
+`idleMs`, the same value either way, and `WAITING_WINDOW_MS` decides only how
+long it keeps the better name. Fifteen minutes of "Waiting for 15 minutes"
+therefore becomes "Stepped out 16 minutes ago" and never a fresh zero, which
+was the requirement and is the reason a second clock was refused: two clocks
+can disagree and this pair would have, by exactly a grace period.
+
+`isWaiting` applies the window rather than a tick pruning the array, because
+the only reader already has the clock in its hand and the tick already walks
+every channel every 500ms — see BACKLOG.md. The array outliving its meaning
+costs nothing and is never read raw. It is volatile, like `present` and
+`disconnectedAt`: a restart drops every socket at once, which is not evidence
+that any of them had been holding on for anybody.
+
+**Two reversals in `lastPresentAt`, and both were prerequisites.**
+
+`DISCONNECT_EXPIRED` no longer re-stamps it. `stepOut` stamped on every route
+out, on the reasoning that one exit means one place to write — but a grace
+period running out happens DISCONNECT_GRACE_MS *after* the last thing anybody
+heard, and `stillHere` is driven by the transport rather than by the tick, so
+the honest value was already sitting there and was being overwritten by one a
+minute later. `## "Are you there" is measured by evidence, not by departures`
+had already settled that the field means evidence; the assertion in
+`idle.test.ts` that it should run "from a lost connection giving up, not from
+when it dropped" was the older, departure-based model, surviving that change
+because nothing forced it to be revisited. Without this the handover from
+waiting to idleness would have jumped backwards by a minute.
+
+And `ENTER` now stamps it. `persistence.test.ts` asserted that an entry with no
+socket behind it manufactured no evidence — where the sound intention was that
+*a missing socket is not evidence of leaving*, which is true and is a different
+claim. Entering is something a person did, `create` dispatches ENTER from an
+HTTP request that has no socket at all, and discarding it left `idleMs` null
+and the roster rendering a bare **"Stepped out"** with no time under it: a
+departure asserted with nothing behind it, which is precisely the near fix the
+evidence model was chosen over in the first place.
+
+**Announcements are consumed rather than merely timed.** `lastAnnouncedAt` was
+keyed by channel, so telling one person silenced everybody for five minutes —
+including anybody who had been *in* the room when it fired and had therefore
+been excluded from `absent` and told nothing at all. Three people, one of them
+in the channel: they leave, somebody walks in four minutes later, and the
+person most likely to care is refused on the strength of a notification they
+never received. It is now keyed channel-and-target, like `lastPingedAt` has
+been all along.
+
+The rest of the rule is that **entering the channel spends whatever notice you
+were holding**. The window is a proxy for "they probably still have it on their
+lock screen"; walking in is direct evidence that they do not, and the next
+arrival is news rather than a repeat. The flap the window exists to absorb is
+one connection ringing one phone over and over, and per-recipient keying still
+absorbs exactly that — the people who did not flap have no stamp to suppress
+them. The case this most matters for is the one the whole change is about: a
+waiter's own entry into an empty channel is itself an announcement, and under
+the old rule it started the five minutes that would later silence their arrival.
+
+**"Invited" replaced "Waiting for them to join…"** for somebody who has never
+been present. Two adjacent rows in one list, both beginning "Waiting", meaning
+opposite things — one person who has not come, one who has and is still there.
+
+**And a ping now says when, rather than being refused.** `PING_INTERVAL_MS`
+has always been enforced, and the composer was offered anyway — so the only way
+to learn you were inside the window was to type something and be told no, which
+loses the words along with the ping. `ChannelView` carries `pingableAt`, a map
+of the windows still open, composed once per snapshot rather than per viewer
+because the limit protects whoever is being pinged rather than bounding whoever
+is sending. Only open windows are listed, so absent means pingable and a client
+can read a missing entry as "go ahead" without knowing the interval.
+
+It is on the view rather than on `ChannelState` because no reducer knows about
+it: `core/` has never heard of the ping limit, and this is server bookkeeping
+about who has recently been bothered. It is optional on the wire, and it only
+ever *withdraws* an affordance the server would refuse anyway — so every build
+up to 55 goes on offering the button and being told no, exactly as it does
+today.
+
+Two details worth keeping. The countdown ages on the 500ms tick that already
+runs while a channel snapshot is held, so it needed no timer of its own. And
+"Sent." is deliberately *not* conditional on the window having arrived: a
+snapshot is half a second behind the send, and hanging the confirmation on it
+made the screen look, for that half second, as though it had swallowed
+somebody's words. That was caught by a test rather than by reading, which is
+the argument for the test.
+
+`lastPingedAt` is in memory, so a restart forgives everybody — the notice
+disappears and the composer returns and the ping then works. Consistent rather
+than wrong, and it was already the intended way for this to fail.
+
+**What was deliberately not built.** Nothing fights iOS for the process.
+Holding the microphone open would drag Bluetooth to the hands-free profile and
+silence every other app, which is what `core/micNeeded.ts` exists to prevent;
+playing silence to keep the audio assertion is the paradigm case of the
+guideline against declaring background audio you do not use; the `location`
+mode would work and would deserve to be rejected. Waiting is an intention, and
+an intention has no business depending on a radio.
+
+The `beginBackgroundTask` handshake — the app telling the server, from the
+expiration handler, that it is about to be suspended — was designed and
+deferred rather than dropped. It stopped being a correctness requirement once
+`Present · reconnecting…` was read as *wants to hear you and is likely coming
+right back* rather than as *can hear you*: on that reading the sixty seconds a
+frozen phone spends there is a softening that resolves into "Waiting for a
+minute", not a lie. What it would still buy is tightening those sixty seconds
+to nearly nothing and emptying a channel promptly enough to shorten a forgotten
+recording's tail. It needs native code, and everything above shipped without
+any.
+
+`lastActiveAt` is still stamped at grace expiry, so the *channel's* clock is
+optimistic by a minute where the person's no longer is. The same argument
+applies and it feeds Home's ordering, which is a visible change nobody asked
+for; left alone knowingly.

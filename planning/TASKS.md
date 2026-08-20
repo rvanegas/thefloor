@@ -4,19 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-anonymous web pages
-admins
-watch party
-transcripts
-clipboard sharing
-publishable recordings
-
-
-
-## Stepping into Channel Distinct from Tapping on Card
-
-Optional.
-
 ## What a Restart Does to Last-Seen
 
 Left open by the "Recency Distinctions" audit and worth observing rather than
@@ -30,11 +17,27 @@ for exactly this and says nothing rather than something false; Home has none.
 snapshot is composed, so a wrong timestamp is only read once somebody has
 genuinely gone — but it did not settle it. Watch the column across one deploy.
 
-## Effect of Quitting App
+## Is a Hundred Seconds the Right Time to Declare Somebody Gone
+
+Measured 2026-08-20 and left open deliberately. A suspended phone stops being
+present 105 seconds later, not the 72 to 77 that HEARTBEAT_TIMEOUT_MS and
+DISCONNECT_GRACE_MS account for between them; the rest is `ws`'s 30-second
+`closeTimeout`, spent waiting for a close frame from a process that is frozen.
+DECISIONS.md § *Backgrounding costs presence in about a hundred seconds* has
+the measurement and the mechanism, and `bin/suspend-log` is how to take it
+again.
+
+The question is not whether the 30 seconds is a bug — it may be exactly the
+slack wanted before declaring somebody gone. It is that nobody chose it. It
+arrived as a library default, through a `socket.close()` written to do
+something else, and it is 40% of a budget the repo believed was 72 seconds.
+`socket.terminate()` in `sweep` would remove it at a stroke and keep the same
+close handler, so the choice is cheap in either direction; what is wanted first
+is a view on what the number should be, and that is a product question about
+how long a tunnel is. Note the same delay sits in front of everything else that
+keys on a channel emptying — a forgotten recording's tail, most visibly.
 
 ## Clipboard Sharing
-
-## Idleness Privacy
 
 ## Contacts View
 
@@ -187,6 +190,10 @@ Per user tracking of minutes and timestamps of webrtc usage, minutes and timesta
 
 Save all of this to db.
 
+## Anonymous Web Access
+
+Channels can be shared to anyone with a link which navigates to web page with channel view modified for anonymous listener. Plan is here: ANONWEB.md
+
 ## Transcripts
 
 Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel.
@@ -194,6 +201,10 @@ Implement integration with Assembly.ai. Use multi-channel transcripts, searchabi
 ## Watch Party
 
 Currently, media play allows uploaded audio to be played and included into exportable recordings. Independently of this functionality, a watch party plays video, and disallows recordings. Plan is here: WATCHPARTY.md
+
+## Stepping into Channel Distinct from Tapping on Card
+
+Optional.
 
 ## Availability Logic
 
@@ -203,9 +214,7 @@ By way of indicators and notifications, users know when their contacts are avail
 
 What happens when user receives a phone call?
 
-## Anonymous Web Access
-
-Channels can be shared to anyone with a link which navigates to web page with channel view modified for anonymous listener. Plan is here: ANONWEB.md
+## Publishable Recordings
 
 ## Calendar Integrations
 
@@ -216,7 +225,7 @@ Explore scheduling and usage patterns
 A channel owner can gen a link defining the channel as root. Define a user's radiate number relative to a channel as 0 if user is in channel, and 1 + n the minimum radiate number of one's recently connected contacts is n. Recency is defined as having exchanged words in a channel. Having exchanhed words is defined as taking immediate turns in both directions in a channel.
 
 Number is updated lazily when exchange occurs. In User View display radiate number.
-n
+
 ## Build for Android
 
 First evaluate relevant differences and establish dev simulator on mac.

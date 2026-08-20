@@ -192,6 +192,7 @@ export function registerWebsocket(deps: {
         channel,
         participants,
         recordings: recordingsInChannel(channelId, connection.userId),
+        pingableAt: channels.pingWindows(channelId),
         serverNow: now(),
       },
     });

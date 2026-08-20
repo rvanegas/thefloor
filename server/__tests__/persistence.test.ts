@@ -212,13 +212,19 @@ describe('a channel across a restart', () => {
     await shutdown(second);
   });
 
-  it('invents nothing for somebody nothing was ever heard from', async () => {
-    // A member who has never entered, and an entry with no socket behind it:
-    // no evidence either way, and none is manufactured. The screen shows no
-    // idle time rather than guessing at one. Evidence in the ordinary case
-    // comes from the socket — see ws.test.ts.
+  it('takes an entry as evidence, with or without a socket behind it', async () => {
+    // Asserted the opposite until 2026-08-20. The intent behind that was that
+    // a missing socket is not evidence of *leaving* — which is right, and is
+    // not what this case is. Entering is something a person did, and `create`
+    // dispatches ENTER from an HTTP request that has no socket at all.
+    //
+    // Discarding it left no stamp, so `idleMs` answered null and the roster
+    // rendered a bare "Stepped out" with no time under it: a departure claimed
+    // with nothing behind it, which is the near-fix the evidence model was
+    // chosen over in the first place.
     const first = boot();
     const { bob, channelId } = await pair(first);
+    const entered = (clock += 60_000);
     first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
     expect(first.channels.get(channelId)!.present).toContain(bob.account.id);
     await shutdown(first);
@@ -226,6 +232,21 @@ describe('a channel across a restart', () => {
     const second = boot();
     const after = second.channels.get(channelId)!;
     expect(after.present).toEqual([]);
+    expect(after.lastPresentAt[bob.account.id]).toBe(asStored(entered));
+    await shutdown(second);
+  });
+
+  it('invents nothing for a member who has never entered', async () => {
+    // The other half of the old assertion, which still holds: invited and
+    // never arrived is no evidence either way, and none is manufactured. The
+    // screen says the invitation is outstanding rather than guessing at an
+    // absence.
+    const first = boot();
+    const { bob, channelId } = await pair(first);
+    await shutdown(first);
+
+    const second = boot();
+    const after = second.channels.get(channelId)!;
     expect(after.lastPresentAt[bob.account.id]).toBeUndefined();
     await shutdown(second);
   });

@@ -116,6 +116,32 @@ export const MAX_PING_TEXT_LENGTH = 100;
 export const DISCONNECT_GRACE_MS = 60_000;
 
 /**
+ * How long somebody whose connection expired goes on being described as
+ * waiting, rather than as having stepped out.
+ *
+ * The two are the same clock — `idleMs` — under two names, and the name is the
+ * whole of what this decides. Somebody who taps Step Out has left. Somebody
+ * whose phone was suspended in their pocket has not: they walked into the
+ * channel on purpose, a notification goes to them the moment anybody else
+ * arrives, and they are a tap away from hearing it. Telling whoever walks in
+ * that the room was abandoned three minutes ago, when it was not, is the
+ * difference between saying something and saying nothing.
+ *
+ * **Fifteen minutes, and then it stops being true.** Waiting is an intention,
+ * and an intention has a shelf life: after long enough the person has moved on
+ * to other things and forgotten the channel, and going on describing them as
+ * expecting company would be the roster inventing an eagerness nobody has. The
+ * clock does not restart when it lapses — it is the same number throughout, so
+ * fifteen minutes of waiting becomes sixteen minutes of having stepped out,
+ * and never sixteen minutes that read as one.
+ *
+ * Deliberately *not* derived from DISCONNECT_GRACE_MS. That one is about
+ * whether a connection is coming back; this one is about how long an intention
+ * stays worth reporting, and the two have no reason to move together.
+ */
+export const WAITING_WINDOW_MS = 15 * 60 * 1000;
+
+/**
  * How long a deleted channel and its recordings survive the tap that deleted
  * them, before the sweep removes the rows and the audio in the bucket.
  *

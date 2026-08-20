@@ -14,6 +14,7 @@ import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
 import { describeAvailability } from './availability';
+import { duration } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
 
 /**
@@ -34,6 +35,7 @@ export function ProfileView({
   onBack,
   onEnterChannel,
   onPing,
+  pingableAt = null,
   onRemoved,
 }: {
   accountId: string;
@@ -66,6 +68,11 @@ export function ProfileView({
    * already — and those are answers rather than faults.
    */
   onPing?: (text: string) => Promise<void>;
+  /**
+   * When this person may next be pinged in the channel this card was opened
+   * from, or null when that is now. Only meaningful alongside `onPing`.
+   */
+  pingableAt?: number | null;
   /**
    * What to do when this person stops being a contact, which takes with it
    * every channel that held only the two of you — possibly the one this screen
@@ -209,6 +216,21 @@ export function ProfileView({
    */
   const availability = describeAvailability(profile, app.serverNow());
 
+  /**
+   * How long until this person may be pinged again, or null when they may be
+   * now.
+   *
+   * Recomputed on every render rather than held in state, which is what makes
+   * it count down: a held channel snapshot re-renders twice a second, so this
+   * ages on its own without a timer of its own. Clamped by the comparison
+   * rather than by arithmetic — a window that has passed is not a wait of zero,
+   * it is no wait at all, and the composer comes back.
+   */
+  const pingWait =
+    pingableAt !== null && pingableAt > app.serverNow()
+      ? pingableAt - app.serverNow()
+      : null;
+
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
@@ -310,6 +332,23 @@ export function ProfileView({
         <>
           <SectionLabel>Ping</SectionLabel>
           <Card style={styles.stack}>
+            {pingSent || pingWait !== null ? (
+              // Two facts, either of which replaces the composer: they have
+              // just sent one, or somebody has. The confirmation does not wait
+              // on the countdown — a snapshot is half a second away and the
+              // words have already gone, so hanging "Sent" on the server
+              // having told us the window would leave the screen looking as
+              // though it had lost them. When the window *is* known it is said
+              // as a length rather than a moment; when it is not, the sentence
+              // this said before the countdown existed is still true.
+              <Text style={type.muted}>
+                {pingSent ? 'Sent.' : 'They have just been pinged.'}
+                {pingWait !== null
+                  ? ` You can ping them again in ${duration(pingWait)}.`
+                  : ' They will not be pinged again for a few minutes.'}
+              </Text>
+            ) : (
+              <>
             <Field
               value={pingText}
               onChangeText={(v) => {
@@ -334,11 +373,8 @@ export function ProfileView({
                 onPress={() => void sendPing()}
               />
             </View>
-            {pingSent ? (
-              <Text style={type.muted}>
-                Sent. They will not be pinged again for a few minutes.
-              </Text>
-            ) : null}
+              </>
+            )}
             {pingError ? <Text style={styles.error}>{pingError}</Text> : null}
           </Card>
         </>
