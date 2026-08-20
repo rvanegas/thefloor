@@ -15,6 +15,7 @@ import {
 } from '@livekit/react-native';
 import { api } from '../api/http';
 import { nameOf, policyFor, sessionFor } from './session';
+import { engineDiff, engineSnapshot } from './engineState';
 import {
   NOBODY_SPEAKING,
   nextReleaseAt,
@@ -691,6 +692,16 @@ export function useSessionAudio(
     // somebody else's microphone is open, so the configuration write below is
     // a no-op and the route never moves. That is the whole of the fix, and it
     // is why this branch does not re-state the configuration at all.
+    // Measured either side, in development builds, because four fixes for the
+    // audible profile handover were reasoned from source and none of them
+    // worked. `engineState.ts` says what each reading would mean.
+    const before = __DEV__ ? engineSnapshot() : null;
+    const report = (): void => {
+      if (!__DEV__) return;
+      // eslint-disable-next-line no-console
+      console.log(`[engine] ${intent}: ${engineDiff(before, engineSnapshot())}`);
+    };
+
     (intent === 'capturing'
       ? applyFor(anyMicOpen, state.othersAudible).then(() =>
           room.localParticipant.setMicrophoneEnabled(true)
@@ -704,7 +715,9 @@ export function useSessionAudio(
             // where the choice between the two closed states is made — and so
             // where somebody's music is either interrupted or let back in.
             .then(() => applyFor(anyMicOpen, state.othersAudible))
-    ).catch(() => {});
+    )
+      .then(report)
+      .catch(() => {});
     const transmitting = intent === 'capturing';
     setState((s) =>
       s.micOpen === transmitting ? s : { ...s, micOpen: transmitting }

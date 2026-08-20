@@ -834,3 +834,43 @@ written.** The tests pin the choice — including that the wanted mode is never
 can hear a Bluetooth handover. **If build 58 does not fix it, stop changing
 code**: put the phone on USB and read the engine's own account of itself, which
 TASKS.md carries the command for.
+
+## Four fixes, no measurement, and that was the mistake — 2026-08-20
+
+The three entries above are attempts at one symptom: self-muting hands a
+Bluetooth headset out of A2DP and back, audibly. `policyFor` aimed at the audio
+session's category. `MicIntent` aimed at the mute releasing the track.
+`configureMuteMode` aimed at the audio engine's mute mode. Builds 56, 57 and 58.
+No change, any of them.
+
+**All three are kept**, because each corrected something that was genuinely
+wrong — the observer really should not write `IDLE` while somebody else is
+talking, muting really should not have to release the device, and the engine
+really should not restart itself to mute. They are just not this bug.
+
+**The failure is one of method and it is worth naming precisely.** No individual
+step was careless: each read the code, found a mechanism that plausibly produced
+the symptom, and changed it. The fault is that after the *first* miss the same
+move was made three more times, when the first miss was already evidence that
+the code being read did not contain the mechanism. Reading is cheap and
+measuring felt expensive — a phone, a second person, a headset — so the cheap
+move was taken repeatedly at a total cost far above the expensive one.
+
+**The instrument existed the whole time and was better than assumed.** Every
+audio-engine reader on `AudioDeviceModule` is blocking-synchronous:
+`isEngineRunning`, `isRecording`, `isMicrophoneMuted`, `getMuteMode`,
+`isVoiceProcessingEnabled`, `getEngineAvailability`. So the engine can be
+snapshotted either side of a transition and diffed, from JavaScript, with no
+syslog relay, no USB and no Console.app — none of which anybody had checked
+before recommending them. `src/audio/engineState.ts` does exactly that and
+writes `[engine] muted: recording: true -> false` on each microphone edge in
+development builds.
+
+Its header carries what each possible reading would mean, written *before* the
+reading exists, so that the interpretation cannot be fitted to the answer.
+
+**The rule that comes out of this**, and it is general rather than about audio:
+**a fix that fails is evidence about where you are looking, not just about the
+fix.** One miss is ordinary. The second is a signal to stop and instrument, and
+the cost of instrumenting should be compared against the *remaining* rounds, not
+against one more read of the source.

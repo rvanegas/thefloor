@@ -53,5 +53,19 @@ jest.mock('@livekit/react-native', () => ({
   AudioDeviceModule: {
     getMuteMode: jest.fn(() => 1),
     setMuteMode: jest.fn(async () => {}),
+    // The diagnostic readers in src/audio/engineState.ts. All synchronous
+    // native calls, all harmless to stub, and stubbed here so a snapshot taken
+    // on the microphone edge does not need the bridge under test.
+    isEngineRunning: jest.fn(() => true),
+    isPlaying: jest.fn(() => true),
+    isRecording: jest.fn(() => true),
+    isMicrophoneMuted: jest.fn(() => false),
+    isVoiceProcessingEnabled: jest.fn(() => true),
+    isVoiceProcessingBypassed: jest.fn(() => false),
+    isRecordingAlwaysPreparedMode: jest.fn(() => false),
+    getEngineAvailability: jest.fn(() => ({
+      isInputAvailable: true,
+      isOutputAvailable: true,
+    })),
   },
 }));

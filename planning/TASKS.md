@@ -6,54 +6,52 @@ and things to go and find out. There are more in BACKLOG.md.
 
 ## Self-Mute Still Moves the Audio Category
 
-**Reported 2026-08-19; fixed twice on 2026-08-20 and heard neither time.** The
-symptom is a tone on self-mute and its inverse on unmute, reproduced on AirPods
-Pro with somebody else talking — a Bluetooth profile handover, which the
-channel-wide rule adopted 2026-08-18 exists to prevent.
+**Reported 2026-08-19. Four fixes on 2026-08-20, none of which changed the
+sound.** Self-muting hands a Bluetooth headset from the hands-free link back to
+A2DP and unmuting brings it back, audibly, reproduced on AirPods Pro with
+somebody else talking.
 
-**The first fix aimed at the audio category, which is not what moves.**
-`policyFor` stops the SDK's native observer writing `IDLE` at a playout-only
-transition. Real, kept, and insufficient: build 56 carried it and the tone was
-unchanged.
+**Stop proposing mechanisms. The next move is a reading.** What was tried, in
+order, each plausible and each kept because each corrected something real:
 
-**The second separates the two closes, and is what wants hearing.** Muting used
-to stop capture, and stopping capture is what releases the hands-free link.
-There are now three states rather than two — `MicIntent` in `useSessionAudio.ts`
-— and `muted` leaves the device exactly as it is. The reasoning, the two
-implementation details that are not free choices, and what the promise now
-trades are in DECISIONS.md § *Muting and letting go are two different closes*.
+| Build | Aimed at | Result |
+| --- | --- | --- |
+| 56 | the audio session's **category** (`policyFor`) | no change |
+| 57 | the mute **releasing the track** (`MicIntent`) | no change |
+| 58 | the engine's **mute mode** (`configureMuteMode`) | no change |
 
-**What remains is a phone, AirPods and a second person.** Self-mute and unmute
-should be silent; the crossings when somebody arrives and when the last person
-leaves should still be audible, and that is deliberate. STATES.md disagreement 9
-is marked fixed-in-source, unverified, and says not to stamp it closed from the
-diff — which is exactly what happened to disagreement 5 the same morning.
+Three different layers, three confident diagnoses read off the source, three
+misses. The common fault is not the reasoning at any step — it is that four
+rounds of reading were spent before one measurement, and the reading kept
+finding mechanisms that were real but not this one.
 
-**Check two things that are not the tone**, since both are new and neither is
-covered by a test that can hear:
+**The instrument is `src/audio/engineState.ts` and it needs no syslog.** Every
+audio-engine reader is blocking-synchronous, so a full snapshot is taken either
+side of each microphone transition and the *difference* logged — `[engine]
+muted: recording: true -> false`, or `nothing moved`. Development builds only.
+Run `expo run:ios` on a phone, get into a channel with a second person and a
+Bluetooth headset, self-mute, and read Metro.
 
-- **The orange microphone indicator stays lit through a self-mute**, and going
-  out when you leave the channel or the last person does. Lit for the whole call
-  is correct now. Never going out is a leaked device.
-- **The echo canceller after a self-mute that ends alone.** Self-mute, have the
-  other person leave, then have somebody arrive and talk. This is the path where
-  the device must have been let go — `releaseMicrophone` unpublishes for exactly
-  this reason — and getting it wrong sounds like the far end hearing themselves,
-  which is POSTMORTEM-echo.md.
+**What each reading would mean** is written into that file's header so the next
+session does not re-argue it. In short: `recording` going false means the input
+is stopped despite everything, and the next lever is
+`setRecordingAlwaysPreparedMode`, which exists to hold it open. `nothing moved`
+means the engine is not what moves, three of the four fixes were aimed at the
+wrong layer entirely, and the route is the remaining suspect — which is awkward,
+because nothing in this stack can read a route (STATES.md, disagreement 8).
 
-If a tone survives all this, the instrument needs no build and no code — see
-below — and the next suspect is not the category, which will have been ruled out
-twice.
+**Do not ship a fifth fix before that reading exists.** It is the only
+instruction in this entry that matters.
 
-The instrument wants the phone on **USB**, not merely paired over the network:
+If the syslog relay is wanted as well, it takes the phone on **USB** — a network
+pairing is not enough, and `devicectl` will happily report the device
+"available" while the relay says "No device found":
 
     idevicesyslog -m "Native auto-config"
 
-**Not `log stream`**, which this file and two others recommended until
-2026-08-20: it reads the Mac's own logs and has no device options on current
-macOS, so it succeeds and shows nothing. The observer logs from native code, so
-a TestFlight build answers the category question; only the `[audio]` lines need
-a development build.
+**Not `log stream`**, which three files recommended until 2026-08-20: it reads
+the Mac's own logs and has no device options on current macOS, so it succeeds
+and shows nothing.
 
 ## Clipboard Sharing
 
