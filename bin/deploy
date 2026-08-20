@@ -17,9 +17,35 @@ SSH="ssh -i $KEY -o BatchMode=yes"
 
 cd "$(dirname "$0")/.."
 
+# core and server, not app: this ships the server, and a phone's rendering is
+# not something a deploy can break.
 echo "→ tests"
 npm test --prefix core --silent >/dev/null
 npm test --prefix server --silent >/dev/null
+
+# Added 2026-08-19, because the tests alone are not a compile.
+#
+# Jest runs TypeScript through babel, which strips types without checking them,
+# and `tsx` in production does the same — so nothing in the deploy path had ever
+# type-checked anything. A call to a function that had been deleted sat on
+# master under a green test run until somebody ran `npm run typecheck` by hand.
+# That one was in app/ and could not have reached the box, but the same hole is
+# open on server/, where it would be a route throwing ReferenceError at the
+# first request after a restart.
+#
+# Blocking on the two packages that are about to run on the box; warning on the
+# app, which is not, on the same reasoning as the dirty-tree warning below —
+# refusing to ship a server fix over a type error in a file this script does not
+# send would be the gate deciding something that is not its business.
+# Not redirected, unlike the tests above: tsc says nothing on success and
+# writes its errors to stdout, so sending that to /dev/null would abort the
+# deploy with no reason given.
+echo "→ types"
+npm run typecheck --prefix core --silent
+npm run typecheck --prefix server --silent
+if ! npm run typecheck --prefix app --silent; then
+  echo "⚠ app does not typecheck — not shipped here, but the next build is" >&2
+fi
 
 # The .env pattern is a wildcard with one exception, matching .gitignore and for
 # the same reason: a .env~ left by an editor or a .env.bak left by a careful
