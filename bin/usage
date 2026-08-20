@@ -1,0 +1,196 @@
+#!/bin/bash
+#
+# What this box carried, read out of the two usage tables.
+#
+#   bin/usage                  every report, against the deployed server
+#   bin/usage minutes          one report
+#   bin/usage peak bytes       several, in the order given
+#   bin/usage --local          the development database on this machine
+#   bin/usage --list           the report names and what each answers
+#
+# Read-only, always: there is no --write, because nothing here is a thing you
+# would ever want to edit by hand and the sweep owns the deleting.
+#
+# These queries are the entire read interface to `usage_spans` and
+# `usage_bytes`. Nothing in the server reads them — no endpoint, no field on
+# the wire, no screen — which is deliberate and is what keeps the meter
+# instrumentation rather than a feature. The reasoning is in
+# planning/DECISIONS.md § "The meter is two tables and a script".
+#
+# Three things bound every number below, and none of them are visible in the
+# output:
+#
+#   * The window is thirty days. USAGE_RETENTION_MS sweeps hourly, so a total
+#     is a rolling month and not a history — "ever" is unanswerable here by
+#     construction.
+#   * Mic and listen spans are sampled every fifteen seconds, so each edge is
+#     good to within that and a microphone opened and closed inside one window
+#     is invisible. Noise across a month; not noise across one conversation.
+#   * Stem uploads are not in `usage_bytes` at all. The egress jobs write to S3
+#     on their own credential and never through this process, so the largest
+#     category of bytes is missing. What `bytes` reports is what this server
+#     served, which is far less than what the bucket carried.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+LOCAL_DB="$(cd "$(dirname "$0")/.." && pwd)/server/thefloor.db"
+
+local_mode=false
+wanted=()
+
+usage_minutes() {
+  cat <<'SQL'
+.print ''
+.print '── Minutes per person per stream ───────────────────────────────'
+.print ''
+-- Read `playback` as listening time rather than stream time: a shared track is
+-- one publication heard by everyone, and its cost is under `listen`. Open
+-- spans are counted up to now, which is why a live channel moves this.
+SELECT account_id, kind,
+       ROUND(SUM(COALESCE(ended_at, unixepoch() * 1000) - started_at)
+             / 60000.0, 1) AS minutes
+FROM usage_spans
+WHERE kind <> 'pair'
+GROUP BY account_id, kind
+ORDER BY minutes DESC;
+SQL
+}
+
+usage_pairs() {
+  cat <<'SQL'
+.print ''
+.print '── Conversation minutes by pair ────────────────────────────────'
+.print ''
+-- Closed spans only: an open pair span is a conversation still happening, and
+-- crediting it up to now would make this report move while you read it.
+SELECT account_id, peer_id,
+       ROUND(SUM(ended_at - started_at) / 60000.0, 1) AS minutes
+FROM usage_spans
+WHERE kind = 'pair' AND ended_at IS NOT NULL
+GROUP BY account_id, peer_id
+ORDER BY minutes DESC;
+SQL
+}
+
+usage_peak() {
+  cat <<'SQL'
+.print ''
+.print '── Peak simultaneous recorded participants ─────────────────────'
+.print ''
+-- The one query with an operational answer attached: `track_cpu_cost: 0.15` in
+-- /etc/livekit/egress.yaml caps this box at roughly ten, every stem being its
+-- own egress job. If this approaches it, raising that figure is the first move.
+SELECT COALESCE(MAX(concurrent), 0) AS peak_egress_jobs FROM (
+  SELECT (SELECT COUNT(*) FROM usage_spans b
+          WHERE b.kind = 'egress'
+            AND b.started_at <= a.started_at
+            AND (b.ended_at IS NULL OR b.ended_at > a.started_at)) AS concurrent
+  FROM usage_spans a WHERE a.kind = 'egress');
+SQL
+}
+
+usage_bytes() {
+  cat <<'SQL'
+.print ''
+.print '── Bytes this server served, by kind ───────────────────────────'
+.print ''
+-- Not what the bucket carried. Stem uploads never pass through this process.
+-- Raw bytes alongside the gigabytes, because at this size the interesting
+-- column is the one that has not been rounded to 0.0 yet.
+SELECT kind, COUNT(*) AS transfers, SUM(bytes) AS bytes,
+       ROUND(SUM(bytes) / 1073741824.0, 3) AS gb
+FROM usage_bytes GROUP BY kind ORDER BY bytes DESC;
+SQL
+}
+
+usage_defects() {
+  cat <<'SQL'
+.print ''
+.print '── Defects ─────────────────────────────────────────────────────'
+.print ''
+-- A 'mic' span sourced from state rather than from the room means the poll
+-- stopped running and the meter fell back to modelling. Any row is a defect,
+-- which is why `source` is recorded rather than averaged away.
+SELECT COUNT(*) AS mic_spans_not_from_room
+FROM usage_spans WHERE kind = 'mic' AND source <> 'room';
+
+-- A span still open long after it should have closed is a leak: something
+-- opened it and no longer exists to close it. The sweep deliberately leaves
+-- these alone so that the leak shows up here rather than being tidied away.
+SELECT kind, channel_id, account_id,
+       ROUND((unixepoch() * 1000 - started_at) / 3600000.0, 1) AS open_hours
+FROM usage_spans
+WHERE ended_at IS NULL AND started_at < unixepoch() * 1000 - 86400000
+ORDER BY started_at;
+
+-- Spans a dead process left open, closed at their own start by closeStrays and
+-- so of zero length. Not a defect on its own — it is a count of restarts that
+-- interrupted something — but a lot of them next to few real spans is one.
+SELECT COUNT(*) AS zero_length_spans
+FROM usage_spans WHERE ended_at = started_at;
+SQL
+}
+
+report_names=(minutes pairs peak bytes defects)
+
+list_reports() {
+  cat <<'TXT'
+minutes   minutes per account per stream: mic, listen, playback, egress
+pairs     minutes each pair of people spent in a channel together
+peak      most egress jobs ever running at once, against the cap of ~10
+bytes     recording bytes this server served, by kind
+defects   fallback mic spans, leaked open spans, spans a restart cut short
+TXT
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    --list) list_reports; exit 0 ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the header
+    # gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    -*) echo "Unknown option: $arg" >&2; exit 1 ;;
+    *)
+      # shellcheck disable=SC2076
+      if [[ " ${report_names[*]} " == *" $arg "* ]]; then
+        wanted+=("$arg")
+      else
+        echo "No such report: $arg" >&2
+        echo "Try one of: ${report_names[*]}" >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+[ ${#wanted[@]} -eq 0 ] && wanted=("${report_names[@]}")
+
+sql=""
+for report in "${wanted[@]}"; do
+  sql+=$("usage_$report")$'\n'
+done
+
+# Column headers and aligned output: this is for reading, not for piping into
+# something else.
+opts=(-readonly -header -column -cmd '.timeout 2000')
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  echo "→ local · last 30 days"
+  exec sqlite3 "${opts[@]}" "$LOCAL_DB" <<<"$sql"
+fi
+
+echo "→ production · last 30 days"
+# Over stdin rather than interpolated into the remote shell, for the reason
+# bin/db spells out: $, backticks and backslashes are all live in that position
+# and these queries contain them.
+exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+  "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \
+  <<<"$sql"

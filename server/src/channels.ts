@@ -64,7 +64,8 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
  *
  * It is a sampling rate, so it is also the accuracy: every mic and listen span
  * has edges good to within one interval, and a microphone opened and closed
- * inside one window is not recorded at all. See planning/USAGE.md.
+ * inside one window is not recorded at all. See planning/DECISIONS.md § *The
+ * meter is two tables and a script*.
  */
 export const USAGE_POLL_INTERVAL_MS = 15_000;
 
@@ -404,9 +405,10 @@ export class ChannelRegistry {
     if (this.timer) return;
     this.timer = setInterval(() => this.tick(), TICK_INTERVAL_MS);
     this.timer.unref?.();
-    // Hourly rather than on the 500ms tick: what it looks for changes once a
-    // week, and it reads two tables and talks to S3. A boot sweep runs from
-    // restore(), so a server that is never up for an hour still sweeps.
+    // Hourly rather than on the 500ms tick: what it looks for is a week old in
+    // one case and a month old in the other, and it reads two tables and talks
+    // to S3. A boot sweep runs from restore(), so a server that is never up for
+    // an hour still sweeps.
     this.sweepTimer = setInterval(() => {
       this.sweepDeleted(this.now());
       this.usage.sweep(this.now());
@@ -2809,9 +2811,9 @@ export class ChannelRegistry {
     // previous one was up for less than an hour at a time.
     this.sweepDeleted(now);
     // Spans the dead process left open. Closed at their own start rather than
-    // at boot — see closeStrays — and swept on the same horizon as everything
-    // else, which the boot sweep applies now so a server that is never up for
-    // an hour still expires them.
+    // at boot — see closeStrays — and swept on their own horizon, which is
+    // USAGE_RETENTION_MS rather than the week above and is applied here so a
+    // server that is never up for an hour still expires them.
     this.usage.closeStrays();
     this.usage.sweep(now);
   }

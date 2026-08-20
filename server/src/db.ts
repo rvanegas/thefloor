@@ -418,7 +418,7 @@ CREATE TABLE IF NOT EXISTS recordings (
 CREATE INDEX IF NOT EXISTS recordings_participants
   ON recordings(initiator_id, invitee_id);
 
--- What this box actually carried, for the last week and no longer.
+-- What this box actually carried, for the last thirty days and no longer.
 --
 -- Written so that claims about load stop being reasoned and start being
 -- counted: the egress cap of roughly ten simultaneous recorded participants
@@ -426,12 +426,13 @@ CREATE INDEX IF NOT EXISTS recordings_participants
 -- argument in planning/MIGRATION.md.
 --
 -- Nothing reads these tables in code, deliberately. There is no endpoint, no
--- field on the wire and no screen — the queries are in planning/USAGE.md and
--- are run by hand against the box. A number nobody can see cannot quietly
--- start deciding things.
+-- field on the wire and no screen — bin/usage runs the queries against the box
+-- from outside. A number nobody can see cannot quietly start deciding things.
+-- (No backticks anywhere in this schema: it is a template literal, so one ends
+-- it, and the failure is 30 lines of parse errors pointing at the code after.)
 --
 -- No foreign key to accounts, and that is the one interesting choice here. A
--- span is evidence about a week, not a fact about a person, and it must not
+-- span is evidence about a month, not a fact about a person, and it must not
 -- become a reason a row elsewhere cannot be removed; deleteAccount clears
 -- these explicitly instead, which is what keeps the privacy page's promise
 -- that nothing identifying remains.

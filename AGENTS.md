@@ -52,9 +52,11 @@ costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 
 The rest are temporary, and say so in their own first lines. Designs for
-unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`**,
-**`planning/USAGE.md`** — are deleted when the work ships, with whatever
-survives moving to `DECISIONS.md`.
+unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
+deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
+`planning/USAGE.md` was the third and went that way on 2026-08-19: the reasoning
+is `DECISIONS.md` § *The meter is two tables and a script*, and the queries it
+carried are `bin/usage`, which is the only way anything reads those tables.
 The three App Store files — `APPREVIEW.md`, `APPREVIEW2.md` and
 `APPREVIEWSCRIPT.md` — were exactly that, and were deleted on 2026-08-19 when
 1.0.0 was approved and released. Everything in them that recurs went to
@@ -105,7 +107,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 577 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 580 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -327,7 +329,8 @@ empty.
 The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
 participants**, every stem being its own egress job. That is a chosen figure and
-raising it is the first move if it ever bites, not a hardware limit.
+raising it is the first move if it ever bites, not a hardware limit —
+`bin/usage peak` says how close it has ever come.
 
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
 runs the tests first and refuses to continue if they fail.

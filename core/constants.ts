@@ -133,20 +133,24 @@ export const DELETED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 /**
  * How long a usage span or a byte count is kept before the sweep removes it.
  *
- * A week, deliberately its own constant rather than a reuse of
- * DELETED_RETENTION_MS, which is the same number today and means something
- * entirely different: that one is a recovery window for a mistake, this one is
- * the horizon past which nobody is entitled to know what anybody did. A change
- * to either must not silently move the other.
+ * Thirty days, deliberately its own constant rather than a reuse of
+ * DELETED_RETENTION_MS, which means something entirely different: that one is a
+ * recovery window for a mistake, this one is the horizon past which nobody is
+ * entitled to know what anybody did. A change to either must not silently move
+ * the other — and this one has already moved, from seven days on 2026-08-19,
+ * because a week cannot show a month's shape and the questions this exists to
+ * answer are about growth. The two agreed once and no longer do.
  *
  * It is what makes the meter a rolling window rather than a history. Nothing
  * here accumulates, so the answer to "how much has this account ever used" is
  * unanswerable by construction, which is the point.
  *
  * In core/ rather than server/ because it is a rule about the data and the
- * privacy page states it as one; nothing in the app reads it.
+ * privacy page states it as one; nothing in the app reads it. **The privacy
+ * page states this number**, so changing it is a change to a published promise
+ * and PRIVACY_UPDATED moves with it.
  */
-export const USAGE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+export const USAGE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * How often each side proves it is still there, and how long silence is

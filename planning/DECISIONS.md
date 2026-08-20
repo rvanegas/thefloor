@@ -1468,3 +1468,227 @@ so registering ours would silently replace it, with an echo or a lost route
 surfacing weeks later in a build nobody connects to logging. The ordering
 question it looks like it would answer needs no code: the observer already logs
 to `os_log` under `com.livekit.react-native-webrtc`.
+
+---
+
+## The meter is two tables and a script, 2026-08-19
+
+TASKS.md § *Track Usage* asked for per-user minutes and timestamps of WebRTC,
+of media playback including recordings, of recordings attributed to whoever
+started them, bytes of egress and export, and minutes of conversation shared by
+pairs. This is what was built and what it deliberately is not. It absorbs
+`planning/USAGE.md`, which was the design and is deleted with this entry.
+
+**Why at all.** Nothing here measured anything, and several load-bearing claims
+were reasoned rather than counted: `track_cpu_cost: 0.15` caps the box at about
+ten simultaneous recorded participants and nobody knew how close it had come,
+and MIGRATION.md argues sizing in both directions on judgement alone. The deploy
+history says which builds kept working and nothing about what the server was
+carrying while they did.
+
+**What it is not for, which is the load-bearing half.** There is no read
+surface: no endpoint, no protocol addition, no screen. Two tables and
+`bin/usage`, which runs the queries against the box over ssh from outside. That
+is what keeps this instrumentation rather than a feature — a figure the
+application can see is a figure the application will eventually decide something
+with. `usage.ts`, `db.ts` and `channels.ts` all point at this section rather
+than carrying the argument again.
+
+### The four streams, and who is the authority for each
+
+A channel's WebRTC cost decomposes into four, and this server is the authority
+for three. It does not have to ask LiveKit what it is doing itself.
+
+| Stream | Published by | Authority |
+| --- | --- | --- |
+| Mic uplink, per person | the phone | **the room**, via `MediaServer.audioTracks` |
+| Downlink, per listener | the SFU | derived — present listeners × publishing speakers |
+| Playback | **this server's own participant** | `ChannelState.playback` |
+| Egress, per stem | **this server's own jobs** | the `capturing` handles |
+
+Only the microphone is published by a device this process does not control, so
+only the microphone is asked about. Polling LiveKit about playback or egress
+would be asking it to confirm something this process did itself, and would
+introduce a second answer that can disagree with the first for no gain.
+
+**The microphone can be modelled, and the model is not good enough.**
+`microphoneNeeded(channel, me) && !selfMuted[me]` is exactly what the app
+computes to decide whether to publish, and the server holds every input to it;
+the room is created with `stopMicTrackOnMute: true`, so a closed microphone
+genuinely unpublishes and there is no third state. It would work — except in the
+case STATES.md § *Audio Connected* is about, where the LiveKit room is dead while
+the websocket is alive. A tester hit it on 2026-08-18 when a Telegram VoIP call
+seized the audio session: the channel looked live, the roster was right, the
+audio was dead until a force-quit. Presence says a stream exists; there is no
+stream. The over-count is rare, one-directional and **unbounded in duration**,
+since the socket recovers on foreground and the room does not. Asking the room
+costs one round trip per occupied channel per interval and removes the class.
+
+### Shape, and where spans open and close
+
+Two tables, `usage_spans` and `usage_bytes`, defined in `db.ts`. Spans open with
+a null `ended_at` and are stamped when they close, the convention `recordings`
+already uses and for the same reason: a span interrupted by a restart has to be
+recoverable rather than silently absent. `source` — `'room'` or `'state'` —
+records which authority wrote the row, and is not a hedge: a `'mic'` row reading
+`'state'` means the poll stopped and the meter fell back, which is a defect and
+should be visible as one rather than averaged into a total. No migration and no
+backfill; there is no honest figure for a week that was never measured.
+
+`commit` is the chokepoint for everything the server is authoritative about, and
+`trackFloorWindows` was the precedent for the shape.
+
+- **playback** — one span per present person while `status` is `'playing'`,
+  restated whenever presence moves, so arriving and leaving mid-track both fall
+  out of the restatement rather than needing a case each. The playback
+  *participant* opens on the first track and stays for the channel's life
+  publishing silence between tracks, so its stem keeps its place in a recording;
+  participant lifetime and playing time are different quantities and the meter
+  wants the second.
+- **egress** — one span per identity, opened as it joins `run.requested` and
+  closed as it leaves, carrying the run id, which is also the recordings row id.
+- **pair** — on any change to `present`: close the channel's open pair spans and
+  reopen one per co-present pair, canonically ordered by `pairKey`.
+
+`mic` and `listen` come from `reconcileUsage`, on its own timer at
+`USAGE_POLL_INTERVAL_MS = 15_000` rather than folded into the 500ms tick. An
+identity in `audioTracks` with a non-empty track list has an open microphone;
+the playback participant appears there too and is skipped, being metered from
+state. **Sampling error is bounded by the interval and is not corrected for** —
+a microphone opened and closed inside one window is invisible and every edge is
+good to ±15s. Noise across a month of minutes; not noise across a single
+conversation, and a query that slices thinly enough will find it.
+
+**Restarts.** `restore()` calls `closeStrays`. An open span at boot belonged to
+the dead process and is closed at **its own `started_at`** rather than at boot:
+the process died at an unknown moment, and crediting it the whole of the
+downtime would invent minutes nobody spent. The row is kept at zero length
+rather than deleted, because "a span was open when the server died" is a fact
+about a restart and worth counting.
+
+### Bytes, and what cannot be seen from here
+
+`RecordingStore.get`/`put` are the only paths by which this process moves
+recording audio, so the counts are exact where they are visible. They are taken
+at the call sites that know who asked rather than inside the store, which does
+not: the export route and the play route with an account, the stem reads and mix
+write inside `mix` with none, because nobody asked for those directly and they
+are the cost of a recording existing at all.
+
+**Stated bound: stem uploads are invisible.** The egress jobs write to S3 on the
+`thefloor-egress` PutObject-only credential, never through this process. Those
+bytes — the largest single category, being every participant's raw audio — are
+not in `usage_bytes` and cannot be made to be without a second source. They are
+derivable from recorded duration times bitrate, or from S3's own metrics. A
+total read off this table is egress *this server served*, not egress the bucket
+carried, and the two are far apart.
+
+### Thirty days, having been seven
+
+`USAGE_RETENTION_MS` in `core/constants.ts`, swept hourly on the existing
+`sweepTimer` and again at boot. It shipped at seven days on the reasoning that
+the shorter horizon is the more defensible one, and **moved to thirty on
+2026-08-19, days later**, because a week cannot show a month's shape and every
+question this exists to answer — is the box big enough, is anything growing, was
+the egress cap ever approached — is asked over months. A week of data answers
+none of them and a rolling month answers all three without becoming a history.
+
+It is deliberately its own constant rather than a reuse of
+`DELETED_RETENTION_MS`, which was the same seven days when both were written.
+That is exactly why: they mean different things — one is a recovery window for a
+mistake, the other the horizon past which nobody is entitled to know what
+anybody did — and a single constant would have moved the deletion window to a
+month as a side effect of this change. The two now visibly disagree, which is
+the healthier state for them to be in.
+
+Open spans are left alone by the sweep. One open past the horizon is a leak, and
+deleting it would hide the leak rather than the row; `bin/usage defects` looks
+for exactly that.
+
+**Account deletion takes usage with it.** `deleteAccount` calls `forget`, which
+removes rows naming the account in either table and on both `account_id` and
+`peer_id` — the pair row where you are the peer and somebody else is the account
+being the one easily missed. The privacy policy promises nothing identifying
+remains, and a metering row naming a deleted account would falsify it.
+
+### The privacy policy stopped being true, twice
+
+`/privacy` read "There is no analytics, no advertising, no tracking of any
+kind". The last clauses survive; the first did not, and `privacy.test.ts`
+asserted the words `no analytics` — so the guard fired and the paragraph was
+rewritten rather than quietly outlived, which is the whole reason the policy
+lives beside the code. The assertion now names the narrower claims that survive
+— no third-party analytics, nothing that profiles anyone — plus the two the
+meter obliges us to make.
+
+The retention change moved it a second time. `RETENTION_DAYS` in `privacy.ts`
+had been serving both promises on the strength of their agreeing; it is now two
+constants, and the test reads `USAGE_RETENTION_MS` and fails if the page has not
+moved with it. The numbers are restated in `privacy.ts` rather than imported, so
+that lengthening a retention cannot silently lengthen a published claim — the
+prose has to be re-read by somebody deciding whether it still sounds honest at
+the new number. `PRIVACY_UPDATED` moved both times, the substance having changed
+rather than the wording.
+
+**The page is served live and is not versioned per build**, so there is no
+population left reading an old claim while being metered: the moment
+`bin/deploy` runs, everyone on every build reads the amended page. That is why
+there was no build gate on the meter — a gate would only matter if people had to
+update in order to re-consent, and a served page does not work that way. The
+deploy was held until build 51 cleared App Review, the page being under review as
+it stood; `core/protocol.ts` was untouched by any of this, so there was no client
+half to sequence.
+
+### Where the build differed from the design
+
+**Playback is metered per person, not per channel.** The design had one span per
+channel, which is what the *stream* costs — a shared track is one publication
+however many hear it. But the request asks what each person played, and a track
+everybody hears is played by everybody. So: a span per present listener. Note
+what that does to a total — summing playback gives **listening time, not stream
+time**, and the stream's own cost is under `listen`. Neither is the other's
+total.
+
+**`peer_id` carries two meanings**, and the second was not planned. On a `pair`
+span it is the other person; on an `egress` span it is whose stem is being
+captured, `account_id` there being whoever started the recording — which the
+request asks for and is not usually the same person. Without the second column
+an egress span could say who was charged or whose voice it was, not both.
+
+**Nothing knew who started a recording.** `RecordingState` carries no actor and
+the `recordings` row's `initiator_id` is the *channel's* initiator, a legacy
+anchor column predating channels holding more than two people. The answer exists
+only on the action, so `ChannelRegistry.apply` now catches it into a
+`runInitiator` map on its way past. In memory, like the run itself.
+
+**Listen spans are per listener, not per speaker.** One person talking to four
+costs four downlinks, and that is what the table says. Nobody alone in a room
+gets one, which is also what the SFU does.
+
+**`pollUsage` is public**, like `tick`, so a test can step it rather than wait
+fifteen seconds for a timer.
+
+**`microphoneNeeded` and `anyMicrophoneOpen` moved to `core/micNeeded.ts`** from
+`app/src/audio/`, unchanged. The server needs the predicate to cross-check the
+room's answer and could not reach it in `app/`. Moving rather than restating is
+the reason `core/` exists: two statements of the same rule drift, and this one
+would have drifted silently — as wrong minutes, months later, with nothing to
+point at.
+
+### The queries are `bin/usage`
+
+The design left the queries in prose, to be pasted into `bin/db` by hand. They
+are a script now, one report per question — `minutes`, `pairs`, `peak`, `bytes`,
+`defects` — read-only with no `--write` to be got at, and each query carrying
+the comment that says what its answer does *not* include. `peak` is the one with
+an operational answer attached: it counts concurrent egress jobs against the ~10
+that `track_cpu_cost: 0.15` implies, and raising that figure is the first move
+if it ever bites.
+
+Two of the `defects` reports are new and neither was in the design: spans still
+open a day later, which is the leak the sweep deliberately does not tidy away,
+and zero-length spans, which count restarts that interrupted something. Both are
+questions the tables could always answer and nobody had thought to ask.
+
+This is still not a read surface. It is a thing an operator runs, on a machine
+that is not the server, against a database no request handler consults.

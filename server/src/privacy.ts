@@ -18,20 +18,35 @@ import { escapeHtml, page } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '18 August 2026';
+export const PRIVACY_UPDATED = '19 August 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
  * removes it. Mirrors DELETED_RETENTION_MS in core/constants.ts — stated in the
  * policy because "deleted" meaning "in a week" is exactly the sort of thing a
  * policy exists to say out loud.
- *
- * USAGE_RETENTION_MS is the same seven days and is a different promise: how
- * long the operational record of minutes and bytes is kept. Both are stated
- * below, separately, because they expire different things for different
- * reasons and a reader should not have to infer that they happen to agree.
  */
 const RETENTION_DAYS = 7;
+
+/**
+ * How long the operational record of minutes and bytes is kept. Mirrors
+ * USAGE_RETENTION_MS in core/constants.ts.
+ *
+ * A separate number from RETENTION_DAYS, and separately stated below, because
+ * they expire different things for different reasons. They were the same seven
+ * days until 2026-08-19 and are not any more — which is exactly why one
+ * constant could not go on serving both: a reader who inferred that the two
+ * agreed would now be wrong about a published promise, and the file would have
+ * moved the second one by moving the first.
+ *
+ * Restated here rather than imported from core/, so that lengthening a
+ * retention cannot silently lengthen what this page claims — the prose around
+ * it has to be re-read by somebody deciding whether the promise still sounds
+ * honest at the new number, which is not a thing an interpolation can do. What
+ * stops the two drifting is privacy.test.ts, which reads USAGE_RETENTION_MS and
+ * fails if the page has not been moved with it.
+ */
+const USAGE_RETENTION_DAYS = 30;
 
 export function privacyPage(contactEmail?: string): string {
   const contact = contactEmail
@@ -72,10 +87,10 @@ application collects little.</p>
   <li><strong>How much the server carried for you</strong>: how many minutes
   your microphone was open, how many you spent listening, playing something or
   recording, how many you shared a channel with each other person, and how many
-  bytes of recordings were downloaded. It is kept for ${RETENTION_DAYS} days and
-  then deleted, so there is no long-run history of anybody. It exists to size
-  and pay for the server, it is never shown to another user, and nothing in the
-  application behaves differently because of it.</li>
+  bytes of recordings were downloaded. It is kept for ${USAGE_RETENTION_DAYS}
+  days and then deleted, so there is no long-run history of anybody. It exists
+  to size and pay for the server, it is never shown to another user, and nothing
+  in the application behaves differently because of it.</li>
 </ul>
 
 <h2>Live audio is not recorded</h2>
@@ -90,7 +105,7 @@ shown. Your address book is never read — the contacts in The Floor are people
 who have accepted a request inside it.</p>
 
 <p>What is measured is the one thing above: how much of this server’s time and
-bandwidth went on each account, kept for ${RETENTION_DAYS} days. It records
+bandwidth went on each account, kept for ${USAGE_RETENTION_DAYS} days. It records
 durations and sizes, never content — not what was said, not what was played,
 not what any recording contains. There is no record of which screens you
 opened, what you tapped, or how long you spent looking at anything.</p>

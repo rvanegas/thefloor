@@ -1,3 +1,4 @@
+import { USAGE_RETENTION_MS } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
 
 /**
@@ -48,6 +49,12 @@ describe('The privacy policy', () => {
     expect(page).toContain('durations and sizes, never content');
     // Deleting is a mark swept later, and saying so is the point.
     expect(page).toContain('7 days later');
+    // And the meter's horizon is a published promise, so it has to be the one
+    // the sweep actually keeps. These were both seven days until 2026-08-19,
+    // which is how a single number came to stand for two different claims;
+    // this is what fails if the constant moves and the prose does not.
+    const usageDays = USAGE_RETENTION_MS / (24 * 60 * 60 * 1000);
+    expect(page).toContain(`kept for ${usageDays} days`);
     // Live conversation is not stored; only a deliberate recording is.
     expect(page).toContain('is not written anywhere');
     expect(page).toContain('Ko-fi');
