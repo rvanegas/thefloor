@@ -27,8 +27,20 @@ can prevent it. Neither can a different AVAudioSession category: the constraint
 is the Bluetooth protocol rather than iOS, and a headset cannot carry a
 microphone and stereo at the same time.
 
-**Three candidates, none tested, and this list is written out because the last
-fix was chosen without doing that.**
+**What "muted" means was the question underneath, and it is decided
+(2026-08-20): muted means *nothing is transmitted*, expansively. The hardware
+mode is not part of the promise**, being invisible and functionally irrelevant
+to the other side. That picks candidate 1 below and retires the other two, and
+it is worth stating as a promise rather than an implementation detail, because
+it is the thing a future change must not quietly weaken: what is being traded
+is a hardware guarantee for a software one. The track is disabled and no samples
+leave, but somebody self-muting to say something in the room is now trusting
+code rather than the OS. The orange indicator staying lit is the visible face of
+that and is accepted — during a call it is lit anyway, and what changes is only
+that self-mute stops extinguishing it.
+
+**The three candidates, for the record and because the last fix was chosen
+without testing any of them.**
 
 1. **Separate the two closes** — the leading candidate. `stopMicTrackOnMute:
    false` so a self-mute leaves capture running and there is no transition to
@@ -53,9 +65,14 @@ fix was chosen without doing that.**
    that is usually in a pocket. Worth remembering if the hardware assumption
    ever changes — for a speaker-in-a-room product this is the cheapest fix
    there is.
-3. **Keep it and fix the story instead** — STATES.md frames the transition as an
-   honest signal that the room is live. It has now been reported as a defect
-   twice by the person who wrote that framing.
+3. **Keep it and fix the story instead** — *rejected by the same decision.*
+   STATES.md frames the transition as an honest signal that the room is live,
+   and it has now been reported as a defect twice by the person who wrote that
+   framing. Note what survives anyway: candidate 1 removes the mute/unmute pair
+   and **not** the alone→somebody-arrives and last-person-leaves crossings,
+   which still move the profile. So the cue does not disappear — it narrows to
+   the boundaries that carry more meaning, which is arguably what STATES.md
+   should have claimed in the first place.
 
 **The tone was reproduced on AirPods Pro on 2026-08-20**, which is a device
 with a microphone and therefore an HFP link to lose — consistent with the
