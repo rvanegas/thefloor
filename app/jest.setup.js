@@ -40,4 +40,18 @@ jest.mock('@livekit/react-native', () => ({
   },
   registerGlobals: jest.fn(),
   setupIOSAudioManagement: jest.fn(),
+  // The audio engine's own mute behaviour, which is native and iOS-only. The
+  // enum is inlined rather than required from the real module because that
+  // module reaches the bridge at import time, which is what this mock exists
+  // to avoid. Keep the values in step with RTCAudioEngineMuteMode.
+  AudioEngineMuteMode: {
+    Unknown: -1,
+    VoiceProcessing: 0,
+    RestartEngine: 1,
+    InputMixer: 2,
+  },
+  AudioDeviceModule: {
+    getMuteMode: jest.fn(() => 1),
+    setMuteMode: jest.fn(async () => {}),
+  },
 }));

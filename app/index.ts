@@ -17,6 +17,7 @@ import { registerRootComponent } from 'expo';
 
 import App from './App';
 import { policyFor } from './src/audio/session';
+import { configureMuteMode, WANTED_MUTE_MODE } from './src/audio/muteMode';
 
 // Installs the WebRTC globals livekit-client expects (RTCPeerConnection and
 // friends). Must happen before any Room is constructed.
@@ -38,6 +39,25 @@ registerGlobals();
 // it. It is written as a call rather than a constant so the two can never drift
 // apart in maintenance. See src/audio/session.ts.
 setupIOSAudioManagement(true, policyFor(false, 0));
+
+// How the engine *mutes* is a third writer of this session, and it is set here
+// for the same reason the policy above is: it is process-wide, it is read at a
+// moment no JavaScript is on the stack, and the default is not what this app
+// wants. `src/audio/muteMode.ts` carries the whole argument — including why the
+// two earlier fixes for the same symptom could not have worked.
+configureMuteMode()
+  .then((previous) => {
+    if (!__DEV__) return;
+    // The previous value is observable exactly once, here. If a self-mute is
+    // still audible after this, that number is where the next session starts.
+    // eslint-disable-next-line no-console
+    console.log(`[audio] muteMode was ${previous}, now ${WANTED_MUTE_MODE}`);
+  })
+  .catch((error: unknown) => {
+    if (!__DEV__) return;
+    // eslint-disable-next-line no-console
+    console.log('[audio] muteMode could not be set', error);
+  });
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,

@@ -782,3 +782,55 @@ unmute.
 was reasoned from source, shipped and found not to work, so this one says so
 plainly: the tests pin the state machine and the release path, and no test can
 hear a Bluetooth handover. It ships when somebody has listened.
+
+## The engine mutes three different ways, and the default is the loud one — 2026-08-20
+
+Third attempt at one symptom, and the first to be aimed at the right layer. The
+two before it are in the entries above and are both kept — each corrected
+something genuinely wrong — but neither could have fixed this, and understanding
+why is the value here.
+
+**Muting is implemented below the audio session.** `RTCAudioEngineMuteMode` has
+three values and they mute at three different depths:
+
+| | |
+| --- | --- |
+| `RestartEngine` | stops and restarts the audio engine |
+| `VoiceProcessing` | mutes inside the voice-processing unit |
+| `InputMixer` | mutes at the input mixer |
+
+Only the first disturbs the hardware, and it disturbs it completely: the input
+is torn down and rebuilt, and iOS releases SCO in the gap — which hands a
+Bluetooth headset back from the hands-free link to A2DP and is precisely the
+tone that was reported. It happens whatever the audio session's category is,
+and whether or not the track is stopped.
+
+**Which is why two correct-looking fixes changed nothing.** `policyFor` made the
+SDK's native observer stop writing `IDLE` at a playout-only transition — a real
+disagreement, and the category was never what moved. `MicIntent` stopped a
+self-mute from releasing the track — also real, and the track was never what
+moved either. Both sat above a layer neither had looked at. The lesson is not
+that the reasoning was sloppy; each step followed from the code that was read.
+It is that **the code that was read did not contain the mechanism**, and three
+rounds of reading more of the same code was the wrong move after the first
+failure. The instrument was available the whole time.
+
+**`VoiceProcessing` is what this app asks for**, set at startup in
+`app/index.ts` through `src/audio/muteMode.ts`, unconditionally rather than only
+when it differs. The framework header does not document the default, so reading
+it to decide would make our behaviour depend on a value an SDK bump could move.
+`InputMixer` is the fallback if this one ever costs the echo canceller — that
+unit being what performs the cancellation, which makes POSTMORTEM-echo.md
+required reading before touching it.
+
+**The previous value is observable exactly once**, so `configureMuteMode`
+returns it and `index.ts` logs it in development builds. If a self-mute is still
+audible after this, that number is where the next session starts rather than the
+source.
+
+**Unverified, again, and this is the third time that sentence has been
+written.** The tests pin the choice — including that the wanted mode is never
+`RestartEngine`, which is the whole point stated as an assertion — and no test
+can hear a Bluetooth handover. **If build 58 does not fix it, stop changing
+code**: put the phone on USB and read the engine's own account of itself, which
+TASKS.md carries the command for.
