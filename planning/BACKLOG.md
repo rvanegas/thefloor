@@ -530,52 +530,6 @@ commits record them.
 
 ---
 
-## The App Privacy label predates the meter
-
-**Nobody has looked at the label, and this entry is an inference until somebody
-does.** App Store Connect's App Privacy declaration — the "nutrition label" on
-the product page — was filled in for 1.0.0, before the meter existed, so it
-probably says nothing about it. That is reasoning from dates, not an
-observation: there is no API for the label (below), so it was never read. If the
-1.0.0 questionnaire already ticked Usage Data → Product Interaction, there is
-nothing wrong here at all. **Open App Privacy in App Store Connect and look**
-before acting on the rest of this entry; it settles in half a minute.
-
-Since 2026-08-19 the server records, per account, how many minutes a microphone
-was open, how many were spent listening, playing or recording, how many were
-shared with each other person, and how many bytes of recordings were
-downloaded. That is **Usage Data → Product Interaction, linked to identity, for
-Analytics, not used for tracking** — and none of it is declared.
-
-**It is already stale rather than stale at the next submission.** The meter is
-server-side, so it began collecting for every installed build the day it
-deployed, including build 51, which installed nothing new.
-
-**Deliberately deferred on 2026-08-20**, on the grounds that every current user
-is somebody the author knows personally and can tell directly, so the page is
-not yet the channel of record. The judgement is sound and it has an expiry
-written into it: **the label is what somebody nobody knows reads before
-installing.** The deadline is the first stranger, not the next release.
-
-Nothing else needs changing, and two things specifically should not be. This is
-not *tracking* as Apple defines it — no third-party data, no ad measurement, no
-data broker — so `NSPrivacyTracking` stays `0` and no ATT prompt or
-`NSUserTrackingUsageDescription` belongs anywhere near it; adding them is its
-own review risk. The privacy policy URL is unchanged. Retention length is never
-declared to Apple, so 7 → 30 days needs nothing on its own.
-
-There is **no API for this**: `appPrivacyDetails`, `appDataUsages` and
-`dataUsages` all 404, and `appInfos` exposes only categories and age rating. It
-is the App Store Connect UI or nothing, which is why it cannot be scripted into
-a release step.
-
-One entry is worth deciding rather than copying: *minutes shared with each other
-person* is per-pair, a record of who you were with rather than what you did. It
-still sits under Product Interaction, but it is the one a reader might
-reasonably call something else.
-
----
-
 ## Untested behaviour
 
 No assertions exist for these. Ordered by how likely they are to be wrong.

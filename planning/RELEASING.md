@@ -264,6 +264,28 @@ is the kind that goes stale between a decision and a submission.
 - **`aps-environment` is `production` in the exported IPA** — the check at the
   top of this file, run against the build being submitted rather than any
   earlier one.
+- **App Privacy still describes what the app collects.** It is **app-level, not
+  version-level**, so it is not part of the version record and is the thing left
+  behind when the app starts collecting something new. That happened: the usage
+  meter shipped 2026-08-19 and was declared on 2026-08-20, a day in which the
+  published label was wrong. As of then it declares Contact Info (name, email),
+  User Content (audio, other) and Identifiers (user id, device id) — all *App
+  Functionality*, linked to identity — plus **Usage Data → Product Interaction
+  for *Analytics***, which is the meter.
+
+  **There is no API for it.** `appPrivacyDetails`, `appDataUsages` and
+  `dataUsages` all 404, and `appInfos` carries only categories and age rating —
+  so this cannot be read by a script or gated in `bin/release-ios`, and is
+  checked by opening the page. Changes need publishing, not just saving.
+
+  **None of it is *tracking*** as Apple defines it — no third-party data, no ad
+  measurement, no data broker. So `NSPrivacyTracking` stays `0` in
+  `app/ios/TheFloor/PrivacyInfo.xcprivacy`, and no ATT prompt or
+  `NSUserTrackingUsageDescription` belongs anywhere near this app. Adding either
+  because the word "privacy" came up is its own review risk. `PrivacyInfo`'s
+  empty `NSPrivacyCollectedDataTypes` is deliberate and stays: that manifest
+  describes collection by app and SDK *code*, and the meter is derived
+  server-side from sessions rather than sent as client telemetry.
 - **`supportsTablet: false`,** so App Review does not open a phone layout on an
   iPad and file what it finds.
 - **The review account holds demo data and nothing real**, since its code is
