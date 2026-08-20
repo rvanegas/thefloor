@@ -80,7 +80,15 @@ export interface SessionAudio {
    */
   speaking: string[];
   /**
-   * Whether the microphone is actually capturing.
+   * Whether anything you say is going out.
+   *
+   * **Not the same as whether the hardware is capturing**, and the two parted
+   * company on 2026-08-20. A self-muted microphone in an occupied channel is
+   * still capturing — the device is held open deliberately, so that muting
+   * does not hand a Bluetooth headset between profiles and back — and this
+   * still reads `false`, because it answers the question the user is asking.
+   * The device state is not surfaced at all: iOS shows it, in the orange
+   * indicator, and a second opinion here could only ever contradict it.
    *
    * False while you are alone in a channel and not recording, which is a state
    * worth reporting rather than leaving to be discovered: the screen otherwise
@@ -176,6 +184,75 @@ function trace(
 function pushPolicy(anyMicOpen: boolean, othersAudible: number): void {
   if (Platform.OS !== 'ios') return;
   setupIOSAudioManagement(true, policyFor(anyMicOpen, othersAudible));
+}
+
+/**
+ * What the microphone should be doing — which is three states, not two.
+ *
+ * Splitting this out is the whole of the 2026-08-20 fix. `capturing` and
+ * `released` used to be the only two, with self-mute collapsed into
+ * `released`, and that collapse is what made muting cost a Bluetooth profile
+ * handover: releasing the device is what hands a headset back from the
+ * hands-free link to A2DP, and it is audible in both directions.
+ *
+ * - `capturing` — the device is open and what you say goes out.
+ * - `muted` — you are self-muted with somebody here. Nothing goes out, and
+ *   **the device is left exactly as it is**: still open if it was open, which
+ *   is what removes the transition. Not opened if it was shut — see
+ *   `holdMicrophone`.
+ * - `released` — nobody needs it, so the device is genuinely let go and the
+ *   session can hand back to `playback`.
+ */
+type MicIntent = 'capturing' | 'muted' | 'released';
+
+function intentFor(micNeeded: boolean, selfMuted: boolean): MicIntent {
+  if (!micNeeded) return 'released';
+  return selfMuted ? 'muted' : 'capturing';
+}
+
+/** The published microphone track, or null when nothing is published. */
+function micTrack(room: Room) {
+  return (
+    room.localParticipant.getTrackPublication(Track.Source.Microphone)
+      ?.audioTrack ?? null
+  );
+}
+
+/**
+ * Stops transmitting without letting go of the device.
+ *
+ * **It will not open a microphone that is shut, and that is a rule rather than
+ * an omission.** Publishing a track and muting it a moment later is two awaits
+ * apart, and in that window a live microphone is on the wire — which is the
+ * one thing a mute must never do. So arriving here with nothing published
+ * leaves nothing published: somebody who was alone and self-muted when a
+ * second person walks in stays shut until they unmute, and pays one transition
+ * then, at the moment they choose to speak.
+ */
+async function holdMicrophone(room: Room): Promise<void> {
+  const track = micTrack(room);
+  if (!track) return;
+  // Belt and braces: the publish default is already false, and stating it here
+  // means a future change to that default cannot silently turn every self-mute
+  // back into a device release.
+  track.stopOnMute = false;
+  await room.localParticipant.setMicrophoneEnabled(false);
+}
+
+/**
+ * Genuinely lets the device go, from either of the two states that can precede
+ * it.
+ *
+ * **Unpublished rather than muted-and-stopped**, because `mute()` returns early
+ * on a track that is already muted — so the obvious implementation, flipping
+ * `stopOnMute` back to `true` and muting again, does nothing at all when
+ * arriving here from `muted`. That is the transition where the device most
+ * needs releasing: self-muted, and then the last other person leaves.
+ */
+async function releaseMicrophone(room: Room): Promise<void> {
+  const track = micTrack(room);
+  if (!track) return;
+  await room.localParticipant.unpublishTrack(track, true);
 }
 
 /**
@@ -297,7 +374,7 @@ export function useSessionAudio(
    * starts from a session nobody has configured yet.
    */
   const appliedRef = useRef<{
-    open: boolean;
+    intent: MicIntent;
     config: AppleAudioConfiguration;
   } | null>(null);
 
@@ -305,13 +382,18 @@ export function useSessionAudio(
     if (!mediaRoom || !channelIdRef.current || !token) return;
 
     let cancelled = false;
-    // Muting has to actually stop capturing, which is not the default: a muted
-    // microphone track otherwise keeps the device open, so the orange recording
-    // indicator stays lit, a Bluetooth speaker stays in the mono hands-free
-    // profile, and the audio engine never leaves the recording state. That last
-    // one is what made closing the microphone a one-way door — the engine
-    // transition the native audio policy watches for simply never happened.
-    const room = new Room({ publishDefaults: { stopMicTrackOnMute: true } });
+    // **Muting must not stop capturing, and releasing must.** Those are two
+    // different closes and this flag cannot tell them apart — it is a publish
+    // default, fixed for the life of the track — so it is set to the safer of
+    // the two and the other is done explicitly in `closeMicrophone` below.
+    //
+    // It was `true` until 2026-08-20 and the comment here argued for it: a
+    // muted track otherwise keeps the device open, so the orange indicator
+    // stays lit and a Bluetooth headset stays in the mono hands-free profile.
+    // Both true, and the second is the whole bug — stopping the track is what
+    // hands the headset back to A2DP, so every self-mute and unmute cost a
+    // profile handover and a tone. See planning/DECISIONS.md.
+    const room = new Room({ publishDefaults: { stopMicTrackOnMute: false } });
     roomRef.current = room;
 
     const update = (patch: Partial<SessionAudio>) => {
@@ -453,7 +535,7 @@ export function useSessionAudio(
         }
         if (cancelled) return;
 
-        const open = micNeededRef.current && !selfMutedRef.current;
+        const intent = intentFor(micNeededRef.current, selfMutedRef.current);
 
         // Playout-only until there is something to capture for, and a call
         // when there is. Applied before the session is taken, so it is never
@@ -468,7 +550,7 @@ export function useSessionAudio(
         const anyOpen = anyMicOpenRef.current;
         pushPolicy(anyOpen, 0);
         await applyFor(anyOpen, 0);
-        appliedRef.current = { open, config: sessionFor(anyOpen, 0) };
+        appliedRef.current = { intent, config: sessionFor(anyOpen, 0) };
 
         // Started explicitly, despite registerGlobals() also installing
         // automatic management. Leaving it to the automatic path alone meant
@@ -483,9 +565,13 @@ export function useSessionAudio(
           return;
         }
 
-        await room.localParticipant.setMicrophoneEnabled(open);
+        // A freshly connected room has published nothing, so neither close has
+        // anything to act on and only the opening case does any work.
+        if (intent === 'capturing') {
+          await room.localParticipant.setMicrophoneEnabled(true);
+        }
         attemptRef.current = 0;
-        update({ status: 'connected', micOpen: open });
+        update({ status: 'connected', micOpen: intent === 'capturing' });
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : String(error);
@@ -571,7 +657,7 @@ export function useSessionAudio(
   useEffect(() => {
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-    const open = micNeeded && !selfMuted;
+    const intent = intentFor(micNeeded, selfMuted);
     // Ours decides whether we publish; anyone's decides what the session is.
     // Only the second may move the audio category, which is the boundary a
     // Bluetooth profile handover sits on.
@@ -582,8 +668,10 @@ export function useSessionAudio(
     // microphone is already open would re-run `setMicrophoneEnabled(true)` on
     // a microphone that is open, for a configuration that has not changed.
     const applied = appliedRef.current;
-    if (applied && applied.open === open && applied.config === config) return;
-    appliedRef.current = { open, config };
+    if (applied && applied.intent === intent && applied.config === config) {
+      return;
+    }
+    appliedRef.current = { intent, config };
 
     // Before either branch, and before the `await` in them, because the
     // transition the observer reads this for is the one `setMicrophoneEnabled`
@@ -597,23 +685,30 @@ export function useSessionAudio(
     // already be a call before capture starts, and must stay one until capture
     // has stopped. Configuring a `playback` session that is still recording is
     // exactly what silences the echo canceller.
-    (open
+    //
+    // `muted` is the case that has neither ordering problem, because it moves
+    // nothing: the device stays as it was and `sessionFor` is unchanged while
+    // somebody else's microphone is open, so the configuration write below is
+    // a no-op and the route never moves. That is the whole of the fix, and it
+    // is why this branch does not re-state the configuration at all.
+    (intent === 'capturing'
       ? applyFor(anyMicOpen, state.othersAudible).then(() =>
           room.localParticipant.setMicrophoneEnabled(true)
         )
-      : room.localParticipant
-          .setMicrophoneEnabled(false)
-          // Re-stated rather than assumed, and note this no longer implies
-          // `playback`: closing *our* microphone hands the session back only
-          // if nobody else's is open. While somebody is still talking the
-          // configuration is unchanged and this is a no-op, which is the whole
-          // of what keeps a Bluetooth route from moving under a self-mute.
-          // When it does change, it is also where the choice between the two
-          // closed states is made — and so where somebody's music is either
-          // interrupted or let back in.
-          .then(() => applyFor(anyMicOpen, state.othersAudible))
+      : intent === 'muted'
+        ? holdMicrophone(room)
+        : releaseMicrophone(room)
+            // Re-stated rather than assumed, and note this no longer implies
+            // `playback`: letting *our* device go hands the session back only
+            // if nobody else's is open. When it does change, this is also
+            // where the choice between the two closed states is made — and so
+            // where somebody's music is either interrupted or let back in.
+            .then(() => applyFor(anyMicOpen, state.othersAudible))
     ).catch(() => {});
-    setState((s) => (s.micOpen === open ? s : { ...s, micOpen: open }));
+    const transmitting = intent === 'capturing';
+    setState((s) =>
+      s.micOpen === transmitting ? s : { ...s, micOpen: transmitting }
+    );
   }, [selfMuted, micNeeded, anyMicOpen, state.status, state.othersAudible]);
 
   return state;

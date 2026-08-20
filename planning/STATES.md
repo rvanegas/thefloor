@@ -364,8 +364,15 @@ channel-wide rule extends the cue to exactly the person who most needs it and
 did not have it before: somebody muted and lurking, least likely to be watching
 the screen, now hears when a person walks in.
 
-**So do not pin `CALL` on, and do not debounce the transition.** Both read as
-obvious cleanups. Both delete the cue.
+**The pair on your own mute and unmute is gone since 2026-08-20**, and that is
+the point rather than a loss: self-muting no longer releases the device, so
+there is no handover to hear. What survives is the crossing that carries the
+meaning — somebody arriving, the last person leaving — which is arguably what
+this section should have claimed from the start. DECISIONS.md § *Muting and
+letting go are two different closes*.
+
+**So do not pin `CALL` on, and do not debounce the transitions that are left.**
+Both read as obvious cleanups. Both delete the cue.
 
 **Where the sources disagree.** Three writers touch this, and it is **process-
 wide shared mutable state** (`RTCAudioSessionConfiguration.webRTCConfiguration`):
@@ -449,7 +456,11 @@ lifted an entry elsewhere.
    reconnect path and the `'reconnecting'` status, but the naming stands.
 3. **`micOpen` and `anyMicrophoneOpen` are both "mic open"** and differ in
    exactly one case, deliberately. Open by design; documented above so it is not
-   "simplified".
+   "simplified". **A third sense arrived 2026-08-20 and is the one to watch**:
+   the *device* can be open while `micOpen` is false, which is precisely what a
+   self-mute now is. `micOpen` answers "is anything going out", the device
+   answers "is the hardware running", and only iOS reports the second — in the
+   orange indicator, which this app deliberately does not second-guess.
 4. **The audible mono/stereo transition is designed behaviour with nothing in
    the code calling it so** — until this file. Open: it is one refactor away
    from being deleted as a blemish.
@@ -460,13 +471,12 @@ lifted an entry elsewhere.
    sharing a symptom; see 9. The lesson is the process one: this was reasoned
    from source, shipped, and documented as a fix before anybody had heard it,
    and the entry said so and was believed anyway.
-9. **A self-mute still moves the Bluetooth profile, and the category is not
-   why.** Open, and the live one. `stopMicTrackOnMute: true` means muting
-   genuinely stops capture, and stopping capture is what releases the hands-free
-   link — `useSessionAudio.ts` says as much in the comment arguing *for* that
-   setting. So the route moves while the category never does, and no policy
-   handed to the observer can prevent it. TASKS.md carries the three candidate
-   fixes and what each costs.
+9. **A self-mute moved the Bluetooth profile, and the category was not why.**
+   *Fixed in source, unverified on a device.* Muting used to stop capture, and
+   stopping capture is what releases the hands-free link. Muting and letting go
+   are now two different closes — `MicIntent` in `useSessionAudio.ts` — and only
+   the second touches the device. **Do not stamp this closed from the diff**;
+   the entry above it is what happens when somebody does.
 6. **Membership, presence and connectivity are three states the request's list
    treats as one.** Closed by documentation; the code was always right.
 7. **`lastActiveAt` cannot answer whether a channel is occupied**, and anything

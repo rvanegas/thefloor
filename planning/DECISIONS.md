@@ -705,3 +705,80 @@ of the warning was closing off the cheapest instrument for the next audio bug.
 
 App-only. No wire change, nothing for the server to learn, nothing to sequence
 around a release.
+
+## Muting and letting go are two different closes — 2026-08-20
+
+Self-muting played a tone and unmuting played its inverse, on AirPods Pro, with
+somebody else still talking. The first attempt that day aimed at the audio
+category and missed; this is the second, and the difference between them is
+worth more than either.
+
+**The category was never what moved.** `policyFor` stopped the SDK's native
+observer writing `IDLE` at a playout-only transition, which was a real
+disagreement and is kept. But the route does not follow the category alone — it
+follows whether an input is actually running. `stopMicTrackOnMute: true` made a
+self-mute genuinely stop capturing, and stopping capture is what releases the
+hands-free link and hands a headset back to A2DP. The comment arguing *for* that
+setting said so in as many words, as a benefit. It was also the bug.
+
+**So the fix is to stop conflating two closes that were never the same.** There
+are three states now, in `MicIntent`:
+
+- `capturing` — device open, what you say goes out.
+- `muted` — nothing goes out and **the device is left exactly as it is**. This
+  is the new one, and it is the whole fix: nothing about the route changes, so
+  there is nothing to hear.
+- `released` — nobody needs it, the device is genuinely let go, and the session
+  can hand back to `playback`.
+
+`stopMicTrackOnMute` cannot express that, being a publish default fixed for the
+life of the track. It is now `false` — the safer of the two, since the failure
+mode is a device held too long rather than a route dropped — and releasing is
+done explicitly.
+
+**Two things about the implementation that are not free choices.**
+
+`releaseMicrophone` **unpublishes** rather than muting with `stopOnMute` back
+on. `mute()` in livekit-client returns early on an already-muted track, so the
+obvious version does nothing at all when arriving from `muted` — which is
+exactly the transition where the device most needs letting go: self-muted, and
+then the last other person leaves. The session would hand back to `playback`
+with the input still running, which is the configuration that silences the echo
+canceller and is the whole subject of POSTMORTEM-echo.md. A test covers it and
+fails against the naive version.
+
+`holdMicrophone` **will not open a microphone that is shut.** Publishing a track
+and muting it a moment later puts a live microphone on the wire for the width of
+an await, and a mute that transmits is not a mute. So somebody alone and
+self-muted when a second person arrives stays shut until they unmute, and pays
+one transition then — at the moment they choose to speak, which is the moment it
+is least surprising.
+
+**What this trades, stated because a later change must not weaken it quietly.**
+Muted now means *nothing is transmitted*, expansively, and the hardware mode is
+not part of the promise. That is a software guarantee where the old behaviour
+gave a hardware one: the track is disabled and no samples leave, but somebody
+muting to say something in the room is trusting this code rather than the OS.
+The visible face of it is that iOS's orange microphone indicator stays lit for
+the whole call instead of going out on each mute. Decided deliberately — the
+hardware mode is invisible to and irrelevant for the other side.
+
+**And it changes what the meter counts, without a line of server code.**
+`MediaPlane.audioTracks` filters on track *type*, so a published-but-muted track
+still counts: a self-muted person goes on accruing a `mic` span, and goes on
+counting toward everybody else's `listen` spans. Left alone on purpose. The
+meter exists to size and pay for the server and it counts *streams*; a muted
+track is still a stream the SFU carries. The privacy page's wording survives
+intact too — it promises "how many minutes your microphone was open", and under
+this change the microphone genuinely is.
+
+**The audible cue narrows rather than disappears.** STATES.md argues the
+mono/stereo transition is an honest signal that the room is live, and that
+survives at the boundaries that carry the most meaning — somebody arriving, the
+last person leaving. What goes is the pair nobody wanted, on your own mute and
+unmute.
+
+**Not verified on a device.** Written the same day a fix for the same symptom
+was reasoned from source, shipped and found not to work, so this one says so
+plainly: the tests pin the state machine and the release path, and no test can
+hear a Bluetooth handover. It ships when somebody has listened.
