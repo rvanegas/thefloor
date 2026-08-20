@@ -69,16 +69,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
     }
   };
 
-  /** Keeps the work, then leaves — and stays put if it could not be kept. */
-  const done = async () => {
-    try {
-      await persist();
-      onBack();
-    } catch {
-      // The error is on screen, and the edit is still in the field.
-    }
-  };
-
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>

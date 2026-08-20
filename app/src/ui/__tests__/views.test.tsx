@@ -189,6 +189,24 @@ function render(element: React.ReactElement): ReactTestRenderer {
   return tree;
 }
 
+/**
+ * The three handlers HomeView requires, as no-ops.
+ *
+ * Spread first, so a test that is about one of them overrides just that one and
+ * every other site stays quiet about navigation it does not exercise. These
+ * tests are almost all about what Home *shows*.
+ *
+ * It exists because `onOpenContacts` was added to HomeView and broke
+ * thirty-eight call sites that had each written the same two no-ops out by
+ * hand — a compile error per test, none of them about anything the test was
+ * testing. The next required handler now costs one line here.
+ */
+const homeNav = {
+  onEnterChannel: () => {},
+  onOpenContacts: () => {},
+  onOpenSettings: () => {},
+};
+
 function channelOf(mutate: (s: ChannelState) => ChannelState = (s) => s) {
   const base = createChannel({
     id: 'sess_1',
@@ -256,7 +274,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).toContain('tap to join');
     expect(text).toContain('Miro Okafor');
@@ -308,7 +326,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     const order = ['Live', 'Talking Now', 'Invitations', 'Asked In', 'Your channels', 'Long Quiet'];
     expect(order.map((t) => text.indexOf(t))).toEqual(
@@ -337,7 +355,7 @@ describe('Home', () => {
       contacts: [],
       recordings: [],
     };
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).toContain('Live');
     expect(text).not.toContain('Invitations');
@@ -365,7 +383,7 @@ describe('Home', () => {
       contacts: [],
       recordings: [],
     };
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     expect(textOf(tree)).toContain('2 hours ago');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
@@ -391,7 +409,7 @@ describe('Home', () => {
       contacts: [],
       recordings: [],
     };
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).toContain('Nobody here right now');
     expect(text).not.toContain('ago');
@@ -428,7 +446,7 @@ describe('Home', () => {
       contacts: [],
       recordings: [],
     };
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).toContain('Weekly Convo');
     // The unnamed one is described by its roster rather than left blank.
@@ -457,7 +475,7 @@ describe('Home', () => {
       contacts: [],
       recordings: [],
     };
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).not.toContain('is waiting');
     expect(text).toContain('nobody here right now');
@@ -484,7 +502,7 @@ describe('Home', () => {
       ],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).not.toContain('Dana Chu and Me');
     expect(text).not.toContain('1:32');
@@ -511,7 +529,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const [dismiss] = tree.root.findAll(
       (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
@@ -520,7 +538,7 @@ describe('Home', () => {
     expect(mockApp.dismissInvite).toHaveBeenCalledWith('sess_a');
 
     // Dismissal lives in the provider now, so re-render with it applied.
-    act(() => tree.update(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />));
+    act(() => tree.update(<HomeView {...homeNav} />));
     expect(textOf(tree)).not.toContain('tap to join');
     act(() => tree.unmount());
   });
@@ -542,7 +560,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const first = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const first = render(<HomeView {...homeNav} />);
     const [dismiss] = first.root.findAll(
       (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
     );
@@ -550,7 +568,7 @@ describe('Home', () => {
     act(() => first.unmount());
 
     // Home is mounted afresh, as it is on returning from a channel.
-    const second = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const second = render(<HomeView {...homeNav} />);
     expect(textOf(second)).not.toContain('tap to join');
     act(() => second.unmount());
   });
@@ -572,7 +590,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     expect(textOf(tree)).toContain('tap to join');
     act(() => tree.unmount());
   });
@@ -590,7 +608,7 @@ describe('Home', () => {
       recordings: [],
     };
 
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).toContain('nobody@example.com');
     expect(text).toContain('real@example.com');
@@ -608,7 +626,7 @@ describe('Home', () => {
     jest.useFakeTimers();
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     mockApp.status = 'closed';
-    const tree = render(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    const tree = render(<HomeView {...homeNav} />);
     act(() => {
       jest.advanceTimersByTime(3_000);
     });
@@ -1722,7 +1740,7 @@ describe('Home settings', () => {
     // It sat in the header beside a dozen harmless taps. Here it is among the
     // other things that are about the account rather than about a channel.
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     expect(findButton(tree, 'Sign out')).toBeUndefined();
     act(() => tree.unmount());
@@ -1747,7 +1765,7 @@ describe('Home settings', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={onOpenSettings} />
+      <HomeView {...homeNav} onOpenSettings={onOpenSettings} />
     );
     act(() => findButton(tree, 'Settings')!.props.onPress());
     expect(onOpenSettings).toHaveBeenCalled();
@@ -1772,8 +1790,7 @@ describe('Home while still in a channel', () => {
     const onReturn = jest.fn();
     const tree = render(
       <HomeView
-        onEnterChannel={() => {}}
-        onOpenSettings={() => {}}
+        {...homeNav}
         liveChannel={{
           channelId: 'sess_1',
           title: 'Book club',
@@ -1806,8 +1823,7 @@ describe('Home while still in a channel', () => {
     home();
     const tree = render(
       <HomeView
-        onEnterChannel={() => {}}
-        onOpenSettings={() => {}}
+        {...homeNav}
         liveChannel={{
           channelId: 'sess_1',
           title: 'Dana Chu',
@@ -1847,8 +1863,7 @@ describe('Home while still in a channel', () => {
     };
     const tree = render(
       <HomeView
-        onEnterChannel={() => {}}
-        onOpenSettings={() => {}}
+        {...homeNav}
         liveChannel={{
           channelId: 'sess_1',
           title: 'Book club',
@@ -1885,7 +1900,7 @@ describe('Home while still in a channel', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     expect(textOf(tree)).toContain('A Priori');
     act(() => tree.unmount());
@@ -1894,7 +1909,7 @@ describe('Home while still in a channel', () => {
   it('shows nothing when you are not in one', () => {
     home();
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     expect(textOf(tree)).not.toContain('tap to go back');
     act(() => tree.unmount());
@@ -1982,7 +1997,7 @@ describe('a channel with nobody in it', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     const text = textOf(tree);
     expect(text).toContain('Nobody here right now');
@@ -2003,7 +2018,7 @@ describe('the connection warning', () => {
     empty();
     mockApp.status = 'connecting';
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     expect(textOf(tree)).not.toContain('Reconnecting');
     act(() => tree.unmount());
@@ -2014,7 +2029,7 @@ describe('the connection warning', () => {
     empty();
     mockApp.status = 'closed';
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     expect(textOf(tree)).not.toContain('Not connected');
 
@@ -2035,13 +2050,13 @@ describe('the connection warning', () => {
     empty();
     mockApp.status = 'open';
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     const show = (status: 'connecting' | 'open' | 'closed') => {
       mockApp.status = status;
       act(() => {
         tree.update(
-          <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+          <HomeView {...homeNav} />
         );
       });
     };
@@ -2180,7 +2195,7 @@ describe('named channels and described ones do not look alike', () => {
       recordings: [],
     };
     return render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
   };
 
@@ -2244,7 +2259,7 @@ describe('named channels and described ones do not look alike', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     expect(textOf(tree)).toContain('Just you');
     act(() => tree.unmount());
@@ -2288,7 +2303,7 @@ describe('the order of your channels', () => {
   const show = (rejoinable: ReturnType<typeof channel>[]) => {
     mockApp.home = { invites: [], rejoinable, contacts: [], recordings: [] };
     return render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
   };
 
@@ -2415,7 +2430,7 @@ describe('tapping a row', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
 
     expect(textOf(tree)).toContain('nobody@example.com');
@@ -2441,10 +2456,7 @@ describe('tapping a row', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView
-        onEnterChannel={onEnterChannel}
-        onOpenSettings={() => {}}
-      />
+      <HomeView {...homeNav} onEnterChannel={onEnterChannel} />
     );
 
     expect(findButton(tree, 'Step in')).toBeUndefined();
@@ -2470,7 +2482,7 @@ describe('tapping a row', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={onEnterChannel} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} onEnterChannel={onEnterChannel} />
     );
 
     // Offered with an empty contact list, which the old affordance was not.
@@ -2512,7 +2524,7 @@ describe('tapping a row', () => {
     for (const home of [withChannel, { ...withChannel, rejoinable: [] }]) {
       mockApp.home = home;
       const tree = render(
-        <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+        <HomeView {...homeNav} />
       );
       expect(findButton(tree, 'Start a channel')).toBeDefined();
       act(() => tree.unmount());
@@ -3077,7 +3089,7 @@ describe('the order channels are listed in', () => {
       contacts: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     expect(namesInOrder(tree)).toEqual(['Occupied', 'Emptied', 'Older']);
     act(() => tree.unmount());
@@ -3099,7 +3111,7 @@ describe('the order channels are listed in', () => {
       contacts: [],
     };
     const tree = render(
-      <HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />
+      <HomeView {...homeNav} />
     );
     const text = textOf(tree);
     expect(text.indexOf('Live')).toBeLessThan(text.indexOf('Quinn Ito'));
@@ -3295,7 +3307,7 @@ describe('Support', () => {
   }
 
   const home = () =>
-    open(<HomeView onEnterChannel={() => {}} onOpenSettings={() => {}} />);
+    open(<HomeView {...homeNav} />);
 
   it('offers a way in from Home, and nothing more than that', async () => {
     const tree = await home();
@@ -3310,8 +3322,7 @@ describe('Support', () => {
     const opened = jest.fn();
     const tree = await open(
       <HomeView
-        onEnterChannel={() => {}}
-        onOpenSettings={() => {}}
+        {...homeNav}
         onOpenSupport={opened}
       />
     );
