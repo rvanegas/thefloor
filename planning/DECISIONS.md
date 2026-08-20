@@ -1868,3 +1868,57 @@ any.
 optimistic by a minute where the person's no longer is. The same argument
 applies and it feeds Home's ordering, which is a visible change nobody asked
 for; left alone knowingly.
+
+## A restart freezes last-seen rather than forging it, and that is the branch to want — 2026-08-20
+
+TASKS.md's "What a Restart Does to Last-Seen" named two untrue things a
+restart could leave in `accounts.last_seen_at` — everybody stamped at the
+moment of the deploy, or everybody frozen at their last message before it —
+and asked which. It is the second, and the entry's instinct to observe rather
+than reason was right, because the answer turns on an ordering that neither
+`ws.ts` nor `index.ts` states.
+
+**Observed, not deduced.** A server on a scratch database with one
+authenticated socket held open, quiet for five seconds after its last `ping`,
+then SIGTERM — which is what systemd sends, `KillMode` being
+`control-group` by default, so `npm start`'s node child receives it directly
+however badly npm forwards signals. Four runs. The stamp was still the ping's
+in every one: 5,059ms, 5,036ms and 5,057ms before the signal across three
+timed trials, and 13 seconds before it in the first. Not once did it move to
+the moment of the signal.
+
+**Why.** `index.ts` calls `app.fastify.close().finally(() => process.exit(0))`,
+and that resolves in **115ms** with a live socket attached — measured twice.
+The client sees its close (code 1005) about 36ms after the signal, so the
+server does tear the socket down; what it does not do is wait for its own
+`'close'` handler, which is an I/O callback needing a further turn of the loop
+that `process.exit` never grants. So the `markSeen` in that handler, and the
+`report(DISCONNECTED)` and `announcePresence` beside it, do not run at
+shutdown. The other two lose nothing — the presence they would report is
+in-memory state that is dying anyway.
+
+Note this is also evidence for the *other* shutdown question: `fastify.close()`
+does not sit through `ws`'s 30-second `closeTimeout`. That delay is `sweep`'s
+alone.
+
+**And the branch we landed on is the one to want.** The error is bounded by
+`HEARTBEAT_INTERVAL_MS`, which is five seconds: a live client writes this
+column every ping, so a frozen stamp is at most one heartbeat stale, which is
+exactly the case `PRESENT_MS` in `relativeTime.ts` was given a 60-second floor
+to absorb and already documents in those words. Home needs no null case of its
+own. The alternative would have been the damaging one — stamping every
+connected account at the deploy asserts freshness on behalf of a phone that may
+have been frozen in a pocket for the ninety seconds before it, which is a lie
+the reader has no way to see through. What a restart leaves behind is the last
+moment the person actually proved they were there, which is what the column
+means.
+
+`inApp` makes the whole thing quieter still, being recomputed from live sockets
+per snapshot, and the clients reconnect within a second or two and start
+stamping again.
+
+The experiment did cost one real sign-in code, sent through SES to
+`probe@example.com`: `server/.env` is loaded by `process.loadEnvFile()` from
+the working directory, so a server started by hand in `server/` is a server
+holding production's mailer, LiveKit and S3 credentials. Blank them on the
+command line — `MAIL_FROM= LIVEKIT_URL= ...` — before running one locally.

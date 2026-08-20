@@ -4,18 +4,28 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## What a Restart Does to Last-Seen
+## Should a Closing Socket Stamp Now, or the Last Thing It Heard
 
-Left open by the "Recency Distinctions" audit and worth observing rather than
-reasoning about. Whether a socket's `close` handler runs when systemd restarts
-the service decides which of two untrue things `accounts.last_seen_at` says
-afterwards: everybody stamped at the moment of the deploy, or everybody frozen
-at their last message before it. The channel clock has a documented null case
-for exactly this and says nothing rather than something false; Home has none.
+Found while answering "What a Restart Does to Last-Seen", which is now in
+DECISIONS.md, and left as a question because the answer moves a user-visible
+number. The `close` handler in `server/src/ws.ts` writes
+`markSeen(connection.userId, now(), ...)` — the moment the socket ended. For a
+sign-out or a foregrounded app that is the truth. For a phone that froze in a
+pocket it is not: `sweep` needs HEARTBEAT_TIMEOUT_MS to notice, then
+`socket.close()` spends `ws`'s 30-second `closeTimeout` waiting for a close
+frame that is never coming, so the handler runs about 42 seconds after the last
+thing that actually proved the person was there, and stamps *that* as when they
+were last seen. On Home the 60-second floor in `agoOrNull` is laid on top, so
+somebody reads "In the app now" for roughly a hundred seconds after their last
+ping rather than sixty.
 
-`inApp` made it matter less — that is recomputed from live sockets whenever a
-snapshot is composed, so a wrong timestamp is only read once somebody has
-genuinely gone — but it did not settle it. Watch the column across one deploy.
+`connection.lastSeen` is sitting right there, is never later than the truth,
+and is at worst one five-second heartbeat early — which the floor absorbs. So
+the change is one word. What makes it a question rather than a fix is that it
+shortens how long a pocketed phone looks present, and how long that should be
+is the same product question as "Is a Hundred Seconds the Right Time to Declare
+Somebody Gone" below. Decide them together; two independent nudges to the same
+number is how it ends up somewhere nobody chose.
 
 ## Is a Hundred Seconds the Right Time to Declare Somebody Gone
 
