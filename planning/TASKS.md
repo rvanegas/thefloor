@@ -81,9 +81,16 @@ is silent there and the audio is stereo throughout, which the same day was read
 as proof that a live microphone was shut. STATES.md carries that correction.
 **Test whatever is chosen on both, since the symptom differs by hardware.**
 
-The instrument, if one is wanted, needs no code:
+The instrument, if one is wanted, needs no code and **no development build** —
+the observer logs from native, so build 56 as installed from TestFlight will
+say what it is doing. It wants the phone on **USB**, not merely paired over the
+network:
 
-    log stream --predicate 'subsystem == "com.livekit.react-native-webrtc"'
+    idevicesyslog -m "Native auto-config"
+
+**Not `log stream`**, which this file and two others recommended until
+2026-08-20: it reads the Mac's own logs and has no device options on current
+macOS, so it succeeds and shows nothing.
 
 If no `Native auto-config: setting category …` line appears at the instant of a
 tone, then the category is not moving and the route is — which is the argument

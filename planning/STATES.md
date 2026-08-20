@@ -407,13 +407,17 @@ same `isPlayoutEnabled` / `isRecordingEnabled` pair, and are the supported way
 to watch engine transitions from JS. Keep any such handler `__DEV__`-only and
 log-only: it blocks the audio worker thread until it returns.
 
-The observer also logs to `os_log`, which needs no code at all:
+The observer also logs to `os_log`, which needs no code at all — but **not via
+`log stream`**, which reads this Mac's logs and has no device options on current
+macOS, so aimed at a phone it succeeds and prints nothing. The relay wants
+**USB**; a network pairing is not enough:
 
-    log stream --predicate 'subsystem == "com.livekit.react-native-webrtc"'
+    idevicesyslog -m "Native auto-config"
 
-Its lines — including `Native auto-config: setting category …` — interleave by
-timestamp with the `[audio]` lines `useSessionAudio` writes in development
-builds.
+Console.app is the same thing with the device chosen in its sidebar. Its lines —
+including `Native auto-config: setting category …` — interleave by timestamp
+with the `[audio]` lines `useSessionAudio` writes in development builds, and
+**the observer's half works from a TestFlight build**, being native.
 
 ---
 

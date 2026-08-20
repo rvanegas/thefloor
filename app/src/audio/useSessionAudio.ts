@@ -129,12 +129,19 @@ async function applyConfiguration(
  *
  * And the ordering question — whether the native observer writes its own
  * configuration around ours — can be answered with no code at all, which is
- * where to start. The observer logs to `os_log`, so with the phone attached:
+ * where to start. The observer logs to `os_log`, and its lines include
+ * `Native auto-config: setting category …`.
  *
- *     log stream --predicate 'subsystem == "com.livekit.react-native-webrtc"'
+ * **Not with `log stream`.** That reads *this Mac's* logs; it has no device
+ * options at all on current macOS, so pointed at a phone it succeeds and shows
+ * nothing, which is the worst way for an instrument to fail. Use the syslog
+ * relay over **USB** — a network pairing is not enough:
  *
- * Its lines, `Native auto-config: setting category …` among them, interleave
- * with these by timestamp.
+ *     idevicesyslog -m "Native auto-config"
+ *
+ * Console.app does the same thing with the device picked in its sidebar. Note
+ * the observer writes from native code, so **a TestFlight build serves** — only
+ * the `[audio]` lines below need a development build.
  */
 function trace(
   config: AppleAudioConfiguration,
