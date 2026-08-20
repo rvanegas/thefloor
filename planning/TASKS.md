@@ -6,48 +6,58 @@ and things to go and find out. There are more in BACKLOG.md.
 
 ## Self-Mute Still Moves the Audio Category
 
-**Reported 2026-08-19, from the phone: self-muting plays a tone and unmuting
-plays its inverse, with another person present and talking.** That is the sound
-of a Bluetooth profile handover, and under the channel-wide rule adopted
-2026-08-18 it should not happen.
+**Reported 2026-08-19 and still true after a fix: self-muting plays a tone and
+unmuting plays its inverse, with another person present and talking.** That is a
+Bluetooth profile handover — A2DP to HFP and back — and under the channel-wide
+rule adopted 2026-08-18 it should not happen.
 
-**Diagnosed and fixed in source on 2026-08-20; what is left is hearing it.** The
-mechanism was the SDK's native policy observer, which `app/index.ts` installed
-as `{ recording: CALL, playout: IDLE }` — a per-self rule reinstating exactly
-the one the channel-wide rule replaced. `setMicrophoneEnabled(false)` took the
-engine to playout-only, the observer applied `IDLE` on the audio worker thread
-at the transition itself, and `playAndRecord` became `playback`. It beat our own
-re-statement because anything crossing the bridge lands after it. `session.ts`'s
-`policyFor` now hands the observer the value `sessionFor` would return, pushed
-*before* each transition rather than restated after, so the two writers no
-longer have anything to disagree about. The reasoning, the two traps in pushing
-a policy, and the rejected alternative are in DECISIONS.md § *The native
-observer is agreed with rather than argued with*.
+**The first fix was aimed at the category, and the category is not what moves.**
+`policyFor` (2026-08-20) stops the SDK's native observer writing `IDLE` while
+somebody else is talking, which was a real disagreement and is kept. Build 56
+carried it, was tested on a device the same day, and the tone was unchanged.
 
-**What remains is a phone, a Bluetooth headset and a second person.** Self-mute
-and unmute should now be silent. This is a verification rather than a
-precondition: the fix does not rest on the link that was inferred, since it
-makes the observer agree with us whether or not a self-mute drives the engine to
-playout-only. But the report was a sound and the confirmation has to be a sound,
-so STATES.md's disagreement 5 is marked fixed-in-source, unconfirmed-on-device
-and says not to stamp it closed from the diff. Stamp it once somebody has heard
-it.
+**What is now believed, and this codebase already said it.**
+`stopMicTrackOnMute: true` makes a self-mute genuinely stop capturing, and the
+comment in `useSessionAudio.ts` arguing *for* that setting notes that a muted
+track otherwise "keeps the device open, so … a Bluetooth speaker stays in the
+mono hands-free profile". Read the other way: **stopping the track is what
+releases HFP.** The link drops on mute and is re-acquired on unmute, the
+category stays `playAndRecord` throughout, and nothing handed to the observer
+can prevent it. Neither can a different AVAudioSession category: the constraint
+is the Bluetooth protocol rather than iOS, and a headset cannot carry a
+microphone and stereo at the same time.
 
-**If a tone survives, the next instrument is cheaper than it used to be.** The
-standing "do not instrument this with `audioDeviceModuleEvents`" warning was
-over-broad and has been narrowed in both places it appeared: only
-`willEnableEngine` and `didDisableEngine` are owned by the native policy.
-`setWillStartEngineHandler` and `setDidStopEngineHandler` are free, carry the
-same `isPlayoutEnabled` / `isRecordingEnabled` pair, and would say whether the
-engine transitioned at all — which distinguishes "our policy raced" from "not
-the observer after all". Keep any such handler `__DEV__`-only and log-only; it
-blocks the audio worker thread until it returns. The observer also logs to
-`os_log`, which needs no code:
+**Three candidates, none tested, and this list is written out because the last
+fix was chosen without doing that.**
+
+1. **`stopMicTrackOnMute: false`** — mute in software and leave capture running,
+   so there is no transition to hear. Costs the orange microphone indicator
+   staying lit while the app says you are muted, which for a conversation app
+   may be worse than the tone. It does *not* cost the usage meter:
+   `server/src/channels.ts` deliberately polls the room rather than trusting
+   that predicate, and says so.
+2. **Drop `allowBluetooth` from `CALL` and keep `allowBluetoothA2DP`** — the
+   headset microphone is never used, input comes from the phone, output stays
+   A2DP stereo. No handover ever, including at the alone→somebody-arrives
+   boundary. Costs AirPods-style use, where the phone is in a pocket and the
+   voice ought to come from the ears.
+3. **Keep it and fix the story instead** — STATES.md frames the transition as an
+   honest signal that the room is live. It has now been reported as a defect
+   twice by the person who wrote that framing.
+
+**Test on device before choosing, and on both kinds of hardware**, because the
+symptom is not the same on each. The tone needs a device that *has* a
+microphone; a Bluetooth speaker usually has none, so the boundary is silent
+there and the audio is stereo throughout — which on 2026-08-20 was read as proof
+that a live microphone was shut. STATES.md carries that correction.
+
+The instrument, if one is wanted, needs no code:
 
     log stream --predicate 'subsystem == "com.livekit.react-native-webrtc"'
 
-Its `Native auto-config: setting category …` lines interleave by timestamp with
-the `[audio]` lines `useSessionAudio` writes in development builds.
+If no `Native auto-config: setting category …` line appears at the instant of a
+tone, then the category is not moving and the route is — which is the argument
+above, settled.
 
 ## Clipboard Sharing
 
