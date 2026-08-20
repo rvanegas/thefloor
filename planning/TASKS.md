@@ -37,8 +37,6 @@ is a view on what the number should be, and that is a product question about
 how long a tunnel is. Note the same delay sits in front of everything else that
 keys on a channel emptying — a forgotten recording's tail, most visibly.
 
-## Clipboard Sharing
-
 ## Contacts View
 
 **Built 2026-08-19.** `app/src/ui/ContactsView.tsx`, reached from a link beside
@@ -179,6 +177,10 @@ Category` above. If the native observer moves the category on every mute
 regardless of what the channel-wide rule decided, then two muted people are not
 sitting in A2DP for the whole of a file; they crossed the profile boundary on
 the way in. Settle that before reading anything into a retest.
+
+## Clipboard Sharing
+
+In channel, any user may paste his clipboard into the channel, after which any user may copy from the channel to his own clipboard. This is then a convenient way to share URLs or other small contents for which clipboards are typically used.
 
 ## Channel Admins
 
