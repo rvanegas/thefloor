@@ -107,7 +107,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 573 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 574 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -293,34 +293,32 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-20, carrying a week of server work that had
-accumulated behind the 08-19 release: last-seen made monotonic and stamped from
-what a closing socket last heard rather than when it gave up, presence
-distinguishing a phone in a pocket from a phone in the app, the per-target ping
-limit, and the usage meter's read interface. Plus the app-side self-mute audio
-fix, which a deploy cannot carry to anybody — it ships in build 56.
+Most recently on 2026-08-21, `3bf43cb` → `c002d31`, carrying one change: the
+self-mute is now cleared by every departure rather than only a chosen one. It
+went out the same day it was reported, from a screenshot of a roster reading
+`Stepped out 2 hours ago · muted`.
 
-**The wire check came out one field wide.** `git diff cc0e8a9..HEAD --
-core/protocol.ts` is a single *optional* addition, `pingableAt`, which only ever
-withdraws an affordance the server would refuse anyway — so every installed
-build behaves exactly as it did, offering the button and being told no. Against
-`build/51`, the oldest installed and the floor, the drift is 99 lines and all of
-it optional.
+**The wire did not move at all.** `git diff 3bf43cb..HEAD -- core/protocol.ts`
+is empty — this is a `core/` reducer change and nothing about it is visible on
+the wire, so no installed build can tell the difference except by the state it
+is sent. Against `build/51`, the oldest installed and the floor, the standing
+drift is 140 lines and still all optional fields and comments.
 
-Verified against production afterwards: `/healthz` reporting `3bf43cb` and
+Verified against production afterwards: `/healthz` reporting `c002d31` and
 `minBuild: 51`, `/support` and `/privacy` serving pages, `/home` answering 401
-unauthenticated. `updateUrl` now reads the App Store listing rather than null,
-which was the one thing 08-19 left undone.
+unauthenticated.
 
-**The box was at `cc0e8a9` before this, not at 08-19's `f1aff87`, from an
-accidental `bin/deploy` run that day.** Harmless as it happened — `cc0e8a9` is
-the build-55 bump, so it shipped the then-current master from a clean tree, and
-the script runs the tests before it syncs. Worth keeping for the general shape
-rather than the incident: **`bin/deploy` is one command with no confirmation
-step, and it ships the working tree rather than a ref.** So the sha on the box
-is not necessarily one anybody chose, and it costs a restart's presence on a box
-with a public population. Read `/healthz` before assuming this section is
-current; it was a day stale here, and that is how it will fail again.
+**Deployed from a stashed tree, deliberately, and that is the reusable part.**
+An unrelated `planning/TASKS.md` edit was in progress, and since `bin/deploy`
+ships the working tree rather than a ref it would have stamped the box
+`c002d31-dirty` on account of a roadmap note. `git stash push <path>`, deploy,
+`git stash pop` costs nothing and keeps `/healthz` answering with a sha that
+exists in the history. **The dirty marker is worth protecting rather than
+tolerating**: its value is entirely in being rare, and a box that is usually
+`-dirty` reports nothing at all.
+
+Read `/healthz` before assuming this section is current. It was a day stale here
+once already, and that is how it will fail again.
 
 The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded

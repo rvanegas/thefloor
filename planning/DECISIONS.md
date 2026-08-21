@@ -57,7 +57,38 @@ Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and
 was being paid for in every session's context. What a fresh reader needs at the
 root is the current state and the traps; the sequence that produced it is this.
 Newest first, and it picks up where AGENTS.md leaves off — that file keeps the
-most recent deploy, which is now 2026-08-20's.
+most recent deploy, which is now 2026-08-21's.
+
+### 2026-08-20 — a week of server work, and an accidental sha
+
+Most recently on 2026-08-20, carrying a week of server work that had
+accumulated behind the 08-19 release: last-seen made monotonic and stamped from
+what a closing socket last heard rather than when it gave up, presence
+distinguishing a phone in a pocket from a phone in the app, the per-target ping
+limit, and the usage meter's read interface. Plus the app-side self-mute audio
+fix, which a deploy cannot carry to anybody — it ships in build 56.
+
+**The wire check came out one field wide.** `git diff cc0e8a9..HEAD --
+core/protocol.ts` is a single *optional* addition, `pingableAt`, which only ever
+withdraws an affordance the server would refuse anyway — so every installed
+build behaves exactly as it did, offering the button and being told no. Against
+`build/51`, the oldest installed and the floor, the drift is 99 lines and all of
+it optional.
+
+Verified against production afterwards: `/healthz` reporting `3bf43cb` and
+`minBuild: 51`, `/support` and `/privacy` serving pages, `/home` answering 401
+unauthenticated. `updateUrl` now reads the App Store listing rather than null,
+which was the one thing 08-19 left undone.
+
+**The box was at `cc0e8a9` before this, not at 08-19's `f1aff87`, from an
+accidental `bin/deploy` run that day.** Harmless as it happened — `cc0e8a9` is
+the build-55 bump, so it shipped the then-current master from a clean tree, and
+the script runs the tests before it syncs. Worth keeping for the general shape
+rather than the incident: **`bin/deploy` is one command with no confirmation
+step, and it ships the working tree rather than a ref.** So the sha on the box
+is not necessarily one anybody chose, and it costs a restart's presence on a box
+with a public population. Read `/healthz` before assuming this section is
+current; it was a day stale here, and that is how it will fail again.
 
 ### 2026-08-19 — the first with a public population
 
