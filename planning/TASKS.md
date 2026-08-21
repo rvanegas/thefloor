@@ -111,6 +111,40 @@ check.
 guessing a sixth time — see the entry below, and `git revert` of the commit
 that deleted the panel restores the on-screen half.
 
+**Check 1 passed on build 65**, reported the same day: the reported case is
+fixed. Checks 2 and 3 are still unrun.
+
+### An interruption seen once on 65 and not reproduced
+
+Reported and withdrawn within the hour on 2026-08-21. While alone in a
+channel, foregrounding the app interrupted another app's playback — which had
+worked before. On a retry it could not be reproduced, and the report was
+parked rather than chased.
+
+**Written down because the next occurrence is the second one, not the first.**
+An audio-session fault that appears once and then hides is the expensive kind:
+whoever meets it next will otherwise start from nothing.
+
+**What did not add up, which is the useful part.** Alone in a channel,
+`sessionFor(false, 0)` returns `IDLE` — `playback` with `mixWithOthers` — and
+`CALL` is the only configuration the route fix touched. So on the face of it
+the change could not produce this at all. Either the session was not in `IDLE`
+when it happened, or the interruption came from *activation* rather than
+configuration.
+
+**The hypothesis it suggests, still unmeasured.** `pushPolicy` hands the
+native observer `{ recording: CALL, playout: IDLE }`, and the observer applies
+`recording: CALL` whenever the engine reports recording — not only when we
+intend to publish. If `CALL` is applied while alone, then before the route fix
+it left an A2DP device eligible and got away with it, and after the fix it
+evicts that route and the eviction is audible. That would make the
+interruption a symptom of a pre-existing wrong state rather than a new fault —
+and would explain why this subsystem has resisted fixes reasoned from source.
+
+**If it returns, do not reason about it.** Restore the panel — `git revert` of
+the deletion commit — and read which configuration is applied at foreground.
+That is what the route reader was kept for.
+
 ## The Native Route Reader Is Still In The Tree
 
 **Removed around, not with, the diagnostic — 2026-08-21.** The engine panel
