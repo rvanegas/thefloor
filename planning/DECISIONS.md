@@ -1051,3 +1051,56 @@ own regardless, being two direct reads.
 
 What the tone actually is remains open, and this entry deliberately does not
 guess. TASKS.md carries the candidates.
+
+## Muting moves from Apple's unit to our own mixer — 2026-08-21
+
+`RTCAudioEngineMuteMode` is **undocumented** — no header comments, no JSDoc,
+nothing in either README, three bare values and a setter described as "Set the
+microphone mute mode". The version of `muteMode.ts` written on 2026-08-20
+described what each value did anyway. That was inference from the names dressed
+as specification, and it is the same failure that let a wrong premise about
+Bluetooth survive six builds.
+
+What is actually knowable comes out of the framework binary's own log strings:
+
+| Mode | Log line | Drives |
+| --- | --- | --- |
+| `VoiceProcessing` | `Update mute (voice processing):` | `AVAudioInputNode.setVoiceProcessingInputMuted:` |
+| `RestartEngine` | — | a stop and start of the `AVAudioEngine` |
+| `InputMixer` | `Update mute (input mixer):` | a mixer node in WebRTC's own graph |
+
+**The difference is who owns the mute.** `VoiceProcessing` asks iOS to do it;
+`InputMixer` turns down a node and tells nobody. The same binary carries
+`setMutedSpeechActivityEventListener` and
+`AVAudioVoiceProcessingSpeechActivityEvent` — Apple's talking-while-muted
+detector, which works only on the voice-processing path and requires
+`voiceChat` or `videoChat`, which this app's session is in. So one path is an
+OS-integrated mute with the system watching the muted microphone, and the other
+is invisible to iOS.
+
+**Switched to `InputMixer` on evidence rather than reading.** Everything else
+that could move at a mute has been positively excluded on a device: the route
+is `BluetoothHFP` at 24 kHz either side with no route-change event (from a
+listener proven to fire by disconnecting the headset), the engine runs and
+records throughout, and no exposed field moves at 40ms sampling. The mute is
+the last variable, and this is the option that removes the OS from it.
+
+**Not claimed: that iOS plays the tone.** No string says so and Apple's
+frameworks are not inspectable from here. This is an experiment on the last
+remaining variable, and it is informative either way — a tone that survives it
+puts the cause outside the audio engine entirely, most plausibly the headset
+responding to any mute, which the app cannot change and which would make the
+answer "nothing to fix, and nothing is being lost".
+
+**It probably also explains build 58.** That build's entire content was setting
+the mode to `VoiceProcessing`, and it changed nothing — consistent with the
+default having been `VoiceProcessing` all along. The previous value has never
+been observed: `configureMuteMode` returns it and `index.ts` logs it, but only
+in development builds, and nobody has run one.
+
+The test that pinned the specific mode was rewritten. It had asserted
+`VoiceProcessing` by name and failed the moment the choice changed on evidence
+— a test objecting to exactly what it existed to permit. What it pins now is
+the exclusion established by measurement (never `RestartEngine`), that the value
+is a real mode rather than the sentinel, and that the call reads before it
+writes.

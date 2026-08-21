@@ -8,43 +8,51 @@ import { configureMuteMode, WANTED_MUTE_MODE } from '../muteMode';
  * category and already avoids stopping the track on mute, so this looks like a
  * third go at the same idea.
  *
- * It is not. Those two operate above the audio engine and this one is the
- * engine's own behaviour, which is why both of them left the tone in place.
+ * It is not. Those two operate above the audio engine; this decides *where in
+ * the graph* a mute is imposed and whether iOS is involved in it at all.
+ *
+ * **These assertions deliberately do not pin the chosen value.** An earlier
+ * version did, and it failed the moment the choice changed on evidence — which
+ * is a test complaining about the thing it was supposed to allow. What is
+ * pinned is the exclusion we have positively established on a device, and the
+ * mechanics of the call.
  */
 
-const module = AudioDeviceModule as unknown as {
-  getMuteMode: jest.Mock;
-  setMuteMode: jest.Mock;
-};
+const module = AudioDeviceModule as unknown as Record<string, jest.Mock>;
 
 describe('configureMuteMode', () => {
   beforeEach(() => {
     module.getMuteMode.mockReset();
     module.setMuteMode.mockReset();
-    module.getMuteMode.mockReturnValue(AudioEngineMuteMode.RestartEngine);
+    module.getMuteMode.mockReturnValue(AudioEngineMuteMode.VoiceProcessing);
     module.setMuteMode.mockResolvedValue(undefined);
   });
 
-  it('asks for the mode that does not restart the engine', async () => {
+  it('asks for whatever the module has settled on', async () => {
     await configureMuteMode();
-    expect(module.setMuteMode).toHaveBeenCalledWith(
-      AudioEngineMuteMode.VoiceProcessing
-    );
+    expect(module.setMuteMode).toHaveBeenCalledWith(WANTED_MUTE_MODE);
   });
 
-  // Stated as its own case because it is the whole point. `RestartEngine`
-  // stops and restarts the audio engine to mute, which tears the input down
-  // and rebuilds it — and iOS hands a Bluetooth headset back from the
-  // hands-free link to A2DP in the gap, which is the tone that has survived
-  // two other fixes.
+  // The one value ruled out by measurement rather than argument: build 62 read
+  // `mode=0` with the engine running and recording throughout a mute, so no
+  // restart is happening and asking for one would be a regression into a
+  // mechanism already excluded.
   it('never asks for the one that restarts the engine', () => {
     expect(WANTED_MUTE_MODE).not.toBe(AudioEngineMuteMode.RestartEngine);
   });
 
+  it('asks for a real mode rather than the unknown sentinel', () => {
+    expect(WANTED_MUTE_MODE).not.toBe(AudioEngineMuteMode.Unknown);
+    expect([
+      AudioEngineMuteMode.VoiceProcessing,
+      AudioEngineMuteMode.InputMixer,
+    ]).toContain(WANTED_MUTE_MODE);
+  });
+
   it('reports what it displaced, which is observable only here', async () => {
-    module.getMuteMode.mockReturnValue(AudioEngineMuteMode.RestartEngine);
+    module.getMuteMode.mockReturnValue(AudioEngineMuteMode.VoiceProcessing);
     await expect(configureMuteMode()).resolves.toBe(
-      AudioEngineMuteMode.RestartEngine
+      AudioEngineMuteMode.VoiceProcessing
     );
   });
 
