@@ -1,0 +1,70 @@
+import {
+  onRouteChange,
+  routeLine,
+  routeSnapshot,
+} from '../../../modules/audio-route';
+
+/**
+ * The route reader is a *local* native module, so it is absent under jest,
+ * absent on Android, and absent in any build where autolinking did not pick it
+ * up. It is also loaded on the path that carries live audio.
+ *
+ * So the property worth pinning is not what it reads — no test can produce a
+ * Bluetooth route — but that every one of those absences costs a diagnostic
+ * line rather than a call.
+ */
+
+describe('when the native module is not there, which is the case under test', () => {
+  it('reads as null rather than throwing', () => {
+    expect(() => routeSnapshot()).not.toThrow();
+    expect(routeSnapshot()).toBeNull();
+  });
+
+  it('subscribes to nothing and unsubscribes safely', () => {
+    const listener = jest.fn();
+    let stop!: () => void;
+    expect(() => {
+      stop = onRouteChange(listener);
+    }).not.toThrow();
+    expect(() => stop()).not.toThrow();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('says so on screen rather than rendering an empty line', () => {
+    expect(routeLine(null)).toBe('route unreadable');
+  });
+});
+
+describe('routeLine', () => {
+  const route = {
+    outputs: ['BluetoothA2DP(AirPods Pro)'],
+    inputs: ['MicrophoneBuiltIn(iPhone Microphone)'],
+    sampleRate: 48000,
+    category: 'AVAudioSessionCategoryPlayAndRecord',
+    mode: 'AVAudioSessionModeVideoChat',
+  };
+
+  // The sample rate is the whole reason this exists: 44.1/48k is A2DP and
+  // 16k (sometimes 8) is the hands-free profile, so a rate that halves across
+  // a mute is a profile handover with nothing left to judge by ear.
+  it('leads with the output port and carries the sample rate', () => {
+    const line = routeLine(route);
+    expect(line).toContain('BluetoothA2DP(AirPods Pro)');
+    expect(line).toContain('sr=48000');
+  });
+
+  it('rounds the rate, which arrives as a double', () => {
+    expect(routeLine({ ...route, sampleRate: 16000.000001 })).toContain(
+      'sr=16000'
+    );
+  });
+
+  // Only present on a change event, and it is the field that separates a
+  // profile handover from a session being deactivated and reactivated.
+  it('carries the reason when there is one, and omits it otherwise', () => {
+    expect(routeLine(route)).not.toContain('why=');
+    expect(routeLine({ ...route, reason: 'categoryChange' })).toContain(
+      'why=categoryChange'
+    );
+  });
+});

@@ -923,3 +923,49 @@ Still no fifth fix. The next reading either shows `mode=0` with no flicker — i
 which case the engine really is undisturbed and the route is moving for a reason
 none of this has touched — or it shows something that moved, and that is the
 mechanism.
+
+## The route became readable, which STATES.md said it would not — 2026-08-20
+
+Five builds were spent on "self-muting hands a Bluetooth headset out of A2DP and
+back". Every one aimed at a mechanism read off the source; none changed the
+sound. Then the engine's own diagnostics reported, at 40ms resolution, that
+**nothing about the input moves at a mute** — `mode=0`, `run=T`, `rec=T`, no
+flicker in any exposed field. Which left the obvious question unasked and
+unaskable: does the route move at all?
+
+**It could not be asked, and that is why it never was.** `AudioSession.
+getAudioOutputs` offers iOS only `default` and `force_speaker`.
+`enumerateDevices` discovers only `AVCaptureDeviceTypeBuiltInMicrophone`. The
+WebRTC framework's `RTCAudioEngineState` carries `inputEnabled` and
+`inputRunning` and the React Native wrapper exposes neither. All three verified
+rather than assumed.
+
+STATES.md recorded the gap as disagreement 8 and called it **"probably
+permanent"**. It was sixty lines of Swift. `app/modules/audio-route` is a local
+Expo module — no new dependency, autolinked from `app/modules`, picked up by the
+`prebuild` that `bin/release-ios` already runs — exposing three things:
+
+- **`currentRoute`**, so `BluetoothA2DP` against `BluetoothHFP` is stated rather
+  than inferred from how something sounded.
+- **`sampleRate`**, which settles it numerically: the hands-free profile forces
+  16 kHz, sometimes 8, where A2DP runs at 44.1 or 48. A rate that halves at a
+  mute is a handover and nothing else. This exists because the person testing
+  said, reasonably, that they could not quite judge the change by ear — and a
+  diagnostic that needs a trained ear is not a diagnostic.
+- **`routeChangeNotification` with its reason code**, which is the part that
+  discriminates. A profile handover, a session being deactivated and
+  reactivated, and *no route change at all* are three different readings. The
+  third would mean the tone is not a handover and five builds were aimed at the
+  wrong phenomenon entirely.
+
+**The standing lesson is about the entry, not the audio.** Disagreement 8 did
+not merely record a limitation; it discouraged the attempt, for months, in a
+codebase where routing bugs are the expensive kind. "Probably permanent" is a
+claim about the future and this file should be slower to make them. When a
+documented limitation is the reason an obvious measurement is never taken, the
+limitation is worth attacking directly — and the cost of doing so should be
+measured, not assumed, exactly like everything else here.
+
+Everything the module reads is diagnostic and degrades to null: absent under
+jest, absent on Android, absent if autolinking misses it. It is loaded on the
+path that carries live audio and must never be able to take a call down.

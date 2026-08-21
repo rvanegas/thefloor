@@ -433,12 +433,12 @@ with the `[audio]` lines `useSessionAudio` writes in development builds, and
 Each is phrased to lift into TASKS.md or BACKLOG.md as it stands. Those already
 closed say so.
 
-**Three are closed: 2, 5 and 6.** Everything else is open, but two of those are
+**Four are closed: 2, 5, 6 and 8.** Everything else is open, but two of those are
 open in a way that reads like closure and is not — **3 and 7 are open by
 design**, 3 because the one case the two names differ in is deliberate and 7
 because `orderChannels` already consults `presentCount`. Both are written down
 here precisely so that a later reading does not "simplify" them; neither is
-waiting on work. The ones actually waiting are 1, 4, 8 and 9, and **9 is the
+waiting on work. The ones actually waiting are 1, 4 and 9, and **9 is the
 live one** — waiting, since 2026-08-20, on somebody *hearing* it rather than on
 somebody writing anything. It has been fixed in source twice in a day and
 neither fix has been put to a Bluetooth headset.
@@ -484,7 +484,13 @@ lifted an entry elsewhere.
 7. **`lastActiveAt` cannot answer whether a channel is occupied**, and anything
    ordering on it must consult `presentCount` separately. Open, and already
    handled by `orderChannels`.
-8. **Nothing can read the audio route**, so routing regressions are only ever
-   found by ear. Open, and probably permanent — see BACKLOG.md on removing the
-   route picker, which assumes the default is right and would remove the only
-   manual recovery there is.
+8. **Nothing could read the audio route**, so routing regressions were only
+   ever found by ear. *Closed 2026-08-20*, and the way it closed is the lesson:
+   this said "probably permanent" and it was sixty lines of Swift.
+   `app/modules/audio-route` is a local Expo module exposing
+   `AVAudioSession.currentRoute`, its sample rate, and route-change
+   notifications **with iOS's own reason code**. It was written after five
+   builds were spent on a routing symptom nobody could measure — the entry
+   asserting the limitation was itself part of why nobody tried. See BACKLOG.md
+   on removing the route picker, which assumes the default is right and would
+   remove the only manual recovery there is.

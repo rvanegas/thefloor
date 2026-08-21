@@ -22,6 +22,11 @@ import {
   watchTransition,
 } from './engineState';
 import {
+  onRouteChange,
+  routeLine,
+  routeSnapshot,
+} from '../../modules/audio-route';
+import {
   NOBODY_SPEAKING,
   nextReleaseAt,
   onActiveSpeakers,
@@ -123,7 +128,7 @@ export interface SessionAudio {
  * How many *lines* to keep — two or three per transition, so this is about
  * three transitions: a mute, an unmute and a mistake.
  */
-const ENGINE_LOG_LIMIT = 9;
+const ENGINE_LOG_LIMIT = 12;
 
 /** Apple-only; on Android the category model does not apply. */
 async function applyConfiguration(
@@ -643,6 +648,34 @@ export function useSessionAudio(
   }, [mediaRoom, token, generation]);
 
   /**
+   * Records every route change iOS reports, for as long as we are connected.
+   *
+   * **Diagnostic and temporary**, and the most informative line in the panel:
+   * a route change carries iOS's own reason code, so a handover, a session
+   * being deactivated and reactivated, and no route change at all are three
+   * different readings rather than one guess. See
+   * `modules/audio-route/ios/AudioRouteModule.swift`.
+   *
+   * Subscribed rather than sampled because a route change is an event with a
+   * reason attached, and the reason does not survive being polled for.
+   */
+  useEffect(() => {
+    if (state.status !== 'connected') return;
+    return onRouteChange((payload) => {
+      const at = new Date().toTimeString().slice(0, 8);
+      const line = `${at} ROUTE ${routeLine(payload)}`;
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log(`[engine] ${line}`);
+      }
+      setState((s) => ({
+        ...s,
+        engineLog: [...s.engineLog, line].slice(-ENGINE_LOG_LIMIT),
+      }));
+    });
+  }, [state.status]);
+
+  /**
    * Rebuilds the room on returning to the foreground, when it is not already
    * up or on its way.
    *
@@ -744,6 +777,11 @@ export function useSessionAudio(
         // never changes — `muteMode` among them, which is the one that says
         // whether `configureMuteMode` actually took.
         `  now: ${engineLine(settled)}`,
+        // And the route, which is the question the engine's own flags turned
+        // out not to answer. `sr=` is the one to read: the hands-free profile
+        // forces 16 kHz where A2DP runs at 44.1 or 48, so a rate that halves
+        // here is a profile handover with nothing left to judge by ear.
+        `  route: ${routeLine(routeSnapshot())}`,
       ];
       if (flickered) lines.push(`  flicker: ${flickered}`);
       if (__DEV__) {
