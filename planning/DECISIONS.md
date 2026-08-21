@@ -1435,6 +1435,38 @@ values as a plain object with no reverse mapping, so the lookup returned
 same shape, caught by a test that would not have existed if the panel had been
 considered too small to test.
 
+### The copy button uses a deprecated API on purpose
+
+Added 2026-08-21, after the panel. A screenshot was how a reading left the
+phone, and it is a bad carrier for this particular content: the values that
+matter are long strings differing in one token — `playAndRecord/videoChat`
+against `playback/videoChat`, an options list with one entry added — and a
+photograph of those has to be re-typed by whoever wants to compare them.
+`diagnosticText` renders the whole panel and its log as plain text, stamped
+with the installed build and the time, because the first two questions asked of
+a pasted dump are always which binary and when.
+
+**Alarms are marked `<<`.** Colour is the one thing plain text cannot carry,
+and colour is how the panel shows a disagreement — a copy that dropped it would
+lose exactly the information somebody is copying the panel in order to share.
+
+**`Clipboard` comes from `react-native` core, which deprecates it and warns
+that it will be removed.** Used anyway, and this is the trade: it is a working
+TurboModule already compiled into the binary, where both replacements —
+`expo-clipboard` and `@react-native-clipboard/clipboard` — are *new native
+modules*. That means a prebuild, a changed autolink count, and a dependency
+added for one button on a panel one account can see; and `prebuild --clean` is
+the thing that drops the signing team. The cost of being wrong is that a future
+React Native bump removes it.
+
+**So the removal is made visible rather than guarded against.** The call is
+wrapped, and a failure puts `✗ copy failed — screenshot instead` on the button
+in the danger colour, naming the fallback that still works. A test pins both
+paths. That is the same rule the rest of the panel follows: the thing that must
+not happen is not the button breaking, it is the button appearing to work while
+doing nothing — which would send somebody away believing they had a reading
+they did not have. `expo-clipboard` is the migration when it comes.
+
 ### The log, which is not the same instrument as the reading
 
 Some of what this subsystem does cannot be polled. A route change carries iOS's

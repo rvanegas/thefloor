@@ -364,6 +364,59 @@ function appRows(asked: AudioIntent | null): DiagnosticRow[] {
 }
 
 /**
+ * The whole panel as plain text, for the copy button.
+ *
+ * **A screenshot was the previous way this left the phone, and it is a bad
+ * one.** The readings that matter are long strings that differ in one token —
+ * `playAndRecord/videoChat` against `playback/videoChat`, an options list with
+ * one entry added — and a photograph of those has to be re-typed by whoever
+ * wants to compare them, or squinted at. Text can be pasted into an issue, a
+ * message, or a diff.
+ *
+ * **Stamped with the build and the wall-clock time**, because the first
+ * question asked of a pasted dump is always which binary produced it, and the
+ * second is when. `appBuild()` reads the *installed* `CFBundleVersion` rather
+ * than `app.json`, so it cannot claim a number the binary does not have.
+ *
+ * Alarms are marked `<<` rather than by colour, colour being the one thing
+ * plain text cannot carry. Without that the copy would lose exactly the
+ * information the panel exists to show.
+ */
+export function diagnosticText(
+  d: AudioDiagnostic,
+  events: DiagnosticEvent[],
+  build: number | null
+): string {
+  const lines: string[] = [
+    `The Floor — audio diagnostics`,
+    `build ${build ?? 'unknown'} · ${new Date(d.at).toISOString()}`,
+  ];
+
+  for (const section of diagnosticSections(d)) {
+    lines.push('', section.title);
+    for (const row of section.rows) {
+      // Padded so the values line up in a monospaced paste, the same reason
+      // the panel gives the label column a fixed width.
+      const label = row.label.padEnd(16);
+      lines.push(`  ${label}${row.value}${row.alarm ? '   <<' : ''}`);
+    }
+  }
+
+  lines.push('', 'Log — newest last');
+  if (events.length === 0) {
+    // Said, not omitted. An absent section reads as an instrument with nothing
+    // to report, which is the confusion this whole file is written against.
+    lines.push('  nothing recorded yet');
+  } else {
+    for (const event of events) {
+      lines.push(`  ${new Date(event.at).toISOString()} ${event.text}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * A change worth having a timestamp on, kept in memory and nowhere else.
  *
  * **Some of what this subsystem does cannot be polled.** A route change

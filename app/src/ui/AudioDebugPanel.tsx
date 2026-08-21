@@ -1,13 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Clipboard,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {
   diagnosticEvents,
   diagnosticSections,
+  diagnosticText,
   readDiagnostic,
   startDiagnosticRecording,
   subscribeDiagnostics,
   type AudioDiagnostic,
 } from '../audio/diagnostics';
+import { appBuild } from '../api/build';
 import type { AudioIntent } from '../audio/useSessionAudio';
 import { colors, radius, spacing, type } from './theme';
 
@@ -79,6 +88,41 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
     return () => clearInterval(timer);
   }, [open, asked]);
 
+  /**
+   * What the copy button last did, shown on the button itself.
+   *
+   * **A copy that silently failed would be the worst possible bug in this
+   * particular panel** — the whole file is written against instruments that go
+   * quiet, and a button that does nothing while looking like it worked sends
+   * somebody away believing they have a reading they do not have.
+   */
+  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
+
+  useEffect(() => {
+    if (copied === 'idle') return;
+    const timer = setTimeout(() => setCopied('idle'), 2500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const copy = () => {
+    try {
+      // `Clipboard` from react-native core is deprecated — it warns once and
+      // points at `@react-native-clipboard/clipboard` — and is used anyway,
+      // deliberately. It is a working TurboModule already compiled into this
+      // binary, where either replacement is a *new native module*: a prebuild,
+      // a changed autolink count, and a dependency added for one button on a
+      // panel one account can see. `expo-clipboard` is the migration if it is
+      // ever removed, and the catch below is what makes that removal visible
+      // rather than silent.
+      Clipboard.setString(
+        diagnosticText(readDiagnostic(asked), diagnosticEvents(), appBuild())
+      );
+      setCopied('done');
+    } catch {
+      setCopied('failed');
+    }
+  };
+
   const sections = diagnosticSections(reading);
   const alarms = sections.reduce(
     (total, section) => total + section.rows.filter((r) => r.alarm).length,
@@ -104,6 +148,26 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
 
       {open ? (
         <View style={styles.body}>
+          {/*
+            Above the readings rather than below them. The panel is longer than
+            a screen, so a button at the end is one somebody has to go looking
+            for — and the moment they want it is the moment they have just seen
+            something, which is while the top is still in view.
+          */}
+          <Pressable
+            onPress={copy}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Copy diagnostics"
+          >
+            <Text style={copied === 'failed' ? styles.copyFailed : styles.copy}>
+              {copied === 'done'
+                ? '✓ copied'
+                : copied === 'failed'
+                  ? '✗ copy failed — screenshot instead'
+                  : 'Copy all as text'}
+            </Text>
+          </Pressable>
           {sections.map((section) => (
             <View key={section.title} style={styles.section}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -169,6 +233,20 @@ const styles = StyleSheet.create({
   },
   header: { ...type.heading, fontSize: 17 },
   body: { marginTop: spacing(1) },
+  copy: {
+    fontFamily: monospace,
+    fontSize: 17,
+    color: colors.floor,
+    paddingVertical: spacing(0.5),
+    marginBottom: spacing(0.5),
+  },
+  copyFailed: {
+    fontFamily: monospace,
+    fontSize: 17,
+    color: colors.danger,
+    paddingVertical: spacing(0.5),
+    marginBottom: spacing(0.5),
+  },
   section: { marginBottom: spacing(1.5) },
   sectionTitle: {
     ...type.label,

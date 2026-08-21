@@ -22,7 +22,7 @@ import { ContactsSettingsView } from '../ContactsSettingsView';
 import { ContactsView } from '../ContactsView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
-import { Alert, KeyboardAvoidingView, StyleSheet } from 'react-native';
+import { Alert, Clipboard, KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { colors } from '../theme';
 
 /**
@@ -4016,6 +4016,75 @@ describe('the audio diagnostic panel', () => {
     // into on 2026-08-20. See src/audio/diagnostics.ts.
     expect(text).toContain('unreadable');
     expect(text).toContain('nothing recorded yet');
+    act(() => tree.unmount());
+  });
+});
+
+describe('copying the diagnostics', () => {
+  /**
+   * The copy button, whose failure mode is the one this panel cannot have.
+   *
+   * `Clipboard` comes from react-native core, is deprecated there, and is
+   * expected to be removed in some future release. When that happens this
+   * button must *say* so rather than appear to work — the whole diagnostic is
+   * written against instruments that go quiet, and a copy that silently did
+   * nothing would send somebody away believing they had a reading they did
+   * not. Both paths are pinned here for that reason.
+   */
+  function openPanel() {
+    mockApp.debug = true;
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    const toggle = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => n.props?.accessibilityLabel === 'Audio diagnostics');
+    act(() => toggle!.props.onPress());
+    return tree;
+  }
+
+  function copyButton(tree: ReturnType<typeof render>) {
+    return tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => n.props?.accessibilityLabel === 'Copy diagnostics');
+  }
+
+  it('puts the whole panel on the clipboard, alarms included', () => {
+    const setString = jest.spyOn(Clipboard, 'setString').mockImplementation(() => {});
+    const tree = openPanel();
+    act(() => copyButton(tree)!.props.onPress());
+
+    expect(setString).toHaveBeenCalledTimes(1);
+    const copied = setString.mock.calls[0]![0] as string;
+    expect(copied).toContain('The Floor — audio diagnostics');
+    expect(copied).toContain('Session — asked vs actual');
+    // Nothing native under jest, so the readings are unreadable — and that has
+    // to survive the copy as an alarm rather than as a blank.
+    expect(copied).toContain('unreadable');
+    expect(copied).toContain('<<');
+    expect(textOf(tree)).toContain('copied');
+
+    setString.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('says so on the button when the clipboard refuses', () => {
+    const setString = jest.spyOn(Clipboard, 'setString').mockImplementation(() => {
+      throw new Error('Clipboard has been removed from react-native core');
+    });
+    const tree = openPanel();
+    act(() => copyButton(tree)!.props.onPress());
+
+    // The point of the test: a failure is visible, and it names the fallback
+    // that still works.
+    expect(textOf(tree)).toContain('copy failed');
+    expect(textOf(tree)).toContain('screenshot');
+
+    setString.mockRestore();
     act(() => tree.unmount());
   });
 });

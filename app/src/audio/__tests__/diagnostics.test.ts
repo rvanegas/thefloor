@@ -3,6 +3,7 @@ import type { RouteSnapshot } from '../../../modules/audio-route';
 import {
   diagnosticEvents,
   diagnosticSections,
+  diagnosticText,
   muteModeName,
   profileHint,
   recordEvent,
@@ -320,5 +321,62 @@ describe('the event log', () => {
     stop();
     recordEvent('after');
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the copyable text', () => {
+  beforeEach(() => resetDiagnostics());
+
+  it('stamps the build and the time, which is what a pasted dump is asked first', () => {
+    const text = diagnosticText(reading(), [], 66);
+    expect(text).toContain('build 66');
+    expect(text).toContain(new Date(1_700_000_000_000).toISOString());
+  });
+
+  // Never a blank where a fact should be — the same rule the rows follow.
+  it('says the build is unknown rather than leaving a gap', () => {
+    expect(diagnosticText(reading(), [], null)).toContain('build unknown');
+  });
+
+  it('carries both halves of the comparison', () => {
+    const text = diagnosticText(reading(), [], 66);
+    expect(text).toContain('playAndRecord/videoChat');
+    expect(text).toContain('Session — asked vs actual');
+  });
+
+  /**
+   * The one thing plain text cannot inherit from the panel is colour, and
+   * colour is how an alarm is shown. A copy that dropped it would lose exactly
+   * the information somebody is copying the panel in order to share.
+   */
+  it('marks alarms, colour being the one thing text cannot carry', () => {
+    const agreed = diagnosticText(reading(), [], 66);
+    expect(agreed).not.toContain('<<');
+
+    const diverged = diagnosticText(
+      reading({
+        route: { ...ROUTE_CALL, category: 'AVAudioSessionCategoryPlayback' },
+      }),
+      [],
+      66
+    );
+    const marked = diverged
+      .split('\n')
+      .filter((l) => l.includes('<<'))
+      .join('\n');
+    expect(marked).toContain('playback/videoChat');
+  });
+
+  it('includes the log, newest last', () => {
+    recordEvent('first');
+    recordEvent('second');
+    const text = diagnosticText(reading(), diagnosticEvents(), 66);
+    expect(text.indexOf('first')).toBeLessThan(text.indexOf('second'));
+  });
+
+  it('says an empty log is empty rather than omitting the section', () => {
+    const text = diagnosticText(reading(), [], 66);
+    expect(text).toContain('Log — newest last');
+    expect(text).toContain('nothing recorded yet');
   });
 });
