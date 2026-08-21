@@ -98,19 +98,47 @@ export const LISTENING: AppleAudioConfiguration = {
  * "no other route is connected" was true, and the speaker won correctly from a
  * rule doing exactly what it says.
  *
- * So the eligibility list is the fix, and it is the SDK's own: A2DP for a
- * device that is only listening, HFP for one with a microphone, AirPlay for
- * everything else. Getting this wrong is silent — it does not fail, it just
- * quietly stops offering somebody their headphones.
+ * So the eligibility list is the fix, and it is the SDK's own: HFP for a
+ * device with a microphone, AirPlay for everything else. Getting this wrong is
+ * silent — it does not fail, it just quietly stops offering somebody their
+ * headphones.
+ *
+ * **`allowBluetoothA2DP` is deliberately absent, and this is the one option
+ * whose absence is the point.** A2DP is output-only, so listing it here makes
+ * a device that cannot capture — a Bluetooth speaker with no microphone —
+ * an eligible *output* under `playAndRecord`. iOS then does exactly as asked:
+ * it keeps the remote voice on that speaker and takes the input from the
+ * built-in microphone instead, silently, with no failure anywhere. Reported
+ * 2026-08-21: a second participant arrived and was audible on a mic-less
+ * Bluetooth speaker. That is not merely the wrong route — it is a loudspeaker
+ * playing the far end into an open microphone in the same room, which is the
+ * echo path the whole of POSTMORTEM-echo.md is about, arrived at from a
+ * different direction.
+ *
+ * Dropping it means a capturing session offers only routes that can *do* both
+ * halves: an HFP headset via `allowBluetooth`, AirPlay, or — when neither is
+ * there — the built-in speaker and microphone, which `defaultToSpeaker` picks
+ * over the earpiece. A2DP is not lost, it is scoped: `IDLE` and `LISTENING`
+ * are `playback`, where a Bluetooth device is an eligible output with no
+ * option needed at all, so the stereo route is exactly as available as before
+ * whenever nobody is capturing. **The audible mono/stereo transition that
+ * STATES.md calls a feature is unchanged**, because it was never about this
+ * option — it is about the category, which has not moved.
+ *
+ * **This is the option build 19 removed, and it is being removed again for a
+ * different reason and with a different expectation.** Build 19 dropped it and
+ * a tester's headphones fell back to the phone speaker, which was read as
+ * A2DP eligibility being required for headphones to be offered at all. That
+ * reading is doubtful — `allowBluetooth` makes an HFP-capable headset eligible
+ * for both directions, so AirPods should survive this — and it may be that the
+ * device in that session could not do HFP. **It is the thing to check first if
+ * headphones misbehave after this**, and it is why `app/modules/audio-route`
+ * was kept when the engine panel was deleted: it is the only thing in this
+ * stack that can read a route back. See planning/TASKS.md.
  */
 export const CALL: AppleAudioConfiguration = {
   audioCategory: 'playAndRecord',
-  audioCategoryOptions: [
-    'allowBluetooth',
-    'allowBluetoothA2DP',
-    'allowAirPlay',
-    'defaultToSpeaker',
-  ],
+  audioCategoryOptions: ['allowBluetooth', 'allowAirPlay', 'defaultToSpeaker'],
   audioMode: 'videoChat',
 };
 

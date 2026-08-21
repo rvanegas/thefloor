@@ -35,16 +35,36 @@ describe('the configurations themselves', () => {
 
   // `videoChat` is what turns on the system echo canceller, and a capturing
   // session without it is the build 17 echo. See planning/POSTMORTEM-echo.md.
-  it('captures under the voice mode, and offers every route', () => {
+  it('captures under the voice mode, and offers every route that can capture', () => {
     expect(CALL.audioMode).toBe('videoChat');
     expect(CALL.audioCategoryOptions).toEqual(
       expect.arrayContaining([
         'allowBluetooth',
-        'allowBluetoothA2DP',
         'allowAirPlay',
         'defaultToSpeaker',
       ])
     );
+  });
+
+  // The absence is the assertion. A2DP is output-only, so listing it here
+  // makes a Bluetooth speaker with no microphone an eligible output while
+  // capturing — iOS keeps the far end on that speaker and takes the input from
+  // the built-in microphone, which is a loudspeaker playing into a live mic in
+  // one room. Reported 2026-08-21. `arrayContaining` above cannot catch this,
+  // which is why it is its own test rather than a fourth line in that list.
+  it('offers no output that cannot also capture', () => {
+    expect(CALL.audioCategoryOptions).not.toContain('allowBluetoothA2DP');
+  });
+
+  // And the scoping half: A2DP is not lost, it is confined to the states that
+  // are not capturing, where the `playback` category makes a Bluetooth device
+  // eligible with no option at all. So the stereo route is exactly as
+  // available as it was whenever nobody is talking.
+  it('keeps the non-capturing states on a category that needs no option', () => {
+    expect(IDLE.audioCategory).toBe('playback');
+    expect(LISTENING.audioCategory).toBe('playback');
+    expect(IDLE.audioCategoryOptions).not.toContain('allowBluetoothA2DP');
+    expect(LISTENING.audioCategoryOptions).not.toContain('allowBluetoothA2DP');
   });
 });
 

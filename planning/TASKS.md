@@ -74,6 +74,43 @@ pairing is not enough, and `devicectl` will happily report the device
 the Mac's own logs and has no device options on current macOS, so it succeeds
 and shows nothing.
 
+## Verify The Mic-Less Bluetooth Speaker Fix
+
+**Reported 2026-08-21, fixed the same day, unverified on a device.** A second
+participant entered and was audible on a Bluetooth speaker that has no
+microphone — so the far end was playing out of a loudspeaker while the input
+came from the built-in mic in the same room, which is an echo path.
+
+**The cause was in the option list, not in a mechanism.** `CALL` listed
+`allowBluetoothA2DP`, and A2DP is output-only, so under `playAndRecord` a
+device that cannot capture was still an eligible output. iOS did as it was
+asked. The option is gone; `session.ts` carries the reasoning and two tests pin
+the absence.
+
+**Unlike the four self-mute fixes, this one was not reasoned from a mechanism**
+— the option's documented meaning is the observed behaviour, which is a much
+shorter chain. That is a reason for more confidence, not for skipping the
+check.
+
+**What to check on the next build, in this order:**
+
+1. **The reported case.** Mic-less Bluetooth speaker, second participant
+   arrives. Expected: output moves off the speaker to the phone's loudspeaker,
+   and both directions work.
+2. **AirPods, which is the regression risk.** Build 19 removed this same option
+   and a tester's headphones fell back to the phone speaker. That was read as
+   A2DP eligibility being needed for headphones to be offered at all — a
+   doubtful reading, since `allowBluetooth` covers an HFP-capable headset in
+   both directions, but it is the thing that would bite. Expected: AirPods keep
+   the route and go mono while capturing.
+3. **The stereo transition still happens.** Nobody talking → `playback` →
+   A2DP stereo returns. STATES.md calls this audible transition a feature; it
+   should be unchanged, because the category did not move.
+
+**If 2 fails, the route reader is how to tell what happened** rather than
+guessing a sixth time — see the entry below, and `git revert` of the commit
+that deleted the panel restores the on-screen half.
+
 ## The Native Route Reader Is Still In The Tree
 
 **Removed around, not with, the diagnostic — 2026-08-21.** The engine panel
