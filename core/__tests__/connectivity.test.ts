@@ -48,21 +48,36 @@ describe('disconnecting', () => {
     expect(state.disconnectedAt[B]).toBeUndefined();
   });
 
-  it('keeps a self-mute that stepping out would have cleared', () => {
-    // The two departures differ here and nowhere else. Stepping out is a
-    // decision, and the mute goes with it. A connection running out of grace
-    // is not: the client re-enters by itself on reconnect, so clearing the
-    // mute would hand back a live microphone that somebody deliberately
-    // closed, without anyone being asked.
+  it('clears the self-mute, exactly as stepping out does', () => {
+    // The two departures no longer differ here. A mute belongs to the
+    // conversation it was set in, and a grace period running out ends that
+    // conversation as surely as a tap does — it just ends it without anybody
+    // present to notice. Keeping it produced a roster line that could not be
+    // read: absent, and muted, at the same time.
     let state = reduce(joined(), { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0);
     state = reduce(state, { type: 'DISCONNECTED', userId: B }, T0);
     state = tick(state, T0 + DISCONNECT_GRACE_MS);
 
     expect(isPresent(state, B)).toBe(false);
-    expect(state.selfMuted[B]).toBe(true);
+    expect(state.selfMuted[B]).toBe(false);
 
     const back = reduce(state, { type: 'ENTER', userId: B }, T0 + DISCONNECT_GRACE_MS + 1);
-    expect(back.selfMuted[B]).toBe(true);
+    expect(back.selfMuted[B]).toBe(false);
+  });
+
+  it('leaves a mute alone while the grace period is still running', () => {
+    // The clearing is a departure's doing, not a disconnection's. Inside the
+    // grace period nobody has left — the socket is expected back — so a mute
+    // set before the drop survives a reconnection that beats the timer, which
+    // is the case a flapping connection actually is.
+    let state = reduce(joined(), { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0);
+    state = reduce(state, { type: 'DISCONNECTED', userId: B }, T0);
+    state = tick(state, T0 + 1_000);
+    expect(state.selfMuted[B]).toBe(true);
+
+    state = reduce(state, { type: 'CONNECTED', userId: B }, T0 + 30_000);
+    expect(isPresent(state, B)).toBe(true);
+    expect(state.selfMuted[B]).toBe(true);
   });
 
   it('is cancelled by reconnecting', () => {

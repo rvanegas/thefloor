@@ -509,20 +509,10 @@ export function reduce(
       };
     }
 
-    case 'STEP_OUT': {
-      const gone = stepOut(state, action.userId, now);
-      if (gone === state) return state;
-      // Leaving the room puts your microphone back as you found it. A mute is
-      // a thing you do *during* a conversation — to cough, to type, to talk to
-      // somebody in the room you are actually in — and carrying it across a
-      // departure means coming back inaudible, with the reason a decision you
-      // made an hour ago and have no cause to remember. Nobody hears you and
-      // nothing on the way in says why.
-      //
-      // Deliberate departures only. A connection lost past its grace period
-      // arrives as DISCONNECT_EXPIRED, and keeps the mute.
-      return { ...gone, selfMuted: { ...gone.selfMuted, [action.userId]: false } };
-    }
+    case 'STEP_OUT':
+      // The mute is cleared inside `stepOut`, which every departure goes
+      // through — see there for why it is no longer this case's business.
+      return stepOut(state, action.userId, now);
 
     case 'DISCONNECT_EXPIRED':
       return stepOut(state, action.userId, now, { chosen: false });
@@ -701,7 +691,8 @@ function tick(state: ChannelState, now: number): ChannelState {
   // Someone gone past the grace period has left. Handled before the floor
   // expiry so their claim is released by the leave itself, as any other
   // departure would release it. Not STEP_OUT: that is the departure somebody
-  // chose, and it clears their self-mute, which a lost connection must not.
+  // chose, and `chosen` decides which clocks are stamped — `lastPresentAt` and
+  // `waiting`. Nothing else now distinguishes the two.
   for (const [userId, since] of Object.entries(next.disconnectedAt)) {
     if (since !== undefined && now - since >= DISCONNECT_GRACE_MS) {
       next = reduce(next, { type: 'DISCONNECT_EXPIRED', userId }, now);
@@ -731,11 +722,20 @@ function tick(state: ChannelState, now: number): ChannelState {
  * Shared by the tap, by a grace period running out, and by LEAVE_CHANNEL,
  * which is what stops those three drifting apart.
  *
- * `chosen` is the one thing the three do not share. A tap happens at the
- * moment somebody decides it does; a grace period running out happens
- * DISCONNECT_GRACE_MS *after* the last thing anybody heard, and stamping
- * `lastPresentAt` then would record a presence that was already over — see
- * below, where the difference is the whole of it.
+ * `chosen` is the one thing the three do not share, and it is now about
+ * clocks alone. A tap happens at the moment somebody decides it does; a grace
+ * period running out happens DISCONNECT_GRACE_MS *after* the last thing
+ * anybody heard, and stamping `lastPresentAt` then would record a presence
+ * that was already over — see below, where the difference is the whole of it.
+ *
+ * It used to carry the self-mute too: a tap cleared it and a lost connection
+ * kept it, on the reasoning that the client re-enters by itself and clearing
+ * the mute would hand back a live microphone nobody asked for. That rule is
+ * gone as of 2026-08-21, because the state it produced could not be described
+ * — the roster said "Stepped out 2 hours ago · muted" about somebody who was
+ * both absent and, apparently, doing something. A mute belongs to a
+ * conversation; every way of leaving one ends it. See DECISIONS.md § *Every
+ * departure clears the self-mute, and the microphone is not the reason why*.
  */
 function stepOut(
   state: ChannelState,
@@ -788,6 +788,20 @@ function stepOut(
         state.floor.holder === userId
           ? releaseFloor(state.floor, now)
           : state.floor,
+      // And so does the microphone: leaving puts it back as you found it,
+      // however you left. A mute is a thing you do *during* a conversation —
+      // to cough, to type, to talk to somebody in the room you are actually in
+      // — so it is scoped to the conversation, and a departure is the end of
+      // one whether or not anybody chose it. Carried across, it stops being an
+      // action and becomes a setting: you come back inaudible on a decision
+      // you made an hour ago and have no cause to remember, and nothing on the
+      // way in says why.
+      //
+      // The re-entry this opens is the point rather than a cost of it. What it
+      // does *not* open is a microphone in a pocket — see `microphoneNeeded`,
+      // which stays shut until somebody else is present or a recording you
+      // started is running. DECISIONS.md carries the case that was traded away.
+      selfMuted: { ...state.selfMuted, [userId]: false },
     },
     now
   );

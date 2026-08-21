@@ -1104,3 +1104,70 @@ The test that pinned the specific mode was rewritten. It had asserted
 the exclusion established by measurement (never `RestartEngine`), that the value
 is a real mode rather than the sentinel, and that the call reads before it
 writes.
+
+---
+
+## Every departure clears the self-mute, and the microphone is not the reason why
+
+Reported 2026-08-21 as a screenshot and a question: the roster read **`Golf ·
+Stepped out 2 hours ago · muted`**, and there is no way to read that. Absence is
+a state; a mute is an act. Saying both at once claims somebody is doing
+something while not being anywhere.
+
+It was not a rendering fault. `ParticipantCard` composes the line from two
+independent lookups — presence for the status, `selfMuted[id]` for the suffix —
+and both were telling the truth. Golf muted himself, his phone dropped, the
+grace period ran out, and `DISCONNECT_EXPIRED` deliberately kept the mute while
+`STEP_OUT` deliberately cleared it. That asymmetry is
+`DECISIONS-2026-08-07-to-2026-08-13.md` § *Stepping out clears your self-mute;
+losing your connection does not*, and this entry retires it.
+
+**The rule now is that leaving puts the microphone back as you found it,
+however you left.** The reset moved out of the `STEP_OUT` case and into
+`stepOut` itself, which every departure passes through — a tap,
+`DISCONNECT_EXPIRED`, `LEAVE_CHANNEL` and `DELETE_CHANNEL`. `chosen` survives,
+but it is now about clocks alone: which of `lastPresentAt` and `waiting` a
+departure stamps. One rule instead of two that had to agree.
+
+**What was traded away, stated plainly, because it was a real argument and not
+an oversight.** The client re-enters by itself when a socket comes back
+(`socket.ts`, `enteredChannel`). So a phone that dropped in a pocket now
+re-enters unmuted, with nobody asked and nothing tapped, having been muted on
+purpose. The old rule existed to prevent exactly that, and the case for it was
+that a deliberate departure has somebody's attention where a timeout has
+nobody's.
+
+**Three things bound the exposure, and they are why the trade is affordable.**
+
+- **`microphoneNeeded` keeps the device shut anyway.** A re-entry into a
+  channel where nobody else is present opens nothing — the microphone stays
+  closed until somebody else arrives, or until a recording *you* started is
+  running. The pocket case, which is the one the old rule was written about, is
+  the case that costs nothing.
+- **Nothing is cleared during the grace period.** A connection that flaps and
+  returns inside `DISCONNECT_GRACE_MS` keeps the mute, because nobody has left.
+  The old rule was defending a window; that window is still defended, by the
+  grace period, which is what it was for.
+- **A surviving mute is unsayable, and unsayable state gets acted on wrong.**
+  The screenshot is the evidence. Somebody reading that roster has to decide
+  what "absent and muted" means about whether to wait for Golf, and there is no
+  correct answer to reach.
+
+**The alternative considered and rejected was to fix the sentence instead** —
+render it as "will return muted", which is what the flag actually predicted.
+That is honest and it is cheaper, and it was declined because it documents the
+trap rather than removing it: the person it warns is the one *reading* the
+roster, and the person who walks back in inaudible is the one who never sees
+it. A state whose only defence is a well-worded label is still a state somebody
+returns into silently.
+
+Two tests carry the change. `connectivity.test.ts` had a test named *keeps a
+self-mute that stepping out would have cleared*, asserting the old rule with its
+reasoning in a comment; it is inverted and renamed. Alongside it is a new one
+pinning the half that did **not** change — a mute survives a disconnection that
+reconnects inside the grace period — because that is the part a later reading of
+this entry is most likely to over-apply.
+
+`BACKLOG.md` item 6, *self-mute across leave and re-entry*, is closed by this:
+it asked whether leaving muted should mean returning muted, and the answer is
+now no, uniformly, by construction rather than by each case agreeing.

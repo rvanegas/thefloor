@@ -35,15 +35,25 @@ total map over participants. Written by `SET_SELF_MUTE`, guarded by
 **Conditions.** Unilateral and unlimited, with one exception: `canSetSelfMute`
 refuses only *muting*, and only to the floor-holder — a muted holder is the one
 configuration in which the whole channel is inaudible. Unmuting is always
-allowed. Cleared on `STEP_OUT`, on `CLAIM_FLOOR` (nobody claims the floor in
-order to stay silent), and set false for an invitee on `INVITE`. Removed
-entirely on `LEAVE_CHANNEL`.
+allowed. **Cleared by every departure**, inside `stepOut` itself, which
+`STEP_OUT`, `DISCONNECT_EXPIRED`, `LEAVE_CHANNEL` and `DELETE_CHANNEL` all pass
+through. Also cleared on `CLAIM_FLOOR` (nobody claims the floor in order to
+stay silent), and set false for an invitee on `INVITE`. Removed entirely on
+`LEAVE_CHANNEL`, membership being gone.
 
-**Deliberately kept across `DISCONNECT_EXPIRED`.** This is the one rule that
-distinguishes losing your connection from stepping out, and it is asymmetric on
-purpose: a phone that dropped for a minute must not come back with a live
-microphone its owner had deliberately closed, and the reconnect path re-enters
-by itself so nobody would be asked first.
+**Scoped to a conversation, not to a person.** Until 2026-08-21 this was the
+one rule that distinguished losing your connection from stepping out:
+`DISCONNECT_EXPIRED` kept the mute, on the reasoning that a phone that dropped
+for a minute must not come back with a live microphone its owner had
+deliberately closed, the reconnect path re-entering by itself. What retired it
+is that the surviving mute had no way to be described — the roster read
+`Stepped out 2 hours ago · muted`, which asserts a present-tense act by
+somebody who is not there. **Note what did not change: nothing is cleared
+during the grace period**, so a connection that flaps and returns inside
+`DISCONNECT_GRACE_MS` keeps the mute, because nobody has left. The exposure
+traded away is bounded by `microphoneNeeded`, which keeps the device shut until
+somebody else is present. See DECISIONS.md § *Every departure clears the
+self-mute, and the microphone is not the reason why*.
 
 **Where the sources disagree.** *One person's self-mute is now an input to
 everybody's audio session.* Since 2026-08-18 the session configuration is chosen

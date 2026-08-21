@@ -549,8 +549,11 @@ No assertions exist for these. Ordered by how likely they are to be wrong.
 5. **Recording paused, then the other party claims.** Resume is deliberately
    unrestricted, so a silenced party can resume but not re-pause. Verify that is
    not a control that looks broken.
-6. **Self-mute across leave and re-entry.** `selfMuted` is never reset on
-   `LEAVE`, so someone who leaves muted returns muted. Probably right; the spec
-   does not say.
+6. **Self-mute across leave and re-entry.** *Closed 2026-08-21.* The spec still
+   does not say, so it was decided: every departure clears it, in `stepOut`
+   itself rather than case by case, and `connectivity.test.ts` now asserts both
+   that and the half that did not change — a mute survives a reconnection
+   inside the grace period. DECISIONS.md § *Every departure clears the
+   self-mute, and the microphone is not the reason why*.
 7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
    reducer returns early on non-active channels — but untested.
