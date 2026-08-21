@@ -47,6 +47,18 @@ yarn-error.*
 ios/
 android/
 
+# ...but a *local Expo module* keeps its hand-written native source in a
+# directory called `ios`, and the unanchored rule above swallows it. That cost
+# build 61 on 2026-08-20: `git add -A` committed the module's config and its
+# TypeScript and silently dropped the Swift and the podspec, so the module was
+# never autolinked, the build succeeded, and the diagnostic it existed for read
+# "route unreadable" on the phone.
+#
+# The directory has to be un-ignored, not just its contents: git does not
+# descend into an excluded directory, so `!app/modules/*/ios/**` alone would
+# never be consulted.
+!app/modules/*/ios/
+
 # editor backups
 *~
 

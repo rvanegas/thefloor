@@ -969,3 +969,42 @@ measured, not assumed, exactly like everything else here.
 Everything the module reads is diagnostic and degrades to null: absent under
 jest, absent on Android, absent if autolinking misses it. It is loaded on the
 path that carries live audio and must never be able to take a call down.
+
+## `.gitignore` ate the native half of a module — 2026-08-20
+
+Build 61 shipped the route reader and the route reader was not in it. The build
+succeeded, the release script's native-module check passed, and the panel on the
+phone would have read `route unreadable`.
+
+**`.gitignore` carried an unanchored `ios/`**, there to keep the ~1GB
+`app/ios/` out of the repository. A *local Expo module* keeps its hand-written
+native source in a directory called `ios` too, so the rule matched
+`app/modules/audio-route/ios/` and `git add -A` committed the module's
+`expo-module.config.json` and its TypeScript while silently dropping the Swift
+and the podspec. Removing the worktree then deleted the only copies.
+
+**Every guard in the chain was blind in the same direction.** Without a podspec
+the autolinker does not see the module at all — so it is not in the expected
+list, so nothing is missing from `Podfile.lock`, so the check that exists
+precisely to catch an unlinked module passed while reporting the same count as
+the build before. The wrapper is written to degrade to null rather than throw,
+which is right on a path carrying live audio and also means the failure reaches
+the phone as a polite message rather than a crash.
+
+That is four instruments in one day that failed by going quiet: `log stream`
+aimed at a device, a diff that samples either side of an await, a check that can
+only see modules the linker already found, and now a commit that omits what it
+was not shown. **The rule is the same each time: ask what the instrument would
+have printed had the thing been happening, and if the answer is "nothing", it is
+not an instrument yet.**
+
+Two changes. `.gitignore` un-ignores `app/modules/*/ios/` — the *directory*,
+because git does not descend into an excluded one and a `**` pattern under it
+would never be consulted. And `bin/release-ios` now fails when a directory under
+`app/modules` is absent from the autolinker's output, which is the check that
+sees an absence rather than a mismatch; it was tested against the build-61
+condition and fails on it.
+
+**The build number is spent.** 61 is uploaded and tagged and cannot be
+un-issued, and it is the second build today whose only purpose was a
+measurement it could not take.

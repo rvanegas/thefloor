@@ -131,6 +131,36 @@ if (missing.length) {
   console.error('  The archive would build and fail at launch. Stopping.');
   process.exit(1);
 }
+
+// The check above can only see a module the autolinker already knows about, so
+// it is blind to one that was never linked at all — which is a *quieter*
+// failure and cost build 61 on 2026-08-20. A local module keeps its native
+// source in a directory called `ios`, `.gitignore` carried an unanchored `ios/`
+// rule, and `git add -A` committed the module's config and TypeScript while
+// silently dropping the Swift and the podspec. Without a podspec the module is
+// not autolinked, so nothing was missing from the lock, this check passed, the
+// archive built, and the diagnostic the module existed for reported "route
+// unreadable" on the phone.
+//
+// So: every directory under app/modules is a module somebody wrote by hand and
+// meant to ship. Each one must have come out of the autolinker.
+const localDir = 'app/modules';
+if (fs.existsSync(localDir)) {
+  const linked = new Set(modules.map((m) => m.packageName));
+  const unlinked = fs
+    .readdirSync(localDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .filter((name) => !linked.has(name));
+  if (unlinked.length) {
+    console.error('✗ local modules present on disk but not autolinked:');
+    for (const name of unlinked) console.error(`    ${localDir}/${name}`);
+    console.error('  Usually a missing podspec — check `git status --ignored`');
+    console.error('  before assuming the file is there. Stopping.');
+    process.exit(1);
+  }
+}
+
 console.log(`  ${expected.length} native modules present in Podfile.lock`);
 JS
 
