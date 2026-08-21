@@ -874,3 +874,52 @@ reading exists, so that the interpretation cannot be fitted to the answer.
 fix.** One miss is ordinary. The second is a signal to stop and instrument, and
 the cost of instrumenting should be compared against the *remaining* rounds, not
 against one more read of the source.
+
+## The first reading, and the two things it could not see — 2026-08-20
+
+Build 59 put the engine snapshot on the phone and it worked. Self-muting with a
+second person present, on AirPods Pro:
+
+    16:40:20 muted:     microphoneMuted: false -> true
+    16:40:25 capturing: microphoneMuted: true -> false
+
+**One field, both directions.** `recording` did not change. `engineRunning` did
+not change. Nothing else moved. So at rest, either side of a self-mute, the
+engine is still running and still recording — the input is not being stopped —
+and the profile handover happens anyway.
+
+That is evidence against two of the four attempts on their own terms: the track
+is not being released (build 57 did its job) and the engine is not being left
+stopped (build 58's concern). It is not yet evidence for anything.
+
+**Because the instrument had two holes, and they are the same hole twice.**
+
+`engineDiff` prints only fields that *changed*. `muteMode` does not change
+across a mute — so a `configureMuteMode` that silently failed leaves the engine
+on `RestartEngine` and produces a display identical to a successful one. The
+absolute values were never on screen.
+
+And it samples either side of the await. **An engine that stops and restarts
+inside that window is running again before the second sample**, and reports as
+nothing having happened — which is indistinguishable from an engine that never
+moved, and is the more interesting of the two. A restart is precisely what was
+being ruled in or out.
+
+Both holes have the shape this project has now met three times: **an instrument
+that goes quiet reads as evidence of absence.** `log stream` aimed at a phone
+did it by succeeding and printing nothing. A narrow predicate does it by
+matching nothing. A before/after diff does it by sampling either side of the
+event. The rule worth carrying: before believing a null reading, ask what the
+instrument would have shown had the thing been happening.
+
+**So the fix was to the instrument, not the app**, which is what the stopping
+rule in TASKS.md required. `engineLine` prints all ten fields including
+`muteMode`; `watchTransition` samples every 40ms across a 1.2s window and
+reports every value a field was seen to take, so a flicker cannot hide inside an
+await. A test drives a field down and back up and fails if the watcher misses
+it.
+
+Still no fifth fix. The next reading either shows `mode=0` with no flicker — in
+which case the engine really is undisturbed and the route is moving for a reason
+none of this has touched — or it shows something that moved, and that is the
+mechanism.

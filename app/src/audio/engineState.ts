@@ -95,3 +95,74 @@ export function engineDiff(
     .map((k) => `${k}: ${String(before[k])} -> ${String(after[k])}`);
   return moved.length === 0 ? 'nothing moved' : moved.join(', ');
 }
+
+/**
+ * The whole snapshot on one line, short enough to read on a phone.
+ *
+ * **Needed because `engineDiff` prints only what changed**, and the first
+ * reading taken with it — 2026-08-20, build 59 — was `microphoneMuted: false ->
+ * true` and nothing else. That looks decisive and is not: `muteMode` does not
+ * change across a mute, so a `configureMuteMode` that had silently failed would
+ * leave the engine on `RestartEngine` and produce exactly the same display.
+ * The absolute values close that hole.
+ */
+export function engineLine(s: EngineSnapshot | null): string {
+  if (!s) return 'no engine';
+  const flag = (b: boolean) => (b ? 'T' : 'F');
+  return [
+    `run=${flag(s.engineRunning)}`,
+    `rec=${flag(s.recording)}`,
+    `play=${flag(s.playing)}`,
+    `mut=${flag(s.microphoneMuted)}`,
+    `mode=${s.muteMode}`,
+    `vp=${flag(s.voiceProcessingEnabled)}`,
+    `byp=${flag(s.voiceProcessingBypassed)}`,
+    `prep=${flag(s.recordingAlwaysPrepared)}`,
+    `in=${flag(s.inputAvailable)}`,
+    `out=${flag(s.outputAvailable)}`,
+  ].join(' ');
+}
+
+/**
+ * Watches for a field that moves and moves back, which a before/after
+ * comparison cannot see at all.
+ *
+ * **This is the hole the first reading fell into.** `engineDiff` samples either
+ * side of the await, so an engine that stops and restarts within it is running
+ * again by the time the second sample is taken and reports as *nothing
+ * happened* — indistinguishable from an engine that never moved, and the more
+ * interesting of the two. Sampling across the window catches it.
+ *
+ * Cheap enough to run on a real transition: every reader is a synchronous
+ * native call, and this ships only in a diagnostic build.
+ *
+ * @returns every field seen to differ from where it started, at any point in
+ *          the window, with all the values it was seen to take; the empty
+ *          string if none did.
+ */
+export async function watchTransition(
+  before: EngineSnapshot | null,
+  windowMs = 1200,
+  everyMs = 40
+): Promise<string> {
+  if (!before) return '';
+  const seen = new Map<keyof EngineSnapshot, Set<string>>();
+  const deadline = Date.now() + windowMs;
+  while (Date.now() < deadline) {
+    const now = engineSnapshot();
+    if (now) {
+      for (const k of Object.keys(before) as (keyof EngineSnapshot)[]) {
+        if (now[k] !== before[k]) {
+          const set = seen.get(k) ?? new Set<string>();
+          set.add(String(now[k]));
+          seen.set(k, set);
+        }
+      }
+    }
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+  if (seen.size === 0) return '';
+  return [...seen.entries()]
+    .map(([k, vals]) => `${k}->${[...vals].join('/')}`)
+    .join(' ');
+}

@@ -15,7 +15,12 @@ import {
 } from '@livekit/react-native';
 import { api } from '../api/http';
 import { nameOf, policyFor, sessionFor } from './session';
-import { engineDiff, engineSnapshot } from './engineState';
+import {
+  engineDiff,
+  engineLine,
+  engineSnapshot,
+  watchTransition,
+} from './engineState';
 import {
   NOBODY_SPEAKING,
   nextReleaseAt,
@@ -114,8 +119,11 @@ export interface SessionAudio {
   engineLog: string[];
 }
 
-/** How many transitions to keep. Enough for a mute, an unmute and a mistake. */
-const ENGINE_LOG_LIMIT = 6;
+/**
+ * How many *lines* to keep — two or three per transition, so this is about
+ * three transitions: a mute, an unmute and a mistake.
+ */
+const ENGINE_LOG_LIMIT = 9;
 
 /** Apple-only; on Android the category model does not apply. */
 async function applyConfiguration(
@@ -716,16 +724,35 @@ export function useSessionAudio(
     // profile handover were reasoned from source and none of them worked.
     // `engineState.ts` says what each reading would mean.
     const before = engineSnapshot();
-    const report = (): void => {
+
+    // Started *before* the transition rather than after it, because what this
+    // is looking for is a field that moves and moves back inside the await —
+    // an engine that stops and restarts is running again by the time a
+    // before/after comparison takes its second sample, and reads as though
+    // nothing happened. That is exactly how the first reading, on build 59,
+    // came back as one flag moving and nothing else.
+    const transient = watchTransition(before);
+
+    const report = async (): Promise<void> => {
       const at = new Date().toTimeString().slice(0, 8);
-      const line = `${at} ${intent}: ${engineDiff(before, engineSnapshot())}`;
+      const settled = engineSnapshot();
+      const moved = engineDiff(before, settled);
+      const flickered = await transient;
+      const lines = [
+        `${at} ${intent}: ${moved}`,
+        // The absolute state, because the diff above cannot show a field that
+        // never changes — `muteMode` among them, which is the one that says
+        // whether `configureMuteMode` actually took.
+        `  now: ${engineLine(settled)}`,
+      ];
+      if (flickered) lines.push(`  flicker: ${flickered}`);
       if (__DEV__) {
         // eslint-disable-next-line no-console
-        console.log(`[engine] ${line}`);
+        console.log(`[engine] ${lines.join(' | ')}`);
       }
       setState((s) => ({
         ...s,
-        engineLog: [...s.engineLog, line].slice(-ENGINE_LOG_LIMIT),
+        engineLog: [...s.engineLog, ...lines].slice(-ENGINE_LOG_LIMIT),
       }));
     };
 
