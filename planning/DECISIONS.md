@@ -60,6 +60,32 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-21 — `3bf43cb` → `c002d31`
+
+Most recently on 2026-08-21, `3bf43cb` → `c002d31`, carrying one change: the
+self-mute is now cleared by every departure rather than only a chosen one. It
+went out the same day it was reported, from a screenshot of a roster reading
+`Stepped out 2 hours ago · muted`.
+
+**The wire did not move at all.** `git diff 3bf43cb..HEAD -- core/protocol.ts`
+is empty — this is a `core/` reducer change and nothing about it is visible on
+the wire, so no installed build can tell the difference except by the state it
+is sent. Against `build/51`, the oldest installed and the floor, the standing
+drift is 140 lines and still all optional fields and comments.
+
+Verified against production afterwards: `/healthz` reporting `c002d31` and
+`minBuild: 51`, `/support` and `/privacy` serving pages, `/home` answering 401
+unauthenticated.
+
+**Deployed from a stashed tree, deliberately, and that is the reusable part.**
+An unrelated `planning/TASKS.md` edit was in progress, and since `bin/deploy`
+ships the working tree rather than a ref it would have stamped the box
+`c002d31-dirty` on account of a roadmap note. `git stash push <path>`, deploy,
+`git stash pop` costs nothing and keeps `/healthz` answering with a sha that
+exists in the history. **The dirty marker is worth protecting rather than
+tolerating**: its value is entirely in being rare, and a box that is usually
+`-dirty` reports nothing at all.
+
 Moved out of AGENTS.md on 2026-08-15, where it had grown nine deploys deep and
 was being paid for in every session's context. What a fresh reader needs at the
 root is the current state and the traps; the sequence that produced it is this.

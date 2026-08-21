@@ -108,7 +108,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 593 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 605 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -311,27 +311,39 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-21, `3bf43cb` → `c002d31`, carrying one change: the
-self-mute is now cleared by every departure rather than only a chosen one. It
-went out the same day it was reported, from a screenshot of a roster reading
-`Stepped out 2 hours ago · muted`.
+Most recently on 2026-08-21, `c002d31` → `ef57b7b`, carrying the audio
+diagnostic panel and the two entries that closed with it. **This is the deploy
+that adds a column to the live database** — `accounts.debug`, nullable, added
+by the guarded `ALTER TABLE` in `db.ts`. Verified after the fact rather than
+assumed: `PRAGMA table_info(accounts)` shows it, and it is null for all eight
+accounts, which is the value that means no panel.
 
-**The wire did not move at all.** `git diff 3bf43cb..HEAD -- core/protocol.ts`
-is empty — this is a `core/` reducer change and nothing about it is visible on
-the wire, so no installed build can tell the difference except by the state it
-is sent. Against `build/51`, the oldest installed and the floor, the standing
-drift is 140 lines and still all optional fields and comments.
+**The wire moved, and this is the two-step, first half.** `hello` gains
+`debug?: boolean`, optional and sent only when true, so the server now speaks a
+field no installed build reads and every installed build ignores. That is the
+order AGENTS.md requires and it needs no shim to remove later. Against
+`build/51`, the oldest installed and the floor, the standing drift is 128
+lines and still all optional fields and comments. **No iOS build carries the
+panel yet**; it reaches a phone on the next upload.
 
-Verified against production afterwards: `/healthz` reporting `c002d31` and
+Verified against production afterwards: `/healthz` reporting `ef57b7b` and
 `minBuild: 51`, `/support` and `/privacy` serving pages, `/home` answering 401
 unauthenticated.
 
-**Deployed from a stashed tree, deliberately, and that is the reusable part.**
-An unrelated `planning/TASKS.md` edit was in progress, and since `bin/deploy`
-ships the working tree rather than a ref it would have stamped the box
-`c002d31-dirty` on account of a roadmap note. `git stash push <path>`, deploy,
-`git stash pop` costs nothing and keeps `/healthz` answering with a sha that
-exists in the history. **The dirty marker is worth protecting rather than
+**The flag was then set for one account**, which is the whole of turning the
+panel on:
+
+    bin/db --write "update accounts set debug = 1 where identifier = '…'"
+
+It takes effect at that account's next reconnect, since `hello` reads the row
+as the socket opens. `select count(*) from accounts where debug = 1` is the
+check, and the answer should stay small enough to name.
+
+**First deploy under the clean-tree guard**, added in the same commit range —
+`bin/deploy` now refuses a dirty tree unless asked with `--dirty`. The previous
+deploy had to stash an unrelated roadmap edit by hand to avoid stamping the box
+`-dirty`; that manoeuvre is still valid and is now the thing the guard makes you
+notice rather than remember. **The dirty marker is worth protecting rather than
 tolerating**: its value is entirely in being rare, and a box that is usually
 `-dirty` reports nothing at all.
 
