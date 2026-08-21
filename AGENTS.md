@@ -108,7 +108,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 588 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 593 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -269,7 +269,11 @@ rules.
 - **`bin/deploy` rsyncs the working tree, not a git ref**, deliberately — so it
   stamps `server/deployed.json` with the sha, marked `-dirty` when the tree
   was. `GET /healthz` and the startup log report it, and the deploy now fails
-  if the box comes back not reporting the sha just sent.
+  if the box comes back not reporting the sha just sent. **Since 2026-08-21 it
+  refuses a dirty tree unless you pass `--dirty`**, which is the same trade
+  `bin/db --write` makes: shipping the working tree means unrelated work in
+  progress rides along, and whoever runs it is usually deploying for a
+  different reason. The box sat on `cc0e8a9` for a day from exactly that.
 - **Every upload is tagged `build/<n>`, by `bin/upload-ios`**, which refuses a
   dirty tree: a tag is permanent where a deploy is reversible. Tags are not
   pushed automatically; the command is printed.
@@ -341,7 +345,8 @@ raising it is the first move if it ever bites, not a hardware limit —
 `bin/usage peak` says how close it has ever come.
 
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
-runs the tests first and refuses to continue if they fail.
+runs the tests first and refuses to continue if they fail, and refuses a dirty
+tree before it does either — `--dirty` if you mean it.
 
 ### Never ship a wire change to a server before the client can speak it
 

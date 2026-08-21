@@ -1143,6 +1143,30 @@ the exclusion established by measurement (never `RestartEngine`), that the value
 is a real mode rather than the sentinel, and that the call reads before it
 writes.
 
+**It worked. The tone is gone, and `InputMixer` is what did it** — confirmed
+2026-08-21, on the build that carried it. Six builds and four fixes had been
+aimed at a Bluetooth profile handover that measurement then proved was not
+happening at all; what was left was the mute itself, and moving it out of
+Apple's voice-processing unit and into WebRTC's own mixer node ended it. The
+experiment above was the one that paid.
+
+**The entry sat open for two builds and that is the part worth keeping.** This
+paragraph was written on 2026-08-21, after the fact, because nothing recorded
+the outcome at the time: build 63 shipped the change, 64 and 65 went past, and
+DECISIONS, TASKS and STATES all still read as an experiment awaiting a result.
+The answer existed — somebody had heard it — and no file knew. **An
+unrecorded result is indistinguishable from an untaken measurement**, and this
+investigation had already been bitten once by the same shape from the other
+direction, when STATES.md disagreement 5 said "fixed in source, unconfirmed on
+device" and was believed as fixed anyway. A reading is not finished when it is
+taken; it is finished when it is written down.
+
+**What this does not establish**, since the reason four fixes missed is that
+each was confident past its evidence: not *why* the mixer mute is silent where
+the voice-processing mute was not. No string in the framework says iOS plays
+the tone, Apple's frameworks are not inspectable from here, and nothing about
+the fix required knowing. The mechanism is unestablished and the result is not.
+
 ---
 
 ## Every departure clears the self-mute, and the microphone is not the reason why

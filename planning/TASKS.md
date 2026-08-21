@@ -8,15 +8,28 @@ and things to go and find out. There are more in BACKLOG.md.
 
 Idleness display at zero is "Nobody is here right now".
 
-## Self-Mute Still Moves the Audio Category
+## The Self-Mute Tone — CLOSED, and the title was wrong for three builds
 
-**Reported 2026-08-19. Four fixes on 2026-08-20, none of which changed the
-sound.** Self-muting hands a Bluetooth headset from the hands-free link back to
-A2DP and unmuting brings it back, audibly, reproduced on AirPods Pro with
-somebody else talking.
+**Reported 2026-08-19. Fixed by build 63, confirmed 2026-08-21.** Moving the
+mute out of Apple's voice-processing unit and into WebRTC's own mixer node
+(`InputMixer` in `muteMode.ts`) ended it. DECISIONS.md § *Muting moves from
+Apple's unit to our own mixer* carries the result and what it does not
+establish.
 
-**Stop proposing mechanisms. The next move is a reading.** What was tried, in
-order, each plausible and each kept because each corrected something real:
+**This was headed "Self-Mute Still Moves the Audio Category" until it was
+closed, and had been wrong since build 62** — which read the route either side
+of a mute and found `BluetoothHFP` at 24 kHz both times, no route change, no
+category movement. The heading outlived its own disproof by three builds, and
+a heading is what somebody scans. Left recorded rather than quietly corrected:
+it is the same failure as the one below, where the result existed and no file
+knew.
+
+**Kept in full below, because the method is the valuable part.** Six builds,
+four fixes across three layers, all reasoned from source, none of them this
+bug. What follows is the record of that.
+
+**What was tried, in order, each plausible and each kept because each corrected
+something real:**
 
 | Build | Aimed at | Result |
 | --- | --- | --- |
@@ -62,8 +75,17 @@ wrong layer entirely, and the route is the remaining suspect — which was
 awkward, because at the time nothing in this stack could read a route. That
 closed the same day: STATES.md disagreement 8, and the panel below reads it.
 
-**Do not ship a fifth fix before that reading exists.** It is the only
-instruction in this entry that matters.
+**Do not ship a fifth fix before that reading exists.** It was the only
+instruction in this entry that mattered, and it is how this closed: the reading
+came first, killed the premise all four fixes shared, and left exactly one
+variable, which build 63 changed.
+
+**The reading was taken and then not written down, which nearly cost it.**
+Build 63 shipped, 64 and 65 went past, and every file still described an
+experiment awaiting a result that somebody already had. It was recovered on
+2026-08-21 by asking. An unrecorded result is indistinguishable from an
+untaken measurement — that is the standing lesson, and it is filed in
+DECISIONS.md with the rest.
 
 If the syslog relay is wanted as well, it takes the phone on **USB** — a network
 pairing is not enough, and `devicectl` will happily report the device

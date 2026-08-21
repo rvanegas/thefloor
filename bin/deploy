@@ -2,10 +2,29 @@
 #
 # Ships the server to Lightsail and restarts it.
 #
+#   bin/deploy            refuses unless the tree is clean
+#   bin/deploy --dirty    ships the working tree as it stands, and says so
+#
 # Deliberately rsync rather than git: there is no remote yet, and this keeps
-# deployment to one command that works from a dirty tree. Excludes are the
+# deployment to one command that *can* ship a dirty tree. Excludes are the
 # point — node_modules is rebuilt on the far side for that architecture, and
 # .env there holds production secrets this must never overwrite.
+#
+# **A dirty tree needs asking for, since 2026-08-21.** This warned and
+# continued until then, on the argument that refusing would take away the
+# property the rsync was chosen for. The argument was right about the
+# capability and wrong about the default. What it did not account for is that
+# shipping the working tree makes a deploy carry whatever is in the checkout at
+# the time — so unrelated work in progress rides along, and the person running
+# it is usually deploying for a different reason and has no idea it is there.
+# That has happened: planning/DECISIONS.md records the box sitting on `cc0e8a9`
+# for a day from an accidental run, and it is worse now that several sessions
+# share one checkout and one of them may be holding a half-finished schema
+# migration.
+#
+# So the capability stays and the accident goes, on `bin/db --write`'s
+# reasoning: poking at production is a normal thing to want to do, and doing it
+# by accident on the way to something else is not.
 #
 # Live channels live in memory, so a restart drops every call in progress.
 # There is no way around that yet; see planning/BACKLOG.md.
@@ -16,6 +35,38 @@ KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
 SSH="ssh -i $KEY -o BatchMode=yes"
 
 cd "$(dirname "$0")/.."
+
+allow_dirty=false
+for arg in "$@"; do
+  case "$arg" in
+    --dirty) allow_dirty=true ;;
+    # The whole comment block, however long it grows — same as bin/db, and for
+    # the same reason: a fixed line range silently truncates the help the
+    # moment the header gains a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+
+# Before the tests rather than after, so a tree that is going to be refused is
+# refused in a second instead of at the end of a minute's work. The porcelain
+# check is repeated below where the stamp is written; it is two lines and
+# reads locally, which is cheaper than carrying state between the two.
+if [ -z "$(git status --porcelain)" ]; then
+  :
+elif $allow_dirty; then
+  : # Asked for. The warning and the -dirty stamp are below, unchanged.
+else
+  echo "✗ the tree is dirty; this ships the working tree, not a commit" >&2
+  echo >&2
+  git status --short >&2
+  echo >&2
+  echo "  commit or stash first, or 'bin/deploy --dirty' to ship it as it is" >&2
+  exit 1
+fi
 
 # core and server, not app: this ships the server, and a phone's rendering is
 # not something a deploy can break.
@@ -58,8 +109,10 @@ fi
 # The dirty marker is the point. This script ships the working tree on purpose,
 # so "which commit is on the box" has an honest answer only when the tree was
 # clean — and the times it was not are exactly the times somebody will later
-# want to know. It warns and continues: refusing here would take away the
-# property the rsync was chosen for.
+# want to know. Reaching here dirty now means somebody passed --dirty, so this
+# records a decision rather than catching an accident; the guard above is what
+# turns the second into the first. Its value is entirely in being rare, and a
+# box that is usually -dirty reports nothing at all.
 SHA=$(git rev-parse --short HEAD)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ -n "$(git status --porcelain)" ]; then

@@ -459,21 +459,26 @@ with the `[audio]` lines `useSessionAudio` writes in development builds, and
 Each is phrased to lift into TASKS.md or BACKLOG.md as it stands. Those already
 closed say so.
 
-**Five are closed: 2, 5, 6, 8 and 10.** Everything else is open, but two of those are
-open in a way that reads like closure and is not — **3 and 7 are open by
-design**, 3 because the one case the two names differ in is deliberate and 7
+**Six are closed: 2, 5, 6, 8, 9 and 10.** Everything else is open, but two of
+those are open in a way that reads like closure and is not — **3 and 7 are open
+by design**, 3 because the one case the two names differ in is deliberate and 7
 because `orderChannels` already consults `presentCount`. Both are written down
 here precisely so that a later reading does not "simplify" them; neither is
-waiting on work. The ones actually waiting are 1, 4 and 9, and **9 is the
-live one** — waiting, since 2026-08-20, on somebody *hearing* it rather than on
-somebody writing anything. It has been fixed in source twice in a day and
-neither fix has been put to a Bluetooth headset.
+waiting on work. The ones actually waiting are **1 and 4**, and neither is
+urgent.
+
+**9 was the live one and closed on 2026-08-21**, on a device, after six builds.
+It is worth reading even though it is closed: it is the longest-running wrong
+premise this project has had, and both of its lessons are about evidence rather
+than audio.
 
 **The list is not in numeric order.** 9 sits between 5 and 6, next to the entry
 that hands off to it, since 5's closure is only legible alongside the fault it
-was mistaken for. 10 sits under 8 for the same reason — it is what gave 8's
-module a caller again. Scanning by number is how 9 gets missed, which is the
-wrong one to miss. The numbers are stable references and are not to be reassigned to
+was mistaken for — and now that both are closed the pairing is the point, one
+having been recorded as fixed before anybody listened and the other having been
+fixed without anybody recording it. 10 sits under 8 for the same reason: it is
+what gave 8's module a caller again. The numbers are stable references and are
+not to be reassigned to tidy this up. The numbers are stable references and are not to be reassigned to
 tidy this up — renumbering would silently repoint anything that has already
 lifted an entry elsewhere.
 
@@ -500,12 +505,26 @@ lifted an entry elsewhere.
    sharing a symptom; see 9. The lesson is the process one: this was reasoned
    from source, shipped, and documented as a fix before anybody had heard it,
    and the entry said so and was believed anyway.
-9. **A self-mute moved the Bluetooth profile, and the category was not why.**
-   *Fixed in source, unverified on a device.* Muting used to stop capture, and
-   stopping capture is what releases the hands-free link. Muting and letting go
-   are now two different closes — `MicIntent` in `useSessionAudio.ts` — and only
-   the second touches the device. **Do not stamp this closed from the diff**;
-   the entry above it is what happens when somebody does.
+9. **A self-mute played a tone, and neither the category nor the profile was
+   why.** *Closed 2026-08-21, on a device.* The premise held for six builds —
+   that muting handed a Bluetooth headset out of A2DP and back — and
+   measurement killed it: build 62 read `BluetoothHFP` at 24 kHz either side of
+   a mute with no route-change event, from a listener proven to fire. What was
+   left was the mute itself. Build 63 moved it from Apple's voice-processing
+   unit to WebRTC's own mixer node and the tone stopped.
+
+   `MicIntent` in `useSessionAudio.ts` stays and is still right — muting and
+   letting go are two different closes, and only the second touches the device
+   — but it was not this bug, and neither were the other three fixes. Each
+   corrected something real. **The warning this entry used to carry, "do not
+   stamp this closed from the diff", is what closed it**: nobody did, the
+   reading was taken first, and it disproved the thing four fixes had assumed.
+
+   The second failure is the one to carry forward. The result was heard on
+   build 63 and written down nowhere, so this entry and two others read as
+   open for three builds while the answer existed. **An unrecorded result is
+   indistinguishable from an untaken measurement** — the mirror of 5, which
+   was recorded as fixed before anybody had listened.
 6. **Membership, presence and connectivity are three states the request's list
    treats as one.** Closed by documentation; the code was always right.
 7. **`lastActiveAt` cannot answer whether a channel is occupied**, and anything
