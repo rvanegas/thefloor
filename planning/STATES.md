@@ -301,14 +301,30 @@ turn on.
 
 **These are our names, not Apple's, and they are requests rather than states.**
 Each is an `AppleAudioConfiguration` bundling three AVAudioSession settings — a
-category, its options, and a mode. We write; iOS disposes; nothing reads the
-result back.
+category, its options, and a mode. We write; iOS disposes.
+
+**"Nothing reads the result back" was true until 2026-08-21 and is the sentence
+this whole file was missing.** `app/modules/audio-route` reads the category,
+mode and options the session *actually* has, and
+`app/src/audio/diagnostics.ts` sets them against what was asked for. A request
+and a state are still two different things — that is why this entry is worded
+as it is — but they can now be compared rather than assumed equal. See
+disagreement 10.
 
 | | category | options | mode |
 | --- | --- | --- | --- |
 | `IDLE` | `playback` | `mixWithOthers` | `spokenAudio` |
 | `LISTENING` | `playback` | *(none)* | `spokenAudio` |
-| `CALL` | `playAndRecord` | `allowBluetooth`, `allowBluetoothA2DP`, `allowAirPlay`, `defaultToSpeaker` | `videoChat` |
+| `CALL` | `playAndRecord` | `allowBluetooth`, `allowAirPlay`, `defaultToSpeaker` | `videoChat` |
+
+**`allowBluetoothA2DP` was in that row and came out in build 65**, and its
+absence is the point rather than an omission. A2DP is output-only, so listing
+it under `playAndRecord` made a Bluetooth speaker with no microphone an
+eligible *output*: iOS kept the far end on the speaker and took input from the
+built-in mic in the same room, which is an echo path. `session.ts` carries the
+argument, and it is the second time this option has been removed — build 19
+took it out for a different reason and put it back on a reading that was
+probably wrong.
 
 Three settings carry all the behaviour:
 
@@ -443,7 +459,7 @@ with the `[audio]` lines `useSessionAudio` writes in development builds, and
 Each is phrased to lift into TASKS.md or BACKLOG.md as it stands. Those already
 closed say so.
 
-**Four are closed: 2, 5, 6 and 8.** Everything else is open, but two of those are
+**Five are closed: 2, 5, 6, 8 and 10.** Everything else is open, but two of those are
 open in a way that reads like closure and is not — **3 and 7 are open by
 design**, 3 because the one case the two names differ in is deliberate and 7
 because `orderChannels` already consults `presentCount`. Both are written down
@@ -455,8 +471,9 @@ neither fix has been put to a Bluetooth headset.
 
 **The list is not in numeric order.** 9 sits between 5 and 6, next to the entry
 that hands off to it, since 5's closure is only legible alongside the fault it
-was mistaken for. Scanning by number is how 9 gets missed, which is the wrong
-one to miss. The numbers are stable references and are not to be reassigned to
+was mistaken for. 10 sits under 8 for the same reason — it is what gave 8's
+module a caller again. Scanning by number is how 9 gets missed, which is the
+wrong one to miss. The numbers are stable references and are not to be reassigned to
 tidy this up — renumbering would silently repoint anything that has already
 lifted an entry elsewhere.
 
@@ -504,3 +521,24 @@ lifted an entry elsewhere.
    asserting the limitation was itself part of why nobody tried. See BACKLOG.md
    on removing the route picker, which assumes the default is right and would
    remove the only manual recovery there is.
+
+   **It briefly had no caller and now has one again.** The panel that read it
+   was deleted on 2026-08-21 and the module kept, which TASKS.md recorded as a
+   loose end; the diagnostic panel built the same day reads it, so the module is
+   load-bearing rather than parked. See 10.
+10. **What this app asked of the audio session and what the session actually is
+   are two states, and until 2026-08-21 nothing compared them.** *Closed, in the
+   sense that it is now visible; it is not a claim that they agree.* Three
+   writers mutate the same process-wide configuration and the last wins —
+   this app, the SDK's native observer, WebRTC's own defaults — which is the
+   whole subject of `Audio Session Configuration` above. Everything in
+   `session.ts` exists to make the three say the same thing, and reading back
+   what we asked for could never check whether they did.
+
+   `app/src/audio/diagnostics.ts` puts the two side by side and colours a
+   difference; `AudioDebugPanel` shows it on the phone, to accounts with
+   `accounts.debug` set. **The reason this is a numbered disagreement rather
+   than a feature note** is that a divergence here is not a symptom of a bug in
+   this subsystem, it is the shape every bug in it has taken — the build 17
+   echo, the build 19 headphone fallback, the build 65 mic-less speaker. What
+   changed is that the next one is readable rather than audible.

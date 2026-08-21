@@ -872,7 +872,8 @@ export class Accounts {
       .prepare(
         `UPDATE accounts
             SET identifier = ?, display_name = ?, bio = NULL,
-                last_seen_at = NULL, donations_allowed = NULL
+                last_seen_at = NULL, donations_allowed = NULL,
+                debug = NULL
           WHERE id = ?`
       )
       .run(erasedIdentifier(accountId), ERASED_DISPLAY_NAME, accountId);

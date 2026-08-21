@@ -98,6 +98,9 @@ const mockApp = {
   dismissInvite: jest.fn((channelId: string) => {
     mockApp.dismissedInvites = [...mockApp.dismissedInvites, channelId];
   }),
+  // Off, which is what every account is until somebody sets the column by
+  // hand. The panel's own tests are the only ones that turn it on.
+  debug: false,
   appearance: 'system' as 'light' | 'dark' | 'system',
   setAppearance: jest.fn((preference: 'light' | 'dark' | 'system') => {
     mockApp.appearance = preference;
@@ -123,6 +126,10 @@ const AUDIO = {
   othersAudible: 0,
   speaking: [] as string[],
   micOpen: true,
+  // Nothing has been asked of the audio session, which is what a view test
+  // renders against: the diagnostic panel is gated on `mockApp.debug` and is
+  // absent from every case here but its own.
+  asked: null,
 };
 
 /** The same connection, with somebody audible on it. */
@@ -246,6 +253,7 @@ beforeEach(() => {
   mockApp.status = 'open';
   mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
+  mockApp.debug = false;
   jest.clearAllMocks();
 });
 
@@ -3947,5 +3955,67 @@ describe('the order contacts are listed in', () => {
       { id: 'a', displayName: 'Zoe' },
       { id: 'b', displayName: 'Ada' },
     ])).toEqual(['Ada', 'Zoe']);
+  });
+});
+
+describe('the audio diagnostic panel', () => {
+  /**
+   * The gate, which is the whole of what makes this panel permissible to ship.
+   *
+   * The panel it replaces went to every user because there was no way to show
+   * it to one; this one is invisible to every account in the database until
+   * somebody sets `accounts.debug` by hand. A regression here is not cosmetic
+   * — it puts `playAndRecord/videoChat` under the mute button of a stranger.
+   */
+  it('is absent for an ordinary account', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(textOf(tree)).not.toContain('Audio diagnostics');
+    act(() => tree.unmount());
+  });
+
+  it('is offered, collapsed, to an account with the flag', () => {
+    mockApp.debug = true;
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(textOf(tree)).toContain('Audio diagnostics');
+    // Collapsed: even for the one account that asked for it, the channel
+    // screen is not what this is for, and an open panel polls once a second.
+    expect(textOf(tree)).not.toContain('Session — asked vs actual');
+    act(() => tree.unmount());
+  });
+
+  it('reads out both halves once opened', () => {
+    mockApp.debug = true;
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    const toggle = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => n.props?.accessibilityLabel === 'Audio diagnostics');
+    act(() => toggle!.props.onPress());
+
+    const text = textOf(tree);
+    expect(text).toContain('Session — asked vs actual');
+    // Nothing native is present under jest, and the panel has to say that
+    // rather than render a blank line — the failure mode five instruments fell
+    // into on 2026-08-20. See src/audio/diagnostics.ts.
+    expect(text).toContain('unreadable');
+    expect(text).toContain('nothing recorded yet');
+    act(() => tree.unmount());
   });
 });

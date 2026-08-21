@@ -1301,3 +1301,134 @@ looks like in either direction, and says plainly that the failure mode is the
 note ageing into permanence — the panel was deleted to avoid becoming
 furniture, and the thing it read from was kept. Written down because an
 exception recorded only in a commit message is one nobody finds.
+
+## A diagnostic that a column turns on, which is why it can stay — 2026-08-21
+
+The panel deleted earlier the same day is back, rebuilt around a different
+question and gated on `accounts.debug`. `app/src/ui/AudioDebugPanel.tsx`,
+`app/src/audio/diagnostics.ts`, a restored `engineState.ts`, and one optional
+field on `hello`.
+
+**The gate is the decision. Everything else follows from it.** The rule the
+previous panel was deleted under is right — a diagnostic left in place becomes
+furniture — but the rule was written against a panel *every user could see and
+nobody could switch off*. That panel was ungated deliberately: the readings
+need a Bluetooth headset and a second person, which happens away from a Mac, so
+a `__DEV__` gate would have put the answer in Metro where the person holding
+the evidence could not reach it. There was no third option at the time. A
+column on `accounts` is the third option, and it costs one `UPDATE` and a
+reconnect in either direction — no build, no submission, no wait. So the
+instrument can outlive the question it was built for without becoming
+furniture, because furniture is defined by who can remove it.
+
+**It is set by hand and there is deliberately no screen.**
+
+    bin/db --write "update accounts set debug = 1 where identifier = 'someone@example.com'"
+
+Not a preference. A setting somebody can find is a setting somebody turns on
+without knowing what it means, and what this shows is `playAndRecord/videoChat`
+under a mute button.
+
+### What it shows, and why that is a different question from last time
+
+The deleted panel answered *what moves across a mute*. This one answers **what
+this app asked of the audio session, beside what the session actually is**.
+
+That is the one structural fact this subsystem has. Three writers mutate the
+same process-wide `RTCAudioSessionConfiguration.webRTCConfiguration` — this
+app, the SDK's native policy observer, WebRTC re-applying its defaults — and
+the observer runs on the audio worker thread with no JavaScript in the path, so
+it always lands after anything restated from here. Last writer wins. The whole
+of `session.ts` exists to make the three say the same thing, and **until now
+nothing could check whether they did**: reading back what we asked for proves
+only that we remember asking.
+
+So a divergence between the two lines is not a symptom of a bug in this
+subsystem. It is the shape every bug in it has had — the build 17 echo, the
+build 19 headphone fallback, the build 65 mic-less speaker. STATES.md carries
+it as disagreement 10.
+
+The comparison needed the native reader extended: `categoryOptions`, plus
+`isOtherAudioPlaying` and `secondaryAudioShouldBeSilencedHint`. The last two
+are the only readable evidence about somebody *else's* audio — there is no
+public getter for whether our own session is active, so "did foregrounding
+interrupt a podcast" has to be answered from the far side of the question.
+
+**`asked` is echoed, never recomputed.** `useSessionAudio` reports what it
+applied, on the `SessionAudio` it already returns. A panel recomputing
+`sessionFor` from the same inputs would agree with the hook right up until a
+disagreement was the thing being looked for, which is the one moment it
+matters. An echo is a fact; a recomputation is a guess that is usually right.
+
+### The rule the whole thing is written under
+
+DECISIONS records five instruments that failed on 2026-08-20 **by going
+quiet**, each of which read as evidence of absence. That is the design
+constraint here, not a lesson filed next to it:
+
+- Nothing renders as blank or false when the truth is that it could not be
+  read. An unreadable value says `unreadable`; `null` and `false` are never
+  allowed to look alike.
+- An unreadable value is *itself* an alarm, because it is the comparison
+  failing, not the comparison passing.
+- "Module absent or not linked" is distinguished from "no route". Build 61
+  shipped the reader without its Swift half — `.gitignore`'s unanchored `ios/`
+  — and read exactly the first while looking like the second.
+- The log says `nothing recorded yet` rather than showing an empty list.
+
+**And the rule caught something while being written.** `muteModeName` read the
+name off `AudioEngineMuteMode`'s reverse mapping, which exists because
+TypeScript compiles a numeric enum into a two-way object — a property of the
+declaration, not of the SDK's contract. The jest mock declares the same three
+values as a plain object with no reverse mapping, so the lookup returned
+`raw(2)` under test and the right answer on a device. Sixth instance of the
+same shape, caught by a test that would not have existed if the panel had been
+considered too small to test.
+
+### The log, which is not the same instrument as the reading
+
+Some of what this subsystem does cannot be polled. A route change carries iOS's
+own reason code — the only thing separating a profile handover from a session
+deactivating from no change at all — and it exists only on the notification;
+sample a second later and it is gone. So the panel has a bounded event log
+beside the live reading, and `recordEvent` runs for every account whether or
+not anybody has a panel, because a log that started when somebody opened the
+panel would be empty of exactly what they opened it to see. It costs a string
+in a forty-element array that nothing reads.
+
+The recording starts when the panel first mounts and is never stopped, so it
+survives navigating away from the channel. **The consequence, stated rather
+than left to be discovered: a route change before the panel has ever been
+opened is not in the log.**
+
+### On the wire, and the order this ships in
+
+`debug` is an optional field on `hello`, **sent only when true**. That is what
+lets the server deploy before any client can read it: a build that has never
+heard of the field is unaffected, and one that has reads absent as false. The
+two-step AGENTS.md requires, met by construction rather than by a shim to
+remove later.
+
+**Not on `PublicAccount`**, which is the one place it would have been shorter.
+That type is embedded in every roster, invitation and recording row, so the
+flag would have told you which of your contacts was running a diagnostic — a
+fact about them, broadcast to everyone who can see their name, for a panel only
+they will ever look at. `hello` is the one message that is about you and goes
+only to you.
+
+Nothing is gated on the flag but a display, so the worst a wrongly-set one can
+do is clutter somebody's channel screen. It is cleared when an account is
+erased, alongside the other per-account columns.
+
+### What it is pointed at first
+
+The interruption seen once on build 65 and not reproduced: alone in a channel,
+foregrounding the app stopped another app's playback. `sessionFor(false, 0)` is
+`IDLE` with `mixWithOthers`, so the build-65 change could not cause it on the
+face of it — which leaves either "the session was not `IDLE`" or "activation,
+not configuration". **The first half is now a thing to look at rather than
+argue about.** Open the panel, background, foreground, read `asked` against
+`actual` at the log line stamped `app active`. `playAndRecord` against an
+`asked` of `IDLE` confirms the standing hypothesis outright: the observer
+applies `recording: CALL` whenever the engine reports recording, including when
+nothing intends to publish.

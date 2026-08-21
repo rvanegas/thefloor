@@ -22,8 +22,19 @@ export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 const UNAUTHORIZED_CLOSE = 4401;
 
 export interface RealtimeHandlers {
-  /** Identifies who this connection belongs to, per the server. */
-  onHello?: (account: { id: string; displayName: string }) => void;
+  /**
+   * Identifies who this connection belongs to, per the server.
+   *
+   * `debug` is the diagnostic panel's gate, and is false against any server
+   * that has never heard of it — the field is optional and sent only when
+   * true. Passed alongside the account rather than folded into it, because it
+   * is not part of the identity every roster carries: see `ServerMessage` in
+   * core/protocol.ts.
+   */
+  onHello?: (
+    account: { id: string; displayName: string },
+    debug: boolean
+  ) => void;
   onHome?: (home: HomeView) => void;
   onChannel?: (view: ChannelView) => void;
   onChannelGone?: (channelId: string) => void;
@@ -157,7 +168,7 @@ export class Realtime {
 
         case 'hello':
           this.handlers.onServerTime?.(message.serverNow);
-          this.handlers.onHello?.(message.account);
+          this.handlers.onHello?.(message.account, message.debug === true);
           break;
         case 'home':
           this.handlers.onHome?.(message.home);

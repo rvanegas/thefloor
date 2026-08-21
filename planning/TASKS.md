@@ -58,8 +58,9 @@ session does not re-argue it. In short: `recording` going false means the input
 is stopped despite everything, and the next lever is
 `setRecordingAlwaysPreparedMode`, which exists to hold it open. `nothing moved`
 means the engine is not what moves, three of the four fixes were aimed at the
-wrong layer entirely, and the route is the remaining suspect — which is awkward,
-because nothing in this stack can read a route (STATES.md, disagreement 8).
+wrong layer entirely, and the route is the remaining suspect — which was
+awkward, because at the time nothing in this stack could read a route. That
+closed the same day: STATES.md disagreement 8, and the panel below reads it.
 
 **Do not ship a fifth fix before that reading exists.** It is the only
 instruction in this entry that matters.
@@ -108,8 +109,10 @@ check.
    should be unchanged, because the category did not move.
 
 **If 2 fails, the route reader is how to tell what happened** rather than
-guessing a sixth time — see the entry below, and `git revert` of the commit
-that deleted the panel restores the on-screen half.
+guessing a sixth time. It is on screen: set `accounts.debug` and open the
+diagnostic panel — see *A Gated Audio Diagnostic Panel* below. The `out` line
+names the port and `rate` gives the profile numerically, which is the whole
+reason a person who cannot judge it by ear can still run check 2.
 
 **Check 1 passed on build 65**, reported the same day: the reported case is
 fixed. Checks 2 and 3 are still unrun.
@@ -141,9 +144,12 @@ evicts that route and the eviction is audible. That would make the
 interruption a symptom of a pre-existing wrong state rather than a new fault —
 and would explain why this subsystem has resisted fixes reasoned from source.
 
-**If it returns, do not reason about it.** Restore the panel — `git revert` of
-the deletion commit — and read which configuration is applied at foreground.
-That is what the route reader was kept for.
+**If it returns, do not reason about it.** The panel is back and gated, so
+there is nothing to restore: set `accounts.debug`, open it, and read the
+`asked` and `actual` lines at the moment the app foregrounds — the log stamps
+that moment as `app active`. `actual` reading `playAndRecord` against an
+`asked` of `IDLE` confirms the hypothesis above outright. See *A Gated Audio
+Diagnostic Panel*.
 
 ## The Native Route Reader Is Still In The Tree
 
@@ -176,6 +182,66 @@ paused rather than finished.
 module with one test and no callers is exactly the furniture the entry above
 warns about, one level down: the panel was deleted to avoid becoming furniture,
 and the thing it read from was kept.
+
+**Closed the same day, in the second direction.** `app/src/audio/diagnostics.ts`
+reads it, so the module has a caller in the app again and is no longer an
+exception needing a note. It was also extended — `categoryOptions`,
+`otherAudioPlaying` and `secondaryAudioShouldBeSilencedHint` — because the
+comparison the panel exists for needs the options, and the once-seen
+interruption needs the other two. This entry stays as history: the useful part
+is not that the loose end closed, it is that the *reason* it was kept turned
+out to be the reason it was wanted a day later, which is not what usually
+happens to a deferred deletion.
+
+## A Gated Audio Diagnostic Panel
+
+**Built 2026-08-21, and unlike everything above it, it is not temporary.**
+`app/src/ui/AudioDebugPanel.tsx` shows what the iOS audio stack is doing, on
+the phone, under the mute button — where the deleted panel was. What it shows
+is **what this app asked of the audio session beside what the session actually
+is**, plus the route, the engine, whether another app is playing, and a log of
+the things that cannot be polled.
+
+**Read this before deciding it is furniture, because the objection is
+answered.** The rule the entries above set is right: a diagnostic left in place
+becomes furniture. But what makes furniture is being visible to every user with
+nobody able to switch it off, which is what the previous panel was and why it
+had to be deleted before an upload. This one is gated on `accounts.debug`, null
+for every row in the database, and turning it off is:
+
+    bin/db --write "update accounts set debug = null where identifier = 'someone@example.com'"
+
+and a reconnect. No build, no submission, no wait. **Turning it on is the same
+line with `1`.** There is no endpoint and deliberately no screen: it is not a
+preference, and a setting somebody can find is a setting somebody will turn on
+without knowing what it means.
+
+**Who decides, since the entries above ask that of anything kept.** Whoever
+holds the database. The flag is per account and per moment — set it while
+watching something, unset it after. The panel costs an unflagged account
+nothing: `hello` omits the field entirely, `AudioDebugPanel` is never rendered,
+and the only thing that runs for everybody is `recordEvent`, which appends a
+string to a forty-element array nothing reads.
+
+**What closing this would look like**, so it cannot age into permanence either:
+delete `ui/AudioDebugPanel.tsx`, `audio/diagnostics.ts` and its test,
+`audio/engineState.ts`, the `asked` field on `SessionAudio` and its two write
+sites, the `debug` column and its migration, the `debug` field on `hello`, and
+`app.debug` in `AppProvider`. The route module goes with it or stays on its own
+argument — see the entry above. **The trigger for that is not time passing.**
+It is somebody deciding the audio subsystem no longer needs watching, which
+after six builds in two days is not a decision to make from a quiet week.
+
+**What it is pointed at first.** The unreproduced interruption in the entry
+above: alone in a channel, foregrounding the app stopped another app's
+playback. `sessionFor(false, 0)` is `IDLE` with `mixWithOthers`, so on the face
+of it the build-65 change could not cause it — which means either the session
+was not `IDLE` at that moment, or activation rather than configuration did it.
+**The panel answers the first half by looking.** Open it, background the app,
+foreground it, and read the `asked` and `actual` lines and the log line stamped
+`app active`. If `actual` says `playAndRecord` while `asked` says `IDLE`, the
+hypothesis in that entry is confirmed and the observer is applying `recording:
+CALL` while nothing intends to publish.
 
 ## Clipboard Sharing
 

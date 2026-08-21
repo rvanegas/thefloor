@@ -325,6 +325,11 @@ export function registerWebsocket(deps: {
       type: 'hello',
       account: { id: account.id, displayName: account.display_name },
       serverNow: now(),
+      // Present only when true, so the field is absent from every hello but
+      // one — see the note on ServerMessage. `account` is read fresh here on
+      // each connection, so turning the flag on in the database takes effect
+      // at the next reconnect rather than needing a restart.
+      ...(account.debug === 1 ? { debug: true } : {}),
     });
 
     socket.on('message', (raw: Buffer | string) => {

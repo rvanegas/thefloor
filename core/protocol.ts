@@ -342,7 +342,31 @@ export type ClientMessage =
   | { type: 'ping' };
 
 export type ServerMessage =
-  | { type: 'hello'; account: PublicAccount; serverNow: number }
+  | {
+      type: 'hello';
+      account: PublicAccount;
+      serverNow: number;
+      /**
+       * Whether this account sees the audio diagnostic panel — the `debug`
+       * column on `accounts`, which is null for everybody until somebody sets
+       * it by hand.
+       *
+       * **Here rather than on `PublicAccount`, which is the whole reason this
+       * is not one line shorter.** That type is embedded in every roster,
+       * invitation and recording row that crosses the wire, so putting it
+       * there would tell you which of your contacts is running a diagnostic —
+       * a fact about them, broadcast to everyone who can see their name, in
+       * service of a panel only they will ever look at. `hello` is the one
+       * message that is about you and goes only to you.
+       *
+       * **Optional, and sent only when true**, which is what lets the server
+       * deploy before any client can read it: a build that has never heard of
+       * this field is unaffected, and one that has reads absent as false.
+       * Nothing is gated on it but a display, so a client that ignores it
+       * loses nothing it was entitled to.
+       */
+      debug?: boolean;
+    }
   | { type: 'home'; home: HomeView }
   | { type: 'channel'; view: ChannelView }
   /** The channel ended or is no longer visible to this user. */

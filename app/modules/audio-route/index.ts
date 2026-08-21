@@ -23,8 +23,31 @@ export interface RouteSnapshot {
    * profile forces 16 kHz, sometimes 8, where A2DP runs at 44.1 or 48.
    */
   sampleRate: number;
+  /**
+   * The session as it **is**, in iOS's own spelling —
+   * `AVAudioSessionCategoryPlayAndRecord`, `AVAudioSessionModeVideoChat`.
+   * `shortName` in `../../src/audio/diagnostics.ts` trims them to the words
+   * `AppleAudioConfiguration` uses, which is what makes the comparison against
+   * what was asked for a string equality rather than a judgement.
+   */
   category: string;
   mode: string;
+  /**
+   * The category options actually set, named as the SDK names them —
+   * `allowBluetooth`, `defaultToSpeaker`, `mixWithOthers` and the rest.
+   *
+   * **Optional, because a binary can be older than the field.** The native
+   * half of this module ships inside the app, so a JavaScript bundle and a
+   * `.swift` always agree — except during development, where a Metro reload
+   * does not rebuild native code. Absent means unreadable, and the panel says
+   * so rather than showing an empty list, which would read as "no options
+   * set" and is the more alarming of the two.
+   */
+  categoryOptions?: string[];
+  /** Whether another app is producing sound right now. */
+  otherAudioPlaying?: boolean;
+  /** Whether iOS thinks our secondary audio should be silenced for it. */
+  secondaryAudioHint?: boolean;
   /** Only on a change event: iOS's own reason code. */
   reason?: string;
 }

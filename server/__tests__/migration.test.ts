@@ -300,3 +300,33 @@ it('is idempotent across reopenings', () => {
   expect(tableNames(second)).not.toContain('sessions');
   second.close();
 });
+
+/**
+ * The `debug` column, added 2026-08-21 for the audio diagnostic panel.
+ *
+ * The live database already exists, so `CREATE TABLE IF NOT EXISTS` never runs
+ * against it and the `ALTER TABLE` is the only thing that puts this column on
+ * the box. A column that arrives only on a fresh database is one that works
+ * everywhere except in production.
+ */
+it('adds the debug column to a database that predates it', () => {
+  const path = join(dir, 'debug.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_RENAME);
+  seedAccounts(old);
+  old.close();
+
+  const db = openDb(path);
+  const columns = (
+    db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>
+  ).map((c) => c.name);
+  expect(columns).toContain('debug');
+
+  // Null for everyone, which is the value that means no panel. Backfilling it
+  // either way would be turning a diagnostic on for accounts nobody chose.
+  const row = db
+    .prepare('SELECT debug FROM accounts WHERE id = ?')
+    .get('acct_a') as { debug: number | null };
+  expect(row.debug).toBeNull();
+  db.close();
+});

@@ -136,6 +136,39 @@ describe('websocket', () => {
     client.close();
   });
 
+  /**
+   * The diagnostic panel's gate — `accounts.debug`, which is null for
+   * everybody until somebody sets it by hand.
+   *
+   * **Absent rather than false when off**, which is what lets this deploy
+   * ahead of any client that can read it: a build that has never heard of the
+   * field is unaffected, and one that has reads absent as false. The two cases
+   * are asserted separately because "sent as false" would pass a test written
+   * only for the true one, while quietly widening every hello on the wire.
+   */
+  it('says nothing about debug for an ordinary account', async () => {
+    const { token } = await signIn('user1@example.com', 'Alice');
+    const client = new Client(token, baseUrl);
+    await client.open();
+    const hello = await client.next('hello');
+    expect(hello.debug).toBeUndefined();
+    client.close();
+  });
+
+  it('tells an account with the column set that it has it', async () => {
+    const { token, account } = await signIn('user1@example.com', 'Alice');
+    // Set the way it is actually set: by hand, in the database. There is no
+    // endpoint for this and there is deliberately no screen.
+    app.db
+      .prepare('UPDATE accounts SET debug = 1 WHERE id = ?')
+      .run(account.id);
+    const client = new Client(token, baseUrl);
+    await client.open();
+    const hello = await client.next('hello');
+    expect(hello.debug).toBe(true);
+    client.close();
+  });
+
   it('rejects a bad token', async () => {
     const client = new Client('not-a-real-token', baseUrl);
     await client.open();

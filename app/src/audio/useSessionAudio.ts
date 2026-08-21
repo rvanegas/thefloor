@@ -14,6 +14,7 @@ import {
   type AppleAudioConfiguration,
 } from '@livekit/react-native';
 import { api } from '../api/http';
+import { recordEvent } from './diagnostics';
 import { nameOf, policyFor, sessionFor } from './session';
 import {
   NOBODY_SPEAKING,
@@ -95,6 +96,44 @@ export interface SessionAudio {
    * says the microphone is open when it is not.
    */
   micOpen: boolean;
+  /**
+   * What this hook last asked of the audio session, or null before it has
+   * asked anything.
+   *
+   * **Diagnostic only. Nothing renders from it but `ui/AudioDebugPanel.tsx`,
+   * and nothing decides anything from it.** It is here rather than recomputed
+   * by the panel because it is the *asked* half of an asked-versus-actual
+   * comparison, and a second computation of `sessionFor` would agree with this
+   * one right up until the moment a disagreement was the thing being looked
+   * for. Echoing what was applied is a fact; recomputing it is a guess that
+   * happens to be usually right.
+   *
+   * Null again on every reconnection, because a fresh room starts from a
+   * session nobody has configured — which is exactly what `appliedRef` means
+   * by null, and the two must not drift.
+   */
+  asked: AudioIntent | null;
+}
+
+/**
+ * The inputs to the session decision and the decision itself, together.
+ *
+ * The three inputs are carried rather than dropped because "the session is
+ * `CALL`" and "the session is `CALL` *because somebody else is talking while
+ * you are muted*" are different readings, and only the second one tells
+ * anybody whether it is right.
+ */
+export interface AudioIntent {
+  /** What the hook was told. */
+  selfMuted: boolean;
+  micNeeded: boolean;
+  anyMicOpen: boolean;
+  othersAudible: number;
+  /** What it decided. */
+  intent: MicIntent;
+  /** What it applied to the session, and what it handed the observer. */
+  session: AppleAudioConfiguration;
+  playout: AppleAudioConfiguration;
 }
 
 
@@ -111,11 +150,16 @@ async function applyConfiguration(
  * builds only.
  *
  * It exists because the interesting failures here are all *routing* failures,
- * and nothing in this stack can see a route: `AudioSession.getAudioOutputs`
- * offers iOS only `default` and `force_speaker`, and there is no route-change
- * or interruption event to subscribe to at all. So what is heard on the phone
- * has to be correlated against what was asked for, by hand, and that needs the
- * asks timestamped.
+ * and when this was written nothing in the stack could see a route:
+ * `AudioSession.getAudioOutputs` offers iOS only `default` and
+ * `force_speaker`, and there is no route-change or interruption event on it to
+ * subscribe to. So what is heard on the phone had to be correlated against
+ * what was asked for, by hand, and that needed the asks timestamped.
+ *
+ * **`app/modules/audio-route` closed that gap on 2026-08-20**, and
+ * `diagnostics.ts` now reads both halves on the phone itself. This stays
+ * anyway: it is a `__DEV__` console line at the moment of the write, where the
+ * panel is a sample taken afterwards, and the two answer different questions.
  *
  * **Two of the six audio-engine handler slots are mined, and it is worth
  * knowing which.** `audioDeviceModuleEvents`' setters hold a *single* handler
@@ -204,7 +248,7 @@ function pushPolicy(anyMicOpen: boolean, othersAudible: number): void {
  * - `released` — nobody needs it, so the device is genuinely let go and the
  *   session can hand back to `playback`.
  */
-type MicIntent = 'capturing' | 'muted' | 'released';
+export type MicIntent = 'capturing' | 'muted' | 'released';
 
 function intentFor(micNeeded: boolean, selfMuted: boolean): MicIntent {
   if (!micNeeded) return 'released';
@@ -323,6 +367,7 @@ export function useSessionAudio(
     othersAudible: 0,
     speaking: [],
     micOpen: false,
+    asked: null,
   });
   const roomRef = useRef<Room | null>(null);
   /**
@@ -524,7 +569,10 @@ export function useSessionAudio(
     };
 
     (async () => {
-      update({ status: 'connecting', message: null });
+      // `asked` goes with it: a room being rebuilt has configured nothing, and
+      // leaving the last connection's answer on screen would be a panel
+      // reporting a session that no longer has anything to do with it.
+      update({ status: 'connecting', message: null, asked: null });
       try {
         const credential = await api.mediaToken(token, channelIdRef.current!);
         if (!credential.url) {
@@ -552,6 +600,18 @@ export function useSessionAudio(
         pushPolicy(anyOpen, 0);
         await applyFor(anyOpen, 0);
         appliedRef.current = { intent, config: sessionFor(anyOpen, 0) };
+        update({
+          asked: {
+            selfMuted: selfMutedRef.current,
+            micNeeded: micNeededRef.current,
+            anyMicOpen: anyOpen,
+            othersAudible: 0,
+            intent,
+            session: sessionFor(anyOpen, 0),
+            playout: policyFor(anyOpen, 0).playout,
+          },
+        });
+        recordEvent(`connect ${intent} ${nameOf(sessionFor(anyOpen, 0))}`);
 
         // Started explicitly, despite registerGlobals() also installing
         // automatic management. Leaving it to the automatic path alone meant
@@ -673,6 +733,23 @@ export function useSessionAudio(
       return;
     }
     appliedRef.current = { intent, config };
+    // Written before the awaits below rather than after them, deliberately.
+    // This is the record of what was *asked*, and the ask happens here; a
+    // panel that only learned about it once the awaits resolved would be
+    // blind to precisely the case where one of them never does.
+    setState((s) => ({
+      ...s,
+      asked: {
+        selfMuted,
+        micNeeded,
+        anyMicOpen,
+        othersAudible: s.othersAudible,
+        intent,
+        session: config,
+        playout: policyFor(anyMicOpen, s.othersAudible).playout,
+      },
+    }));
+    recordEvent(`${intent} ${nameOf(config)}`);
 
     // Before either branch, and before the `await` in them, because the
     // transition the observer reads this for is the one `setMicrophoneEnabled`

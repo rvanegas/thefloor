@@ -65,6 +65,18 @@ interface AppState {
   ready: boolean;
   token: string | null;
   me: PublicAccount | null;
+  /**
+   * Whether this account is shown the audio diagnostic panel, per the server's
+   * `hello`.
+   *
+   * **Not persisted, and deliberately false until a socket says otherwise.** A
+   * cached flag would survive the flag being turned off, so somebody would be
+   * left with a panel nobody could take away without a reinstall; and it is
+   * only ever read by a screen that needs a live connection to be interesting
+   * anyway. It arrives within the same round trip as `me`, which is what every
+   * other screen already waits for.
+   */
+  debug: boolean;
   home: HomeView | null;
   /**
    * The latest snapshot of each channel this client is watching, by id.
@@ -274,6 +286,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ready: false,
     token: null,
     me: null,
+    debug: false,
     home: null,
     channelViews: {},
     goneChannels: [],
@@ -311,7 +324,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // only thing that tells a relaunched app who it is. Without it `me`
         // stays null, and every screen that compares against the current user
         // — the whole floor mechanic — silently compares against nothing.
-        onHello: (account) => setState((s) => ({ ...s, me: account })),
+        onHello: (account, debug) =>
+          setState((s) => ({ ...s, me: account, debug })),
         onHome: (home) => setState((s) => ({ ...s, home })),
         // Keyed by the channel the snapshot is about, never by which screen
         // asked for it: whoever is looking picks out the one they want.
@@ -475,6 +489,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ready: true,
         token: null,
         me: null,
+        debug: false,
         home: null,
         channelViews: {},
         goneChannels: [],
@@ -612,6 +627,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ready: true,
           token: null,
           me: null,
+          debug: false,
           home: null,
           channelViews: {},
           goneChannels: [],
@@ -646,6 +662,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ready: true,
           token: null,
           me: null,
+          debug: false,
           home: null,
           channelViews: {},
           goneChannels: [],

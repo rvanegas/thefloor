@@ -35,6 +35,17 @@ export interface AccountRow {
    * override at all.
    */
   donations_allowed: number | null;
+  /**
+   * Whether this account sees the diagnostic panel: 1 for yes, null or 0 for
+   * no. Nobody has it by default, and it is set by hand — `bin/db --write` —
+   * because it is not a preference and there is no screen that offers it.
+   *
+   * It gates a *read-only* display of the iOS audio session's intended and
+   * actual configuration. Nothing about it grants a permission, so the worst
+   * a wrongly-set flag can do is clutter one person's channel screen. See
+   * `app/src/ui/AudioDebugPanel.tsx`.
+   */
+  debug: number | null;
 }
 
 export interface ContactRow {
@@ -201,7 +212,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- hidden. It exists because the automatic answer is an approximation of the
   -- App Store storefront and a person who actually knows the truth for one
   -- account should be able to say so without a deploy. See region.ts.
-  donations_allowed INTEGER
+  donations_allowed INTEGER,
+  -- Shows this account the audio diagnostic panel. Null for everyone until
+  -- somebody sets it by hand; see the row type above for why there is no
+  -- screen that does.
+  debug INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -629,6 +644,12 @@ function migrate(db: Db): void {
   // where existing accounts are that nobody has established.
   if (!accountColumns.some((c) => c.name === 'donations_allowed')) {
     db.exec('ALTER TABLE accounts ADD COLUMN donations_allowed INTEGER');
+  }
+  // Null for everyone, which is the value that means no panel. There is no
+  // account this should be true of by default — it is turned on for one person
+  // at a time, while something is being watched, and turned off after.
+  if (!accountColumns.some((c) => c.name === 'debug')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN debug INTEGER');
   }
 
   // Channels from before persistence whose ended_at is null are ghosts: the

@@ -15,7 +15,7 @@ import ExpoModulesCore
  audio route… Open, and probably permanent." It was not permanent. It was this
  file.
 
- Three things are exposed and each answers something the others cannot:
+ What is exposed, and what each answers that the others cannot:
 
  - `outputs` and `inputs` name the ports, so `BluetoothA2DP` against
    `BluetoothHFP` is stated rather than inferred from how something sounded.
@@ -28,6 +28,17 @@ import ExpoModulesCore
    handover from a session being deactivated and reactivated, and both of those
    from no route change at all. The third would mean the tone is not a handover
    and five builds were aimed at the wrong phenomenon.
+ - `category`, `mode` and `categoryOptions` are the session as it **actually
+   is**, which is a different question from what this app last asked for.
+   Three writers mutate the same process-wide configuration — this app, the
+   SDK's native policy observer, and WebRTC re-applying its defaults — and the
+   last one wins. Reading the asked-for value back proves nothing; reading
+   these does. `categoryOptions` was added 2026-08-21 for exactly that
+   comparison, the first two having been here from the start.
+ - `otherAudioPlaying` and `secondaryAudioHint` are the only readable evidence
+   about somebody *else's* audio. There is no public getter for whether our own
+   session is active, so "did foregrounding interrupt a podcast" has to be
+   answered from the far side.
  */
 public class AudioRouteModule: Module {
   private var observer: NSObjectProtocol?
@@ -75,7 +86,49 @@ public class AudioRouteModule: Module {
       "sampleRate": session.sampleRate,
       "category": session.category.rawValue,
       "mode": session.mode.rawValue,
+      "categoryOptions": Self.optionNames(session.categoryOptions),
+      // Whether some other app is producing sound right now, and whether iOS
+      // thinks ours should defer to it. These are the only readable evidence
+      // for "did we just interrupt somebody's podcast" — there is no getter
+      // for whether our own session is active, so an interruption has to be
+      // read from the other side of it.
+      "otherAudioPlaying": session.isOtherAudioPlaying,
+      "secondaryAudioHint": session.secondaryAudioShouldBeSilencedHint,
     ]
+  }
+
+  /**
+   Names the bits of a category-option set, in the spelling the JavaScript
+   side uses.
+
+   These match `AppleAudioConfiguration.audioCategoryOptions` exactly —
+   `allowBluetooth`, `allowBluetoothA2DP`, `allowAirPlay`, `defaultToSpeaker`,
+   `mixWithOthers` — which is what lets a panel compare what was asked for
+   against what the session has, string for string, rather than by eye.
+
+   The remaining three are named as Apple names them. They are never asked
+   for by this app, so seeing one is itself the finding: somebody else wrote
+   this session.
+   */
+  private static func optionNames(
+    _ options: AVAudioSession.CategoryOptions
+  ) -> [String] {
+    var names: [String] = []
+    if options.contains(.mixWithOthers) { names.append("mixWithOthers") }
+    if options.contains(.duckOthers) { names.append("duckOthers") }
+    if options.contains(.allowBluetooth) { names.append("allowBluetooth") }
+    if options.contains(.allowBluetoothA2DP) { names.append("allowBluetoothA2DP") }
+    if options.contains(.allowAirPlay) { names.append("allowAirPlay") }
+    if options.contains(.defaultToSpeaker) { names.append("defaultToSpeaker") }
+    if options.contains(.interruptSpokenAudioAndMixWithOthers) {
+      names.append("interruptSpokenAudioAndMixWithOthers")
+    }
+    if #available(iOS 14.5, *) {
+      if options.contains(.overrideMutedMicrophoneInterruption) {
+        names.append("overrideMutedMicrophoneInterruption")
+      }
+    }
+    return names
   }
 
   /// Port type first, because the type is the diagnostic part and the name is

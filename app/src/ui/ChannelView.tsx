@@ -31,6 +31,7 @@ import {
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
+import { AudioDebugPanel } from './AudioDebugPanel';
 import { ChannelSettingsView } from './ChannelSettingsView';
 import { ProfileView } from './ProfileView';
 import { InlineMarkdown } from './markdown';
@@ -413,6 +414,19 @@ export function ChannelView({
             </Text>
           ) : null}
           <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
+          {/*
+            Shown only to an account with the `debug` column set, which is
+            nobody by default — see server/src/db.ts. Under the microphone
+            because that is the control whose effects it explains, and the
+            place the panel it replaces lived.
+
+            Unlike that one, this is not temporary and does not need deleting
+            before the next upload: it is invisible to every account that has
+            not been switched on, and switching one off is an `UPDATE` and a
+            reconnect. TASKS.md § "A Gated Audio Diagnostic Panel" says who
+            decides and what closing it would look like.
+          */}
+          {app.debug ? <AudioDebugPanel asked={audio.asked} /> : null}
         </Card>
 
         {/*
