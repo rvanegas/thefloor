@@ -1583,6 +1583,8 @@ command, and is the answer to "what does Apple actually think is happening" —
 which the UI is a poor witness to. `--dry-run` runs every check and every read,
 and makes no writes at all.
 
+---
+
 ## A quiet channel says how quiet, and stops saying it is quiet — 2026-08-21
 
 The idleness line under a channel's name had a floor: under a minute, and for
@@ -1619,3 +1621,52 @@ saying "Not used yet". Both lines are now `describeQuiet` in
 the same reason and whose own two copies had drifted before either was touched
 twice. That is twice this shape has bitten; a line drawn on two screens goes in
 that file.
+
+---
+
+## An upload gets a number and a way out — 2026-08-21
+
+Sharing a track was one button that said `Uploading…` and then either finished
+or did not. Somebody watching a hundred-megabyte file go up a phone connection
+had no way to tell a slow upload from a stalled one, and no way to abandon
+either: the only exits were the file finishing, the request erroring, and
+killing the app. One of those had been reached.
+
+**`uploadAsync` cannot do either, and `createUploadTask` is the same request
+with both.** Identical defaults — `BACKGROUND` session, binary body, `POST` —
+plus a progress callback and a `cancelAsync`. So the change is a swap rather
+than a rewrite of the upload path, and everything download.ts argues about the
+legacy FileSystem entry point still holds: the status has to be readable, or a
+refusal reaches the user as a silent no-op.
+
+**The progress indicator is a percentage and nothing else**, which is what was
+asked for and is also the right instrument. A bar says the same thing less
+precisely, and the question in front of somebody staring at a stuck upload is
+not *how far* but *is this number changing*. `totalBytesExpectedToSend` is `-1`
+when the platform will not say how big the body is, and 0 for a moment before
+the first chunk, so `percentOf` answers `null` for both and the button falls
+back to plain `Uploading…`. A button reading `Uploading… null%` is worse than
+one that only says it is busy.
+
+**Cancelling resolves as `{ cancelled: true }` rather than throwing.** A
+stopped upload is a decision, and the picker's own Cancel already returns that
+way; making the two agree means the screen has one thing to handle rather than
+an error path that has to be recognised and then not shown. The flag is set
+before `cancelAsync` is called and read afterwards, because a cancelled task
+ends as a rejection on one platform and as an empty result on another, and
+neither says why on its own.
+
+**The Cancel button is shown disabled for the moment before the bytes move**,
+rather than appearing once there is a task. The picker has closed, there is no
+task yet, and a control that flickers into existence is harder to find than one
+that is visibly waiting — particularly for the person who is already hunting
+for a way out.
+
+The server needs nothing. A cancelled upload aborts the connection before the
+body is complete, so the route never runs, and the temp directory it would have
+made is never made.
+
+Not done, deliberately: no timeout. A stall now has a visible number and an
+exit, which is enough to act on, and a client-side deadline would have to guess
+at what a slow connection is allowed to be — the two people this has to work
+for are on phones, sometimes on cellular, sending audio files.

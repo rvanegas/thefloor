@@ -16,7 +16,8 @@ import type {
   RecordingView,
 } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
-import { ChannelView } from '../ChannelView';
+import { ChannelView, uploadingLabel } from '../ChannelView';
+import type { UploadHooks } from '../../api/upload';
 import { ProfileView } from '../ProfileView';
 import { ContactsSettingsView } from '../ContactsSettingsView';
 import { ContactsView } from '../ContactsView';
@@ -113,6 +114,30 @@ const mockApp = {
 // opening a microphone. Audio behaviour is verified on a device, not here.
 jest.mock('../../api/download', () => ({
   exportRecording: jest.fn(async () => {}),
+}));
+
+/**
+ * Every upload started by a test, held open rather than resolved.
+ *
+ * The interesting part of an upload is the middle — a percentage that is or is
+ * not moving, and a Cancel that has or has not something to cancel — and a
+ * mock that resolves immediately has no middle. Each entry carries the hooks
+ * the screen passed in, so a test can drive progress itself, and the resolver,
+ * so it can decide when the thing ends.
+ */
+const uploads: Array<{
+  hooks: UploadHooks;
+  finish: (result: { cancelled: boolean }) => void;
+  fail: (error: unknown) => void;
+}> = [];
+
+jest.mock('../../api/upload', () => ({
+  pickAndUploadTrack: jest.fn(
+    (_token: string, _channelId: string, hooks: UploadHooks = {}) =>
+      new Promise((finish, fail) => {
+        uploads.push({ hooks, finish, fail });
+      })
+  ),
 }));
 
 /**
@@ -255,6 +280,7 @@ beforeEach(() => {
   mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
   mockApp.debug = false;
+  uploads.length = 0;
   jest.clearAllMocks();
 });
 
@@ -891,6 +917,78 @@ describe('Channel', () => {
       />);
     expect(findButton(tree, 'Play something together')).toBeDefined();
     act(() => tree.unmount());
+  });
+
+  /**
+   * An upload that has stalled looks exactly like one that is working, and
+   * before this there was nothing to do about either. The percentage says
+   * which it is and Cancel is the way out; both of them are about the middle
+   * of an upload, so all of this happens while the promise is still open.
+   */
+  it('counts an upload up and offers a way out of it', async () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    await act(async () => {
+      findButton(tree, 'Play something together')!.props.onPress();
+    });
+
+    // The picker has closed and the bytes have not moved: there is no
+    // percentage yet, and a Cancel with nothing to cancel is offered and
+    // refused rather than hidden and then appearing.
+    expect(textOf(tree)).toContain('Uploading…');
+    expect(textOf(tree)).not.toContain('%');
+    expect(findButton(tree, 'Cancel upload')!.props.disabled).toBe(true);
+
+    const cancel = jest.fn();
+    act(() => uploads[0]!.hooks.onStart!(cancel));
+    act(() => uploads[0]!.hooks.onProgress!(42));
+    expect(textOf(tree)).toContain('Uploading… 42%');
+
+    act(() => findButton(tree, 'Cancel upload')!.props.onPress());
+    expect(cancel).toHaveBeenCalled();
+
+    // Cancelling is a decision rather than a failure, so the screen goes back
+    // to offering the upload and says nothing about an error.
+    await act(async () => uploads[0]!.finish({ cancelled: true }));
+    expect(findButton(tree, 'Cancel upload')).toBeUndefined();
+    expect(findButton(tree, 'Play something together')).toBeDefined();
+    expect(textOf(tree)).not.toContain('Uploading');
+    act(() => tree.unmount());
+  });
+
+  it('says what failed, and stops uploading, when an upload fails', async () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    await act(async () => {
+      findButton(tree, 'Play something together')!.props.onPress();
+    });
+    await act(async () => uploads[0]!.fail(new Error('Cannot reach the server.')));
+
+    expect(textOf(tree)).toContain('Cannot reach the server.');
+    expect(findButton(tree, 'Cancel upload')).toBeUndefined();
+    expect(findButton(tree, 'Play something together')!.props.disabled)
+      .toBeFalsy();
+    act(() => tree.unmount());
+  });
+
+  it('has a label for an upload whose size the platform will not say', () => {
+    // -1 expected bytes reaches the screen as a null percentage, and a button
+    // reading "Uploading… null%" is worse than one that only says it is busy.
+    expect(uploadingLabel(null)).toBe('Uploading…');
+    expect(uploadingLabel(0)).toBe('Uploading… 0%');
+    expect(uploadingLabel(100)).toBe('Uploading… 100%');
   });
 
   it('shows the track and its position against the server clock', () => {

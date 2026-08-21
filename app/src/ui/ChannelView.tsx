@@ -53,6 +53,19 @@ import { useOfflineNotice } from './useOfflineNotice';
 const SKIP_MS = 15_000;
 
 /**
+ * What the upload button says while it is uploading.
+ *
+ * The percentage is the whole of the progress indicator on purpose — a bar
+ * would say the same thing less precisely, and the thing somebody staring at a
+ * stuck upload wants is a number that is or is not changing. When the platform
+ * will not say how big the body is there is no number, and the button says
+ * only that something is happening.
+ */
+export function uploadingLabel(percent: number | null): string {
+  return percent === null ? 'Uploading…' : `Uploading… ${percent}%`;
+}
+
+/**
  * The in-channel screen. Control states come from the same guards the server
  * enforces, so a greyed-out button and a refused action cannot disagree — but
  * the server is the authority and this only renders what it has been told.
@@ -88,7 +101,15 @@ export function ChannelView({
   // one way that could still crash the screen.
   const recordings = view?.recordings ?? [];
   const me = app.me?.id ?? '';
-  const [uploading, setUploading] = useState(false);
+  // One piece of state rather than three, because they are one thing: an
+  // upload in flight, what it has managed so far, and how to stop it. `null`
+  // is not uploading; a `cancel` of `null` is the moment between the picker
+  // closing and the bytes moving, when there is nothing to stop yet.
+  const [upload, setUpload] = useState<{
+    percent: number | null;
+    cancel: (() => void) | null;
+  } | null>(null);
+  const uploading = upload !== null;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [viewing, setViewing] = useState<{
@@ -226,13 +247,19 @@ export function ChannelView({
 
   const loadTrack = async () => {
     setUploadError(null);
-    setUploading(true);
+    setUpload({ percent: null, cancel: null });
     try {
-      await pickAndUploadTrack(app.token ?? '', channelId);
+      await pickAndUploadTrack(app.token ?? '', channelId, {
+        // Guarded on the current state rather than set outright: both of these
+        // arrive from a native callback and can land after the upload has
+        // ended, and neither should resurrect a finished one.
+        onStart: (cancel) => setUpload((u) => (u ? { ...u, cancel } : u)),
+        onProgress: (percent) => setUpload((u) => (u ? { ...u, percent } : u)),
+      });
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : String(error));
     } finally {
-      setUploading(false);
+      setUpload(null);
     }
   };
 
@@ -569,7 +596,7 @@ export function ChannelView({
 
               <View style={styles.buttonRow}>
                 <Button
-                  label={uploading ? 'Uploading…' : 'Change track'}
+                  label={upload ? uploadingLabel(upload.percent) : 'Change track'}
                   style={styles.flexButton}
                   disabled={!mayControlPlayback || uploading}
                   onPress={loadTrack}
@@ -585,12 +612,26 @@ export function ChannelView({
             </>
           ) : (
             <Button
-              label={uploading ? 'Uploading…' : 'Play something together'}
+              label={upload ? uploadingLabel(upload.percent) : 'Play something together'}
               sublabel="An audio file from this phone"
               disabled={!mayControlPlayback || uploading}
               onPress={loadTrack}
             />
           )}
+
+          {upload ? (
+            // Outside both branches above, because an upload can be a first
+            // track or a replacement and the way out is the same either way.
+            // Disabled for the moment before the bytes move: the picker has
+            // closed, there is no task yet, and a Cancel that did nothing
+            // would read as the stuck upload it exists to escape.
+            <Button
+              label="Cancel upload"
+              variant="ghost"
+              disabled={!upload.cancel}
+              onPress={() => upload.cancel?.()}
+            />
+          ) : null}
 
           <Text style={type.muted}>
             {theyHoldFloor

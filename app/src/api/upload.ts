@@ -30,12 +30,41 @@ async function loadPicker(): Promise<typeof import('expo-document-picker')> {
 }
 
 /**
+ * What the caller learns while the bytes are moving, and how to stop them.
+ *
+ * Both are optional and both are about the same phase: the upload, not the
+ * picking. The system's own file picker has a Cancel of its own, and until it
+ * returns there is nothing to cancel or measure.
+ */
+export type UploadHooks = {
+  /**
+   * Called once, when the bytes start moving, with the way to stop them.
+   * Cancelling resolves the upload as `{ cancelled: true }` rather than
+   * throwing: a stopped upload is a decision, not a failure.
+   */
+  onStart?: (cancel: () => void) => void;
+  /**
+   * Whole percent, 0 to 100 — or `null` when the total is not known, which is
+   * what a platform that does not report the expected size looks like. A
+   * caller showing a number has to have something to show when there is none.
+   */
+  onProgress?: (percent: number | null) => void;
+};
+
+/**
  * Picks an audio file and gives it to the channel for both parties to hear.
  *
  * The legacy FileSystem entry point again, for the reason download.ts gives:
  * it reports the HTTP status, and the newer File API does not. A refusal here
  * — the wrong channel, or someone else holding the floor — has to reach the
  * user as itself rather than as a silent no-op.
+ *
+ * `createUploadTask` rather than `uploadAsync`, which is the same request with
+ * the same defaults — `BACKGROUND` session, binary body — plus the two things
+ * a hundred megabytes over a phone connection needs: a progress callback and
+ * something to cancel. An upload that has stalled is indistinguishable from a
+ * slow one without the first, and unescapable without the second, and both of
+ * those have been met.
  *
  * The bytes go up raw rather than as multipart. There is one file and no
  * fields, so multipart would be ceremony on both ends; the name travels in the
@@ -47,7 +76,8 @@ export const MAX_TRACK_BYTES = 100 * 1024 * 1024;
 
 export async function pickAndUploadTrack(
   token: string,
-  channelId: string
+  channelId: string,
+  hooks: UploadHooks = {}
 ): Promise<{ cancelled: boolean }> {
   if (!API_URL) throw new ApiError('No server configured.', 0);
 
@@ -79,19 +109,47 @@ export async function pickAndUploadTrack(
     `${API_URL}/channels/${channelId}/track` +
     `?name=${encodeURIComponent(asset.name ?? 'track')}`;
 
-  let result: FileSystem.FileSystemUploadResult;
-  try {
-    result = await FileSystem.uploadAsync(url, asset.uri, {
+  // Set before anything can cancel, and read afterwards: a cancelled upload
+  // ends as a rejection or as an empty result depending on the platform, and
+  // neither of those says why on its own.
+  let cancelled = false;
+
+  const task = FileSystem.createUploadTask(
+    url,
+    asset.uri,
+    {
       httpMethod: 'POST',
       uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
       headers: {
         authorization: `Bearer ${token}`,
         'content-type': asset.mimeType ?? 'application/octet-stream',
       },
-    });
+    },
+    ({ totalBytesSent, totalBytesExpectedToSend }) => {
+      if (cancelled) return;
+      hooks.onProgress?.(percentOf(totalBytesSent, totalBytesExpectedToSend));
+    }
+  );
+
+  hooks.onStart?.(() => {
+    cancelled = true;
+    // Nothing waits on this and nothing can be done if it fails: the caller
+    // has already decided, and the upload is abandoned either way.
+    void task.cancelAsync().catch(() => {});
+  });
+
+  let result: FileSystem.FileSystemUploadResult | undefined | null;
+  try {
+    result = await task.uploadAsync();
   } catch {
+    if (cancelled) return { cancelled: true };
     throw new ApiError(`Cannot reach the server at ${API_URL}.`, 0);
   }
+
+  // A cancelled task resolves with nothing rather than with a status, so the
+  // absent result is checked as well as the flag — one of the two is what a
+  // given platform gives you.
+  if (cancelled || !result) return { cancelled: true };
 
   if (result.status !== 200) {
     if (result.status === 401) reportSignedOut();
@@ -106,4 +164,17 @@ export async function pickAndUploadTrack(
   }
 
   return { cancelled: false };
+}
+
+/**
+ * Whole percent, or `null` when the total is unknown.
+ *
+ * `totalBytesExpectedToSend` is `-1` when the platform cannot say how big the
+ * body is, and it is momentarily 0 before the first chunk; neither divides
+ * into anything useful. Rounded down so that 100% means finished rather than
+ * nearly.
+ */
+export function percentOf(sent: number, expected: number): number | null {
+  if (!(expected > 0)) return null;
+  return Math.max(0, Math.min(100, Math.floor((sent / expected) * 100)));
 }
