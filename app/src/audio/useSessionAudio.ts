@@ -16,17 +16,6 @@ import {
 import { api } from '../api/http';
 import { nameOf, policyFor, sessionFor } from './session';
 import {
-  engineDiff,
-  engineLine,
-  engineSnapshot,
-  watchTransition,
-} from './engineState';
-import {
-  onRouteChange,
-  routeLine,
-  routeSnapshot,
-} from '../../modules/audio-route';
-import {
   NOBODY_SPEAKING,
   nextReleaseAt,
   onActiveSpeakers,
@@ -106,29 +95,8 @@ export interface SessionAudio {
    * says the microphone is open when it is not.
    */
   micOpen: boolean;
-  /**
-   * What the audio engine did at each of the last few microphone transitions,
-   * newest last, for reading **on the phone**.
-   *
-   * **Not `__DEV__`-gated, deliberately, and that is the whole point of it.**
-   * The question this answers — what actually moves when somebody self-mutes —
-   * needs a Bluetooth headset and a second person, which is a situation that
-   * happens away from a Mac. A development build puts the answer in Metro,
-   * where it is no use to somebody who is not at their desk; this puts it on
-   * the screen next to the button that causes it.
-   *
-   * Diagnostic and temporary. It is rendered by `ChannelView` under the mute
-   * control, and the whole of it — this field, `engineState.ts`, and that
-   * block — comes out once the question is answered. See planning/TASKS.md.
-   */
-  engineLog: string[];
 }
 
-/**
- * How many *lines* to keep — two or three per transition, so this is about
- * three transitions: a mute, an unmute and a mistake.
- */
-const ENGINE_LOG_LIMIT = 12;
 
 /** Apple-only; on Android the category model does not apply. */
 async function applyConfiguration(
@@ -355,7 +323,6 @@ export function useSessionAudio(
     othersAudible: 0,
     speaking: [],
     micOpen: false,
-    engineLog: [],
   });
   const roomRef = useRef<Room | null>(null);
   /**
@@ -648,34 +615,6 @@ export function useSessionAudio(
   }, [mediaRoom, token, generation]);
 
   /**
-   * Records every route change iOS reports, for as long as we are connected.
-   *
-   * **Diagnostic and temporary**, and the most informative line in the panel:
-   * a route change carries iOS's own reason code, so a handover, a session
-   * being deactivated and reactivated, and no route change at all are three
-   * different readings rather than one guess. See
-   * `modules/audio-route/ios/AudioRouteModule.swift`.
-   *
-   * Subscribed rather than sampled because a route change is an event with a
-   * reason attached, and the reason does not survive being polled for.
-   */
-  useEffect(() => {
-    if (state.status !== 'connected') return;
-    return onRouteChange((payload) => {
-      const at = new Date().toTimeString().slice(0, 8);
-      const line = `${at} ROUTE ${routeLine(payload)}`;
-      if (__DEV__) {
-        // eslint-disable-next-line no-console
-        console.log(`[engine] ${line}`);
-      }
-      setState((s) => ({
-        ...s,
-        engineLog: [...s.engineLog, line].slice(-ENGINE_LOG_LIMIT),
-      }));
-    });
-  }, [state.status]);
-
-  /**
    * Rebuilds the room on returning to the foreground, when it is not already
    * up or on its way.
    *
@@ -753,47 +692,6 @@ export function useSessionAudio(
     // somebody else's microphone is open, so the configuration write below is
     // a no-op and the route never moves. That is the whole of the fix, and it
     // is why this branch does not re-state the configuration at all.
-    // Measured either side, in every build, because four fixes for the audible
-    // profile handover were reasoned from source and none of them worked.
-    // `engineState.ts` says what each reading would mean.
-    const before = engineSnapshot();
-
-    // Started *before* the transition rather than after it, because what this
-    // is looking for is a field that moves and moves back inside the await —
-    // an engine that stops and restarts is running again by the time a
-    // before/after comparison takes its second sample, and reads as though
-    // nothing happened. That is exactly how the first reading, on build 59,
-    // came back as one flag moving and nothing else.
-    const transient = watchTransition(before);
-
-    const report = async (): Promise<void> => {
-      const at = new Date().toTimeString().slice(0, 8);
-      const settled = engineSnapshot();
-      const moved = engineDiff(before, settled);
-      const flickered = await transient;
-      const lines = [
-        `${at} ${intent}: ${moved}`,
-        // The absolute state, because the diff above cannot show a field that
-        // never changes — `muteMode` among them, which is the one that says
-        // whether `configureMuteMode` actually took.
-        `  now: ${engineLine(settled)}`,
-        // And the route, which is the question the engine's own flags turned
-        // out not to answer. `sr=` is the one to read: the hands-free profile
-        // forces 16 kHz where A2DP runs at 44.1 or 48, so a rate that halves
-        // here is a profile handover with nothing left to judge by ear.
-        `  route: ${routeLine(routeSnapshot())}`,
-      ];
-      if (flickered) lines.push(`  flicker: ${flickered}`);
-      if (__DEV__) {
-        // eslint-disable-next-line no-console
-        console.log(`[engine] ${lines.join(' | ')}`);
-      }
-      setState((s) => ({
-        ...s,
-        engineLog: [...s.engineLog, ...lines].slice(-ENGINE_LOG_LIMIT),
-      }));
-    };
-
     (intent === 'capturing'
       ? applyFor(anyMicOpen, state.othersAudible).then(() =>
           room.localParticipant.setMicrophoneEnabled(true)
@@ -807,9 +705,7 @@ export function useSessionAudio(
             // where the choice between the two closed states is made — and so
             // where somebody's music is either interrupted or let back in.
             .then(() => applyFor(anyMicOpen, state.othersAudible))
-    )
-      .then(report)
-      .catch(() => {});
+    ).catch(() => {});
     const transmitting = intent === 'capturing';
     setState((s) =>
       s.micOpen === transmitting ? s : { ...s, micOpen: transmitting }

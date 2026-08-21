@@ -4,6 +4,10 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+## Idleness at Zero
+
+Idleness display at zero is "Nobody is here right now".
+
 ## Self-Mute Still Moves the Audio Category
 
 **Reported 2026-08-19. Four fixes on 2026-08-20, none of which changed the
@@ -30,15 +34,24 @@ and no Mac.** Every audio-engine reader is blocking-synchronous, so a full
 snapshot is taken either side of each microphone transition and the
 *difference* kept — `recording: true -> false`, or `nothing moved`.
 
-**It reads on the phone, in a TestFlight build**, under the mute button in
+**It read on the phone, in a TestFlight build**, under the mute button in
 `ChannelView`, because the reading needs a Bluetooth headset and a second
 person and that is a situation which happens away from a desk. A development
-build would put the answer in Metro, where somebody who is not at home cannot
-get at it. Development builds log it as well, so `expo run:ios` still works.
+build would have put the answer in Metro, where somebody who is not at home
+cannot get at it.
 
-**All of it is temporary and comes out together**: `SessionAudio.engineLog`,
-`src/audio/engineState.ts`, and the block in `ChannelView` that renders it.
-Deleting one and leaving the others is how a diagnostic becomes furniture.
+**It was removed on 2026-08-21, before the next upload, and it went as one
+piece** — `SessionAudio.engineLog`, `src/audio/engineState.ts`, its two test
+files, the `report()` block and route-change effect in `useSessionAudio.ts`,
+and the block in `ChannelView` that rendered it. That is the rule this entry
+stated: deleting one and leaving the others is how a diagnostic becomes
+furniture. **One piece was kept anyway** — the native route reader — and that
+exception has its own entry below, so it cannot be forgotten silently.
+
+**What survives the deletion is the readings, not the instrument.** Build 59's
+is in DECISIONS.md § *The first reading, and the two things it could not see*,
+along with what came after it. Restoring the panel means `git revert`, not
+rewriting it.
 
 **What each reading would mean** is written into that file's header so the next
 session does not re-argue it. In short: `recording` going false means the input
@@ -60,6 +73,38 @@ pairing is not enough, and `devicectl` will happily report the device
 **Not `log stream`**, which three files recommended until 2026-08-20: it reads
 the Mac's own logs and has no device options on current macOS, so it succeeds
 and shows nothing.
+
+## The Native Route Reader Is Still In The Tree
+
+**Removed around, not with, the diagnostic — 2026-08-21.** The engine panel
+under the mute button came out that day: `SessionAudio.engineLog`,
+`src/audio/engineState.ts`, its two test files, and the `report()` block and
+route-change effect in `useSessionAudio.ts`. `app/modules/audio-route` was
+deliberately **left in place**, so this is the loose end.
+
+What is there: `expo-module.config.json`, `index.ts`, `ios/AudioRoute.podspec`
+and `ios/AudioRouteModule.swift`, plus `src/audio/__tests__/audioRoute.test.ts`,
+which is now **the module's only caller**. Nothing in the app imports it. It
+still builds, still registers as an Expo module, and still ships in the binary.
+
+**It was kept on purpose and the purpose has a shelf life.** Removing a native
+module is a build-affecting change and this one was proposed immediately before
+an upload, which is the worst moment for one; and if the self-mute route
+question above reopens, the route reader is the instrument that would be wanted
+back, since STATES.md disagreement 8 records that nothing else in this stack can
+read a route. Rebuilding it from git history is possible but is not free.
+
+**Two ways to close this, and the choice is about that question, not about the
+code.** If the route question is settled: delete the four module files and the
+test, and let `prebuild --clean` regenerate `ios/` without it on the next
+upload. If it is not settled: leave it, and say so here — but then the entry
+above is not done either, and the honest state is that the investigation is
+paused rather than finished.
+
+**What must not happen is this note quietly ageing into permanence.** A native
+module with one test and no callers is exactly the furniture the entry above
+warns about, one level down: the panel was deleted to avoid becoming furniture,
+and the thing it read from was kept.
 
 ## Clipboard Sharing
 

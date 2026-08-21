@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -403,32 +402,6 @@ export function ChannelView({
                       // apologising for elsewhere.
                       'Closed until somebody else is here — so your other apps keep the speakers.'}
           </Text>
-          {/*
-            **Diagnostic, and temporary — delete this whole block with
-            `engineLog` and `src/audio/engineState.ts` once the question is
-            answered.** See planning/TASKS.md.
-
-            Self-muting hands a Bluetooth headset out of A2DP and back,
-            audibly, and four fixes across three layers did not change it. What
-            settles it is what the audio engine reports either side of the
-            transition — and that reading needs a headset and a second person,
-            which is a situation that happens away from a Mac. So it is here,
-            under the button that causes it, rather than in a development
-            build's console where somebody who is not at their desk cannot get
-            at it.
-          */}
-          {audio.engineLog.length > 0 ? (
-            <View style={styles.engineLog}>
-              <Text style={styles.engineLogLabel}>
-                Audio engine — diagnostic, screenshot this
-              </Text>
-              {audio.engineLog.map((line, i) => (
-                <Text key={`${i}-${line}`} style={styles.engineLogLine}>
-                  {line}
-                </Text>
-              ))}
-            </View>
-          ) : null}
           {recordingLive && iAmSilenced ? (
             // Being unheard is not the same as being unrecorded, and it would
             // be easy to assume otherwise. Say it plainly rather than let
@@ -948,20 +921,6 @@ function audioTone(status: string) {
 
 const styles = StyleSheet.create({
   audioMuted: { ...type.muted, color: colors.textFaint },
-  // Diagnostic, temporary — goes with the block in the microphone card.
-  engineLog: {
-    marginTop: 8,
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(127,127,127,0.12)',
-  },
-  engineLogLabel: { ...type.muted, color: colors.textFaint, marginBottom: 4 },
-  engineLogLine: {
-    ...type.muted,
-    color: colors.textFaint,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: 11,
-  },
   audioBad: { ...type.muted, color: colors.danger },
   otherName: { flexShrink: 1, fontSize: 24, fontWeight: '700', color: colors.text },
   /** Italic alone; see the note on Home's `described`. */

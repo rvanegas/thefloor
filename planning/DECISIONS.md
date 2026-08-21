@@ -1268,3 +1268,36 @@ today's names stops being evidence of anything.
 agree in one commit. It is whether the next ambiguous instruction gets a
 question instead of a guess. The one that produced this entry did, and that is
 the only reason the overload was ever noticed.
+
+---
+
+## The engine panel came out; the module it read from did not
+
+Removed 2026-08-21, before an upload. The diagnostic under the mute button —
+`SessionAudio.engineLog`, `src/audio/engineState.ts`, its two test files, the
+`report()` block and the route-change effect in `useSessionAudio.ts`, and the
+block in `ChannelView` that rendered it — went in one commit, which is the rule
+TASKS.md set when it was built: *deleting one and leaving the others is how a
+diagnostic becomes furniture.*
+
+**It did its job, and that is why it could go.** It was built because four
+fixes across three layers had been reasoned from source and none of them
+changed the sound. The readings it produced are in § *The first reading, and
+the two things it could not see* and the entries after it, and those survive
+the instrument — a deletion loses the apparatus, not the evidence.
+
+**One piece was kept, deliberately: `app/modules/audio-route`.** Four files
+including Swift, now with no caller in the app and one test that is its only
+consumer. Two reasons, and both are about timing rather than about the code.
+Removing a native module changes what `prebuild --clean` regenerates, and it
+was proposed immediately before an upload, which is the worst moment to alter
+the build. And if the route question reopens it is the instrument that would be
+wanted back — STATES.md disagreement 8 records that nothing else in this stack
+can read a route at all.
+
+**A kept exception needs somewhere to be kept.** It is TASKS.md § *The Native
+Route Reader Is Still In The Tree*, which names the files, says what closing it
+looks like in either direction, and says plainly that the failure mode is the
+note ageing into permanence — the panel was deleted to avoid becoming
+furniture, and the thing it read from was kept. Written down because an
+exception recorded only in a commit message is one nobody finds.
