@@ -1008,3 +1008,46 @@ condition and fails on it.
 **The build number is spent.** 61 is uploaded and tagged and cannot be
 un-issued, and it is the second build today whose only purpose was a
 measurement it could not take.
+
+## The handover was not happening — 2026-08-20
+
+Build 62, on AirPods Pro, with a second person present. Self-mute and unmute:
+
+    route: BluetoothHFP(wachowskis) sr=24000 …PlayAndRecord/…VideoChat
+    route: BluetoothHFP(wachowskis) sr=24000 …PlayAndRecord/…VideoChat
+
+**Identical.** Same port, same sample rate, same category and mode either side of
+the mute, and no route-change notification at all. The session is on the
+hands-free profile for the whole call — which `playAndRecord` with
+`allowBluetooth` implies — and it stays there.
+
+**So there is no A2DP-to-HFP handover at a self-mute, and muting costs no audio
+quality.** Six builds were aimed at a mechanism that does not occur. The
+symptom is real — a tone is heard — but the explanation attached to it on
+2026-08-19 was wrong, and every subsequent step inherited it.
+
+**Where the wrong premise came from is worth keeping.** It was a good
+inference: a tone at a mute, on a Bluetooth headset, in an app that had
+*already* had a genuine profile-handover bug — the one `anyMicrophoneOpen` and
+the channel-wide rule were built for on 2026-08-18. The prior was strong and it
+was never re-examined, because each failed fix produced a new mechanism to
+suspect *within* the premise rather than a reason to doubt the premise itself.
+Four fixes in, the question "is it even a handover?" had still not been asked.
+
+**The channel-wide audio rule is not invalidated by this**, and should not be
+unwound on the strength of it. Crossing A2DP↔HFP is real and audible; what this
+shows is only that a self-mute is not where the crossing happens. The crossings
+are at the edges — entering an occupied channel, and the last other person
+leaving — which is exactly what `sessionFor` was written to control.
+
+**One caveat, stated because it is the same shape as four instruments that
+failed today.** No `ROUTE` line has ever been observed, so the route-change
+listener is unproven, and the absence of one during a mute is only evidence if
+the listener is known to fire. The positive control costs nothing: in a channel,
+disconnect and reconnect the headset, or move output to the speaker and back. A
+`ROUTE` line must appear. **Until it does, treat the "no route change" half of
+this entry as unconfirmed** — the port and sample rate comparison stands on its
+own regardless, being two direct reads.
+
+What the tone actually is remains open, and this entry deliberately does not
+guess. TASKS.md carries the candidates.
