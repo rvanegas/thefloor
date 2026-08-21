@@ -2,6 +2,13 @@
 #
 # Archives the iOS app and uploads it to App Store Connect for TestFlight.
 #
+# This is step one of four, and the name says which. **Upload** puts a build in
+# TestFlight; **submit** puts an uploaded build in front of App Review; Apple
+# **approves**; **release** makes an approved build downloadable. This script
+# was `bin/release-ios` until 2026-08-21, which named it for the step it does
+# not do — the `released` tag marks step four, so one word sat at both ends of
+# the pipeline. RELEASING.md defines the four; DECISIONS.md argues the split.
+#
 # Signing is automatic and cloud-managed: the distribution certificate and
 # provisioning profile are created by Apple on first use and never appear in
 # the local keychain, so `security find-identity` showing only a development
@@ -198,7 +205,7 @@ cat > /tmp/UploadOptions.plist <<PLIST
 
     Apple's reason for the default is to spare you a refused upload when the
     number is already used. That is worth less here than the numbers agreeing,
-    since bin/release-ios owns the number and increments it itself.
+    since bin/upload-ios owns the number and increments it itself.
   -->
   <key>manageAppVersionAndBuildNumber</key><false/>
 </dict></plist>

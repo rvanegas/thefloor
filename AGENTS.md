@@ -44,7 +44,8 @@ only the last few days of the project's reasoning.
 rest: it is not deferred work or history but standing guidance that was in this
 file until 2026-08-15. Everything only somebody producing an iOS build needs —
 `app.json`'s settings and their reasons, the icon rules that fail at upload,
-`prebuild --clean` dropping the signing team. Read it before `bin/release-ios`.
+`prebuild --clean` dropping the signing team, and **the five verbs** below.
+Read it before `bin/upload-ios`.
 
 **`planning/CREDENTIALS.md`** is the second of that kind, split out the same
 day: the seven credentials, where each lives, what it can do and what losing it
@@ -107,7 +108,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 574 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 588 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -224,9 +225,22 @@ rules.
 
 - **`master` is trunk and is the only thing deployed.** Work on short-lived
   branches, merge back. There is no develop branch and no release branches.
-- **"Land it" means merge, push and clean up, in one phrase.** Get the branch
-  onto `master`, **push `master` to the origin**, remove the worktree if the
-  work was done in one, delete the branch locally and on the origin. The push
+- **Five verbs, and none of them is a synonym for another: land, deploy,
+  upload, submit, release.** Adopted 2026-08-21, because *release* had been
+  doing duty for both "put a build in TestFlight" and "put a build in front of
+  App Review" while the `released` tag meant neither. `land` merges and pushes
+  and reaches nobody; `deploy` reaches everybody in a minute; `upload` sends a
+  build to App Store Connect; `submit` puts an uploaded one in front of
+  review; `release` makes an approved one downloadable. The table with what
+  each costs is RELEASING.md § *The five verbs, which are five different days*.
+  **Say the one you mean** — a session told to "ship it" has to guess between
+  two commands, days apart, one of which is irreversible.
+- **"Land it" means merge, push and clean up, in one phrase, and puts the
+  change in nobody's hands.** Get the branch onto `master`, **push `master` to
+  the origin**, remove the worktree if the work was done in one, delete the
+  branch locally and on the origin. Landing is not shipping: the box does not
+  have it until a deploy, and a phone does not until an upload, a submission,
+  an approval and a release. The push
   is not optional and is the step that gets skipped: a change that has landed
   only on one machine is one that every other checkout, and any `bin/deploy`
   run from one, silently does not have — and since `bin/deploy` rsyncs the
@@ -256,7 +270,7 @@ rules.
   stamps `server/deployed.json` with the sha, marked `-dirty` when the tree
   was. `GET /healthz` and the startup log report it, and the deploy now fails
   if the box comes back not reporting the sha just sent.
-- **Every upload is tagged `build/<n>`, by `bin/release-ios`**, which refuses a
+- **Every upload is tagged `build/<n>`, by `bin/upload-ios`**, which refuses a
   dirty tree: a tag is permanent where a deploy is reversible. Tags are not
   pushed automatically; the command is printed.
 - **`released` points at what is downloadable.** It moves on release, not
@@ -467,7 +481,7 @@ Two more things that fail quietly and are worth checking before anything else:
   Accounts` and `No signing certificate "iOS Distribution" found` — the export
   re-signs for distribution, Apple holds that certificate, and fetching it is a
   signing-asset operation needing the App Store Connect key. It is the same
-  failure `bin/release-ios` exists to avoid, met by a command that had not been
+  failure `bin/upload-ios` exists to avoid, met by a command that had not been
   given the same treatment.
 
   Verified this way for builds 14 through 23, and for **36**: `production`.
@@ -544,16 +558,16 @@ Two more things that fail quietly and are worth checking before anything else:
 
 ---
 
-## Releasing an iOS build
+## Getting a build to users
 
-All of it is in **planning/RELEASING.md** — what `app.json` is set to and why,
-the icon that is rejected at upload if it carries an alpha channel, and
-`prebuild --clean` dropping `DEVELOPMENT_TEAM`. Moved there on 2026-08-15 when
-this file hit its limit: it is needed by somebody making a release and by
-nobody else, which is most sessions.
+All of it is in **planning/RELEASING.md** — the five verbs and what each costs,
+what `app.json` is set to and why, the icon that is rejected at upload if it
+carries an alpha channel, and `prebuild --clean` dropping `DEVELOPMENT_TEAM`.
+Moved there on 2026-08-15 when this file hit its limit: it is needed by
+somebody producing a build and by nobody else, which is most sessions.
 
-**Read it before running `bin/release-ios`.** The two traps that bite outside a
-release stayed here: `APNS_ENV` above, and the three artifacts that disagree
+**Read it before running `bin/upload-ios`.** The two traps that bite outside
+that stayed here: `APNS_ENV` above, and the three artifacts that disagree
 about entitlements.
 
 ---

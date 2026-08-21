@@ -41,6 +41,13 @@ were at the time — `SessionView`, `SessionState` — and those are now
 called sessions and are unrelated: the auth session behind a bearer token, and
 LiveKit's `AudioSession`. Neither was renamed.
 
+**And `bin/release-ios` is now `bin/upload-ios`**, renamed 2026-08-21 when
+*release* was split into five non-overlapping verbs — land, deploy, upload,
+submit, release. Passages below and in the closed volumes name the old script
+and use *release* loosely for what is now *upload* or *submit*; read them as
+written for the time. See § *Five verbs, because release was doing the work of
+three*.
+
 **And a channel is never called a room.** The word belongs to Clubhouse, and a
 product that borrows a competitor's vocabulary invites the comparison it should
 be avoiding. The media layer does use it — `closeRoom`, `setSilenced({ room })`,
@@ -1202,3 +1209,62 @@ this entry is most likely to over-apply.
 `BACKLOG.md` item 6, *self-mute across leave and re-entry*, is closed by this:
 it asked whether leaving muted should mean returning muted, and the answer is
 now no, uniformly, by construction rather than by each case agreeing.
+
+---
+
+## Five verbs, because *release* was doing the work of three
+
+Adopted 2026-08-21, from one sentence: *release is overloaded to mean either
+upload a new build to TestFlight or submit such a build for app review.* Both
+readings were in active use, and neither was what the `released` tag meant.
+
+The collision had a physical form. **`bin/release-ios` performed step one of
+four while the `released` tag marked step four** — one word at both ends of the
+pipeline, on the two artifacts a session is most likely to touch. Asked to
+"release", a session had to choose between a script that talks to Apple and a
+tag that records something a human did in a browser, days apart, one of them
+irreversible.
+
+The vocabulary is now:
+
+| Verb | What it does | Who is affected |
+| --- | --- | --- |
+| **land** | merge to `master`, push, clean up | nobody |
+| **deploy** | server to the box | everybody, within a minute |
+| **upload** | archive and send to App Store Connect | TestFlight testers |
+| **submit** | put an uploaded build in front of App Review | nobody yet |
+| **release** | make an approved build downloadable | everybody who updates |
+
+Apple **approves** between submit and release, which is their word and was
+never ambiguous. RELEASING.md carries the table with what each costs; AGENTS.md
+carries the short form, next to the tag conventions the verbs are about.
+
+**`land` was added to the set although nobody asked for it**, on the reasoning
+that it is the verb most easily mistaken for shipping and the one most often
+issued as an instruction. AGENTS.md already defined "land it" precisely — merge,
+push, clean up — but defined it alone, where nothing said what it did *not* do.
+A landed change is on the origin and in no one's hands. Naming it beside the
+four that do reach people is what makes that visible.
+
+**What was renamed, and what deliberately was not.** `bin/release-ios` became
+`bin/upload-ios`, and its header now names all four steps so somebody who opens
+the wrong script learns the distinction from the file itself. No shim was left
+behind: the old name now fails as `command not found`, which is unambiguous,
+where a shim that warned and exited would be one more thing to delete later.
+`planning/RELEASING.md` **kept its filename** — it genuinely covers all four
+Apple-side steps, and renaming it to match any single verb would misdescribe it
+— but its title is now *Getting a build to users*, and two headings that said
+"release" when they meant "upload" were reworded rather than search-and-replaced,
+because the ambiguity in them predated the rename.
+
+**Historical passages are not being corrected.** Closed `DECISIONS` volumes name
+`bin/release-ios` in four places and are never edited; `DOCTOR.md` counts past
+invocations of it. Read those as `bin/upload-ios`, the same way the vocabulary
+note at the top of this file asks that `SessionState` be read as `ChannelState`.
+The rule there applies here: a document that rewrites its own history to match
+today's names stops being evidence of anything.
+
+**The test of whether this took** is not that the docs agree — they were made to
+agree in one commit. It is whether the next ambiguous instruction gets a
+question instead of a guess. The one that produced this entry did, and that is
+the only reason the overload was ever noticed.

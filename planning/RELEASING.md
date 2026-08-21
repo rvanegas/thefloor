@@ -1,22 +1,58 @@
-# Releasing an iOS build
+# Getting a build to users
 
 Everything only somebody producing an iOS build needs: what `app.json` is set
 to and why, what `prebuild --clean` takes away, the icon rules that fail at
-upload rather than at build, what a release costs each time, and what App Store
+upload rather than at build, what an upload costs each time, and what App Store
 Connect will not tell you about the state of a submission.
+
+## The five verbs, which are five different days
+
+Adopted 2026-08-21, because *release* had come to mean both "put a build in
+TestFlight" and "put a build in front of App Review" — while the `released` tag
+meant neither. One word sat at both ends of the pipeline. These five do not
+overlap, and **nothing here is a synonym for any other line**:
+
+| Verb | What it does | Who is affected | Marked by |
+| --- | --- | --- | --- |
+| **land** | merge to `master`, **push**, delete the branch and worktree | nobody | `master` moves on the origin |
+| **deploy** | `bin/deploy` — server to the box | **everybody, within a minute** | `server/deployed.json`, `/healthz` |
+| **upload** | `bin/upload-ios` — archive, sign, send to App Store Connect | TestFlight testers, after processing | tag `build/<n>` |
+| **submit** | put an uploaded build in front of App Review | nobody yet | nothing local |
+| **release** | make an approved build downloadable | **everybody who updates**, over days | tag `released` moves |
+
+Apple **approves** between submit and release, which is their word and is not
+overloaded. Approval is not release: the two are separate actions in App Store
+Connect and the gap between them is a decision, which is why `released` moves
+on the second and not the first.
+
+**The two that reach users are `deploy` and `release`, and they are nothing
+alike.** A deploy is one command, takes a minute, needs nobody's permission and
+cannot be recalled except by another deploy. A release is days of queue, one
+review that can say no, and a population that updates whenever it updates. The
+whole of `## Branches, tags, and what is actually in people's hands` in
+AGENTS.md exists because of that asymmetry, and `MIN_SUPPORTED_BUILD` exists
+because the slow one never fully completes.
+
+**`land` is the one most likely to be mistaken for shipping, and it ships
+nothing.** A landed change is on the origin and in no one's hands: not on the
+box until a deploy, not on a phone until an upload, a submission, an approval
+and a release. The reason to say it precisely is that the phrase *is* the
+instruction — AGENTS.md defines "land it" as merge, push, clean up, in one
+phrase — and a session told to land something and hearing "ship it" will reach
+for the wrong script.
 
 Split out of AGENTS.md on 2026-08-15, when that file reached its 650-line
 limit. It is loaded into every session before anybody types anything, and none
 of this is needed by somebody working on the server, the reducer or the app's
-behaviour — which is most work. This file is read when a release is being made.
-The traps that bite outside a release stayed behind: `APNS_ENV`, the three
-artifacts that disagree about entitlements. The credentials a release needs —
+behaviour — which is most work. This file is read when a build is being made.
+The traps that bite outside that stayed behind: `APNS_ENV`, the three
+artifacts that disagree about entitlements. The credentials an upload needs —
 the App Store Connect key and its Admin role, the APNs `.p8` — were split out
 of AGENTS.md the same day and are in CREDENTIALS.md.
 
-**Read this before running `bin/release-ios`.** The branch and tag conventions
-around a release are in AGENTS.md under `## Branches, tags, and what is actually
-in people's hands`; the accounts App Review signs in as are in
+**Read this before running `bin/upload-ios`.** The branch and tag conventions
+around getting a build out are in AGENTS.md under `## Branches, tags, and what
+is actually in people's hands`; the accounts App Review signs in as are in
 DEMO-ACCOUNT.md.
 
 ---
@@ -58,13 +94,13 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   triangles filling the square — so the channel would carry nothing and still
   fail the check.
 
-  `bin/release-ios` runs `prebuild --clean`, which regenerates the whole
+  `bin/upload-ios` runs `prebuild --clean`, which regenerates the whole
   `ios/` asset catalogue from `app/assets/icon.png`, so nothing else has to be
   copied anywhere for a build to pick this up.
 
 - **The Android adaptive icon is prepared but Android is not shipped here.**
   Three layers, generated from `the-floor-icon.svg` and
-  `the-floor-icon-mono.svg`; there is no `android/` and `bin/release-ios` is
+  `the-floor-icon-mono.svg`; there is no `android/` and `bin/upload-ios` is
   the only release path. Why each layer is what it is — and why the monochrome
   silhouette gets its own master file — is in planning/DECISIONS.md.
 
@@ -95,7 +131,7 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   string.
 
 `buildNumber` must increase for each upload, even when the version does not —
-and **`bin/release-ios` does that itself**, reading `app.json`, adding one, and
+and **`bin/upload-ios` does that itself**, reading `app.json`, adding one, and
 writing it back before it prebuilds. Bumping it by hand first is not an error
 Apple will complain about, but it skips a number: doing both is what turned 23
 into 25 and left build 24 never existing.
@@ -109,7 +145,7 @@ TestFlight as **44**. Everything downstream then named a binary that did not
 exist — the bump commit, the `build/<n>` tag, and `app.json`, left a number
 behind what Apple held and so bumping into a taken number on the next release.
 
-`bin/release-ios` now passes it as `false`, because this script owns the build
+`bin/upload-ios` now passes it as `false`, because this script owns the build
 number and increments it itself; Apple's default exists to spare you a refused
 upload when the number is already used, which is worth less than the numbers
 agreeing. **Builds up to 44 predate that**, so their tags and commits are off by
@@ -146,16 +182,16 @@ Three things depend on it, and each breaks quietly rather than loudly:
   every claimed build ambiguous, including the ones already recorded.
 - **`build/<n>` tags are one flat namespace.** git has no notion of the version
   they belong to. A reset either collides with an existing tag, which git
-  refuses, or gets disambiguated by hand into something the release script does
+  refuses, or gets disambiguated by hand into something `bin/upload-ios` does
   not produce.
-- **`bin/release-ios` reads `app.json`, adds one, and writes it back.** It
+- **`bin/upload-ios` reads `app.json`, adds one, and writes it back.** It
   knows nothing about the version and is not asked to. Resetting means editing
   the number by hand, which is the operation that skipped a build above.
 
 `CFBundleShortVersionString` — `expo.version` in `app.json`, `1.0.0` — moves on
 its own schedule and must match the version record in App Store Connect or the
-build picker is silently empty. Bumping it is a separate act from a release and
-`bin/release-ios` does not touch it.
+build picker is silently empty. Bumping it is a separate act from an upload and
+`bin/upload-ios` does not touch it.
 
 So: yes, indefinitely, and 51 is the fifty-first build across all versions. The
 question was TASKS.md's `## Relation of Version and Build`, answered
@@ -181,7 +217,7 @@ the rename that caused it.
 
 ---
 
-## What a release actually costs, once
+## What one build costs, end to end
 
 Everything below this line recurs. It was gathered here on 2026-08-18 and again
 on 2026-08-19, out of the three App Store files that covered the first
@@ -194,7 +230,7 @@ there and goes on being true survives them.
    still installed rather than the newest released. `oldestBuild` on `/healthz`
    reports it. This is the discipline that matters most and the only one no
    tooling enforces.
-3. **`bin/release-ios`.** One command: refuses a dirty tree, bumps and commits
+3. **`bin/upload-ios`.** One command: refuses a dirty tree, bumps and commits
    the build number, prebuilds, archives, uploads, tags.
 4. **Select the build in App Store Connect and submit.**
 
@@ -205,14 +241,14 @@ eight defects in an app that had been used daily for months — including a
 recording feature that silently discarded what people had just recorded. Twenty
 minutes, and it is the highest-yield thing on this list.
 
-### What the second release costs that the first did not
+### What the second build costs that the first did not
 
 Five differences, none of them obvious from having done the first one.
 
 - **A new version record, and `expo.version` has to move with it.** A build
   cannot be attached to a version already released. Create the next version in
   App Store Connect *and* bump `expo.version` in `app.json` to the same string.
-  `bin/release-ios` bumps `buildNumber` and nothing else, deliberately — most
+  `bin/upload-ios` bumps `buildNumber` and nothing else, deliberately — most
   releases do not change the version — so this one is by hand, and it is the one
   that bites: `CFBundleShortVersionString` and the App Store version record must
   agree **or the build picker is silently empty**, with nothing on screen
@@ -275,7 +311,7 @@ is the kind that goes stale between a decision and a submission.
 
   **There is no API for it.** `appPrivacyDetails`, `appDataUsages` and
   `dataUsages` all 404, and `appInfos` carries only categories and age rating —
-  so this cannot be read by a script or gated in `bin/release-ios`, and is
+  so this cannot be read by a script or gated in `bin/upload-ios`, and is
   checked by opening the page. Changes need publishing, not just saving.
 
   **None of it is *tracking*** as Apple defines it — no third-party data, no ad
@@ -327,7 +363,7 @@ authority, and answers in a second:
     GET /v1/appStoreVersions/<id>/build           → which build is attached
     GET /v1/builds?filter[app]=<appId>            → what Apple actually received
 
-Signed with the same App Store Connect key `bin/release-ios` uploads with — an
+Signed with the same App Store Connect key `bin/upload-ios` uploads with — an
 ES256 JWT, `aud: appstoreconnect-v1`. `WAITING_FOR_REVIEW` with a fresh
 `submittedDate` is what a successful resubmission looks like;
 `UNRESOLVED_ISSUES` with the old one is a rejection nobody has answered yet.

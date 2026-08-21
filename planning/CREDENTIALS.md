@@ -80,7 +80,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   a later deploy removes. `*.p8` is in `.gitignore` and in the deploy excludes,
   both deliberately.
 
-- **App Store Connect API key** — a second `.p8`, used by `bin/release-ios` to
+- **App Store Connect API key** — a second `.p8`, used by `bin/upload-ios` to
   sign and upload without an Apple ID being signed in to Xcode.
 
   It exists because that dependency broke a release. Build 21 archived cleanly
