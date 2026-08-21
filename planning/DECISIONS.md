@@ -1482,3 +1482,57 @@ argue about.** Open the panel, background, foreground, read `asked` against
 `asked` of `IDLE` confirms the standing hypothesis outright: the observer
 applies `recording: CALL` whenever the engine reports recording, including when
 nothing intends to publish.
+
+---
+
+## Submitting is scriptable, and the button still is not — 2026-08-21
+
+`bin/submit-ios` prepares a submission and stops one PATCH short of making it.
+It exists because RELEASING.md described step four as "select the build in App
+Store Connect and submit" — which was a *report of what was done* and got read
+as a statement that it was the only way. The whole path is in the API, and 1.1.0
+was submitted through it by hand on 2026-08-20: the submissions list shows that
+one as `API user 3X4KWJ3W7M`, which is the App Store Connect key in
+`~/.config/thefloor/asc`, not a second person with access.
+
+The seam is deliberate and is the only real design decision in it. Everything
+the script does — create the version record, attach the build, set "What's New",
+open a `reviewSubmission`, put the version on it as an item — is editable or
+deletable in App Store Connect afterwards. `PATCH /v1/reviewSubmissions/<id>`
+with `submitted: true` is not: it is a claim to Apple about a binary, it starts
+a queue that takes days, and withdrawing from it is visible in the submissions
+list forever. So the script assembles the reversible half, prints the page, and
+leaves the irreversible half to a person who has read what is on the screen.
+This is the same trade `bin/deploy --dirty` and `bin/db --write` make, one step
+further along: the cost of the guard is a click, and the cost of not having it
+is a submission nobody meant to make.
+
+**What it is really for is four checks, none of which the UI makes.**
+
+- **The build's train against `expo.version`.** A build uploaded as 1.1.0
+  cannot attach to a version record reading 1.2.0, and what the UI does about
+  that is show an empty build picker with nothing on screen saying why.
+  RELEASING.md has carried the warning since the second submission; this is the
+  first thing that enforces it, from `preReleaseVersion` on the build.
+- **`processingState` is `VALID`.** A build still processing is not a build.
+- **"What's New" is not empty.** Required for an update, absent by default, and
+  not needed by a first submission — which is exactly why the second forgets.
+  `--whats-new <file>` sets it for every locale; without the flag, an empty one
+  is a refusal rather than a submission that fails later.
+- **The review details can be signed in with.** Every update is reviewed, so
+  the demo credentials have to be live each time. They are compared against
+  `~/.config/thefloor/demo-account.txt`, which DEMO-ACCOUNT.md makes
+  authoritative, and a mismatch is a warning rather than a refusal — either
+  copy could be the stale one and the script cannot tell which.
+
+**Two things are deliberately not automated.** App Privacy has no API at all —
+`appPrivacyDetails`, `appDataUsages` and `dataUsages` all 404 — so it stays a
+page somebody opens, and it is app-level rather than version-level, which is
+what makes it the thing left behind when the app starts collecting something
+new. And phased release is a decision per submission, not a default worth
+having a script choose.
+
+`--status` is the four read-only queries RELEASING.md already listed, in one
+command, and is the answer to "what does Apple actually think is happening" —
+which the UI is a poor witness to. `--dry-run` runs every check and every read,
+and makes no writes at all.

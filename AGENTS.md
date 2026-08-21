@@ -108,7 +108,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 605 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 607 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -583,7 +583,9 @@ carries an alpha channel, and `prebuild --clean` dropping `DEVELOPMENT_TEAM`.
 Moved there on 2026-08-15 when this file hit its limit: it is needed by
 somebody producing a build and by nobody else, which is most sessions.
 
-**Read it before running `bin/upload-ios`.** The two traps that bite outside
+**Read it before running `bin/upload-ios` or `bin/submit-ios`** — the second
+prepares a submission and deliberately stops before the button, since that
+PATCH is the irreversible half. The two traps that bite outside
 that stayed here: `APNS_ENV` above, and the three artifacts that disagree
 about entitlements.
 

@@ -17,7 +17,7 @@ overlap, and **nothing here is a synonym for any other line**:
 | **land** | merge to `master`, **push**, delete the branch and worktree | nobody | `master` moves on the origin |
 | **deploy** | `bin/deploy` — server to the box | **everybody, within a minute** | `server/deployed.json`, `/healthz` |
 | **upload** | `bin/upload-ios` — archive, sign, send to App Store Connect | TestFlight testers, after processing | tag `build/<n>` |
-| **submit** | put an uploaded build in front of App Review | nobody yet | nothing local |
+| **submit** | `bin/submit-ios` prepares it; a person presses Submit | nobody yet | nothing local |
 | **release** | make an approved build downloadable | **everybody who updates**, over days | tag `released` moves |
 
 Apple **approves** between submit and release, which is their word and is not
@@ -232,7 +232,15 @@ there and goes on being true survives them.
    tooling enforces.
 3. **`bin/upload-ios`.** One command: refuses a dirty tree, bumps and commits
    the build number, prebuilds, archives, uploads, tags.
-4. **Select the build in App Store Connect and submit.**
+4. **`bin/submit-ios`,** which prepares the submission and stops before the
+   button: it creates the version record if there is none, refuses a build
+   whose train does not match `expo.version` or that is still processing,
+   insists on "What's New" and on review details a reviewer can sign in with,
+   opens a reviewSubmission and puts the version on it. Then it prints the page
+   to press Submit on, because that PATCH is the irreversible half and
+   everything before it is editable. `--dry-run` says what it would do;
+   `--status` reports what App Store Connect holds and writes nothing.
+5. **Press Submit**, having read the page and the list below.
 
 And the thing that is not a command: **walk the app on a device first, in the
 order a stranger would, with nothing skipped.** Answering the 2.1 rejection
@@ -367,6 +375,16 @@ Signed with the same App Store Connect key `bin/upload-ios` uploads with — an
 ES256 JWT, `aud: appstoreconnect-v1`. `WAITING_FOR_REVIEW` with a fresh
 `submittedDate` is what a successful resubmission looks like;
 `UNRESOLVED_ISSUES` with the old one is a rejection nobody has answered yet.
+
+**`bin/submit-ios --status` is those four queries in one command**, and is the
+thing to run rather than reloading the page. The script it belongs to is why
+this section is no longer only a list of endpoints: 1.1.0 was submitted through
+the API by hand on 2026-08-20, which is what showed that the whole path is
+scriptable, and `bin/submit-ios` is that path with the guards attached and the
+last call left out. A submission made this way is attributed in App Store
+Connect to **`API user <key id>`** rather than to a name — `API user
+3X4KWJ3W7M` in the submissions list is the key in `~/.config/thefloor/asc`, not
+a second person with access.
 
 The build list is worth its own mention: it is the only thing that says what
 Apple *received*, as opposed to what was archived, tagged or echoed by the
