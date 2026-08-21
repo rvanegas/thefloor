@@ -22,7 +22,8 @@ import { ContactsSettingsView } from '../ContactsSettingsView';
 import { ContactsView } from '../ContactsView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
-import { Alert, Clipboard, KeyboardAvoidingView, StyleSheet } from 'react-native';
+import { Alert, KeyboardAvoidingView, StyleSheet } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { colors } from '../theme';
 
 /**
@@ -4024,12 +4025,12 @@ describe('copying the diagnostics', () => {
   /**
    * The copy button, whose failure mode is the one this panel cannot have.
    *
-   * `Clipboard` comes from react-native core, is deprecated there, and is
-   * expected to be removed in some future release. When that happens this
-   * button must *say* so rather than appear to work — the whole diagnostic is
-   * written against instruments that go quiet, and a copy that silently did
-   * nothing would send somebody away believing they had a reading they did
-   * not. Both paths are pinned here for that reason.
+   * `expo-clipboard`'s `setStringAsync` resolves to a boolean, so there are
+   * two distinct ways to fail — it can reject, and it can decline by resolving
+   * false — and only one of them is an exception. Both are pinned, because the
+   * whole diagnostic is written against instruments that go quiet: a copy that
+   * appeared to work while doing nothing would send somebody away believing
+   * they held a reading they did not.
    */
   function openPanel() {
     mockApp.debug = true;
@@ -4053,13 +4054,24 @@ describe('copying the diagnostics', () => {
       .find((n) => n.props?.accessibilityLabel === 'Copy diagnostics');
   }
 
-  it('puts the whole panel on the clipboard, alarms included', () => {
-    const setString = jest.spyOn(Clipboard, 'setString').mockImplementation(() => {});
-    const tree = openPanel();
-    act(() => copyButton(tree)!.props.onPress());
+  /** The press and the promise it starts, settled. */
+  async function pressCopy(tree: ReturnType<typeof render>) {
+    await act(async () => {
+      copyButton(tree)!.props.onPress();
+    });
+  }
 
-    expect(setString).toHaveBeenCalledTimes(1);
-    const copied = setString.mock.calls[0]![0] as string;
+  beforeEach(() => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+  });
+
+  it('puts the whole panel on the clipboard, alarms included', async () => {
+    const tree = openPanel();
+    await pressCopy(tree);
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(1);
+    const copied = (Clipboard.setStringAsync as jest.Mock).mock
+      .calls[0]![0] as string;
     expect(copied).toContain('The Floor — audio diagnostics');
     expect(copied).toContain('Session — asked vs actual');
     // Nothing native under jest, so the readings are unreadable — and that has
@@ -4068,23 +4080,34 @@ describe('copying the diagnostics', () => {
     expect(copied).toContain('<<');
     expect(textOf(tree)).toContain('copied');
 
-    setString.mockRestore();
     act(() => tree.unmount());
   });
 
-  it('says so on the button when the clipboard refuses', () => {
-    const setString = jest.spyOn(Clipboard, 'setString').mockImplementation(() => {
-      throw new Error('Clipboard has been removed from react-native core');
+  it('says so on the button when the clipboard throws', async () => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => {
+      throw new Error('no clipboard on this device');
     });
     const tree = openPanel();
-    act(() => copyButton(tree)!.props.onPress());
+    await pressCopy(tree);
 
-    // The point of the test: a failure is visible, and it names the fallback
-    // that still works.
     expect(textOf(tree)).toContain('copy failed');
     expect(textOf(tree)).toContain('screenshot');
+    act(() => tree.unmount());
+  });
 
-    setString.mockRestore();
+  /**
+   * The case the deprecated core API could not express at all: it returned
+   * void, so a clipboard that declined was indistinguishable from one that
+   * worked. Moving to `expo-clipboard` is what made this testable, and a
+   * button that ignored the boolean would have thrown the benefit away.
+   */
+  it('says so when the clipboard declines without throwing', async () => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => false);
+    const tree = openPanel();
+    await pressCopy(tree);
+
+    expect(textOf(tree)).toContain('copy failed');
+    expect(textOf(tree)).not.toContain('✓ copied');
     act(() => tree.unmount());
   });
 });

@@ -26,6 +26,17 @@ jest.mock('expo-notifications', () => ({
 
 jest.mock('expo-device', () => ({ isDevice: false }));
 
+// The clipboard is a native module, and both of its calls are async and return
+// something a caller acts on — so the stub answers rather than no-ops. The
+// default is *success* with an empty clipboard: a test that cares about either
+// failure path overrides it, and the alternative default would make every
+// unrelated screen render as though the device were broken.
+jest.mock('expo-clipboard', () => ({
+  setStringAsync: jest.fn(async () => true),
+  getStringAsync: jest.fn(async () => ''),
+  hasStringAsync: jest.fn(async () => false),
+}));
+
 // The audio SDK reaches native modules at import time — it installs a
 // DOMException polyfill and its AudioSession talks to the bridge — so any
 // screen importing it would need a device to render under the test renderer.

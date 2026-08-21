@@ -1435,7 +1435,7 @@ values as a plain object with no reverse mapping, so the lookup returned
 same shape, caught by a test that would not have existed if the panel had been
 considered too small to test.
 
-### The copy button uses a deprecated API on purpose
+### The copy button, and the clipboard becoming shared infrastructure
 
 Added 2026-08-21, after the panel. A screenshot was how a reading left the
 phone, and it is a bad carrier for this particular content: the values that
@@ -1450,22 +1450,36 @@ a pasted dump are always which binary and when.
 and colour is how the panel shows a disagreement — a copy that dropped it would
 lose exactly the information somebody is copying the panel in order to share.
 
-**`Clipboard` comes from `react-native` core, which deprecates it and warns
-that it will be removed.** Used anyway, and this is the trade: it is a working
-TurboModule already compiled into the binary, where both replacements —
-`expo-clipboard` and `@react-native-clipboard/clipboard` — are *new native
-modules*. That means a prebuild, a changed autolink count, and a dependency
-added for one button on a panel one account can see; and `prebuild --clean` is
-the thing that drops the signing team. The cost of being wrong is that a future
-React Native bump removes it.
+**This first used `Clipboard` from `react-native` core, which is deprecated,
+and the reasoning for that was sound and was overtaken within the hour.** The
+argument was that the core export is a working TurboModule already compiled
+into the binary, where the alternatives are *new native modules* — a prebuild,
+a changed autolink count, a dependency added for one button on a panel one
+account can see. Every clause of that is true. It rested entirely on **one**
+button, and TASKS.md § *Clipboard Sharing* already had a second: pasting into a
+channel and copying back out of it. A dependency that is not worth its prebuild
+for one caller is obviously worth it for a capability, and the difference was a
+roadmap entry away the whole time.
 
-**So the removal is made visible rather than guarded against.** The call is
-wrapped, and a failure puts `✗ copy failed — screenshot instead` on the button
-in the danger colour, naming the fallback that still works. A test pins both
-paths. That is the same rule the rest of the panel follows: the thing that must
-not happen is not the button breaking, it is the button appearing to work while
-doing nothing — which would send somebody away believing they had a reading
-they did not have. `expo-clipboard` is the migration when it comes.
+**The lesson is about scope, not about clipboards.** "Too heavy for this call
+site" is a judgement that has to be made against what the thing is *for*, not
+against the first use of it. Checking the roadmap costs one grep.
+
+So `expo-clipboard`, wrapped in `app/src/clipboard.ts` as `copyText` and
+`pasteText`, with the contract every device reader here follows: never throw,
+never report a success you did not have. Autolinked count 15 → 16, verified
+against `Podfile.lock` with `bin/upload-ios`'s own check rather than assumed.
+
+**It is also the better API, which the first decision did not weigh.**
+`setStringAsync` resolves to a **boolean**; the core export returned `void`. So
+a clipboard that *declines* — no exception, simply refuses — was previously
+indistinguishable from one that worked, and the button would have reported
+success it never had. That is this panel's own stated failure mode, and it was
+sitting inside the button built to avoid it. A test now pins all three
+outcomes: success, throw, and decline.
+
+The failure is still shown rather than swallowed: `✗ copy failed — screenshot
+instead`, in the danger colour, naming the fallback that still works.
 
 ### The log, which is not the same instrument as the reading
 

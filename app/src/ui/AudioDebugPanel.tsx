@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Clipboard,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   diagnosticEvents,
   diagnosticSections,
@@ -17,6 +10,7 @@ import {
   type AudioDiagnostic,
 } from '../audio/diagnostics';
 import { appBuild } from '../api/build';
+import { copyText } from '../clipboard';
 import type { AudioIntent } from '../audio/useSessionAudio';
 import { colors, radius, spacing, type } from './theme';
 
@@ -105,22 +99,18 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
   }, [copied]);
 
   const copy = () => {
-    try {
-      // `Clipboard` from react-native core is deprecated — it warns once and
-      // points at `@react-native-clipboard/clipboard` — and is used anyway,
-      // deliberately. It is a working TurboModule already compiled into this
-      // binary, where either replacement is a *new native module*: a prebuild,
-      // a changed autolink count, and a dependency added for one button on a
-      // panel one account can see. `expo-clipboard` is the migration if it is
-      // ever removed, and the catch below is what makes that removal visible
-      // rather than silent.
-      Clipboard.setString(
-        diagnosticText(readDiagnostic(asked), diagnosticEvents(), appBuild())
-      );
-      setCopied('done');
-    } catch {
-      setCopied('failed');
-    }
+    // Read fresh rather than reusing `reading`, which is up to a second old.
+    // A copy taken at the moment somebody pressed the button should be the
+    // state at that moment, not the state at the last tick.
+    const text = diagnosticText(
+      readDiagnostic(asked),
+      diagnosticEvents(),
+      appBuild()
+    );
+    // `copyText` resolves false rather than throwing, and reports whether the
+    // text actually landed — which is why the result is read instead of the
+    // call merely being made. See src/clipboard.ts.
+    void copyText(text).then((ok) => setCopied(ok ? 'done' : 'failed'));
   };
 
   const sections = diagnosticSections(reading);
