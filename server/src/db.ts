@@ -642,7 +642,7 @@ CREATE INDEX IF NOT EXISTS usage_bytes_at ON usage_bytes(at);
 -- ON DELETE CASCADE on the channel, because a channel that has been swept is
 -- one whose settings are meaningless — and the sweep in channels.ts really
 -- does DELETE the row, a week after the last member marked it. No cascade is
--- needed on the account side: `Accounts.erase` anonymises the row in place
+-- needed on the account side: Accounts.erase anonymises the row in place
 -- rather than deleting it, so that reference cannot dangle.
 CREATE TABLE IF NOT EXISTS channel_notification_levels (
   account_id TEXT NOT NULL REFERENCES accounts(id),

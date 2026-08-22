@@ -185,24 +185,46 @@ describe('what a notification is allowed to interrupt', () => {
   it('asks for the passive level when somebody has turned a channel down', async () => {
     await pusher().send(
       ['token'],
-      notifications.pinged('Standup', 'Alice', 'come back', 'chan_1'),
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
       'passive'
     );
 
     const aps = requests[0].payload.aps as Record<string, unknown>;
     expect(aps['interruption-level']).toBe('passive');
     expect('sound' in aps).toBe(false);
-    // And the radio is not woken for it, which is the other half of quiet.
+    // And the radio is not woken for news about a room, which is the other
+    // half of quiet.
     expect(requests[0].headers['apns-priority']).toBe('5');
   });
 
   it('delivers everything else immediately', async () => {
     await pusher().send(
       ['token'],
-      notifications.pinged('Standup', 'Alice', null, 'chan_1'),
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
       'audible'
     );
 
     expect(requests[0].headers['apns-priority']).toBe('10');
+  });
+
+  /**
+   * Quieting something and losing it are different, and priority 5 crosses
+   * that line for a ping: iOS may defer the delivery while the five-minute
+   * expiry runs out underneath it, so the phone least likely to be awake —
+   * belonging, by definition, to the person who turned this channel down —
+   * gets no ping at all and no record that one was sent.
+   */
+  it('never defers a ping, however quietly it was asked to arrive', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.pinged('Standup', 'Alice', 'come back', 'chan_1'),
+      'passive'
+    );
+
+    expect(requests[0].headers['apns-priority']).toBe('10');
+    // Quiet, still: what it declines to give up is the delivery, not the hush.
+    const aps = requests[0].payload.aps as Record<string, unknown>;
+    expect(aps['interruption-level']).toBe('passive');
+    expect('sound' in aps).toBe(false);
   });
 });

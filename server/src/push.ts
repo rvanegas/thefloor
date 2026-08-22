@@ -57,12 +57,31 @@ export interface PushMessage {
   /**
    * What this replaces on the lock screen, or null if it replaces nothing.
    *
-   * APNs shows one notification per collapse key and discards the rest, so this
-   * decides what a new one overwrites. `channelId` for everything a channel
-   * does by itself, which is the point — a room that fills and empties all
-   * evening leaves one line rather than nine. Automatic traffic may overwrite
-   * automatic traffic, because the later line is a better version of the
-   * earlier one: it reports the same room, later.
+   * APNs shows one notification per collapse key and discards the rest — and
+   * *replaces* one already sitting on the lock screen, not merely one still in
+   * flight. So this decides what a new notification destroys.
+   *
+   * **Two keys per channel, drawn on what stays true**, which is the same seam
+   * the lifetimes use and deliberately not the one the rest of this file is
+   * organised around. `channelId` carries presence, where a room that fills and
+   * empties all evening should leave one line rather than nine: the later
+   * notification is a better version of the earlier one, being the same room,
+   * later. `${channelId}:you` carries the two that change who *belongs* to a
+   * channel, and nothing about the room may overwrite those.
+   *
+   * **They shared one key until 2026-08-22, and an arrival could destroy an
+   * invitation.** Somebody was invited to a channel, and ten minutes later
+   * somebody else stepped into it — same key, so the lock screen stopped
+   * reading "Alice invited you to Standup" and started reading "Standup —
+   * Carol stepped in". The only notification telling that person they had been
+   * added to a channel was overwritten by one that expires in five minutes and
+   * says something else. That is the same defect as collapsing pings together,
+   * one rung down: a notification that stays true discarded by one that does
+   * not.
+   *
+   * `started` and `invited` share the second key safely, since being invited to
+   * a channel you were just started into is not a thing that happens — one
+   * makes you a participant and the other refuses everybody who already is.
    *
    * **Null for a ping, and that is the whole of the rule.** Each one carries
    * words somebody chose, so no two are versions of each other and there is
@@ -214,7 +233,8 @@ export const notifications = {
       title: initiator,
       body: 'Started a channel with you.',
       channelId,
-      collapseKey: channelId,
+      // Membership, which nothing about the room may overwrite. See the field.
+      collapseKey: `${channelId}:you`,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
       reachesInApp: false,
     };
@@ -238,7 +258,8 @@ export const notifications = {
         ? `Invited you to ${channelName}.`
         : 'Invited you to a channel.',
       channelId,
-      collapseKey: channelId,
+      // The same key `started` uses, and for the same reason.
+      collapseKey: `${channelId}:you`,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
       reachesInApp: false,
     };
@@ -523,13 +544,21 @@ export class ApnsPusher implements Pusher {
         // battery, which is the wrong trade for an announcement that expires
         // in five minutes.
         //
-        // Except for a passive one, where 5 is the honest header and Apple
-        // asks for it: somebody who set this channel to arrive quietly is not
-        // owed a radio waking for it, and the notification it carries is one
-        // they have said they will read when they read it. The five-minute
-        // expiry still applies, so a phone that is off simply misses it —
-        // which is the outcome that level describes.
-        'apns-priority': alert === 'passive' ? '5' : '10',
+        // Except for a passive announcement about the room, where 5 is the
+        // honest header: somebody who set this channel to arrive quietly is
+        // not owed a radio waking for the news that it filled up.
+        //
+        // **Never for a ping, whatever level it is arriving at**, and the
+        // exception was missing for an hour. Priority 5 lets iOS defer
+        // delivery while the five-minute expiry keeps running, so the two
+        // compound: the phone least likely to be awake belongs to the person
+        // who turned the channel down, and the outcome is not a quiet ping but
+        // no ping and no record that one was sent. `low` says do not interrupt
+        // me. It does not say throw away what people write to me — and the
+        // difference between quieting something and losing it is the whole of
+        // why a ping does not collapse either.
+        'apns-priority':
+          alert === 'passive' && message.kind !== 'pinged' ? '5' : '10',
         // Omitted entirely when the message replaces nothing. APNs has no
         // value meaning "collapse with nothing" — the absence of the header is
         // how that is said, and a key invented to be unique would say it by

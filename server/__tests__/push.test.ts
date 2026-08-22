@@ -210,7 +210,7 @@ describe('an invite', () => {
         kind: 'started',
         body: 'Started a channel with you.',
         channelId,
-        collapseKey: channelId,
+        collapseKey: `${channelId}:you`,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
         reachesInApp: false,
       },
@@ -238,7 +238,7 @@ describe('an invite', () => {
         kind: 'started',
         body: 'Started a channel with you.',
         channelId: standing.channelId,
-        collapseKey: standing.channelId,
+        collapseKey: `${standing.channelId}:you`,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
         reachesInApp: false,
       },
@@ -316,7 +316,7 @@ describe('an invite', () => {
           kind: 'started',
           body: 'Started a channel with you.',
           channelId,
-          collapseKey: channelId,
+          collapseKey: `${channelId}:you`,
           lifetimeMs: PARTICIPATION_LIFETIME_MS,
             reachesInApp: false,
         },
@@ -1197,6 +1197,29 @@ describe('how long a notification stays worth delivering', () => {
    * off, and the ping goes with them. So this is a statement about the three
    * as much as about the one.
    */
+  /**
+   * The collapse keys follow the *lifetimes*, not the seam the rest of push.ts
+   * is organised around, and this is the test that says so. They shared one key
+   * per channel until an arrival was found overwriting an invitation on the
+   * lock screen — the only notification telling somebody they had been added to
+   * a channel, replaced by one that expires in five minutes and says something
+   * else.
+   */
+  it('keeps membership news out of the reach of the room', () => {
+    const started = notifications.started('Alice', 'chan_1');
+    const invited = notifications.invited('Alice', 'Standup', 'chan_1');
+    const arrived = notifications.arrived('Standup', 'Alice', 'chan_1');
+
+    // The two that stay true share a key, which is safe: being invited to a
+    // channel you were just started into does not happen.
+    expect(started.collapseKey).toBe(invited.collapseKey);
+    // And the one that does not stay true cannot touch them.
+    expect(arrived.collapseKey).not.toBe(started.collapseKey);
+    // The pair that shares a key is the pair that shares a lifetime.
+    expect(started.lifetimeMs).toBe(invited.lifetimeMs);
+    expect(arrived.lifetimeMs).not.toBe(started.lifetimeMs);
+  });
+
   it('says which of the four it is, so a level can be applied to it', () => {
     expect(notifications.started('Alice', 'chan_1').kind).toBe('started');
     expect(notifications.invited('Alice', null, 'chan_1').kind).toBe('invited');

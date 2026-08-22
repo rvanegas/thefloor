@@ -1599,3 +1599,57 @@ another door. So the resolved alert travels in the payload beside
 `reachesInApp`, and the handler tests both. The phone is told the *conclusion*
 rather than the setting: the level lives on the server, and a client
 re-deriving it is a client that can reach a different answer.
+
+## Two collapse-and-expiry defects, found by reading rather than by failing — 2026-08-22
+
+A review of the expiry and collapse rules, prompted by nothing going wrong.
+Both defects are the same shape as the ping-collapse one earlier the same day —
+something that stays true being discarded by something that does not — and
+neither would have announced itself, because the evidence is a notification
+that is absent.
+
+**The thing to hold on to: expiry governs delivery, never display.**
+`apns-expiration` is how long APNs keeps *retrying* an undelivered
+notification. Once it lands it stays in Notification Center until somebody
+dismisses it, so the five-minute presence lifetime tidies nothing up. Collapse
+is the only thing that stops the list growing; expiry is only ever about the
+phone that was off.
+
+### An arrival could destroy an invitation
+
+`started`, `invited` and `arrived` shared one collapse key, `channelId`. The
+first two stay true for thirty days and the third for five minutes — the file
+names that seam, uses it for the lifetimes, and then drew the collapse key on
+the *other* seam, the one about who composed the notification.
+
+So: Alice invites Bob to Standup, and his lock screen reads "Alice — Invited
+you to Standup". Ten minutes later Carol steps in. Same key, so APNs replaces
+the notification already sitting there, and it now reads "Standup — Carol
+stepped in". The one notification telling Bob he had been added to a channel is
+gone, overwritten by one that expires in five minutes and says something else.
+He will find the channel on Home eventually; the thing whose whole job was to
+tell him has been thrown away.
+
+Membership now takes `${channelId}:you` and presence keeps `channelId`.
+**The collapse keys follow the lifetimes**, which is the seam that was already
+right. `started` and `invited` share the new key safely, since being invited to
+a channel you were just started into does not happen — one makes you a
+participant and the other refuses everybody who already is.
+
+### A passive ping was droppable, which is losing rather than quieting
+
+Self-inflicted, an hour old, and from the level work. `apns-priority` was
+chosen by *alert*, so `passive` meant priority 5 — and priority 5 lets iOS
+defer delivery while the five-minute expiry goes on running. The two compound,
+and they compound hardest for exactly the wrong person: the phone least likely
+to be awake belongs to whoever turned this channel down. The outcome is not a
+quiet ping. It is no ping, no record that one was sent, and nothing said to
+either end.
+
+Priority now follows the kind rather than the alert: 5 for a passive
+announcement about the room, 10 for a ping at every level. **`low` says do not
+interrupt me; it does not say throw away what people write to me**, and that
+distinction is the same one that stops a ping collapsing.
+
+The battery argument survives where it was actually made — about presence
+noise, which is where the volume is.
