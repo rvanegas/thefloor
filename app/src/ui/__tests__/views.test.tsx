@@ -3764,7 +3764,7 @@ describe('who is in the channel, and who is talking', () => {
     act(() => tree.unmount());
   });
 
-  it('opens their profile from the card, and offers no route to your own', async () => {
+  it('opens their profile from the card', async () => {
     showChannel(channelOf());
     const tree = render(
       <ChannelView
@@ -3774,12 +3774,6 @@ describe('who is in the channel, and who is talking', () => {
         onExit={() => {}}
       />
     );
-    // Yours is not a button: a read-only profile of yourself, offering to add
-    // you as your own contact, is not a screen worth reaching.
-    expect(cardFor(tree, 'Me, you').node!.props.accessibilityRole).not.toBe(
-      'button'
-    );
-
     const theirs = tree.root
       .findAll((n) => n.props?.accessibilityRole === 'button')
       .find((n) => String(n.props?.accessibilityLabel).startsWith('Dana Chu'));
@@ -3787,6 +3781,36 @@ describe('who is in the channel, and who is talking', () => {
     expect(mockApp.loadProfile).toHaveBeenCalledWith(THEM);
     // And from there they can be kept, which is what the card is a route to.
     expect(findButton(tree, 'Add contact')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Your own card is a button like the rest. It used to be the one that was
+   * not, because the screen behind it would have offered to add you as your
+   * own contact — which ProfileView stopped doing when it learnt `isSelf`.
+   * What it is for is reading your bio as the roster around you reads it.
+   */
+  it('opens your own profile from your own card, without the contact card', async () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    // The Pressable rather than the host node cardFor finds: the role is on
+    // both, the handler only on the composite.
+    const mine = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => String(n.props?.accessibilityLabel).startsWith('Me, you'));
+    expect(mine).toBeDefined();
+    await act(async () => mine!.props.onPress());
+    expect(mockApp.loadProfile).toHaveBeenCalledWith(ME);
+    // Nothing about a relationship with yourself, in either direction.
+    expect(findButton(tree, 'Add contact')).toBeUndefined();
+    expect(findButton(tree, 'Remove contact')).toBeUndefined();
     act(() => tree.unmount());
   });
 });

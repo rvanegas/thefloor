@@ -211,6 +211,10 @@ export function ChannelView({
       <ProfileView
         accountId={viewing.id}
         fallbackName={viewing.displayName}
+        // Your own is one of these: the server allows it, and the screen leaves
+        // out the Contact card when the id is yours. Nothing below needs a
+        // special case — you are present, so there is no ping, and you are not
+        // among your own contacts, so there is nothing to remove.
         onBack={() => setViewing(null)}
         // Offered only for somebody who is not standing in the room, because
         // pinging a person who can hear you is not a thing that means
@@ -400,11 +404,7 @@ export function ChannelView({
                 // this says who is.
                 speaking={audio.speaking.includes(participant.id)}
                 now={now}
-                onPress={
-                  participant.id === me
-                    ? undefined
-                    : () => setViewing(participant)
-                }
+                onPress={() => setViewing(participant)}
               />
             ))}
           </View>
@@ -1050,8 +1050,15 @@ function GuestCard({
  *
  * Pressable because "who is this?" is a real question about somebody an
  * acquaintance brought in, and the answer — their profile, and the request that
- * keeps them — is one tap from here. Your own card is not: it leads to a
- * read-only view of yourself, offering to add you as your own contact.
+ * keeps them — is one tap from here.
+ *
+ * Your own card too, since 2026-08-22. It used to be the one card that did
+ * nothing, because the profile screen would have offered to add you as your own
+ * contact; that stopped being true when ProfileView learnt `isSelf`, and the
+ * exception outlived its reason. What it shows you is what the roster around
+ * you is looking at — your bio rendered rather than as the Markdown you typed —
+ * which is a question somebody has from inside a channel and not only from
+ * settings.
  *
  * The speaking indicator is driven by the room rather than by the reducer. The
  * floor decides who *may* speak and the server enforces it; only the media
