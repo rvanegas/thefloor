@@ -1811,3 +1811,71 @@ occasion to think about them.
 older builds never read, and both actions are only ever sent by builds that
 have them — so the server deploys first and the app follows, which is the
 two-step in its easy form.
+
+---
+
+## Being silenced now buzzes, and only while you are talking
+
+Built 2026-08-21. A floor claim cut everyone else and said so only on screen,
+which reaches only the people looking at one. TASKS.md § *Being Silenced
+Without Looking* is the entry; this is why it took the shape it did.
+
+**The cue is tied to speech, not to the transition.** The obvious build is one
+buzz when the floor is claimed, and it is aimed at the wrong moment: the person
+it exists for has the phone in a pocket and is mid-sentence, which is the least
+noticeable instant a single buzz could arrive in. Tying it to speaking instead
+puts the cue where the mistake is being made, and leaves alone the person who
+is silenced and listening — who has no problem and would otherwise be told
+about one.
+
+**Four buzzes, two seconds in and then three apart, budgeted per claim.**
+Somebody told four times and still talking has either decided to keep talking
+or is not going to be reached by a fifth. The budget is per claim rather than
+per run of speech because the natural rhythm of talking — sentence, breath,
+sentence — would otherwise refill it every few seconds and buzz a phone for the
+whole three minutes a claim can last. The offsets *do* restart with each run,
+because the two-second delay is what distinguishes talking from a noise and is
+wanted every time.
+
+**Nothing had to be measured or added to know when somebody is talking
+unheard.** Both facts were already computed: `isSilenced` off the snapshot, and
+`audio.speaking`, which already draws the dot. `ActiveSpeakersChanged` includes
+the local participant, and **a silenced participant keeps publishing** —
+`MediaPlane.setSilenced` withholds the subscription from each listener rather
+than muting the publication, which is what keeps their audio session alive — so
+the SFU still receives the audio and still reports the speaker. The whole
+feature is a schedule over two booleans.
+
+**`setMutedSpeechActivityEventListener` was deliberately not used**, and this
+is the part worth keeping. It is Apple's talking-while-muted event and it is
+exactly the thing this feature is; it also works only on the voice-processing
+mute path, which build 63 left in order to end the AirPods self-mute tone that
+had cost six builds. Reaching for it would reopen a closed bug to obtain an
+answer already in hand. It will read like the right tool to the next person who
+looks, which is why it is written down here as well as in the task.
+
+**The held speaking signal is the input, and that is a choice.** `speaking.ts`
+holds the trailing edge for two seconds so the indicator does not flicker
+through a breath, and the same hold stops this schedule restarting on every
+pause. It also means a single word earns a buzz two seconds later, when the
+speaker has already stopped — which is right, because one word into a dead
+track is the mistake, not an exception to it.
+
+**Held in `App.tsx`, beside the audio, not in `ChannelView`.** Presence is not
+a screen: walking back to Home leaves you in the conversation, so a cue mounted
+inside the channel screen would switch itself off for precisely the people who
+are not looking at the channel.
+
+**What it does not do is reach a locked phone**, and this was known before it
+was built rather than discovered after. iOS feedback generators are ignored
+when the app is not active, silently and with no error. What ships covers a
+phone face down on a table or held and not looked at; the phone that has locked
+itself in a pocket needs a tone into the audio session, which reaches a
+background app because the audio does, and pays for it by playing over the
+voice it is announcing. That trade is left open deliberately — it is a
+different feature with a different cost, and pretending the haptic settled it
+would bury the half that is still missing.
+
+**`expo-haptics` is a native module**, so this is not a JS-only change: it
+needs a prebuild and a new build to reach a phone, and cannot be checked in
+Metro against an existing binary.

@@ -261,67 +261,93 @@ foreground it, and read the `asked` and `actual` lines and the log line stamped
 hypothesis in that entry is confirmed and the observer is applying `recording:
 CALL` while nothing intends to publish.
 
-## Being Silenced Without Looking
+## Being Silenced Without Looking — BUILT, except for a locked phone
 
-**Reported 2026-08-21, not started.** A floor claim cuts everybody else, and the
-only place it is said is the screen. Somebody with the phone in a pocket, or
-face down on a table, goes on talking into a track nobody receives — for up to
-three minutes (`FLOOR_CLAIM_MS`), and again every time the floor is claimed.
-Nothing is broken; the state is correct in every layer and is simply not
-announced to the one person it is about.
+**Reported and built 2026-08-21, unverified on a device.** A floor claim cuts
+everybody else, and the only place it was said is the screen. Somebody with the
+phone in a pocket, or face down on a table, went on talking into a track nobody
+receives — for up to three minutes (`FLOOR_CLAIM_MS`), and again on every
+claim. Nothing was broken; the state was correct in every layer and simply not
+announced to the one person it was about.
 
-**The one non-visual cue this app has does not fire here.** The audible
-mono/stereo transition is designed behaviour — micNeeded.ts argues it and
-STATES.md carries it as disagreement 4 — and it is driven by
-`anyMicrophoneOpen`, which is about `microphoneNeeded` and `selfMuted`. Being
-silenced touches neither: the holder is unmuted throughout, so nothing about
-the session configuration moves when the floor is claimed and there is nothing
-to hear. The cue that exists says *somebody's microphone is open in this
-channel*, which stays true of the person who can no longer be heard.
+**What it is now.** `app/src/audio/nudge.ts` schedules a haptic buzz while you
+are *speaking* while silenced: the first two seconds into a run of speech, then
+three seconds apart, four in total per claim. `useSilencedNudge` delivers it,
+and is held in `App.tsx` beside the audio rather than in `ChannelView` —
+presence is not a screen, so a cue mounted inside the channel screen would
+switch itself off for exactly the people not looking at it.
 
-**Both facts needed are already computed, which is why this is worth recording
-before it is designed.** `isSilenced(channel.floor, me)` comes off the
-snapshot, and `audio.speaking.includes(me)` is already what draws the dot —
-`ActiveSpeakersChanged` includes the local participant, and **a silenced
-participant keeps publishing**: the floor is enforced by
-`MediaPlane.setSilenced` withholding the *subscription* from each listener
-(`updateSubscriptions`), never by muting the publication, which is what keeps
-the silenced person's audio session alive so they can still hear. The SFU
-therefore still receives the audio and still reports the speaker. "You are
-talking and nobody can hear you" is a conjunction of two things in hand, with
-no metering and no new native surface.
+**Tied to speech rather than to the transition**, which is the decision the
+rest follows from. A one-shot buzz when the floor is claimed is missed by the
+person it is for: the phone is in a pocket, they are mid-sentence, and a single
+buzz against a leg is the least noticeable thing that could arrive. Tying it to
+speech also leaves the quiet listener alone, who has no problem and would
+otherwise be buzzed for having none.
 
-**Which is the reason not to reach for Apple's detector.**
-`setMutedSpeechActivityEventListener` is the obvious tool and muteMode.ts
+**Four, then it stops, and the budget is per claim rather than per run of
+speech.** Somebody told four times and still talking has either understood and
+carried on or is not going to be reached by a fifth, and a phone buzzing every
+three seconds for three minutes is its own kind of hostile. Counting per run
+would let an ordinary speaker — sentence, breath, sentence — collect four
+buzzes over and over for one claim; a test pins that.
+
+**The one non-visual cue this app already had does not fire here**, which is
+why nothing existed to extend. The audible mono/stereo transition — argued in
+`core/micNeeded.ts`, recorded as STATES.md disagreement 4 — is driven by
+`anyMicrophoneOpen`, which asks about `microphoneNeeded` and `selfMuted`. Being
+silenced touches neither and the holder is unmuted throughout, so the session
+configuration does not move and there is nothing to hear. The cue that exists
+says *somebody's microphone is open in this channel*, which stays true of the
+person who can no longer be heard.
+
+**Both inputs were already computed, which is why this was a schedule rather
+than a mechanism.** `isSilenced(channel.floor, me)` comes off the snapshot, and
+`audio.speaking` already draws the dot — `ActiveSpeakersChanged` includes the
+local participant, and **a silenced participant keeps publishing**:
+`MediaPlane.setSilenced` withholds the *subscription* from each listener
+(`updateSubscriptions`), never mutes the publication, which is what keeps the
+silenced person's audio session alive. The SFU therefore still receives the
+audio and still reports the speaker.
+
+**Which is the reason Apple's detector was not used.**
+`setMutedSpeechActivityEventListener` is the obvious tool and `muteMode.ts`
 describes it: it is the talking-while-muted event, and it works *only* on the
 voice-processing mute path — the path build 63 deliberately left to end the
 AirPods tone that cost six builds. Taking it back for this would reopen a
-closed bug to obtain an answer that is already available.
+closed bug to obtain an answer already in hand. Do not reach for it later
+either.
 
-**What is undecided is the cue, and each option costs something different:**
+**What is still open, and it is the pocket.** iOS feedback generators are
+ignored when the app is not active, silently and with no error, so a locked or
+backgrounded phone gets nothing. What is built covers the phone face down on a
+table or held and not looked at; it does not cover the phone that has locked
+itself, which is a fair share of the reported case. The remaining delivery is a
+**tone into the audio session**, which reaches a background app because the
+audio does — at the cost of playing over the voice it is announcing, which is
+the interruption this whole app exists to prevent. That trade is not settled
+and was not settled by building the haptic.
 
-| Cue | What it costs |
-| --- | --- |
-| A tone in the ear | Plays into the route carrying the holder's voice — it interrupts the speech it is announcing, and the interruption is the thing this app exists to prevent |
-| A haptic | A new dependency (`expo-haptics` is not in `app/package.json`), silent, reaches a pocket — and is missed by a phone face down on a table |
-| Speech-tied, either delivery | Fires only when the app sees you speaking while silenced, at most once every few seconds. Matches the actual failure; a cue at the transition alone is missed by exactly the person who was not looking |
+**Whatever any of it says must not be heard as "nothing is being kept".**
+Silenced and recorded is unheard but captured, which `ChannelView` already says
+in words. A buzz meaning "nobody can hear you", arriving on a phone in a
+pocket, is where that gets confused.
 
-The recommendation is speech-tied, haptic first, a tone only if the haptic
-proves too quiet to notice — but the transition-versus-speech question is the
-one to settle first, since it decides whether this is a one-line effect or a
-rate-limited detector.
-
-**Whatever it says must not be heard as "nothing is being kept".** Silenced and
-recorded is unheard but captured, which `ChannelView` already says in words; a
-cue meaning "nobody can hear you" arriving on a phone in a pocket is exactly
-where that gets confused.
+**`expo-haptics` is a native module**, so this reaches a phone only after a
+prebuild and a new build — it is not a JS-only change and cannot be checked in
+Metro against an old binary.
 
 **One thing to settle on the way past.** `SessionAudio.mutedByServer` is
 written from `RoomEvent.TrackMuted` and read by nothing, and since the floor
 withholds subscriptions rather than muting the publication, it is not clear it
-is ever true — no test asserts that it becomes so. Do not build this cue on it;
-use the snapshot. Whether the field is dead is a separate question, and
-STATES.md disagreement 1 is where the answer belongs.
+is ever true — no test asserts that it becomes so. This cue deliberately does
+not use it. Whether the field is dead is a separate question, and STATES.md
+disagreement 1 is where the answer belongs.
+
+**What to check on the next build:** claim the floor from a second phone, keep
+talking on the first with the app open, and count four buzzes at roughly 2s,
+5s, 8s and 11s. Then stop talking, start again, and confirm nothing more comes
+— the budget is spent for that claim. Then release and re-claim, and confirm it
+starts over.
 
 ## Clipboard Sharing — CLOSED for text, and the size bound went the other way
 

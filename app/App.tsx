@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
+import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { liveChannelView } from './src/state/live';
 import { AuthView } from './src/ui/AuthView';
@@ -91,6 +92,15 @@ function Root() {
     micNeeded,
     anyMicOpen
   );
+
+  /**
+   * Told without words that you are talking to nobody.
+   *
+   * Here rather than in `ChannelView` for the same reason the audio is: it
+   * follows presence, and the person who most needs it is the one not looking
+   * at the channel screen. See `useSilencedNudge`.
+   */
+  useSilencedNudge(live, me, audio.speaking);
 
   /**
    * Follow a conversation that has changed channels.
