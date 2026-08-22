@@ -187,7 +187,15 @@ function matchLink(
   return null;
 }
 
-async function open(url: string): Promise<void> {
+/**
+ * Hands a URL to the system, saying so when the system will not take it.
+ *
+ * Exported because links in a description are no longer the only ones: a
+ * channel's clipboard offers to open what is on it, and an OS refusal should
+ * read the same way wherever it happens. `isSafeUrl` above is the other half
+ * and callers owe it — this asks no questions about what it is given.
+ */
+export async function openUrl(url: string): Promise<void> {
   try {
     await Linking.openURL(url);
   } catch {
@@ -220,7 +228,7 @@ export function InlineMarkdown({
             key={index}
             style={span.style}
             accessibilityRole="link"
-            onPress={() => void open(span.url)}
+            onPress={() => void openUrl(span.url)}
           >
             {span.text}
           </Text>

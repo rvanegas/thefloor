@@ -1670,3 +1670,123 @@ Not done, deliberately: no timeout. A stall now has a visible number and an
 exit, which is enough to act on, and a client-side deadline would have to guess
 at what a slow connection is allowed to be — the two people this has to work
 for are on phones, sometimes on cellular, sending audio files.
+
+### The channel clipboard is one slot, and the content travels in the snapshot
+
+TASKS.md § *Clipboard Sharing*, built 2026-08-21. The task asked for a paste
+into the channel and a copy back out of it, sized for URLs and the other small
+things a clipboard is actually used for. Five decisions, and the last one is
+what turned a feature with a table, two routes and an S3 key into a field on
+`ChannelState`.
+
+**One slot, replaced rather than appended to.** A channel has *a* clipboard,
+exactly as a device does. The alternative was a short list, newest first, on
+the grounds that two URLs in a row should not erase each other — and it is a
+fair point, but it is also the point at which a clipboard becomes a message
+thread, which this deliberately is not. `playback.track` is the precedent: one
+thing, replaced, no history.
+
+**Only who and when are shown.** Not the content, and not a preview of it. A
+channel screen is read over shoulders and left face-up on tables, and the
+things people reach for a clipboard to move — a login code, an address, a link
+somebody would rather not explain — are frequently the things they would rather
+not leave on display. Copy hands it over without anybody having to look at it.
+The rendered form is "Pasted by Dana Chu" and `ago(…)`, the same words the
+roster uses for an absence. There is a test asserting the text is *absent* from
+the tree, because "just show a preview" is a one-line change that would undo
+this without anybody noticing what it cost.
+
+**Presence, not membership.** `canPasteClip` requires being in the channel, the
+same as loading a track. A paste is an act in a conversation that is happening;
+somebody who has stepped out leaving something behind for the others to find
+later is a message. Copying out is unrestricted — the content is already on
+that phone, having arrived in the snapshot.
+
+**No floor restriction**, unlike playback. A claim governs what is heard, and a
+paste is silent.
+
+**The text rides in `ChannelState`, capped at `MAX_CLIP_LENGTH` = 8,000
+characters.** This is the decision worth writing down, because the obvious
+design was the other one: keep a descriptor in the snapshot and fetch the bytes
+when somebody taps Copy, which is what the task itself proposed and what the
+10MB image case requires. It was planned that way and then abandoned on a
+question — if the payload is small, why is it not simply sent?
+
+The answer is that a snapshot is not sent once. `pushChannel` re-sends the whole
+`ChannelView` to every watching connection on **every** state transition: a
+floor claim, an arrival, a mute. So anything carried inline is paid repeatedly,
+for reasons that have nothing to do with it, whether or not anyone ever taps
+Copy. That is the real cost, and it is the one a "it's only 64 KB" estimate
+misses by two orders of magnitude.
+
+At 8,000 characters it is affordable — some 48 KB across a full channel of six
+on a transition, and `tick()` emits only for channels it actually changed, so
+an idle channel is silent. What that buys is most of the feature not existing:
+
+- **No upload route, no download route, no content-type parser, no `bodyLimit`.**
+- **No table, no migration, no mark-then-sweep, no S3 key.** The clip goes in
+  the channel's existing `state` blob.
+- **No failure mode for copying.** `copyText(clip.text)` is a local call
+  against something already in memory; the only way it fails is the device
+  clipboard refusing, which the button already reports.
+- A paste is an ordinary `ClientAction` over the socket rather than an HTTP
+  upload with progress and cancellation.
+
+The cap is on characters rather than bytes, like every other cap in
+`core/constants.ts`, so the reducer can check it without an encoder and both
+ends compute the same number.
+
+**Over-cap text is refused rather than trimmed to fit**, which is the opposite
+of what `SET_NAME` does. A name that loses its end is still the channel's name;
+half a URL is not a URL, and pasting it would be worse than being told the
+paste did not happen. The refusal is made *by the client*, before the action is
+sent — it has to be, because a paste travels as a socket action and a socket
+refusal lands in `lastError`, which is rendered on the auth screen and nowhere
+else. The reducer's cap is the backstop; the sentence somebody reads is the
+app's.
+
+**The clip is durable, where the track is not.** It goes into `durableOf`, so a
+restart brings it back whole, id included. The difference from playback is that
+a track is a handle on a temp file the dead process owned, and this is the
+content itself. Somebody pastes a URL and the box restarts a minute later for
+reasons nobody in the channel knows about; losing it would be the kind of small
+unexplained disappearance that teaches people not to rely on a feature. It
+costs up to 8,000 characters in the string `persistChannel` rebuilds on every
+commit for its comparison — which is the other reason the cap is not larger.
+
+**A link is offered as one, when the whole of what was pasted is a link.** Added
+on request during the build. `isSafeUrl` in `app/src/ui/markdown.tsx` is reused
+rather than reinvented: it is already this app's single answer to what may be
+handed to `Linking.openURL`, an allowlist of `http:`/`https:`/`mailto:`, and a
+clip is untrusted text from another member in exactly the way a description is.
+The `open` helper beside it was exported as `openUrl` in the same change, so an
+OS refusal reads the same wherever it happens — the same move the clipboard
+module itself made when it acquired a second consumer.
+
+Finding a URL *inside* longer text is deliberately not attempted. It would mean
+guessing which of several somebody meant, and guessing wrong opens the wrong
+page.
+
+**The id is minted by the server**, like a `runId`, and the wire form carries
+only the text. A replacement and the thing it replaced have to be
+distinguishable, which a screen mid-render cannot otherwise tell.
+
+**A `kind` field exists with one member.** Images are the other half of the
+task and are not built: they need `getImageAsync`/`setImageAsync` with base64
+and `data:` prefixes, S3 with a parameterized `ContentType` — it is hardcoded
+`audio/ogg` — a fetch-on-tap route after all, the app's first image rendering,
+and three functions added to the `expo-clipboard` mock. The field is there so
+that adding them does not require every reader of the type to learn that the
+old shape meant text.
+
+Not done, deliberately: **no push notification** for a paste. Everyone who can
+see it is present by construction, and a paste sits on neither of the two axes
+the existing four notifications are placed on — it is composed and aimed like a
+ping, but it stays true like an invitation. **No usage metering**, either: 8 KB
+is noise beside a recording. An image clip would want both, and would be the
+occasion to think about them.
+
+**The wire change is additive and needed no shim.** `channel.clip` is a field
+older builds never read, and both actions are only ever sent by builds that
+have them — so the server deploys first and the app follows, which is the
+two-step in its easy form.

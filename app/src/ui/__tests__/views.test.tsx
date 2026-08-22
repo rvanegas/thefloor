@@ -7,6 +7,7 @@ import renderer, {
 import { createChannel, reduce } from '../../../../core/channel';
 import {
   DISCONNECT_GRACE_MS,
+  MAX_CLIP_LENGTH,
   WAITING_WINDOW_MS,
 } from '../../../../core/constants';
 import type { ChannelState } from '../../../../core/types';
@@ -4263,6 +4264,185 @@ describe('copying the diagnostics', () => {
 
     expect(textOf(tree)).toContain('copy failed');
     expect(textOf(tree)).not.toContain('✓ copied');
+    act(() => tree.unmount());
+  });
+});
+
+describe('the channel clipboard', () => {
+  /**
+   * One slot, and what is *not* on the screen is as much the point as what is.
+   *
+   * The content never appears: a channel screen is read over shoulders and
+   * left face-up, and the things people reach for a clipboard to move are
+   * often the things they would rather not leave on display. So these assert
+   * the pasted text is absent from the rendered tree, which is the kind of
+   * property a later "just show a preview" would quietly break.
+   */
+  const CLIP = {
+    id: 'clip_1',
+    authorId: THEM,
+    pastedAt: NOW - 180_000,
+    kind: 'text' as const,
+    text: 'https://example.com/the-thing',
+  };
+
+  function showClip(clip: Partial<typeof CLIP> = {}) {
+    showChannel(channelOf((s) => ({ ...s, clip: { ...CLIP, ...clip } })));
+  }
+
+  function open() {
+    return render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+  }
+
+  beforeEach(() => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+    (Clipboard.getStringAsync as jest.Mock).mockImplementation(async () => '');
+  });
+
+  it('says who pasted and how long ago, and nothing about what', () => {
+    showClip();
+    const tree = open();
+
+    // `textOf` joins adjacent strings with a space, so the interpolated name
+    // arrives with two — matched loosely rather than pinning that detail.
+    expect(textOf(tree)).toMatch(/Pasted by\s+Dana Chu/);
+    expect(textOf(tree)).toContain('3 minutes ago');
+    expect(textOf(tree)).not.toContain('example.com');
+    act(() => tree.unmount());
+  });
+
+  it('says the clipboard is empty when nothing has been pasted', () => {
+    showChannel(channelOf());
+    const tree = open();
+
+    expect(textOf(tree)).toContain('Nothing on the channel clipboard');
+    act(() => tree.unmount());
+  });
+
+  it('copies the text nobody was shown', async () => {
+    showClip();
+    const tree = open();
+    await act(async () => {
+      findButton(tree, 'Copy')!.props.onPress();
+    });
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(CLIP.text);
+    expect(textOf(tree)).toContain('✓ copied');
+    act(() => tree.unmount());
+  });
+
+  it('says so when the clipboard declines the copy', async () => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => false);
+    showClip();
+    const tree = open();
+    await act(async () => {
+      findButton(tree, 'Copy')!.props.onPress();
+    });
+
+    expect(textOf(tree)).toContain('✗ copy failed');
+    act(() => tree.unmount());
+  });
+
+  it('offers to open what was pasted when the whole of it is a link', () => {
+    showClip();
+    const tree = open();
+    expect(findButton(tree, 'Open')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('offers no such thing for text that merely contains one', () => {
+    // Finding a URL inside longer text would mean guessing which of several
+    // somebody meant, and guessing wrong opens the wrong page.
+    showClip({ text: 'have a look at https://example.com when you can' });
+    const tree = open();
+    expect(findButton(tree, 'Open')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('offers no such thing for a scheme the app will not hand to the OS', () => {
+    showClip({ text: 'javascript:alert(1)' });
+    const tree = open();
+    expect(findButton(tree, 'Open')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('sends what is on the device clipboard', async () => {
+    (Clipboard.getStringAsync as jest.Mock).mockImplementation(
+      async () => 'https://example.com/new'
+    );
+    showChannel(channelOf());
+    const tree = open();
+    await act(async () => {
+      findButton(tree, 'Paste my clipboard')!.props.onPress();
+    });
+
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'PASTE_CLIP',
+      text: 'https://example.com/new',
+    });
+    act(() => tree.unmount());
+  });
+
+  it('says so rather than sending nothing when the device clipboard is empty', async () => {
+    showChannel(channelOf());
+    const tree = open();
+    await act(async () => {
+      findButton(tree, 'Paste my clipboard')!.props.onPress();
+    });
+
+    expect(mockApp.act).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain('nothing on your clipboard');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The refusal that has to happen here or nowhere. A paste travels as a
+   * socket action, which reports back only through `lastError` — rendered on
+   * the auth screen and on no other. Sending it and letting the reducer
+   * silently decline would look like a dead button.
+   */
+  it('refuses text past the cap before it is sent', async () => {
+    (Clipboard.getStringAsync as jest.Mock).mockImplementation(async () =>
+      'x'.repeat(MAX_CLIP_LENGTH + 1)
+    );
+    showChannel(channelOf());
+    const tree = open();
+    await act(async () => {
+      findButton(tree, 'Paste my clipboard')!.props.onPress();
+    });
+
+    expect(mockApp.act).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain('too long to share');
+    act(() => tree.unmount());
+  });
+
+  it('will not let somebody who has stepped out paste or clear', () => {
+    showChannel(
+      channelOf((s) => ({
+        ...reduce(s, { type: 'STEP_OUT', userId: ME }, NOW),
+        clip: CLIP,
+      }))
+    );
+    const tree = open();
+
+    expect(findButton(tree, 'with my clipboard')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Clear')!.props.disabled).toBe(true);
+    // Copying out is not restricted: the content is already on this phone.
+    expect(findButton(tree, 'Copy')!.props.disabled).toBeFalsy();
+    act(() => tree.unmount());
+  });
+
+  it('empties the slot on Clear', () => {
+    showClip();
+    const tree = open();
+    act(() => findButton(tree, 'Clear')!.props.onPress());
+
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'CLEAR_CLIP' });
     act(() => tree.unmount());
   });
 });

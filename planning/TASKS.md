@@ -4,10 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Idleness at Zero
-
-Idleness display at zero is "Nobody is here right now".
-
 ## The Self-Mute Tone — CLOSED, and the title was wrong for three builds
 
 **Reported 2026-08-19. Fixed by build 63, confirmed 2026-08-21.** Moving the
@@ -265,9 +261,44 @@ foreground it, and read the `asked` and `actual` lines and the log line stamped
 hypothesis in that entry is confirmed and the observer is applying `recording:
 CALL` while nothing intends to publish.
 
-## Clipboard Sharing
+## Clipboard Sharing — CLOSED for text, and the size bound went the other way
 
-In channel, any user may paste his clipboard into the channel, after which any user may copy from the channel to his own clipboard. This is then a convenient way to share URLs or other small contents for which clipboards are typically used.
+**Built 2026-08-21, text only.** One slot per channel, replaced rather than
+appended to; the card says who pasted and how long ago and never shows the
+content; anyone present may paste, anyone at all may copy, and a clip that is
+wholly a safe URL offers to open in the system browser. DECISIONS.md § *The
+channel clipboard is one slot, and the content travels in the snapshot* carries
+the reasoning.
+
+**The entry proposed downloading on tap, and the opposite was built.** At 8,000
+characters the content simply rides in the channel snapshot, which deleted the
+upload route, the download route, the table and the failure mode for copying.
+That inverts the size argument rather than answering it: the constraint turned
+out not to be the one-off transfer but the *repetition*, a snapshot being
+re-sent to every watcher on every transition in the channel. Read the decision
+before proposing a larger cap.
+
+## Clipboard Sharing: Images
+
+The other half of the entry above, deliberately deferred. An image cannot ride
+in the snapshot at any size worth having, so it is the fetch-on-tap design that
+was planned and set aside: a `clips` row with an S3 key, a `GET` route, and a
+descriptor in `ChannelState.clip` whose `kind` is already there waiting for it.
+
+What it costs beyond that, none of which text needed: `getImageAsync` and
+`setImageAsync` in `app/src/clipboard.ts`, which deal in base64 with a `data:`
+prefix that has to be stripped and restored — and `setImageAsync` returns void,
+so the "never report a success you did not have" rule that `copyText` satisfies
+cannot be satisfied the same way. `storage.put` hardcodes `ContentType:
+'audio/ogg'` and would need parameterizing. There is no image rendering
+anywhere in the app yet, so a thumbnail is new ground. And `app/jest.setup.js`
+mocks three clipboard functions; the image three are absent, so any path
+reaching them throws in every existing suite.
+
+Worth settling first: whether a thumbnail is shown at all, given that the text
+case deliberately shows nothing. The argument against showing text — a screen
+read over shoulders — applies at least as strongly to a picture, and an image
+nobody can see before copying is a strange object.
 
 ## Channel Admins
 

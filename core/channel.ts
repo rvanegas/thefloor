@@ -3,6 +3,7 @@ import {
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
+  MAX_CLIP_LENGTH,
   WAITING_WINDOW_MS,
 } from './constants';
 import {
@@ -103,6 +104,7 @@ export function createChannel(params: {
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
+    clip: null,
     waiting: [],
     disconnectedAt: {},
     lastPresentAt: {},
@@ -406,6 +408,33 @@ export function canControlPlayback(
   return state.floor.holder === null || state.floor.holder === userId;
 }
 
+/**
+ * Whether `userId` may put something on the channel's clipboard.
+ *
+ * Presence, not mere membership. A paste is an act in a conversation that is
+ * happening — the reason the task calls it *in channel* — and someone who has
+ * stepped out leaving something behind for the others to find later is a
+ * message, which this deliberately is not.
+ *
+ * No floor restriction, unlike playback: a claim governs what is heard, and a
+ * paste makes no sound.
+ */
+export function canPasteClip(state: ChannelState, userId: UserId): boolean {
+  return state.status === 'active' && isPresent(state, userId);
+}
+
+/**
+ * Whether `userId` may empty the channel's clipboard.
+ *
+ * The same test as pasting, and deliberately not "only whoever pasted it".
+ * There is one slot, so anybody present can already destroy what is there by
+ * pasting over it; a clear that were narrower than a replace would protect
+ * nothing.
+ */
+export function canClearClip(state: ChannelState, userId: UserId): boolean {
+  return state.status === 'active' && isPresent(state, userId);
+}
+
 // --- Reducer ----------------------------------------------------------------
 
 /**
@@ -678,6 +707,22 @@ export function reduce(
           return { ...state, playback: setVolume(playback, action.volume) };
       }
     }
+
+    case 'PASTE_CLIP': {
+      if (!canPasteClip(state, action.userId)) return state;
+      const text = action.clip.text;
+      // Refused rather than trimmed to fit, which is what SET_NAME does with
+      // an over-long name. A name that loses its end is still the channel's
+      // name; half a URL is not a URL, and pasting it would be worse than
+      // being told the paste did not happen.
+      if (text.length === 0 || text.length > MAX_CLIP_LENGTH) return state;
+      return { ...state, clip: action.clip };
+    }
+
+    case 'CLEAR_CLIP':
+      if (!canClearClip(state, action.userId)) return state;
+      if (state.clip === null) return state;
+      return { ...state, clip: null };
 
     default:
       return state;

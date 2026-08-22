@@ -13,7 +13,10 @@ import {
 } from '../../../core/floor';
 import { playbackPositionMs } from '../../../core/playback';
 import { isRecordingActive, recordedMs } from '../../../core/recording';
-import { MAX_CHANNEL_PARTICIPANTS } from '../../../core/constants';
+import {
+  MAX_CHANNEL_PARTICIPANTS,
+  MAX_CLIP_LENGTH,
+} from '../../../core/constants';
 import {
   atLeastTwoPresent,
   canClaimFloor,
@@ -26,15 +29,18 @@ import {
   canSetSelfMute,
   canStartRecording,
   canStopRecording,
+  canPasteClip,
+  canClearClip,
   isPresent,
 } from '../../../core/channel';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
+import { copyText, pasteText } from '../clipboard';
 import { useApp } from '../state/AppProvider';
 import { AudioDebugPanel } from './AudioDebugPanel';
 import { ChannelSettingsView } from './ChannelSettingsView';
 import { ProfileView } from './ProfileView';
-import { InlineMarkdown } from './markdown';
+import { InlineMarkdown, isSafeUrl, openUrl } from './markdown';
 import {
   Button,
   Card,
@@ -111,6 +117,16 @@ export function ChannelView({
   } | null>(null);
   const uploading = upload !== null;
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // What the clipboard section is saying about itself, if anything. Refusals
+  // this screen makes on its own — an empty device clipboard, text past the
+  // cap — because a paste travels as a socket action and a socket refusal is
+  // rendered nowhere in a channel.
+  const [clipError, setClipError] = useState<string | null>(null);
+  // Whether the last copy landed, and nothing else. Same three states and the
+  // same 2.5s fade as AudioDebugPanel, that being the established way a
+  // clipboard refusal is reported: `copyText` returns a boolean precisely so
+  // that a copy which did not happen is not announced as one.
+  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [viewing, setViewing] = useState<{
     id: string;
@@ -118,6 +134,12 @@ export function ChannelView({
   } | null>(null);
   // Before the early return below, which is where the rules of hooks want it.
   const showOffline = useOfflineNotice(app.status);
+
+  useEffect(() => {
+    if (copied === 'idle') return;
+    const timer = setTimeout(() => setCopied('idle'), 2_500);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   useEffect(() => {
     app.watchChannel(channelId);
@@ -244,6 +266,44 @@ export function ChannelView({
   const track = playback.track;
   const position = playbackPositionMs(playback, now);
   const mayControlPlayback = canControlPlayback(channel, me);
+
+  // `?? null` for the same reason `recordings` has its `?? []`: a server that
+  // predates this field sends snapshots without it, which is what this build
+  // meets between its release and the deploy that follows.
+  const clip = channel.clip ?? null;
+  // Offered as a link only when the whole of what was pasted is one, and only
+  // for a scheme `isSafeUrl` allows — the same allowlist that governs links in
+  // a description, and for the same reason: this is text one member wrote and
+  // another is being invited to hand to the OS. Finding a URL *inside* longer
+  // text is deliberately not attempted; it would mean guessing which of
+  // several somebody meant, and guessing wrong opens the wrong page.
+  const clipUrl =
+    clip && isSafeUrl(clip.text.trim()) ? clip.text.trim() : null;
+
+  const pasteClip = async () => {
+    setClipError(null);
+    const text = await pasteText();
+    if (text === null) {
+      setClipError('There is nothing on your clipboard to paste.');
+      return;
+    }
+    if (text.length > MAX_CLIP_LENGTH) {
+      // Refused here rather than sent and silently dropped by the reducer: a
+      // paste travels as a socket action, which reports nothing back that this
+      // screen shows. The cap is imported rather than restated so the sentence
+      // and the rule cannot drift apart.
+      setClipError(
+        `That is too long to share. The channel clipboard holds ${MAX_CLIP_LENGTH} characters.`
+      );
+      return;
+    }
+    act({ type: 'PASTE_CLIP', text });
+  };
+
+  const copyClip = async () => {
+    if (!clip) return;
+    setCopied((await copyText(clip.text)) ? 'done' : 'failed');
+  };
 
   const loadTrack = async () => {
     setUploadError(null);
@@ -643,6 +703,66 @@ export function ChannelView({
                 : track
                   ? 'Everyone hears this, and anyone present can change it.'
                   : 'Whatever you play, everyone hears — and it is kept in the recording.'}
+          </Text>
+        </Card>
+
+        <SectionLabel>Shared clipboard</SectionLabel>
+        <Card style={styles.stack}>
+          {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
+
+          {clip ? (
+            <>
+              {/* What was pasted is not shown. Only who and when — the same
+                  words the roster uses for an absence. A channel screen is
+                  read over shoulders and left face-up on tables, and the
+                  things people reach for a clipboard to move are often the
+                  things they would rather not leave on display. Copy hands it
+                  over without anybody having to look at it. */}
+              <Text style={type.heading}>Pasted by {nameOf(clip.authorId)}</Text>
+              <Text style={type.muted}>{ago(now - clip.pastedAt)}</Text>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label={
+                    copied === 'done'
+                      ? '✓ copied'
+                      : copied === 'failed'
+                        ? '✗ copy failed'
+                        : 'Copy'
+                  }
+                  variant="primary"
+                  style={styles.flexButton}
+                  onPress={() => void copyClip()}
+                />
+                {clipUrl ? (
+                  <Button
+                    label="Open"
+                    style={styles.flexButton}
+                    onPress={() => void openUrl(clipUrl)}
+                  />
+                ) : null}
+                <Button
+                  label="Clear"
+                  style={styles.flexButton}
+                  disabled={!canClearClip(channel, me)}
+                  onPress={() => act({ type: 'CLEAR_CLIP' })}
+                />
+              </View>
+            </>
+          ) : (
+            <Empty>Nothing on the channel clipboard.</Empty>
+          )}
+
+          <Button
+            label={clip ? 'Replace with my clipboard' : 'Paste my clipboard'}
+            disabled={!canPasteClip(channel, me)}
+            onPress={() => void pasteClip()}
+          />
+
+          <Text style={type.muted}>
+            {canPasteClip(channel, me)
+              ? 'One clipboard for the channel — pasting replaces what is on it, and anyone here can copy it.'
+              : 'Step in to put something on the channel clipboard.'}
           </Text>
         </Card>
 

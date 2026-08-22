@@ -171,6 +171,8 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'PAUSE',
   'SEEK',
   'SET_VOLUME',
+  'PASTE_CLIP',
+  'CLEAR_CLIP',
 ]);
 
 /**
@@ -844,6 +846,28 @@ export class ChannelRegistry {
       return this.apply(channelId, userId, {
         type: 'START_RECORDING',
         runId: newId('rec'),
+      } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    }
+
+    // The wire carries the text; the id, the author and the moment are minted
+    // here, on the same reasoning as a run id. What is checked is only that
+    // the payload is a string at all — the length cap and the presence rule
+    // are the reducer's, so that the disabled button and the refusal are
+    // computed by the same code.
+    if (action.type === 'PASTE_CLIP') {
+      const text = (action as { text?: unknown }).text;
+      if (typeof text !== 'string') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      return this.apply(channelId, userId, {
+        type: 'PASTE_CLIP',
+        clip: {
+          id: newId('clip'),
+          authorId: userId,
+          pastedAt: this.now(),
+          kind: 'text',
+          text,
+        },
       } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
     }
 
@@ -2687,6 +2711,15 @@ export class ChannelRegistry {
       // `agoOrNull` already treats as no gap at all.
       lastPresentAt: quantise(channel.lastPresentAt),
       lastRecording: channel.lastRecording,
+      // Durable, unlike the track it sits next to, and the difference is that
+      // the track is a file the dead process owned while this is the whole of
+      // itself. Somebody pastes a URL and the box restarts a minute later for
+      // reasons nobody in the channel knows about; losing it would be the kind
+      // of small unexplained disappearance that teaches people not to rely on
+      // a feature. It costs up to MAX_CLIP_LENGTH characters in this string,
+      // which is rebuilt on every commit for the comparison below — cheap at
+      // eight thousand, and the reason the cap is not larger.
+      clip: channel.clip,
     });
   }
 
@@ -2920,6 +2953,7 @@ export class ChannelRegistry {
       lastActiveAt?: number;
       lastPresentAt?: ChannelState['lastPresentAt'];
       lastRecording?: ChannelState['lastRecording'];
+      clip?: ChannelState['clip'];
     };
     const stored =
       durable.participants ??
@@ -2972,6 +3006,11 @@ export class ChannelRegistry {
       recording: initialRecordingState(),
       lastRecording: durable.lastRecording ?? null,
       playback: initialPlaybackState(),
+      // Kept, where playback is not: this is the content itself rather than a
+      // handle on something the dead process owned. Absent on rows written
+      // before the field existed, which is an empty clipboard — the same thing
+      // those channels had.
+      clip: durable.clip ?? null,
       disconnectedAt: {},
       // Empty on a channel written before this existed, which reads as "not
       // known" and shows no idle time — the honest answer, rather than dating

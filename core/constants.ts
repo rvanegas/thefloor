@@ -190,3 +190,25 @@ export const USAGE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
  */
 export const HEARTBEAT_INTERVAL_MS = 5_000;
 export const HEARTBEAT_TIMEOUT_MS = 12_000;
+
+/**
+ * The most characters a channel's clipboard may hold.
+ *
+ * A clipboard here is for URLs and the other small things a clipboard is
+ * actually used for, and the cap is about what it costs to carry rather than
+ * about what anyone would want to paste. The content rides inside every
+ * channel snapshot, and a snapshot is re-sent on every transition in the
+ * channel — a floor claim, an arrival, a mute — so what is pasted once is paid
+ * for repeatedly by everybody watching. Eight thousand characters across six
+ * phones is some forty kilobytes on a transition, which is nothing; ten times
+ * that would not be.
+ *
+ * Characters rather than bytes, like every other cap in this file, so that the
+ * reducer can check it without an encoder and both ends compute the same
+ * number.
+ *
+ * Shared with the client because the client refuses over-long text itself and
+ * says why. It has to: a paste goes over the socket, and a socket refusal is
+ * not shown anywhere in a channel.
+ */
+export const MAX_CLIP_LENGTH = 8_000;

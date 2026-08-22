@@ -325,7 +325,18 @@ export type ClientAction =
   | { type: 'PLAY' }
   | { type: 'PAUSE' }
   | { type: 'SEEK'; positionMs: number }
-  | { type: 'SET_VOLUME'; volume: number };
+  | { type: 'SET_VOLUME'; volume: number }
+  /**
+   * Puts text on the channel's clipboard. Carries the text and nothing else:
+   * the id, the author and the timestamp are the server's to mint, the same
+   * distinction INVITE draws above.
+   *
+   * Unlike a track, this does not arrive over HTTP. It is small enough to ride
+   * in the channel snapshot, so there is nothing on disk for a route to have
+   * put there first.
+   */
+  | { type: 'PASTE_CLIP'; text: string }
+  | { type: 'CLEAR_CLIP' };
 
 export type ClientMessage =
   /** Start receiving Home snapshots. */

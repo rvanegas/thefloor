@@ -83,6 +83,40 @@ export interface PlaybackTrack {
   durationMs: number;
 }
 
+/**
+ * What one person put on the channel's clipboard for the others to take.
+ *
+ * A channel has *a* clipboard, exactly as a device does: pasting replaces
+ * whatever was there. That is the whole of the model, and it is why there is
+ * no list, no ordering and nothing to delete individually.
+ *
+ * The content travels in the state rather than being fetched when somebody
+ * copies, which is what MAX_CLIP_LENGTH is sized for. Copying is then a local
+ * call that cannot fail for any reason except the device clipboard refusing.
+ */
+export interface Clip {
+  /**
+   * Minted by the server, never by the client — the same rule as `runId`.
+   *
+   * It exists so that a replacement and the thing it replaced are
+   * distinguishable, which a screen mid-render otherwise cannot tell.
+   */
+  id: string;
+  authorId: UserId;
+  pastedAt: number;
+  /**
+   * What kind of content this is.
+   *
+   * One member today. It is here so that images — the other half of TASKS.md
+   * § *Clipboard Sharing* — can be added without every reader of this type
+   * having to learn that the old shape meant text. An image will not carry
+   * its bytes in `text`; it will carry a key and be fetched, for the reason
+   * this one is not.
+   */
+  kind: 'text';
+  text: string;
+}
+
 export type PlaybackStatus = 'idle' | 'playing' | 'paused';
 
 export interface PlaybackState {
@@ -211,6 +245,8 @@ export interface ChannelState {
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
   playback: PlaybackState;
+  /** What is on the channel's clipboard, or null when nothing is. */
+  clip: Clip | null;
   /**
    * When each present user's last connection dropped. Absent means connected.
    *
@@ -358,6 +394,20 @@ export type ChannelAction =
   | { type: 'SET_VOLUME'; userId: UserId; volume: number }
   /** Reported by the media plane, like RECORDING_FAILED: no actor, no guard. */
   | { type: 'PLAYBACK_FAILED'; reason: string }
+  /**
+   * Puts something on the channel's clipboard, replacing whatever was there.
+   *
+   * The whole `Clip` arrives assembled because the server mints its id and
+   * stamps its time, as it does for `START_RECORDING`'s `runId`: the wire
+   * carries the text and nothing else, and a client naming its own id would
+   * be naming something no one else has agreed to.
+   *
+   * Not gated by the floor, unlike playback. A claim governs what is heard,
+   * and this is silent.
+   */
+  | { type: 'PASTE_CLIP'; userId: UserId; clip: Clip }
+  /** Empties the channel's clipboard. */
+  | { type: 'CLEAR_CLIP'; userId: UserId }
   /**
    * Transport, not intent: reported by whatever holds the connection rather
    * than performed by anyone. Neither changes presence directly — DISCONNECTED
