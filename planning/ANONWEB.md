@@ -12,14 +12,13 @@ PLAN-bluetooth-speakers.md was — what survives it belongs in DECISIONS.md.
 
 - **A guest opens a link** and lands in one channel. No Home, no contacts, no
   account, nothing to sign up for.
-- **A member admits them.** The link gets you to the door; somebody inside
-  opens it.
-- **The microphone is a second permission.** A guest arrives able to listen. To
-  speak they ask, and a member accepts or rejects.
-- **They can do nothing else.** No floor claim, no media playback, no
-  recording, no seeing or exporting recordings.
-- **They see only the other users.** Names, and who is there. Not the
-  description, not the recordings, not what is playing.
+- **A member admits them.** The link gets you to the door; somebody inside opens it.
+- **Within the channel guests can:** self-mute, claim the floor, step out, copy to and paste from clipboard, see member profiles.
+- **Within the channel guests cannot:** play media, record, see, export, or delete recordings, invite, navigate to home or channel settings.
+- **GuestView Frame.** The channel is framed by content describing The Floor and this limited access, alongside links to /privacy, /support, "chip in", and the app's page in Apple Store. Also a field and button to set display name. If not used, name assigned as "Anon <number>".
+- **Link.** Valid until channel is emptied of present members. Can be used by any number of guests any number of times.
+- **Administration** Link can be explicitly revoked by members. They can also remove guests from the channel. Removing a guest implicitly revokes the link, since they could otherwise simply return.
+- **Reconnections** GuestView page can reconnect and reauthenticate with same display name with a token assigned to it at start of session so that link revocation doesn't make reconnections fragile.
 
 ## A guest is captured in the recording
 
@@ -128,21 +127,17 @@ are muted when they are not.
 2. **The guest opens it**, types a name, and knocks: `POST /g/<token>/knock`.
 3. **Members present see the knock** in the channel screen, with the name, and
    accept or reject. The reducer holds pending knocks so every member sees the
-   same thing and one answer settles it.
+   same thing and one answer settles it. Knock should manifest with haptics to 
+   present members and guests.
 4. **On accept**, the server mints a LiveKit token for identity `guest_<id>`
    with `canPublish: false`, and the page joins the room.
 
 Rules that need to exist from the first version, because each is a door that
 cannot be closed afterwards:
 
-- **A link expires.** An hour is enough for "join me now"; a link that works
-  next month is a stranger in a private conversation. Revocable explicitly, and
-  listed on the channel screen so a member can see what is outstanding.
 - **No admission without a member present.** Nobody to accept means nobody
   enters. The page says so rather than hanging.
-- **A knock is not a notification.** Out of scope: the member who sent the link
-  is expected to be there. Push for knocks is a want, not a requirement, and
-  BACKLOG.md is the place for it.
+- **A knock is not a notification.** Members are expected to be there.
 - **A guest identity is never an account id.** `guest_` prefix, and the
   `MEDIA_IDENTITY` precedent already establishes that the room holds identities
   that are not people.
@@ -160,16 +155,6 @@ server SDK.
 - **Revoking is the same call.** A guest who is a problem is silenced by a
   member in one tap, without ejecting them mid-sentence — and ejecting is
   `removeParticipant`, which the room service also has.
-
-## The floor, and a guest
-
-A guest is a non-holder, always. While a member holds the floor the guest is
-withheld from everyone, exactly as any other non-holder is — one line in the
-matrix, not a new rule. While nobody holds it, a guest with a granted
-microphone is heard by everyone.
-
-They cannot claim it, because claiming is guarded on `isParticipant`, which
-they are not. Nothing to write.
 
 ---
 
