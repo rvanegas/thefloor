@@ -13,7 +13,7 @@ import { MAX_PING_TEXT_LENGTH } from '../../../core/constants';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
-import { describeAvailability } from './availability';
+import { describeAvailability, describeQuiet, sentence } from './availability';
 import { duration } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
 
@@ -308,10 +308,31 @@ export function ProfileView({
                   {channel.name ??
                     describeChannel(channel.others.map((o) => o.displayName))}
                 </Text>
+                {/*
+                  The same line Home's channel rows draw, from the same
+                  function. This said "Nobody here right now" for any empty
+                  channel whatever its age, so the room Home called five
+                  minutes ago was described here as merely empty, and a
+                  contact channel neither of you has ever opened claimed to
+                  have been left.
+                */}
                 <Text style={type.muted}>
                   {channel.presentCount > 0
                     ? `${channel.presentCount} present`
-                    : 'Nobody here right now'}
+                    : sentence(
+                        describeQuiet(
+                          {
+                            everUsed: channel.everUsed,
+                            // `lastActiveAt` for a server that predates the
+                            // better stamp, as on Home: the same answer for
+                            // every channel nobody is in, which is the only
+                            // kind this line is drawn for.
+                            lastPresenceAt:
+                              channel.lastPresenceAt ?? channel.lastActiveAt,
+                          },
+                          app.serverNow()
+                        ) ?? ''
+                      )}
                 </Text>
               </Pressable>
             ))}

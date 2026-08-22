@@ -1582,3 +1582,40 @@ having a script choose.
 command, and is the answer to "what does Apple actually think is happening" —
 which the UI is a poor witness to. `--dry-run` runs every check and every read,
 and makes no writes at all.
+
+## A quiet channel says how quiet, and stops saying it is quiet — 2026-08-21
+
+The idleness line under a channel's name had a floor: under a minute, and for
+an invitation from a server sending no stamp, it read "Nobody here right now"
+instead of an interval. The reasoning was that a channel somebody left forty
+seconds ago is one they have just left, and a number for that is noise.
+
+It was noise the other way. **The row has already said nobody is here** — an
+occupied channel shows `N present` instead, so an interval is only ever drawn
+for an empty one. The phrase therefore spent the line restating the heading and
+withheld the single fact it was holding. Every row now answers the same
+question in the same units, and "a few seconds ago" is the bottom of the scale
+rather than a special case.
+
+**The floor stays where it means something.** `agoOrNull` still floors
+`describeAvailability`, because a *person*'s gap is evidence about where they
+are: under a minute the answer is "In the app now", which is a different fact
+rather than a smaller number, and it is also what keeps a flapping connection
+from reading as somebody leaving. A channel has no equivalent — `presentCount`
+is a fact where the gap is an inference, and the fact is already on the row.
+
+Not-knowing is the one case that must not be given a number, and it survives as
+`null` rather than as a phrase: the caller drops the line. Only an invitation
+can reach it, from a server predating `lastPresenceAt`; a channel row falls
+back to `lastActiveAt`, which for a channel nobody is in is the same answer.
+
+**The profile screen was the reason to look.** Its "Channels with them" list
+had its own copy of this line, and the copy had drifted to a plain ternary:
+`presentCount > 0` or the literal "Nobody here right now", whatever the age.
+The room Home called two hours ago read there as merely empty, and a contact
+channel neither of you had ever opened claimed to have been left rather than
+saying "Not used yet". Both lines are now `describeQuiet` in
+`app/src/ui/availability.ts`, next to `describeAvailability`, which is there for
+the same reason and whose own two copies had drifted before either was touched
+twice. That is twice this shape has bitten; a line drawn on two screens goes in
+that file.

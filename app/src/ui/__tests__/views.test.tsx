@@ -404,9 +404,35 @@ describe('Home', () => {
 
   it('invents no idleness for a server that sends no stamp', () => {
     // An installed build meets this between its release and the deploy that
-    // follows. `lastActiveAt` is the fallback and is the same answer for a
-    // channel nobody is in — but a gap under the minute floor still reads as
-    // resting rather than as a count of seconds.
+    // follows, and an invitation is the only row that can reach it: a channel
+    // row falls back to `lastActiveAt`, which for a channel nobody is in is
+    // the same answer. With nothing to measure from, the interval is dropped
+    // rather than guessed at — the row still says who asked.
+    mockApp.home = {
+      invites: [
+        {
+          channelId: 'sess_b',
+          from: { id: 'acct_x', displayName: 'Miro Okafor' },
+          createdAt: NOW,
+          presentCount: 0,
+        },
+      ],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    const text = textOf(tree);
+    expect(text).toContain('Miro Okafor asked you in');
+    expect(text).not.toContain('ago');
+    expect(text).not.toContain('·');
+    act(() => tree.unmount());
+  });
+
+  it('says how long ago even when it was moments ago', () => {
+    // There used to be a floor here, and under it the row said "Nobody here
+    // right now" — which the reader already knew, an occupied channel showing
+    // its count instead. Every row answers the same question the same way.
     mockApp.home = {
       invites: [],
       rejoinable: [
@@ -417,6 +443,7 @@ describe('Home', () => {
           presentCount: 0,
           createdAt: NOW,
           lastActiveAt: NOW,
+          lastPresenceAt: NOW - 5_000,
         },
       ],
       contacts: [],
@@ -424,9 +451,8 @@ describe('Home', () => {
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
-    expect(text).toContain('Nobody here right now');
-    expect(text).not.toContain('ago');
-    expect(text).not.toContain('Not used yet');
+    expect(text).toContain('A few seconds ago');
+    expect(text).not.toContain('Nobody here right now');
     act(() => tree.unmount());
   });
 
@@ -482,6 +508,7 @@ describe('Home', () => {
           name: 'Weekly Convo',
           others: [{ id: THEM, displayName: 'Dana Chu' }],
           presentCount: 0,
+          lastPresenceAt: NOW - 3_600_000,
         },
       ],
       rejoinable: [],
@@ -491,7 +518,7 @@ describe('Home', () => {
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).not.toContain('is waiting');
-    expect(text).toContain('nobody here right now');
+    expect(text).toContain('asked you in · an hour ago');
     act(() => tree.unmount());
   });
 
@@ -2017,7 +2044,7 @@ describe('a channel with nobody in it', () => {
       <HomeView {...homeNav} />
     );
     const text = textOf(tree);
-    expect(text).toContain('Nobody here right now');
+    expect(text).toContain('A few seconds ago');
     expect(text).not.toContain('ends within a minute');
     act(() => tree.unmount());
   });
@@ -2602,6 +2629,36 @@ describe('channels you share with somebody', () => {
 
     expect(mockApp.act).toHaveBeenCalledWith('sess_shared', { type: 'ENTER' });
     expect(onEnterChannel).toHaveBeenCalledWith('sess_shared');
+    act(() => tree.unmount());
+  });
+
+  it('measures idleness the way Home does', async () => {
+    // It used to say "Nobody here right now" for any empty channel whatever
+    // its age, so the room Home called two hours ago read here as merely
+    // empty, and one neither of you had ever opened claimed to have been
+    // left. One function draws both lines now.
+    withChannels([
+      { ...channel('sess_quiet', 'Thursday rehearsal', THEM),
+        lastPresenceAt: NOW - 2 * 3_600_000 },
+      { ...channel('sess_new', 'Never opened', THEM), everUsed: false },
+    ]);
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView
+          accountId={THEM}
+          fallbackName="Dana Chu"
+          onBack={() => {}}
+          onEnterChannel={() => {}}
+        />
+      );
+    });
+
+    const text = textOf(tree);
+    expect(text).toContain('2 hours ago');
+    expect(text).toContain('Not used yet');
+    expect(text).not.toContain('Nobody here right now');
     act(() => tree.unmount());
   });
 

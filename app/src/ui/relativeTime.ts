@@ -32,6 +32,11 @@ dayjs.extend(relativeTime);
  * is up to one heartbeat stale; anything under this reads as present rather
  * than as freshly departed. The channel's copy of that stamp is written the
  * same way, by the same messages — see `STILL_HERE`.
+ *
+ * A channel's idleness line used to take this floor too and no longer does:
+ * there the row already states that nobody is present, `presentCount` being a
+ * fact where a gap is an inference, so a floor could only replace a number
+ * with something the reader had. See `describeQuiet`.
  */
 const PRESENT_MS = 60_000;
 
@@ -39,10 +44,12 @@ const PRESENT_MS = 60_000;
  * `ms` ago, in words, or null when the gap is too small to be worth naming.
  *
  * Null rather than a string, so the caller decides what "no gap worth naming"
- * looks like in its own context — which today means Home, saying "In the app
- * now". The channel roster calls `ago` directly and needs no floor: a gap that
- * small there is a connection flapping, and the grace period already covers it
- * by keeping the person present and saying "reconnecting" instead.
+ * looks like in its own context — which today means `describeAvailability`,
+ * saying "In the app now". The other two callers use `ago` directly and need
+ * no floor: on the channel roster a gap that small is a connection flapping,
+ * which the grace period already covers by keeping the person present and
+ * saying "reconnecting", and a channel's idleness line is drawn only for a
+ * channel the row has already called empty.
  */
 export function agoOrNull(ms: number): string | null {
   if (ms < PRESENT_MS) return null;

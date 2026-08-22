@@ -12,10 +12,10 @@ import type {
   RejoinableView,
 } from '../../../core/protocol';
 import { describeChannel } from '../../../core/naming';
+import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Screen, SectionLabel } from './components';
-import { agoOrNull } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
 
 /**
@@ -488,31 +488,6 @@ function byIdleness(a: Card, b: Card): number {
   return (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0);
 }
 
-/**
- * How long since anybody was here, in words, lower case so it can be the
- * second half of a sentence about an invitation.
- *
- * The bare interval, with no "last here" in front of it. The line sits under a
- * channel's name in a list where every other card says the same kind of thing,
- * so the words were carried by every row to distinguish none of them — and
- * they pushed the number, which is the part being scanned for, off the front
- * of the line.
- *
- * "Nobody here right now" covers both the gap too small for `agoOrNull` to
- * name and the server that sends no stamp at all. Neither is worth a number: a
- * channel somebody left forty seconds ago is one they have just left, and one
- * we know nothing about must not be described as though we did.
- */
-function quietFor(card: Card, now: number): string {
-  if (!card.everUsed) return 'not used yet';
-  const ago =
-    card.lastPresenceAt === undefined
-      ? null
-      : agoOrNull(now - card.lastPresenceAt);
-  return ago ?? 'nobody here right now';
-}
-
-const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 function describeStatus(status: string): string {
   return status === 'connecting' ? 'reconnecting' : 'offline';
@@ -542,6 +517,9 @@ function ChannelCard({
   onDismiss?: () => void;
 }) {
   const live = isLive(card);
+  // Null only for an invitation from a server that predates the stamp, which
+  // is a line that goes away rather than a line that says nothing.
+  const quiet = describeQuiet(card, now);
   /**
    * An invitation outlives the moment it was sent. What it must not do is go
    * on claiming that moment is still happening — the banner used to say
@@ -552,13 +530,13 @@ function ChannelCard({
     card.kind === 'invite'
       ? live
         ? `${card.from} is waiting — tap to join`
-        : `${card.from} asked you in · ${quietFor(card, now)}`
+        : `${card.from} asked you in${quiet ? ` · ${quiet}` : ''}`
       : live
         ? `${card.presentCount} present`
         : // An empty channel used to be sixty seconds from destruction, and
           // saying so was a reason to hurry back. Channels are permanent now:
           // nobody being in one is a resting state, not a countdown.
-          sentence(quietFor(card, now));
+          quiet && sentence(quiet);
 
   return (
     // The whole row, rather than a button on the end of it. There is only one
@@ -567,7 +545,7 @@ function ChannelCard({
     // which has always worked this way.
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${card.title}. ${line}. ${
+      accessibilityLabel={`${card.title}. ${line ? `${line}. ` : ''}${
         card.kind === 'invite' ? 'Join.' : 'Step in.'
       }`}
       onPress={onPress}
@@ -590,7 +568,7 @@ function ChannelCard({
           <Text style={card.named ? type.body : styles.described} numberOfLines={1}>
             {card.title}
           </Text>
-          <Text style={type.muted}>{line}</Text>
+          {line ? <Text style={type.muted}>{line}</Text> : null}
         </View>
         {onDismiss ? (
           <Pressable
