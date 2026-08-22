@@ -1455,3 +1455,50 @@ that is the right place for it: it refuses out loud, to the sender, at the
 moment of sending. The old arrangement had a second limiter behind it that
 nobody was told about — the window refused the second ping, and had it not, the
 collapse key would have thrown it away anyway.
+
+## Only a ping makes a sound — 2026-08-22
+
+Every notification this server sends carried `sound: 'default'`, which was
+never a decision so much as the first payload anybody writes. It is now false
+for the three the channel sends about itself and true for the one a person
+composes — the third property to fall on that seam, after the collapse key and
+in-app delivery.
+
+**The quiet ones are what buy the loud one its credibility.** A phone that
+chimes every time a room fills and empties is a phone whose owner turns this
+app's notifications off, and the ping goes with them — the single notification
+that was worth interrupting somebody for, lost to the noise made by the ones
+that were not. Nothing is given up: a silent notification still arrives, still
+shows a banner, still lights the lock screen. What it does not do is demand the
+room's attention on behalf of a room somebody merely walked into.
+
+`sound` is omitted from `aps` rather than set to something quiet. There is no
+silent sound, and an empty string is a value APNs has opinions about rather
+than a way of asking for silence — the same shape as the collapse header
+earlier the same day, and for the same reason: absence is the vocabulary.
+
+### Nothing above `active`, deliberately
+
+`interruption-level` has two rungs above the default and neither is claimed.
+`time-sensitive` pierces Focus modes and Scheduled Summary; `critical`
+overrides the ring switch. **Somebody who has put their phone in a Focus mode
+has said something, and a conversation app is not entitled to talk over it.**
+A ping is a good technical fit for `time-sensitive` — come now, expires in five
+minutes, composed by a person — and that is exactly why the refusal is worth
+writing down rather than leaving to be rediscovered as an opportunity. There is
+a test asserting no interruption level is ever sent, so a future attempt to
+make pings "more reliable" has to argue with something.
+
+The entitlement costs are worth knowing since they will come up: `time-sensitive`
+needs a capability on the app but no approval, while `critical` needs an
+entitlement Apple grants by hand plus a separate user opt-in. Cheapness was not
+the reason for declining either.
+
+### Three fields, not one predicate
+
+`collapseKey`, `reachesInApp` and `audible` are now set alike by all four
+constructors, which invites somebody to replace them with `isPing`. They answer
+different questions — what may be discarded, what would be a duplicate, what is
+worth interrupting for — and a notification that should arrive quietly and never
+be overwritten is easy to imagine. The fields can say that; a predicate cannot.
+The reasoning also has to live somewhere a constructor can see it.

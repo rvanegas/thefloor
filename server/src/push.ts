@@ -84,6 +84,29 @@ export interface PushMessage {
    */
   lifetimeMs: number;
   /**
+   * Whether this makes a sound and a vibration, or arrives quietly.
+   *
+   * `aps.sound` is per-notification and provider-chosen: present, and iOS
+   * plays the alert tone and vibrates; omitted, and the same notification
+   * lands as a silent banner. That is the whole of the control worth having —
+   * `interruption-level` sits above it and is deliberately not used here.
+   * `time-sensitive` would pierce a Focus mode and needs a capability on the
+   * app, and `critical` overrides the ring switch and needs an entitlement
+   * Apple grants by hand. **Neither is ours to claim.** Somebody who has put
+   * their phone in a Focus mode has said something, and a conversation app is
+   * not entitled to talk over it.
+   *
+   * False for everything the channel says about itself, since 2026-08-22.
+   * Those report that something happened somewhere, and a phone that makes a
+   * noise every time a room fills and empties is one that gets its
+   * notifications turned off entirely — at which point the ping goes with
+   * them. **The quiet ones are what buy the loud one its credibility.**
+   *
+   * True for a ping alone, which is a person asking for you by name and the
+   * only one worth interrupting anybody for.
+   */
+  audible: boolean;
+  /**
    * Whether this may reach somebody who is already holding a live socket.
    *
    * False for everything the channel says about itself. Those are duplicates
@@ -153,8 +176,19 @@ export interface PushMessage {
  * may reach turn out to be the same question asked twice: the three automatic
  * ones are safe to overwrite *because* they are the channel repeating itself,
  * and for that same reason they are withheld from anybody whose socket has
- * already drawn what they describe. A ping is neither, so it overwrites
- * nothing and it is delivered whether or not the app is open.
+ * already drawn what they describe, and for that same reason again they arrive
+ * without a sound. A ping is none of those, so it overwrites nothing, it is
+ * delivered whether or not the app is open, and it is the one that makes a
+ * noise.
+ *
+ * **Three fields rather than one `isPing`, and that is not an oversight.**
+ * They agree today because one distinction happens to govern all three, but
+ * each is answering a different question — what may be discarded, what would
+ * be a duplicate, and what is worth interrupting somebody for — and the
+ * answers are not bound to stay together. A notification that ought to arrive
+ * quietly and never be overwritten is easy to imagine; the fields can say that
+ * and a predicate cannot. Collapsing them would also put the reasoning
+ * somewhere no constructor can see it.
  *
  * Cut the set either way and the members swap sides. That is the argument for
  * naming them rather than sorting them into two piles once.
@@ -175,6 +209,7 @@ export const notifications = {
       channelId,
       collapseKey: channelId,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      audible: false,
       reachesInApp: false,
     };
   },
@@ -198,6 +233,7 @@ export const notifications = {
       channelId,
       collapseKey: channelId,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      audible: false,
       reachesInApp: false,
     };
   },
@@ -220,6 +256,7 @@ export const notifications = {
       channelId,
       collapseKey: channelId,
       lifetimeMs: PRESENCE_LIFETIME_MS,
+      audible: false,
       reachesInApp: false,
     };
   },
@@ -281,6 +318,8 @@ export const notifications = {
       // restatement; a ping is a sentence somebody wrote. See the field.
       collapseKey: null,
       lifetimeMs: PRESENCE_LIFETIME_MS,
+      // The only one that makes a sound. See the field.
+      audible: true,
       // The only one of the four that is delivered to a phone whose app is
       // open. See the field.
       reachesInApp: true,
@@ -400,7 +439,10 @@ export class ApnsPusher implements Pusher {
     const payload = JSON.stringify({
       aps: {
         alert: { title: message.title, body: message.body },
-        sound: 'default',
+        // Omitted rather than set to something silent: there is no quiet
+        // sound, and an absent key is how APNs is told to deliver the banner
+        // without the tone or the vibration that goes with it.
+        ...(message.audible ? { sound: 'default' } : {}),
         // Grouping, not replacing: everything about one channel stacks
         // together in Notification Center whatever its collapse key.
         'thread-id': message.channelId,

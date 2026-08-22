@@ -211,6 +211,7 @@ describe('an invite', () => {
         channelId,
         collapseKey: channelId,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
+        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -238,6 +239,7 @@ describe('an invite', () => {
         channelId: standing.channelId,
         collapseKey: standing.channelId,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
+        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -270,6 +272,7 @@ describe('an invite', () => {
         channelId: id,
         collapseKey: id,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -314,6 +317,7 @@ describe('an invite', () => {
           channelId,
           collapseKey: channelId,
           lifetimeMs: PARTICIPATION_LIFETIME_MS,
+          audible: false,
           reachesInApp: false,
         },
       ]);
@@ -380,6 +384,7 @@ describe('a channel becoming active', () => {
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -739,6 +744,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -762,6 +768,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -814,6 +821,7 @@ describe('a ping', () => {
         // is entitled to throw an earlier one away.
         collapseKey: null,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        audible: true,
         reachesInApp: true,
       },
     ]);
@@ -1036,6 +1044,23 @@ describe('how long a notification stays worth delivering', () => {
    * deliberately, and the cheap default — copying the line above it — is the
    * right one for anything the channel says about itself.
    */
+  /**
+   * The quiet three are what buy the loud one its credibility: a phone that
+   * chimes every time a room fills and empties gets its notifications turned
+   * off, and the ping goes with them. So this is a statement about the three
+   * as much as about the one.
+   */
+  it('makes a sound for a ping and for nothing else', () => {
+    expect(notifications.started('Alice', 'chan_1').audible).toBe(false);
+    expect(notifications.invited('Alice', null, 'chan_1').audible).toBe(false);
+    expect(notifications.arrived('Standup', 'Alice', 'chan_1').audible).toBe(
+      false
+    );
+    expect(
+      notifications.pinged('Standup', 'Alice', 'come back', 'chan_1').audible
+    ).toBe(true);
+  });
+
   it('delivers only a ping to somebody who is already in the app', () => {
     expect(notifications.started('Alice', 'chan_1').reachesInApp).toBe(false);
     expect(notifications.invited('Alice', null, 'chan_1').reachesInApp).toBe(

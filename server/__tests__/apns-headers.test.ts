@@ -118,3 +118,51 @@ describe('what a notification asks APNs to replace', () => {
     expect(aps['thread-id']).toBe('chan_1');
   });
 });
+
+describe('what a notification is allowed to interrupt', () => {
+  it('arrives silently when the channel is talking about itself', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.arrived('Standup', 'Alice', 'chan_1')
+    );
+
+    // Absent, not empty. There is no quiet sound, and `sound: ''` is a value
+    // APNs has opinions about rather than a way of asking for silence.
+    const aps = requests[0].payload.aps as Record<string, unknown>;
+    expect('sound' in aps).toBe(false);
+  });
+
+  it('makes a sound for a ping', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.pinged('Standup', 'Alice', 'we are starting', 'chan_1')
+    );
+
+    const aps = requests[0].payload.aps as Record<string, unknown>;
+    expect(aps.sound).toBe('default');
+  });
+
+  /**
+   * Deliberately claiming nothing above the default. `time-sensitive` pierces
+   * a Focus mode and `critical` overrides the ring switch, and somebody who
+   * has set either has said something a conversation app is not entitled to
+   * talk over. Both also cost an entitlement, one of them an argument with
+   * Apple — so this is the assertion that stops a future "make the ping more
+   * reliable" from quietly becoming an escalation.
+   */
+  it('never claims an interruption level for anything', async () => {
+    for (const message of [
+      notifications.started('Alice', 'chan_1'),
+      notifications.invited('Alice', null, 'chan_1'),
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
+      notifications.pinged('Standup', 'Alice', null, 'chan_1'),
+    ]) {
+      await pusher().send(['token'], message);
+    }
+
+    for (const request of requests) {
+      const aps = request.payload.aps as Record<string, unknown>;
+      expect('interruption-level' in aps).toBe(false);
+    }
+  });
+});
