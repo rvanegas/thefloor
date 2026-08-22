@@ -1024,3 +1024,126 @@ flash of the wrong palette. Here it costs a tap in the first instant of a cold
 start entering a channel somebody meant only to open. Neither is worth blocking
 the first screen on a keychain read, and the recovery from this one is a tap on
 Step Out.
+
+## Nobody reaches into a conversation they are not in
+
+2026-08-22, the day after the Step In screen, and it exists because of it. Once
+watching a channel became a state somebody arrives at on purpose, the question
+"what can be done from out here" stopped being rhetorical, and the answer on
+audit was: nearly everything. A member standing outside an occupied channel
+could rename it, rewrite its description, invite a contact into it, mint a
+guest link onto it, rename or delete its recordings, and — because the two
+controls were never wired to their guard at all — grant a guest the microphone
+or throw them out.
+
+The rule adopted is one sentence. **Membership is standing over a channel; it
+is not standing over an occupation of it.** People who are talking to each
+other are entitled to control the place they are talking in, and a member who
+is somewhere else does not get to reach in.
+
+### The escape hatch is what makes it liveable
+
+`hasTheRoom(state, id)` is `state.present.length === 0 || inRoom(state, id)`,
+and the first half is not a concession. An empty channel belongs to all of its
+members equally: setting a track up before anybody arrives, tidying the
+recordings, fixing a typo in the description are all interrupting nothing. A
+rule of plain presence would have locked the absent out of their own channel
+and turned every one of those into a step in and a step out.
+
+It also means every sentence explaining a disabled control can say the same
+thing. The only way the guard is false is that other people are in there, so
+"step in" is always both the reason and the remedy, and the screen never has to
+work out which of several reasons applies. That uniformity is worth more than
+it looks — the floor hint one section up exists because it *did* have several
+reasons and got them wrong.
+
+### Seven guards, one predicate, and where it is not asked
+
+`canEditChannel` (new, covering `SET_NAME` and `SET_DESCRIPTION`, which had no
+guard of any kind before this), `canInvite`, `canInviteGuest` — which now
+covers revoking as well as minting — `canControlPlayback`, `canPasteClip`,
+`canClearClip`, `canManageGuest`.
+
+Deliberately outside it:
+
+- **Leaving.** Giving up your own membership is yours whatever anybody else is
+  doing. Deleting needs no rule either: only the last member may, and nobody
+  can be the last member while somebody else is present.
+- **Exporting a recording.** A read. It changes nothing anybody in the room can
+  see, and refusing somebody their own conversation because two other people
+  happen to be talking would be a rule with no injury behind it. Renaming and
+  deleting are governed because both change what everybody else's list says and
+  one of them cannot be undone.
+- **Reading the guest links.** How somebody works out who can get in, which is
+  a question worth being able to answer from outside. Shutting a door is not.
+- **Claiming the floor, self-mute, starting a recording, answering the door.**
+  Already about presence for reasons of their own. Folding them in would make
+  the rule mean something else.
+
+### `state.present` counts members, and the guest case is not what it looks like
+
+Writing this, the obvious argument for counting members only was that a guest
+left alone in a room every member had walked out of is exactly who somebody
+needs to reach in and remove. **That state does not exist**, and the test
+written to demonstrate it is what said so: `settleEmpty` takes every guest out
+with the last member, on the rule that nobody may remain in a room with no
+member to answer for them, and `GUEST_ENTERED` refuses an empty channel for the
+same reason. So `canManageGuest` gets no behaviour out of the empty half at all
+— it collapses to plain presence — and `core/__tests__/room.test.ts` asserts
+the invariant rather than the story. The reason to count members anyway is that
+the rule then says what it means: a conversation is people who belong here
+talking, and a guest is somebody a member is answering for.
+
+The other half of the guest question is sharper. `hasTheRoom` is written on
+`inRoom` so that the clipboard guards, which a guest is meant to pass, can ask
+it directly — which means it is *true* of every guest. Everything a guest must
+not reach therefore says `isParticipant` beside it rather than leaning on the
+predicate to do both jobs. `canControlPlayback` is where that bites: it used to
+read `isPresent`, and the word doing the work of refusing guests was
+"present", not anything about playback. Swapping in `hasTheRoom` alone would
+have handed guests the shared track.
+
+### Two of these do not go through the reducer
+
+Renaming and deleting a recording are HTTP routes with no action to carry a
+guard, so `Channels.hasTheRoomIn` asks core directly by channel id. A channel
+not in memory passes, which is not a gap: `restore` revives every unended
+channel at boot, so what is missing has ended, and an ended channel has nobody
+in it to interrupt.
+
+They answer **409, not 404**, and the delete route had to be taught the
+difference — it flattened every refusal to 404 on the good reasoning that
+absent, deleted and not-yours are one answer, since knowing a recording exists
+is something only the channel's members learn. A busy channel is not that
+case. The caller is a member who can already see the recording and can see who
+is in the channel; 404 would tell them the one thing that has not happened to
+it. `mintGuestLink` was split the same way and for the same reason — it was
+answering "Not your channel" to a member whose channel it plainly is.
+
+### The old clients are fine, which was not obvious
+
+This tightens what a deployed server accepts without moving the wire, so build
+51 and everything after it will show enabled controls the server now refuses.
+The reducer-side refusals are silent no-ops, which is what a refused action has
+always been on this wire — the screen snaps back on the next snapshot. The
+HTTP-side ones surface properly: `DeleteButton` alerts with the message, and
+the guest-link failure lands in `shareError`, both of which now read "Somebody
+is in this channel. Step in to…". So the two that could confuse somebody are
+the two that explain themselves.
+
+### The controls are disabled, not hidden — the opposite of the day before
+
+Yesterday's work hid the microphone card and the knocks. These are disabled
+with a sentence underneath, and the difference is worth stating because the two
+sit on one screen. What is hidden is what is *untrue* of somebody outside the
+room. What is disabled is what is true and merely not theirs at this moment —
+a control that vanished when somebody else walked in would read as a bug rather
+than as a rule.
+
+One consequence took a rewrite. `InviteList` filtered its contacts through
+`canInvite`, which now carries the room rule, so for a watcher the list emptied
+and rendered "every contact you could invite is already in this channel" —
+false, and unrecoverable, there being nothing left on screen to explain itself.
+The room half now arrives as a prop and disables the buttons; the contact half
+still filters. **A guard that gains a clause can turn a filter into a lie**,
+and the filter is the call site that will not fail loudly.

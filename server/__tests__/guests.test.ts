@@ -172,6 +172,73 @@ describe('a link', () => {
   });
 });
 
+/**
+ * `hasTheRoom` at the door: minting and revoking are decisions about who may
+ * walk into whatever is being said, so they belong to whoever is saying it —
+ * and to any member at all when nobody is.
+ *
+ * Reading the list is deliberately not covered. It is how somebody works out
+ * who can get in, which is a question worth being able to answer from outside.
+ */
+describe('who may open and shut a door', () => {
+  it('refuses a member standing outside an occupied channel, and allows one outside an empty one', async () => {
+    const app = boot();
+    const { alice, bob, channelId } = await pair(app);
+    // Alice is present from `create`; Bob is a member who is elsewhere.
+    const minted = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/guest-links`,
+      headers: auth(bob.token),
+    });
+    // 409 rather than 403: it is his channel, and the answer that says
+    // otherwise sends him looking for a membership problem he does not have.
+    expect(minted.statusCode).toBe(409);
+    expect(app.channels.guests.linksFor(channelId)).toHaveLength(0);
+
+    emptyIt(app, channelId);
+    const again = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/guest-links`,
+      headers: auth(bob.token),
+    });
+    expect(again.statusCode).toBe(200);
+
+    // And revoking follows minting, which is the half that lives outside the
+    // reducer — `revokeGuestLink` asks core itself.
+    const { token } = again.json() as { token: string };
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    const blocked = await app.fastify.inject({
+      method: 'DELETE',
+      url: `/channels/${channelId}/guest-links/${token}`,
+      headers: auth(bob.token),
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(app.channels.guests.liveLink(token)).toBeDefined();
+
+    // Alice is in there, so it is hers to shut.
+    const shut = await app.fastify.inject({
+      method: 'DELETE',
+      url: `/channels/${channelId}/guest-links/${token}`,
+      headers: auth(alice.token),
+    });
+    expect(shut.statusCode).toBe(204);
+    expect(app.channels.guests.liveLink(token)).toBeUndefined();
+    await shutdown(app);
+  });
+
+  it('still says not-found for a link that was never there, rather than blaming the room', async () => {
+    const app = boot();
+    const { bob, channelId } = await pair(app);
+    const response = await app.fastify.inject({
+      method: 'DELETE',
+      url: `/channels/${channelId}/guest-links/nope`,
+      headers: auth(bob.token),
+    });
+    expect(response.statusCode).toBe(400);
+    await shutdown(app);
+  });
+});
+
 describe('a seat', () => {
   async function admitted(app: App) {
     const { alice, bob, channelId } = await pair(app);

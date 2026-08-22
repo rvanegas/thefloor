@@ -163,9 +163,33 @@ things that this file keeps apart:
   "Tap a channel to step in" turned off, a tap opens the channel screen and
   dispatches no `ENTER`, so the screen offers **Step In** where it offers
   **Step Out** to somebody present. A notification tap has always landed this
-  way. The screen's other controls need no special case — every `can…` in
-  `core/channel.ts` already asks about the room — but the microphone card and
-  the knocks are hidden, because neither is true of somebody outside it.
+  way. The microphone card and the knocks are hidden, because neither is true
+  of somebody outside the room.
+
+  **This said the screen's other controls needed no special case, on the
+  grounds that every `can…` already asked about the room. That was wrong in
+  both directions and was corrected the next day.** Some guards asked about
+  membership only, so a watcher could rename an occupied channel, invite into
+  it, mint a link onto it and rename or delete its recordings; the two guest
+  controls were not wired to their guard at all and were refused silently by
+  the reducer. See **Occupation**, below.
+
+- **Occupation** — `hasTheRoom` in `core/channel.ts`, which is `present` being
+  empty *or* you being in the room. Not a state of a person but of a channel
+  seen from one: whether what you are looking at is somebody else's
+  conversation. Since 2026-08-22 it governs the channel's name and description,
+  inviting a contact, minting and revoking a guest link, the shared track, the
+  clipboard, guest management, and — at the two HTTP routes, through
+  `Channels.hasTheRoomIn` — renaming and deleting a recording. **Membership is
+  standing over a channel; it is not standing over an occupation of it.**
+
+  It does **not** govern leaving, exporting a recording, reading the guest
+  links, or anything already about presence for its own reasons: the floor,
+  self-mute, starting a recording, answering the door. `present` counts members
+  only, so a guest never holds a room — though `settleEmpty` means a guest
+  cannot be in an empty one either, and `canManageGuest` therefore gets no
+  behaviour from the empty half. The reasoning is DECISIONS.md § *Nobody
+  reaches into a conversation they are not in*.
 
 `lastActiveAt` says nothing about a channel that is occupied now — there is no
 write between an entry and an exit, so an hour of conversation moves it not at

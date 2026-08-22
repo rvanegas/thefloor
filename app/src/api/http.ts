@@ -306,7 +306,11 @@ export const api = {
       { token }
     ),
 
-  /** Shuts one link. Anybody in the channel may, not only whoever minted it. */
+  /**
+   * Shuts one link. Anybody in the room may, not only whoever minted it —
+   * and, when nobody is in it, any member. 409 when somebody else is in there;
+   * see `hasTheRoom`.
+   */
   revokeGuestLink: (token: string, channelId: string, linkToken: string) =>
     request<void>(`/channels/${channelId}/guest-links/${linkToken}`, {
       method: 'DELETE',

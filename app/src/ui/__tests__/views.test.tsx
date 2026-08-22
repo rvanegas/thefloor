@@ -26,7 +26,13 @@ import { ContactsView } from '../ContactsView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
 import { LeaderboardView } from '../LeaderboardView';
-import { Alert, KeyboardAvoidingView, Share, StyleSheet } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Share,
+  StyleSheet,
+  TextInput,
+} from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { colors } from '../theme';
 
@@ -1000,6 +1006,199 @@ describe('Channel', () => {
 
     expect(textOf(tree)).not.toContain('is at the door');
     expect(findButton(tree, 'Let them in')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * `hasTheRoom`, seen from the screen. The rule is that nobody reaches into a
+   * conversation they are not in, so everything that changes what the people
+   * in the channel can see is disabled for somebody looking at it from
+   * outside — and every one of them says the same word, "step in", because
+   * that is the only way it is ever false.
+   *
+   * Disabled rather than hidden, unlike the microphone card and the knocks.
+   * These are things this person may genuinely do, a tap on Step In from now,
+   * and a control that vanished when somebody else walked in would read as a
+   * bug rather than as a rule.
+   */
+  it('disables what belongs to the conversation, for somebody watching it', () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [
+        { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
+      ],
+    };
+    // Dana is in there; I am not.
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          reduce(c, { type: 'STEP_OUT', userId: ME }, NOW),
+          {
+            type: 'GUEST_ENTERED',
+            guest: {
+              id: 'guest_dana',
+              name: 'Dana',
+              admittedAt: NOW,
+              maySpeak: false,
+              request: 'asking',
+            },
+          },
+          NOW
+        )
+      ),
+      [
+        {
+          id: 'rec_1',
+          channelId: 'sess_1',
+          name: 'Book club',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          startedAt: NOW - 60_000,
+          endedAt: NOW - 30_000,
+          durationMs: 30_000,
+        },
+      ]
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    const disabled = (label: string) => {
+      const button = findButton(tree, label);
+      expect([label, button !== undefined]).toEqual([label, true]);
+      return [label, button!.props.accessibilityState];
+    };
+    const off = (label: string) => [label, { disabled: true }];
+
+    // The guest's two buttons, which were live to anybody watching and refused
+    // by the reducer — and the microphone one renders `primary` while a guest
+    // is asking, so the loudest button on the screen was wired to nothing.
+    expect(disabled('Let them speak')).toEqual(off('Let them speak'));
+    expect(disabled('Remove')).toEqual(off('Remove'));
+
+    expect(disabled('Invite')).toEqual(off('Invite'));
+    expect(disabled('Share a guest link')).toEqual(off('Share a guest link'));
+    expect(disabled('Paste my clipboard')).toEqual(off('Paste my clipboard'));
+    expect(disabled('Play something together')).toEqual(
+      off('Play something together')
+    );
+
+    const text = textOf(tree);
+    expect(text).toContain('Step in to answer for what a guest may do');
+    expect(text).toContain('Step in to invite anybody');
+    expect(text).toContain('Step in to make a link');
+    expect(text).toContain('Step in to put something on the channel clipboard');
+    // The shared-audio hint, which is a different sentence and was the one
+    // disabled cluster on this screen with nothing explaining itself.
+    expect(text).toContain('What everybody is listening to is for whoever is listening');
+    // And the list of contacts is still shown rather than emptied by the
+    // filter, which would have claimed every contact was already in here.
+    expect(text).toContain('Miro Okafor');
+
+    // The recording row's actions are behind a tap, and two of the three are
+    // refused. Export is not, and that is the assertion worth having.
+    act(() => findButton(tree, 'Book club')!.props.onPress());
+    expect(disabled('Rename')).toEqual(off('Rename'));
+    expect(disabled('Delete')).toEqual(off('Delete'));
+    expect(findButton(tree, 'Export')!.props.accessibilityState).toEqual({
+      disabled: false,
+    });
+    expect(textOf(tree)).toContain('Step in to rename or delete');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The other half of the rule, and the half that keeps it from locking the
+   * absent out of their own channel: an empty channel belongs to all of its
+   * members equally, so a member outside one is interrupting nothing.
+   */
+  it('gives all of it back once nobody is in the channel', () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [
+        { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
+      ],
+    };
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          reduce(c, { type: 'STEP_OUT', userId: ME }, NOW),
+          { type: 'STEP_OUT', userId: THEM },
+          NOW
+        )
+      ),
+      [
+        {
+          id: 'rec_1',
+          channelId: 'sess_1',
+          name: 'Book club',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          startedAt: NOW - 60_000,
+          endedAt: NOW - 30_000,
+          durationMs: 30_000,
+        },
+      ]
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    const on = (label: string) =>
+      findButton(tree, label)!.props.accessibilityState;
+
+    expect(on('Invite')).toEqual({ disabled: false });
+    expect(on('Share a guest link')).toEqual({ disabled: false });
+    expect(on('Paste my clipboard')).toEqual({ disabled: false });
+    expect(on('Play something together')).toEqual({ disabled: false });
+
+    act(() => findButton(tree, 'Book club')!.props.onPress());
+    expect(on('Rename')).toEqual({ disabled: false });
+    expect(on('Delete')).toEqual({ disabled: false });
+
+    // Still outside, so the things that are about presence for their own
+    // reasons are still refused — the rule did not turn into "anything goes
+    // in an empty room".
+    expect(textOf(tree)).toContain('Step In');
+    expect(on('Claim the floor')).toEqual({ disabled: true });
+    expect(on('Record')).toEqual({ disabled: true });
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The same rule one screen in. A channel's name is what the people in it
+   * call the place they are in, so it is not for somebody who is somewhere
+   * else to change under them — and `canEditChannel` governs the description
+   * with it, the two being one question.
+   */
+  it('will not let somebody outside the conversation rename the channel', () => {
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW))
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
+    const fields = tree.root.findAll((node) => node.type === TextInput);
+    expect(fields.length).toBeGreaterThan(0);
+    for (const field of fields) expect(field.props.editable).toBe(false);
+    expect(textOf(tree)).toContain('Step in to rename this channel');
+
+    // Leaving is not covered, and must not be: giving up your own membership
+    // is yours whatever anybody else is doing.
+    expect(findButton(tree, 'Leave channel')!.props.accessibilityState).toEqual(
+      { disabled: false }
+    );
     act(() => tree.unmount());
   });
 

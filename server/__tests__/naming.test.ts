@@ -74,8 +74,13 @@ async function pair() {
 }
 
 describe('naming a channel', () => {
-  it('any participant may set it, and it reaches the rejoinable view', async () => {
+  it('any participant in the room may set it, and it reaches the rejoinable view', async () => {
     const { alice, bob, channelId } = await pair();
+    // `create` leaves its initiator present, so Bob is a member standing
+    // outside an occupied channel — which since `hasTheRoom` is exactly who
+    // may not rename it. He steps in first, which is what the settings screen
+    // now tells him to do.
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
     const named = app.channels.dispatch(channelId, bob.account.id, {
       type: 'SET_NAME',
       name: '  Book club  ',
@@ -84,11 +89,41 @@ describe('naming a channel', () => {
     expect(app.channels.get(channelId)?.name).toBe('Book club');
 
     // Alice leaves with Bob still there, making the channel rejoinable for her.
-    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
     app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     const rejoinable = app.channels.rejoinableFor(alice.account.id);
     expect(rejoinable).toHaveLength(1);
     expect(rejoinable[0].name).toBe('Book club');
+  });
+
+  /**
+   * The rule from `hasTheRoom`, at the naming end of it. A name is what
+   * everybody in the conversation calls the place they are in, and it is not
+   * for somebody who is somewhere else to change it under them.
+   */
+  it('refuses a member who is outside an occupied channel, and allows one outside an empty one', async () => {
+    const { alice, bob, channelId } = await pair();
+    // Alice is present from `create`; Bob is not.
+    app.channels.dispatch(channelId, bob.account.id, {
+      type: 'SET_NAME',
+      name: 'Book club',
+    } as never);
+    expect(app.channels.get(channelId)?.name).toBe(null);
+
+    // She steps out, and with nobody in there he is interrupting nothing.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, {
+      type: 'SET_NAME',
+      name: 'Book club',
+    } as never);
+    expect(app.channels.get(channelId)?.name).toBe('Book club');
+
+    // The same rule governs the description, which is why they share a guard.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, {
+      type: 'SET_DESCRIPTION',
+      description: 'Thursdays',
+    } as never);
+    expect(app.channels.get(channelId)?.description).toBe(null);
   });
 
   it('refuses a payload whose name is not a string', async () => {

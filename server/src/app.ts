@@ -1143,8 +1143,11 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * Shuts one link. Anybody in the channel may, not only whoever minted it: a
-   * door onto a conversation is everybody's business.
+   * Shuts one link. Anybody in the room may, not only whoever minted it: a
+   * door onto a conversation is everybody's business. Which is also why it is
+   * not any member's from anywhere — `hasTheRoom` answers 409 to somebody
+   * outside an occupied channel, the conversation being the thing the door
+   * opens onto.
    */
   fastify.delete('/channels/:id/guest-links/:token', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -1325,7 +1328,16 @@ export function buildApp(options: BuildOptions = {}): App {
     // two recording routes say 404, and absent, deleted and not-yours are one
     // answer here for the reason spelled out under the export — that a
     // recording exists is itself something only its channel's members learn.
-    if (!result.ok) return reply.code(404).send({ error: result.error });
+    //
+    // A busy channel is the exception and gets its own answer. Nothing is
+    // being concealed there — the caller is a member who can already see the
+    // recording and can see who is in the channel — and 404 would tell them
+    // their recording had vanished, which is the one thing it has not done.
+    if (!result.ok) {
+      return reply
+        .code(result.code === 'conflict' ? 409 : 404)
+        .send({ error: result.error });
+    }
     return { ok: true };
   });
 

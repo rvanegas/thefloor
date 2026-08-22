@@ -32,6 +32,9 @@ import {
   canStopRecording,
   canPasteClip,
   canClearClip,
+  canInviteGuest,
+  canManageGuest,
+  hasTheRoom,
   isPresent,
 } from '../../../core/channel';
 import type { Guest } from '../../../core/types';
@@ -272,6 +275,20 @@ export function ChannelView({
    * themselves without being told about this.
    */
   const iAmPresent = isPresent(channel, me);
+  /**
+   * Whether the channel is mine to change, as against somebody else's
+   * conversation to leave alone. See `hasTheRoom` in core.
+   *
+   * Every control it governs is disabled rather than hidden, which is the
+   * opposite of what presence does to the microphone card above. The
+   * difference is that these are things you may genuinely do here — a minute
+   * from now, or a tap on Step In from now — and a control that vanishes when
+   * somebody else walks in reads as a bug rather than as a rule.
+   *
+   * Since the only way this is false is that other people are present, every
+   * sentence explaining it can say "step in", and they all do.
+   */
+  const iHaveTheRoom = hasTheRoom(channel, me);
   const iHoldFloor = channel.floor.holder === me;
   const theyHoldFloor = channel.floor.holder !== null && !iHoldFloor;
   const holderName = nameOf(channel.floor.holder);
@@ -472,6 +489,12 @@ export function ChannelView({
             </Card>
           ))}
 
+          {/*
+            Shown to everybody watching, unlike the knocks above — a guest is
+            somebody in the room, and who is in the room is what this screen is
+            for. What is withheld is the pair of buttons, and only from
+            somebody who is not in there with them.
+          */}
           {Object.values(channel.guests ?? {}).map((guest) => (
             <GuestCard
               key={guest.id}
@@ -479,6 +502,7 @@ export function ChannelView({
               muted={!!channel.selfMuted[guest.id]}
               holdsFloor={channel.floor.holder === guest.id}
               speaking={audio.speaking.includes(guest.id)}
+              manageable={canManageGuest(channel, me, guest.id)}
               onSpeech={(maySpeak) =>
                 act({ type: 'SET_GUEST_SPEECH', guestId: guest.id, maySpeak })
               }
@@ -873,9 +897,13 @@ export function ChannelView({
                 `${holderName} has the floor, so they decide what plays.`
               : iHoldFloor
                 ? 'You have the floor — only you can change what plays.'
-                : track
-                  ? 'Everyone hears this, and anyone present can change it.'
-                  : 'Whatever you play, everyone hears — and it is kept in the recording.'}
+                : !mayControlPlayback
+                  ? // The only remaining way these are disabled, the floor
+                    // having been ruled out by the two branches above.
+                    'Step in to put something on. What everybody is listening to is for whoever is listening.'
+                  : track
+                    ? 'Everyone hears this, and anyone present can change it.'
+                    : 'Whatever you play, everyone hears — and it is kept in the recording.'}
           </Text>
         </Card>
 
@@ -973,6 +1001,7 @@ export function ChannelView({
                     ? 'the floor decides what plays'
                     : 'step in to play'
                 }
+                manageable={iHaveTheRoom}
               />
             ))}
           </View>
@@ -994,6 +1023,7 @@ export function ChannelView({
           <InviteList
             channel={channel}
             me={me}
+            mayInvite={iHaveTheRoom}
             onInvite={(contactId) => act({ type: 'INVITE', contactId })}
           />
         </Card>
@@ -1013,7 +1043,7 @@ export function ChannelView({
           </Text>
           <Button
             label={sharing ? 'Making a link…' : 'Share a guest link'}
-            disabled={sharing}
+            disabled={sharing || !canInviteGuest(channel, me)}
             onPress={async () => {
               setSharing(true);
               try {
@@ -1028,6 +1058,12 @@ export function ChannelView({
               }
             }}
           />
+          {canInviteGuest(channel, me) ? null : (
+            <Text style={type.muted}>
+              Step in to make a link. Who can get into a conversation is for
+              the people having it.
+            </Text>
+          )}
           {shareError ? <Text style={styles.warning}>{shareError}</Text> : null}
         </Card>
     </Screen>
@@ -1048,6 +1084,7 @@ function GuestCard({
   muted,
   holdsFloor,
   speaking,
+  manageable,
   onSpeech,
   onEject,
 }: {
@@ -1055,6 +1092,14 @@ function GuestCard({
   muted: boolean;
   holdsFloor: boolean;
   speaking: boolean;
+  /**
+   * `canManageGuest`, which is presence-or-empty and membership. Both buttons
+   * were live to anybody watching until 2026-08-22 and both were refused by
+   * the reducer, which is the one shape this codebase does not allow a control
+   * to have — and the microphone one renders `primary` when a guest is asking,
+   * so the loudest button on the screen was wired to nothing.
+   */
+  manageable: boolean;
   onSpeech: (maySpeak: boolean) => void;
   onEject: () => void;
 }) {
@@ -1090,10 +1135,21 @@ function GuestCard({
                 : 'Turn their microphone on'
           }
           variant={guest.request === 'asking' ? 'primary' : 'ghost'}
+          disabled={!manageable}
           onPress={() => onSpeech(!guest.maySpeak)}
         />
-        <Button label="Remove" variant="ghost" onPress={onEject} />
+        <Button
+          label="Remove"
+          variant="ghost"
+          disabled={!manageable}
+          onPress={onEject}
+        />
       </View>
+      {manageable ? null : (
+        <Text style={type.muted}>
+          Step in to answer for what a guest may do.
+        </Text>
+      )}
       {guest.maySpeak ? null : (
         <Text style={type.muted}>
           They can hear the channel. Nobody can hear them.
@@ -1251,20 +1307,31 @@ function ParticipantCard({
  * enforces, so a shown button and a refused invite cannot disagree — except on
  * contacts, which are the server's check; the list only offers contacts, so
  * the two disagree only if a contact was dropped mid-channel.
+ *
+ * **`canInvite` is asked about the contact, not about the room.** It carries
+ * `hasTheRoom` too, so filtering on it whole would empty this list for
+ * somebody standing outside an occupied channel — and an empty list here says
+ * "every contact you could invite is already in this channel", which would be
+ * false and unrecoverable, there being nothing left on screen to explain
+ * itself. So the room half arrives as `mayInvite` and disables the buttons,
+ * and the list still shows who is there to be asked.
  */
 function InviteList({
   channel,
   me,
+  mayInvite,
   onInvite,
 }: {
   channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   me: string;
+  mayInvite: boolean;
   onInvite: (contactId: string) => void;
 }) {
   const app = useApp();
   const invitable = (app.home?.contacts ?? []).filter(
     (entry) =>
-      entry.status === 'accepted' && canInvite(channel, me, entry.account.id)
+      entry.status === 'accepted' &&
+      !channel.participants.includes(entry.account.id)
   );
 
   if (channel.participants.length >= MAX_CHANNEL_PARTICIPANTS) {
@@ -1290,12 +1357,15 @@ function InviteList({
           </Text>
           <Button
             label="Invite"
+            disabled={!canInvite(channel, me, entry.account.id)}
             onPress={() => onInvite(entry.account.id)}
           />
         </View>
       ))}
       <Text style={type.muted}>
-        They see the invitation on their home screen and join when they like.
+        {mayInvite
+          ? 'They see the invitation on their home screen and join when they like.'
+          : 'Step in to invite anybody. An invitation lands in whatever is being said, so it belongs to whoever is saying it.'}
       </Text>
     </>
   );

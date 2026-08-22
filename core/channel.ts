@@ -250,6 +250,65 @@ export function atLeastTwoPresent(state: ChannelState): boolean {
 // and a rejected action can never disagree.
 
 /**
+ * Whether the room is yours to change: you are in it, or nobody is.
+ *
+ * **The rule this states is that nobody reaches into a conversation they are
+ * not in.** People talking to each other are entitled to be the ones who
+ * decide what the channel is called, who is in it, who may get in, what is on
+ * the clipboard and what is playing — without a member who is somewhere else
+ * altogether renaming the place mid-sentence or letting a stranger's link out
+ * into the world. Membership is standing over a channel; it is not standing
+ * over an occupation of it.
+ *
+ * The second half is what keeps that from locking the absent out of their own
+ * channel. An empty channel belongs to all of its members equally, and a
+ * member who wants to set a track up before anybody arrives, tidy the
+ * recordings or fix a typo in the description is interrupting nothing. So the
+ * test is not presence — it is the absence of somebody else's conversation.
+ *
+ * `state.present` is members only, which is deliberate and is the reason this
+ * is not written in terms of `roomOccupants`. It costs nothing today —
+ * `settleEmpty` takes every guest out with the last member, so a room with no
+ * member in it has nobody in it at all, and the two readings agree. What it
+ * buys is that the rule says what it means: a conversation is people who
+ * belong here talking, and a guest is somebody a member is answering for.
+ *
+ * `inRoom` rather than `isPresent` so that a guest satisfies it — the two
+ * guards a guest is allowed through, the clipboard's, ask this directly.
+ * Everything a guest must *not* reach says `isParticipant` beside it rather
+ * than leaning on this one to do both jobs; see `canManageGuest`.
+ *
+ * What this does **not** govern is anything that is already about presence for
+ * its own reasons — claiming the floor, self-mute, starting a recording,
+ * answering the door — nor leaving, which is personal and always yours. See
+ * planning/STATES.md.
+ */
+export function hasTheRoom(state: ChannelState, id: UserId): boolean {
+  return state.present.length === 0 || inRoom(state, id);
+}
+
+/**
+ * Whether `userId` may change the channel's name or its description.
+ *
+ * One guard for both because it is one question — what the place is called and
+ * what it says about itself are the same kind of fact, written in the same
+ * settings screen, and a rule that let you rename a channel you may not
+ * describe would be arbitrary.
+ *
+ * This is the first thing the two actions have ever been guarded by. They
+ * were reachable to any member from anywhere, on the reasoning that a
+ * channel's name belongs to its members; what that missed is that it also
+ * belongs to whoever is using it right now.
+ */
+export function canEditChannel(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    hasTheRoom(state, userId)
+  );
+}
+
+/**
  * The full claim precondition: the eligibility rule, plus presence. The claim
  * control is unavailable while a user is alone in the channel.
  */
@@ -357,9 +416,15 @@ export function canDeleteChannel(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
- * Whether `userId` may bring `inviteeId` into the channel. Any current
- * participant may invite, up to the cap; whether the pair are contacts is the
- * server's to check before dispatching this.
+ * Whether `userId` may bring `inviteeId` into the channel, up to the cap.
+ * Whether the pair are contacts is the server's to check before dispatching
+ * this.
+ *
+ * `hasTheRoom` because an invitation lands in a conversation: the newcomer's
+ * home screen lights up, and if they take it they walk into whatever is being
+ * said. Widening a roster is the most ordinary of these acts and the easiest
+ * to do absent-mindedly from a list of contacts, which is why it is governed
+ * like the rest rather than trusted to tact.
  */
 export function canInvite(
   state: ChannelState,
@@ -369,6 +434,7 @@ export function canInvite(
   return (
     state.status === 'active' &&
     isParticipant(state, userId) &&
+    hasTheRoom(state, userId) &&
     !isParticipant(state, inviteeId) &&
     state.participants.length < MAX_CHANNEL_PARTICIPANTS
   );
@@ -418,23 +484,30 @@ export function canControlPlayback(
   state: ChannelState,
   userId: UserId
 ): boolean {
-  if (state.status !== 'active' || !isPresent(state, userId)) return false;
+  if (state.status !== 'active') return false;
+  // `isParticipant` where this used to read `isPresent`, and it is doing the
+  // work that word used to: playback is not among GUEST_ACTIONS, and presence
+  // was what quietly refused a guest it. `hasTheRoom` alone would let one
+  // through, since a guest is always in the room.
+  if (!isParticipant(state, userId) || !hasTheRoom(state, userId)) return false;
   return state.floor.holder === null || state.floor.holder === userId;
 }
 
 /**
  * Whether `userId` may put something on the channel's clipboard.
  *
- * Presence, not mere membership. A paste is an act in a conversation that is
- * happening — the reason the task calls it *in channel* — and someone who has
- * stepped out leaving something behind for the others to find later is a
- * message, which this deliberately is not.
+ * `hasTheRoom`, not mere membership. A paste is an act in a conversation that
+ * is happening — the reason the task calls it *in channel* — and someone who
+ * has stepped out leaving something behind for the others to find later is a
+ * message, which this deliberately is not. That reasoning is exactly why the
+ * empty case is allowed: nothing is being reached into, so leaving a link on
+ * an empty channel's clipboard is furnishing the room rather than talking.
  *
  * No floor restriction, unlike playback: a claim governs what is heard, and a
  * paste makes no sound.
  */
 export function canPasteClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && inRoom(state, userId);
+  return state.status === 'active' && hasTheRoom(state, userId);
 }
 
 /**
@@ -446,19 +519,31 @@ export function canPasteClip(state: ChannelState, userId: UserId): boolean {
  * nothing.
  */
 export function canClearClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && inRoom(state, userId);
+  return state.status === 'active' && hasTheRoom(state, userId);
 }
 
 /**
- * Whether `userId` may mint a link to this channel.
+ * Whether `userId` may mint a link to this channel — and, at the server, may
+ * revoke one.
  *
- * Membership, not presence, because minting is done from channel settings and
- * a link is a fact about the channel rather than an act in a conversation.
- * What the link *does* still needs somebody in the room: nobody is admitted
- * without a member to answer the door.
+ * This read "membership, not presence" until 2026-08-22, on the reasoning that
+ * minting is done from channel settings and a link is a fact about the channel
+ * rather than an act in a conversation. The half of that which was true is
+ * that a link admits nobody by itself: somebody in the room still has to
+ * answer the door. The half that was wrong is that minting one is a decision
+ * about who may walk into whatever is being said, taken by someone who is not
+ * in it and cannot hear what that is.
+ *
+ * So it is `hasTheRoom` like the rest, and the empty case is what keeps it
+ * from being a nuisance — handing somebody a link ahead of a conversation is
+ * the normal way this is used, and there is nothing to interrupt.
  */
 export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && isParticipant(state, userId);
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    hasTheRoom(state, userId)
+  );
 }
 
 /**
@@ -480,6 +565,14 @@ export function canAnswerKnock(state: ChannelState, userId: UserId): boolean {
  * the standing to answer for what they may do — and a rule that named the
  * admitter would leave a channel unable to silence a guest the moment that one
  * person stepped out.
+ *
+ * `hasTheRoom` for the family's sake rather than for any behaviour: here it
+ * collapses to plain presence, because the empty half of it can never be
+ * reached with a guest in the state. `settleEmpty` takes every guest out when
+ * the last member steps out — nobody may remain in a room with no member to
+ * answer for them — so there is no such thing as a guest in an empty channel
+ * to manage. It reads as the other six guards do, and if that invariant ever
+ * changed this would already say the right thing.
  */
 export function canManageGuest(
   state: ChannelState,
@@ -488,7 +581,13 @@ export function canManageGuest(
 ): boolean {
   return (
     state.status === 'active' &&
-    isPresent(state, userId) &&
+    // Spelled out rather than left to GUEST_ACTIONS, which would also refuse
+    // it: this is the rule that stops a link propagating itself, and it should
+    // be readable here rather than inferred from a set two hundred lines away.
+    // It is also what `hasTheRoom` cannot say on its own, a guest being in the
+    // room by definition.
+    isParticipant(state, userId) &&
+    hasTheRoom(state, userId) &&
     isGuest(state, guestId)
   );
 }
@@ -802,6 +901,7 @@ export function reduce(
     }
 
     case 'SET_NAME': {
+      if (!canEditChannel(state, action.userId)) return state;
       // Normalised here rather than at the edges so every caller — the server,
       // the UI's optimism, a test — agrees on what a given input names it.
       const trimmed = action.name.trim().slice(0, MAX_CHANNEL_NAME_LENGTH);
@@ -811,6 +911,7 @@ export function reduce(
     }
 
     case 'SET_DESCRIPTION': {
+      if (!canEditChannel(state, action.userId)) return state;
       // Trimmed at the ends but not within: the interior of a description is
       // Markdown, where a blank line separates paragraphs and two trailing
       // spaces force a break. Collapsing that would rewrite what somebody

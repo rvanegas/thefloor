@@ -96,6 +96,7 @@ export function Field({
   onBlur,
   submitLabel = 'done',
   multiline,
+  editable = true,
 }: {
   value: string;
   onChangeText: (v: string) => void;
@@ -117,6 +118,13 @@ export function Field({
    * especially in Markdown, a line break is content.
    */
   multiline?: boolean;
+  /**
+   * Whether the field takes typing. False greys it and refuses focus, so it
+   * reads like the disabled buttons beside it rather than like a field that
+   * has stopped working — the caller is expected to say why underneath, which
+   * is what every other disabled control here does.
+   */
+  editable?: boolean;
 }) {
   return (
     <TextInput
@@ -141,8 +149,13 @@ export function Field({
       }
       onSubmitEditing={multiline ? undefined : onSubmit}
       onBlur={onBlur}
+      editable={editable}
       submitBehavior={multiline ? 'newline' : 'blurAndSubmit'}
-      style={[styles.field, multiline && styles.fieldMultiline]}
+      style={[
+        styles.field,
+        multiline && styles.fieldMultiline,
+        !editable && styles.fieldDisabled,
+      ]}
     />
   );
 }
@@ -308,6 +321,10 @@ const styles = StyleSheet.create({
     color: colors.text,
     minHeight: 48,
   },
+  fieldDisabled: {
+    backgroundColor: colors.disabled,
+    color: colors.textMuted,
+  },
   fieldMultiline: {
     minHeight: 108,
     paddingTop: spacing(1.5),
@@ -340,6 +357,7 @@ export function RecordingRow({
   playable = false,
   playDisabled = false,
   playDisabledReason,
+  manageable = true,
 }: {
   recording: RecordingView;
   /**
@@ -351,6 +369,22 @@ export function RecordingRow({
   /** Whoever holds the floor decides what plays, and this says when that is not you. */
   playDisabled?: boolean;
   playDisabledReason?: string;
+  /**
+   * Whether renaming and deleting are yours to do — `hasTheRoom` at the
+   * channel this was recorded in. Both change what everybody else's list says,
+   * and one of them cannot be undone, so neither is for a member standing
+   * outside a conversation in progress.
+   *
+   * Defaults to true, which is what a row outside a live channel wants: a
+   * recording whose channel has ended has nobody in it to interrupt, and the
+   * server says the same thing by way of `hasTheRoomIn`.
+   *
+   * Exporting is deliberately not covered. It is a read, it changes nothing
+   * anybody in the room can see, and refusing somebody their own conversation
+   * because two other people are talking would be a rule with no injury behind
+   * it.
+   */
+  manageable?: boolean;
 }) {
   /**
    * Closed until asked. A recording is a thing you mostly scan past — the list
@@ -451,6 +485,7 @@ export function RecordingRow({
           <ExportButton recording={recording} disabled={!!recording.mixing} />
           <Button
             label="Rename"
+            disabled={!manageable}
             onPress={() => {
               // The field is taller than the actions it replaces, and the
               // keyboard takes the bottom of the screen as it arrives — so the
@@ -461,7 +496,7 @@ export function RecordingRow({
               setRenaming(true);
             }}
           />
-          <DeleteButton recording={recording} />
+          <DeleteButton recording={recording} disabled={!manageable} />
           {/*
             Said once, beside the two controls it applies to. Renaming and
             deleting are unaffected — they are about the row rather than the
@@ -482,6 +517,16 @@ export function RecordingRow({
           {playable && playDisabled && playDisabledReason ? (
             <Text style={type.muted}>Play is unavailable — {playDisabledReason}.</Text>
           ) : null}
+          {/*
+            Export is missing from this sentence on purpose, and it is the one
+            button on the row still working — see `manageable`.
+          */}
+          {manageable ? null : (
+            <Text style={type.muted}>
+              Step in to rename or delete. The name is everybody's, and
+              deleting takes it out of their lists too.
+            </Text>
+          )}
         </View>
       ) : null}
     </Card>
@@ -569,7 +614,13 @@ function RenameEditor({
  * a recording belongs to the channel, so every member loses it, not just
  * whoever tapped.
  */
-function DeleteButton({ recording }: { recording: RecordingView }) {
+function DeleteButton({
+  recording,
+  disabled = false,
+}: {
+  recording: RecordingView;
+  disabled?: boolean;
+}) {
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
 
@@ -594,7 +645,7 @@ function DeleteButton({ recording }: { recording: RecordingView }) {
     <Button
       label={busy ? 'Deleting…' : 'Delete'}
       variant="danger"
-      disabled={busy}
+      disabled={busy || disabled}
       onPress={() =>
         Alert.alert(
           `Delete ${recording.name}?`,

@@ -16,7 +16,7 @@ import {
   canClaimFloor,
   canControlPlayback,
   canDeleteChannel,
-  canInviteGuest,
+  hasTheRoom,
   GUEST_ACTIONS,
   createChannel,
   isNamed,
@@ -1437,6 +1437,23 @@ export class ChannelRegistry {
   }
 
   /**
+   * `hasTheRoom`, asked about a channel this class holds by id.
+   *
+   * For the routes that change something a conversation can see without going
+   * through the reducer — renaming and deleting a recording — since those have
+   * no action to carry the guard. The rule is core's; this is only the lookup.
+   *
+   * **A channel that is not in memory passes.** That is not a gap: `restore`
+   * revives every unended channel at boot, so what is missing here has ended,
+   * and an ended channel has nobody in it to interrupt. Its recordings outlive
+   * it by a week and its last member is entitled to tidy them.
+   */
+  private hasTheRoomIn(channelId: string, userId: string): boolean {
+    const channel = this.channels.get(channelId);
+    return !channel || hasTheRoom(channel, userId);
+  }
+
+  /**
    * Deletes one recording, on the same terms as deleting the channel deletes
    * all of them: marked now, swept a week later, and gone from every list in
    * the meantime.
@@ -1460,6 +1477,16 @@ export class ChannelRegistry {
     );
     if (!row) {
       return { ok: false, error: 'No such recording.', code: 'not_found' };
+    }
+    // Deleting takes the recording out of everybody's list, including the
+    // lists of the people who are in the channel talking right now. See
+    // `hasTheRoomIn`.
+    if (!this.hasTheRoomIn(row.channel_id, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to delete a recording.',
+        code: 'conflict',
+      };
     }
     this.db
       .prepare(
@@ -1501,6 +1528,16 @@ export class ChannelRegistry {
     );
     if (!row) {
       return { ok: false, error: 'No such recording.', code: 'not_found' };
+    }
+    // The name is shared — this doc comment says so two paragraphs up — so a
+    // rename changes what everybody in the channel is looking at, and the same
+    // rule governs it as governs deleting.
+    if (!this.hasTheRoomIn(row.channel_id, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to rename a recording.',
+        code: 'conflict',
+      };
     }
     // Normalised here rather than at the route, so every caller agrees on
     // what a given input names it — the same reasoning as `SET_NAME`.
@@ -2832,8 +2869,19 @@ export class ChannelRegistry {
   ): { ok: true; link: GuestLinkRow } | Refused {
     const channel = this.channels.get(channelId);
     if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
-    if (!canInviteGuest(channel, userId)) {
+    if (!isParticipant(channel, userId) || channel.status !== 'active') {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    // Separated from the line above so the answer is not "not your channel" to
+    // a member whose channel it plainly is. `canInviteGuest` is both halves;
+    // what is wanted here is which half refused, and the two are a 403 and a
+    // 409 because only one of them is worth waiting out.
+    if (!hasTheRoom(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to make a link.',
+        code: 'conflict',
+      };
     }
     return {
       ok: true,
@@ -2860,6 +2908,17 @@ export class ChannelRegistry {
     const link = this.guests.link(token);
     if (!link || link.channel_id !== channelId) {
       return { ok: false, error: 'No such link.', code: 'not_found' };
+    }
+    // Closing a door is as much a decision about who is in the room as opening
+    // one, and `mintGuestLink` asks the same question through `canInviteGuest`.
+    // Asked after the link is found so that a revoke of something that was
+    // never there still reads as not-found rather than as a busy channel.
+    if (!hasTheRoom(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to revoke a link.',
+        code: 'conflict',
+      };
     }
     this.guests.revokeLink(token, userId, this.now());
     this.emit([channelId]);

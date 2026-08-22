@@ -5,6 +5,7 @@ import {
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
 } from '../../../core/constants';
+import { canEditChannel, hasTheRoom } from '../../../core/channel';
 import type { ChannelState } from '../../../core/types';
 import { showRoutePicker } from '../audio/routePicker';
 import { type GuestLinkSummary } from '../api/http';
@@ -33,6 +34,23 @@ export function ChannelSettingsView({
   // Alone, the same tap destroys the channel rather than merely removing you
   // from it. Nothing else on screen would say so.
   const lastMember = channel.participants.length === 1;
+  /**
+   * Whether the name and description are yours to change — `hasTheRoom`, so
+   * either you are in the channel or nobody is. What it protects against is a
+   * member who is somewhere else renaming the place mid-conversation.
+   *
+   * The fields are disabled rather than hidden, and `persist` is guarded too:
+   * a field that cannot be typed into cannot produce a change to write, but
+   * the two facts are a screen apart and the reducer refuses this silently, so
+   * the belt is cheap and the braces are what stops a stale `saved` ref
+   * recording an edit that never landed.
+   *
+   * Leaving and deleting are deliberately not covered. Giving up your own
+   * membership is yours whatever anybody else is doing, and deleting is
+   * already the last member's alone — which nobody can be while somebody else
+   * is present.
+   */
+  const mayEdit = canEditChannel(channel, app.me?.id ?? '');
   // What deleting would take with it. Read from the snapshot the channel
   // screen is already showing, so the number in the warning is the number of
   // rows the person can see above it.
@@ -62,6 +80,7 @@ export function ChannelSettingsView({
    * channel goes back to being listed by who is in it.
    */
   const persist = () => {
+    if (!mayEdit) return;
     if (name !== saved.current.name) {
       app.act(channel.id, { type: 'SET_NAME', name });
       saved.current.name = name;
@@ -187,12 +206,14 @@ export function ChannelSettingsView({
           onChangeText={(v) => setName(v.slice(0, MAX_CHANNEL_NAME_LENGTH))}
           placeholder="What is this channel about?"
           autoCapitalize="words"
+          editable={mayEdit}
           onSubmit={persist}
           onBlur={persist}
         />
         <Text style={type.muted}>
-          Everyone in the channel sees this name, and anyone in it can change
-          it. Leave it empty to go back to listing who is here.
+          {mayEdit
+            ? 'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.'
+            : 'Step in to rename this channel. Somebody is in there, and the name is what they are calling the place they are in.'}
         </Text>
       </Card>
 
@@ -206,6 +227,7 @@ export function ChannelSettingsView({
           placeholder="Links, a reading list, what this is for…"
           autoCapitalize="sentences"
           multiline
+          editable={mayEdit}
           onBlur={persist}
         />
 
@@ -226,6 +248,9 @@ export function ChannelSettingsView({
           `code`, ~~strikethrough~~ and [links](https://example.com) work.
           Links open in your browser.
         </Text>
+        {mayEdit ? null : (
+          <Text style={type.muted}>Step in to change this.</Text>
+        )}
         <Text style={styles.count}>
           {description.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
         </Text>
@@ -267,7 +292,17 @@ export function ChannelSettingsView({
       */}
       <SectionLabel>Guest links</SectionLabel>
       <Card style={styles.stack}>
-        <GuestLinks channelId={channel.id} />
+        {/*
+          Revocable on the same terms as everything else here, and for the
+          sharper version of the reason: shutting a door while a conversation
+          is going on is a decision about who is in that conversation.
+          Reading the list is not — it is how somebody works out who can get
+          in — so the rows are shown either way.
+        */}
+        <GuestLinks
+          channelId={channel.id}
+          mayRevoke={hasTheRoom(channel, app.me?.id ?? '')}
+        />
       </Card>
 
       {/*
@@ -349,7 +384,14 @@ const styles = StyleSheet.create({
  * imagined making it. The two ways one dies read differently on purpose —
  * somebody revoked it, or the channel emptied and the rule did.
  */
-function GuestLinks({ channelId }: { channelId: string }) {
+function GuestLinks({
+  channelId,
+  mayRevoke,
+}: {
+  channelId: string;
+  /** `hasTheRoom`, which the server asks again in `revokeGuestLink`. */
+  mayRevoke: boolean;
+}) {
   const app = useApp();
   const [links, setLinks] = useState<GuestLinkSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -398,6 +440,7 @@ function GuestLinks({ channelId }: { channelId: string }) {
             <Button
               label="Revoke"
               variant="ghost"
+              disabled={!mayRevoke}
               onPress={() => {
                 void app
                   .revokeGuestLink(channelId, link.token)
@@ -409,8 +452,9 @@ function GuestLinks({ channelId }: { channelId: string }) {
         </View>
       ))}
       <Text style={type.muted}>
-        Revoking stops new people knocking. Anybody already in the channel
-        stays until they leave or somebody removes them.
+        {mayRevoke
+          ? 'Revoking stops new people knocking. Anybody already in the channel stays until they leave or somebody removes them.'
+          : 'Step in to revoke a link. Shutting a door onto a conversation is for whoever is in it.'}
       </Text>
     </>
   );

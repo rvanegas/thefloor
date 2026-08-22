@@ -303,6 +303,109 @@ describe('deleting one recording', () => {
   });
 });
 
+/**
+ * `hasTheRoom` at the two recording routes, which are the only acts governed
+ * by it that do not go through the reducer — there is no action to carry the
+ * guard, so `Channels` asks core directly. See `hasTheRoomIn`.
+ *
+ * Exporting is deliberately outside the rule and is asserted here so that
+ * nobody tidies it in: it is a read, and refusing somebody their own
+ * conversation because two other people are talking would be a rule with
+ * nothing behind it.
+ */
+describe('reaching into an occupied channel', () => {
+  /** Bob outside, Alice still in there. */
+  async function watching() {
+    const fixture = await recorded();
+    app.channels.dispatch(fixture.channelId, fixture.bob.account.id, {
+      type: 'STEP_OUT',
+    });
+    return fixture;
+  }
+
+  it('refuses a delete from a member who is not in the room, with 409 rather than 404', async () => {
+    const { bob, channelId } = await watching();
+    const [recording] = rowsOf(channelId);
+
+    const response = await app.fastify.inject({
+      method: 'DELETE',
+      url: `/recordings/${recording.id}`,
+      headers: auth(bob.token),
+    });
+    // Not 404. Bob can see this recording and can see who is in the channel,
+    // so there is nothing to conceal — and "no such recording" would tell him
+    // the one thing that is not true of it.
+    expect(response.statusCode).toBe(409);
+    expect(rowsOf(channelId)[0].deleted_at).toBeNull();
+  });
+
+  it('refuses a rename the same way', async () => {
+    const { alice, bob, channelId } = await watching();
+    const [recording] = rowsOf(channelId);
+    const before = app.channels
+      .recordingsInChannel(channelId, alice.account.id)
+      .find((row) => row.id === recording.id)?.name;
+
+    const response = await app.fastify.inject({
+      method: 'PATCH',
+      url: `/recordings/${recording.id}`,
+      headers: auth(bob.token),
+      payload: { name: 'Mine now' },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(
+      app.channels
+        .recordingsInChannel(channelId, alice.account.id)
+        .find((row) => row.id === recording.id)?.name
+    ).toBe(before);
+  });
+
+  it('allows both again once the channel is empty', async () => {
+    const { alice, bob, channelId } = await watching();
+    const [recording] = rowsOf(channelId);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+
+    const renamed = await app.fastify.inject({
+      method: 'PATCH',
+      url: `/recordings/${recording.id}`,
+      headers: auth(bob.token),
+      payload: { name: 'Tidied up' },
+    });
+    expect(renamed.statusCode).toBe(200);
+
+    const deleted = await app.fastify.inject({
+      method: 'DELETE',
+      url: `/recordings/${recording.id}`,
+      headers: auth(bob.token),
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(rowsOf(channelId)[0].deleted_at).not.toBeNull();
+  });
+
+  it('leaves exporting alone, occupied or not', async () => {
+    const { alice, bob, channelId } = await watching();
+    const [recording] = rowsOf(channelId);
+
+    // Asserted as "the same answer as somebody standing in the room gets"
+    // rather than as a 200: this fixture files its runs unmixed on purpose
+    // (see `mixWaitMs`), so what the export route says about them is the
+    // fixture's business. What matters here is that being outside changes
+    // nothing about it.
+    const inside = await app.fastify.inject({
+      method: 'GET',
+      url: `/recordings/${recording.id}/export`,
+      headers: auth(alice.token),
+    });
+    const outside = await app.fastify.inject({
+      method: 'GET',
+      url: `/recordings/${recording.id}/export`,
+      headers: auth(bob.token),
+    });
+    expect(outside.statusCode).toBe(inside.statusCode);
+    expect(outside.statusCode).not.toBe(409);
+  });
+});
+
 describe('renaming one recording', () => {
   /** What one member of the channel would be shown this recording as. */
   const nameOf = (channelId: string, recordingId: string, userId: string) =>
