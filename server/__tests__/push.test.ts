@@ -211,6 +211,7 @@ describe('an invite', () => {
         channelId,
         collapseKey: channelId,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
+        reachesInApp: false,
       },
     ]);
   });
@@ -237,6 +238,7 @@ describe('an invite', () => {
         channelId: standing.channelId,
         collapseKey: standing.channelId,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
+        reachesInApp: false,
       },
     ]);
   });
@@ -268,6 +270,7 @@ describe('an invite', () => {
         channelId: id,
         collapseKey: id,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        reachesInApp: false,
       },
     ]);
   });
@@ -311,6 +314,7 @@ describe('an invite', () => {
           channelId,
           collapseKey: channelId,
           lifetimeMs: PARTICIPATION_LIFETIME_MS,
+          reachesInApp: false,
         },
       ]);
     }
@@ -376,6 +380,7 @@ describe('a channel becoming active', () => {
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        reachesInApp: false,
       },
     ]);
   });
@@ -734,6 +739,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        reachesInApp: false,
       },
     ]);
   });
@@ -756,6 +762,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        reachesInApp: false,
       },
     ]);
   });
@@ -806,6 +813,7 @@ describe('a ping', () => {
         // Its own stream. An arrival must not overwrite what somebody typed.
         collapseKey: `${channelId}:ping`,
         lifetimeMs: PRESENCE_LIFETIME_MS,
+        reachesInApp: true,
       },
     ]);
   });
@@ -942,7 +950,14 @@ describe('a ping', () => {
     expect(pusher.messagesFor('bob-phone')).toHaveLength(2);
   });
 
-  it('is not sent to somebody who already has the app open', async () => {
+  /**
+   * The one case this whole feature was failing at, and the reason the flag
+   * exists. Stepping out of a channel without leaving the app is the ordinary
+   * way to be pingable — that is what being absent looks like from the inside —
+   * so the notification was withheld from exactly the person it was aimed at,
+   * every time, while the sender was told it had worked.
+   */
+  it('reaches somebody who has the app open but has stepped out', async () => {
     const { alice, bob, channelId } = await bobStepsOut();
     const socket = new WebSocket(`ws://${baseUrl}/ws?token=${bob.token}`);
     await new Promise((resolve, reject) => {
@@ -955,11 +970,34 @@ describe('a ping', () => {
     });
     await settle();
 
-    // Accepted, and deliberately not delivered by this route: the in-app form
-    // of a ping is being built, and a lock-screen notification routed into a
-    // foregrounded app is not it.
     expect(reply.statusCode).toBe(200);
-    expect(pusher.messagesFor('bob-phone')).toEqual([]);
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+    socket.close();
+  });
+
+  /**
+   * The window bounds *sending*, and now that a ping is always delivered those
+   * are the same thing — which is what makes a refusal honest. It used to be
+   * possible to spend the window on a notification nobody received and then be
+   * refused for five minutes on the strength of it.
+   */
+  it('spends the window only on a ping that was actually sent', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    const socket = new WebSocket(`ws://${baseUrl}/ws?token=${bob.token}`);
+    await new Promise((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+
+    await ping(alice.token, channelId, { targetId: bob.account.id });
+    await settle();
+    const again = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    expect(again.statusCode).toBe(409);
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
     socket.close();
   });
 });
@@ -989,6 +1027,28 @@ describe('how long a notification stays worth delivering', () => {
    * reached zero by arithmetic or by some later default would fail silently,
    * reaching only the phones that happened to be awake.
    */
+  /**
+   * Stated on the constructors rather than through a channel, because this is
+   * a property of each kind of notification and not of any particular send.
+   * The partition is the same one the collapse key draws, which is worth
+   * fixing in a test: a fifth notification added later has to choose a side
+   * deliberately, and the cheap default — copying the line above it — is the
+   * right one for anything the channel says about itself.
+   */
+  it('delivers only a ping to somebody who is already in the app', () => {
+    expect(notifications.started('Alice', 'chan_1').reachesInApp).toBe(false);
+    expect(notifications.invited('Alice', null, 'chan_1').reachesInApp).toBe(
+      false
+    );
+    expect(notifications.arrived('Standup', 'Alice', 'chan_1').reachesInApp).toBe(
+      false
+    );
+    expect(
+      notifications.pinged('Standup', 'Alice', 'come back', 'chan_1')
+        .reachesInApp
+    ).toBe(true);
+  });
+
   it('never asks APNs to store nothing', () => {
     for (const message of [
       notifications.started('Alice', 'chan_1'),

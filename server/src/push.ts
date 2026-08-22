@@ -72,6 +72,28 @@ export interface PushMessage {
    * it; nothing else should have an opinion.
    */
   lifetimeMs: number;
+  /**
+   * Whether this may reach somebody who is already holding a live socket.
+   *
+   * False for everything the channel says about itself. Those are duplicates
+   * when the app is open — the socket has already put the arrival on screen
+   * and the channel in the Home list — so a notification would be a second
+   * copy of what somebody is looking at.
+   *
+   * True for a ping, and only for a ping, since 2026-08-22. It is the one
+   * nobody's client can have already shown, because a person composed it and
+   * aimed it, and being in the app is not evidence of having seen it. Somebody
+   * pressed a button expecting a phone to buzz; the seam this rides on is the
+   * same one the collapse key uses, which is the point — *who decided to send
+   * it* turns out to decide both what may overwrite it and who it may reach.
+   *
+   * It travels in the payload as well as governing the send, because the app
+   * makes the same decision again at the other end: `setNotificationHandler`
+   * suppresses the banner for a foregrounded app, and a ping that arrives
+   * silently into Notification Center has been delivered without being
+   * received.
+   */
+  reachesInApp: boolean;
 }
 
 /**
@@ -114,6 +136,14 @@ export interface PushMessage {
  * and emptied all evening is a mercy. That is not safe for something somebody
  * typed and aimed, so `pinged` carries a collapse key of its own.
  *
+ * That second seam decides two things rather than one, which is what makes it
+ * worth having found. What may overwrite a notification and who a notification
+ * may reach turn out to be the same question asked twice: the three automatic
+ * ones are safe to overwrite *because* they are the channel repeating itself,
+ * and for that same reason they are withheld from anybody whose socket has
+ * already drawn what they describe. A ping is neither, so it overwrites only
+ * its own kind and it is delivered whether or not the app is open.
+ *
  * Cut the set either way and the members swap sides. That is the argument for
  * naming them rather than sorting them into two piles once.
  *
@@ -133,6 +163,7 @@ export const notifications = {
       channelId,
       collapseKey: channelId,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      reachesInApp: false,
     };
   },
 
@@ -155,6 +186,7 @@ export const notifications = {
       channelId,
       collapseKey: channelId,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      reachesInApp: false,
     };
   },
 
@@ -176,6 +208,7 @@ export const notifications = {
       channelId,
       collapseKey: channelId,
       lifetimeMs: PRESENCE_LIFETIME_MS,
+      reachesInApp: false,
     };
   },
 
@@ -187,11 +220,22 @@ export const notifications = {
    * freely; this one was typed and aimed, and is the reason `collapseKey` is a
    * field rather than a constant in the transport.
    *
-   * It is still withheld from anybody holding a live socket, like the rest.
-   * That is not because it would duplicate anything — nothing in the app renders
-   * a ping today — but because the in-app path for it is being built, and
-   * routing a lock-screen notification into a foregrounded app would be a
-   * workaround with a short life and a permission prompt attached.
+   * **It is delivered whether or not the recipient has the app open**, which
+   * the other three are not, and which this one was not until 2026-08-22. It
+   * was withheld on the reasoning that the in-app path for a ping was being
+   * built, and that routing a lock-screen notification into a foregrounded app
+   * would be a workaround with a short life. What that missed is that the
+   * in-app path had *not* been built, so withholding meant nothing happened at
+   * all: somebody stepped out of a channel, was pinged, and never learned it,
+   * while the log said `push skipped`, `all reachable in-app` and the sender
+   * was told it had worked. Holding a socket is evidence that a duplicate
+   * would be visible. It is not evidence that anybody has been told.
+   *
+   * The five-minute window is what makes this safe to say plainly. It bounds
+   * *sending* rather than delivery, so a ping the server accepts is a ping that
+   * arrives and the sender is never misled. Before this, the window was spent
+   * on notifications nobody received: the run of refusals that followed one
+   * undelivered ping was the feature working exactly as written.
    *
    * Titled with the channel and not the sender, unlike `started` and `invited`.
    * Those announce a channel you may not know exists, so the name is the useful
@@ -225,6 +269,9 @@ export const notifications = {
       // from one person about one channel is nagging rather than information.
       collapseKey: `${channelId}:ping`,
       lifetimeMs: PRESENCE_LIFETIME_MS,
+      // The only one of the four that is delivered to a phone whose app is
+      // open. See the field.
+      reachesInApp: true,
     };
   },
 };
@@ -347,6 +394,10 @@ export class ApnsPusher implements Pusher {
         'thread-id': message.channelId,
       },
       channelId: message.channelId,
+      // Read by the app to decide whether to show a banner over itself. Sent
+      // as the same word the server filtered on, so the two ends cannot come
+      // to different conclusions about what this notification is for.
+      reachesInApp: message.reachesInApp,
     });
 
     try {
