@@ -2247,7 +2247,7 @@ describe('reading somebody else’s profile', () => {
     // And the channel is gone from view without anything being dispatched.
     expect(mockApp.act).not.toHaveBeenCalled();
 
-    await act(async () => findButton(tree, 'Done')!.props.onPress());
+    await act(async () => findButton(tree, 'Back')!.props.onPress());
     expect(textOf(tree)).toContain('The floor');
     act(() => tree.unmount());
   });

@@ -237,7 +237,7 @@ export function ProfileView({
         <Text style={type.heading} numberOfLines={1}>
           {profile?.account.displayName ?? fallbackName}
         </Text>
-        <Button label="Done" variant="ghost" onPress={onBack} />
+        <Button label="Back" variant="ghost" onPress={onBack} />
       </View>
 
       {/*
