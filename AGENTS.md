@@ -110,7 +110,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 627 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 633 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -345,27 +345,33 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-21, `46dd476` → `bf9ca6e`, carrying one change: the
-invitation email links to the App Store. It had its own `INSTALL_URL` constant,
-hardcoded null, waiting for somebody to edit it on release day — so every
-invitation sent since 1.0.0 went out on 2026-08-19 told its recipient the app
-was not on the App Store yet. `APP_STORE_URL` already held the address and was
-already set on the box, serving `/healthz`'s `updateUrl`; `mail.ts` now reads
-the same setting. **One address, one setting** is the reusable part: the second
-name for it was the one nobody remembered to set.
+Most recently on 2026-08-22, `d2d0ec3` → `24a3920`, carrying anonymous web
+access whole: a person with no account opens a link, knocks, and is let in by
+somebody already in the channel. **This is the first deploy that serves a page
+to a browser** — `/g/<token>` and one bundle under `/g/assets/`, built by
+`bin/deploy` before the rsync because the install on the box is `--omit=dev`
+and `livekit-client` is a browser dependency.
 
-**The wire did not move**, and the deployed behaviour visible to any client is
-one string in one email. Against `build/51`, the oldest installed and the
-floor, the standing drift is unchanged.
+**The wire moved and the app has not shipped**, which is the ordering the rule
+below requires: `ChannelState` grows `guests` and `knocks`, no installed build
+reads either, and the app half that does is on `master` waiting for a build.
+The floor is unchanged at `build/51`.
 
-Verified against production afterwards: `/healthz` reporting `bf9ca6e`,
-`minBuild: 51` and `updateUrl` set.
+The deploy failed once before it ran, and usefully: the guest bundle would not
+build, because `server/node_modules` in this checkout predated the two new
+dependencies. It stopped before the rsync, which is what the build step being
+unconditional and *first* is for.
 
-**The previous deploy, `ef57b7b` → `46dd476`, went unrecorded here**, which is
-how this section fails: it claimed `ef57b7b` while the box had been on
-`46dd476` (the clipboard, the upload percentage, the quiet-channel line) for a
-day. Rotate this section in the same commit as the deploy, or the next reader
-believes a sha that has not been live since yesterday.
+Verified against production afterwards: `/healthz` reporting `24a3920` and
+`minBuild: 51`; `/g/probe` serving the page with `data-link="probe"` in it;
+`/g/assets/guest.js` serving 534kB as `text/javascript`; `/g/assets/..%2F..%2F`
+answering 404; and a websocket upgrade to `/gws?link=nope` — over HTTP/1.1,
+since Caddy speaks h2 by default and an upgrade there is not the same thing —
+returning 101 and then the refusal, in words, before closing 4401.
+
+**Nobody has yet been heard through it.** Everything above is the door
+answering; the first time guest audio actually flows will be somebody opening a
+real link, and there is no test in this repository that can stand in for that.
 
 Read `/healthz` before assuming this section is current. It was a day stale here
 once already, and that is how it will fail again.

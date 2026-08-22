@@ -74,6 +74,30 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-21 — `46dd476` → `bf9ca6e`
+
+Most recently on 2026-08-21, `46dd476` → `bf9ca6e`, carrying one change: the
+invitation email links to the App Store. It had its own `INSTALL_URL` constant,
+hardcoded null, waiting for somebody to edit it on release day — so every
+invitation sent since 1.0.0 went out on 2026-08-19 told its recipient the app
+was not on the App Store yet. `APP_STORE_URL` already held the address and was
+already set on the box, serving `/healthz`'s `updateUrl`; `mail.ts` now reads
+the same setting. **One address, one setting** is the reusable part: the second
+name for it was the one nobody remembered to set.
+
+**The wire did not move**, and the deployed behaviour visible to any client is
+one string in one email. Against `build/51`, the oldest installed and the
+floor, the standing drift is unchanged.
+
+Verified against production afterwards: `/healthz` reporting `bf9ca6e`,
+`minBuild: 51` and `updateUrl` set.
+
+**The previous deploy, `ef57b7b` → `46dd476`, went unrecorded** in AGENTS.md,
+which is how that section fails: it claimed `ef57b7b` while the box had been on
+`46dd476` (the clipboard, the upload percentage, the quiet-channel line) for a
+day. Rotate it in the same commit as the deploy, or the next reader believes a
+sha that has not been live since yesterday.
+
 ### 2026-08-21 — `c002d31` → `ef57b7b`
 
 Deployed on 2026-08-21, `c002d31` → `ef57b7b`, carrying the audio
