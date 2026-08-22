@@ -56,6 +56,12 @@ changed_keys() {
 # ones that are alternatives rather than requirements — AWS_PROFILE is the
 # laptop's way of doing what AWS_ACCESS_KEY_ID does on the box, and warning
 # about it every time is how a warning stops being read.
+#
+# The same exemption covers a key whose documented normal state is *absent*
+# rather than blank. PUBLIC_URL is one: it overrides an address the server
+# already derives from the request, and .env.example says to set it only when
+# the two genuinely differ. Warning about that on every push was the case this
+# rule was written to prevent, applied to a key it had not been given.
 required() {
   awk '
     /^# *env-push: optional/ { skip = 1; next }
