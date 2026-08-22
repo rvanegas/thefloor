@@ -108,7 +108,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 607 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 593 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -311,41 +311,27 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-21, `c002d31` → `ef57b7b`, carrying the audio
-diagnostic panel and the two entries that closed with it. **This is the deploy
-that adds a column to the live database** — `accounts.debug`, nullable, added
-by the guarded `ALTER TABLE` in `db.ts`. Verified after the fact rather than
-assumed: `PRAGMA table_info(accounts)` shows it, and it is null for all eight
-accounts, which is the value that means no panel.
+Most recently on 2026-08-21, `46dd476` → `bf9ca6e`, carrying one change: the
+invitation email links to the App Store. It had its own `INSTALL_URL` constant,
+hardcoded null, waiting for somebody to edit it on release day — so every
+invitation sent since 1.0.0 went out on 2026-08-19 told its recipient the app
+was not on the App Store yet. `APP_STORE_URL` already held the address and was
+already set on the box, serving `/healthz`'s `updateUrl`; `mail.ts` now reads
+the same setting. **One address, one setting** is the reusable part: the second
+name for it was the one nobody remembered to set.
 
-**The wire moved, and this is the two-step, first half.** `hello` gains
-`debug?: boolean`, optional and sent only when true, so the server now speaks a
-field no installed build reads and every installed build ignores. That is the
-order AGENTS.md requires and it needs no shim to remove later. Against
-`build/51`, the oldest installed and the floor, the standing drift is 128
-lines and still all optional fields and comments. **No iOS build carries the
-panel yet**; it reaches a phone on the next upload.
+**The wire did not move**, and the deployed behaviour visible to any client is
+one string in one email. Against `build/51`, the oldest installed and the
+floor, the standing drift is unchanged.
 
-Verified against production afterwards: `/healthz` reporting `ef57b7b` and
-`minBuild: 51`, `/support` and `/privacy` serving pages, `/home` answering 401
-unauthenticated.
+Verified against production afterwards: `/healthz` reporting `bf9ca6e`,
+`minBuild: 51` and `updateUrl` set.
 
-**The flag was then set for one account**, which is the whole of turning the
-panel on:
-
-    bin/db --write "update accounts set debug = 1 where identifier = '…'"
-
-It takes effect at that account's next reconnect, since `hello` reads the row
-as the socket opens. `select count(*) from accounts where debug = 1` is the
-check, and the answer should stay small enough to name.
-
-**First deploy under the clean-tree guard**, added in the same commit range —
-`bin/deploy` now refuses a dirty tree unless asked with `--dirty`. The previous
-deploy had to stash an unrelated roadmap edit by hand to avoid stamping the box
-`-dirty`; that manoeuvre is still valid and is now the thing the guard makes you
-notice rather than remember. **The dirty marker is worth protecting rather than
-tolerating**: its value is entirely in being rare, and a box that is usually
-`-dirty` reports nothing at all.
+**The previous deploy, `ef57b7b` → `46dd476`, went unrecorded here**, which is
+how this section fails: it claimed `ef57b7b` while the box had been on
+`46dd476` (the clipboard, the upload percentage, the quiet-channel line) for a
+day. Rotate this section in the same commit as the deploy, or the next reader
+believes a sha that has not been live since yesterday.
 
 Read `/healthz` before assuming this section is current. It was a day stale here
 once already, and that is how it will fail again.
