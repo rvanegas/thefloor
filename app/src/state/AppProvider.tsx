@@ -22,7 +22,7 @@ import type {
 import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
 import { mustUpdate } from '../api/expiry';
-import { api, ApiError, onSignedOut } from '../api/http';
+import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
 import { onNotificationTap, registerForPush } from '../push';
 import {
@@ -187,6 +187,19 @@ interface AppValue extends AppState {
    * gates nothing, and a cached ranking is wrong the moment anybody signs up.
    */
   loadLeaderboard: () => Promise<LeaderboardEntry[]>;
+  /**
+   * Mints a link that lets somebody with no account knock at this channel from
+   * a browser, and hands it to the share sheet.
+   *
+   * A fresh link each time it is tapped, which is the server's model rather
+   * than a shortcut here: links are handed out, and one per audience is what
+   * makes revoking a link mean something narrower than closing the door on
+   * everybody.
+   */
+  inviteGuest: (channelId: string) => Promise<string>;
+  /** Every link this channel has, for settings. */
+  guestLinks: (channelId: string) => Promise<GuestLinkSummary[]>;
+  revokeGuestLink: (channelId: string, linkToken: string) => Promise<void>;
   /**
    * Asks somebody you share a channel with to be a contact. Resolves to
    * whether it went straight through, which happens when they had already
@@ -760,6 +773,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         const { entries } = await api.leaderboard(state.token);
         return entries;
+      },
+
+      inviteGuest: async (channelId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const link = await api.mintGuestLink(state.token, channelId);
+        return link.url;
+      },
+
+      guestLinks: async (channelId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const { links } = await api.guestLinks(state.token, channelId);
+        return links;
+      },
+
+      revokeGuestLink: async (channelId, linkToken) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        await api.revokeGuestLink(state.token, channelId, linkToken);
       },
 
       connectWith: async (accountId) => {

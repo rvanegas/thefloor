@@ -95,6 +95,18 @@ async function request<T>(
   return payload as T;
 }
 
+/** One guest link as channel settings lists it. */
+export interface GuestLinkSummary {
+  token: string;
+  url: string;
+  createdAt: number;
+  createdBy: string;
+  /** Null while it is live. */
+  revokedAt: number | null;
+  /** Null when the channel emptying revoked it rather than a person. */
+  revokedBy: string | null;
+}
+
 export const api = {
   /**
    * What the server is and what it still answers to.
@@ -271,6 +283,33 @@ export const api = {
     request<{ ok: true }>(`/channels/${channelId}/ping`, {
       method: 'POST',
       body: { targetId, text: text ?? null },
+      token,
+    }),
+
+  /**
+   * Mints a link that lets anybody knock at this channel from a browser.
+   *
+   * Asked for each time rather than remembered: the server stores links in the
+   * clear precisely so the same one can be handed out twice, and a second call
+   * mints a second link — so this is called when somebody taps share, and the
+   * list below is what settings reads.
+   */
+  mintGuestLink: (token: string, channelId: string) =>
+    request<{ token: string; url: string; createdAt: number }>(
+      `/channels/${channelId}/guest-links`,
+      { method: 'POST', token }
+    ),
+
+  guestLinks: (token: string, channelId: string) =>
+    request<{ links: GuestLinkSummary[] }>(
+      `/channels/${channelId}/guest-links`,
+      { token }
+    ),
+
+  /** Shuts one link. Anybody in the channel may, not only whoever minted it. */
+  revokeGuestLink: (token: string, channelId: string, linkToken: string) =>
+    request<void>(`/channels/${channelId}/guest-links/${linkToken}`, {
+      method: 'DELETE',
       token,
     }),
 

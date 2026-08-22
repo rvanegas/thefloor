@@ -10,7 +10,7 @@ import {
   MAX_CLIP_LENGTH,
   WAITING_WINDOW_MS,
 } from '../../../../core/constants';
-import type { ChannelState } from '../../../../core/types';
+import type { ChannelState, Guest } from '../../../../core/types';
 import type {
   HomeView as HomeViewData,
   ProfileView as ProfileViewData,
@@ -19,13 +19,14 @@ import type {
 import { HomeView } from '../HomeView';
 import { ChannelView, uploadingLabel } from '../ChannelView';
 import type { UploadHooks } from '../../api/upload';
+import type { GuestLinkSummary } from '../../api/http';
 import { ProfileView } from '../ProfileView';
 import { ContactsSettingsView } from '../ContactsSettingsView';
 import { ContactsView } from '../ContactsView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
 import { LeaderboardView } from '../LeaderboardView';
-import { Alert, KeyboardAvoidingView, StyleSheet } from 'react-native';
+import { Alert, KeyboardAvoidingView, Share, StyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { colors } from '../theme';
 
@@ -99,6 +100,12 @@ const mockApp = {
     } | null,
   })),
   connectWith: jest.fn(async () => ({ accepted: false })),
+  // A channel with no guest links, which is every channel until somebody makes
+  // one. The settings screen reads this when it opens, so a mock without it is
+  // a screen that throws rather than a screen with an empty section.
+  inviteGuest: jest.fn(async () => 'https://example.test/g/tok'),
+  guestLinks: jest.fn(async () => [] as GuestLinkSummary[]),
+  revokeGuestLink: jest.fn(async () => {}),
   watchChannel: jest.fn(),
   leaveChannelView: jest.fn(),
   act: jest.fn(),
@@ -707,6 +714,133 @@ describe('Home', () => {
     expect(textOf(tree)).toContain('Not connected');
     act(() => tree.unmount());
     jest.useRealTimers();
+  });
+});
+
+describe('Channel, with a guest in it', () => {
+  const DANA_GUEST = 'guest_dana';
+
+  const withGuest = (overrides: Partial<Guest> = {}) =>
+    channelOf((c) =>
+      reduce(
+        c,
+        {
+          type: 'GUEST_ENTERED',
+          guest: {
+            id: DANA_GUEST,
+            name: 'Dana',
+            admittedAt: NOW,
+            maySpeak: false,
+            request: 'none',
+            ...overrides,
+          },
+        },
+        NOW
+      )
+    );
+
+  it('puts somebody at the door above everything but the roster', () => {
+    // A knock is the one thing on this screen that is waiting on an answer
+    // from it. Everything else can be got to in a person's own time.
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          c,
+          { type: 'KNOCKED', knock: { id: 'knock_1', name: 'Dana', at: NOW } },
+          NOW
+        )
+      )
+    );
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('is at the door');
+    // What letting them in costs, said before the tap rather than after it.
+    expect(text).toContain('cannot record');
+
+    act(() => findButton(tree, 'Let them in')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'ANSWER_KNOCK',
+      knockId: 'knock_1',
+      accept: true,
+    });
+    act(() => tree.unmount());
+  });
+
+  it('shows a guest as a guest, and says nobody can hear them', () => {
+    showChannel(withGuest());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Dana');
+    expect(text).toContain('guest');
+    expect(text).toContain('Nobody can hear them');
+    act(() => tree.unmount());
+  });
+
+  it('makes asking to speak the loud thing, and grants it in one tap', () => {
+    showChannel(withGuest({ request: 'asking' }));
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    expect(textOf(tree)).toContain('asking to speak');
+
+    act(() => findButton(tree, 'Let them speak')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_GUEST_SPEECH',
+      guestId: DANA_GUEST,
+      maySpeak: true,
+    });
+    act(() => tree.unmount());
+  });
+
+  it('withdraws the microphone without removing anybody', () => {
+    // Two different sizes of act, and the screen offers both rather than
+    // making "stop them talking" mean "throw them out".
+    showChannel(withGuest({ maySpeak: true }));
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+
+    act(() => findButton(tree, 'Turn their microphone off')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_GUEST_SPEECH',
+      guestId: DANA_GUEST,
+      maySpeak: false,
+    });
+
+    act(() => findButton(tree, 'Remove')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'EJECT_GUEST',
+      guestId: DANA_GUEST,
+    });
+    act(() => tree.unmount());
+  });
+
+  it('shares a link, and says the sharing is not the letting in', async () => {
+    // Awaited inside `act`, unlike most of this file: minting is a round trip
+    // and the share sheet is a second one, so a synchronous tap leaves two
+    // promises settling into a tree that has already been unmounted — which
+    // does not merely warn, it leaves the renderer unable to draw anything for
+    // the rest of the file.
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: 'sharedAction' } as never);
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    expect(textOf(tree)).toContain('whoever is in the channel decides');
+
+    await act(async () => {
+      findButton(tree, 'Share a guest link')!.props.onPress();
+    });
+    expect(mockApp.inviteGuest).toHaveBeenCalledWith('sess_1');
+    expect(share).toHaveBeenCalledWith({ message: 'https://example.test/g/tok' });
+    act(() => tree.unmount());
+    share.mockRestore();
   });
 });
 

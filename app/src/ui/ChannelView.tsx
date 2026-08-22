@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -33,6 +34,7 @@ import {
   canClearClip,
   isPresent,
 } from '../../../core/channel';
+import type { Guest } from '../../../core/types';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { copyText, pasteText } from '../clipboard';
@@ -128,6 +130,9 @@ export function ChannelView({
   // that a copy which did not happen is not announced as one.
   const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** While a guest link is being minted, which is a round trip. */
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{
     id: string;
     displayName: string;
@@ -403,6 +408,54 @@ export function ChannelView({
               />
             ))}
           </View>
+
+          {/*
+            Under the roster and above everything else, because somebody at
+            the door is waiting on an answer from this screen and nothing else
+            here is. Both lists are usually empty and render nothing at all.
+          */}
+          {channel.knocks.map((knock) => (
+            <Card key={knock.id} style={styles.stack}>
+              <Text style={type.body}>
+                <Text style={type.heading}>{knock.name}</Text> is at the door
+                with a link to this channel.
+              </Text>
+              <Text style={type.muted}>
+                They will be able to listen, and to speak only if somebody
+                turns their microphone on. They cannot record, and they cannot
+                reach anything else of yours.
+              </Text>
+              <View style={styles.guestActions}>
+                <Button
+                  label="Let them in"
+                  onPress={() =>
+                    act({ type: 'ANSWER_KNOCK', knockId: knock.id, accept: true })
+                  }
+                />
+                <Button
+                  label="No"
+                  variant="ghost"
+                  onPress={() =>
+                    act({ type: 'ANSWER_KNOCK', knockId: knock.id, accept: false })
+                  }
+                />
+              </View>
+            </Card>
+          ))}
+
+          {Object.values(channel.guests ?? {}).map((guest) => (
+            <GuestCard
+              key={guest.id}
+              guest={guest}
+              muted={!!channel.selfMuted[guest.id]}
+              holdsFloor={channel.floor.holder === guest.id}
+              speaking={audio.speaking.includes(guest.id)}
+              onSpeech={(maySpeak) =>
+                act({ type: 'SET_GUEST_SPEECH', guestId: guest.id, maySpeak })
+              }
+              onEject={() => act({ type: 'EJECT_GUEST', guestId: guest.id })}
+            />
+          ))}
 
           {/* Same delay as Home's: a foreground drops the socket every time,
               and this used to announce it the instant it happened. */}
@@ -877,7 +930,109 @@ export function ChannelView({
             onInvite={(contactId) => act({ type: 'INVITE', contactId })}
           />
         </Card>
+
+        {/*
+          Below inviting a contact, and it is the rarer of the two: a guest
+          link is for somebody who is not here at all, has no account, and is
+          not going to get one. Whoever is in the room has to let them in, so
+          sharing the link is the beginning of the process rather than the end
+          of it — which is why this says so rather than reading as "sent".
+        */}
+        <SectionLabel>Guest link</SectionLabel>
+        <Card style={styles.stack}>
+          <Text style={type.muted}>
+            A link anybody can open in a browser. They knock, and whoever is in
+            the channel decides. Manage the links this channel has in Settings.
+          </Text>
+          <Button
+            label={sharing ? 'Making a link…' : 'Share a guest link'}
+            disabled={sharing}
+            onPress={async () => {
+              setSharing(true);
+              try {
+                const url = await app.inviteGuest(channel.id);
+                await Share.share({ message: url });
+              } catch (error) {
+                setShareError(
+                  error instanceof Error ? error.message : 'That did not work.'
+                );
+              } finally {
+                setSharing(false);
+              }
+            }}
+          />
+          {shareError ? <Text style={styles.warning}>{shareError}</Text> : null}
+        </Card>
     </Screen>
+  );
+}
+
+/**
+ * One guest in the room, and the three things a member may do about them.
+ *
+ * Deliberately not a `ParticipantCard` with a badge. Everything that card
+ * shows is about membership — invited, stepped out, waiting, how long since
+ * they were heard from — and a guest has none of those states: they are here,
+ * or they are gone and their card with them. Sharing the component would mean
+ * teaching it which half of itself to hide.
+ */
+function GuestCard({
+  guest,
+  muted,
+  holdsFloor,
+  speaking,
+  onSpeech,
+  onEject,
+}: {
+  guest: Guest;
+  muted: boolean;
+  holdsFloor: boolean;
+  speaking: boolean;
+  onSpeech: (maySpeak: boolean) => void;
+  onEject: () => void;
+}) {
+  const status = !guest.maySpeak
+    ? guest.request === 'asking'
+      ? 'Listening · asking to speak'
+      : guest.request === 'refused'
+        ? 'Listening · was told no'
+        : 'Listening'
+    : holdsFloor
+      ? 'Has the floor'
+      : muted
+        ? 'Can speak · muted themselves'
+        : speaking
+          ? 'Speaking'
+          : 'Can speak';
+
+  return (
+    <Card style={styles.stack}>
+      <Text style={type.body}>
+        <Text style={type.heading}>{guest.name}</Text> · guest
+      </Text>
+      <Text style={type.muted}>{status}</Text>
+      <View style={styles.guestActions}>
+        <Button
+          // The asking is what makes this urgent rather than administrative,
+          // so the button says what it answers.
+          label={
+            guest.maySpeak
+              ? 'Turn their microphone off'
+              : guest.request === 'asking'
+                ? 'Let them speak'
+                : 'Turn their microphone on'
+          }
+          variant={guest.request === 'asking' ? 'primary' : 'ghost'}
+          onPress={() => onSpeech(!guest.maySpeak)}
+        />
+        <Button label="Remove" variant="ghost" onPress={onEject} />
+      </View>
+      {guest.maySpeak ? null : (
+        <Text style={type.muted}>
+          They can hear the channel. Nobody can hear them.
+        </Text>
+      )}
+    </Card>
   );
 }
 
@@ -1130,6 +1285,7 @@ const styles = StyleSheet.create({
   centeredText: { textAlign: 'center', lineHeight: 20 },
   presence: { gap: 2, marginBottom: spacing(0.5) },
   roster: { gap: spacing(1), marginTop: spacing(1) },
+  guestActions: { flexDirection: 'row', gap: spacing(1), flexWrap: 'wrap' },
   participantCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   DELETED_RETENTION_MS,
@@ -7,6 +7,7 @@ import {
 } from '../../../core/constants';
 import type { ChannelState } from '../../../core/types';
 import { showRoutePicker } from '../audio/routePicker';
+import { type GuestLinkSummary } from '../api/http';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
@@ -258,6 +259,18 @@ export function ChannelSettingsView({
       ) : null}
 
       {/*
+        Every door onto this channel that has ever been opened, and the state
+        of each. Here rather than on the channel screen for the reason the
+        audio picker is: it is about the channel rather than about the
+        conversation, and it is read when somebody has a reason to wonder who
+        can get in.
+      */}
+      <SectionLabel>Guest links</SectionLabel>
+      <Card style={styles.stack}>
+        <GuestLinks channelId={channel.id} />
+      </Card>
+
+      {/*
         Last, and plain. The confirmation carries the weight — colouring the
         button itself would put the loudest thing on the screen on the rarest
         action. The exception is being the last member, where the tap really
@@ -298,6 +311,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   stack: { gap: spacing(1) },
+  warning: { ...type.muted, color: colors.danger },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1),
+  },
+  linkText: { flex: 1, gap: spacing(0.25) },
   preview: {
     gap: spacing(0.5),
     borderLeftWidth: 2,
@@ -315,6 +336,86 @@ const styles = StyleSheet.create({
 });
 
 /** "a recording" / "3 recordings" — the count read as a phrase. */
+/**
+ * The links this channel has, live and dead.
+ *
+ * Loaded when the screen opens rather than held in app state: nothing else
+ * reads it, no rule turns on it, and a cached list would be wrong the moment
+ * anybody minted or revoked one from another device. The same reasoning as
+ * Settings and donations.
+ *
+ * Revoked links stay in the list, which is the point of keeping the rows: a
+ * link that quietly vanished would leave somebody wondering whether they had
+ * imagined making it. The two ways one dies read differently on purpose —
+ * somebody revoked it, or the channel emptied and the rule did.
+ */
+function GuestLinks({ channelId }: { channelId: string }) {
+  const app = useApp();
+  const [links, setLinks] = useState<GuestLinkSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    app
+      .guestLinks(channelId)
+      .then(setLinks)
+      .catch((failure: unknown) =>
+        setError(
+          failure instanceof Error ? failure.message : 'Could not read the links.'
+        )
+      );
+  }, [app, channelId]);
+
+  useEffect(load, [load]);
+
+  if (error) return <Text style={styles.warning}>{error}</Text>;
+  if (!links) return <Text style={type.muted}>Reading…</Text>;
+  if (links.length === 0) {
+    return (
+      <Text style={type.muted}>
+        No guest links yet. The channel screen makes one and hands it to the
+        share sheet.
+      </Text>
+    );
+  }
+
+  return (
+    <>
+      {links.map((link) => (
+        <View key={link.token} style={styles.linkRow}>
+          <View style={styles.linkText}>
+            <Text style={type.body} numberOfLines={1}>
+              {link.url.replace(/^https?:\/\//, '')}
+            </Text>
+            <Text style={type.muted}>
+              {link.revokedAt === null
+                ? 'Open — anybody with it can knock'
+                : link.revokedBy === null
+                  ? 'Closed when the channel emptied'
+                  : 'Revoked'}
+            </Text>
+          </View>
+          {link.revokedAt === null ? (
+            <Button
+              label="Revoke"
+              variant="ghost"
+              onPress={() => {
+                void app
+                  .revokeGuestLink(channelId, link.token)
+                  .then(load)
+                  .catch(() => setError('That did not work.'));
+              }}
+            />
+          ) : null}
+        </View>
+      ))}
+      <Text style={type.muted}>
+        Revoking stops new people knocking. Anybody already in the channel
+        stays until they leave or somebody removes them.
+      </Text>
+    </>
+  );
+}
+
 function countOf(n: number): string {
   return n === 1 ? 'its one recording' : `its ${n} recordings`;
 }
