@@ -261,6 +261,68 @@ foreground it, and read the `asked` and `actual` lines and the log line stamped
 hypothesis in that entry is confirmed and the observer is applying `recording:
 CALL` while nothing intends to publish.
 
+## Being Silenced Without Looking
+
+**Reported 2026-08-21, not started.** A floor claim cuts everybody else, and the
+only place it is said is the screen. Somebody with the phone in a pocket, or
+face down on a table, goes on talking into a track nobody receives — for up to
+three minutes (`FLOOR_CLAIM_MS`), and again every time the floor is claimed.
+Nothing is broken; the state is correct in every layer and is simply not
+announced to the one person it is about.
+
+**The one non-visual cue this app has does not fire here.** The audible
+mono/stereo transition is designed behaviour — micNeeded.ts argues it and
+STATES.md carries it as disagreement 4 — and it is driven by
+`anyMicrophoneOpen`, which is about `microphoneNeeded` and `selfMuted`. Being
+silenced touches neither: the holder is unmuted throughout, so nothing about
+the session configuration moves when the floor is claimed and there is nothing
+to hear. The cue that exists says *somebody's microphone is open in this
+channel*, which stays true of the person who can no longer be heard.
+
+**Both facts needed are already computed, which is why this is worth recording
+before it is designed.** `isSilenced(channel.floor, me)` comes off the
+snapshot, and `audio.speaking.includes(me)` is already what draws the dot —
+`ActiveSpeakersChanged` includes the local participant, and **a silenced
+participant keeps publishing**: the floor is enforced by
+`MediaPlane.setSilenced` withholding the *subscription* from each listener
+(`updateSubscriptions`), never by muting the publication, which is what keeps
+the silenced person's audio session alive so they can still hear. The SFU
+therefore still receives the audio and still reports the speaker. "You are
+talking and nobody can hear you" is a conjunction of two things in hand, with
+no metering and no new native surface.
+
+**Which is the reason not to reach for Apple's detector.**
+`setMutedSpeechActivityEventListener` is the obvious tool and muteMode.ts
+describes it: it is the talking-while-muted event, and it works *only* on the
+voice-processing mute path — the path build 63 deliberately left to end the
+AirPods tone that cost six builds. Taking it back for this would reopen a
+closed bug to obtain an answer that is already available.
+
+**What is undecided is the cue, and each option costs something different:**
+
+| Cue | What it costs |
+| --- | --- |
+| A tone in the ear | Plays into the route carrying the holder's voice — it interrupts the speech it is announcing, and the interruption is the thing this app exists to prevent |
+| A haptic | A new dependency (`expo-haptics` is not in `app/package.json`), silent, reaches a pocket — and is missed by a phone face down on a table |
+| Speech-tied, either delivery | Fires only when the app sees you speaking while silenced, at most once every few seconds. Matches the actual failure; a cue at the transition alone is missed by exactly the person who was not looking |
+
+The recommendation is speech-tied, haptic first, a tone only if the haptic
+proves too quiet to notice — but the transition-versus-speech question is the
+one to settle first, since it decides whether this is a one-line effect or a
+rate-limited detector.
+
+**Whatever it says must not be heard as "nothing is being kept".** Silenced and
+recorded is unheard but captured, which `ChannelView` already says in words; a
+cue meaning "nobody can hear you" arriving on a phone in a pocket is exactly
+where that gets confused.
+
+**One thing to settle on the way past.** `SessionAudio.mutedByServer` is
+written from `RoomEvent.TrackMuted` and read by nothing, and since the floor
+withholds subscriptions rather than muting the publication, it is not clear it
+is ever true — no test asserts that it becomes so. Do not build this cue on it;
+use the snapshot. Whether the field is dead is a separate question, and
+STATES.md disagreement 1 is where the answer belongs.
+
 ## Clipboard Sharing — CLOSED for text, and the size bound went the other way
 
 **Built 2026-08-21, text only.** One slot per channel, replaced rather than
