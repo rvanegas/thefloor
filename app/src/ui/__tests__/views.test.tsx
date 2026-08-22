@@ -1223,10 +1223,11 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('puts stepping out above inviting, and inviting above the recordings', () => {
-    // The order of the tail of this screen, by how often it is wanted: the way
-    // out first, then the way to bring somebody in, then the archive you scroll
-    // to on purpose.
+  it('orders the screen by what somebody in a conversation reaches for', () => {
+    // Roughly by how often it is wanted, and pinned here because the order is
+    // a decision rather than an accident of how the JSX was written. It has
+    // changed once already: the floor used to sit at the top and inviting
+    // directly under the roster, and this test is what noticed.
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -1236,9 +1237,23 @@ describe('Channel', () => {
       />);
 
     const text = textOf(tree);
-    expect(text.indexOf('Step out')).toBeGreaterThan(-1);
-    expect(text.indexOf('Step out')).toBeLessThan(text.indexOf('Invite'));
-    expect(text.indexOf('Invite')).toBeLessThan(text.indexOf('Recordings'));
+    const order = [
+      'Your microphone',
+      'Step out',
+      'The floor',
+      'Shared audio',
+      'Shared clipboard',
+      'Recording',
+      'Recordings',
+      'Invite',
+    ];
+    const at = order.map((label) => [label, text.indexOf(label)] as const);
+    for (const [label, index] of at) {
+      expect([label, index]).not.toEqual([label, -1]);
+    }
+    // Compared as a whole rather than pairwise, so a failure names the order
+    // it actually rendered in instead of one crossed pair.
+    expect([...at].sort((x, y) => x[1] - y[1]).map(([l]) => l)).toEqual(order);
     act(() => tree.unmount());
   });
 

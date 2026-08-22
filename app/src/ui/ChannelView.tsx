@@ -413,62 +413,6 @@ export function ChannelView({
           ) : null}
         </View>
 
-        <SectionLabel>The floor</SectionLabel>
-        <Card
-          style={[
-            styles.floorCard,
-            iHoldFloor && styles.floorCardHeld,
-            iAmSilenced && styles.floorCardSilenced,
-          ]}
-        >
-          <Text style={styles.floorStatus}>
-            {iHoldFloor
-              ? 'You have the floor'
-              : theyHoldFloor
-                ? `${holderName} has the floor — your mic is cut`
-                : 'Nobody has the floor'}
-          </Text>
-
-          {claimRemaining !== null ? (
-            <Text style={styles.countdown}>{formatDuration(claimRemaining)}</Text>
-          ) : cooldown !== null ? (
-            <Text style={[styles.countdown, styles.countdownMuted]}>
-              {formatDuration(cooldown)}
-            </Text>
-          ) : null}
-
-          {claimRemaining !== null && iHoldFloor ? null : (
-            <Text style={styles.floorHint}>
-              {iHoldFloor
-                ? others.length === 1
-                  ? `${others[0].displayName} is muted until you release, up to three minutes.`
-                  : 'Everyone else is muted until you release, up to three minutes.'
-                : theyHoldFloor
-                  ? 'You cannot claim the floor while you are silenced.'
-                  : cooldown !== null
-                    ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
-                    : !atLeastTwoPresent(channel)
-                      ? 'The floor becomes available once at least two people are present.'
-                      : 'Speak uninterrupted for up to three minutes.'}
-            </Text>
-          )}
-
-          {iHoldFloor ? (
-            <Button
-              label="Release the floor"
-              variant="floor"
-              onPress={() => act({ type: 'RELEASE_FLOOR' })}
-            />
-          ) : (
-            <Button
-              label="Claim the floor"
-              variant="floor"
-              disabled={!claimable}
-              onPress={() => act({ type: 'CLAIM_FLOOR' })}
-            />
-          )}
-        </Card>
-
         <SectionLabel>Your microphone</SectionLabel>
         <Card style={styles.stack}>
           <Button
@@ -549,19 +493,60 @@ export function ChannelView({
           />
         </Card>
 
-        {/*
-          Who is here is settled before what is playing: the roster is the
-          channel, and the two sections above are the rest of what this screen
-          says about the people in it. Shared audio and recording are things
-          the channel does, and they wait.
-        */}
-        <SectionLabel>Invite</SectionLabel>
-        <Card style={styles.stack}>
-          <InviteList
-            channel={channel}
-            me={me}
-            onInvite={(contactId) => act({ type: 'INVITE', contactId })}
-          />
+        <SectionLabel>The floor</SectionLabel>
+        <Card
+          style={[
+            styles.floorCard,
+            iHoldFloor && styles.floorCardHeld,
+            iAmSilenced && styles.floorCardSilenced,
+          ]}
+        >
+          <Text style={styles.floorStatus}>
+            {iHoldFloor
+              ? 'You have the floor'
+              : theyHoldFloor
+                ? `${holderName} has the floor — your mic is cut`
+                : 'Nobody has the floor'}
+          </Text>
+
+          {claimRemaining !== null ? (
+            <Text style={styles.countdown}>{formatDuration(claimRemaining)}</Text>
+          ) : cooldown !== null ? (
+            <Text style={[styles.countdown, styles.countdownMuted]}>
+              {formatDuration(cooldown)}
+            </Text>
+          ) : null}
+
+          {claimRemaining !== null && iHoldFloor ? null : (
+            <Text style={styles.floorHint}>
+              {iHoldFloor
+                ? others.length === 1
+                  ? `${others[0].displayName} is muted until you release, up to three minutes.`
+                  : 'Everyone else is muted until you release, up to three minutes.'
+                : theyHoldFloor
+                  ? 'You cannot claim the floor while you are silenced.'
+                  : cooldown !== null
+                    ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
+                    : !atLeastTwoPresent(channel)
+                      ? 'The floor becomes available once at least two people are present.'
+                      : 'Speak uninterrupted for up to three minutes.'}
+            </Text>
+          )}
+
+          {iHoldFloor ? (
+            <Button
+              label="Release the floor"
+              variant="floor"
+              onPress={() => act({ type: 'RELEASE_FLOOR' })}
+            />
+          ) : (
+            <Button
+              label="Claim the floor"
+              variant="floor"
+              disabled={!claimable}
+              onPress={() => act({ type: 'CLAIM_FLOOR' })}
+            />
+          )}
         </Card>
 
         <SectionLabel>Shared audio</SectionLabel>
@@ -872,6 +857,26 @@ export function ChannelView({
             ))}
           </View>
         )}
+
+        {/*
+          Last, after everything the channel holds. Inviting is the rarest
+          thing anyone does on this screen and the least urgent: it is not part
+          of a conversation in progress, which is what every section above it
+          is, in roughly the order somebody in one reaches for them.
+
+          This comment used to argue the opposite, Invite having sat directly
+          under the roster on the reasoning that who is here is settled before
+          what is playing. That is still true of the *roster*, which has not
+          moved; it was the invitation that did not belong beside it.
+        */}
+        <SectionLabel>Invite</SectionLabel>
+        <Card style={styles.stack}>
+          <InviteList
+            channel={channel}
+            me={me}
+            onInvite={(contactId) => act({ type: 'INVITE', contactId })}
+          />
+        </Card>
     </Screen>
   );
 }
