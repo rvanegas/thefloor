@@ -110,7 +110,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 601 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 617 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -265,6 +265,22 @@ rules.
   and the error names neither the worktree nor which one. A session working
   inside a worktree has to leave it first, since the merge has to happen where
   `master` is checked out.
+- **Landing is never a script, because another session may be landing too.**
+  Adopted 2026-08-22, after `master` moved twice under one session in an
+  afternoon — both times from other worktrees on this machine, neither of
+  which announced itself. Several sessions work this repository at once and
+  each holds its own idea of where `master` is; a plan made when the branch
+  was ready is stale by the time it runs. **So re-read `master` at the moment
+  of merging, not before**, and expect the answer to have changed: rebase onto
+  what is there now, re-run the tests if the rebase moved anything, and only
+  then fast-forward. `--ff-only` is the guard that makes a wrong assumption
+  fail loudly instead of inventing a merge commit — use it, rather than trusting
+  that the fast-forward you checked for a minute ago is still available. The
+  same applies to the cleanup: `git branch -d` refuses a branch whose *upstream*
+  has diverged even when `master` already contains every commit, which is what
+  a rebase of an already-pushed branch leaves behind, and reading that refusal
+  as "not merged" is how somebody talks themselves out of a landing that was
+  complete.
 - **A fresh worktree has no dependencies. Run `bin/worktree-setup` in it first.**
   The three packages are not an npm workspace: each owns a lockfile and a
   `node_modules`, all ignored, so git populates a worktree with none of them and
