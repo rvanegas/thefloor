@@ -30,15 +30,26 @@ export interface Mailer {
 }
 
 /**
- * Where an invited person is told to go, once there is somewhere.
+ * Where an invited person is told to go, read at send time from the same
+ * `APP_STORE_URL` that `/healthz` serves as `updateUrl`.
  *
- * Null until the app is downloadable, and the invitation simply leaves the line
- * out while it is — an email naming a store page that 404s is worse than one
- * that asks somebody to go looking, because the first reads as a broken app and
- * the second as an app that is not out yet. Set this to the App Store URL on
- * the day of the first release.
+ * **One address, one setting.** The two readers want the identical string for
+ * unrelated reasons — one is telling somebody with no app where to get it, the
+ * other is telling somebody with too old an app where to get a newer one — and
+ * a second name for it is a second thing to remember to set. It is
+ * configuration rather than a constant here for the reason it is there: the id
+ * is not in this repository, and see `.env.example`.
+ *
+ * Unset, the invitation leaves the line out entirely rather than naming a store
+ * page that 404s — an email with a broken link reads as a broken app, where one
+ * that asks somebody to go looking reads as an app that is not out yet. It was
+ * unset everywhere until 1.0.0 was released on 2026-08-19, and this function
+ * did not exist until two days after that, so every invitation in between told
+ * its recipient the app was not on the App Store when it was.
  */
-export const INSTALL_URL: string | null = null;
+export function installUrl(): string | null {
+  return process.env.APP_STORE_URL || null;
+}
 
 export function isEmailAddress(identifier: string): boolean {
   // Deliberately loose. SES is the real validator; this only decides which
@@ -165,8 +176,8 @@ function inviteBody(from: string): string {
     'when you have something to say, and you can see who is around before you',
     'interrupt anybody.',
     '',
-    ...(INSTALL_URL
-      ? [`Install it here: ${INSTALL_URL}`, '']
+    ...(installUrl()
+      ? [`Install it here: ${installUrl()}`, '']
       : ['It is not on the App Store yet. This is an invitation to be ready.', '']),
     'Sign in with this address and the request will be waiting for you.',
     '',

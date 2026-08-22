@@ -146,6 +146,32 @@ describe('inviting an address with no account', () => {
   });
 
   /**
+   * The line that was missing for two days after 1.0.0 was released, because
+   * the address lived in a constant somebody had to remember to edit rather
+   * than in the setting that already held it. Both branches, since an unset
+   * `APP_STORE_URL` has to leave the line out rather than link to nothing.
+   */
+  it('links to the App Store when there is one, and says so when there is not', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const previous = process.env.APP_STORE_URL;
+
+    try {
+      process.env.APP_STORE_URL = 'https://apps.apple.com/app/id123';
+      await request(alice.token, 'stranger@example.com');
+      expect(mailer.invited[0].body).toContain('https://apps.apple.com/app/id123');
+      expect(mailer.invited[0].body).not.toContain('not on the App Store yet');
+
+      delete process.env.APP_STORE_URL;
+      await request(alice.token, 'other@example.com');
+      expect(mailer.invited[1].body).toContain('not on the App Store yet');
+      expect(mailer.invited[1].body).not.toContain('Install it here');
+    } finally {
+      if (previous === undefined) delete process.env.APP_STORE_URL;
+      else process.env.APP_STORE_URL = previous;
+    }
+  });
+
+  /**
    * The sender's address is theirs to give out. The invitation carries the
    * display name the app would have shown and nothing else — otherwise typing
    * an address into the contact field would be a way to hand yours to a
