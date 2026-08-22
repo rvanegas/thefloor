@@ -71,8 +71,13 @@ export interface BuildOptions {
    * account it opens must hold nothing that matters. Everything else about the
    * path is unchanged — the code is still stored hashed, still expires, still
    * counts attempts, and every other address still gets randomness.
+   *
+   * `contact` is the second demo account — the one that exists so the first
+   * has somebody to open a channel with, DEMO-ACCOUNT.md. It has no code of
+   * its own and is named here for one reason: neither of these is a user, so
+   * neither belongs in the build census. See `Accounts.buildsSeenSince`.
    */
-  review?: { identifier: string; code: string };
+  review?: { identifier: string; code: string; contact?: string };
   /**
    * Where to send somebody who wants to donate, and the token that proves an
    * incoming webhook came from Ko-fi.
@@ -1456,6 +1461,11 @@ export function buildApp(options: BuildOptions = {}): App {
     // on the *known* population and not on the real one, and a shim must not
     // be deleted on the strength of it. It reaching zero is the event that
     // makes this number mean what it looks like it means.
+    //
+    // Deleted accounts and the two demo accounts are not counted by either —
+    // neither is a phone a raised floor could strand, and one of the demo
+    // accounts reports no build at all, so leaving them in would hold
+    // `silentBuilds` above zero for good. See `Accounts.buildsSeenSince`.
     const builds = accounts.buildsSeenSince(now() - BUILD_WINDOW_MS);
     return {
       ok: true,

@@ -129,9 +129,16 @@ const pusher: Pusher | undefined =
  */
 const reviewIdentifier = process.env.REVIEW_IDENTIFIER;
 const reviewCode = process.env.REVIEW_CODE;
+/**
+ * The second demo account, which has no code and is named only so that the
+ * build census on /healthz can leave both of them out. Optional in a way the
+ * other two are not: unset, the census simply counts one demo account it
+ * should not.
+ */
+const reviewContact = process.env.REVIEW_CONTACT_IDENTIFIER;
 const review =
   reviewIdentifier && reviewCode
-    ? { identifier: reviewIdentifier, code: reviewCode }
+    ? { identifier: reviewIdentifier, code: reviewCode, contact: reviewContact }
     : undefined;
 
 /**

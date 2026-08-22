@@ -39,6 +39,16 @@ Accepted contacts cannot be undone: the only mutators are request, withdraw,
 accept and decline, and none of them removes an accepted pair. So the link and
 the channel survive anything a reviewer does *except* deleting the account.
 
+**Both addresses are named in `server/.env`, and the second one only so that
+neither counts as a user.** `REVIEW_IDENTIFIER` gets the fixed code;
+`REVIEW_CONTACT_IDENTIFIER` gets nothing but exclusion from `oldestBuild` and
+`silentBuilds` on `/healthz`, which measure the installed population that a
+raised `MIN_SUPPORTED_BUILD` would strand. A phone at Apple running whatever
+was last under review is not that, and Sam — which has never reported a build
+number at all — would otherwise hold `silentBuilds` at 1 for the life of the
+app, which is the condition under which that whole reading is not to be
+trusted. DECISIONS.md § *The build census counts users*.
+
 ---
 
 ## The one way a reviewer can break this
@@ -89,8 +99,8 @@ alive. Removing the second takes the last member out, which ends the channel and
 marks it for the week-long sweep that already exists. Stopping halfway leaves a
 live channel with one occupant in it forever.
 
-**3. Only then unset `REVIEW_IDENTIFIER` and `REVIEW_CODE`** in
-`server/.env` on the box, and restart.
+**3. Only then unset `REVIEW_IDENTIFIER`, `REVIEW_CODE` and
+`REVIEW_CONTACT_IDENTIFIER`** in `server/.env` on the box, and restart.
 
     ssh -i ~/.ssh/lightsail-ubuntu ubuntu@44.241.121.49
     sudo systemctl restart thefloor

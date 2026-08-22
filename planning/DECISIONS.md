@@ -1267,3 +1267,53 @@ The general form is the one already learned from `attach()` earlier the same
 day: **on the web, every step of the audio path can succeed and still produce
 no sound**, and the native client has no equivalent of any of them. There is no
 analogy to reason from. The only reliable check is to listen to what came out.
+
+## The build census counts users, and two kinds of row are not one — 2026-08-22
+
+`GET /healthz` reports `oldestBuild` and `silentBuilds` so that
+`MIN_SUPPORTED_BUILD` can be raised against a measurement rather than a memory.
+The measurement was over-counting, and the way it was wrong is worth keeping
+because the reading it produced was not obviously wrong — it was pessimistic,
+which is the direction that looks safe.
+
+On production, `select identifier, last_build from accounts order by
+last_seen_at` read like this: `appreview2@rvanegas.co` silent,
+`erased:acct_BQYdtV9SJT3d` at 51, `appreview@rvanegas.co` at 51, and then every
+real account at 56 or above. So `oldestBuild` was 51 and `silentBuilds` was 1,
+when the installed population a raised floor could actually strand started at
+56 and was entirely accounted for.
+
+**Neither of those three rows is a phone belonging to somebody who would be cut
+off.** A tombstone cannot sign in at all: `erase` deletes its tokens and
+rewrites its identifier to `erased:<id>`, which `request-code` refuses because
+it is not an email address. Its `last_build` is a fossil. The demo accounts are
+a device at Apple that reinstalls whatever is under review at each submission —
+DEMO-ACCOUNT.md — so what they last reported measures the last review and
+nothing about anybody's install.
+
+So `buildsSeenSince` now excludes both. The demo pair is named in configuration
+rather than guessed at: `REVIEW_IDENTIFIER` was already there, and
+`REVIEW_CONTACT_IDENTIFIER` is new and exists only for this — the second demo
+account has no code of its own and nothing else needed to know its address.
+Matching is case-insensitive, like every other identifier comparison, because
+the value is typed into `.env` by hand.
+
+**`silentBuilds` is the half that mattered.** `oldestBuild` being three builds
+pessimistic is an annoyance; `silentBuilds` sitting at 1 forever is a broken
+instrument. It is the flag that says the known population is not the real one,
+and while it is above zero the standing rule is not to trust `oldestBuild` and
+not to delete a shim on the strength of it. A demo account that will never
+report a build number would have held it at 1 for the life of the app, which
+retires the check rather than failing it — the failure mode where a warning
+that is always on is a warning nobody reads.
+
+Two smaller things fell out of it. **`erase` nulls `last_seen_at`, so a
+tombstone should have been outside the thirty-day window anyway** — and this
+one was not, which means something stamped it again after the deletion. A
+socket that was already authenticated when the account was deleted writes
+`last_seen_at` on its way out; the token is gone but the open connection is
+not. The exclusion is by identifier prefix rather than by hoping the window
+covers it, so it is certain rather than probable. And the exclusion is narrow
+on purpose: an erased row keeps its `last_build` for `bin/db` to read, and the
+demo accounts are still counted by everything else that counts accounts. This
+is a change to one census, not to what a deleted account is.

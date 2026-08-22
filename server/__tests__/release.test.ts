@@ -229,6 +229,30 @@ describe('what build is calling', () => {
    * Somebody who stopped using the app months ago must not hold the floor down
    * forever, or the number can only ever fall.
    */
+  /**
+   * A tombstone cannot sign in — `erase` deletes its tokens and rewrites its
+   * identifier — so no floor can strand it, and it was holding `oldestBuild`
+   * at 51 on production while the real population started at 56.
+   *
+   * `erase` nulls `last_seen_at`, so this only happens when something stamps
+   * it again afterwards, which a socket already open when the account was
+   * deleted does on its way out. That is the case reproduced here.
+   */
+  it('leaves a deleted account out, even when a socket stamps it on the way out', async () => {
+    const gone = await signIn('leaving@example.com', 41);
+    connect(gone.id, 41);
+    const staying = await signIn('staying@example.com', 56);
+    connect(staying.id, 56);
+    expect((await health()).oldestBuild).toBe(41);
+
+    expect(app.accounts.erase(gone.id)).toBe(true);
+    connect(gone.id, 41);
+
+    const body = await health();
+    expect(body.oldestBuild).toBe(56);
+    expect(body.silentBuilds).toBe(0);
+  });
+
   it('ignores accounts that have not been seen inside the window', async () => {
     const { token } = await signIn('lapsed@example.com', 37);
     await app.fastify.inject({
@@ -241,5 +265,78 @@ describe('what build is calling', () => {
     const body = await health();
     expect(body.oldestBuild).toBeNull();
     expect(body.silentBuilds).toBe(0);
+  });
+});
+
+/**
+ * The demo accounts, which are a phone at Apple rather than a user.
+ *
+ * A reviewer signs in on whatever build is under review and the row then sits
+ * there until the next submission, so it measures nothing about the installed
+ * population — and the second demo account has never reported a build at all,
+ * which would pin `silentBuilds` above zero for good. That is the one
+ * condition under which the whole reading is not to be trusted, so it must not
+ * be held there by two rows that were put on production deliberately.
+ */
+describe('the demo accounts are not a population', () => {
+  const REVIEW = {
+    identifier: 'appreview@example.com',
+    code: '246813',
+    contact: 'appreview2@example.com',
+  };
+  let app: App;
+  let clock = 1_000_000;
+
+  beforeEach(() => {
+    app = buildApp({ dbPath: ':memory:', now: () => clock, review: REVIEW });
+  });
+
+  afterEach(async () => {
+    await app.fastify.close();
+  });
+
+  async function seen(identifier: string, build?: number) {
+    const code = app.accounts.issueCode(identifier, clock)!;
+    const verified = await app.fastify.inject({
+      method: 'POST',
+      url: '/auth/verify',
+      payload: { identifier, code, displayName: identifier },
+    });
+    const { account } = verified.json() as { account: { id: string } };
+    app.accounts.markSeen(account.id, clock, build);
+  }
+
+  const health = async () =>
+    (await app.fastify.inject({ method: 'GET', url: '/healthz' })).json();
+
+  it('counts neither the reviewer nor its contact', async () => {
+    await seen('appreview@example.com', 41);
+    await seen('appreview2@example.com');
+    await seen('someone@example.com', 56);
+
+    const body = await health();
+    expect(body.oldestBuild).toBe(56);
+    expect(body.silentBuilds).toBe(0);
+  });
+
+  /**
+   * Matched the way the database matches identifiers everywhere else, since
+   * the address is typed into `.env` by hand and a capital letter there must
+   * not quietly put the reviewer back into the census.
+   */
+  it('matches the configured address case-insensitively', async () => {
+    await seen('AppReview@Example.com', 41);
+    await seen('someone@example.com', 56);
+
+    expect((await health()).oldestBuild).toBe(56);
+  });
+
+  it('excludes nobody when no demo account is configured', async () => {
+    await app.fastify.close();
+    app = buildApp({ dbPath: ':memory:', now: () => clock });
+    await seen('appreview@example.com', 41);
+    await seen('someone@example.com', 56);
+
+    expect((await health()).oldestBuild).toBe(41);
   });
 });

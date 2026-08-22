@@ -53,10 +53,13 @@ export class Accounts {
    * `review` names the one address whose code is fixed, so that App Review can
    * sign in without an inbox. Absent in normal operation, and absent is the
    * only configuration in which every code is random.
+   *
+   * `review.contact` is the second demo account, which has no code — it is
+   * named only so that `buildsSeenSince` can leave both of them out.
    */
   constructor(
     private db: Db,
-    private review?: { identifier: string; code: string }
+    private review?: { identifier: string; code: string; contact?: string }
   ) {}
 
   // --- Maintenance --------------------------------------------------------
@@ -417,16 +420,43 @@ export class Accounts {
    * the app open" and is what the contact list renders. The two clients that
    * matter both connect, so this is the same set in practice; it is worth
    * knowing before reading a low `silent` as good news.
+   *
+   * **Two kinds of row are left out, because neither is somebody a raised
+   * floor could strand.** A tombstone cannot sign in — `erase` deletes its
+   * tokens and rewrites its identifier — so whatever build it last called
+   * from is a fossil, and one was holding `oldest` at 51 on production while
+   * the real population started at 56. The demo accounts are a phone at Apple
+   * that reinstalls whatever is under review at each submission, and the
+   * second of them has never reported a build at all, so leaving them in
+   * pins `silent` above zero permanently — which is the one condition under
+   * which this whole reading is not to be trusted. Both exclusions are
+   * narrower than they look: an erased row keeps its `last_build` for
+   * `bin/db` to read, and the demo accounts are still counted by everything
+   * else that counts accounts.
+   *
+   * `erase` also nulls `last_seen_at`, so a tombstone is usually outside the
+   * window anyway — usually, not always: a socket already authenticated when
+   * the account was deleted stamps it again as it goes, which is how the row
+   * on production got back in. The prefix is what makes this certain rather
+   * than probable.
    */
   buildsSeenSince(since: number): { oldest: number | null; silent: number } {
+    const demo = [this.review?.identifier, this.review?.contact]
+      .filter((id): id is string => id !== undefined)
+      .map((id) => normalize(id).toLowerCase());
     const row = this.db
       .prepare(
         `SELECT MIN(last_build) AS oldest,
                 SUM(CASE WHEN last_build IS NULL THEN 1 ELSE 0 END) AS silent
            FROM accounts
-          WHERE last_seen_at IS NOT NULL AND last_seen_at >= ?`
+          WHERE last_seen_at IS NOT NULL AND last_seen_at >= ?
+            AND identifier NOT LIKE ?
+            AND LOWER(identifier) NOT IN (${demo.map(() => '?').join(', ') || "''"})`
       )
-      .get(since) as { oldest: number | null; silent: number | null };
+      .get(since, `${ERASED_IDENTIFIER_PREFIX}%`, ...demo) as {
+      oldest: number | null;
+      silent: number | null;
+    };
     return { oldest: row?.oldest ?? null, silent: row?.silent ?? 0 };
   }
 
