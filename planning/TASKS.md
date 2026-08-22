@@ -70,10 +70,6 @@ written from `RoomEvent.TrackMuted` and read by nothing, and since the floor
 withholds subscriptions rather than muting the publication, it is not clear it
 can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
-## Anonymous Web Access
-
-Channels can be shared to anyone with a link which navigates to web page with channel view modified for anonymous guest. Plan is here: ANONWEB.md
-
 ## Transcripts
 
 Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel.
