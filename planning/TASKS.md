@@ -460,27 +460,12 @@ out not to be the one-off transfer but the *repetition*, a snapshot being
 re-sent to every watcher on every transition in the channel. Read the decision
 before proposing a larger cap.
 
-## Clipboard Sharing: Images
-
-The other half of the entry above, deliberately deferred. An image cannot ride
-in the snapshot at any size worth having, so it is the fetch-on-tap design that
-was planned and set aside: a `clips` row with an S3 key, a `GET` route, and a
-descriptor in `ChannelState.clip` whose `kind` is already there waiting for it.
-
-What it costs beyond that, none of which text needed: `getImageAsync` and
-`setImageAsync` in `app/src/clipboard.ts`, which deal in base64 with a `data:`
-prefix that has to be stripped and restored — and `setImageAsync` returns void,
-so the "never report a success you did not have" rule that `copyText` satisfies
-cannot be satisfied the same way. `storage.put` hardcodes `ContentType:
-'audio/ogg'` and would need parameterizing. There is no image rendering
-anywhere in the app yet, so a thumbnail is new ground. And `app/jest.setup.js`
-mocks three clipboard functions; the image three are absent, so any path
-reaching them throws in every existing suite.
-
-Worth settling first: whether a thumbnail is shown at all, given that the text
-case deliberately shows nothing. The argument against showing text — a screen
-read over shoulders — applies at least as strongly to a picture, and an image
-nobody can see before copying is a strange object.
+**The image half is dropped rather than deferred**, 2026-08-21, and it had its
+own entry here until then. DECISIONS.md § *The clipboard stays text, and the
+image half is dropped rather than deferred* carries the decision, the five
+costs the survey turned up, and the question that actually decided it — whether
+a thumbnail may be shown at all, when the text case deliberately shows nothing
+for a reason that is stronger for a picture.
 
 ## Anonymous Web Access
 

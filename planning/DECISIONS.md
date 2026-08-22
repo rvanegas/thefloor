@@ -519,3 +519,42 @@ stated as the hypothesis it is: lock the phone, have somebody claim the floor,
 and keep talking. If it buzzes, the tone into the audio session that TASKS.md
 holds open — the one that pays by playing over the voice it is announcing — is
 not needed and should not be built.
+
+---
+
+## The clipboard stays text, and the image half is dropped rather than deferred — 2026-08-21
+
+Taken off the roadmap 2026-08-21. The clipboard shipped text-only the same day
+— one slot per channel, riding in the channel snapshot — and the image half
+was written up as deliberately deferred, on the design the text case had
+started from and abandoned: an S3 key in a `clips` row, a `GET` route, and the
+`kind` discriminator that `ChannelState.clip` already carries.
+
+**It is dropped, not scheduled.** Recorded here rather than left in TASKS.md
+because a deferred feature and a declined one look identical from the outside
+and only one of them is an oversight. The `kind` field stays; it costs nothing
+and it is the honest shape of the state either way.
+
+**What the survey found, which is the part worth keeping.** None of it is
+prohibitive on its own and all of it is invisible from the feature's
+description:
+
+- `getImageAsync`/`setImageAsync` in `app/src/clipboard.ts` deal in base64 with
+  a `data:` prefix to strip and restore.
+- **`setImageAsync` returns void**, so the rule `copyText` satisfies — never
+  report a success you did not have — cannot be satisfied the same way. That is
+  a policy problem rather than a plumbing one, and it is the one that would
+  have to be answered first.
+- `storage.put` hardcodes `ContentType: 'audio/ogg'` and would need
+  parameterizing.
+- `app/jest.setup.js` mocks three clipboard functions and not the image three,
+  so any path reaching them throws across every existing suite.
+- Nothing in the app renders an image yet, so a thumbnail is new ground.
+
+**And the question that would have had to be settled before any of it**:
+whether a thumbnail is shown at all. The text case deliberately shows nothing —
+the argument being a screen read over shoulders — and that argument is stronger
+for a picture, not weaker. Which leaves an image nobody may look at before
+copying, which is a strange object to build. **That is the real reason this is
+declined rather than the five costs above**, and it would be the thing to
+answer if it is ever raised again.
