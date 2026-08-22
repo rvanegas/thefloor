@@ -50,18 +50,29 @@ export interface PushMessage {
    */
   channelId: string;
   /**
-   * What this replaces on the lock screen.
+   * What this replaces on the lock screen, or null if it replaces nothing.
    *
    * APNs shows one notification per collapse key and discards the rest, so this
    * decides what a new one overwrites. `channelId` for everything a channel
    * does by itself, which is the point — a room that fills and empties all
-   * evening leaves one line rather than nine.
+   * evening leaves one line rather than nine. Automatic traffic may overwrite
+   * automatic traffic, because the later line is a better version of the
+   * earlier one: it reports the same room, later.
    *
-   * A ping takes a key of its own, because collapsing it into that stream would
-   * mean a person typed something to somebody and the next arrival silently
-   * threw it away. Automatic traffic may overwrite automatic traffic.
+   * **Null for a ping, and that is the whole of the rule.** Each one carries
+   * words somebody chose, so no two are versions of each other and there is
+   * nothing a later one is entitled to say on an earlier one's behalf. A
+   * collapse key here would discard a sentence a person wrote to somebody —
+   * quietly, at Apple, after this server had reported success.
+   *
+   * Null rather than a key made unique per send, though the two behave alike.
+   * A unique key is a collapse key that has been arranged never to collide,
+   * which reads as an accident waiting to be tidied up; omitting the header is
+   * how APNs is told, in its own vocabulary, that this notification stands on
+   * its own. They still group in Notification Center, which is `thread-id` and
+   * is unaffected.
    */
-  collapseKey: string;
+  collapseKey: string | null;
   /**
    * How long APNs should keep trying before discarding this undelivered.
    *
@@ -134,15 +145,16 @@ export interface PushMessage {
  * other three are the channel reporting on itself, which is what lets them
  * overwrite one another on the lock screen — one line about a room that filled
  * and emptied all evening is a mercy. That is not safe for something somebody
- * typed and aimed, so `pinged` carries a collapse key of its own.
+ * typed and aimed, so `pinged` collapses into nothing and nothing collapses
+ * into it.
  *
  * That second seam decides two things rather than one, which is what makes it
  * worth having found. What may overwrite a notification and who a notification
  * may reach turn out to be the same question asked twice: the three automatic
  * ones are safe to overwrite *because* they are the channel repeating itself,
  * and for that same reason they are withheld from anybody whose socket has
- * already drawn what they describe. A ping is neither, so it overwrites only
- * its own kind and it is delivered whether or not the app is open.
+ * already drawn what they describe. A ping is neither, so it overwrites
+ * nothing and it is delivered whether or not the app is open.
  *
  * Cut the set either way and the members swap sides. That is the argument for
  * naming them rather than sorting them into two piles once.
@@ -264,10 +276,10 @@ export const notifications = {
       // ping with words is recognisably the same thing as one without.
       body: text ? `${sender}: ${text}` : `${sender} is asking for you.`,
       channelId,
-      // Its own stream, so an arrival cannot overwrite what somebody typed.
-      // Still a stream: a second ping replaces the first, because two lines
-      // from one person about one channel is nagging rather than information.
-      collapseKey: `${channelId}:ping`,
+      // Replaces nothing, and is replaced by nothing. Every other notification
+      // here is the channel restating itself and may be overwritten by a later
+      // restatement; a ping is a sentence somebody wrote. See the field.
+      collapseKey: null,
       lifetimeMs: PRESENCE_LIFETIME_MS,
       // The only one of the four that is delivered to a phone whose app is
       // open. See the field.
@@ -430,7 +442,13 @@ export class ApnsPusher implements Pusher {
         // battery, which is the wrong trade for an announcement that expires
         // in five minutes.
         'apns-priority': '10',
-        'apns-collapse-id': message.collapseKey,
+        // Omitted entirely when the message replaces nothing. APNs has no
+        // value meaning "collapse with nothing" — the absence of the header is
+        // how that is said, and a key invented to be unique would say it by
+        // arithmetic instead.
+        ...(message.collapseKey === null
+          ? {}
+          : { 'apns-collapse-id': message.collapseKey }),
         // Whose window the message brought with it. Never zero, which APNs
         // reads as "attempt once and store nothing" rather than as "no
         // expiry" — the two are easy to conflate and mean opposite things.

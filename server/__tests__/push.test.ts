@@ -810,8 +810,9 @@ describe('a ping', () => {
         title: 'Alice',
         body: 'Alice: we are starting',
         channelId,
-        // Its own stream. An arrival must not overwrite what somebody typed.
-        collapseKey: `${channelId}:ping`,
+        // Nothing. Every ping carries words somebody chose, so no later one
+        // is entitled to throw an earlier one away.
+        collapseKey: null,
         lifetimeMs: PRESENCE_LIFETIME_MS,
         reachesInApp: true,
       },

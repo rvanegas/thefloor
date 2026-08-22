@@ -1405,3 +1405,53 @@ itself and immediately fixes the reported failure — an older build receives th
 ping and files it in Notification Center without a banner, which is strictly
 more than the nothing it got before. The app half is inert until a build carries
 it. No wire compatibility question and nothing for `MIN_SUPPORTED_BUILD`.
+
+## A ping replaces nothing, so the header comes off — 2026-08-22
+
+Same afternoon, same feature, and the second half of one idea. A ping was given
+a collapse key of its own — `<channelId>:ping` — so that an arrival could not
+overwrite what somebody had typed. The reasoning stopped one step short: it kept
+pings out of the *automatic* stream but left them in a stream of their own,
+where a second ping still discards the first. That was written down as a
+decision — "two lines from one person about one channel is nagging rather than
+information" — and it is wrong on the facts of what a ping is. **Each one
+carries words somebody chose.** No later ping is a better version of an earlier
+one, and none is entitled to speak on its behalf. Losing one is losing a
+sentence a person wrote to somebody, quietly, at Apple, after this server has
+reported success.
+
+The comparison that settles it is with the three the key was designed for. A
+second `arrived` for a channel really is a better version of the first: same
+room, later, and one line about a room that filled and emptied all evening is a
+mercy. That property is what makes collapsing safe, and a ping does not have it.
+
+### Null, not a unique key
+
+`collapseKey` is now `string | null`, and `ApnsPusher` omits `apns-collapse-id`
+entirely when it is null. The alternative — a key made unique per send — behaves
+identically and says the wrong thing: it is a collapse key arranged never to
+collide, which reads to the next person as an accident to be tidied up. The
+absent header is how APNs is told, in its own vocabulary, that a notification
+stands on its own.
+
+Grouping is untouched and is a different mechanism: `thread-id` is still the
+channel, so pings gather under their channel in Notification Center rather than
+scattering through it. Losing that would have been the obvious over-correction,
+so there is a test for it.
+
+### The transport got its first test
+
+The collapse header is the only conditional one, and its absence is
+load-bearing, so `apns-headers.test.ts` stubs `node:http2` and reads what was
+actually sent. Everything else about push stops at `MemoryPusher`, one layer
+above where headers are composed — which is why a ping growing a collapse id
+back would have been invisible to the whole suite and visible only to two
+phones, five minutes apart, with somebody watching.
+
+### What the rate limit now means
+
+With no collapsing, the five-minute window is the only thing bounding pings, and
+that is the right place for it: it refuses out loud, to the sender, at the
+moment of sending. The old arrangement had a second limiter behind it that
+nobody was told about — the window refused the second ping, and had it not, the
+collapse key would have thrown it away anyway.
