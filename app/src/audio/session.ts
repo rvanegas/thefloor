@@ -134,7 +134,9 @@ export const LISTENING: AppleAudioConfiguration = {
  * device in that session could not do HFP. **It is the thing to check first if
  * headphones misbehave after this**, and it is why `app/modules/audio-route`
  * was kept when the engine panel was deleted: it is the only thing in this
- * stack that can read a route back. See planning/TASKS.md.
+ * stack that can read a route back. **Checked, and it held**: AirPods keep
+ * the route and go mono while capturing, on build 72. See DECISIONS.md § *No
+ * output that cannot also capture*.
  */
 export const CALL: AppleAudioConfiguration = {
   audioCategory: 'playAndRecord',

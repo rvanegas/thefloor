@@ -379,9 +379,8 @@ usually has no microphone, so there is no hands-free link to move to. While
 and nothing was audible at the boundary — which is the echo path the option was
 removed for. With the option gone the speaker is no longer eligible while
 capturing, so crossing the boundary *evicts* it to the phone's own loudspeaker,
-which is not subtle. **Verified on a device 2026-08-21**, as check 1 of
-TASKS.md § *The Mic-Less Speaker Fix Is Verified; Check 3 Found Something
-Else*.
+which is not subtle. **Verified on a device 2026-08-21**, as the first of the
+three checks in DECISIONS.md § *No output that cannot also capture*.
 
 **The silent version of this misled the author on 2026-08-20**, before the
 fix — alone on a Bluetooth speaker, a second person arrived, the audio stayed
@@ -594,8 +593,8 @@ lifted an entry elsewhere.
    engine is recording, `anyMicOpen` is false, and the two writers want
    different categories for the same moment.
 
-   That is the leading explanation for the symptom in TASKS.md § *The Mic-Less
-   Speaker Fix Is Verified; Check 3 Found Something Else*: everybody muted
+   That is the leading explanation for the symptom in TASKS.md § *The
+   Foreground Interruption*: everybody muted
    should be `IDLE` with `mixWithOthers` and another app's audio should keep
    playing, and it is interrupted instead. **Not yet confirmed** — the
    interruption appears at a foreground, which is also an activation and a room

@@ -27,8 +27,8 @@ import { colors, radius, spacing, type } from './theme';
  * oversight: at the time there was no way to show it to one person.
  *
  * The `debug` column on `accounts` is that way, and it is what makes this
- * permanent where the last one had to be temporary. TASKS.md's standing
- * warning is that a diagnostic left in place becomes furniture; furniture is
+ * permanent where the last one had to be temporary. The standing warning is
+ * that a diagnostic left in place becomes furniture; furniture is
  * something every user can see and nobody can switch off. This is off for
  * every account in the database until somebody sets a flag, and turning it off
  * again is one `UPDATE` and a reconnect — no build, no submission, no wait.

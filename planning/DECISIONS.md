@@ -590,3 +590,125 @@ already computed, and the tests were green throughout. **The question that
 would have collapsed all three into one is "what suppresses this?", asked
 before "when do I send it?"** — and it is the question to ask of the next
 non-visual cue, because the delivery APIs answer yes either way.
+
+---
+
+## A heading outlived its own disproof, and a heading is what gets scanned — 2026-08-21
+
+Filed when TASKS.md § *The Self-Mute Tone* was deleted, that entry having
+closed. Everything else in it is already here: § *Four fixes, no measurement,
+and that was the mistake*, § *The first reading, and the two things it could
+not see*, and § *Muting moves from Apple's unit to our own mixer* in
+`DECISIONS-2026-08-20-to-2026-08-21.md`. This is the one part that was nowhere
+else.
+
+The entry was headed **"Self-Mute Still Moves the Audio Category"** and had
+been wrong since build 62, which read the route either side of a mute and found
+`BluetoothHFP` at 24 kHz both times — no route change, no category movement.
+The body was corrected. The heading was not, and it stood for three builds
+after the measurement that disproved it.
+
+**The body is what gets read once and the heading is what gets read every
+time.** Somebody scanning a file of twenty entries reads twenty headings and
+the bodies of the two they stop at, so a heading is the only part guaranteed an
+audience — and a wrong one is not merely stale, it routes attention away from
+the correction sitting underneath it.
+
+This is the same failure as the unrecorded result recorded alongside it, in a
+different medium: in both cases the finding existed and the artefact somebody
+would actually consult did not carry it. **Correct the heading in the same edit
+as the body**, and if the entry has outgrown its title, retitle it rather than
+appending the news to the end.
+
+**With one constraint that pulls the other way**, learned the same day: a `##`
+heading in TASKS.md is an *address*. AGENTS.md makes any verb followed by a
+quoted string matching one a reference to that entry, so a heading is a name
+before it is a summary. Welding a status onto it — "The Self-Mute Tone —
+CLOSED, and the title was wrong for three builds" — breaks the match. The
+resolution is that the heading names the thing and the *first line of the body*
+carries the status, which is the shape the file settled on.
+
+---
+
+## No output that cannot also capture — 2026-08-21
+
+Build 65, reported and fixed the same day, and verified on a device on
+2026-08-21 — recorded here when TASKS.md § *The Mic-Less Speaker Fix Is
+Verified* was deleted, the entry having done its job. The reasoning lives at
+length in `app/src/audio/session.ts`; this is why it was made and what the
+checks found.
+
+**A second participant arrived and was audible on a Bluetooth speaker that has
+no microphone.** `CALL` listed `allowBluetoothA2DP`, and A2DP is output-only,
+so under `playAndRecord` a device that cannot capture was still an eligible
+*output*. iOS did exactly as asked: it kept the far end on the speaker and took
+input from the built-in microphone in the same room. That is not merely the
+wrong route — it is a loudspeaker playing the far end into an open microphone
+at arm's length, which is the echo path the whole of POSTMORTEM-echo.md is
+about, arrived at from a direction nobody was watching.
+
+**The cause was in the option list rather than in a mechanism**, which is why
+this one is short where the self-mute investigation ran six builds. The
+option's documented meaning *is* the observed behaviour, so there was no chain
+of inference to be wrong about. That was a reason for more confidence and not
+for skipping the checks.
+
+**A2DP is scoped rather than lost.** `IDLE` and `LISTENING` are `playback`,
+where a Bluetooth device is an eligible output with no option at all, so the
+stereo route is exactly as available as before whenever nobody is capturing.
+Two tests pin both halves, and the absence is its own test because
+`arrayContaining` cannot catch a missing element.
+
+**Three checks were written before the build and all three were run.**
+
+- **The reported case passed on build 65.** The mic-less speaker is released
+  and output moves to the phone's own loudspeaker, both directions working.
+- **AirPods passed on build 72**, which is the one that mattered. This is the
+  option build 19 removed, when a tester's headphones fell back to the phone
+  speaker and it was read as A2DP eligibility being required for headphones to
+  be offered at all. That reading was doubted here on the grounds that
+  `allowBluetooth` makes an HFP-capable headset eligible in both directions,
+  and it is now **disproved on a device**: AirPods keep the route and go mono
+  while capturing. Most likely the build 19 device could not do HFP at all.
+- **The third check failed, and found a different bug** — the foreground
+  interruption, which is TASKS.md's and is not this fix.
+
+**The lesson is the cheap one for once.** Four rounds of reasoning had just
+been spent on a symptom whose mechanism was not in the code being read; this
+symptom's mechanism was one line of a constant, and the difference was legible
+in advance from how long the chain of inference was. Length of chain is worth
+noticing before deciding whether to read or to measure.
+
+---
+
+## How the diagnostic panel comes out, and what would trigger it — 2026-08-21
+
+The panel itself is § *A diagnostic that a column turns on, which is why it can
+stay* in `DECISIONS-2026-08-20-to-2026-08-21.md`, and that entry makes the
+argument. What it did not carry was the removal recipe, which lived in TASKS.md
+until that entry was deleted for being complete. It is written down for the
+reason the ungated panel's deletion was: **taking out one piece and leaving the
+others is how a diagnostic becomes furniture**, and the pieces are not
+guessable from any one of them.
+
+It comes out as: `app/src/ui/AudioDebugPanel.tsx`, `app/src/audio/diagnostics.ts`
+and its test, `app/src/audio/engineState.ts`, the `asked` field on
+`SessionAudio` and its two write sites, the `debug` column and its migration,
+the `debug` field on `hello`, and `app.debug` in `AppProvider`.
+`app/modules/audio-route` goes with it or stays on its own argument — it is a
+native module, so removing it changes what `prebuild --clean` regenerates, and
+that is a build-affecting change rather than a deletion.
+
+**The trigger is not time passing.** It is somebody deciding the audio
+subsystem no longer needs watching, which after six builds in two days is not a
+decision to make from a quiet week. The gate is what makes waiting cost
+nothing: the column is null for every row, an unflagged account renders no
+panel and is not even told the field exists, and the only code that runs for
+everybody is `recordEvent` appending a string to a forty-element array nothing
+reads.
+
+**Why this is not the furniture the earlier rule forbade**, restated because
+the rule and the exception are easy to collapse: what makes furniture is a
+diagnostic every user can see and nobody can switch off. This one is one
+`UPDATE` and a reconnect in either direction, in the hands of whoever holds the
+database. Furniture is defined by who can remove it.

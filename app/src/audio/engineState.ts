@@ -16,8 +16,9 @@ import { AudioDeviceModule } from '@livekit/react-native';
  * It is now read by `diagnostics.ts` on behalf of the panel in
  * `ui/AudioDebugPanel.tsx`, which is shown to accounts with the `debug` column
  * set and to nobody else. That gate is why this is no longer temporary: the
- * thing TASKS.md warned about — a diagnostic ageing into furniture — was about
- * something every user could see and nobody could switch off.
+ * thing the earlier panel was deleted to avoid — a diagnostic ageing into
+ * furniture — was about something every user could see and nobody could switch
+ * off.
  *
  * **The history is the argument for this file.** Self-muting hands a Bluetooth
  * headset from the hands-free link back to A2DP, audibly, and on 2026-08-20

@@ -107,9 +107,12 @@ export interface Clip {
   /**
    * What kind of content this is.
    *
-   * One member today. It is here so that images — the other half of TASKS.md
-   * § *Clipboard Sharing* — can be added without every reader of this type
-   * having to learn that the old shape meant text. An image will not carry
+   * One member today, and likely for good: the image half was declined in
+   * DECISIONS.md § *The clipboard stays text, and the image half is dropped
+   * rather than deferred*. The discriminator stays anyway, because it costs
+   * nothing and it is the honest shape of a state that has a kind. If images
+   * are ever reconsidered, no reader of this type has to learn that the old
+   * shape meant text. An image will not carry
    * its bytes in `text`; it will carry a key and be fetched, for the reason
    * this one is not.
    */

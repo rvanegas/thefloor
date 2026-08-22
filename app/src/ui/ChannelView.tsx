@@ -458,8 +458,8 @@ export function ChannelView({
             Unlike that one, this is not temporary and does not need deleting
             before the next upload: it is invisible to every account that has
             not been switched on, and switching one off is an `UPDATE` and a
-            reconnect. TASKS.md § "A Gated Audio Diagnostic Panel" says who
-            decides and what closing it would look like.
+            reconnect. DECISIONS.md § *How the diagnostic panel comes out, and
+            what would trigger it* says who decides and names every piece.
           */}
           {app.debug ? <AudioDebugPanel asked={audio.asked} /> : null}
         </Card>

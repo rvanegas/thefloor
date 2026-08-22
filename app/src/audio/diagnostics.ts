@@ -278,7 +278,9 @@ function actualOnlyRows(route: RouteSnapshot | null): DiagnosticRow[] {
       value: `${shortName(route.category)}/${shortName(route.mode)}`,
       // `playAndRecord` with nothing asked for means somebody else is holding
       // the session as a call. That is the state the once-seen foreground
-      // interruption would look like — see TASKS.md.
+      // interruption looks like — see TASKS.md § *The Foreground
+      // Interruption*, which is reproducible and asks for exactly this
+      // reading.
       alarm: shortName(route.category) === 'playAndRecord',
     },
     { label: 'actual opts', value: list(route.categoryOptions) },

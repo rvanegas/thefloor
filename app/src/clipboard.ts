@@ -4,9 +4,9 @@ import * as Clipboard from 'expo-clipboard';
  * The system clipboard, in the two directions anything needs it.
  *
  * **A module rather than two calls at the one call site**, because the
- * clipboard is about to have a second consumer: TASKS.md § *Clipboard Sharing*
- * puts a paste into a channel and a copy back out of it, which is this file's
- * two functions pointed at a channel instead of at a diagnostic. Writing the
+ * clipboard has a second consumer: the channel clipboard shipped 2026-08-21
+ * and puts a paste into a channel and a copy back out of it, which is this
+ * file's two functions pointed at a channel instead of at a diagnostic. Writing the
  * contract once is what stops the second consumer inventing a different one.
  *
  * **`expo-clipboard` rather than `Clipboard` from `react-native` core.** The

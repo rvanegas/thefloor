@@ -3,8 +3,8 @@ import { copyText, pasteText } from '../clipboard';
 
 /**
  * The contract, pinned here rather than at a call site, because the second
- * consumer is already on the roadmap — TASKS.md § *Clipboard Sharing* — and
- * will inherit whatever this does with a failure.
+ * consumer — the channel clipboard, shipped 2026-08-21 — inherits whatever
+ * this does with a failure.
  *
  * The rule is the one every device reader in this app follows: never throw,
  * and never report a success you did not have.
