@@ -25,20 +25,7 @@ import { colors, spacing, type } from './theme';
  * Fetched on open rather than held in app state: nothing else reads it, and a
  * total cached anywhere would be stale the moment somebody gave.
  */
-export function SupportView({
-  onBack,
-  onOpenLeaderboard,
-}: {
-  onBack: () => void;
-  /**
-   * Absent unless this account has been granted the invitation standings, in
-   * which case there is no button and nothing here mentions them. It hangs off
-   * this screen because Support is the one place already about the project
-   * rather than about a conversation — and because a screen nobody can reach
-   * needs somewhere unobtrusive to be reached from.
-   */
-  onOpenLeaderboard?: () => void;
-}) {
+export function SupportView({ onBack }: { onBack: () => void }) {
   const app = useApp();
   const [support, setSupport] = useState<SupportSnapshot | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -119,13 +106,6 @@ export function SupportView({
               There is no way to give from here at the moment.
             </Text>
           )}
-
-          {onOpenLeaderboard ? (
-            <Button
-              label="Invitations"
-              onPress={onOpenLeaderboard}
-            />
-          ) : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </>

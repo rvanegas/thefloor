@@ -3891,24 +3891,50 @@ describe('Support', () => {
   });
 
   /**
-   * The way in to the standings, which hangs off this screen because it is the
-   * one already about the project rather than about a conversation. Absent
-   * unless the account has been granted them, and nothing here says so.
+   * The way in to the standings, which sits on Home directly under Chip in.
+   * Absent unless the account has been granted them, and nothing anywhere
+   * says so.
    */
-  it('offers Invitations only when there is a way in', async () => {
-    const tree = await open(<SupportView onBack={() => {}} />);
-    expect(findButton(tree, 'Invitations')).toBeUndefined();
+  it('offers the Leaderboard from Home only when there is a way in', async () => {
+    const tree = await home();
+    expect(findButton(tree, 'Leaderboard')).toBeUndefined();
     act(() => tree.unmount());
 
     const opened = jest.fn();
     const granted = await open(
-      <SupportView onBack={() => {}} onOpenLeaderboard={opened} />
+      <HomeView {...homeNav} onOpenLeaderboard={opened} />
     );
-    const button = findButton(granted, 'Invitations');
+    const button = findButton(granted, 'Leaderboard');
     expect(button).toBeTruthy();
     act(() => button!.props.onPress());
     expect(opened).toHaveBeenCalled();
     act(() => granted.unmount());
+  });
+
+  /**
+   * The two are independent: a server with nowhere to give still shows the
+   * standings to an account granted them, and the section label survives for
+   * it alone.
+   */
+  it('keeps the Leaderboard when there is nowhere to give', async () => {
+    mockApp.loadSupport.mockResolvedValueOnce({
+      url: null as unknown as string,
+      identifier: 'me@example.com',
+      mine: null,
+    });
+    const tree = await open(
+      <HomeView {...homeNav} onOpenLeaderboard={() => {}} />
+    );
+    expect(findButton(tree, 'Chip in')).toBeUndefined();
+    expect(findButton(tree, 'Leaderboard')).toBeTruthy();
+    act(() => tree.unmount());
+  });
+
+  it('says nothing about the standings on the Support screen', async () => {
+    const tree = await open(<SupportView onBack={() => {}} />);
+    expect(findButton(tree, 'Leaderboard')).toBeUndefined();
+    expect(findButton(tree, 'Invitations')).toBeUndefined();
+    act(() => tree.unmount());
   });
 });
 

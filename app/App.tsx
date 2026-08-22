@@ -222,7 +222,7 @@ function Root() {
     return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
   }
 
-  // Reached from Support and from nowhere else, and offered only to an account
+  // Reached from Home and from nowhere else, and offered only to an account
   // that has been granted it by hand. `app.leaderboard` comes from `hello`, so
   // revoking the column closes the way in at the next connection.
   if (leaderboardOpen) {
@@ -230,14 +230,7 @@ function Root() {
   }
 
   if (supportOpen) {
-    return (
-      <SupportView
-        onBack={() => setSupportOpen(false)}
-        onOpenLeaderboard={
-          app.leaderboard ? () => setLeaderboardOpen(true) : undefined
-        }
-      />
-    );
+    return <SupportView onBack={() => setSupportOpen(false)} />;
   }
 
   if (contactsOpen) {
@@ -250,6 +243,9 @@ function Root() {
       onOpenContacts={() => setContactsOpen(true)}
       onOpenSettings={() => setSettingsOpen(true)}
       onOpenSupport={() => setSupportOpen(true)}
+      onOpenLeaderboard={
+        app.leaderboard ? () => setLeaderboardOpen(true) : undefined
+      }
       // What Home needs to show that a conversation is still going without you
       // looking at it. An open microphone behind a screen that gives no sign of
       // it is the one thing this change could plausibly make worse.

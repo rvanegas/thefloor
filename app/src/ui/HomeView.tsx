@@ -51,6 +51,7 @@ export function HomeView({
   onOpenContacts,
   onOpenSettings,
   onOpenSupport = () => {},
+  onOpenLeaderboard,
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
@@ -60,6 +61,12 @@ export function HomeView({
   onOpenSettings: () => void;
   /** Opens the screen that explains donating, and carries the link out. */
   onOpenSupport?: () => void;
+  /**
+   * Opens the invitation standings. Absent unless this account has been
+   * granted them, in which case Home says nothing about them at all — the
+   * row is the whole of how anybody learns the screen exists.
+   */
+  onOpenLeaderboard?: () => void;
   /**
    * The channel you are present in right now, if you walked back here without
    * stepping out. Null when you are not in one.
@@ -378,16 +385,36 @@ export function HomeView({
         somebody is passing through. That lives one tap away, where it has been
         chosen rather than imposed.
       */}
-      {canSupport ? (
+      {canSupport || onOpenLeaderboard ? (
         <>
           <SectionLabel>Support</SectionLabel>
-          <Card>
-            <Button
-              label="Chip in"
-              variant="ghost"
-              onPress={onOpenSupport}
-            />
-          </Card>
+          {canSupport ? (
+            <Card>
+              <Button
+                label="Chip in"
+                variant="ghost"
+                onPress={onOpenSupport}
+              />
+            </Card>
+          ) : null}
+          {/*
+            Directly under it, and its own card rather than a second button in
+            the same one: the two go to unrelated screens, and a card is the
+            unit this screen uses for one place to go. It appears for the few
+            accounts granted the standings and for nobody else, which is why
+            the section survives a server with nowhere to give — the label
+            reads as the part of Home that is about the project rather than
+            about a conversation, and the standings belong there too.
+          */}
+          {onOpenLeaderboard ? (
+            <Card>
+              <Button
+                label="Leaderboard"
+                variant="ghost"
+                onPress={onOpenLeaderboard}
+              />
+            </Card>
+          ) : null}
         </>
       ) : null}
 
