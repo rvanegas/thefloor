@@ -33,6 +33,16 @@ import {
 } from '../ui/appearance';
 
 const TOKEN_KEY = 'thefloor.token';
+/**
+ * Whether a tap on a channel walks into it, or only opens it.
+ *
+ * Stored as `'true'`/`'false'` and read as "anything that is not `'false'` is
+ * on", so the default survives a missing key, a key from a build that never
+ * wrote one, and a value nobody recognises. On is the behaviour every build
+ * before this one had, and the one somebody who has never opened Settings
+ * should keep.
+ */
+const TAP_TO_STEP_IN_KEY = 'thefloor.tapToStepIn';
 
 /** SecureStore has no web implementation; the browser is only used for checks. */
 const storage = {
@@ -243,6 +253,20 @@ interface AppValue extends AppState {
   /** Light, dark, or follow the phone. Applied to the window immediately. */
   appearance: ColorSchemePreference;
   setAppearance: (preference: ColorSchemePreference) => void;
+  /**
+   * Whether tapping a channel on Home steps into it, or only opens its screen.
+   *
+   * Set, which is the default, a tap is arriving: the app enters and the
+   * others can hear you. Unset, a tap is only looking — the channel screen
+   * opens with a Step In button where Step Out would be, and nothing about
+   * your presence has changed.
+   *
+   * A phone setting rather than an account one, like appearance and for the
+   * same reason: it is about how this device's list behaves under a thumb, and
+   * two phones signed in as you may reasonably want different answers.
+   */
+  tapToStepIn: boolean;
+  setTapToStepIn: (value: boolean) => void;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -287,6 +311,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!isPreference(stored)) return;
       setAppearanceState(stored);
       applyPreference(stored);
+    })();
+  }, []);
+  /**
+   * Read the same way and at the same moment as appearance, and with the same
+   * gap: for the first frames after a launch this is the default, whatever is
+   * stored. Appearance spends that gap on a flash of the wrong palette; this
+   * one spends it on a tap in the first instant of a cold start entering a
+   * channel somebody meant only to open. Both are one read of the keychain
+   * long, and neither is worth blocking the first screen on — the recovery
+   * from this one is a tap on Step Out.
+   */
+  const [tapToStepIn, setTapToStepInState] = useState(true);
+  useEffect(() => {
+    void (async () => {
+      if ((await storage.get(TAP_TO_STEP_IN_KEY)) === 'false') {
+        setTapToStepInState(false);
+      }
     })();
   }, []);
   /**
@@ -630,6 +671,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void storage.set(APPEARANCE_KEY, preference);
       },
 
+      tapToStepIn,
+      setTapToStepIn: (value) => {
+        setTapToStepInState(value);
+        void storage.set(TAP_TO_STEP_IN_KEY, value ? 'true' : 'false');
+      },
+
       dismissInvite: (channelId) => {
         setDismissedInvites((d) =>
           d.includes(channelId) ? d : [...d, channelId]
@@ -859,6 +906,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dismissedInvites,
       pendingChannelId,
       appearance,
+      tapToStepIn,
       expiry,
     ]
   );

@@ -166,6 +166,12 @@ export function HomeView({
    * The empty case is idempotent on the server, one unnamed channel per set of
    * people meaning one channel per person for the set of just themselves. So
    * this is safe to tap twice and does not litter Home with empty rows.
+   *
+   * It enters whatever "Tap a channel to step in" is set to, and that is not
+   * an oversight. The setting is about a list of rooms that already exist,
+   * where a tap is as likely to be curiosity as intent; opening a channel of
+   * your own is the intent, and a room you have just made that you are not
+   * standing in is a strange thing to have produced.
    */
   const startAlone = async () => {
     try {
@@ -180,8 +186,18 @@ export function HomeView({
     }
   };
 
-  const stepIn = (channelId: string) => {
-    app.act(channelId, { type: 'ENTER' });
+  /**
+   * What a tap on a channel does, which is one of two things.
+   *
+   * By default it is arriving: ENTER, and the others can hear you the moment
+   * the screen opens. With "Tap a channel to step in" off it is only looking —
+   * the channel screen opens, offering Step In where it would offer Step Out,
+   * and nothing about presence has changed. The screen subscribes to the
+   * channel itself, so a snapshot arrives either way; watching has never been
+   * being there. See ChannelView.
+   */
+  const openChannel = (channelId: string) => {
+    if (app.tapToStepIn) app.act(channelId, { type: 'ENTER' });
     onEnterChannel(channelId);
   };
 
@@ -284,7 +300,8 @@ export function HomeView({
                 key={card.channelId}
                 card={card}
                 now={now}
-                onPress={() => stepIn(card.channelId)}
+                onPress={() => openChannel(card.channelId)}
+                stepsIn={app.tapToStepIn}
                 onDismiss={
                   card.kind === 'invite'
                     ? () => app.dismissInvite(card.channelId)
@@ -305,7 +322,8 @@ export function HomeView({
                 key={card.channelId}
                 card={card}
                 now={now}
-                onPress={() => stepIn(card.channelId)}
+                onPress={() => openChannel(card.channelId)}
+                stepsIn={app.tapToStepIn}
                 onDismiss={() => app.dismissInvite(card.channelId)}
               />
             ))}
@@ -344,7 +362,8 @@ export function HomeView({
             key={card.channelId}
             card={card}
             now={now}
-            onPress={() => stepIn(card.channelId)}
+            onPress={() => openChannel(card.channelId)}
+            stepsIn={app.tapToStepIn}
           />
         ))}
         <StartChannelRow onPress={startAlone} />
@@ -540,6 +559,7 @@ function ChannelCard({
   now,
   onPress,
   onDismiss,
+  stepsIn,
 }: {
   card: Card;
   now: number;
@@ -547,6 +567,12 @@ function ChannelCard({
   onPress: () => void;
   /** Invitations only; hides it until the channel is offered again. */
   onDismiss?: () => void;
+  /**
+   * Whether this tap arrives or only looks — the Home setting, passed down so
+   * the row can say which of the two it is about to do. It changes no
+   * behaviour here; the row calls back either way.
+   */
+  stepsIn: boolean;
 }) {
   const live = isLive(card);
   // Null only for an invitation from a server that predates the stamp, which
@@ -561,7 +587,11 @@ function ChannelCard({
   const line =
     card.kind === 'invite'
       ? live
-        ? `${card.from} is waiting — tap to join`
+        ? // "tap to join" only when a tap joins. With stepping in made
+          // deliberate, the same tap opens the channel and joins nothing, and
+          // promising otherwise would be the one place on this screen where
+          // the setting is not honoured.
+          `${card.from} is waiting${stepsIn ? ' — tap to join' : ''}`
         : `${card.from} asked you in${quiet ? ` · ${quiet}` : ''}`
       : live
         ? `${card.presentCount} present`
@@ -578,7 +608,7 @@ function ChannelCard({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${card.title}. ${line ? `${line}. ` : ''}${
-        card.kind === 'invite' ? 'Join.' : 'Step in.'
+        !stepsIn ? 'Open.' : card.kind === 'invite' ? 'Join.' : 'Step in.'
       }`}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}

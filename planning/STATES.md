@@ -156,6 +156,16 @@ things that this file keeps apart:
 - **Connectivity** — `disconnectedAt`. Whether your socket is up. A socket that
   drops and returns changes nothing about presence; only outlasting
   `DISCONNECT_GRACE_MS` does.
+- **Watching** — `Connection.watchingChannels` on the server,
+  `Realtime.watchedChannel` and the mounted `ChannelView` in the app. Whether
+  snapshots are being sent to you. **Watching is not being there**, and since
+  2026-08-22 the app can be in that state on purpose: with the Home setting
+  "Tap a channel to step in" turned off, a tap opens the channel screen and
+  dispatches no `ENTER`, so the screen offers **Step In** where it offers
+  **Step Out** to somebody present. A notification tap has always landed this
+  way. The screen's other controls need no special case — every `can…` in
+  `core/channel.ts` already asks about the room — but the microphone card and
+  the knocks are hidden, because neither is true of somebody outside it.
 
 `lastActiveAt` says nothing about a channel that is occupied now — there is no
 write between an entry and an exit, so an hour of conversation moves it not at

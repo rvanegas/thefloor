@@ -78,10 +78,6 @@ Implement integration with Assembly.ai. Use multi-channel transcripts, searchabi
 
 Currently, media play allows uploaded audio to be played and included into exportable recordings. Independently of this functionality, a watch party plays video, and disallows recordings. Plan is here: WATCHPARTY.md
 
-## Stepping into Channel Distinct from Tapping on Card
-
-Optional.
-
 ## Availability Logic
 
 By way of indicators and notifications, users know when their contacts are available for conversartion, without having to interrupt each other with disruptive phone calls.

@@ -82,10 +82,41 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       </View>
 
       {/*
-        Appearance first, then what somebody reads before deciding either of
-        the things under it, then the account itself. The screen reads outwards:
-        the phone, the policy, and then the account underneath both.
+        Behaviour first, then appearance, then what somebody reads before
+        deciding either of the things under it, then the account itself. The
+        screen reads outwards: the app, the phone, the policy, and then the
+        account underneath all three.
+
+        This one is at the top because it is the only setting here that changes
+        what a tap *does*, and the tap it changes is the one somebody makes
+        most often. Everything below it changes how something looks or ends.
       */}
+      <SectionLabel>Channels</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>Tap a channel to step in</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, 'On'],
+              [false, 'Off'],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={app.tapToStepIn === value ? 'primary' : 'default'}
+              onPress={() => app.setTapToStepIn(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>
+          On, tapping a channel walks you into it and everyone there can hear
+          you. Off, it only opens the channel — you can see who is around and
+          read what has been shared, and step in when you mean to.
+        </Text>
+      </Card>
+
       <SectionLabel>Appearance</SectionLabel>
       <Card style={styles.stack}>
         <View style={styles.choices}>

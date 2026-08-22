@@ -945,3 +945,82 @@ column does not exist yet, and the index statement fails the entire boot with
 `migration.test.ts` caught it, which is what that suite is for. **A column added
 by migration can only be indexed by migration**, and the index now lives there,
 unconditional and `IF NOT EXISTS`, after the `ALTER`.
+
+## Tapping a channel and being in it are two things — 2026-08-22
+
+TASKS.md § *Stepping into Channel*. Home settings gets "Tap a channel to step
+in", set by default; unset, a tap opens the channel screen and enters nothing,
+and the card that says **Step Out** says **Step In** instead.
+
+**The interesting part is how little had to be built.** The server has always
+distinguished watching a channel from being in it — `watch.channel` reports
+`CONNECTED`, which cancels a grace period and confers no presence, and every
+`can…` in `core/channel.ts` asks about the room rather than the roster. The
+audio moved above the channel screen when Home learned to show a live bar, so
+the connection follows presence and not what is mounted. Both halves of the
+new state were therefore already load-bearing; the app was simply never in it,
+because every route to `ChannelView` dispatched `ENTER` on the way.
+
+So the change is one branch on Home, one preference, and making the channel
+screen honest about a state it could already be in. Nothing on the wire moved
+and the server was not touched.
+
+### What the screen must not say when you are not in the room
+
+Three things, and each was a sentence that had become false rather than a
+control that had become dangerous:
+
+- **The microphone card is absent, not disabled.** Nothing in it is true —
+  the microphone is not open, muting changes nothing anybody can hear, and
+  `describeAudio` is describing a session nobody asked for. `canSetSelfMute`
+  is the one guard here that does *not* test presence (self-mute is unilateral
+  and the reducer would accept it), so disabling the button would have been the
+  screen disagreeing with the rules, which is the shape this codebase forbids.
+  Absence says the same thing and says it truthfully. The sentence that would
+  have gone there is on the Step In card instead.
+- **Nobody is at the door.** `canAnswerKnock` needs presence, so a knock card
+  offered to somebody who has stepped out is two buttons the reducer refuses.
+  Whoever is actually in the channel is being asked the same question.
+- **The floor hint names the real reason.** It could otherwise say "you cannot
+  claim while you are silenced" to somebody who is not silenced but absent.
+
+Everything else disabled itself: the clip, the playback, the recording and the
+claim are all guarded by a `can…` that tests the room.
+
+### Stepping in does not navigate
+
+You are already looking at the channel. The tap fills the screen in around
+itself — the microphone card appears, the floor becomes claimable — which is a
+better answer than a screen that closes and reopens on the same channel.
+
+### Starting a channel still enters, whatever the setting says
+
+The setting is about a list of rooms that already exist, where a tap is as
+likely to be curiosity as intent. Opening a channel of your own *is* the
+intent, and a room you have just made and are not standing in is a strange
+thing to have produced.
+
+### A push notification already landed you outside the room
+
+Worth recording because it was a defect nobody had named. The notification-tap
+path in `App.tsx` watches the channel and sets the screen, and has never
+dispatched `ENTER` — so anybody arriving that way was looking at a channel they
+were not in, under a button offering to step them out of it. That is now the
+supported state with a Step In button in it, so the path is correct by
+accident of this work rather than by a fix of its own.
+
+### The preference is a phone setting, and there is a gap at launch
+
+`thefloor.tapToStepIn` sits beside the appearance preference in SecureStore,
+for the same reason: it is about how this device behaves under a thumb, and two
+phones signed in as you may reasonably disagree. Stored as `'true'`/`'false'`
+and read as *anything that is not `'false'` is on*, so a missing key, a key
+from an older build and a value nobody recognises all give the behaviour every
+build before this one had.
+
+It is read in an effect, so for the first frames of a cold launch the default
+is in force whatever is stored — the same gap appearance has, where it costs a
+flash of the wrong palette. Here it costs a tap in the first instant of a cold
+start entering a channel somebody meant only to open. Neither is worth blocking
+the first screen on a keychain read, and the recovery from this one is a tap on
+Step Out.

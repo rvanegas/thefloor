@@ -122,6 +122,13 @@ const mockApp = {
   setAppearance: jest.fn((preference: 'light' | 'dark' | 'system') => {
     mockApp.appearance = preference;
   }),
+  // On, which is what an install that has never opened Settings has, and what
+  // every build before the setting existed did. The tests about stepping in
+  // being deliberate are the only ones that turn it off.
+  tapToStepIn: true,
+  setTapToStepIn: jest.fn((value: boolean) => {
+    mockApp.tapToStepIn = value;
+  }),
 };
 
 // The views are rendered without a native audio stack: @livekit/react-native
@@ -294,6 +301,7 @@ beforeEach(() => {
   mockApp.status = 'open';
   mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
+  mockApp.tapToStepIn = true;
   mockApp.debug = false;
   uploads.length = 0;
   jest.clearAllMocks();
@@ -928,6 +936,70 @@ describe('Channel', () => {
     expect(text).toContain('Dana Chu');
     expect(text).toContain('Nobody has the floor');
     expect(text).toContain('Claim the floor');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The screen somebody lands on with "Tap a channel to step in" turned off.
+   *
+   * Watching has never been being there — the server has always drawn that
+   * line, and every `can…` in core asks about the room rather than the roster
+   * — so what is new here is only that the app can now be on this side of it.
+   * What the screen must not do is describe a microphone nobody opened.
+   */
+  it('offers a way in, and no microphone, to somebody who has not stepped in', () => {
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW))
+    );
+    const onExit = jest.fn();
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={onExit}
+      />);
+
+    const text = textOf(tree);
+    expect(text).toContain('Step In');
+    expect(text).toContain('Nobody can hear you');
+    expect(text).not.toContain('Your microphone');
+    expect(findButton(tree, 'Step out')).toBeUndefined();
+    expect(findButton(tree, 'Mute yourself')).toBeUndefined();
+    // The floor is somebody else's business until you are in the room, and the
+    // hint says which of the several reasons this is.
+    expect(text).toContain('Step in to claim the floor');
+    expect(findButton(tree, 'Claim the floor')!.props.accessibilityState)
+      .toEqual({ disabled: true });
+
+    // Stepping in stays put: you are already looking at the channel, and the
+    // screen fills in around the tap rather than closing and reopening.
+    act(() => findButton(tree, 'Step in')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'ENTER' });
+    expect(onExit).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Answering needs presence — `canAnswerKnock` — so offering the door to
+   * somebody who has stepped out would be two buttons the reducer refuses.
+   * Whoever is actually in the channel is being asked the same question.
+   */
+  it('does not offer the door to somebody who is not in the room', () => {
+    showChannel(
+      channelOf((c) => ({
+        ...reduce(c, { type: 'STEP_OUT', userId: ME }, NOW),
+        knocks: [{ id: 'knock_1', name: 'Sam', at: NOW }],
+      }))
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    expect(textOf(tree)).not.toContain('is at the door');
+    expect(findButton(tree, 'Let them in')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -2769,6 +2841,69 @@ describe('tapping a row', () => {
   });
 
   /**
+   * The other half of "Tap a channel to step in", which is off here.
+   *
+   * The channel opens and nothing is dispatched: no ENTER, so nobody is told
+   * you have arrived and the microphone is never asked for. The screen that
+   * opens is the one with a Step In button on it — see the channel tests.
+   */
+  it('opens a channel without entering it when stepping in is deliberate', () => {
+    const onEnterChannel = jest.fn();
+    mockApp.tapToStepIn = false;
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name: 'Thursday rehearsal',
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 1,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView {...homeNav} onEnterChannel={onEnterChannel} />
+    );
+
+    act(() => pressableFor(tree, 'Thursday rehearsal').props.onPress());
+    expect(mockApp.act).not.toHaveBeenCalled();
+    expect(onEnterChannel).toHaveBeenCalledWith('sess_b');
+    act(() => tree.unmount());
+  });
+
+  /** What the row promises has to be what the tap does. */
+  it('says the tap opens rather than joins when it does not step in', () => {
+    mockApp.tapToStepIn = false;
+    mockApp.home = {
+      invites: [
+        {
+          channelId: 'sess_i',
+          name: null,
+          from: { id: THEM, displayName: 'Dana Chu' },
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 1,
+          createdAt: NOW,
+        },
+      ],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+
+    expect(textOf(tree)).toContain('Dana Chu is waiting');
+    expect(textOf(tree)).not.toContain('tap to join');
+    expect(pressableFor(tree, 'Dana Chu').props.accessibilityLabel).toContain(
+      'Open.'
+    );
+    act(() => tree.unmount());
+  });
+
+  /**
    * Starting a channel asks nobody anything. It used to arm a selection mode
    * over the contact list, which was a form to fill in before the first
    * channel could exist and which was hidden until you had two contacts —
@@ -3113,6 +3248,54 @@ describe('being alone in a channel', () => {
     );
     expect(textOf(tree)).toContain('Muted by you.');
     expect(textOf(tree)).not.toContain('Closed until somebody else is here');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * Whether a tap on a channel arrives or only looks.
+ *
+ * The setting itself is a phone preference held in the provider; what this
+ * screen owes is the two choices, a mark on the one in force, and reporting a
+ * change upward. What the choice *does* is asserted on Home and in the
+ * channel, which are the two screens it changes.
+ */
+describe('the stepping-in setting', () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  it('offers both answers and says what each means', async () => {
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain('Tap a channel to step in');
+    expect(findButton(tree, 'On')).toBeDefined();
+    expect(findButton(tree, 'Off')).toBeDefined();
+    expect(textOf(tree)).toContain('everyone there can hear you');
+    act(() => tree.unmount());
+  });
+
+  it('reports a change rather than keeping it', async () => {
+    const tree = await openSettings();
+    act(() => findButton(tree, 'Off')!.props.onPress());
+    expect(mockApp.setTapToStepIn).toHaveBeenCalledWith(false);
+    act(() => tree.unmount());
+  });
+
+  it('marks which one is in force', async () => {
+    mockApp.tapToStepIn = false;
+    const tree = await openSettings();
+    // Button's style is a function of press state, not an array.
+    const styleOf = (label: string) =>
+      StyleSheet.flatten(
+        findButton(tree, label)!.props.style({ pressed: false })
+      ) as { backgroundColor?: unknown };
+    expect(styleOf('Off').backgroundColor).not.toBe(
+      styleOf('On').backgroundColor
+    );
     act(() => tree.unmount());
   });
 });

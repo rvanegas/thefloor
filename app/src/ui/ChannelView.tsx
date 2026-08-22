@@ -258,6 +258,20 @@ export function ChannelView({
 
   const act = (action: Parameters<typeof app.act>[1]) => app.act(channelId, action);
 
+  /**
+   * Whether you are in the room, as opposed to looking at it.
+   *
+   * The two were the same thing until "Tap a channel to step in" could be
+   * turned off: every route to this screen entered first, so presence was
+   * something the screen could assume. It cannot now, and this is what the
+   * difference is drawn from — the microphone card, the door, and whether the
+   * card under them offers a way in or a way out.
+   *
+   * Every other control is already guarded by a `can…` from core, each of
+   * which asks about the room rather than the roster, so they disable
+   * themselves without being told about this.
+   */
+  const iAmPresent = isPresent(channel, me);
   const iHoldFloor = channel.floor.holder === me;
   const theyHoldFloor = channel.floor.holder !== null && !iHoldFloor;
   const holderName = nameOf(channel.floor.holder);
@@ -422,7 +436,14 @@ export function ChannelView({
             than a channel with nobody at the door. Same reasoning as
             core/guests.ts.
           */}
-          {(channel.knocks ?? []).map((knock) => (
+          {/*
+            And nothing at the door when you are not in the room. Answering
+            needs presence — `canAnswerKnock` — so a card offered here would be
+            two buttons the reducer refuses, which is the one shape this
+            codebase does not allow a control to have. Somebody else who is
+            actually in the channel is being asked the same question.
+          */}
+          {(iAmPresent ? (channel.knocks ?? []) : []).map((knock) => (
             <Card key={knock.id} style={styles.stack}>
               <Text style={type.body}>
                 <Text style={type.heading}>{knock.name}</Text> is at the door
@@ -474,56 +495,67 @@ export function ChannelView({
           ) : null}
         </View>
 
-        <SectionLabel>Your microphone</SectionLabel>
-        <Card style={styles.stack}>
-          <Button
-            label={iAmSelfMuted ? 'Unmute yourself' : 'Mute yourself'}
-            // Holding the floor is holding it open to speak. The reducer
-            // refuses the mute either way; disabling the control is what stops
-            // the two disagreeing on screen.
-            disabled={!canSetSelfMute(channel, me, !iAmSelfMuted)}
-            onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
-          />
-          <Text style={type.muted}>
-            {iAmSilenced
-              ? `Silenced by ${holderName}'s floor claim.`
-              : iHoldFloor
-                ? 'Open while you hold the floor — release it to mute yourself.'
-                : iAmSelfMuted
-                  ? 'Muted by you. This is separate from the floor and costs you nothing.'
-                  : audio.micOpen
-                    ? 'Open. Self-mute never affects floor eligibility.'
-                    : // Closed because nobody is here to hear it, which is
-                      // worth saying: a microphone the screen calls open and is
-                      // not is exactly the kind of silence this codebase keeps
-                      // apologising for elsewhere.
-                      'Closed until somebody else is here — so your other apps keep the speakers.'}
-          </Text>
-          {recordingLive && iAmSilenced ? (
-            // Being unheard is not the same as being unrecorded, and it would
-            // be easy to assume otherwise. Say it plainly rather than let
-            // someone speak freely on that assumption.
-            <Text style={styles.warning}>
-              You are still being recorded. Nobody can hear you, but your
-              microphone is captured; it is left out of the exported recording,
-              not out of the capture.
-            </Text>
-          ) : null}
-          <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
-          {/*
-            Shown only to an account with the `debug` column set, which is
-            nobody by default — see server/src/db.ts. Under the microphone
-            because that is the control whose effects it explains, and the
-            place the panel it replaces lived.
+        {/*
+          Nothing here is true of somebody who has not stepped in: the
+          microphone is not open, muting it changes nothing anybody can hear,
+          and the session this describes has not been asked for. So the card is
+          absent rather than disabled, and the one below it — which is the way
+          in — carries the sentence that would have gone here.
+        */}
+        {iAmPresent ? (
+          <>
+            <SectionLabel>Your microphone</SectionLabel>
+            <Card style={styles.stack}>
+              <Button
+                label={iAmSelfMuted ? 'Unmute yourself' : 'Mute yourself'}
+                // Holding the floor is holding it open to speak. The reducer
+                // refuses the mute either way; disabling the control is what stops
+                // the two disagreeing on screen.
+                disabled={!canSetSelfMute(channel, me, !iAmSelfMuted)}
+                onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
+              />
+              <Text style={type.muted}>
+                {iAmSilenced
+                  ? `Silenced by ${holderName}'s floor claim.`
+                  : iHoldFloor
+                    ? 'Open while you hold the floor — release it to mute yourself.'
+                    : iAmSelfMuted
+                      ? 'Muted by you. This is separate from the floor and costs you nothing.'
+                      : audio.micOpen
+                        ? 'Open. Self-mute never affects floor eligibility.'
+                        : // Closed because nobody is here to hear it, which is
+                          // worth saying: a microphone the screen calls open and is
+                          // not is exactly the kind of silence this codebase keeps
+                          // apologising for elsewhere.
+                          'Closed until somebody else is here — so your other apps keep the speakers.'}
+              </Text>
+              {recordingLive && iAmSilenced ? (
+                // Being unheard is not the same as being unrecorded, and it would
+                // be easy to assume otherwise. Say it plainly rather than let
+                // someone speak freely on that assumption.
+                <Text style={styles.warning}>
+                  You are still being recorded. Nobody can hear you, but your
+                  microphone is captured; it is left out of the exported recording,
+                  not out of the capture.
+                </Text>
+              ) : null}
+              <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
+              {/*
+                Shown only to an account with the `debug` column set, which is
+                nobody by default — see server/src/db.ts. Under the microphone
+                because that is the control whose effects it explains, and the
+                place the panel it replaces lived.
 
-            Unlike that one, this is not temporary and does not need deleting
-            before the next upload: it is invisible to every account that has
-            not been switched on, and switching one off is an `UPDATE` and a
-            reconnect. DECISIONS.md § *How the diagnostic panel comes out, and
-            what would trigger it* says who decides and names every piece.
-          */}
-          {app.debug ? <AudioDebugPanel asked={audio.asked} /> : null}
-        </Card>
+                Unlike that one, this is not temporary and does not need deleting
+                before the next upload: it is invisible to every account that has
+                not been switched on, and switching one off is an `UPDATE` and a
+                reconnect. DECISIONS.md § *How the diagnostic panel comes out, and
+                what would trigger it* says who decides and names every piece.
+              */}
+              {app.debug ? <AudioDebugPanel asked={audio.asked} /> : null}
+            </Card>
+          </>
+        ) : null}
 
         {/*
           Stepping out is the ordinary way to finish talking, so it is the only
@@ -541,17 +573,42 @@ export function ChannelView({
           already knowing what it does, so the sublabel that used to describe
           it is gone. The heading and the card stay, every other control on
           this screen sitting in one.
+
+          The same card says Step In to somebody who is not in the room, which
+          is reachable only with "Tap a channel to step in" turned off in Home
+          settings — the setting that opens a channel without arriving in it.
+          Stepping in from here does not navigate: you are already looking at
+          the channel, and what changes is that the others can hear you and the
+          screen fills in around this card — the microphone above, the door,
+          the floor — which is a better answer than a screen that closes and
+          reopens on the same channel.
         */}
-        <SectionLabel>Step Out</SectionLabel>
+        <SectionLabel>{iAmPresent ? 'Step Out' : 'Step In'}</SectionLabel>
         <Card style={styles.stack}>
-          <Button
-            label="Step out"
-            onPress={() => {
-              act({ type: 'STEP_OUT' });
-              app.leaveChannelView(channelId);
-              onExit();
-            }}
-          />
+          {iAmPresent ? (
+            <Button
+              label="Step out"
+              onPress={() => {
+                act({ type: 'STEP_OUT' });
+                app.leaveChannelView(channelId);
+                onExit();
+              }}
+            />
+          ) : (
+            <>
+              {/* The loud thing on a screen you are not in yet, which is the
+                  one thing here somebody came to decide. */}
+              <Button
+                label="Step in"
+                variant="primary"
+                onPress={() => act({ type: 'ENTER' })}
+              />
+              <Text style={type.muted}>
+                You are looking at this channel without being in it. Nobody can
+                hear you, and your microphone stays closed until you step in.
+              </Text>
+            </>
+          )}
         </Card>
 
         <SectionLabel>The floor</SectionLabel>
@@ -584,13 +641,15 @@ export function ChannelView({
                 ? others.length === 1
                   ? `${others[0].displayName} is muted until you release, up to three minutes.`
                   : 'Everyone else is muted until you release, up to three minutes.'
-                : theyHoldFloor
-                  ? 'You cannot claim the floor while you are silenced.'
-                  : cooldown !== null
-                    ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
-                    : !atLeastTwoPresent(channel)
-                      ? 'The floor becomes available once at least two people are present.'
-                      : 'Speak uninterrupted for up to three minutes.'}
+                : !iAmPresent
+                  ? 'Step in to claim the floor.'
+                  : theyHoldFloor
+                    ? 'You cannot claim the floor while you are silenced.'
+                    : cooldown !== null
+                      ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
+                      : !atLeastTwoPresent(channel)
+                        ? 'The floor becomes available once at least two people are present.'
+                        : 'Speak uninterrupted for up to three minutes.'}
             </Text>
           )}
 
