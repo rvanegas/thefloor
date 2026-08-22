@@ -1191,3 +1191,59 @@ next reads the file.
 
 An installed app already showing the stuck dot keeps showing it until it
 reconnects; there is nothing on the wire to correct it with.
+
+## A granted microphone is not a working one, inside somebody else's browser — 2026-08-22
+
+A guest followed a link from inside Telegram on iOS. Telegram's own browser
+took the page, prompted for the microphone, was granted it, and the channel
+heard nothing. The same link in Chrome on the same phone was fine, which is
+what made it findable at all.
+
+**Every in-app browser on iOS is a `WKWebView` owned by the host app, and the
+host app owns the audio session with it.** So the sequence that produces
+silence has no failure in it anywhere: `getUserMedia` resolves, the track is
+live and unmuted, `publishTrack` succeeds, the SFU forwards, and what arrives
+at the other end is digital silence. Apple's developer forums carry the same
+shape of report against several host apps and several iOS versions — a
+background transition muting `microphoneCaptureState`, CallKit taking exclusive
+ownership of the microphone in a different process from the renderer, a
+`mediaTypesRequiringUserActionForPlayback` that the embedder has to clear.
+**Every fix in them is a change to the embedding app.** None of them is
+available to a page.
+
+So the page cannot fix this, and the decision is what it should do instead.
+Three things, and the order matters:
+
+- **Say so at the door.** `embeddedBrowser()` tests by exclusion, because the
+  interesting browsers do not identify themselves: a WebKit page on iOS
+  carrying neither Safari's `Version/… Safari` nor another browser's token
+  (`CriOS`, `FxiOS`, …) is inside something. Named checks for `FBAN`,
+  `Instagram`, `Telegram` and the rest go in front and cost nothing;
+  `navigator.standalone` is excluded, since a page added to the home screen has
+  no Safari token either and is not embedded. The notice is at the door rather
+  than in the room **because the cure is to open the link elsewhere, and doing
+  that after knocking costs the seat** — the seat is in `sessionStorage`, so
+  another browser is another knock.
+- **Then listen to the microphone, since the warning may be wrong in both
+  directions.** An `AnalyserNode` on the published track, sampled four times a
+  second, connected to nothing downstream — connecting it to the destination is
+  how you build an echo. Eight seconds of samples below −54 dBFS raises a
+  notice. Suspended contexts and muted tracks are not counted rather than
+  counted as quiet, which is what stops a held floor or a self-mute reading as
+  a broken device.
+- **Offer a retry from a tap.** The `speech` message arrives on a socket,
+  seconds after anybody touched anything, so the `getUserMedia` behind it has
+  no gesture and a browser is entitled to treat it as untrusted. That is a
+  second, independent reason for a dead microphone, and it is one a button
+  actually fixes.
+
+**The notice is worded as an observation and not a verdict** — "nothing is
+coming from your microphone", not "your microphone is broken" — because
+somebody sitting quietly in a quiet room with noise suppression on reads the
+same way, and a page that calls a working device broken teaches people to
+ignore it.
+
+The general form is the one already learned from `attach()` earlier the same
+day: **on the web, every step of the audio path can succeed and still produce
+no sound**, and the native client has no equivalent of any of them. There is no
+analogy to reason from. The only reliable check is to listen to what came out.

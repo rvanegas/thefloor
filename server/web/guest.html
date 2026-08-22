@@ -74,7 +74,9 @@
       }
       #notice,
       #recording,
-      #silenced {
+      #silenced,
+      #mic-trouble,
+      #embedded {
         border: 1px solid var(--line);
         border-radius: 0.6rem;
         padding: 0.6rem 0.8rem;
@@ -115,6 +117,29 @@
         you a link to a conversation of theirs.
       </p>
       <p class="muted" id="door-note"></p>
+
+      <!--
+        Shown only inside an app's own browser — Telegram's, Instagram's, any
+        of them. Listening works there; speaking often does not, and there is
+        nothing this page can do about it. Said at the door because the cure is
+        to open the link somewhere else, and doing that after knocking costs
+        the seat. See `embeddedBrowser` in guest.ts.
+      -->
+      <div id="embedded" hidden>
+        <p>
+          <strong>You are in an app's built-in browser.</strong> You can listen
+          here, but on iOS these browsers often hand this page a microphone
+          that produces silence — everyone hears nothing and nothing says so.
+        </p>
+        <p class="muted">
+          Open this link in Safari or Chrome instead: the menu at the top or
+          bottom of this window has <em>Open in Safari</em> or <em>Open in
+          browser</em>. If you cannot find it, copy the link and paste it into
+          a browser yourself.
+        </p>
+        <button id="copy-link-button" type="button">Copy the link</button>
+      </div>
+
       <form id="knock-form">
         <label for="name-field">What should they call you?</label>
         <input id="name-field" maxlength="40" autocomplete="off" placeholder="Leave blank to stay anonymous" />
@@ -153,6 +178,13 @@
       </p>
 
       <p id="mic-state"></p>
+      <p id="mic-trouble" hidden>
+        <strong>Nothing is coming from your microphone.</strong> If you have
+        been talking, this page is not getting it — which is what an app's
+        built-in browser usually does on iOS. Try again, and if that is silent
+        too, open this link in Safari or Chrome.
+        <button id="mic-retry-button" type="button">Try the microphone again</button>
+      </p>
       <button id="ask-button" hidden>Ask to speak</button>
       <button id="mute-button" hidden>Mute</button>
       <button id="floor-button">Take the floor</button>

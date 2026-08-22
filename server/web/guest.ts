@@ -139,6 +139,7 @@ async function joinAudio(url: string, token: string): Promise<void> {
 
   room.on(RoomEvent.Disconnected, () => {
     sink.textContent = '';
+    stopWatching();
     room = null;
     microphone = null;
   });
@@ -187,6 +188,7 @@ async function setMicrophone(open: boolean): Promise<void> {
     try {
       microphone = await createLocalAudioTrack();
       await room.localParticipant.publishTrack(microphone);
+      watchCapture(microphone);
     } catch (error) {
       microphone = null;
       say(
@@ -196,6 +198,8 @@ async function setMicrophone(open: boolean): Promise<void> {
     }
   }
   if (!open && microphone) {
+    stopWatching();
+    $('mic-trouble').hidden = true;
     await room.localParticipant.unpublishTrack(microphone, true);
     microphone.stop();
     microphone = null;
@@ -207,6 +211,110 @@ async function setMuted(muted: boolean): Promise<void> {
   if (!microphone) return;
   if (muted) await microphone.mute();
   else await microphone.unmute();
+}
+
+// --- Is anything actually coming out of the microphone ---------------------
+
+/**
+ * Whether this page is inside an app's own browser rather than a browser.
+ *
+ * It matters because **a microphone that is granted is not a microphone that
+ * works**. On iOS every in-app browser is a `WKWebView` owned by the host app,
+ * and the host app owns the audio session with it: Telegram, Instagram and the
+ * rest prompt for the microphone, grant it, hand this page a live track, and
+ * deliver silence down it. Nothing in the WebRTC API reports that — the track
+ * is live and unmuted, the SFU forwards the packets, and the channel hears
+ * nothing. Found on 2026-08-22 by somebody following a link inside Telegram;
+ * the same link in Chrome on the same phone was fine. Apple's forums carry the
+ * same shape of report against several host apps and several iOS versions, and
+ * every fix in them is a change to the *embedding app*, which is not us.
+ *
+ * The test is by exclusion, because in-app browsers are not obliged to
+ * identify themselves and the interesting one does not. A real iOS browser
+ * always announces itself — Safari with `Version/… Safari`, everything else
+ * with its own token — so a WebKit page on iOS carrying neither is inside
+ * something. The named checks in front are for the platforms where the host
+ * app does say, and cost nothing.
+ */
+function embeddedBrowser(): boolean {
+  const ua = navigator.userAgent;
+  if (/FBAN|FBAV|Instagram|Line\/|MicroMessenger|Telegram/i.test(ua)) return true;
+  if ('TelegramWebviewProxy' in window) return true;
+
+  const ios =
+    /iPhone|iPad|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (!ios) return false;
+  // Added to the home screen is not embedded, and has no Safari token either.
+  if ((navigator as { standalone?: boolean }).standalone) return false;
+  return !/CriOS|FxiOS|EdgiOS|OPiOS|Version\/[\d.]+.*Safari/.test(ua);
+}
+
+/**
+ * Watches what the published track is carrying, and says so when it is
+ * nothing.
+ *
+ * The point is the failure above: there is no event for a microphone that
+ * yields silence, so the only way to know is to listen to it. The analyser is
+ * connected to nothing downstream — connecting it to the destination is how
+ * you build an echo — and the samples never leave this function.
+ *
+ * It is deliberately a question and not a verdict. Somebody in a quiet room
+ * with noise suppression on can read as silent too, so the notice says what
+ * was observed and offers the two things that might help, rather than
+ * announcing that their microphone is broken.
+ */
+const SILENCE = 0.002;
+/** Eight seconds of samples that were actually being taken. */
+const PATIENCE = 32;
+
+let meter: { context: AudioContext; timer: ReturnType<typeof setInterval> } | null = null;
+
+function watchCapture(track: LocalAudioTrack): void {
+  stopWatching();
+  const Ctor =
+    window.AudioContext ??
+    (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctor) return;
+
+  const context = new Ctor();
+  void context.resume();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 512;
+  context
+    .createMediaStreamSource(new MediaStream([track.mediaStreamTrack]))
+    .connect(analyser);
+
+  const samples = new Float32Array(analyser.fftSize);
+  let silent = 0;
+  const timer = setInterval(() => {
+    // A suspended context and a muted track are both silence that means
+    // nothing, so they are not counted rather than being counted as quiet.
+    if (context.state !== 'running' || track.isMuted) return;
+    analyser.getFloatTimeDomainData(samples);
+    let peak = 0;
+    for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
+    if (peak > SILENCE) {
+      // Heard something, so the question is settled for this microphone.
+      $('mic-trouble').hidden = true;
+      stopWatching();
+      return;
+    }
+    silent += 1;
+    if (silent >= PATIENCE) {
+      $('mic-trouble').hidden = false;
+      stopWatching();
+    }
+  }, 250);
+
+  meter = { context, timer };
+}
+
+function stopWatching(): void {
+  if (!meter) return;
+  clearInterval(meter.timer);
+  void meter.context.close();
+  meter = null;
 }
 
 // --- The socket ------------------------------------------------------------
@@ -397,6 +505,31 @@ $('unmute-page').addEventListener('click', () => {
   void allowPlayback();
 });
 
+$('copy-link-button').addEventListener('click', () => {
+  void navigator.clipboard
+    .writeText(location.href)
+    .then(() => say('Link copied. Paste it into Safari or Chrome.'))
+    .catch(() => say('This browser would not let the page copy the link.'));
+});
+
+/**
+ * A second attempt at the microphone, from a tap.
+ *
+ * Which is the other thing it might be: a page that asked for a microphone
+ * without a gesture behind it. The server's `speech` message arrives on a
+ * socket, seconds after anybody touched anything, and a browser is entitled to
+ * treat that as untrusted. So the retry is worth having even where the host
+ * app is not at fault, and it costs a tap.
+ */
+$('mic-retry-button').addEventListener('click', () => {
+  $('mic-trouble').hidden = true;
+  void (async () => {
+    await setMicrophone(false);
+    await setMicrophone(true);
+    if (view?.you.mic === 'muted') await setMuted(true);
+  })();
+});
+
 $('ask-button').addEventListener('click', () => act({ type: 'REQUEST_SPEECH' }));
 
 $('mute-button').addEventListener('click', () => {
@@ -427,5 +560,7 @@ $('paste-button').addEventListener('click', async () => {
     say('Your browser would not let this page read the clipboard.');
   }
 });
+
+$('embedded').hidden = !embeddedBrowser();
 
 connect();
