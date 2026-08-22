@@ -110,7 +110,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 633 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 623 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -345,33 +345,23 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-22, `d2d0ec3` → `24a3920`, carrying anonymous web
-access whole: a person with no account opens a link, knocks, and is let in by
-somebody already in the channel. **This is the first deploy that serves a page
-to a browser** — `/g/<token>` and one bundle under `/g/assets/`, built by
-`bin/deploy` before the rsync because the install on the box is `--omit=dev`
-and `livekit-client` is a browser dependency.
+Most recently on 2026-08-22, `24a3920` → `8ef2615`, carrying the two defects
+the first real guest link found. **The interesting one is that subscribing is
+not hearing**: `livekit-client` subscribes to remote tracks by itself and hands
+each one to the application, and until something appends `attach()`'s element
+to the document nothing plays. The guest heard silence while every signal the
+other end could see said it was working, and the member could hear *them*
+perfectly. There is no equivalent step in the native client, so nothing about
+this was noticeable by analogy — it is a browser fact, and it is now written
+beside the code that does it. `startAudio()` and the autoplay button went in
+with it.
 
-**The wire moved and the app has not shipped**, which is the ordering the rule
-below requires: `ChannelState` grows `guests` and `knocks`, no installed build
-reads either, and the app half that does is on `master` waiting for a build.
-The floor is unchanged at `build/51`.
+The wire did not move and the app is untouched by this deploy; the knock haptic
+that shipped in the same commit reaches nobody until a build carries it.
 
-The deploy failed once before it ran, and usefully: the guest bundle would not
-build, because `server/node_modules` in this checkout predated the two new
-dependencies. It stopped before the rsync, which is what the build step being
-unconditional and *first* is for.
-
-Verified against production afterwards: `/healthz` reporting `24a3920` and
-`minBuild: 51`; `/g/probe` serving the page with `data-link="probe"` in it;
-`/g/assets/guest.js` serving 534kB as `text/javascript`; `/g/assets/..%2F..%2F`
-answering 404; and a websocket upgrade to `/gws?link=nope` — over HTTP/1.1,
-since Caddy speaks h2 by default and an upgrade there is not the same thing —
-returning 101 and then the refusal, in words, before closing 4401.
-
-**Nobody has yet been heard through it.** Everything above is the door
-answering; the first time guest audio actually flows will be somebody opening a
-real link, and there is no test in this repository that can stand in for that.
+Verified against production afterwards: `/healthz` on `8ef2615`; the served
+bundle containing `startAudio` and the page containing both `audio-sink` and
+`unmute-page`, which is as close as anything here gets to testing that file.
 
 Read `/healthz` before assuming this section is current. It was a day stale here
 once already, and that is how it will fail again.

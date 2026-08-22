@@ -74,6 +74,36 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-22 — `d2d0ec3` → `24a3920`
+
+Most recently on 2026-08-22, `d2d0ec3` → `24a3920`, carrying anonymous web
+access whole: a person with no account opens a link, knocks, and is let in by
+somebody already in the channel. **This is the first deploy that serves a page
+to a browser** — `/g/<token>` and one bundle under `/g/assets/`, built by
+`bin/deploy` before the rsync because the install on the box is `--omit=dev`
+and `livekit-client` is a browser dependency.
+
+**The wire moved and the app has not shipped**, which is the ordering the rule
+below requires: `ChannelState` grows `guests` and `knocks`, no installed build
+reads either, and the app half that does is on `master` waiting for a build.
+The floor is unchanged at `build/51`.
+
+The deploy failed once before it ran, and usefully: the guest bundle would not
+build, because `server/node_modules` in this checkout predated the two new
+dependencies. It stopped before the rsync, which is what the build step being
+unconditional and *first* is for.
+
+Verified against production afterwards: `/healthz` reporting `24a3920` and
+`minBuild: 51`; `/g/probe` serving the page with `data-link="probe"` in it;
+`/g/assets/guest.js` serving 534kB as `text/javascript`; `/g/assets/..%2F..%2F`
+answering 404; and a websocket upgrade to `/gws?link=nope` — over HTTP/1.1,
+since Caddy speaks h2 by default and an upgrade there is not the same thing —
+returning 101 and then the refusal, in words, before closing 4401.
+
+**Nobody has yet been heard through it.** Everything above is the door
+answering; the first time guest audio actually flows will be somebody opening a
+real link, and there is no test in this repository that can stand in for that.
+
 ### 2026-08-21 — `46dd476` → `bf9ca6e`
 
 Most recently on 2026-08-21, `46dd476` → `bf9ca6e`, carrying one change: the
