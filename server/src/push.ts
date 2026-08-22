@@ -36,6 +36,27 @@ export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;
 export const PARTICIPATION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
+ * The stack that somebody asking for you lands in.
+ *
+ * Shared by `started`, `invited` and `pinged` across every channel, which is
+ * the seam this app turned out to want and is not the one the rest of this
+ * file is organised around: those three are the ones where **a person did
+ * something aimed at you** — opened a channel with you, added you to one,
+ * called you into one. `arrived` is the only one that is merely the room
+ * reporting its own state, and it keeps a stack per channel.
+ *
+ * So a phone shows at most two kinds of pile: somebody wants you, and this
+ * room is busy. Reading a lock screen becomes one question rather than one per
+ * channel.
+ *
+ * Not a channel id, deliberately, and it is worth saying why the cross-channel
+ * mixing is the point rather than the cost. Being asked for is about the
+ * asking; which room it was in is what you find out by tapping. A pile per
+ * channel would answer "where" first and "is anybody asking" not at all.
+ */
+export const ASKING_THREAD = 'asking-for-you';
+
+/**
  * Delivery of notifications to a device whose app is not running.
  *
  * Kept behind an interface for the same reasons `Mailer` is: the transport is
@@ -93,10 +114,29 @@ export interface PushMessage {
    * A unique key is a collapse key that has been arranged never to collide,
    * which reads as an accident waiting to be tidied up; omitting the header is
    * how APNs is told, in its own vocabulary, that this notification stands on
-   * its own. They still group in Notification Center, which is `thread-id` and
-   * is unaffected.
+   * its own. Grouping is untouched by any of this and is `threadId` below —
+   * a ping stands alone *and* stacks with everything else asking for you,
+   * which is only a contradiction if the two headers are confused for one.
    */
   collapseKey: string | null;
+  /**
+   * Which stack this joins in Notification Center.
+   *
+   * **Grouping, which is not replacing**, and the two are easy to conflate
+   * because both take a string and both make a lock screen shorter. A collapse
+   * key destroys what it lands on; a thread id gathers notifications into one
+   * expandable pile and keeps every one of them. Nothing is ever lost here,
+   * which is why this one can be shared freely where `collapseKey` cannot.
+   *
+   * `ASKING_THREAD` for the three where somebody did something aimed at you,
+   * whatever channel they did it in. The channel's own id for `arrived`, which
+   * is the room talking about itself and belongs with the rest of that room.
+   *
+   * A tap still lands on the right channel either way: that comes from
+   * `channelId` in the payload, which is a different thing again from both of
+   * these.
+   */
+  threadId: string;
   /**
    * How long APNs should keep trying before discarding this undelivered.
    *
@@ -235,6 +275,7 @@ export const notifications = {
       channelId,
       // Membership, which nothing about the room may overwrite. See the field.
       collapseKey: `${channelId}:you`,
+      threadId: ASKING_THREAD,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
       reachesInApp: false,
     };
@@ -260,6 +301,7 @@ export const notifications = {
       channelId,
       // The same key `started` uses, and for the same reason.
       collapseKey: `${channelId}:you`,
+      threadId: ASKING_THREAD,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
       reachesInApp: false,
     };
@@ -283,6 +325,9 @@ export const notifications = {
       body: `${whoArrived} stepped in.`,
       channelId,
       collapseKey: channelId,
+      // The one that stacks with its own room rather than with the people
+      // asking for you, because that is what it is about.
+      threadId: channelId,
       lifetimeMs: PRESENCE_LIFETIME_MS,
       reachesInApp: false,
     };
@@ -345,6 +390,9 @@ export const notifications = {
       // here is the channel restating itself and may be overwritten by a later
       // restatement; a ping is a sentence somebody wrote. See the field.
       collapseKey: null,
+      // Stands alone, and stacks with everything else asking for you. The
+      // headers are independent; see `threadId`.
+      threadId: ASKING_THREAD,
       lifetimeMs: PRESENCE_LIFETIME_MS,
       // The only one of the four that is delivered to a phone whose app is
       // open. See the field.
@@ -492,9 +540,10 @@ export class ApnsPusher implements Pusher {
         // above it — `time-sensitive` and `critical` — pierce a Focus mode and
         // the ring switch, need entitlements, and are not this app's to claim.
         ...(alert === 'passive' ? { 'interruption-level': 'passive' } : {}),
-        // Grouping, not replacing: everything about one channel stacks
-        // together in Notification Center whatever its collapse key.
-        'thread-id': message.channelId,
+        // Grouping, not replacing, and chosen per kind: the three that mean
+        // somebody is asking for you share one stack across every channel,
+        // and an arrival stacks with its own room. See `threadId`.
+        'thread-id': message.threadId,
       },
       channelId: message.channelId,
       // Read by the app to decide whether to show a banner over itself. Sent

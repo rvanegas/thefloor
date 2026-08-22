@@ -60,7 +60,7 @@ jest.mock('node:http2', () => {
 
 // `jest.mock` is hoisted above this, so the module under test is built
 // against the stub session rather than a real connection to Apple.
-import { ApnsPusher, notifications } from '../src/push';
+import { ApnsPusher, ASKING_THREAD, notifications } from '../src/push';
 
 const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
 
@@ -109,15 +109,28 @@ describe('what a notification asks APNs to replace', () => {
   });
 
   /**
-   * Grouping and replacing are different things, and losing the first would be
-   * the obvious over-correction for the second: pings should still gather under
-   * their channel in Notification Center rather than scattering through it.
+   * Grouping and replacing are different things, and this is where that stops
+   * being a remark about vocabulary: one notification asks APNs to destroy
+   * nothing and to join a pile, in the same request, through two headers that
+   * do not know about each other.
    */
-  it('still threads a ping under its channel', async () => {
+  it('sends a ping with no collapse header and a thread all the same', async () => {
     await pusher().send(
       ['token'],
       notifications.pinged('Standup', 'Alice', null, 'chan_1'),
       'audible'
+    );
+
+    expect('apns-collapse-id' in requests[0].headers).toBe(false);
+    const aps = requests[0].payload.aps as { 'thread-id': string };
+    expect(aps['thread-id']).toBe(ASKING_THREAD);
+  });
+
+  it('threads an arrival under its own room', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
+      'silent'
     );
 
     const aps = requests[0].payload.aps as { 'thread-id': string };

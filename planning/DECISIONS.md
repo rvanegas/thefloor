@@ -1653,3 +1653,29 @@ distinction is the same one that stops a ping collapsing.
 
 The battery argument survives where it was actually made — about presence
 noise, which is where the volume is.
+
+## Two stacks, not one per channel — 2026-08-22
+
+`thread-id` gathers notifications into one expandable pile and keeps every one
+of them; a collapse key destroys what it lands on. The two take the same kind
+of argument, both make a lock screen shorter, and confusing them is how an
+afternoon of work protecting the words in a ping would be undone by somebody
+"tidying up the duplication".
+
+The piles are now drawn on a seam this file had not named. `started`, `invited`
+and `pinged` share `ASKING_THREAD` across every channel: those are the three
+where **a person did something aimed at you** — opened a channel with you,
+added you to one, called you into one. `arrived` is the only one that is merely
+a room reporting its own state, and it keeps a stack per channel.
+
+So a phone shows at most two kinds of pile: somebody wants you, and this room
+is busy. A lock screen answers "is anybody asking for me" in one place instead
+of once per channel — which is the question people actually have, and the
+reason the cross-channel mixing is the point rather than the price. Which room
+it was is what tapping is for, and the tap still lands correctly because that
+comes from `channelId` in the payload, which is a third thing again.
+
+**A ping stands alone and stacks, at once.** It sends no collapse header and it
+joins the pile, which is only a contradiction if the two headers are read as
+one. There is a test that says exactly this, because it is the sentence a
+future reader will not believe.

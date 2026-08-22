@@ -4,6 +4,7 @@ import { buildApp, type App } from '../src/app';
 import { ANNOUNCE_INTERVAL_MS, PING_INTERVAL_MS } from '../src/channels';
 import { MAX_PING_TEXT_LENGTH } from '../../core/constants';
 import {
+  ASKING_THREAD,
   isDeadToken,
   MemoryPusher,
   mintProviderToken,
@@ -211,6 +212,7 @@ describe('an invite', () => {
         body: 'Started a channel with you.',
         channelId,
         collapseKey: `${channelId}:you`,
+        threadId: ASKING_THREAD,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
         reachesInApp: false,
       },
@@ -239,6 +241,7 @@ describe('an invite', () => {
         body: 'Started a channel with you.',
         channelId: standing.channelId,
         collapseKey: `${standing.channelId}:you`,
+        threadId: ASKING_THREAD,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
         reachesInApp: false,
       },
@@ -272,6 +275,7 @@ describe('an invite', () => {
         body: 'Alice stepped in.',
         channelId: id,
         collapseKey: id,
+        threadId: id,
         lifetimeMs: PRESENCE_LIFETIME_MS,
         reachesInApp: false,
       },
@@ -317,8 +321,9 @@ describe('an invite', () => {
           body: 'Started a channel with you.',
           channelId,
           collapseKey: `${channelId}:you`,
+          threadId: ASKING_THREAD,
           lifetimeMs: PARTICIPATION_LIFETIME_MS,
-            reachesInApp: false,
+          reachesInApp: false,
         },
       ]);
     }
@@ -384,6 +389,7 @@ describe('a channel becoming active', () => {
         body: 'Alice stepped in.',
         channelId,
         collapseKey: channelId,
+        threadId: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
         reachesInApp: false,
       },
@@ -744,6 +750,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         body: 'Alice stepped in.',
         channelId,
         collapseKey: channelId,
+        threadId: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
         reachesInApp: false,
       },
@@ -768,6 +775,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         body: 'Alice stepped in.',
         channelId,
         collapseKey: channelId,
+        threadId: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
         reachesInApp: false,
       },
@@ -821,6 +829,7 @@ describe('a ping', () => {
         // Nothing. Every ping carries words somebody chose, so no later one
         // is entitled to throw an earlier one away.
         collapseKey: null,
+        threadId: ASKING_THREAD,
         lifetimeMs: PRESENCE_LIFETIME_MS,
         reachesInApp: true,
       },
@@ -1218,6 +1227,41 @@ describe('how long a notification stays worth delivering', () => {
     // The pair that shares a key is the pair that shares a lifetime.
     expect(started.lifetimeMs).toBe(invited.lifetimeMs);
     expect(arrived.lifetimeMs).not.toBe(started.lifetimeMs);
+  });
+
+  /**
+   * Grouping, which is not replacing, and the pair of rules is easier to read
+   * together than apart. Three of these mean somebody did something aimed at
+   * you and share one pile whatever channel it happened in; the fourth is a
+   * room talking about itself and stacks with that room. So a lock screen
+   * answers "is anybody asking for me" in one place rather than once per
+   * channel.
+   */
+  it('gathers the three that ask for you into one stack', () => {
+    const started = notifications.started('Alice', 'chan_1');
+    const invited = notifications.invited('Alice', 'Standup', 'chan_2');
+    const pinged = notifications.pinged('Standup', 'Alice', 'come back', 'chan_3');
+    const arrived = notifications.arrived('Standup', 'Alice', 'chan_4');
+
+    // Across three different channels, deliberately: the pile is about being
+    // asked for, and which room it was is what tapping is for.
+    expect(started.threadId).toBe(ASKING_THREAD);
+    expect(invited.threadId).toBe(ASKING_THREAD);
+    expect(pinged.threadId).toBe(ASKING_THREAD);
+    expect(arrived.threadId).toBe('chan_4');
+  });
+
+  /**
+   * The two headers are independent, and the one place that is most obviously
+   * true is the ping: it stands alone — nothing may overwrite what somebody
+   * typed — and it still joins the pile. Reading either rule as the other is
+   * how a "tidy up the duplication here" change would delete one of them.
+   */
+  it('lets a ping stand alone and stack at the same time', () => {
+    const pinged = notifications.pinged('Standup', 'Alice', 'now?', 'chan_1');
+
+    expect(pinged.collapseKey).toBeNull();
+    expect(pinged.threadId).toBe(ASKING_THREAD);
   });
 
   it('says which of the four it is, so a level can be applied to it', () => {
