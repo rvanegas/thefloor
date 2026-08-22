@@ -4270,13 +4270,14 @@ describe('copying the diagnostics', () => {
 
 describe('the channel clipboard', () => {
   /**
-   * One slot, and what is *not* on the screen is as much the point as what is.
+   * One slot, and how much of it is on screen is as much the point as what is.
    *
-   * The content never appears: a channel screen is read over shoulders and
-   * left face-up, and the things people reach for a clipboard to move are
-   * often the things they would rather not leave on display. So these assert
-   * the pasted text is absent from the rendered tree, which is the kind of
-   * property a later "just show a preview" would quietly break.
+   * The preview shows never more than fits on one line — so a short paste
+   * appears whole and a long one is truncated. The bound is the line rather
+   * than any notion of withholding: it keeps the card from becoming a place
+   * long things are read, a channel screen being one that gets left face-up
+   * on tables. `numberOfLines={1}` is what enforces it, asserted rather than
+   * assumed.
    */
   const CLIP = {
     id: 'clip_1',
@@ -4304,7 +4305,23 @@ describe('the channel clipboard', () => {
     (Clipboard.getStringAsync as jest.Mock).mockImplementation(async () => '');
   });
 
-  it('says who pasted and how long ago, and nothing about what', () => {
+  /**
+   * The host Text carrying `contains`.
+   *
+   * Identified by its content rather than by `numberOfLines`, which the
+   * channel title higher up the screen also sets — selecting on the property
+   * under test found that one instead and passed for the wrong reason.
+   */
+  function textNodeWith(
+    tree: ReactTestRenderer,
+    contains: string
+  ): ReactTestInstance | undefined {
+    return tree.root
+      .findAll((n) => n.type === 'Text')
+      .find((n) => labelOf(n).includes(contains));
+  }
+
+  it('says who pasted, how long ago, and shows one line of what', () => {
     showClip();
     const tree = open();
 
@@ -4312,7 +4329,27 @@ describe('the channel clipboard', () => {
     // arrives with two — matched loosely rather than pinning that detail.
     expect(textOf(tree)).toMatch(/Pasted by\s+Dana Chu/);
     expect(textOf(tree)).toContain('3 minutes ago');
-    expect(textOf(tree)).not.toContain('example.com');
+    expect(textOf(tree)).toContain('example.com');
+    act(() => tree.unmount());
+  });
+
+  it('holds the preview to a single truncated line', () => {
+    showClip();
+    const tree = open();
+    // The prop, not the rendered height: the test renderer lays nothing out,
+    // so the truncation is only observable as the instruction to truncate.
+    expect(textNodeWith(tree, 'example.com')!.props.numberOfLines).toBe(1);
+    act(() => tree.unmount());
+  });
+
+  it('collapses whitespace so a leading newline does not preview as blank', () => {
+    // `numberOfLines` counts rendered lines. Text beginning with a newline
+    // would spend the only one on nothing, which reads as a failed paste.
+    showClip({ text: '\n\n  first line\n  second line  ' });
+    const tree = open();
+    expect(labelOf(textNodeWith(tree, 'first line')!)).toBe(
+      'first line second line'
+    );
     act(() => tree.unmount());
   });
 
@@ -4324,14 +4361,15 @@ describe('the channel clipboard', () => {
     act(() => tree.unmount());
   });
 
-  it('copies the text nobody was shown', async () => {
-    showClip();
+  it('copies the whole text, not the line that was shown', async () => {
+    const long = `https://example.com/${'x'.repeat(400)}`;
+    showClip({ text: long });
     const tree = open();
     await act(async () => {
       findButton(tree, 'Copy')!.props.onPress();
     });
 
-    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(CLIP.text);
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(long);
     expect(textOf(tree)).toContain('✓ copied');
     act(() => tree.unmount());
   });

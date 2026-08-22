@@ -279,6 +279,10 @@ export function ChannelView({
   // several somebody meant, and guessing wrong opens the wrong page.
   const clipUrl =
     clip && isSafeUrl(clip.text.trim()) ? clip.text.trim() : null;
+  // Whitespace collapsed before it is shown. `numberOfLines` counts rendered
+  // lines, so text that begins with a newline would spend the only one on
+  // nothing and preview as blank — which reads as a paste that failed.
+  const clipPreview = clip ? clip.text.replace(/\s+/g, ' ').trim() : '';
 
   const pasteClip = async () => {
     setClipError(null);
@@ -712,13 +716,17 @@ export function ChannelView({
 
           {clip ? (
             <>
-              {/* What was pasted is not shown. Only who and when — the same
-                  words the roster uses for an absence. A channel screen is
-                  read over shoulders and left face-up on tables, and the
-                  things people reach for a clipboard to move are often the
-                  things they would rather not leave on display. Copy hands it
-                  over without anybody having to look at it. */}
               <Text style={type.heading}>Pasted by {nameOf(clip.authorId)}</Text>
+              {/* One line: never more than fits, and a short paste therefore
+                  shows in full. The bound is the line, not some notion of
+                  withholding — enough to tell which link this is without
+                  turning the card into a place long things are read, a
+                  channel screen being one that gets left face-up on tables.
+                  `numberOfLines` truncates with an ellipsis, so anything
+                  longer says how it begins and stops. */}
+              <Text style={type.body} numberOfLines={1}>
+                {clipPreview}
+              </Text>
               <Text style={type.muted}>{ago(now - clip.pastedAt)}</Text>
 
               <View style={styles.buttonRow}>

@@ -1686,15 +1686,36 @@ fair point, but it is also the point at which a clipboard becomes a message
 thread, which this deliberately is not. `playback.track` is the precedent: one
 thing, replaced, no history.
 
-**Only who and when are shown.** Not the content, and not a preview of it. A
-channel screen is read over shoulders and left face-up on tables, and the
-things people reach for a clipboard to move — a login code, an address, a link
-somebody would rather not explain — are frequently the things they would rather
-not leave on display. Copy hands it over without anybody having to look at it.
-The rendered form is "Pasted by Dana Chu" and `ago(…)`, the same words the
-roster uses for an absence. There is a test asserting the text is *absent* from
-the tree, because "just show a preview" is a one-line change that would undo
-this without anybody noticing what it cost.
+**Who, when, and one line of what.** ~~Not the content, and not a preview of
+it.~~ **Reversed the same day, hours after build 68 went up, and the reversal
+is the interesting part.** The card was built showing "Pasted by Dana Chu" and
+`ago(…)` and nothing else, with a test asserting the pasted text was *absent*
+from the tree — reasoning that a channel screen is read over shoulders and left
+face-up on tables, and that the things people move with a clipboard are
+frequently the things they would rather not display.
+
+That reasoning is sound and it was applied too hard. A card that says somebody
+pasted something and will not say what leaves the only way to find out being to
+put it on your own clipboard, which is worse for privacy than showing it, and
+useless when what you wanted was to tell *which* of two links this is.
+
+**The rule is now "never more than fits on one line" — which is not the same as
+"never the whole thing".** A short paste shows in full, and should: five
+characters that fit are five characters displayed. The bound is the line, not
+any notion of withholding. `numberOfLines={1}` on the `Text` is the whole of
+the mechanism; anything longer truncates with an ellipsis and says how it
+begins.
+
+Two details that are not obvious. Whitespace is collapsed before rendering,
+because `numberOfLines` counts *rendered* lines and text beginning with a
+newline would spend the only one on nothing — previewing as blank, which reads
+as a paste that failed. And **Copy copies the whole text, never the line that
+was shown**; there is a test with a 400-character clip asserting exactly that,
+since a preview and a copy quietly agreeing would be the natural bug here.
+
+What survives from the original reasoning is the shape of the affordance: the
+card is not a place long things are read, and nothing about this change makes
+it one.
 
 **Presence, not membership.** `canPasteClip` requires being in the channel, the
 same as loading a track. A paste is an act in a conversation that is happening;
