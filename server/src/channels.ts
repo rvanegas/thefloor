@@ -334,7 +334,19 @@ export class ChannelRegistry {
   private openingPlayback = new Set<string>();
   /** The uploaded file per channel, and the directory to remove with it. */
   private trackFiles = new Map<string, { file: string; dir: string }>();
-  private listeners = new Set<(channelIds: string[]) => void>();
+  private listeners = new Set<
+    (channelIds: string[], departed: string[]) => void
+  >();
+  /**
+   * Ids that stopped being participants since the last `emit`, drained by it.
+   *
+   * They are carried out separately because they are exactly the people the
+   * changed channel can no longer name: a listener asking the channel who to
+   * tell about the change gets an answer that omits whoever the change was
+   * about. Somebody who has just left has a Home showing a channel they are
+   * not in, and nothing else was ever going to correct it.
+   */
+  private departed = new Set<string>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private usageTimer: ReturnType<typeof setInterval> | null = null;
@@ -502,7 +514,9 @@ export class ChannelRegistry {
     }
   }
 
-  onChange(listener: (channelIds: string[]) => void): () => void {
+  onChange(
+    listener: (channelIds: string[], departed: string[]) => void
+  ): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
@@ -531,7 +545,12 @@ export class ChannelRegistry {
   }
 
   private emit(channelIds: string[]): void {
-    for (const listener of this.listeners) listener(channelIds);
+    // Drained, not read: every departure recorded since the last emit belongs
+    // to this one, and leaving them in the set would tell somebody who left an
+    // hour ago about every change since.
+    const departed = [...this.departed];
+    this.departed.clear();
+    for (const listener of this.listeners) listener(channelIds, departed);
   }
 
   // --- Commands -----------------------------------------------------------
@@ -1666,6 +1685,11 @@ export class ChannelRegistry {
   // --- Persistence --------------------------------------------------------
 
   private commit(before: ChannelState, after: ChannelState): void {
+    // Recorded here because this is the only place both rosters exist at once.
+    // Every `commit` is followed by an `emit`, which drains it.
+    for (const id of before.participants) {
+      if (!after.participants.includes(id)) this.departed.add(id);
+    }
     this.channels.set(after.id, after);
     this.persistChannel(after);
     // Ending is deletion and nothing else now: the last member cannot leave,

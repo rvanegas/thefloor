@@ -273,7 +273,13 @@ export function registerWebsocket(deps: {
   // Participants, not the people present: somebody invited is a participant
   // and has yet to enter, and the invitation appearing on their Home is
   // exactly what this delivers.
-  channels.onChange((changedIds) => {
+  channels.onChange((changedIds, departed) => {
+    // Whoever stopped being a participant, told first and unconditionally:
+    // their Home still lists a channel they are no longer in, and the loop
+    // below cannot reach them — it asks each changed channel who to tell, and
+    // the answer no longer includes them. Tapping the stale row is how this
+    // was found, since watching a channel you are not in now answers `gone`.
+    if (departed.length > 0) homeNotifier.notify(departed);
     for (const channelId of changedIds) {
       for (const connection of connections) {
         if (connection.watchingChannels.has(channelId)) {

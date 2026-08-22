@@ -190,6 +190,53 @@ describe('websocket', () => {
     bobClient.close();
   });
 
+  /**
+   * Found by hand: leaving a channel left it on Home, and tapping the row that
+   * should have gone answered "Channel gone".
+   *
+   * The change is pushed to the changed channel's participants, and leaving is
+   * the one change that removes you from that list — so the person the change
+   * was about was the only one not told about it. Nothing else would have
+   * corrected it, Home having no timer.
+   */
+  it('pushes a fresh Home to whoever has just left the channel', async () => {
+    const { bob, channelId } = await pairInSession();
+    const b = new Client(bob.token, baseUrl);
+    await b.open();
+    b.send({ type: 'watch.home' });
+    await b.next('home', (m) => m.home.invites.length > 0);
+
+    b.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.includes(bob.account.id));
+
+    b.send({ type: 'channel.action', channelId, action: { type: 'LEAVE_CHANNEL' } });
+
+    // The *latest* snapshot, not any snapshot: `next` scans from the start,
+    // and Bob's first Home predates the channel he is now leaving.
+    const latestHome = () => {
+      const homes = b.received.filter((m) => m.type === 'home');
+      const last = homes[homes.length - 1];
+      return last && last.type === 'home' ? last.home : undefined;
+    };
+    const deadline = Date.now() + 3000;
+    let home = latestHome();
+    while (
+      Date.now() < deadline &&
+      !(
+        home !== undefined &&
+        !home.invites.some((i) => i.channelId === channelId) &&
+        !home.rejoinable.some((c) => c.channelId === channelId)
+      )
+    ) {
+      await new Promise((r) => setTimeout(r, 20));
+      home = latestHome();
+    }
+    expect(home?.invites.map((i) => i.channelId)).not.toContain(channelId);
+    expect(home?.rejoinable.map((c) => c.channelId)).not.toContain(channelId);
+    b.close();
+  });
+
   it('pushes an incoming contact request to the recipient', async () => {
     // Found by hand on two simulators: contact changes arrive over HTTP, and
     // nothing told the recipient's socket, so a request never appeared until

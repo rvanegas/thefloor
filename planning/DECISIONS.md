@@ -1267,3 +1267,36 @@ The general form is the one already learned from `attach()` earlier the same
 day: **on the web, every step of the audio path can succeed and still produce
 no sound**, and the native client has no equivalent of any of them. There is no
 analogy to reason from. The only reliable check is to listen to what came out.
+
+## A departure has to be told to the person departing
+
+2026-08-22. Leaving a channel left it on the leaver's Home. Tapping the row
+that should have gone answered "Channel gone", which is true and is the wrong
+end of the problem: the row should not have been there to tap.
+
+Home is pushed rather than polled, and `channels.onChange` aims each push at
+the changed channel's participants — deliberately, since the version that
+broadcast to every watcher made one person's Home accurate in proportion to how
+busy strangers were. **But leaving is the one change whose audience the changed
+channel can no longer name.** The reducer removes you first, so by the time the
+listener asks who to tell, the only person the change was actually about is the
+one person missing from the answer. Nothing else corrects it: Home has no
+timer, and the client had already unwatched the channel.
+
+So departures are carried out of the registry alongside the changed ids.
+`commit` is the one place both rosters exist at once, so it records anybody in
+`before.participants` and not in `after.participants`; `emit` drains that set
+and hands it to every listener, and `ws.ts` pushes Home to them before the
+per-channel loop it cannot reach them from. Drained rather than read, so a
+departure belongs to exactly one emit — leaving it in the set would tell
+somebody who left an hour ago about every change since.
+
+Recording it in `commit` rather than in the `LEAVE_CHANNEL` branch of
+`dispatch` is the same choice `markDeleted` makes a few lines above: keyed on
+the transition, so any other route out of a channel — a removal by somebody
+else, a future rule, a migration — is covered by having happened rather than by
+having been remembered. Every `commit` is followed by an `emit`, which is what
+makes the set safe to drain there.
+
+The wire did not move: this changes who receives a `home` message, not what one
+says. So it is a server-only fix and reaches every installed build at a deploy.
