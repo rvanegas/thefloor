@@ -371,17 +371,25 @@ signals for free:
 - **Drop to mono** — somebody's microphone is open in this channel.
 - **Bloom to stereo** — nobody's is, including yours.
 
-**And it is only a cue on hardware that has a microphone.** A Bluetooth
-*speaker* usually has none, so there is no hands-free link to move to:
-`CALL` carries `allowBluetoothA2DP`, iOS keeps stereo output and takes input
-from the phone instead, and nothing is audible at the boundary at all. The
-signal below is therefore absent on exactly the devices where the sound is
-nicest. **This misled the author on 2026-08-20** — alone on a Bluetooth
-speaker, a second person arrived, the audio stayed in stereo, and the good
-quality was read as proof the microphone was shut. It was open;
-`microphoneNeeded` opens it the moment anybody else is present, and
+**On a mic-less speaker the cue is a route change rather than a profile
+change, and it was nothing at all before build 65.** A Bluetooth *speaker*
+usually has no microphone, so there is no hands-free link to move to. While
+`CALL` carried `allowBluetoothA2DP` the speaker stayed an eligible output under
+`playAndRecord`: iOS kept stereo on it and took input from the phone instead,
+and nothing was audible at the boundary — which is the echo path the option was
+removed for. With the option gone the speaker is no longer eligible while
+capturing, so crossing the boundary *evicts* it to the phone's own loudspeaker,
+which is not subtle. **Verified on a device 2026-08-21**, as check 1 of
+TASKS.md § *The Mic-Less Speaker Fix Is Verified; Check 3 Found Something
+Else*.
+
+**The silent version of this misled the author on 2026-08-20**, before the
+fix — alone on a Bluetooth speaker, a second person arrived, the audio stayed
+in stereo, and the good quality was read as proof the microphone was shut. It
+was open; `microphoneNeeded` opens it the moment anybody else is present, and
 `ChannelView` said "Open" on screen throughout. The screen is the truth here
-and the route is not.
+and the route is not — which still holds, since a cue that depends on the
+hardware is not one to reason from.
 
 Stated precisely, because it is otherwise a false safety cue: the mono drop
 means *the room is live*, which is a **superset** of *you are audible* — when
@@ -562,3 +570,23 @@ lifted an entry elsewhere.
    this subsystem, it is the shape every bug in it has taken — the build 17
    echo, the build 19 headphone fallback, the build 65 mic-less speaker. What
    changed is that the next one is readable rather than audible.
+11. **"Capturing" means one thing to the audio engine and another to
+   `anyMicrophoneOpen`, and `policyFor` assumes they agree.** *Open, found
+   2026-08-21.* `session.ts` hands the native observer `recording: CALL`
+   unconditionally, on the argument that the observer reads that value only
+   while this device is capturing and *our capturing implies `anyMicOpen`*.
+   Self-mute falsifies the implication: `intentFor` returns `muted`, which
+   holds the device open deliberately — `applyFor`'s header says the engine
+   never leaves the recording state — while `anyMicrophoneOpen` excludes
+   self-muted people by construction. So with everybody present muted the
+   engine is recording, `anyMicOpen` is false, and the two writers want
+   different categories for the same moment.
+
+   That is the leading explanation for the symptom in TASKS.md § *The Mic-Less
+   Speaker Fix Is Verified; Check 3 Found Something Else*: everybody muted
+   should be `IDLE` with `mixWithOthers` and another app's audio should keep
+   playing, and it is interrupted instead. **Not yet confirmed** — the
+   interruption appears at a foreground, which is also an activation and a room
+   rebuild, so WebRTC's own defaults and activation itself are still live
+   candidates. Disagreement 10's panel is what tells them apart, and the entry
+   says how.

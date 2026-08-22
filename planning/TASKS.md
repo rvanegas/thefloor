@@ -95,9 +95,16 @@ pairing is not enough, and `devicectl` will happily report the device
 the Mac's own logs and has no device options on current macOS, so it succeeds
 and shows nothing.
 
-## Verify The Mic-Less Bluetooth Speaker Fix
+## The Mic-Less Speaker Fix Is Verified; Check 3 Found Something Else
 
-**Reported 2026-08-21, fixed the same day, unverified on a device.** A second
+**Titled "Verify The Mic-Less Bluetooth Speaker Fix" until the checks were
+run**, which they were on 2026-08-21, all three. Renamed rather than closed
+because two of them passed and the third found a different bug, and a heading
+asking for a verification that has happened is one somebody skips. The entry
+above this one records what it cost to leave a heading standing after its own
+disproof.
+
+**Reported 2026-08-21, fixed the same day, verified on a device.** A second
 participant entered and was audible on a Bluetooth speaker that has no
 microphone — so the far end was playing out of a loudspeaker while the input
 came from the built-in mic in the same room, which is an echo path.
@@ -134,42 +141,93 @@ diagnostic panel — see *A Gated Audio Diagnostic Panel* below. The `out` line
 names the port and `rate` gives the profile numerically, which is the whole
 reason a person who cannot judge it by ear can still run check 2.
 
-**Check 1 passed on build 65**, reported the same day: the reported case is
-fixed. Checks 2 and 3 are still unrun.
+**Checks 1 and 2 passed. Check 3 failed, and its failure is the interruption
+below, reproduced.** Check 1 on build 65 and checks 2 and 3 on build 72, all
+reported on 2026-08-21. The route fix is good: the mic-less speaker is
+released as designed, and the build 19 regression did not recur — AirPods keep
+the route and go mono while capturing, so the doubtful reading that A2DP
+eligibility was needed for headphones to be offered at all is now disproved on
+a device rather than merely doubted. **`allowBluetoothA2DP` can stay out of
+`CALL` and this is settled.**
 
-### An interruption seen once on 65 and not reproduced
+**What check 3 found.** Everybody present self-muted, the app was backgrounded,
+YouTube played and sounded like A2DP — and foregrounding the app suspended it.
 
-Reported and withdrawn within the hour on 2026-08-21. While alone in a
-channel, foregrounding the app interrupted another app's playback — which had
-worked before. On a retry it could not be reproduced, and the report was
-parked rather than chased.
+**It was read as the desired state and it is not.** The reading was that
+self-mute keeps the session a call, so an exclusive session is what a muted
+channel is supposed to have. `anyMicrophoneOpen` in `core/micNeeded.ts` says
+the opposite, in the case it was written for: it excludes self-muted people by
+construction, so *everybody* muted means `anyMicOpen` is false, and
+`sessionFor(false, 0)` is `IDLE` — `playback` with `mixWithOthers`. The music
+is supposed to keep playing. That is not an accident of the implementation but
+the argument in that function's header: what one person's self-mute keeps a
+call is *everybody else's* session while somebody else's microphone is still
+open. When no microphone is open there is nothing to be exclusive for, and
+`IDLE` exists precisely so a quiet channel costs another app's audio nothing.
 
-**Written down because the next occurrence is the second one, not the first.**
-An audio-session fault that appears once and then hides is the expensive kind:
-whoever meets it next will otherwise start from nothing.
+So check 3 is a fault. The stereo half looked right — the other app sounded
+like A2DP while this one was in the background — but that is a weak reading,
+since a backgrounded app proves little about what this one asked for. The half
+that plainly failed is the mixing that `IDLE` exists to provide.
 
-**What did not add up, which is the useful part.** Alone in a channel,
-`sessionFor(false, 0)` returns `IDLE` — `playback` with `mixWithOthers` — and
-`CALL` is the only configuration the route fix touched. So on the face of it
-the change could not produce this at all. Either the session was not in `IDLE`
-when it happened, or the interruption came from *activation* rather than
-configuration.
+**Do not "fix" this by pinning the session.** `micNeeded.ts` names both the
+obvious cleanups — pin `CALL` on, or debounce the transition — and says both
+delete the mono/stereo cue. The bug is between what is asked and what the
+system ends up in, not in what is asked.
 
-**The hypothesis it suggests, still unmeasured.** `pushPolicy` hands the
-native observer `{ recording: CALL, playout: IDLE }`, and the observer applies
-`recording: CALL` whenever the engine reports recording — not only when we
-intend to publish. If `CALL` is applied while alone, then before the route fix
-it left an A2DP device eligible and got away with it, and after the fix it
-evicts that route and the eviction is audible. That would make the
-interruption a symptom of a pre-existing wrong state rather than a new fault —
-and would explain why this subsystem has resisted fixes reasoned from source.
+### The interruption, reproduced on 72 — and one comment is now known false
 
-**If it returns, do not reason about it.** The panel is back and gated, so
-there is nothing to restore: set `accounts.debug`, open it, and read the
-`asked` and `actual` lines at the moment the app foregrounds — the log stamps
-that moment as `app active`. `actual` reading `playAndRecord` against an
-`asked` of `IDLE` confirms the hypothesis above outright. See *A Gated Audio
-Diagnostic Panel*.
+First seen on build 65 while *alone* in a channel, withdrawn within the hour
+when a retry could not reproduce it, and parked rather than chased. Check 3
+above reproduced it on 72 with a recipe: **everybody present self-muted,
+background the app, start another app's audio, foreground this one.** Alone and
+everybody-muted are the same case as far as the session goes — both are
+`sessionFor(false, 0)`, both are `IDLE`, and both are supposed to mix.
+
+**What is now established and was not.** `session.ts` justifies handing the
+native observer `recording: CALL` unconditionally like this: *the observer
+reads it only while this device is capturing, and our capturing implies
+`anyMicOpen`*. **That implication is false under self-mute**, and self-mute is
+the state this fault appears in. `intentFor` returns `muted`, which holds the
+device open on purpose — `applyFor`'s own header says so: *with a muted track
+still holding the device open, the engine never left the recording state to
+re-enter it*. So the engine can report recording while `anyMicOpen` is false,
+which is exactly the input on which the observer would apply `CALL` over an
+`IDLE` we asked for. The comment is not a small error: it is the argument that
+licenses the unconditional value.
+
+**That is the leading candidate and not yet the answer.** Two others survive
+the same evidence, and foregrounding is where they differ. A backgrounded app
+loses presence in about a hundred seconds, so depending on how long the other
+app played, foregrounding may be rebuilding the room rather than resuming one —
+and a rebuild calls `startAudioSession`. Either WebRTC re-applying its own
+defaults (the third writer STATES.md names) or the activation itself could be
+what interrupts, with the observer innocent. **Activation is not
+configuration**, and this symptom appears at an activation. Whether the
+connection actually dropped is therefore the first thing to note when running
+the measurement.
+
+**Written down because the next occurrence is the second one, not the first** —
+and this was the second. An audio-session fault that appears once and then
+hides is the expensive kind.
+
+**What the route fix has to do with it, which is little.** `CALL` is the only
+configuration that fix touched, and this happens where `IDLE` is asked for. The
+connection is that the fix made an existing wrong state audible: a `CALL`
+applied while nobody is capturing used to leave an A2DP device eligible and got
+away with it, and now evicts the route instead. That would make the
+interruption a symptom of something pre-existing rather than a new fault, and
+would go some way to explaining why this subsystem has resisted every fix
+reasoned from source.
+
+**Do not reason about it further — it reproduces now, so measure.** The panel is
+back and gated: set `accounts.debug`, open it, run the recipe above, and read
+the `asked` and `actual` lines at the moment the app foregrounds, which the log
+stamps as `app active`. `actual` reading `playAndRecord` against an `asked` of
+`IDLE` settles it outright, and settles which of the three candidates it is by
+*when* the two lines part. See *A Gated Audio Diagnostic Panel*. **This is the
+measurement to take before touching any code**, on the rule the entry above
+this one paid six builds to learn.
 
 ## The Native Route Reader Is Still In The Tree
 
