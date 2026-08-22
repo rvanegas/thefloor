@@ -4,7 +4,9 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## The Self-Mute Tone — CLOSED, and the title was wrong for three builds
+## The Self-Mute Tone
+
+CLOSED, and the title was wrong for three builds
 
 **Reported 2026-08-19. Fixed by build 63, confirmed 2026-08-21.** Moving the
 mute out of Apple's voice-processing unit and into WebRTC's own mixer node
@@ -422,13 +424,9 @@ case deliberately shows nothing. The argument against showing text — a screen
 read over shoulders — applies at least as strongly to a picture, and an image
 nobody can see before copying is a strange object.
 
-## Channel Admins
-
-Channels, by default, have no admins or owner. In channel settings, a user can declare himself owner, and then give admin status to others. Certain functions are now available only to admins, and owner who is an admin implicitly.
-
 ## Anonymous Web Access
 
-Channels can be shared to anyone with a link which navigates to web page with channel view modified for anonymous listener. Plan is here: ANONWEB.md
+Channels can be shared to anyone with a link which navigates to web page with channel view modified for anonymous guest. Plan is here: ANONWEB.md
 
 ## Transcripts
 
@@ -481,4 +479,8 @@ nothing. See DECISIONS.md for why it is not in-app purchase. What is left:
   it. IAP is the only option that works outside the United States storefront;
   Stripe is the only one that can attribute a donation exactly, via
   `client_reference_id`. Both are a larger build than what shipped.
+
+## Channel Admins
+
+Channels, by default, have no admins or owner. In channel settings, a user can declare himself owner, and then give admin status to others. Certain functions are now available only to admins, and owner who is an admin implicitly.
 
