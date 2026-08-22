@@ -558,3 +558,35 @@ for a picture, not weaker. Which leaves an image nobody may look at before
 copying, which is a strange object to build. **That is the real reason this is
 declined rather than the five costs above**, and it would be the thing to
 answer if it is ever raised again.
+
+---
+
+## The buzz reaches a locked phone, so the tone is not built — 2026-08-21
+
+**Both open questions above were measured on build 72, and both answered
+yes.** § *And then it was the wrong cue* ended on a hypothesis stated as one;
+this is the reading, written the same day the reading was taken, which the
+volume before this one paid three builds to learn to do.
+
+**The schedule was felt and counted, with the app open.** Four buzzes at
+roughly 2s, 5s, 8s and 11s while talking silenced; nothing more for that claim
+after the fourth; and it starts over on a re-claim. So the budget behaves as
+`nudge.ts` says and as its tests pin, on a phone rather than in a fake clock.
+
+**And the locked phone buzzed**, which is the answer that decides something.
+`AudioServicesPlaySystemSound` is not a feedback generator and is not gated on
+`UIApplication` state, and the guess was that this would reach a locked phone
+where `UIFeedbackGenerator` silently could not. It does. **So the tone into the
+audio session is not needed and must not be built** — the delivery that would
+have paid by playing over the very voice it was announcing. It was the only
+remaining idea for the pocket case and the pocket case is closed.
+
+**What this cost, end to end, is the thing to carry.** Three builds and one
+false start: build 70 delivered nothing because iOS mutes haptics for the
+duration of a capturing session, build 71 delivered a tap too faint for a
+pocket, and build 72 delivered the motor. Every one of those was correct in
+the scheduling layer the whole time — `isSilenced` and `audio.speaking` were
+already computed, and the tests were green throughout. **The question that
+would have collapsed all three into one is "what suppresses this?", asked
+before "when do I send it?"** — and it is the question to ask of the next
+non-visual cue, because the delivery APIs answer yes either way.

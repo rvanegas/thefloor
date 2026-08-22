@@ -16,16 +16,21 @@ import { NO_NUDGE, step } from './nudge';
  * precisely the people who are not looking at the channel. It follows `live`,
  * the channel you are *present in*, for the same reason the audio does.
  *
- * **What it cannot do is reach a phone that is not in the foreground.** iOS
- * feedback generators are ignored when the app is not active, silently and
- * with no error, so a locked or backgrounded phone gets nothing — and a pocket
- * is often exactly that. This is therefore a partial answer to the case it was
- * built for: it covers the phone face down on a table, or held and not looked
- * at, and not the phone that has locked itself. The remaining case needs a
- * different delivery — a tone into the audio session, which reaches a
- * background app because the audio does, at the cost of playing over the
- * voice it is announcing. See TASKS.md § *Being Silenced Without Looking*;
- * that trade is not settled and is not settled by building this.
+ * **It reaches a locked phone, and that was not free — it is why the cue is
+ * the motor.** iOS feedback generators are ignored when the app is not
+ * *active*, silently and with no error, so while this used `Haptics` a locked
+ * or backgrounded phone got nothing — which is most of what a pocket is, and
+ * the case the whole cue was built for. `AudioServicesPlaySystemSound` is not
+ * a feedback generator and is not gated on `UIApplication` state, which is how
+ * iOS vibrates for an incoming call while every app is backgrounded.
+ * **Confirmed on a device, build 72**: locked phone, somebody claims the
+ * floor, keep talking, and it buzzes.
+ *
+ * So the delivery that was held open for this case — a tone into the audio
+ * session, which reaches a background app because the audio does, at the cost
+ * of playing over the very voice it is announcing — **is not needed and must
+ * not be built.** See DECISIONS.md § *The buzz reaches a locked phone, so the
+ * tone is not built*.
  *
  * **The alert vibration, not a notification haptic, and that took two builds
  * to arrive at.** Build 70 produced nothing at all — iOS mutes haptics for the

@@ -494,6 +494,18 @@ lifted an entry elsewhere.
 1. **"Silenced", `mutedByServer` and a withheld subscription are one state under
    three names**, in three layers, none derived from the others. Open. Nothing
    is wrong today; the risk is a fourth name.
+
+   **And one of the three names may denote nothing at all.**
+   `SessionAudio.mutedByServer` is written from `RoomEvent.TrackMuted` and read
+   by nothing, and since the floor withholds *subscriptions* rather than muting
+   the publication, it is not clear it is ever true — no test asserts that it
+   becomes so. The silenced-speaker cue deliberately did not use it and built
+   its own answer from `isSilenced` off the snapshot. **Settle it by asking
+   whether the field can be true, not by deleting it on the argument that
+   nothing reads it**: if it can, it is a fourth name for this state arriving
+   by a different route, which is exactly what this entry warns about; if it
+   cannot, it is dead and goes. Noted here 2026-08-21, when TASKS.md § *Being
+   Silenced Without Looking* closed and named this the one thing it left.
 2. **`SessionAudio.status` and `ChannelState.disconnectedAt` are both "audio
    connected"** and are unrelated connections. *Closed 2026-08-18* by the
    reconnect path and the `'reconnecting'` status, but the naming stands.
