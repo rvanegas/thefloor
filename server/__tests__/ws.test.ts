@@ -169,6 +169,36 @@ describe('websocket', () => {
     client.close();
   });
 
+  /**
+   * The standings' gate — `accounts.leaderboard`, set by hand exactly as
+   * `debug` above is, and carried on the same message for the same reasons.
+   *
+   * Asserted here because this is the seam the two ends meet at and neither
+   * side's own tests cover it: the route tests prove the server refuses
+   * without the column, and the app's tests render the screen from a mocked
+   * flag. Nothing but this says the flag actually crosses the wire.
+   */
+  it('says nothing about the standings for an ordinary account', async () => {
+    const { token } = await signIn('user1@example.com', 'Alice');
+    const client = new Client(token, baseUrl);
+    await client.open();
+    const hello = await client.next('hello');
+    expect(hello.leaderboard).toBeUndefined();
+    client.close();
+  });
+
+  it('tells an account with the standings column set that it has them', async () => {
+    const { token, account } = await signIn('user1@example.com', 'Alice');
+    app.db
+      .prepare('UPDATE accounts SET leaderboard = 1 WHERE id = ?')
+      .run(account.id);
+    const client = new Client(token, baseUrl);
+    await client.open();
+    const hello = await client.next('hello');
+    expect(hello.leaderboard).toBe(true);
+    client.close();
+  });
+
   it('rejects a bad token', async () => {
     const client = new Client('not-a-real-token', baseUrl);
     await client.open();
