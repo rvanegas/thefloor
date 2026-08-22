@@ -1,6 +1,11 @@
 import { connect, constants, type ClientHttp2Session } from 'node:http2';
 import { createPrivateKey, sign, type KeyObject } from 'node:crypto';
 
+import type {
+  NotificationAlert,
+  NotificationKind,
+} from '../../core/notifications';
+
 /**
  * How long a presence announcement stays worth delivering.
  *
@@ -84,28 +89,20 @@ export interface PushMessage {
    */
   lifetimeMs: number;
   /**
-   * Whether this makes a sound and a vibration, or arrives quietly.
+   * Which of the four this is, as `notifications` below names them.
    *
-   * `aps.sound` is per-notification and provider-chosen: present, and iOS
-   * plays the alert tone and vibrates; omitted, and the same notification
-   * lands as a silent banner. That is the whole of the control worth having —
-   * `interruption-level` sits above it and is deliberately not used here.
-   * `time-sensitive` would pierce a Focus mode and needs a capability on the
-   * app, and `critical` overrides the ring switch and needs an entitlement
-   * Apple grants by hand. **Neither is ours to claim.** Somebody who has put
-   * their phone in a Focus mode has said something, and a conversation app is
-   * not entitled to talk over it.
+   * Carried because the recipient's setting for this channel decides how it
+   * arrives, and the setting is expressed per kind — a person who wants only
+   * pings to make a sound is drawing a line between kinds, so something has to
+   * know which side of it a given notification falls on. It is the only field
+   * here that is about the notification's *identity* rather than its delivery.
    *
-   * False for everything the channel says about itself, since 2026-08-22.
-   * Those report that something happened somewhere, and a phone that makes a
-   * noise every time a room fills and empties is one that gets its
-   * notifications turned off entirely — at which point the ping goes with
-   * them. **The quiet ones are what buy the loud one its credibility.**
-   *
-   * True for a ping alone, which is a person asking for you by name and the
-   * only one worth interrupting anybody for.
+   * How loudly it actually arrives is not on this type at all. It is
+   * `NotificationAlert`, resolved per recipient at the moment of sending,
+   * because the same notification is delivered audibly to one person and
+   * passively to another and there is no one answer to write down here.
    */
-  audible: boolean;
+  kind: NotificationKind;
   /**
    * Whether this may reach somebody who is already holding a live socket.
    *
@@ -176,19 +173,28 @@ export interface PushMessage {
  * may reach turn out to be the same question asked twice: the three automatic
  * ones are safe to overwrite *because* they are the channel repeating itself,
  * and for that same reason they are withheld from anybody whose socket has
- * already drawn what they describe, and for that same reason again they arrive
- * without a sound. A ping is none of those, so it overwrites nothing, it is
- * delivered whether or not the app is open, and it is the one that makes a
- * noise.
+ * already drawn what they describe, and — at the default level — for that same
+ * reason again they arrive without a sound. A ping is none of those, so it
+ * overwrites nothing, it is delivered whether or not the app is open, and it
+ * is the one that makes a noise.
  *
- * **Three fields rather than one `isPing`, and that is not an oversight.**
- * They agree today because one distinction happens to govern all three, but
- * each is answering a different question — what may be discarded, what would
- * be a duplicate, and what is worth interrupting somebody for — and the
- * answers are not bound to stay together. A notification that ought to arrive
- * quietly and never be overwritten is easy to imagine; the fields can say that
- * and a predicate cannot. Collapsing them would also put the reasoning
- * somewhere no constructor can see it.
+ * **Two fields rather than one `isPing`, and that is not an oversight.**
+ * `collapseKey` and `reachesInApp` agree today because one distinction happens
+ * to govern both, but each answers a different question — what may be
+ * discarded, and what would be a duplicate — and the answers are not bound to
+ * stay together. A notification that ought to arrive quietly and never be
+ * overwritten is easy to imagine; the fields can say that and a predicate
+ * cannot.
+ *
+ * **Loudness left this type on 2026-08-22 and is the reason `kind` arrived.**
+ * It sat here as `audible: boolean` for exactly as long as it was a property
+ * of the notification. Once each person could set a level per channel it
+ * stopped being one: the same arrival is audible to somebody who asked for
+ * everything and passive to somebody who did not, so there is no value a
+ * constructor could honestly write down. `kind` says which of the four this
+ * is; `alertFor` in core turns that plus the recipient's level into how it
+ * lands; and the answer travels as an argument to `send` rather than as a
+ * field, because it describes one delivery to one person.
  *
  * Cut the set either way and the members swap sides. That is the argument for
  * naming them rather than sorting them into two piles once.
@@ -204,12 +210,12 @@ export const notifications = {
     // reduce to the roster anyway, and the one thing the recipient wants to
     // know is who is asking.
     return {
+      kind: 'started',
       title: initiator,
       body: 'Started a channel with you.',
       channelId,
       collapseKey: channelId,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
-      audible: false,
       reachesInApp: false,
     };
   },
@@ -226,6 +232,7 @@ export const notifications = {
     channelId: string
   ): PushMessage {
     return {
+      kind: 'invited',
       title: inviter,
       body: channelName
         ? `Invited you to ${channelName}.`
@@ -233,7 +240,6 @@ export const notifications = {
       channelId,
       collapseKey: channelId,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
-      audible: false,
       reachesInApp: false,
     };
   },
@@ -251,12 +257,12 @@ export const notifications = {
     channelId: string
   ): PushMessage {
     return {
+      kind: 'arrived',
       title: channelName,
       body: `${whoArrived} stepped in.`,
       channelId,
       collapseKey: channelId,
       lifetimeMs: PRESENCE_LIFETIME_MS,
-      audible: false,
       reachesInApp: false,
     };
   },
@@ -308,6 +314,7 @@ export const notifications = {
     channelId: string
   ): PushMessage {
     return {
+      kind: 'pinged',
       title: channelName,
       // The sender's name leads either way, so the two forms read alike and a
       // ping with words is recognisably the same thing as one without.
@@ -318,8 +325,6 @@ export const notifications = {
       // restatement; a ping is a sentence somebody wrote. See the field.
       collapseKey: null,
       lifetimeMs: PRESENCE_LIFETIME_MS,
-      // The only one that makes a sound. See the field.
-      audible: true,
       // The only one of the four that is delivered to a phone whose app is
       // open. See the field.
       reachesInApp: true,
@@ -352,7 +357,18 @@ export interface Pusher {
    * every notification and leave no trace anywhere — the failure looked
    * identical to nothing having been sent, and cost an evening to tell apart.
    */
-  send(tokens: string[], message: PushMessage): Promise<PushResult[]>;
+  /**
+   * `alert` is a property of this *delivery* rather than of the message, which
+   * is why it is an argument and not a field. One arrival is audible to the
+   * person who asked to hear everything and passive to the person who did not,
+   * and both are the same notification — so the tokens passed here are the
+   * ones that share an answer, and a caller with two answers makes two calls.
+   */
+  send(
+    tokens: string[],
+    message: PushMessage,
+    alert: NotificationAlert
+  ): Promise<PushResult[]>;
 }
 
 /**
@@ -421,9 +437,15 @@ export class ApnsPusher implements Pusher {
     this.host = HOSTS[options.environment];
   }
 
-  async send(tokens: string[], message: PushMessage): Promise<PushResult[]> {
+  async send(
+    tokens: string[],
+    message: PushMessage,
+    alert: NotificationAlert
+  ): Promise<PushResult[]> {
     if (tokens.length === 0) return [];
-    return Promise.all(tokens.map((token) => this.sendOne(token, message)));
+    return Promise.all(
+      tokens.map((token) => this.sendOne(token, message, alert))
+    );
   }
 
   /** Releases the connection. Called when the server shuts down. */
@@ -434,7 +456,8 @@ export class ApnsPusher implements Pusher {
 
   private async sendOne(
     token: string,
-    message: PushMessage
+    message: PushMessage,
+    alert: NotificationAlert
   ): Promise<PushResult> {
     const payload = JSON.stringify({
       aps: {
@@ -442,7 +465,12 @@ export class ApnsPusher implements Pusher {
         // Omitted rather than set to something silent: there is no quiet
         // sound, and an absent key is how APNs is told to deliver the banner
         // without the tone or the vibration that goes with it.
-        ...(message.audible ? { sound: 'default' } : {}),
+        ...(alert === 'audible' ? { sound: 'default' } : {}),
+        // Only ever the rung *below* the default, and only when asked for.
+        // `active` is what an omitted key already means, and the two rungs
+        // above it — `time-sensitive` and `critical` — pierce a Focus mode and
+        // the ring switch, need entitlements, and are not this app's to claim.
+        ...(alert === 'passive' ? { 'interruption-level': 'passive' } : {}),
         // Grouping, not replacing: everything about one channel stacks
         // together in Notification Center whatever its collapse key.
         'thread-id': message.channelId,
@@ -452,10 +480,20 @@ export class ApnsPusher implements Pusher {
       // as the same word the server filtered on, so the two ends cannot come
       // to different conclusions about what this notification is for.
       reachesInApp: message.reachesInApp,
+      // And how loudly it was meant to arrive, which the app needs for the
+      // same decision: a passive ping is one somebody asked not to be
+      // interrupted by, and putting a banner over the app they are holding
+      // would be exactly the interruption they declined.
+      alert,
     });
 
     try {
-      const { status, reason } = await this.request(token, message, payload);
+      const { status, reason } = await this.request(
+        token,
+        message,
+        payload,
+        alert
+      );
       return { token, status, reason, dead: isDeadToken(status) };
     } catch (error) {
       // A transport failure says nothing about the token, so the row stays.
@@ -471,7 +509,8 @@ export class ApnsPusher implements Pusher {
   private request(
     token: string,
     message: PushMessage,
-    payload: string
+    payload: string,
+    alert: NotificationAlert
   ): Promise<{ status: number; reason?: string }> {
     return new Promise((resolve, reject) => {
       const stream = this.connection().request({
@@ -483,7 +522,14 @@ export class ApnsPusher implements Pusher {
         // Delivered immediately. The alternative, 5, lets iOS batch for
         // battery, which is the wrong trade for an announcement that expires
         // in five minutes.
-        'apns-priority': '10',
+        //
+        // Except for a passive one, where 5 is the honest header and Apple
+        // asks for it: somebody who set this channel to arrive quietly is not
+        // owed a radio waking for it, and the notification it carries is one
+        // they have said they will read when they read it. The five-minute
+        // expiry still applies, so a phone that is off simply misses it —
+        // which is the outcome that level describes.
+        'apns-priority': alert === 'passive' ? '5' : '10',
         // Omitted entirely when the message replaces nothing. APNs has no
         // value meaning "collapse with nothing" — the absence of the header is
         // how that is said, and a key invented to be unique would say it by
@@ -622,10 +668,14 @@ function base64url(value: string): string {
 export class ConsolePusher implements Pusher {
   constructor(private log: (message: string) => void = console.log) {}
 
-  async send(tokens: string[], message: PushMessage): Promise<PushResult[]> {
+  async send(
+    tokens: string[],
+    message: PushMessage,
+    alert: NotificationAlert
+  ): Promise<PushResult[]> {
     this.log(
       `\n  ── push to ${tokens.length} device(s): ` +
-        `${message.title} — ${message.body} (${message.channelId}) ──\n`
+        `${message.title} — ${message.body} (${message.channelId}, ${alert}) ──\n`
     );
     return tokens.map((token) => ({ token, status: 200, dead: false }));
   }
@@ -633,12 +683,20 @@ export class ConsolePusher implements Pusher {
 
 /** Records what would have been sent. For tests. */
 export class MemoryPusher implements Pusher {
-  readonly sent: Array<{ tokens: string[]; message: PushMessage }> = [];
+  readonly sent: Array<{
+    tokens: string[];
+    message: PushMessage;
+    alert: NotificationAlert;
+  }> = [];
   /** Tokens to report as dead on the next send, so pruning can be tested. */
   dead = new Set<string>();
 
-  async send(tokens: string[], message: PushMessage): Promise<PushResult[]> {
-    this.sent.push({ tokens, message });
+  async send(
+    tokens: string[],
+    message: PushMessage,
+    alert: NotificationAlert
+  ): Promise<PushResult[]> {
+    this.sent.push({ tokens, message, alert });
     return tokens.map((token) => ({
       token,
       status: this.dead.has(token) ? 410 : 200,
@@ -651,5 +709,12 @@ export class MemoryPusher implements Pusher {
     return this.sent
       .filter((entry) => entry.tokens.includes(token))
       .map((entry) => entry.message);
+  }
+
+  /** How each of them arrived, in the same order. */
+  alertsFor(token: string): NotificationAlert[] {
+    return this.sent
+      .filter((entry) => entry.tokens.includes(token))
+      .map((entry) => entry.alert);
   }
 }

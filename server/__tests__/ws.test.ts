@@ -271,6 +271,40 @@ describe('websocket', () => {
     b.close();
   });
 
+  /**
+   * The notification setting rides the channel snapshot, and the snapshot is
+   * the one place a per-viewer fact can travel without being broadcast. Two
+   * people watching the same channel see two different values here, and
+   * neither can see the other's — which is the whole reason it is a scalar on
+   * the view rather than a map like `pingableAt`.
+   */
+  it('carries each watcher their own notification level and nobody else’s', async () => {
+    const { alice, bob, channelId } = await pairInSession();
+    await app.fastify.inject({
+      method: 'PUT',
+      url: `/channels/${channelId}/notifications`,
+      headers: auth(bob.token),
+      payload: { level: 'low' },
+    });
+
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'watch.channel', channelId });
+
+    const forAlice = await a.next('channel');
+    const forBob = await b.next('channel');
+
+    // Bob turned it down; Alice never touched it and is on the default.
+    expect(forBob.view.notificationLevel).toBe('low');
+    expect(forAlice.view.notificationLevel).toBe('medium');
+    // And there is nowhere on the view for one to read the other's.
+    expect(JSON.stringify(forAlice.view)).not.toContain('low');
+    a.close();
+    b.close();
+  });
+
   it('refuses an action from someone outside the channel', async () => {
     const { channelId } = await pairInSession();
     const mallory = await signIn('user9999999@example.com', 'Mallory');

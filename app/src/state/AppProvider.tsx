@@ -19,6 +19,7 @@ import type {
   ChannelView,
   SupportView,
 } from '../../../core/protocol';
+import type { NotificationLevel } from '../../../core/notifications';
 import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
 import { mustUpdate } from '../api/expiry';
@@ -209,6 +210,14 @@ interface AppValue extends AppState {
   inviteGuest: (channelId: string) => Promise<string>;
   /** Every link this channel has, for settings. */
   guestLinks: (channelId: string) => Promise<GuestLinkSummary[]>;
+  /**
+   * Sets how loudly one channel may interrupt you, and resolves to what the
+   * server stored — which is the answer to show, not the one just sent.
+   */
+  setNotificationLevel: (
+    channelId: string,
+    level: NotificationLevel
+  ) => Promise<NotificationLevel>;
   revokeGuestLink: (channelId: string, linkToken: string) => Promise<void>;
   /**
    * Asks somebody you share a channel with to be a contact. Resolves to
@@ -832,6 +841,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         const { links } = await api.guestLinks(state.token, channelId);
         return links;
+      },
+
+      setNotificationLevel: async (channelId, level) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const result = await api.setNotificationLevel(
+          state.token,
+          channelId,
+          level
+        );
+        return result.level;
       },
 
       revokeGuestLink: async (channelId, linkToken) => {

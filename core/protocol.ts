@@ -1,3 +1,4 @@
+import type { NotificationLevel } from './notifications';
 import type { ChannelState, Clip, UserId } from './types';
 
 /**
@@ -326,6 +327,20 @@ export interface ChannelView {
    * is told no, which is what every build up to 55 does.
    */
   pingableAt?: Partial<Record<UserId, number>>;
+  /**
+   * How loudly this channel may interrupt **the viewer**, and nobody else.
+   *
+   * One person's own setting, never the roster's. What somebody has chosen to
+   * be told about is not a fact about the channel, and a snapshot carrying
+   * everybody's would make "has muted this" readable by the people it is about
+   * — which is a different feature, and not one anybody asked for.
+   *
+   * Optional, so a client older than the field simply does not see it. Absent
+   * means `DEFAULT_NOTIFICATION_LEVEL`, which is also what the server assumes
+   * for anybody who has never touched it, so the missing case and the untouched
+   * case agree.
+   */
+  notificationLevel?: NotificationLevel;
   serverNow: number;
 }
 

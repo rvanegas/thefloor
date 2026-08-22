@@ -5,6 +5,7 @@ import type {
   ProfileView,
   SupportView,
 } from '../../../core/protocol';
+import type { NotificationLevel } from '../../../core/notifications';
 import { appBuild, BUILD_HEADER } from './build';
 import { API_URL } from './config';
 import type { HealthReport } from './expiry';
@@ -285,6 +286,27 @@ export const api = {
       body: { targetId, text: text ?? null },
       token,
     }),
+
+  /**
+   * Sets how loudly this channel may interrupt the person asking.
+   *
+   * Theirs alone, which is why there is no target: the server takes the actor
+   * from the token, the same rule every other call here follows.
+   *
+   * The reply echoes the stored level rather than the requested one. They agree
+   * today, and the day the default moves they will not — asking for `medium`
+   * stores nothing, and the honest answer to "what am I set to" then comes from
+   * the server rather than from what the client just sent.
+   */
+  setNotificationLevel: (
+    token: string,
+    channelId: string,
+    level: NotificationLevel
+  ) =>
+    request<{ level: NotificationLevel }>(
+      `/channels/${channelId}/notifications`,
+      { method: 'PUT', body: { level }, token }
+    ),
 
   /**
    * Mints a link that lets anybody knock at this channel from a browser.

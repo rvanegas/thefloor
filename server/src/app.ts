@@ -9,9 +9,17 @@ import type {
   RecordingView,
 } from '../../core/protocol';
 import { describeChannel } from '../../core/naming';
+import {
+  alertFor,
+  DEFAULT_NOTIFICATION_LEVEL,
+  NOTIFICATION_LEVELS,
+  type NotificationAlert,
+  type NotificationLevel,
+} from '../../core/notifications';
 import { Accounts } from './accounts';
 import { openDb, type AccountRow, type Db, type RecordingRow } from './db';
 import { Devices, type DevicePlatform } from './devices';
+import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
 import { RECORDING_CONTENT_TYPE } from './export';
 import { isEmailAddress, type Mailer } from './mail';
@@ -188,6 +196,7 @@ export function buildApp(options: BuildOptions = {}): App {
   const homeNotifier = createHomeNotifier();
   const reachability = createReachability();
   const devices = new Devices(db);
+  const preferences = new NotificationPreferences(db);
   const pusher = options.pusher ?? new ConsolePusher(() => {});
   const pushNotifier = createPushNotifier();
 
@@ -214,12 +223,21 @@ export function buildApp(options: BuildOptions = {}): App {
     const away = message.reachesInApp
       ? userIds
       : userIds.filter((id) => !reachability.inApp(id));
-    const tokens = devices.tokensFor(away);
+    // Grouped by how loudly it should land rather than sent per person: two
+    // recipients who chose the same thing share one request, and the common
+    // case — nobody has touched the setting — is a single group again, which
+    // is what this path did before levels existed.
+    const levels = preferences.levelsFor(away, message.channelId);
+    const byAlert = new Map<NotificationAlert, string[]>();
+    for (const [id, tokens] of devices.tokensByAccount(away)) {
+      const alert = alertFor(message.kind, levels.get(id) ?? DEFAULT_NOTIFICATION_LEVEL);
+      byAlert.set(alert, [...(byAlert.get(alert) ?? []), ...tokens]);
+    }
     // Logged even when nothing is sent, and with the reason it was not. The
     // two ways of sending nothing — everybody is already looking, and nobody
     // has registered a device — are indistinguishable from a delivery failure
     // otherwise, which is exactly the confusion this feature shipped with.
-    if (tokens.length === 0) {
+    if (byAlert.size === 0) {
       fastify.log.info(
         {
           channelId: message.channelId,
@@ -231,33 +249,37 @@ export function buildApp(options: BuildOptions = {}): App {
       );
       return;
     }
-    void pusher
-      .send(tokens, message)
-      .then((results) => {
-        for (const result of results) {
-          if (result.dead) devices.forget(result.token);
-        }
-        const failed = results.filter((r) => r.status !== 200);
-        fastify.log.info(
-          {
-            channelId: message.channelId,
-            sent: results.length - failed.length,
-            failed: failed.map((r) => ({
-              // Truncated: the whole token is in the database if it is ever
-              // wanted, and a log line is not the place to accumulate every
-              // address the server knows.
-              token: r.token.slice(0, 8),
-              status: r.status,
-              reason: r.reason,
-              error: r.error,
-            })),
-          },
-          'push sent'
-        );
-      })
-      .catch((error) => {
-        fastify.log.error({ err: error }, 'push failed');
-      });
+    for (const [alert, tokens] of byAlert) {
+      void pusher
+        .send(tokens, message, alert)
+        .then((results) => {
+          for (const result of results) {
+            if (result.dead) devices.forget(result.token);
+          }
+          const failed = results.filter((r) => r.status !== 200);
+          fastify.log.info(
+            {
+              channelId: message.channelId,
+              kind: message.kind,
+              alert,
+              sent: results.length - failed.length,
+              failed: failed.map((r) => ({
+                // Truncated: the whole token is in the database if it is ever
+                // wanted, and a log line is not the place to accumulate every
+                // address the server knows.
+                token: r.token.slice(0, 8),
+                status: r.status,
+                reason: r.reason,
+                error: r.error,
+              })),
+            },
+            'push sent'
+          );
+        })
+        .catch((error) => {
+          fastify.log.error({ err: error }, 'push failed');
+        });
+    }
   };
 
   const channels = new ChannelRegistry(
@@ -1088,6 +1110,56 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true };
   });
 
+  /**
+   * How loudly this channel may interrupt whoever is asking.
+   *
+   * Over HTTP and not the socket, for the reason `ping` is: it changes nothing
+   * about the channel. No reducer knows about it, no other member is affected,
+   * and the only person owed an answer is the one who asked — a snapshot
+   * broadcast would be telling four people about a fifth's preference.
+   *
+   * **A participant may set it, and nobody else.** Not because a stranger's
+   * preference about a channel they cannot see would do any harm, but because
+   * accepting it would write a row keyed on a channel this person has no
+   * relationship with, and a table that accumulates those is one that answers
+   * "which channels does this account care about" wrongly forever.
+   *
+   * Membership is checked rather than presence: this is a setting about a
+   * channel, and being in the room is not a prerequisite for deciding how
+   * loudly it may shout at you. Somebody turns this down precisely when they
+   * are *not* there.
+   */
+  fastify.put('/channels/:id/notifications', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { level?: unknown } | undefined;
+
+    if (
+      typeof body?.level !== 'string' ||
+      !NOTIFICATION_LEVELS.includes(body.level as NotificationLevel)
+    ) {
+      return reply
+        .code(400)
+        .send({ error: `level must be one of ${NOTIFICATION_LEVELS.join(', ')}` });
+    }
+
+    const channel = channels.viewableBy(id, account.id);
+    if (!channel) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    if (!channel.participants.includes(account.id)) {
+      return reply.code(403).send({ error: 'Not your channel.' });
+    }
+
+    preferences.set(account.id, id, body.level as NotificationLevel, now());
+    // Echoed rather than assumed. The stored value and the requested one can
+    // differ — the default is stored as absence — and a client that reads its
+    // own state back from the reply cannot drift from the server by guessing
+    // what the write did.
+    return { level: preferences.levelFor(account.id, id) };
+  });
+
   // --- Guest links ----------------------------------------------------------
 
   /**
@@ -1593,6 +1665,7 @@ export function buildApp(options: BuildOptions = {}): App {
       now,
       homeNotifier,
       reachability,
+      preferences,
       mediaUrl: options.mediaUrl,
     });
   });

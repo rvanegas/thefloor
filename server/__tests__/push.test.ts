@@ -207,11 +207,11 @@ describe('an invite', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Alice',
+        kind: 'started',
         body: 'Started a channel with you.',
         channelId,
         collapseKey: channelId,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
-        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -235,11 +235,11 @@ describe('an invite', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Alice',
+        kind: 'started',
         body: 'Started a channel with you.',
         channelId: standing.channelId,
         collapseKey: standing.channelId,
         lifetimeMs: PARTICIPATION_LIFETIME_MS,
-        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -268,11 +268,11 @@ describe('an invite', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Alice',
+        kind: 'arrived',
         body: 'Alice stepped in.',
         channelId: id,
         collapseKey: id,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -313,12 +313,12 @@ describe('an invite', () => {
       expect(pusher.messagesFor(phone)).toEqual([
         {
           title: 'Alice',
+          kind: 'started',
           body: 'Started a channel with you.',
           channelId,
           collapseKey: channelId,
           lifetimeMs: PARTICIPATION_LIFETIME_MS,
-          audible: false,
-          reachesInApp: false,
+            reachesInApp: false,
         },
       ]);
     }
@@ -380,11 +380,11 @@ describe('a channel becoming active', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Alice',
+        kind: 'arrived',
         body: 'Alice stepped in.',
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -740,11 +740,11 @@ describe('what an unnamed channel is called on the lock screen', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Alice and Carol',
+        kind: 'arrived',
         body: 'Alice stepped in.',
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -764,11 +764,11 @@ describe('what an unnamed channel is called on the lock screen', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Thursday rehearsal',
+        kind: 'arrived',
         body: 'Alice stepped in.',
         channelId,
         collapseKey: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        audible: false,
         reachesInApp: false,
       },
     ]);
@@ -815,13 +815,13 @@ describe('a ping', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Alice',
+        kind: 'pinged',
         body: 'Alice: we are starting',
         channelId,
         // Nothing. Every ping carries words somebody chose, so no later one
         // is entitled to throw an earlier one away.
         collapseKey: null,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        audible: true,
         reachesInApp: true,
       },
     ]);
@@ -1012,6 +1012,153 @@ describe('a ping', () => {
 });
 
 /**
+ * The setting somebody can actually reach: how loudly one channel may
+ * interrupt one person. The rule itself is `alertFor` in core and is tested
+ * there; what these cover is that the rule reaches a phone — that the level is
+ * read per recipient at the moment of sending, and that two people in one
+ * channel can be told the same thing at different volumes.
+ */
+describe('how loudly a channel may interrupt', () => {
+  async function channelWithBothReachable() {
+    const { alice, bob } = await twoContacts();
+    const channelId = await createChannel(alice.token, [bob.account.id]);
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    await settle();
+    await registerDevice(alice.token, 'alice-phone');
+    await registerDevice(bob.token, 'bob-phone');
+    pusher.sent.length = 0;
+    return { alice, bob, channelId };
+  }
+
+  const setLevel = (token: string, channelId: string, level: unknown) =>
+    app.fastify.inject({
+      method: 'PUT',
+      url: `/channels/${channelId}/notifications`,
+      headers: auth(token),
+      payload: { level } as Record<string, unknown>,
+    });
+
+  const ping = (token: string, channelId: string, targetId: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/ping`,
+      headers: auth(token),
+      payload: { targetId },
+    });
+
+  it('leaves somebody who has never touched it on the default', async () => {
+    const { alice, bob, channelId } = await channelWithBothReachable();
+
+    await ping(alice.token, channelId, bob.account.id);
+    await settle();
+
+    expect(pusher.alertsFor('bob-phone')).toEqual(['audible']);
+  });
+
+  it('files a ping quietly for somebody who turned the channel down', async () => {
+    const { alice, bob, channelId } = await channelWithBothReachable();
+    expect((await setLevel(bob.token, channelId, 'low')).statusCode).toBe(200);
+
+    await ping(alice.token, channelId, bob.account.id);
+    await settle();
+
+    // Delivered, and deliberately so: `low` is quiet rather than off, and the
+    // notification is there to be found when they look.
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+    expect(pusher.alertsFor('bob-phone')).toEqual(['passive']);
+  });
+
+  it('lets somebody ask to hear an arrival, which is otherwise silent', async () => {
+    const { alice, bob, channelId } = await channelWithBothReachable();
+    await setLevel(bob.token, channelId, 'high');
+
+    // Alice walks into the room Bob is not in.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(pusher.alertsFor('bob-phone')).toEqual(['audible']);
+  });
+
+  /**
+   * The reason the level is resolved per recipient rather than per send. One
+   * arrival, one call into `notify`, two people who have asked for different
+   * things — and the notification each of them gets has to be the one they
+   * asked for, not the one the other did.
+   */
+  it('tells two people about one event at two volumes', async () => {
+    const { alice, bob, channelId } = await channelWithBothReachable();
+    const carol = await signIn('carol@example.com', 'Carol');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: 'carol@example.com' },
+    });
+    await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${alice.account.id}/accept`,
+      headers: auth(carol.token),
+    });
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'INVITE',
+      contactId: carol.account.id,
+    } as never);
+    await settle();
+    await registerDevice(carol.token, 'carol-phone');
+    await setLevel(bob.token, channelId, 'high');
+    await setLevel(carol.token, channelId, 'low');
+    pusher.sent.length = 0;
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(pusher.alertsFor('bob-phone')).toEqual(['audible']);
+    expect(pusher.alertsFor('carol-phone')).toEqual(['passive']);
+  });
+
+  it('refuses a level it has never heard of', async () => {
+    const { bob, channelId } = await channelWithBothReachable();
+
+    expect((await setLevel(bob.token, channelId, 'silent')).statusCode).toBe(400);
+    expect((await setLevel(bob.token, channelId, 3)).statusCode).toBe(400);
+    expect((await setLevel(bob.token, channelId, undefined)).statusCode).toBe(400);
+  });
+
+  it('refuses somebody who is not in the channel', async () => {
+    const { channelId } = await channelWithBothReachable();
+    const carol = await signIn('carol@example.com', 'Carol');
+
+    const reply = await setLevel(carol.token, channelId, 'low');
+    // 404 rather than 403: a channel Carol cannot see is one she is not owed
+    // the existence of, which is the rule every other read here follows.
+    expect(reply.statusCode).toBe(404);
+  });
+
+  /**
+   * Choosing the default stores nothing, which is what keeps a row meaning
+   * "somebody decided this" rather than "somebody once opened the screen".
+   * The reply is read back from storage for exactly this reason.
+   */
+  it('forgets the row when somebody goes back to the default', async () => {
+    const { bob, channelId } = await channelWithBothReachable();
+
+    await setLevel(bob.token, channelId, 'high');
+    const back = await setLevel(bob.token, channelId, 'medium');
+
+    expect(back.json()).toEqual({ level: 'medium' });
+    const rows = app.db
+      .prepare(
+        'SELECT count(*) AS n FROM channel_notification_levels WHERE account_id = ?'
+      )
+      .get(bob.account.id) as { n: number };
+    expect(rows.n).toBe(0);
+  });
+});
+
+/**
  * Two of the three report who belongs to a channel and one reports who is
  * standing in it, and they are given different lifetimes on that basis. The
  * cases above already prove each kind carries its own as far as the pusher;
@@ -1050,15 +1197,15 @@ describe('how long a notification stays worth delivering', () => {
    * off, and the ping goes with them. So this is a statement about the three
    * as much as about the one.
    */
-  it('makes a sound for a ping and for nothing else', () => {
-    expect(notifications.started('Alice', 'chan_1').audible).toBe(false);
-    expect(notifications.invited('Alice', null, 'chan_1').audible).toBe(false);
-    expect(notifications.arrived('Standup', 'Alice', 'chan_1').audible).toBe(
-      false
+  it('says which of the four it is, so a level can be applied to it', () => {
+    expect(notifications.started('Alice', 'chan_1').kind).toBe('started');
+    expect(notifications.invited('Alice', null, 'chan_1').kind).toBe('invited');
+    expect(notifications.arrived('Standup', 'Alice', 'chan_1').kind).toBe(
+      'arrived'
     );
     expect(
-      notifications.pinged('Standup', 'Alice', 'come back', 'chan_1').audible
-    ).toBe(true);
+      notifications.pinged('Standup', 'Alice', 'come back', 'chan_1').kind
+    ).toBe('pinged');
   });
 
   it('delivers only a ping to somebody who is already in the app', () => {

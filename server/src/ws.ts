@@ -14,6 +14,7 @@ import type {
   ServerMessage,
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
+import type { NotificationPreferences } from './preferences';
 import type { ChannelRegistry } from './channels';
 import { claimedBuild } from './release';
 
@@ -117,6 +118,7 @@ export function registerWebsocket(deps: {
   now: () => number;
   homeNotifier: HomeNotifier;
   reachability: Reachability;
+  preferences: NotificationPreferences;
   /** Where a guest's page should connect for audio. Absent without a media plane. */
   mediaUrl?: string;
 }): void {
@@ -129,6 +131,7 @@ export function registerWebsocket(deps: {
     now,
     homeNotifier,
     reachability,
+    preferences,
     mediaUrl,
   } = deps;
   const connections = new Set<Connection>();
@@ -229,6 +232,11 @@ export function registerWebsocket(deps: {
         participants,
         recordings: recordingsInChannel(channelId, connection.userId),
         pingableAt: channels.pingWindows(channelId),
+        // This connection's own setting and nobody else's. It rides the
+        // channel snapshot because that is where it is read and changed, and
+        // because a snapshot is already per connection — the same fact that
+        // makes `recordings` and `pingableAt` viewer-relative here.
+        notificationLevel: preferences.levelFor(connection.userId, channelId),
         serverNow: now(),
       },
     });

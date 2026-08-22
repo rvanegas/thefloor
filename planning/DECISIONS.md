@@ -1502,3 +1502,100 @@ different questions — what may be discarded, what would be a duplicate, what i
 worth interrupting for — and a notification that should arrive quietly and never
 be overwritten is easy to imagine. The fields can say that; a predicate cannot.
 The reasoning also has to live somewhere a constructor can see it.
+
+## Notifications have a level, per channel and per person — 2026-08-22
+
+Three days of decisions about how loudly this app may interrupt somebody ended
+where they were always going to: with the person deciding. `low`, `medium`,
+`high`, set per channel, held per account, defaulting to the arrangement that
+was hard-coded until now.
+
+| | started | invited | arrived | pinged |
+| --- | --- | --- | --- | --- |
+| `low` | passive | passive | passive | **passive** |
+| `medium` | silent | silent | silent | **audible** |
+| `high` | **audible** | **audible** | **audible** | audible |
+
+**`low` takes the ping down with everything else, and that is the one entry
+not dictated by the brief**, which said only that a ping goes passive there.
+The alternative — the automatic three staying `silent` while the ping alone
+drops to `passive` — would make being asked for by name *less* obtrusive than
+somebody wandering into the room. Nobody would choose that on purpose, and it
+is the kind of inversion that survives for months because each half looks
+right on its own. Every column is now non-decreasing down the rows, which is
+the property to preserve if the table is ever edited: turning the setting up
+must never make anything quieter.
+
+`passive` is the rung *below* the default and needs no entitlement. Nothing
+here reaches `time-sensitive` or `critical`, and the test asserting so still
+stands.
+
+### Loudness stopped being a property of the notification
+
+`audible: boolean` had been on `PushMessage` for about an hour. It was correct
+while it was a fact about the notification and stopped being correct the moment
+each person could set a level: the same arrival is audible to somebody who
+asked for everything and passive to somebody who did not, so there is no value
+a constructor can honestly write down.
+
+So `kind` replaced it — which of the four this is — and the loudness became an
+argument to `Pusher.send` rather than a field on the message. `alertFor(kind,
+level)` in `core/notifications.ts` is the whole rule, and `notify` groups the
+recipients of one event by what they each asked for: one call in, one request
+per distinct answer out. **The common case is still a single request**, because
+the common case is that nobody has touched the setting.
+
+The rule lives in core rather than the server because both ends need it for
+different halves of one question: the server decides what to send, and the app
+tells somebody what they have chosen. A settings screen explaining the levels
+from its own table is one that can disagree with what the phone then does, and
+that disagreement is invisible until somebody complains that a setting lied.
+
+### Storing only the exceptions
+
+`channel_notification_levels` holds a row only for people who have changed
+something. Absence is the default, so there was no backfill, and choosing the
+default again is a delete rather than an update.
+
+That is not an optimisation. A row saying `medium` and no row at all mean the
+same thing today and would stop meaning the same thing the day the default
+moves — at which point everybody who had ever opened the screen and left it
+alone would be pinned to the old arrangement, indistinguishable from the people
+who meant it. The route echoes the *stored* level back rather than the
+requested one for the same reason.
+
+It is deliberately not in the channel's state blob, though it is per channel.
+That blob is the reducer's, is rewritten whole on every transition, and is the
+same for everybody. This is one person's preference, read on a path no reducer
+runs, and it must never travel to the other members — a field in the blob would
+have been all three of those things by accident.
+
+### One person's setting, on a snapshot everybody gets
+
+`ChannelView.notificationLevel` is the viewer's own and nobody else's. Which
+member has turned a channel down is not a fact about the channel, and a
+snapshot carrying the roster's settings would make "has muted you" readable by
+the people it is about. That is a different feature and nobody asked for it.
+
+The snapshot was already per connection — `recordings` and `pingableAt` are
+viewer-relative in exactly this way — so this cost nothing structurally. There
+is a test with two clients watching one channel and seeing two different
+answers.
+
+### What `high` cannot reach yet
+
+`started` at `high` is unreachable in practice, and honestly so. The setting is
+per channel, and a channel does not exist before it is created — so nobody can
+have asked to hear loudly about a channel that is about to be started with
+them. The code handles it because the table is total, not because the case
+occurs. **An account-wide default is what would make it reachable**, and that
+is the natural next question rather than a defect in this one.
+
+### The app makes the same decision twice, and must not disagree
+
+A passive ping is delivered but must not put a banner over the app somebody is
+holding — that would be exactly the interruption they declined, arriving by
+another door. So the resolved alert travels in the payload beside
+`reachesInApp`, and the handler tests both. The phone is told the *conclusion*
+rather than the setting: the level lives on the server, and a client
+re-deriving it is a client that can reach a different answer.

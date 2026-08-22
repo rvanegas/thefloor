@@ -44,6 +44,18 @@ describe('a notification arriving while the app is open', () => {
   });
 
   /**
+   * Somebody who turned this channel down. The server has already declined to
+   * make a sound; showing a banner over the app they are holding would be the
+   * same interruption arriving by another door.
+   */
+  it('stays quiet for a ping somebody asked to arrive passively', async () => {
+    const decision = await handler(
+      notification({ channelId: 'chan_1', reachesInApp: true, alert: 'passive' })
+    );
+    expect(decision.shouldShowBanner).toBe(false);
+  });
+
+  /**
    * A build can outlive the server it was written against, and a server that
    * sends no such field is one whose every notification was a duplicate.
    * Absent has to mean quiet, or an old pairing shows banners for arrivals.

@@ -83,7 +83,11 @@ beforeEach(() => {
 
 describe('what a notification asks APNs to replace', () => {
   it('names the channel for everything the channel says about itself', async () => {
-    await pusher().send(['token'], notifications.arrived('Standup', 'Alice', 'chan_1'));
+    await pusher().send(
+      ['token'],
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
+      'silent'
+    );
 
     expect(requests[0].headers['apns-collapse-id']).toBe('chan_1');
   });
@@ -97,7 +101,8 @@ describe('what a notification asks APNs to replace', () => {
   it('sends no collapse header at all for a ping', async () => {
     await pusher().send(
       ['token'],
-      notifications.pinged('Standup', 'Alice', 'we are starting', 'chan_1')
+      notifications.pinged('Standup', 'Alice', 'we are starting', 'chan_1'),
+      'audible'
     );
 
     expect('apns-collapse-id' in requests[0].headers).toBe(false);
@@ -111,7 +116,8 @@ describe('what a notification asks APNs to replace', () => {
   it('still threads a ping under its channel', async () => {
     await pusher().send(
       ['token'],
-      notifications.pinged('Standup', 'Alice', null, 'chan_1')
+      notifications.pinged('Standup', 'Alice', null, 'chan_1'),
+      'audible'
     );
 
     const aps = requests[0].payload.aps as { 'thread-id': string };
@@ -123,7 +129,8 @@ describe('what a notification is allowed to interrupt', () => {
   it('arrives silently when the channel is talking about itself', async () => {
     await pusher().send(
       ['token'],
-      notifications.arrived('Standup', 'Alice', 'chan_1')
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
+      'silent'
     );
 
     // Absent, not empty. There is no quiet sound, and `sound: ''` is a value
@@ -135,7 +142,8 @@ describe('what a notification is allowed to interrupt', () => {
   it('makes a sound for a ping', async () => {
     await pusher().send(
       ['token'],
-      notifications.pinged('Standup', 'Alice', 'we are starting', 'chan_1')
+      notifications.pinged('Standup', 'Alice', 'we are starting', 'chan_1'),
+      'audible'
     );
 
     const aps = requests[0].payload.aps as Record<string, unknown>;
@@ -150,19 +158,51 @@ describe('what a notification is allowed to interrupt', () => {
    * Apple — so this is the assertion that stops a future "make the ping more
    * reliable" from quietly becoming an escalation.
    */
-  it('never claims an interruption level for anything', async () => {
-    for (const message of [
-      notifications.started('Alice', 'chan_1'),
-      notifications.invited('Alice', null, 'chan_1'),
-      notifications.arrived('Standup', 'Alice', 'chan_1'),
-      notifications.pinged('Standup', 'Alice', null, 'chan_1'),
-    ]) {
-      await pusher().send(['token'], message);
+  it('never claims an interruption level above the default', async () => {
+    for (const alert of ['silent', 'audible'] as const) {
+      for (const message of [
+        notifications.started('Alice', 'chan_1'),
+        notifications.invited('Alice', null, 'chan_1'),
+        notifications.arrived('Standup', 'Alice', 'chan_1'),
+        notifications.pinged('Standup', 'Alice', null, 'chan_1'),
+      ]) {
+        await pusher().send(['token'], message, alert);
+      }
     }
 
     for (const request of requests) {
       const aps = request.payload.aps as Record<string, unknown>;
       expect('interruption-level' in aps).toBe(false);
     }
+  });
+
+  /**
+   * The one rung this app claims, and it is the rung *below* the default.
+   * `passive` needs no entitlement and nothing is escalated by it — the
+   * notification is filed rather than announced, which is what somebody who
+   * turned a channel down was asking for.
+   */
+  it('asks for the passive level when somebody has turned a channel down', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.pinged('Standup', 'Alice', 'come back', 'chan_1'),
+      'passive'
+    );
+
+    const aps = requests[0].payload.aps as Record<string, unknown>;
+    expect(aps['interruption-level']).toBe('passive');
+    expect('sound' in aps).toBe(false);
+    // And the radio is not woken for it, which is the other half of quiet.
+    expect(requests[0].headers['apns-priority']).toBe('5');
+  });
+
+  it('delivers everything else immediately', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.pinged('Standup', 'Alice', null, 'chan_1'),
+      'audible'
+    );
+
+    expect(requests[0].headers['apns-priority']).toBe('10');
   });
 });

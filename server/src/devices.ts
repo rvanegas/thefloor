@@ -79,6 +79,38 @@ export class Devices {
   }
 
   /**
+   * The same addresses, but keyed by whose they are.
+   *
+   * `tokensFor` flattens the accounts away, which was right while every
+   * recipient of one notification was treated alike. Once each person could
+   * say how loudly a channel may interrupt them, the sender has to know which
+   * address belongs to whom — so this is the same single query with the column
+   * it was already selecting kept rather than discarded.
+   *
+   * Accounts with no registered device are absent rather than present with an
+   * empty list: a caller iterating this is looking for somewhere to send, and
+   * an entry that resolves to nowhere is a group of no tokens to reason about.
+   */
+  tokensByAccount(accountIds: readonly string[]): Map<string, string[]> {
+    const byAccount = new Map<string, string[]>();
+    if (accountIds.length === 0) return byAccount;
+    const placeholders = accountIds.map(() => '?').join(', ');
+    const rows = this.db
+      .prepare(
+        `SELECT account_id, token FROM device_tokens
+         WHERE account_id IN (${placeholders})`
+      )
+      .all(...accountIds) as Array<{ account_id: string; token: string }>;
+    for (const row of rows) {
+      byAccount.set(row.account_id, [
+        ...(byAccount.get(row.account_id) ?? []),
+        row.token,
+      ]);
+    }
+    return byAccount;
+  }
+
+  /**
    * Forgets one address.
    *
    * Called on sign-out, and on every token Apple answers 410 Unregistered for

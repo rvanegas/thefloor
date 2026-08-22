@@ -81,6 +81,13 @@ export interface DeviceTokenRow {
   last_seen_at: number;
 }
 
+export interface ChannelNotificationLevelRow {
+  account_id: string;
+  channel_id: string;
+  level: 'low' | 'medium' | 'high';
+  set_at: number;
+}
+
 export interface GuestLinkRow {
   token: string;
   channel_id: string;
@@ -618,6 +625,32 @@ CREATE TABLE IF NOT EXISTS usage_bytes (
   at           INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS usage_bytes_at ON usage_bytes(at);
+
+-- How loudly one channel may interrupt one person.
+--
+-- **Only the people who have changed it have a row.** Absence means
+-- DEFAULT_NOTIFICATION_LEVEL, so the table holds the exceptions rather than a
+-- row per membership, and setting the default back is a delete. That also
+-- means no backfill was needed for the channels that existed before it.
+--
+-- Not part of the channel's state blob, though it is per channel. That blob is
+-- the reducer's, is rewritten whole on every transition, and is the same for
+-- everybody; this is one person's preference about a channel, is read on a
+-- path the reducer never runs, and must never travel to the other members. A
+-- field in the blob would be all three of those things by accident.
+--
+-- ON DELETE CASCADE on the channel, because a channel that has been swept is
+-- one whose settings are meaningless — and the sweep in channels.ts really
+-- does DELETE the row, a week after the last member marked it. No cascade is
+-- needed on the account side: `Accounts.erase` anonymises the row in place
+-- rather than deleting it, so that reference cannot dangle.
+CREATE TABLE IF NOT EXISTS channel_notification_levels (
+  account_id TEXT NOT NULL REFERENCES accounts(id),
+  channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  level      TEXT NOT NULL CHECK (level IN ('low', 'medium', 'high')),
+  set_at     INTEGER NOT NULL,
+  PRIMARY KEY (account_id, channel_id)
+);
 `;
 
 export type Db = DatabaseSync;

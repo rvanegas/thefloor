@@ -111,6 +111,9 @@ const mockApp = {
   // a screen that throws rather than a screen with an empty section.
   inviteGuest: jest.fn(async () => 'https://example.test/g/tok'),
   guestLinks: jest.fn(async () => [] as GuestLinkSummary[]),
+  // Echoes what it was asked for, as the server does when the level is not the
+  // default. A test about the refusal path overrides it.
+  setNotificationLevel: jest.fn(async (_channelId: string, level: string) => level),
   revokeGuestLink: jest.fn(async () => {}),
   watchChannel: jest.fn(),
   leaveChannelView: jest.fn(),
@@ -1669,6 +1672,54 @@ describe('Channel', () => {
     // Compared as a whole rather than pairwise, so a failure names the order
     // it actually rendered in instead of one crossed pair.
     expect([...at].sort((x, y) => x[1] - y[1]).map(([l]) => l)).toEqual(order);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The one setting on this screen that is about the reader rather than about
+   * the channel. It shows what they are on, and every level says in a sentence
+   * what it does — "Quiet" in particular has to make clear that notifications
+   * still arrive, or the people who want exactly it avoid it.
+   */
+  it('offers the three notification levels, on the default', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
+    const quiet = findButton(tree, 'Quiet');
+    const pings = findButton(tree, 'Pings only');
+    const everything = findButton(tree, 'Everything');
+    expect(quiet).toBeDefined();
+    expect(everything).toBeDefined();
+    expect(labelOf(quiet!)).toContain('pings included');
+    // The default is the one shown as chosen, without anybody having chosen
+    // it. Compared against a sibling rather than against a colour, so this
+    // says "one of them is marked" without pinning the palette.
+    const background = (button: typeof pings) =>
+      JSON.stringify(button!.props.style({ pressed: false }));
+    expect(background(pings)).not.toEqual(background(quiet));
+    expect(background(quiet)).toEqual(background(everything));
+    act(() => tree.unmount());
+  });
+
+  it('sends the level somebody taps, and shows it as chosen', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
+    act(() => findButton(tree, 'Quiet')!.props.onPress());
+
+    expect(mockApp.setNotificationLevel).toHaveBeenCalledWith('sess_1', 'low');
     act(() => tree.unmount());
   });
 

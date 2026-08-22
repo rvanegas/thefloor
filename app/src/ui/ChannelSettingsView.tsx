@@ -6,6 +6,12 @@ import {
   MAX_CHANNEL_NAME_LENGTH,
 } from '../../../core/constants';
 import { canEditChannel, hasTheRoom } from '../../../core/channel';
+import {
+  DEFAULT_NOTIFICATION_LEVEL,
+  describeLevel,
+  NOTIFICATION_LEVELS,
+  type NotificationLevel,
+} from '../../../core/notifications';
 import type { ChannelState } from '../../../core/types';
 import { showRoutePicker } from '../audio/routePicker';
 import { type GuestLinkSummary } from '../api/http';
@@ -284,6 +290,23 @@ export function ChannelSettingsView({
       ) : null}
 
       {/*
+        Whose phone this channel may ring, and how loudly. One person's own
+        answer about one channel — nobody else on the roster is told, and
+        nothing about the conversation changes.
+
+        Here rather than on the channel screen for the reason the audio picker
+        is: it is about the channel and not about the conversation going on
+        inside it. And per channel rather than in Settings because that is the
+        scope at which the question has an answer — the same amount of traffic
+        is welcome from the conversation somebody is waiting on and unwelcome
+        from the one they joined for completeness.
+      */}
+      <SectionLabel>Notifications</SectionLabel>
+      <Card style={styles.stack}>
+        <NotificationLevelPicker channelId={channel.id} />
+      </Card>
+
+      {/*
         Every door onto this channel that has ever been opened, and the state
         of each. Here rather than on the channel screen for the reason the
         audio picker is: it is about the channel rather than about the
@@ -371,6 +394,74 @@ const styles = StyleSheet.create({
 });
 
 /** "a recording" / "3 recordings" — the count read as a phrase. */
+/**
+ * How loudly this channel may interrupt the person reading the screen.
+ *
+ * Three buttons rather than a slider or a switch, because the middle value is
+ * a real choice and not a midpoint: "pings make a sound, nothing else does" is
+ * what most people want and is not something anybody arrives at by dragging.
+ * Each carries the sentence describing what it does, since the labels alone
+ * cannot say whether "Quiet" still delivers anything — and somebody choosing
+ * it is asking to be left alone about this channel, not to stop being told.
+ *
+ * The current value comes from the channel snapshot, which is per connection
+ * and already carries this viewer's own setting. It is held in local state
+ * once tapped so the screen answers immediately; the next snapshot carries the
+ * same value back out of the database, so the optimistic answer and the
+ * authoritative one converge rather than fight. A refusal puts it back, which
+ * matters because the one thing worse than a setting that does not take is a
+ * screen claiming it did.
+ */
+function NotificationLevelPicker({ channelId }: { channelId: string }) {
+  const app = useApp();
+  const stored =
+    app.channelViews[channelId]?.notificationLevel ?? DEFAULT_NOTIFICATION_LEVEL;
+  const [level, setLevel] = useState<NotificationLevel>(stored);
+  const [error, setError] = useState<string | null>(null);
+
+  // The snapshot is the authority, so a change made on another device — or the
+  // first snapshot to arrive after this screen opened — wins over what is on
+  // screen.
+  useEffect(() => {
+    setLevel(stored);
+  }, [stored]);
+
+  const choose = (next: NotificationLevel) => {
+    const previous = level;
+    setLevel(next);
+    setError(null);
+    app.setNotificationLevel(channelId, next).then(
+      (saved) => setLevel(saved),
+      (failure: unknown) => {
+        setLevel(previous);
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : 'Could not change that just now.'
+        );
+      }
+    );
+  };
+
+  return (
+    <>
+      {NOTIFICATION_LEVELS.map((option) => {
+        const { label, detail } = describeLevel(option);
+        return (
+          <Button
+            key={option}
+            label={label}
+            sublabel={detail}
+            variant={option === level ? 'primary' : 'default'}
+            onPress={() => choose(option)}
+          />
+        );
+      })}
+      {error ? <Text style={styles.warning}>{error}</Text> : null}
+    </>
+  );
+}
+
 /**
  * The links this channel has, live and dead.
  *

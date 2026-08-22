@@ -28,6 +28,21 @@ function reachesInApp(notification: Notifications.Notification): boolean {
 }
 
 /**
+ * Whether this was meant to announce itself at all.
+ *
+ * `passive` is what somebody gets who has turned a channel down, and it is the
+ * server's word rather than this app's judgement — the level lives on the
+ * server, so the phone is told the conclusion instead of being told the
+ * setting and asked to reach it again.
+ */
+function isPassive(notification: Notifications.Notification): boolean {
+  const data = notification.request.content.data as
+    | { alert?: unknown }
+    | undefined;
+  return data?.alert === 'passive';
+}
+
+/**
  * A push arriving while the app is open is *usually* a duplicate — the
  * websocket has already put the same invite on screen as a banner, and the
  * same channel in the Home list. The server suppresses those for anyone
@@ -44,10 +59,16 @@ function reachesInApp(notification: Notifications.Notification): boolean {
  * Still no sound. A banner over an app somebody is holding is seen, and the
  * sound is what the same notification uses to reach a phone face-down on a
  * table — the case the server already handles by sending this at all.
+ *
+ * **And not even a banner when the ping arrived passively**, which is what
+ * somebody who turned this channel down asked for. Putting a banner over the
+ * app they are looking at would be precisely the interruption they declined,
+ * and it would be this app overriding a setting the server had already
+ * honoured on the way out.
  */
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => ({
-    shouldShowBanner: reachesInApp(notification),
+    shouldShowBanner: reachesInApp(notification) && !isPassive(notification),
     shouldShowList: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
