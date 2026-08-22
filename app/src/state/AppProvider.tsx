@@ -25,7 +25,12 @@ import { appBuild } from '../api/build';
 import { mustUpdate } from '../api/expiry';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
-import { onNotificationTap, registerForPush } from '../push';
+import {
+  onNotificationTap,
+  registerForPush,
+  sweepArrivals,
+  sweepChannel,
+} from '../push';
 import {
   APPEARANCE_KEY,
   applyPreference,
@@ -659,6 +664,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [realtime, expiry.expired]);
 
+  /**
+   * Clears announcements about rooms, on every foreground and on launch.
+   *
+   * Separate from the reconnect above though it watches the same transition,
+   * because the two have nothing to do with each other: one is about a socket
+   * that did not survive suspension, and this is about what is sitting in
+   * Notification Center. Merging them would make the sweep conditional on
+   * `expiry.expired`, which is not a reason to leave stale notifications on
+   * somebody's lock screen.
+   *
+   * Not awaited and not caught here — `sweepArrivals` never rejects. Tidying
+   * up is a courtesy and must not become an error in front of somebody who has
+   * just opened the app.
+   */
+  useEffect(() => {
+    void sweepArrivals();
+    const subscription = NativeAppState.addEventListener('change', (next) => {
+      if (next === 'active') void sweepArrivals();
+    });
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => () => realtime.disconnect(), [realtime]);
 
   const value = useMemo<AppValue>(
@@ -882,7 +909,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return channelId;
       },
 
-      watchChannel: (channelId) => realtime.watchChannel(channelId),
+      /**
+       * Opening a channel also clears what it had outstanding on the lock
+       * screen: a ping about it has been answered by the person walking in,
+       * and an arrival is stale because the roster is now on screen.
+       *
+       * Here rather than in the channel screen because this is the one call
+       * every route into a channel makes — a tap on Home, a tap on the
+       * notification itself, a channel just created. Hanging it off the screen
+       * would mean finding all of them again.
+       */
+      watchChannel: (channelId) => {
+        realtime.watchChannel(channelId);
+        void sweepChannel(channelId);
+      },
 
       // Only this channel's snapshot goes: leaving one is not leaving the
       // others, and dropping the lot would hang up on a conversation being

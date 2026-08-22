@@ -19,6 +19,11 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(async () => ({ granted: false })),
   getDevicePushTokenAsync: jest.fn(async () => ({ type: 'ios', data: '' })),
   getLastNotificationResponseAsync: jest.fn(async () => null),
+  // Nothing on the lock screen by default, which is what a fresh install has.
+  // The tests that sweep hand back their own list.
+  getPresentedNotificationsAsync: jest.fn(async () => []),
+  dismissNotificationAsync: jest.fn(async () => {}),
+  dismissAllNotificationsAsync: jest.fn(async () => {}),
   addNotificationResponseReceivedListener: jest.fn(() => ({
     remove: jest.fn(),
   })),

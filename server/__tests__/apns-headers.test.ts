@@ -126,6 +126,24 @@ describe('what a notification asks APNs to replace', () => {
     expect(aps['thread-id']).toBe(ASKING_THREAD);
   });
 
+  /**
+   * The payload the app reads to tidy up after these. iOS never expires a
+   * delivered notification, so the phone removes the stale ones itself — and
+   * it can only tell them apart if this field is here. Nothing in the server
+   * suite would notice its absence, and the symptom on a phone is an old
+   * announcement that never goes away.
+   */
+  it('says which kind it is, so the phone can clear the stale ones', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
+      'silent'
+    );
+
+    expect(requests[0].payload.kind).toBe('arrived');
+    expect(requests[0].payload.channelId).toBe('chan_1');
+  });
+
   it('threads an arrival under its own room', async () => {
     await pusher().send(
       ['token'],

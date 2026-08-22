@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 
-import '../push';
+import { sweepArrivals, sweepChannel } from '../push';
 
 /**
  * What the app does with a notification that arrives while somebody is looking
@@ -65,5 +65,85 @@ describe('a notification arriving while the app is open', () => {
     expect(bare.shouldShowBanner).toBe(false);
     const empty = await handler(notification(undefined));
     expect(empty.shouldShowBanner).toBe(false);
+  });
+});
+
+/**
+ * The tidying up that stands in for an expiry iOS does not have. A delivered
+ * notification lives until something removes it, and the only something is
+ * this app — so what these cover is *which* ones it is entitled to remove.
+ */
+describe('clearing notifications that have stopped being true', () => {
+  const presented = (
+    entries: Array<{ id: string; kind?: string; channelId?: string }>
+  ) => {
+    (
+      Notifications.getPresentedNotificationsAsync as jest.Mock
+    ).mockResolvedValueOnce(
+      entries.map(({ id, kind, channelId }) => ({
+        request: { identifier: id, content: { data: { kind, channelId } } },
+      }))
+    );
+  };
+
+  const dismissed = () =>
+    (Notifications.dismissNotificationAsync as jest.Mock).mock.calls.map(
+      (call) => call[0]
+    );
+
+  beforeEach(() => {
+    (Notifications.dismissNotificationAsync as jest.Mock).mockClear();
+  });
+
+  it('sweeps arrivals and nothing else', async () => {
+    presented([
+      { id: 'a', kind: 'arrived', channelId: 'chan_1' },
+      { id: 'b', kind: 'pinged', channelId: 'chan_1' },
+      { id: 'c', kind: 'invited', channelId: 'chan_2' },
+      { id: 'd', kind: 'started', channelId: 'chan_3' },
+    ]);
+
+    await sweepArrivals();
+
+    // An invitation stays true until acted on and a ping carries words
+    // somebody chose. Only the announcement about a room is stale on sight.
+    expect(dismissed()).toEqual(['a']);
+  });
+
+  it('clears the ping and the arrival for the channel being opened', async () => {
+    presented([
+      { id: 'a', kind: 'pinged', channelId: 'chan_1' },
+      { id: 'b', kind: 'arrived', channelId: 'chan_1' },
+      { id: 'c', kind: 'pinged', channelId: 'chan_2' },
+      { id: 'd', kind: 'invited', channelId: 'chan_1' },
+    ]);
+
+    await sweepChannel('chan_1');
+
+    // Another channel's ping is untouched — walking into this room answers
+    // nothing about that one. The invitation survives on purpose.
+    expect(dismissed().sort()).toEqual(['a', 'b']);
+  });
+
+  /**
+   * A phone can hold a notification sent by a server older than the field
+   * being read. Removing one whose kind is unknown would be deleting something
+   * on no evidence.
+   */
+  it('leaves a notification it cannot identify alone', async () => {
+    presented([{ id: 'a', channelId: 'chan_1' }, { id: 'b' }]);
+
+    await sweepArrivals();
+
+    expect(dismissed()).toEqual([]);
+  });
+
+  it('says nothing when the notification centre cannot be read', async () => {
+    (
+      Notifications.getPresentedNotificationsAsync as jest.Mock
+    ).mockRejectedValueOnce(new Error('no permission'));
+
+    await expect(sweepArrivals()).resolves.toBeUndefined();
+    expect(dismissed()).toEqual([]);
   });
 });

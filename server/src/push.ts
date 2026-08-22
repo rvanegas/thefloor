@@ -555,6 +555,13 @@ export class ApnsPusher implements Pusher {
       // interrupted by, and putting a banner over the app they are holding
       // would be exactly the interruption they declined.
       alert,
+      // Which of the four, so the app can tidy up after them. iOS never
+      // expires a notification it has already delivered — `apns-expiration`
+      // bounds retrying, not display — so an arrival announcing a room that
+      // emptied hours ago sits there until something removes it, and only the
+      // app can. Removing the right ones means telling them apart, and a
+      // notification is otherwise opaque to the phone that is holding it.
+      kind: message.kind,
     });
 
     try {

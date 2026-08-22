@@ -1679,3 +1679,44 @@ comes from `channelId` in the payload, which is a third thing again.
 joins the pile, which is only a contradiction if the two headers are read as
 one. There is a test that says exactly this, because it is the sentence a
 future reader will not believe.
+
+## The phone tidies up, because iOS never will — 2026-08-22
+
+There is no expiry on a *delivered* notification, anywhere in APNs or iOS.
+`apns-expiration` bounds how long Apple retries one that has not landed; once
+it lands it sits in Notification Center until something removes it. So the
+five-minute presence lifetime, which reads like a self-destruct, tidies nothing
+up at all — a phone left alone all evening accumulates announcements about
+rooms that emptied hours ago, and the only thing that can remove them is this
+app.
+
+Four mechanisms exist and three of them are wrong here. A background push can
+wake the app to clear them, but delivery is opportunistic and throttled, so it
+cannot be relied on at a chosen minute. A notification service extension runs
+when a *new* notification arrives, which is tidying on the next event rather
+than on a clock. Collapse already bounds arrivals at one per channel and never
+empties the list. What is left is the app removing its own, which it can only
+do while running.
+
+**So the rule became "remove them when they stop being able to be true", not
+"when they get old"** — and that is nearer what a timer was wanted for than a
+timer would have been. An arrival is stale the instant the app opens, because
+the app shows who is present: the notification and the screen would be saying
+different things, and the screen is right. `sweepArrivals` runs on launch and
+on every foreground.
+
+**Arrivals only.** An invitation stays true until it is acted on, and a ping
+carries words somebody chose; sweeping either on a clock would delete something
+nobody had read. Those are cleared by opening the channel they name —
+`sweepChannel`, hung off `watchChannel` because that is the one call every
+route into a channel makes, including a tap on the notification itself.
+Invitations survive even that, though walking in is arguably acting on one:
+they are the only record that somebody added you to something, and the cheaper
+mistake is one line too many.
+
+It cost a field. `kind` now travels in the payload, because a delivered
+notification is otherwise opaque to the phone holding it — there is no way to
+tell an announcement from a summons without being told. Nothing in the server
+suite would notice that field going missing, and the symptom on a phone is an
+old announcement that never goes away, so there is a test on the payload
+specifically.

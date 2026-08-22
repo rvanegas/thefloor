@@ -13,6 +13,104 @@ import { api } from './api/http';
  */
 
 /**
+ * What one delivered notification says about itself.
+ *
+ * Everything here is written by the server and read defensively: a phone can
+ * be holding a notification sent by a build of the server older than the field
+ * being read, and the only safe reading of a missing field is the behaviour
+ * that existed before it.
+ */
+function dataOf(notification: Notifications.Notification): {
+  kind?: unknown;
+  channelId?: unknown;
+} {
+  return (notification.request.content.data ?? {}) as {
+    kind?: unknown;
+    channelId?: unknown;
+  };
+}
+
+/**
+ * Clears the announcements that have stopped being able to be true.
+ *
+ * **iOS never expires a notification it has already delivered.**
+ * `apns-expiration` bounds how long APNs retries an *undelivered* one; once it
+ * lands it sits in Notification Center until something removes it, and the
+ * only something is this app. So the five-minute presence lifetime tidies
+ * nothing up, and a phone left alone all evening accumulates announcements
+ * about rooms that emptied hours ago.
+ *
+ * Called on foreground, and the reason that is the right moment is not that it
+ * is convenient: an arrival is stale *the instant the app opens*, because the
+ * app shows who is present. The notification and the screen would be saying
+ * different things, and the screen is right. So this removes them when they
+ * stop being able to be true rather than when they get old — which is nearer
+ * what a timer was wanted for than a timer would have been.
+ *
+ * **Arrivals only.** An invitation stays true until it is acted on, and a ping
+ * carries words somebody chose; sweeping either on a clock would be deleting
+ * something nobody had read. They are cleared by opening the channel they name
+ * instead, which is the reader acting rather than the app deciding.
+ *
+ * Never throws. Tidying up is a courtesy and must not become an error in front
+ * of somebody who has just opened the app.
+ */
+export async function sweepArrivals(): Promise<void> {
+  try {
+    const delivered = await Notifications.getPresentedNotificationsAsync();
+    await Promise.all(
+      delivered
+        .filter((notification) => dataOf(notification).kind === 'arrived')
+        .map((notification) =>
+          Notifications.dismissNotificationAsync(
+            notification.request.identifier
+          )
+        )
+    );
+  } catch {
+    // A platform with no notification centre to read, or a permission that has
+    // since been withdrawn. Neither is worth a word to anybody.
+  }
+}
+
+/**
+ * Clears what one channel had outstanding, because its reader has arrived.
+ *
+ * Called when a channel screen opens. A ping about this channel has been
+ * answered by the only thing that can answer one — the person walking in — and
+ * an arrival is stale for the sharper version of the reason in `sweepArrivals`:
+ * the roster is on screen.
+ *
+ * **Invitations survive this deliberately**, though opening the channel is
+ * arguably acting on one too. They are the only record that somebody added you
+ * to something, they stay true for a month, and clearing them is a decision
+ * about what somebody has read rather than about what is still the case. The
+ * cheaper mistake is leaving one line too many.
+ */
+export async function sweepChannel(channelId: string): Promise<void> {
+  try {
+    const delivered = await Notifications.getPresentedNotificationsAsync();
+    await Promise.all(
+      delivered
+        .filter((notification) => {
+          const data = dataOf(notification);
+          return (
+            data.channelId === channelId &&
+            (data.kind === 'pinged' || data.kind === 'arrived')
+          );
+        })
+        .map((notification) =>
+          Notifications.dismissNotificationAsync(
+            notification.request.identifier
+          )
+        )
+    );
+  } catch {
+    // As above.
+  }
+}
+
+/**
  * Whether a notification is one that means to interrupt somebody already here.
  *
  * The server sets it, on the message rather than on the recipient: everything
