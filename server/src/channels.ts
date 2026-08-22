@@ -35,6 +35,7 @@ import type {
   RejoinableView,
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
+import { Guests } from './guests';
 import {
   insertWithUniqueKey,
   newId,
@@ -333,6 +334,15 @@ export class ChannelRegistry {
    */
   readonly usage: UsageMeter;
   /**
+   * Who has been let in without an account, and what they may do.
+   *
+   * Owned here for the same reason the meter is: every transition that could
+   * change a guest's standing — the last member leaving, a channel being
+   * deleted, the sweep — already passes through this class, and a rule about
+   * guests living anywhere else would have to be told about all of them.
+   */
+  readonly guests: Guests;
+  /**
    * The durable projection last written per channel, as its JSON. What makes
    * writing on every commit affordable: a transition that changes only
    * volatile state — a claim, a seek, a connection flap, a tick — produces the
@@ -413,6 +423,7 @@ export class ChannelRegistry {
     private mixWaitMs?: number
   ) {
     this.usage = new UsageMeter(db, () => this.now());
+    this.guests = new Guests(db);
   }
 
   // --- Lifecycle ----------------------------------------------------------
@@ -1481,6 +1492,10 @@ export class ChannelRegistry {
     this.db
       .prepare('UPDATE channels SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL')
       .run(now, channelId);
+    // Immediately, unlike everything else here. The week is a recovery window
+    // for rows and objects; a link is a door, and a door to a deleted channel
+    // stops opening when it is deleted rather than when the sweep gets to it.
+    this.guests.revokeChannel(channelId, now);
   }
 
   /**
@@ -1535,6 +1550,23 @@ export class ChannelRegistry {
       recordings += 1;
     }
 
+    // The guests go before the channel does, and this is a constraint rather
+    // than tidiness: the DELETE below is guarded by a NOT EXISTS against
+    // recordings and by nothing else, so a guest row still referencing the
+    // channel does not make the sweep skip it — it makes the sweep throw, on a
+    // timer, an hour after anybody did anything. Restricted to the channels
+    // actually about to go, so one held back by an object that would not
+    // delete keeps the names its recordings still need.
+    for (const row of this.db
+      .prepare(
+        `SELECT id FROM channels
+         WHERE deleted_at IS NOT NULL AND deleted_at <= ?
+           AND NOT EXISTS (SELECT 1 FROM recordings WHERE recordings.channel_id = channels.id)`
+      )
+      .all(cutoff) as unknown as Array<{ id: string }>) {
+      this.guests.forgetChannel(row.id);
+    }
+
     // Only channels with nothing left pointing at them, so a recording whose
     // objects would not delete keeps its channel alive rather than orphaning
     // the row or failing the constraint.
@@ -1587,6 +1619,15 @@ export class ChannelRegistry {
       after.id,
       after.present.filter((id) => !before.present.includes(id))
     );
+    if (before.present.length > 0 && after.present.length === 0) {
+      // The rule guest links are given: valid until the channel is emptied of
+      // present members. Written here, on the transition, and never asked as a
+      // question — presence does not survive a restart, so a boot that asked
+      // "is anybody present" would find every channel empty and revoke every
+      // outstanding link at every deploy. A restart empties nothing anybody
+      // chose to empty. See guests.ts.
+      this.guests.channelEmptied(after.id, this.now());
+    }
     if (before.present.length === 0 && after.present.length > 0) {
       // Nobody had ever been in it, so this is not somebody arriving where you
       // both have been before: it is the channel starting, and until contacts

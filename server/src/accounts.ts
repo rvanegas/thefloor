@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type {
   LeaderboardEntry,
   ProfileView,
@@ -6,6 +6,7 @@ import type {
 } from '../../core/protocol';
 import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import {
+  hashesEqual,
   insertWithUniqueKey,
   newId,
   pairKey,
@@ -499,7 +500,7 @@ export class Accounts {
       return null;
     }
 
-    if (!constantTimeEquals(sha256(code.trim()), row.code_hash)) {
+    if (!hashesEqual(sha256(code.trim()), row.code_hash)) {
       this.db
         .prepare(
           'UPDATE otp_codes SET attempts = attempts + 1 WHERE identifier = ?'
@@ -1091,10 +1092,4 @@ function normalize(identifier: string): string {
  */
 function sameIdentifier(x: string, y: string): boolean {
   return normalize(x).toLowerCase() === normalize(y).toLowerCase();
-}
-
-function constantTimeEquals(x: string, y: string): boolean {
-  const a = Buffer.from(x);
-  const b = Buffer.from(y);
-  return a.length === b.length && timingSafeEqual(a, b);
 }

@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 /**
  * SQLite via Node's built-in driver, so the server has no native dependencies
@@ -79,6 +79,47 @@ export interface DeviceTokenRow {
   platform: 'ios' | 'android';
   created_at: number;
   last_seen_at: number;
+}
+
+export interface GuestLinkRow {
+  token: string;
+  channel_id: string;
+  created_by: string;
+  created_at: number;
+  /** Null while the link is live. */
+  revoked_at: number | null;
+  /** Null when nobody revoked it — the channel emptying is not a person. */
+  revoked_by: string | null;
+}
+
+export interface GuestSessionRow {
+  /**
+   * `guest_...`. The LiveKit identity, the key of their stem in a recording,
+   * the `account_id` of their usage spans, and their key in
+   * `participant_names`. One id in four places, and no mapping table.
+   */
+  id: string;
+  channel_id: string;
+  /** Which link admitted them; null once that link's row is gone. */
+  link_token: string | null;
+  /** The reconnection secret, hashed as `tokens` and `otp_codes` are. */
+  secret_hash: string;
+  /** What they typed at the door, or the `Anon <n>` they were given. */
+  display_name: string;
+  admitted_at: number;
+  admitted_by: string;
+  /** 1 once a member has granted the microphone. Durable; see guests.ts. */
+  may_speak: number;
+  /** When a member removed them. Null means they were not thrown out. */
+  ejected_at: number | null;
+  last_seen_at: number;
+  /**
+   * When the seat stops being one. Refreshed while they are here, and set to
+   * the moment the channel empties of present members. In the past means the
+   * secret no longer reconnects; the row stays regardless, because a recording
+   * may still need the name. See `Guests.forgetChannel`.
+   */
+  expires_at: number;
 }
 
 export interface RecordingRow {
@@ -417,6 +458,70 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 );
 CREATE INDEX IF NOT EXISTS device_tokens_account ON device_tokens(account_id);
 
+-- A capability to knock at one channel's door, and nothing more. Holding it
+-- gets you as far as asking: a member who is present has to accept, and what
+-- they accept is a name a stranger typed.
+--
+-- Stored in the clear, which is the one place this database departs from
+-- hashing anything token-shaped, and the departure is the point. tokens and
+-- otp_codes are credentials — holding one is being somebody — so a copy of
+-- this file must not hand them over. This is an invitation to knock, and
+-- storing it legibly is what lets a member share the same link twice rather
+-- than mint a second thing they must remember to revoke. If that trade is ever
+-- judged wrong it is one column: token becomes token_hash, minting returns the
+-- only plaintext copy that will exist, and channel settings lists links rather
+-- than showing them.
+CREATE TABLE IF NOT EXISTS guest_links (
+  token       TEXT PRIMARY KEY,
+  channel_id  TEXT NOT NULL REFERENCES channels(id),
+  created_by  TEXT NOT NULL REFERENCES accounts(id),
+  created_at  INTEGER NOT NULL,
+  -- Set when a member revokes it, when a guest admitted through it is ejected,
+  -- when the channel empties of present members, and when the channel is
+  -- deleted. Null means live. Revoked rows are kept rather than deleted, so
+  -- settings can say a link existed and has stopped working.
+  revoked_at  INTEGER,
+  -- Who revoked it, when a person did. Null when the emptying rule did.
+  revoked_by  TEXT REFERENCES accounts(id)
+);
+CREATE INDEX IF NOT EXISTS guest_links_channel ON guest_links(channel_id);
+
+-- One admitted guest.
+--
+-- Written on accept and never on knock. An unanswered knock is a live
+-- conversation between a page and a screen, and a process that dies mid-knock
+-- leaves a page that knocks again, which is what it would do anyway. So a row
+-- here means somebody was let in.
+--
+-- The secret is hashed, unlike the link above, because it is the opposite kind
+-- of thing: it re-enters a seat without anybody being asked again. That is its
+-- whole purpose — revoking a link must not strand somebody already inside —
+-- and it is what makes it a credential.
+CREATE TABLE IF NOT EXISTS guest_sessions (
+  id           TEXT PRIMARY KEY,
+  channel_id   TEXT NOT NULL REFERENCES channels(id),
+  -- Which link admitted them. Ejecting a guest implicitly revokes the link
+  -- they came through, since they could otherwise simply return, and this is
+  -- how that revocation knows which one. Deliberately not a foreign key: a
+  -- link is a row somebody may delete, and a session outlives it.
+  link_token   TEXT,
+  secret_hash  TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  admitted_at  INTEGER NOT NULL,
+  admitted_by  TEXT NOT NULL REFERENCES accounts(id),
+  -- Whether a member has granted the microphone. Durable, and it has to be:
+  -- LiveKit is a separate process on this box, so restarting this one does not
+  -- take a publish grant back. Forgetting it would bring the channel back
+  -- believing a guest silent whom the room is still carrying, which is the
+  -- disagreement reconcileSilence exists to catch, arriving by another route.
+  may_speak    INTEGER NOT NULL DEFAULT 0,
+  ejected_at   INTEGER,
+  last_seen_at INTEGER NOT NULL,
+  expires_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS guest_sessions_channel
+  ON guest_sessions(channel_id);
+
 CREATE TABLE IF NOT EXISTS recordings (
   id           TEXT PRIMARY KEY,
   channel_id   TEXT NOT NULL REFERENCES channels(id),
@@ -743,6 +848,21 @@ export function sha256(value: string): string {
 
 export function newId(prefix: string): string {
   return `${prefix}_${randomBytes(9).toString('base64url')}`;
+}
+
+/**
+ * Whether two hashes match, without leaking where they first differ.
+ *
+ * Here rather than in whichever module needed it first, because there are now
+ * two — a sign-in code and a guest's reconnection secret — and a comparison
+ * that is only timing-safe in one of them is the kind of asymmetry nobody
+ * notices until it is quoted back at them. Anything hashed by `sha256` above
+ * is compared by this.
+ */
+export function hashesEqual(x: string, y: string): boolean {
+  const a = Buffer.from(x);
+  const b = Buffer.from(y);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /**

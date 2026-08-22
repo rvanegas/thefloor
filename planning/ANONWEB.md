@@ -195,6 +195,13 @@ channel rather than about the conversation.
 
 ## The database model
 
+**Built 2026-08-22**, and the only part of this file that exists: the two
+tables are in `server/src/db.ts`, the rules about them are `server/src/guests.ts`
+and `server/__tests__/guests.test.ts`, and `ChannelRegistry` owns a `Guests` and
+calls it on the three transitions named below. Nothing above this layer knows
+what a guest is yet — the reducer has no `guests`, there is no link route and no
+page — so what is here admits nobody to anything.
+
 Almost nothing about a guest outlives the process, and the exceptions are the
 whole design. Three facts do: **the link**, because it is handed to people who
 open it later; **the seat**, because a guest who has been admitted must be able
