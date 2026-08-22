@@ -80,6 +80,7 @@ describe('writing your own profile', () => {
     expect(response.json()).toEqual({
       account: { id: alice.account.id, displayName: 'Alice' },
       bio: markup,
+      invited: 0,
     });
   });
 
@@ -95,6 +96,7 @@ describe('writing your own profile', () => {
     expect(profile).toEqual({
       account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
       bio: 'Cellist.',
+      invited: 0,
     });
   });
 

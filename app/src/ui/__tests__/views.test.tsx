@@ -3154,6 +3154,47 @@ describe('when somebody was last in the app', () => {
 });
 
 /**
+ * How many people are here because of them, counting onwards. The line has
+ * three states and only two of them are a number: it is shown at nought, and
+ * it is left out entirely when the server said nothing — which is what an
+ * install meets between its release and the deploy that follows.
+ */
+describe('the invited count', () => {
+  async function profileShowing(invited: number | undefined) {
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: THEM, displayName: 'Dana Chu' },
+      bio: null,
+      ...(invited === undefined ? {} : { invited }),
+    });
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = render(
+        <ProfileView accountId={THEM} fallbackName="Dana Chu" onBack={() => {}} />
+      );
+    });
+    return tree;
+  }
+
+  it('says how many', async () => {
+    const tree = await profileShowing(7);
+    expect(textOf(tree)).toContain('Invited 7');
+    act(() => tree.unmount());
+  });
+
+  it('says nought rather than going quiet', async () => {
+    const tree = await profileShowing(0);
+    expect(textOf(tree)).toContain('Invited 0');
+    act(() => tree.unmount());
+  });
+
+  it('says nothing when the server did not', async () => {
+    const tree = await profileShowing(undefined);
+    expect(textOf(tree)).not.toContain('Invited');
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * Ending a contact, which is more than forgetting a name: it takes the
  * channels that held only the two of you, and it takes them for both.
  */

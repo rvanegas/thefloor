@@ -712,3 +712,115 @@ the rule and the exception are easy to collapse: what makes furniture is a
 diagnostic every user can see and nobody can switch off. This one is one
 `UPDATE` and a reconnect in either direction, in the hands of whoever holds the
 database. Furniture is defined by who can remove it.
+
+---
+
+## Invite credit is one edge per account, and the number is a subtree
+
+Built 2026-08-22. The ask was a per-account metric of accepted invitations,
+transitive: if Alice invites Bob and Bob invites Carol, Alice is credited with
+two and Bob with one. Shown on Profile as `Invited <n>`.
+
+**The whole feature is one nullable column.** `accounts.invited_by` holds who
+brought this person here, written once, at account creation, by
+`resolveInvitesFor` — which is already the only code that runs at the moment an
+invitation turns into a person. Every count is then a walk of that forest, and
+there is no counter to keep correct, no row to increment and nothing that can
+drift from the accounts table because it *is* the accounts table.
+
+The alternative was a `credits` table written on each acceptance, and it was
+rejected for the reason aggregates usually are: a stored total is a second
+answer to a question the source data already answers, and the two disagree the
+first time anything is deleted, replayed or restored. `WITH RECURSIVE` over a
+few hundred rows costs nothing at this scale, and the profile route was already
+doing a read per open.
+
+**Four things were decided about what counts, and none of them is obvious.**
+
+*The earliest invitation gets the credit, and only that one.* Several people can
+write to the same address, and all of them still get a contact request out of it
+— that behaviour is untouched. But exactly one of them is the reason the person
+is here. Splitting the credit makes the totals fractional and unstateable;
+giving it to each makes them sum to more than the population. Ordered by
+`created_at` then `requester_id`, so two invitations in the same millisecond
+resolve identically on every replay.
+
+*A request between two accounts that already exist is worth nothing.* Those are
+two people finding each other, not one of them arriving. It falls out of where
+the write lives — `pending_invites` is only ever written for an address with no
+account — rather than being filtered for anywhere.
+
+*An expired invitation credits nobody, and that is `INVITE_TTL_MS` doing its
+job.* The sweep has already deleted the row by the time the person signs up, so
+an unattributed signup is indistinguishable from an uninvited one. Nothing new
+was added to make that true.
+
+*A deleted account stops being counted, but the chain is still walked through
+it.* Two halves of one decision, and they pull in opposite directions.
+Excluding the tombstone is the honest number: a total that stays high after
+everybody it counted has left is a claim about a population that is not there.
+But `erase` deliberately does **not** clear the leaver's own `invited_by`, which
+makes it the one field there that is not about the account being erased — it is
+the edge somebody *else's* total is counted along, and clearing it would take an
+entire subtree out of a third party's number because of a decision they never
+heard about. `erase`'s doc comment says so, next to the paragraph explaining why
+the row survives at all.
+
+Nothing was backfilled. `pending_invites` rows are deleted the moment they
+resolve, so for every account that predates the column the answer is simply not
+recorded anywhere — and reconstructing it from who somebody became contacts with
+first would credit whoever happened to be earliest in a table that was never
+keeping score. Everybody who was already here reads nought, permanently, and
+that is a correct statement about what is known.
+
+**The client shows `Invited 0`.** A line that appears only once it is
+flattering turns everybody's first week into a screen with something missing
+from it. What is *not* shown is an absent count — a server that predates the
+field sends no key, and a nought it never claimed would be a number we made up.
+So `invited` is optional on the wire and the client distinguishes absent from
+zero, which is the same shape `lastSeenAt` already has and for the same reason.
+
+### The leaderboard is off by default, because it is the directory we promise not to have
+
+Asked for in the same session and built as `/leaderboard`, a served HTML page
+listing accounts by credit. It is the third page this server serves and the
+first that is not a document: `/privacy` and `/support` exist because App Store
+Connect will not take a submission without a URL for each, and both are prose
+anybody may read.
+
+**This one is a list of real people's names, which is exactly what those two
+pages promise in writing does not exist here** — *"There is no directory, no
+search for strangers, and no way to be added to anything without saying yes."*
+So it is an operator's page, the browser-shaped sibling of `bin/usage`: **off
+unless `LEADERBOARD_KEY` is set**, and behind HTTP Basic when it is. Making it
+something users can see is a separate decision, and it starts by changing what
+those two pages say.
+
+Two details of the gate are deliberate. Unset, the route **404s** rather than
+401s, so an unconfigured box gives the same answer here as for any path it has
+never heard of and the page cannot be found by asking whether it is protected.
+And Basic rather than a key in the query string, because a URL with a secret in
+it ends up in history, in a bookmark and in the referer of anything the page
+links to — the page is opened by a person, not scripted. The username is
+ignored; there is one credential and no accounts here.
+
+The board itself is one query rather than a recursive walk per account: the
+closure of `(ancestor, descendant)` pairs, grouped. Only accounts with a count
+of one or more appear, which falls out of the join — an account nobody arrived
+through is in no pair — and is the right shape, since a list whose tail is every
+account that ever existed all reading nought is a list of accounts rather than a
+ranking. Ties break on display name so two reads agree.
+
+### The index had to move, and the failure was a boot rather than a test
+
+Worth writing down because it fails at exactly the wrong moment. The
+`CREATE INDEX` on `accounts(invited_by)` was first declared in `SCHEMA`
+alongside the column, which is where it reads as belonging — and `SCHEMA` runs
+*before* `migrate()`. Against a fresh database that is fine. Against one that
+already has an `accounts` table, `CREATE TABLE IF NOT EXISTS` is a no-op, the
+column does not exist yet, and the index statement fails the entire boot with
+`no such column: invited_by`.
+
+`migration.test.ts` caught it, which is what that suite is for. **A column added
+by migration can only be indexed by migration**, and the index now lives there,
+unconditional and `IF NOT EXISTS`, after the `ALTER`.

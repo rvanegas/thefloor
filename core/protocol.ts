@@ -48,6 +48,20 @@ export interface ProfileView {
    */
   inApp?: boolean;
   lastSeenAt?: number | null;
+  /**
+   * How many people are here because of them: everybody they invited, plus
+   * everybody those people invited, all the way down.
+   *
+   * Not withheld from anybody who may see the profile at all, unlike
+   * availability — it is a count and names nobody, so it says nothing about
+   * who a person knows, which is the thing a contact list is private about.
+   *
+   * Optional because a server that predates it sends no such key, and zero is
+   * a real answer that must not be confused with an absent one: everybody's
+   * first day reads zero, and the client shows the line either way rather than
+   * hiding a genuine nought.
+   */
+  invited?: number;
 }
 
 export type ContactStatus = 'accepted' | 'outgoing' | 'incoming';

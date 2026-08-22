@@ -46,6 +46,15 @@ export interface AccountRow {
    * `app/src/ui/AudioDebugPanel.tsx`.
    */
   debug: number | null;
+  /**
+   * Who invited this person, or null when nobody did — they signed up on their
+   * own, or their invitation had expired by the time they got round to it.
+   *
+   * Written once, when the account is created, and never again: it is a fact
+   * about how somebody arrived, not a relationship that can be revised. See
+   * `Accounts.resolveInvitesFor`, which is the only writer.
+   */
+  invited_by: string | null;
 }
 
 export interface ContactRow {
@@ -216,7 +225,12 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- Shows this account the audio diagnostic panel. Null for everyone until
   -- somebody sets it by hand; see the row type above for why there is no
   -- screen that does.
-  debug INTEGER
+  debug INTEGER,
+  -- Whose invitation brought this person here, null when none did. One edge
+  -- per account, so these rows form a forest, and the credit a profile shows
+  -- is the size of the subtree under it. Acyclic by construction: an inviter
+  -- had to exist before the account that names them.
+  invited_by TEXT REFERENCES accounts(id)
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -651,6 +665,27 @@ function migrate(db: Db): void {
   if (!accountColumns.some((c) => c.name === 'debug')) {
     db.exec('ALTER TABLE accounts ADD COLUMN debug INTEGER');
   }
+  // Null for every account that predates the column, and deliberately not
+  // backfilled. The `pending_invites` row that would have said who invited
+  // somebody is deleted the moment it resolves, so for an existing account
+  // the answer is simply not recorded anywhere — and reconstructing it from
+  // who they became contacts with first would credit whoever happened to be
+  // earliest in a table that was never keeping score.
+  if (!accountColumns.some((c) => c.name === 'invited_by')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN invited_by TEXT REFERENCES accounts(id)');
+  }
+  // The index is created *here* rather than in SCHEMA, and that is not tidiness.
+  // SCHEMA runs before this function, and `CREATE TABLE IF NOT EXISTS accounts`
+  // is a no-op against a database that already has the table — so an index on
+  // `invited_by` declared up there runs one statement too early on every
+  // existing database and fails the whole boot with `no such column`. A column
+  // added by migration can only be indexed by migration.
+  //
+  // The walk goes downwards — everybody this account brought in, then everybody
+  // they brought in — so the index is on the edge's tail.
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS accounts_invited_by ON accounts(invited_by)'
+  );
 
   // Channels from before persistence whose ended_at is null are ghosts: the
   // old server held live channels in memory only, so a null here means the

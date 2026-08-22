@@ -252,7 +252,26 @@ export function ProfileView({
         pair is a stranger, an acquaintance from a shared channel, or a server
         that predates this — and all three get no line rather than a hedge.
       */}
-      {availability ? <Text style={styles.availability}>{availability}</Text> : null}
+      {/*
+        How many people are here because of them, counting onwards: the people
+        they invited, the people those people invited, and so on. It sits with
+        availability rather than in the card because it is a fact about the
+        account, where the card is prose they wrote.
+
+        Shown at zero as well, which is deliberate. It is a count rather than a
+        badge, and a line that appears only once it is flattering turns
+        everybody's first week into a screen with something missing from it.
+        What is not shown is an *absent* count — a server too old to send one —
+        since a nought it never claimed would be a number we made up.
+      */}
+      <View style={styles.facts}>
+        {availability ? (
+          <Text style={type.muted}>{availability}</Text>
+        ) : null}
+        {profile?.invited !== undefined ? (
+          <Text style={type.muted}>{`Invited ${profile.invited}`}</Text>
+        ) : null}
+      </View>
 
       <Card style={styles.stack}>
         {state === 'loading' ? (
@@ -483,8 +502,13 @@ const styles = StyleSheet.create({
   /** Italic when nobody has named it; see core/naming.ts. */
   channelDescribed: { ...type.body, fontStyle: 'italic' },
   bio: { ...type.muted, lineHeight: 20 },
-  /** Sits under the name, quieter than it and above everything else. */
-  availability: { ...type.muted, marginBottom: spacing(1) },
+  /**
+   * The two lines under the name that are facts about the account rather than
+   * anything it wrote: where they are, and how many people they brought here.
+   * Either may be absent, and the gap belongs to the group so that one alone
+   * sits exactly where two do.
+   */
+  facts: { gap: 2, marginBottom: spacing(1) },
   pingFoot: {
     flexDirection: 'row',
     alignItems: 'center',

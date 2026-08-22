@@ -169,6 +169,99 @@ export class Accounts {
     return this.byId(accountId);
   }
 
+  /**
+   * How many people this account is the reason are here — **transitively**.
+   *
+   * Somebody you invited counts, and so does everybody they went on to invite,
+   * all the way down. The intent is reach rather than effort: an account that
+   * brought in one person who brought in fifty did more for this than one that
+   * sent fifty invitations to a quiet room, and the number that says so is the
+   * one worth showing.
+   *
+   * Two things it deliberately does not count. **Deleted accounts** are
+   * excluded — a tombstone is not a person, and a number that stays high after
+   * everybody it counted has left is a claim about a population that is not
+   * there. But the walk still passes *through* one, so somebody whose inviter
+   * later deleted their account is still credited to whoever invited *them*;
+   * dropping the subtree would silently rewrite a third party's total on
+   * somebody else's decision. And **contact requests to addresses that already
+   * had an account** never appear here at all: they are two people finding each
+   * other, not one of them arriving.
+   *
+   * `UNION` rather than `UNION ALL`, which both deduplicates and terminates.
+   * The edges are a forest by construction — an inviter exists before the
+   * account naming them — so a cycle would mean the table is corrupt, and this
+   * returns a wrong number rather than looping forever if it ever is.
+   */
+  invitedCount(id: string): number {
+    const row = this.db
+      .prepare(
+        `WITH RECURSIVE invited(id) AS (
+           SELECT id FROM accounts WHERE invited_by = ?
+           UNION
+           SELECT a.id FROM accounts a JOIN invited ON a.invited_by = invited.id
+         )
+         SELECT COUNT(*) AS n FROM accounts
+          WHERE id IN (SELECT id FROM invited)
+            AND identifier NOT GLOB ?`
+      )
+      .get(id, `${ERASED_IDENTIFIER_PREFIX}*`) as { n: number };
+    return Number(row.n);
+  }
+
+  /**
+   * Everybody who has brought anybody here, most first.
+   *
+   * One query rather than `invitedCount` per account, because the answer is
+   * one closure: walk every edge outwards from its tail, keeping the ancestor
+   * fixed, and each account's total is how many pairs name it. Doing it the
+   * obvious way is a recursive walk per row over the same table.
+   *
+   * **Only accounts with a count of one or more appear**, which falls out of
+   * the join rather than being filtered for: an account nobody arrived through
+   * is in no pair. That is the right shape for a board — a list whose tail is
+   * every account that has ever existed, all reading nought, is a list of
+   * accounts rather than a ranking.
+   *
+   * Tombstones are excluded at both ends, and for the two different reasons
+   * `invitedCount` gives: a deleted account is not a person to count, and is
+   * not a person to rank either. The chain is still walked *through* one, so
+   * the pairs it stands between survive it.
+   *
+   * Ties break on display name, so that two accounts level on the number sit
+   * in an order that does not change between reads.
+   */
+  leaderboard(
+    limit = 100
+  ): Array<{ id: string; displayName: string; invited: number }> {
+    const erased = `${ERASED_IDENTIFIER_PREFIX}*`;
+    return this.db
+      .prepare(
+        `WITH RECURSIVE chain(ancestor, descendant) AS (
+           SELECT invited_by, id FROM accounts WHERE invited_by IS NOT NULL
+           UNION
+           SELECT chain.ancestor, a.id
+             FROM accounts a JOIN chain ON a.invited_by = chain.descendant
+         )
+         SELECT inviter.id AS id,
+                inviter.display_name AS displayName,
+                COUNT(*) AS invited
+           FROM chain
+           JOIN accounts inviter ON inviter.id = chain.ancestor
+           JOIN accounts arrival ON arrival.id = chain.descendant
+          WHERE inviter.identifier NOT GLOB ?
+            AND arrival.identifier NOT GLOB ?
+          GROUP BY inviter.id
+          ORDER BY invited DESC, inviter.display_name ASC
+          LIMIT ?`
+      )
+      .all(erased, erased, limit) as Array<{
+      id: string;
+      displayName: string;
+      invited: number;
+    }>;
+  }
+
   /** A person's profile, for anyone entitled to see it. */
   profile(id: string): ProfileView | null {
     const row = this.byId(id);
@@ -176,6 +269,7 @@ export class Accounts {
     return {
       account: { id: row.id, displayName: row.display_name },
       bio: row.bio ?? null,
+      invited: this.invitedCount(row.id),
     };
   }
 
@@ -482,7 +576,8 @@ export class Accounts {
   private resolveInvitesFor(account: AccountRow): void {
     const invites = this.db
       .prepare(
-        'SELECT requester_id FROM pending_invites WHERE identifier = ? COLLATE NOCASE'
+        `SELECT requester_id FROM pending_invites WHERE identifier = ? COLLATE NOCASE
+          ORDER BY created_at ASC, requester_id ASC`
       )
       .all(account.identifier) as Array<{ requester_id: string }>;
 
@@ -495,6 +590,25 @@ export class Accounts {
            VALUES (?, ?, 'pending', ?, ?)`
         )
         .run(a, b, requester_id, account.created_at);
+    }
+
+    // **The earliest invitation gets the credit, and only that one.** Several
+    // people can have written to the same address and all of them get a
+    // contact request out of it — but exactly one of them is the reason this
+    // person is here, and splitting the credit between them, or handing it to
+    // each, would make the totals mean something nobody could state. Ordered
+    // by the clock and then by id, so two invitations sent in the same
+    // millisecond still resolve the same way on every replay.
+    //
+    // Written here rather than anywhere later because this is the one moment
+    // the answer is knowable: the rows are deleted immediately below, and an
+    // invitation that expired first was swept before this ran, which is what
+    // makes an unattributed signup indistinguishable from an uninvited one.
+    const first = invites.find(({ requester_id }) => requester_id !== account.id);
+    if (first) {
+      this.db
+        .prepare('UPDATE accounts SET invited_by = ? WHERE id = ?')
+        .run(first.requester_id, account.id);
     }
 
     this.db
@@ -836,6 +950,14 @@ export class Accounts {
    * - **Sign-in codes and tokens**, so every device is signed out at once,
    *   including any this person no longer has.
    *
+   * `invited_by` **stays**, and is the one field here that is not about this
+   * account at all: it is the edge somebody else's invited-count is counted
+   * along. Clearing it would take everybody this person went on to invite out
+   * of their inviter's total — a third party's number changing because of a
+   * decision they never heard about. The count itself stops including this
+   * account the moment the row becomes a tombstone, which is the part that is
+   * about the person leaving.
+   *
    * Donations are **unlinked rather than deleted**: they are money that changed
    * hands, Ko-fi holds the authoritative record either way, and a payment
    * disappearing from this side because the payer left would leave the two ends
@@ -897,8 +1019,15 @@ export const ERASED_DISPLAY_NAME = 'Deleted account';
  * back.
  */
 function erasedIdentifier(accountId: string): string {
-  return `erased:${accountId}`;
+  return `${ERASED_IDENTIFIER_PREFIX}${accountId}`;
 }
+
+/**
+ * What makes a tombstone recognisable as one, in SQL as well as here — see
+ * `invitedCount`, which has to tell a person from the shape a deleted one
+ * leaves behind and has nothing else to go on.
+ */
+export const ERASED_IDENTIFIER_PREFIX = 'erased:';
 
 function normalize(identifier: string): string {
   return identifier.trim();

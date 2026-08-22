@@ -25,6 +25,7 @@ import {
   MIN_SUPPORTED_BUILD,
 } from './release';
 import { supportPage } from './support';
+import { basicPasswordMatches, leaderboardPage } from './leaderboard';
 import { donationsVisibleFor } from './region';
 import { ChannelRegistry, type RefusalCode } from './channels';
 import { ConsolePusher, createPushNotifier, type Pusher } from './push';
@@ -105,6 +106,17 @@ export interface BuildOptions {
    * which is honest — a link that opens nothing is worse than a sentence.
    */
   updateUrl?: string;
+  /**
+   * The password for `/leaderboard`. **Unset — the default, and what a box
+   * that has not been told otherwise has — the route does not exist at all.**
+   *
+   * A 404 rather than a 401 when it is unset, so that the answer to "is there
+   * a leaderboard here" is the same as for any path this server has never
+   * heard of. See leaderboard.ts for why that page is an operator's and not a
+   * user's, which is the whole of the reasoning; this field is just where the
+   * switch is.
+   */
+  leaderboardKey?: string;
 }
 
 export interface App {
@@ -689,6 +701,36 @@ export function buildApp(options: BuildOptions = {}): App {
   fastify.get('/support', async (_request, reply) => {
     reply.type('text/html; charset=utf-8');
     return supportPage(options.contactEmail);
+  });
+
+  /**
+   * Who has brought the most people here.
+   *
+   * The two pages above are documents anybody may read; this one is a list of
+   * people's names, which is exactly what both of them promise in writing this
+   * service does not publish. It is therefore **off unless a password is
+   * configured**, and behind HTTP Basic when it is — the browser-shaped
+   * sibling of `bin/usage`, for the person who runs the box.
+   *
+   * Basic rather than the bearer token every other authenticated route takes,
+   * because a browser cannot send one: there is no client here, only Safari,
+   * and Basic is the one scheme it will prompt for unaided. It is not a way in
+   * to anything else — nothing on this server accepts these credentials, and
+   * this route reads and never writes.
+   */
+  fastify.get('/leaderboard', async (request, reply) => {
+    const key = options.leaderboardKey;
+    if (!key) return reply.code(404).send({ error: 'Not found.' });
+
+    if (!basicPasswordMatches(request.headers.authorization, key)) {
+      return reply
+        .code(401)
+        .header('WWW-Authenticate', 'Basic realm="The Floor", charset="UTF-8"')
+        .send({ error: 'Not authorised.' });
+    }
+
+    reply.type('text/html; charset=utf-8');
+    return leaderboardPage(accounts.leaderboard());
   });
 
   // --- Donations ----------------------------------------------------------
