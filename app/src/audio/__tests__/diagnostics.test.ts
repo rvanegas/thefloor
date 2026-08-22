@@ -48,6 +48,10 @@ const ROUTE_CALL: RouteSnapshot = {
   categoryOptions: ['allowBluetooth', 'allowAirPlay', 'defaultToSpeaker'],
   otherAudioPlaying: false,
   secondaryAudioHint: false,
+  // True is the healthy reading and the default is false: iOS mutes haptics
+  // for the duration of a capturing session unless asked otherwise, which is
+  // what silenced nobody's phone in build 70.
+  allowsHapticsDuringRecording: true,
 };
 
 const ENGINE: EngineSnapshot = {
@@ -365,6 +369,27 @@ describe('the copyable text', () => {
       .filter((l) => l.includes('<<'))
       .join('\n');
     expect(marked).toContain('playback/videoChat');
+  });
+
+  /**
+   * The reading that made this row worth having: haptics muted for the
+   * duration of a capturing session is iOS's default, it is what discarded
+   * build 70's silenced-speaker cue, and nothing anywhere reports an error
+   * for it. An unmarked line would be the panel agreeing with the bug.
+   */
+  it('marks haptics being muted for the capture, which nothing else reports', () => {
+    const text = diagnosticText(
+      reading({
+        route: { ...ROUTE_CALL, allowsHapticsDuringRecording: false },
+      }),
+      [],
+      66
+    );
+    const marked = text
+      .split('\n')
+      .filter((l) => l.includes('<<'))
+      .join('\n');
+    expect(marked).toContain('haptics ok');
   });
 
   it('includes the log, newest last', () => {

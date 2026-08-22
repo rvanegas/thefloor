@@ -35,6 +35,16 @@ import ExpoModulesCore
    last one wins. Reading the asked-for value back proves nothing; reading
    these does. `categoryOptions` was added 2026-08-21 for exactly that
    comparison, the first two having been here from the start.
+ - `allowsHapticsDuringRecording` is the one field here that is *written* as
+   well as read, and it is why the silenced-speaker buzz did nothing at all.
+   `AVAudioSession`'s own header: "Set allowHapticsAndSystemSoundsDuringRecording
+   to YES in order to allow system sounds and haptics to play while the session
+   is actively using audio input. Default value is NO." So iOS mutes the Taptic
+   Engine for exactly the session this app holds whenever anybody's microphone
+   is open — which is exactly when somebody can be silenced. Nothing fails:
+   `notificationAsync` resolves, and no buzz is produced. Reading it back is
+   what turns "it did not buzz" into a stated fact rather than a guess.
+
  - `otherAudioPlaying` and `secondaryAudioHint` are the only readable evidence
    about somebody *else's* audio. There is no public getter for whether our own
    session is active, so "did foregrounding interrupt a podcast" has to be
@@ -53,6 +63,28 @@ public class AudioRouteModule: Module {
     // JavaScript-side engine diagnostic managed to miss a flicker.
     Function("snapshot") { () -> [String: Any] in
       Self.snapshot()
+    }
+
+    /**
+     Asks iOS to stop muting haptics while we are capturing.
+
+     Separate from `snapshot`'s read of the same value, and asserted rather
+     than assumed for the same reason the mute mode is: the request can fail,
+     and a silent failure looks exactly like a success. The boolean says
+     whether it took.
+
+     Asynchronous where `snapshot` is not. This one crosses to the audio
+     session server to *change* something, where the read is a property
+     access, and the JavaScript thread is not the place to wait on that.
+     */
+    AsyncFunction("setAllowHapticsDuringRecording") { (allow: Bool) -> Bool in
+      do {
+        try AVAudioSession.sharedInstance()
+          .setAllowHapticsAndSystemSoundsDuringRecording(allow)
+        return true
+      } catch {
+        return false
+      }
     }
 
     OnStartObserving {
@@ -94,6 +126,10 @@ public class AudioRouteModule: Module {
       // read from the other side of it.
       "otherAudioPlaying": session.isOtherAudioPlaying,
       "secondaryAudioHint": session.secondaryAudioShouldBeSilencedHint,
+      // Whether the Taptic Engine is allowed to run while we are capturing.
+      // False is the default, and false is a cue that cannot be delivered —
+      // see the note at the top of this file.
+      "allowsHapticsDuringRecording": session.allowHapticsAndSystemSoundsDuringRecording,
     ]
   }
 

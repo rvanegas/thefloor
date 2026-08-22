@@ -344,6 +344,17 @@ function otherAudioRows(route: RouteSnapshot | null): DiagnosticRow[] {
   return [
     { label: 'other playing', value: flag(route.otherAudioPlaying) },
     { label: 'silence hint', value: flag(route.secondaryAudioHint) },
+    {
+      // Not about other apps' audio, but about ours in the same way: what iOS
+      // will suppress for the duration of a capturing session. False means
+      // every haptic this app asks for is discarded without an error — which
+      // is what build 70's silenced-speaker cue met. `applyConfiguration`
+      // turns it on at every write to the session, so false here is that
+      // request having failed or a build that predates it.
+      label: 'haptics ok',
+      value: flag(route.allowsHapticsDuringRecording),
+      alarm: route.allowsHapticsDuringRecording !== true,
+    },
   ];
 }
 

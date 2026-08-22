@@ -48,12 +48,26 @@ export interface RouteSnapshot {
   otherAudioPlaying?: boolean;
   /** Whether iOS thinks our secondary audio should be silenced for it. */
   secondaryAudioHint?: boolean;
+  /**
+   * Whether the Taptic Engine is allowed to run while the session is capturing.
+   *
+   * **`false` here means a haptic cue is silently discarded**, which is what
+   * build 70's silenced-speaker buzz ran into: iOS mutes haptics and system
+   * sounds for the duration of any session that is using audio input, and the
+   * default is off. See `setAllowHapticsDuringRecording`, which is this app
+   * turning it on, and `ios/AudioRouteModule.swift` for the header text.
+   *
+   * Optional for the same reason `categoryOptions` is: a Metro reload does not
+   * rebuild native code, so a bundle can be newer than the `.swift` beneath it.
+   */
+  allowsHapticsDuringRecording?: boolean;
   /** Only on a change event: iOS's own reason code. */
   reason?: string;
 }
 
 interface NativeAudioRoute {
   snapshot(): RouteSnapshot;
+  setAllowHapticsDuringRecording(allow: boolean): Promise<boolean>;
   addListener(
     event: 'onRouteChange',
     listener: (payload: RouteSnapshot) => void
@@ -82,6 +96,38 @@ export function routeSnapshot(): RouteSnapshot | null {
     return native?.snapshot() ?? null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Asks iOS to let haptics play while this app is capturing.
+ *
+ * **This is the only thing in this module that writes**, and it is here rather
+ * than in the audio hook because `AVAudioSession` is what has to be told and
+ * this is the only file that can reach it.
+ *
+ * The default is off, and off is what made the silenced-speaker cue produce
+ * nothing at all: a session that is using audio input mutes the Taptic Engine
+ * for as long as it holds, and this app's session is capturing whenever
+ * anybody in the channel has a microphone open — which is precisely the state
+ * in which somebody can be silenced. `expo-haptics` reports no error for it.
+ * The cue was never refused; it was allowed and then discarded.
+ *
+ * Cheap, idempotent, and asserted on every write to the session rather than
+ * once at startup: three writers mutate that session and none of them documents
+ * what it leaves this property at.
+ *
+ * @returns whether the request took. False also covers "no module", which on
+ * iOS means the local module did not link — the same silent absence
+ * `routeSnapshot` returns null for.
+ */
+export async function setAllowHapticsDuringRecording(
+  allow: boolean
+): Promise<boolean> {
+  try {
+    return (await native?.setAllowHapticsDuringRecording(allow)) ?? false;
+  } catch {
+    return false;
   }
 }
 

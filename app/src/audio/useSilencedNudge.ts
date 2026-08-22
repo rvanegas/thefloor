@@ -36,6 +36,15 @@ const buzz = () =>
     // generator is running. There is nothing to do about it and nothing to
     // say: the cue is an extra, and a failed cue must not become an error in
     // a conversation.
+    //
+    // **What this does not catch is the way it actually failed**, and that is
+    // worth knowing before trusting a quiet log. In build 70 nothing arrived
+    // at all, because iOS mutes haptics for the duration of any session that
+    // is using audio input and the default is to do so — so this call
+    // *resolved*, every time, and produced nothing. A rejection would have
+    // been the easy version. The fix is one property on the session, asserted
+    // by `applyConfiguration` and read back in the diagnostics panel as
+    // `haptics ok`; see `modules/audio-route`.
     () => {}
   );
 

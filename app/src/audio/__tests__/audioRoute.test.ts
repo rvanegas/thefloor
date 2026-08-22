@@ -2,6 +2,7 @@ import {
   onRouteChange,
   routeLine,
   routeSnapshot,
+  setAllowHapticsDuringRecording,
 } from '../../../modules/audio-route';
 
 /**
@@ -32,6 +33,16 @@ describe('when the native module is not there, which is the case under test', ()
 
   it('says so on screen rather than rendering an empty line', () => {
     expect(routeLine(null)).toBe('route unreadable');
+  });
+
+  /**
+   * The one write in this module, and it is on the session path rather than
+   * the panel path — `applyConfiguration` awaits it at every configuration
+   * edge. A rejection there would be an unhandled one inside a live call, for
+   * the sake of a cue that is an extra.
+   */
+  it('answers false for the haptics permission rather than rejecting', async () => {
+    await expect(setAllowHapticsDuringRecording(true)).resolves.toBe(false);
   });
 });
 

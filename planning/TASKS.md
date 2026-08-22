@@ -261,7 +261,20 @@ foreground it, and read the `asked` and `actual` lines and the log line stamped
 hypothesis in that entry is confirmed and the observer is applying `recording:
 CALL` while nothing intends to publish.
 
-## Being Silenced Without Looking — BUILT, except for a locked phone
+## Being Silenced Without Looking — BUILT, fixed once, still unverified
+
+**Built 2026-08-21, tried on a device the same day, and it did nothing at
+all.** Not the pocket case — nothing, ever. iOS mutes haptics for the whole
+duration of any session that is using audio input and the default is to do so,
+so the cue was scheduled correctly, delivered correctly and discarded by the
+operating system every time, with `notificationAsync` resolving throughout.
+The session is `playAndRecord` whenever anybody present has a microphone open,
+which is exactly when somebody can be silenced, so the feature never had a
+state in which it could work. `applyConfiguration` now asserts
+`setAllowHapticsDuringRecording(true)` at every write to the session and the
+diagnostics panel reads it back as `haptics ok`; DECISIONS.md § *The buzz was
+allowed and then discarded* has the header text and the reasoning. **Still
+unverified on a device** — this needs a build, the write being Swift.
 
 **Reported and built 2026-08-21, unverified on a device.** A floor claim cuts
 everybody else, and the only place it was said is the screen. Somebody with the
@@ -334,7 +347,15 @@ pocket, is where that gets confused.
 
 **`expo-haptics` is a native module**, so this reaches a phone only after a
 prebuild and a new build — it is not a JS-only change and cannot be checked in
-Metro against an old binary.
+Metro against an old binary. The same is now true twice over: the permission
+that lets the buzz through is Swift in `modules/audio-route`.
+
+**And the delivery was never confirmed, which is what let a whole feature ship
+into a state it could not work in.** Both inputs being already computed made
+this look like pure scheduling, and the scheduling is tested to the tick — but
+nothing asked whether a buzz asked for is a buzz felt, and the API answers yes
+either way. When the next non-visual cue is built, the question to ask first is
+what suppresses it, not when to send it.
 
 **One thing to settle on the way past.** `SessionAudio.mutedByServer` is
 written from `RoomEvent.TrackMuted` and read by nothing, and since the floor

@@ -13,6 +13,7 @@ import {
   setupIOSAudioManagement,
   type AppleAudioConfiguration,
 } from '@livekit/react-native';
+import { setAllowHapticsDuringRecording } from '../../modules/audio-route';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
 import { nameOf, policyFor, sessionFor } from './session';
@@ -137,12 +138,29 @@ export interface AudioIntent {
 }
 
 
-/** Apple-only; on Android the category model does not apply. */
+/**
+ * Apple-only; on Android the category model does not apply.
+ *
+ * **The haptics permission is asserted here, next to the category**, because
+ * it is a property of the same session and is subject to the same three
+ * writers. iOS mutes the Taptic Engine for the whole duration of any session
+ * that is using audio input, and the default is to do so — so the
+ * silenced-speaker cue in `useSilencedNudge` was being discarded, silently and
+ * with no error, for the entire time it could ever have fired. Turning it on
+ * is one property assignment and is meaningless when nothing is capturing, so
+ * it is stated unconditionally rather than only for `CALL`.
+ *
+ * Neither half's failure is worth taking a call down for: the configuration
+ * swallows its error already, and the permission answers false rather than
+ * throwing. `diagnostics.ts` reads the result back off the session, which is
+ * the only evidence that means anything here.
+ */
 async function applyConfiguration(
   config: AppleAudioConfiguration
 ): Promise<void> {
   if (Platform.OS !== 'ios') return;
   await AudioSession.setAppleAudioConfiguration(config).catch(() => {});
+  await setAllowHapticsDuringRecording(true);
 }
 
 /**

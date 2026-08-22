@@ -1917,3 +1917,57 @@ would bury the half that is still missing.
 **`expo-haptics` is a native module**, so this is not a JS-only change: it
 needs a prebuild and a new build to reach a phone, and cannot be checked in
 Metro against an existing binary.
+
+## The buzz was allowed and then discarded — 2026-08-21
+
+Build 70's silenced-speaker cue produced nothing on a device. Not intermittently
+and not only in the pocket: no haptics at all, in the one state the feature
+exists for.
+
+**iOS mutes haptics for the whole duration of any session that is using audio
+input, and the default is to do so.** `AVAudioSession.h`, verbatim: "Set
+allowHapticsAndSystemSoundsDuringRecording to YES in order to allow system
+sounds and haptics to play while the session is actively using audio input.
+Default value is NO." This app's session is `playAndRecord`/`videoChat` whenever
+anybody present has a microphone open — which is exactly and only when somebody
+can be silenced. So the cue was scheduled correctly, delivered correctly, and
+thrown away by the operating system every time.
+
+**Nothing reported it, and that is the part worth remembering.**
+`notificationAsync` *resolved*. The `.catch(() => {})` in `useSilencedNudge` —
+written for a device with no Taptic Engine — never ran, because there was no
+failure. A rejected promise would have been the easy version of this bug. The
+shape to recognise is a request that is accepted, obeyed by the API it was
+made to, and then suppressed one layer down by a policy nobody asked about.
+
+**The fix is one property, asserted where the session is written.**
+`modules/audio-route` gains its first *write* —
+`setAllowHapticsDuringRecording` — and `applyConfiguration` in
+`useSessionAudio.ts` awaits it after every category write. Unconditionally
+rather than only for `CALL`: it is meaningless while nothing is capturing, and
+a rule with no exceptions cannot be applied to the wrong edge. Asserted on
+every write rather than once at startup for the reason this whole module
+exists — three writers mutate that session and none of them documents what it
+leaves this property at.
+
+**It is read back, which is the half that makes it a finding rather than a
+hope.** `snapshot()` now carries `allowsHapticsDuringRecording` and the
+diagnostics panel shows it as `haptics ok`, alarmed unless it reads true. The
+same discipline as the mute mode in build 58: a request that is not confirmed
+is a request whose silent failure is indistinguishable from success. A test
+pins the alarm.
+
+**The route module was the right place, and it was already there.** Written
+2026-08-20 to answer "does the route move at all", which nothing in the app
+could ask. This is the second question of that kind in two days — a property of
+the audio session that no library exposes, whose default is wrong for us, and
+whose wrongness is invisible from JavaScript. Reach for that module first when
+something audio-adjacent fails without complaining.
+
+**What this does not change is the locked phone.** Feedback generators are
+still ignored when the app is not active, and the tone into the audio session
+is still the only delivery that would reach a pocket. That trade is still open;
+see TASKS.md § *Being Silenced Without Looking*.
+
+**Still unverified on a device**, and it needs a new build: the write is Swift,
+so a Metro reload cannot carry it.
