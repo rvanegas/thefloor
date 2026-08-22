@@ -630,11 +630,18 @@ export function registerWebsocket(deps: {
           // reach another connection.
           if (message.action.type === 'ANSWER_KNOCK') {
             const answer = message.action;
+            // Found before the answer, because what the connection is holding
+            // is the link this knock arrived on — which the seat has to
+            // record, or ejecting the guest later closes no door.
+            const waiting = [...guestConnections].find(
+              (guest) => guest.knockId === answer.knockId
+            );
             const answered = channels.answerKnock(
               message.channelId,
               connection.userId,
               answer.knockId,
-              answer.accept
+              answer.accept,
+              waiting?.linkToken ?? null
             );
             if (!answered.ok) {
               send(connection, { type: 'error', message: answered.error });

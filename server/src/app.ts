@@ -1014,6 +1014,90 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true };
   });
 
+  // --- Guest links ----------------------------------------------------------
+
+  /**
+   * Where this server is reachable, as the request that arrived says.
+   *
+   * Derived rather than configured, and that is the lesson from `INSTALL_URL`
+   * written down: a second setting naming an address this server already knows
+   * is the one nobody remembers to set, and the failure is silent — every link
+   * minted for a day pointing somewhere wrong. The request came in over the
+   * origin whoever is asking can reach, and behind Caddy the forwarded headers
+   * say which scheme that was.
+   *
+   * `PUBLIC_URL` overrides it, for the case this cannot answer: a link minted
+   * against a hostname that is not the one guests should be sent to.
+   */
+  function origin(request: FastifyRequest): string {
+    if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/$/, '');
+    const forwarded = request.headers['x-forwarded-proto'];
+    const scheme =
+      (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0] ??
+      request.protocol;
+    return `${scheme}://${request.headers.host}`;
+  }
+
+  const guestLinkUrl = (request: FastifyRequest, token: string): string =>
+    `${origin(request)}/g/${token}`;
+
+  /**
+   * Mints a link to one channel, for a member to hand to anybody.
+   *
+   * The link is returned in full and stored in the clear, so this endpoint can
+   * be asked again for the same one — see the schema, where the trade is
+   * argued. What it buys is that "send it to somebody else too" is not a
+   * second link to remember to revoke.
+   */
+  fastify.post('/channels/:id/guest-links', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const result = channels.mintGuestLink(id, account.id);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return {
+      token: result.link.token,
+      url: guestLinkUrl(request, result.link.token),
+      createdAt: result.link.created_at,
+    };
+  });
+
+  /** Every link this channel has, live or revoked, for channel settings. */
+  fastify.get('/channels/:id/guest-links', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    return {
+      links: channels.guestLinksFor(id, account.id).map((link) => ({
+        token: link.token,
+        url: guestLinkUrl(request, link.token),
+        createdAt: link.created_at,
+        createdBy: link.created_by,
+        revokedAt: link.revoked_at,
+        // Null when the emptying rule revoked it rather than a person, which
+        // is what stops settings attributing a rule to whoever left last.
+        revokedBy: link.revoked_by,
+      })),
+    };
+  });
+
+  /**
+   * Shuts one link. Anybody in the channel may, not only whoever minted it: a
+   * door onto a conversation is everybody's business.
+   */
+  fastify.delete('/channels/:id/guest-links/:token', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, token } = request.params as { id: string; token: string };
+    const result = channels.revokeGuestLink(id, account.id, token);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return reply.code(204).send();
+  });
+
   /**
    * A join credential for the channel's audio room. Minted per participant and
    * short-lived, and refused to anyone who is not in the channel — the room

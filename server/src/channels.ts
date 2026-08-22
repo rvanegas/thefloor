@@ -2943,7 +2943,18 @@ export class ChannelRegistry {
     channelId: string,
     userId: string,
     knockId: string,
-    accept: boolean
+    accept: boolean,
+    /**
+     * The link this knock arrived on, which the transport knows and the
+     * reducer does not.
+     *
+     * Deliberately not on the `Knock`: a knock rides in the channel snapshot
+     * every member is watching, and a link is a credential — one that opens
+     * the door for anybody holding it. So the connection keeps it and hands it
+     * over here, which is the last moment it is needed. Recording it on the
+     * seat is what lets ejecting a guest close the door they came through.
+     */
+    linkToken: string | null = null
   ): { ok: true; admitted: AdmittedGuest | null } | Refused {
     const channel = this.channels.get(channelId);
     if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
@@ -2963,12 +2974,7 @@ export class ChannelRegistry {
 
     const admitted = this.guests.admit(
       channelId,
-      // The link is not recorded on the knock, so an ejection later revokes
-      // nothing. Left this way deliberately for now: the knock is transport
-      // state and the seat is durable, and threading the token through the
-      // reducer would put a credential in the channel snapshot every member
-      // watches. `Guests.eject` handles a null link by ejecting alone.
-      null,
+      linkToken,
       knock.name === 'Someone' ? null : knock.name,
       userId,
       this.now()
