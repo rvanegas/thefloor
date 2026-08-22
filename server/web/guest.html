@@ -1,0 +1,183 @@
+<!doctype html>
+<!--
+  The shell the guest page renders into.
+
+  Served by `GET /g/:token`, which puts the link token in `data-link` and
+  nothing else — no interpolated prose, so there is nothing here that a token
+  could break out of. The behaviour is `guest.ts`, bundled to `guest.js`.
+
+  `color-scheme: light dark` is the whole of the dark-mode support, as it is on
+  the privacy and support pages: this is read in a browser by somebody who may
+  never have installed anything, and the app's theme has no business here.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Floor</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --line: color-mix(in srgb, currentColor 15%, transparent);
+      }
+      body {
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+        max-width: 34rem;
+        font: 17px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 0.25rem;
+      }
+      p {
+        margin: 0.6rem 0;
+      }
+      .muted {
+        opacity: 0.7;
+        font-size: 0.95rem;
+      }
+      button {
+        font: inherit;
+        padding: 0.6rem 1rem;
+        margin: 0.25rem 0.5rem 0.25rem 0;
+        border: 1px solid var(--line);
+        border-radius: 0.6rem;
+        background: transparent;
+        color: inherit;
+      }
+      button[disabled] {
+        opacity: 0.4;
+      }
+      input {
+        font: inherit;
+        padding: 0.6rem;
+        border: 1px solid var(--line);
+        border-radius: 0.6rem;
+        background: transparent;
+        color: inherit;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+      }
+      li {
+        padding: 0.35rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+      section {
+        border-top: 1px solid var(--line);
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+      }
+      #notice,
+      #recording,
+      #silenced {
+        border: 1px solid var(--line);
+        border-radius: 0.6rem;
+        padding: 0.6rem 0.8rem;
+        margin: 0.75rem 0;
+      }
+      footer {
+        margin-top: 3rem;
+        font-size: 0.9rem;
+        opacity: 0.75;
+      }
+      footer a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body data-link="">
+    <p id="notice" hidden></p>
+
+    <div id="door" hidden>
+      <h1>Join <span id="channel-name">a channel</span></h1>
+      <p>
+        The Floor is a place for talking, one voice at a time. Somebody has sent
+        you a link to a conversation of theirs.
+      </p>
+      <p class="muted" id="door-note"></p>
+      <form id="knock-form">
+        <label for="name-field">What should they call you?</label>
+        <input id="name-field" maxlength="40" autocomplete="off" placeholder="Leave blank to stay anonymous" />
+        <button id="knock-button" type="submit">Ask to join</button>
+      </form>
+      <p class="muted">
+        You will be able to listen, and to speak if somebody in the channel
+        turns your microphone on. <strong>Conversations here can be
+        recorded</strong>, and if one is running you are in it — the page says
+        so while it is.
+      </p>
+    </div>
+
+    <div id="knocking" hidden>
+      <h1>Knocking…</h1>
+      <p>Somebody in the channel has been told you are here.</p>
+    </div>
+
+    <div id="reconnecting" hidden>
+      <h1>Reconnecting…</h1>
+      <p class="muted">
+        The connection dropped. Your place is held for a minute.
+      </p>
+    </div>
+
+    <div id="room" hidden>
+      <h1 id="room-name"></h1>
+      <p class="muted">You are here as <span id="your-name"></span>.</p>
+
+      <p id="recording" hidden>
+        <strong>This conversation is being recorded.</strong> Your voice is part
+        of the recording, which belongs to the channel's members.
+      </p>
+      <p id="silenced" hidden>
+        Somebody has the floor, so nobody else is being heard right now.
+      </p>
+
+      <p id="mic-state"></p>
+      <button id="ask-button" hidden>Ask to speak</button>
+      <button id="mute-button" hidden>Mute</button>
+      <button id="floor-button">Take the floor</button>
+
+      <section>
+        <h2>Who is here</h2>
+        <ul id="others"></ul>
+      </section>
+
+      <section>
+        <h2>Clipboard</h2>
+        <p id="clip" class="muted"></p>
+        <button id="copy-button">Copy</button>
+        <button id="paste-button">Paste</button>
+      </section>
+
+      <section>
+        <button id="leave-button">Leave</button>
+      </section>
+    </div>
+
+    <div id="refused" hidden>
+      <h1>You are not in the channel</h1>
+      <p id="refused-reason"></p>
+      <p class="muted">You can close this page.</p>
+    </div>
+
+    <footer>
+      <p>
+        <strong>The Floor</strong> is a voice app where one person holds the
+        floor at a time. You are using it as a guest: one channel, no account,
+        and nothing kept about you but whatever a recording caught.
+      </p>
+      <p>
+        <a href="/privacy">Privacy</a> · <a href="/support">Support</a> ·
+        <a href="/support#donate">Chip in</a> ·
+        <a href="https://apps.apple.com/app/id6799628190">Get the app</a>
+      </p>
+    </footer>
+
+    <script src="/g/assets/guest.js" type="module"></script>
+  </body>
+</html>

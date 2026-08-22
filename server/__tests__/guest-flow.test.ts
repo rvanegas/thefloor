@@ -246,6 +246,41 @@ describe('the door', () => {
   });
 });
 
+describe('the page', () => {
+  it('is served with the token in it, and asks nobody for anything', async () => {
+    const { link } = await channelWithLink();
+    const page = await app.fastify.inject({ method: 'GET', url: `/g/${link.token}` });
+    expect(page.statusCode).toBe(200);
+    expect(page.headers['content-type']).toMatch(/text\/html/);
+    expect(page.body).toContain(`data-link="${link.token}"`);
+  });
+
+  it('answers the same page for a link that is already dead', async () => {
+    // The token is checked when the socket opens, not here. A page that 404ed
+    // on a revoked link would answer, to anybody who asked, which links exist.
+    const { alice, channelId, link } = await channelWithLink();
+    await app.fastify.inject({
+      method: 'DELETE',
+      url: `/channels/${channelId}/guest-links/${link.token}`,
+      headers: auth(alice.token),
+    });
+    const page = await app.fastify.inject({ method: 'GET', url: `/g/${link.token}` });
+    expect(page.statusCode).toBe(200);
+  });
+
+  it('serves two named files and no others', async () => {
+    const bundle = await app.fastify.inject({ method: 'GET', url: '/g/assets/guest.js' });
+    // 503 when nobody has run the build, which is a state a checkout can be
+    // in; what must never happen is a path being joined from the URL.
+    expect([200, 503]).toContain(bundle.statusCode);
+    const traversal = await app.fastify.inject({
+      method: 'GET',
+      url: '/g/assets/..%2F..%2Fpackage.json',
+    });
+    expect(traversal.statusCode).toBe(404);
+  });
+});
+
 describe('admission', () => {
   it('reaches every member as a knock, and the guest as a seat', async () => {
     const { guest, member, admission, channelId } = await admitted();

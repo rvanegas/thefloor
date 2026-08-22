@@ -98,6 +98,19 @@ if ! npm run typecheck --prefix app --silent; then
   echo "⚠ app does not typecheck — not shipped here, but the next build is" >&2
 fi
 
+# The guest page, bundled here rather than on the box.
+#
+# `livekit-client` is a browser dependency and `esbuild` is a build tool, so
+# both are devDependencies — and the install below is `--omit=dev`, which is
+# what keeps a 2GB instance from carrying a toolchain it runs once. Building
+# locally and syncing the result keeps that true. The output is gitignored, so
+# this does not dirty the tree the check above just insisted was clean.
+#
+# It is not conditional on anything: a stale bundle is a page whose behaviour
+# is a deploy behind its server, and nothing on it would say so.
+echo "→ building the guest page"
+npm run build:web --prefix server --silent
+
 # The .env pattern is a wildcard with one exception, matching .gitignore and for
 # the same reason: a .env~ left by an editor or a .env.bak left by a careful
 # person is exactly as secret-bearing as .env itself, and an exact-match exclude

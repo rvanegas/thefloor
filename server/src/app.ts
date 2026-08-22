@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
@@ -17,6 +17,7 @@ import { RECORDING_CONTENT_TYPE } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
+import { escapeHtml } from './html';
 import { privacyPage } from './privacy';
 import {
   BUILD_HEADER,
@@ -660,6 +661,64 @@ export function buildApp(options: BuildOptions = {}): App {
     // nothing worth keeping — a channel it did not act on.
     homeNotifier.notify([account.id, id]);
     return { ok: true };
+  });
+
+  // --- The guest page -------------------------------------------------------
+
+  /**
+   * The page a guest link opens.
+   *
+   * Served by this server rather than by Caddy, which was the other candidate.
+   * Caddy would mean a `file_server` block, a path on the box that deploys
+   * separately from the code, and a second thing to get right when the media
+   * plane eventually moves; this way the page ships with the server that talks
+   * to it and cannot be a version behind. It costs two routes and a `readFile`.
+   *
+   * Unauthenticated, necessarily — whoever opens it has no account, which is
+   * the entire point — and it hands out nothing. The token in the URL is
+   * checked when the socket opens, not here, so this route answers the same
+   * page for a live link and a dead one and the refusal arrives a moment later
+   * with a reason.
+   */
+  fastify.get('/g/assets/:file', async (request, reply) => {
+    const { file } = request.params as { file: string };
+    // Two files, named rather than resolved: the bundle and its sourcemap.
+    // Anything else is a path this route will not join, which is the whole of
+    // the traversal story.
+    const type =
+      file === 'guest.js'
+        ? 'text/javascript; charset=utf-8'
+        : file === 'guest.js.map'
+          ? 'application/json; charset=utf-8'
+          : null;
+    if (!type) return reply.code(404).send({ error: 'Not found.' });
+    try {
+      const body = await readFile(join(__dirname, '..', 'web', 'dist', file));
+      reply.type(type);
+      return body;
+    } catch {
+      // The bundle is built rather than committed, so a tree that has not run
+      // `npm run build:web` has no page. Said plainly, because the alternative
+      // is a blank screen and a console nobody is looking at.
+      return reply
+        .code(503)
+        .send({ error: 'The guest page has not been built on this server.' });
+    }
+  });
+
+  fastify.get('/g/:token', async (request, reply) => {
+    const { token } = request.params as { token: string };
+    let shell: string;
+    try {
+      shell = await readFile(join(__dirname, '..', 'web', 'guest.html'), 'utf8');
+    } catch {
+      return reply.code(503).send({ error: 'The guest page is not available.' });
+    }
+    reply.type('text/html; charset=utf-8');
+    // The one interpolation on the page, into an attribute, escaped — the
+    // token is 24 bytes of base64url and cannot contain a quote, and that is
+    // an argument for why this is cheap rather than for skipping it.
+    return shell.replace('data-link=""', `data-link="${escapeHtml(token)}"`);
   });
 
   /**
