@@ -388,33 +388,38 @@ export function HomeView({
       {canSupport || onOpenLeaderboard ? (
         <>
           <SectionLabel>Support</SectionLabel>
-          {canSupport ? (
-            <Card>
-              <Button
-                label="Chip in"
-                variant="ghost"
-                onPress={onOpenSupport}
-              />
-            </Card>
-          ) : null}
-          {/*
-            Directly under it, and its own card rather than a second button in
-            the same one: the two go to unrelated screens, and a card is the
-            unit this screen uses for one place to go. It appears for the few
-            accounts granted the standings and for nobody else, which is why
-            the section survives a server with nowhere to give — the label
-            reads as the part of Home that is about the project rather than
-            about a conversation, and the standings belong there too.
-          */}
-          {onOpenLeaderboard ? (
-            <Card>
-              <Button
-                label="Leaderboard"
-                variant="ghost"
-                onPress={onOpenLeaderboard}
-              />
-            </Card>
-          ) : null}
+          {/* The gap between cards, as every other group of them here gets
+              it. Two cards flush against each other read as one card with a
+              line through it. */}
+          <View style={styles.list}>
+            {canSupport ? (
+              <Card>
+                <Button
+                  label="Chip in"
+                  variant="ghost"
+                  onPress={onOpenSupport}
+                />
+              </Card>
+            ) : null}
+            {/*
+              Directly under it, and its own card rather than a second button
+              in the same one: the two go to unrelated screens, and a card is
+              the unit this screen uses for one place to go. It appears for the
+              few accounts granted the standings and for nobody else, which is
+              why the section survives a server with nowhere to give — the
+              label reads as the part of Home that is about the project rather
+              than about a conversation, and the standings belong there too.
+            */}
+            {onOpenLeaderboard ? (
+              <Card>
+                <Button
+                  label="Leaderboard"
+                  variant="ghost"
+                  onPress={onOpenLeaderboard}
+                />
+              </Card>
+            ) : null}
+          </View>
         </>
       ) : null}
 
