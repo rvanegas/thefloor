@@ -74,6 +74,26 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-22 — `24a3920` → `8ef2615`
+
+Most recently on 2026-08-22, `24a3920` → `8ef2615`, carrying the two defects
+the first real guest link found. **The interesting one is that subscribing is
+not hearing**: `livekit-client` subscribes to remote tracks by itself and hands
+each one to the application, and until something appends `attach()`'s element
+to the document nothing plays. The guest heard silence while every signal the
+other end could see said it was working, and the member could hear *them*
+perfectly. There is no equivalent step in the native client, so nothing about
+this was noticeable by analogy — it is a browser fact, and it is now written
+beside the code that does it. `startAudio()` and the autoplay button went in
+with it.
+
+The wire did not move and the app is untouched by this deploy; the knock haptic
+that shipped in the same commit reaches nobody until a build carries it.
+
+Verified against production afterwards: `/healthz` on `8ef2615`; the served
+bundle containing `startAudio` and the page containing both `audio-sink` and
+`unmute-page`, which is as close as anything here gets to testing that file.
+
 ### 2026-08-22 — `d2d0ec3` → `24a3920`
 
 Most recently on 2026-08-22, `d2d0ec3` → `24a3920`, carrying anonymous web

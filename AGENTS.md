@@ -110,7 +110,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 623 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 622 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -345,23 +345,22 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-22, `24a3920` → `8ef2615`, carrying the two defects
-the first real guest link found. **The interesting one is that subscribing is
-not hearing**: `livekit-client` subscribes to remote tracks by itself and hands
-each one to the application, and until something appends `attach()`'s element
-to the document nothing plays. The guest heard silence while every signal the
-other end could see said it was working, and the member could hear *them*
-perfectly. There is no equivalent step in the native client, so nothing about
-this was noticeable by analogy — it is a browser fact, and it is now written
-beside the code that does it. `startAudio()` and the autoplay button went in
-with it.
+Most recently on 2026-08-22, `8ef2615` → `0d5476c`, which fixes nothing and
+says something: a guest whose link opened inside Telegram was prompted for the
+microphone, granted it, and was heard by nobody. **Every in-app browser on iOS
+is a `WKWebView` whose audio session belongs to the host app**, so capture can
+be granted and still deliver digital silence, with no failure anywhere in the
+WebRTC API and no fix available to a page. So the page detects that it is
+embedded and says so at the door — before the knock, since the seat is
+per-browser and switching later costs it — listens to what it published with an
+`AnalyserNode` and raises a notice after eight silent seconds, and offers a
+retry from a real tap, the `speech` message having no gesture behind it.
 
-The wire did not move and the app is untouched by this deploy; the knock haptic
-that shipped in the same commit reaches nobody until a build carries it.
+The wire did not move and the app is untouched.
 
-Verified against production afterwards: `/healthz` on `8ef2615`; the served
-bundle containing `startAudio` and the page containing both `audio-sink` and
-`unmute-page`, which is as close as anything here gets to testing that file.
+Verified against production afterwards: `/healthz` on `0d5476c`; the served
+bundle containing `TelegramWebviewProxy` and the page containing `embedded`,
+`mic-trouble` and `copy-link-button`.
 
 Read `/healthz` before assuming this section is current. It was a day stale here
 once already, and that is how it will fail again.
