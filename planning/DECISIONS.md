@@ -1147,3 +1147,92 @@ false, and unrecoverable, there being nothing left on screen to explain itself.
 The room half now arrives as a prop and disables the buttons; the contact half
 still filters. **A guard that gains a clause can turn a filter into a lie**,
 and the filter is the call site that will not fail loudly.
+
+## A ping is delivered to a phone whose app is open — 2026-08-22
+
+The first real test of the feature failed in the one way nobody had tried.
+Somebody stepped out of a channel, having asked the other member to ping them
+once they were gone, and no notification arrived. Everything worked: the POST
+returned 200, the sender was told it had gone, and the log recorded
+
+    push skipped  asked:1  away:0  why:"all reachable in-app"
+
+`pushNotifier.notify` dropped every recipient that `reachability.inApp` claimed,
+and that predicate is `hasConnection` — *holding a websocket*, not *standing in
+the channel*. Stepping out of a channel without leaving the app is the ordinary
+way to become pingable; it is what being absent looks like from the inside. So
+the filter was rejecting precisely the population the feature exists for, every
+time, and it will have been doing so since the day it shipped.
+
+**The reasoning it was built on was sound and had gone stale in a week.**
+`notifications.pinged` said a ping was withheld like the rest, not because it
+duplicated anything but because the in-app path for it was being built and
+routing a lock-screen notification into a foregrounded app would be a workaround
+with a short life. The in-app path was not built. So *withheld* did not mean
+"shown another way", it meant nothing happened at all — and the comment recorded
+the intention so plausibly that reading the code did not raise the question.
+
+### Holding a socket is evidence about duplication, not about being told
+
+The filter conflates two things that happen to coincide for three of the four
+notifications. For `started`, `invited` and `arrived`, a live socket really has
+already drawn the thing being announced, and a banner is a second copy of what
+somebody is looking at. For `pinged` neither half holds: nothing in the app
+renders a ping, and a person composed it and aimed it at somebody, so being in
+the app is evidence about attention and not about having been told.
+
+The fix is a `reachesInApp` field on `PushMessage`, false on three constructors
+and true on one, tested in `app.ts` in place of a bare `inApp` check. **The
+policy belongs on the message, next to the lifetime and the collapse key, and
+not in the filter** — the same argument push.ts already makes for
+`lifetimeMs`. A fifth notification then arrives at the filter with the question
+already answered rather than meeting a rule that has never heard of it.
+
+Which is also where this stopped being a patch and paid for itself. The seam is
+the one already found for the collapse key: *who decided to send it*. What may
+overwrite a notification and who a notification may reach turn out to be the
+same question asked twice — the automatic three are safe to overwrite **because**
+they are the channel repeating itself, and for that same reason they are the
+ones a live socket has already covered. Two consequences, one distinction, and
+the second fell out of naming the first.
+
+### The rate limit was compounding it, and is now honest
+
+`ping` stamps `lastPingedAt` before handing to push, so the five-minute window
+was being spent on a notification nobody received. The sender's next seven taps
+— 17:01:18 through 17:01:51 in the log — were all 409, *They have just been
+pinged*, about a ping that had gone nowhere. Nothing about that is wrong as
+written; it is the feature working correctly on top of a delivery that silently
+failed.
+
+It needed no change. The window bounds **sending** rather than delivery, and now
+that an accepted ping is a delivered ping the two coincide, so the refusal a
+sender gets is true. That is the whole argument for leaving the limit where it
+is: it exists to bound a person who cannot be answered or turned off, and it
+never made a promise it now has to keep.
+
+### The banner is the app's half of the same rule
+
+Delivery is not receipt. `setNotificationHandler` returned `shouldShowBanner:
+false` unconditionally, on the same reasoning the server filter used, so a ping
+delivered into a foregrounded app would have landed silently in Notification
+Center — the failure moved one layer down rather than fixed. The flag therefore
+travels in the APNs payload beside `channelId`, and the handler shows a banner
+exactly when the server said this was worth interrupting somebody for. One
+field, read at both ends, so the two cannot reach different conclusions about
+what a notification is for.
+
+Absent means quiet, deliberately: a build outliving the server it was written
+against should not start showing banners for arrivals.
+
+Still no sound in the foreground. The sound is what reaches a phone face-down on
+a table, which is the case the server now handles by sending the thing at all; a
+banner over an app somebody is holding is seen.
+
+### Order of shipping
+
+Either half is safe alone, which is unusual here. The server half deploys by
+itself and immediately fixes the reported failure — an older build receives the
+ping and files it in Notification Center without a banner, which is strictly
+more than the nothing it got before. The app half is inert until a build carries
+it. No wire compatibility question and nothing for `MIN_SUPPORTED_BUILD`.

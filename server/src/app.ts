@@ -194,11 +194,21 @@ export function buildApp(options: BuildOptions = {}): App {
    * forget every address Apple says is dead. The registry supplies none of
    * this — it knows only that something happened.
    *
+   * **The first filter is the message's to skip, not this code's to decide.**
+   * `reachesInApp` says whether a notification is a duplicate of what a live
+   * socket has already drawn, and only a ping is not — see `notifications` in
+   * push.ts, which owns that judgement the same way it owns the lifetimes. The
+   * test here is on the flag rather than on the name of the notification, so a
+   * fifth kind arrives with the question already answered instead of reaching
+   * a filter that has never heard of it.
+   *
    * Deliberately not awaited. A notification is a courtesy, and a channel
    * transition must not wait on Apple or fail because of it.
    */
   pushNotifier.notify = (userIds, message) => {
-    const away = userIds.filter((id) => !reachability.inApp(id));
+    const away = message.reachesInApp
+      ? userIds
+      : userIds.filter((id) => !reachability.inApp(id));
     const tokens = devices.tokensFor(away);
     // Logged even when nothing is sent, and with the reason it was not. The
     // two ways of sending nothing — everybody is already looking, and nobody
