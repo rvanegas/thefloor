@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
+import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { liveChannelView } from './src/state/live';
@@ -103,6 +104,13 @@ function Root() {
    * at the channel screen. See `useSilencedNudge`.
    */
   useSilencedNudge(live, me, audio.speaking);
+
+  /**
+   * Told that somebody is at the door, which is a question waiting on an
+   * answer from whoever is in the room. Here rather than on the channel screen
+   * for the reason above it.
+   */
+  useKnockNudge(live);
 
   /**
    * Follow a conversation that has changed channels.

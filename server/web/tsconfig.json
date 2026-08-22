@@ -1,0 +1,29 @@
+{
+  "//": [
+    "The guest page is the only TypeScript here that runs in a browser, and it",
+    "was the only TypeScript here that nothing checked: the server's tsconfig",
+    "includes src and __tests__, esbuild strips types without reading them, and",
+    "there is no test in this repository that can execute this file. So it was",
+    "checked by deploying it.",
+    "",
+    "Separate rather than folded into the server's config because of `lib`:",
+    "this needs DOM, and adding DOM there would let server code reach for",
+    "`document` or `fetch`-shaped browser globals and typecheck cleanly all the",
+    "way to a crash on the box.",
+    "",
+    "Run by `npm run typecheck` in server, which does both."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": []
+  },
+  "include": ["*.ts", "../../core/*.ts"]
+}

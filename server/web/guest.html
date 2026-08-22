@@ -93,6 +93,21 @@
   <body data-link="">
     <p id="notice" hidden></p>
 
+    <!--
+      Where remote audio elements live. `attach()` returns an element and
+      nothing plays until it is in the document, which is not obvious and is
+      not something the native client has an equivalent of; see joinAudio.
+      Hidden rather than absent — the elements have to be in the page, they
+      merely have nothing to show.
+    -->
+    <div id="audio-sink" hidden></div>
+
+    <!--
+      Shown only when the browser has refused this page permission to make
+      sound. It is a real gesture, which is what the policy wants.
+    -->
+    <button id="unmute-page" hidden>Tap to hear the channel</button>
+
     <div id="door" hidden>
       <h1>Join <span id="channel-name">a channel</span></h1>
       <p>

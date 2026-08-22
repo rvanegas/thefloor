@@ -2,7 +2,9 @@ import {
   createLocalAudioTrack,
   Room,
   RoomEvent,
+  Track,
   type LocalAudioTrack,
+  type RemoteTrack,
 } from 'livekit-client';
 import type {
   GuestAction,
@@ -102,20 +104,73 @@ const act = (action: GuestAction): void => send({ type: 'action', action });
 // --- The room --------------------------------------------------------------
 
 /**
- * Joins the audio room.
+ * Joins the audio room, and puts what it carries into the page.
  *
- * Called from a click, always — a browser will not start audio otherwise, and
- * a page that connected on load would be one whose sound arrives silently and
- * never plays. Knocking is that click, and admission follows it.
+ * **Subscribing is not hearing, and this is the whole of the difference.**
+ * `livekit-client` subscribes to remote tracks by itself and then hands each
+ * one to the application — `attach()` builds an `<audio>` element, and until
+ * something appends it to the document nothing plays. Nothing about that is
+ * visible from the other end: the member's app publishes, the SFU forwards,
+ * the guest's `RoomEvent.TrackSubscribed` fires, and the guest sits in silence
+ * while everybody else can hear them perfectly. Which is exactly how it was
+ * found, on 2026-08-22, by somebody testing the first real link.
+ *
+ * The native app has no equivalent step, so there was nowhere to notice this
+ * by analogy. It is a browser fact.
  */
 async function joinAudio(url: string, token: string): Promise<void> {
   if (room) return;
+  const sink = $('audio-sink');
   room = new Room();
+
+  room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+    if (track.kind !== Track.Kind.Audio) return;
+    const element = track.attach();
+    // Muted elements are exempt from the autoplay policy and silent, which is
+    // the wrong half of that trade. `startAudio` below is how the policy is
+    // actually satisfied.
+    element.autoplay = true;
+    sink.append(element);
+  });
+
+  room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+    for (const element of track.detach()) element.remove();
+  });
+
   room.on(RoomEvent.Disconnected, () => {
+    sink.textContent = '';
     room = null;
     microphone = null;
   });
+
+  // The browser's own opinion about whether this page may make noise, which it
+  // can change at any time — a tab restored from the background, a policy that
+  // did not apply when the page loaded. Asked as an event rather than once, so
+  // the button below appears whenever the answer becomes no.
+  room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+    $('unmute-page').hidden = room?.canPlaybackAudio !== false;
+  });
+
   await room.connect(url, token);
+  await allowPlayback();
+}
+
+/**
+ * Asks the browser to let this page play sound.
+ *
+ * Safari and Chrome both want a gesture, and the one that got us here — the
+ * knock — is several seconds and one round trip ago, which may or may not
+ * still count. So this is attempted immediately and offered as a button when
+ * it fails, rather than assumed either way.
+ */
+async function allowPlayback(): Promise<void> {
+  if (!room) return;
+  try {
+    await room.startAudio();
+  } catch {
+    // Refused: the button is the second chance, and it is a real gesture.
+  }
+  $('unmute-page').hidden = room.canPlaybackAudio;
 }
 
 /**
@@ -206,6 +261,14 @@ async function handle(message: GuestServerMessage): Promise<void> {
       return;
 
     case 'admitted':
+      // Somebody answered the door, which is the one moment on this page worth
+      // feeling rather than reading — a person who knocked has been looking at
+      // another tab for however long it took. Android and desktop Chrome have
+      // this; **iOS Safari does not implement `navigator.vibrate` at all**, so
+      // for the phones most likely to open a link like this the cue is the
+      // screen changing and nothing else. There is no second way to do it from
+      // a browser.
+      navigator.vibrate?.([40, 60, 40]);
       keepSeat({
         channelLink: linkToken,
         guestId: message.guestId,
@@ -328,6 +391,10 @@ $('knock-form').addEventListener('submit', (event) => {
   event.preventDefault();
   const field = $('name-field') as HTMLInputElement;
   send({ type: 'knock', name: field.value });
+});
+
+$('unmute-page').addEventListener('click', () => {
+  void allowPlayback();
 });
 
 $('ask-button').addEventListener('click', () => act({ type: 'REQUEST_SPEECH' }));
