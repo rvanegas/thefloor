@@ -1,5 +1,9 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import type { ProfileView, PublicAccount } from '../../core/protocol';
+import type {
+  LeaderboardEntry,
+  ProfileView,
+  PublicAccount,
+} from '../../core/protocol';
 import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import {
   insertWithUniqueKey,
@@ -231,11 +235,9 @@ export class Accounts {
    * Ties break on display name, so that two accounts level on the number sit
    * in an order that does not change between reads.
    */
-  leaderboard(
-    limit = 100
-  ): Array<{ id: string; displayName: string; invited: number }> {
+  leaderboard(limit = 100): LeaderboardEntry[] {
     const erased = `${ERASED_IDENTIFIER_PREFIX}*`;
-    return this.db
+    const rows = this.db
       .prepare(
         `WITH RECURSIVE chain(ancestor, descendant) AS (
            SELECT invited_by, id FROM accounts WHERE invited_by IS NOT NULL
@@ -260,17 +262,64 @@ export class Accounts {
       displayName: string;
       invited: number;
     }>;
+
+    return rows.map(({ id, displayName, invited }) => ({
+      account: { id, displayName },
+      invited: Number(invited),
+    }));
   }
 
-  /** A person's profile, for anyone entitled to see it. */
-  profile(id: string): ProfileView | null {
+  /**
+   * A person's profile, for anyone entitled to see it.
+   *
+   * `viewerId` decides one field and nothing else: whether who invited them is
+   * a name this reader would recognise. See `invitedByFor`.
+   */
+  profile(id: string, viewerId: string): ProfileView | null {
     const row = this.byId(id);
     if (!row) return null;
+    const invitedBy = this.invitedByFor(row, viewerId);
     return {
       account: { id: row.id, displayName: row.display_name },
       bio: row.bio ?? null,
       invited: this.invitedCount(row.id),
+      ...(invitedBy ? { invitedBy } : {}),
     };
+  }
+
+  /**
+   * Who invited this person, but only when the reader already knows them.
+   *
+   * The rule is that the inviter is **you, or one of your contacts** — a name
+   * you could have got from your own contact list, attached to a fact you
+   * could not. Anybody else gets nothing at all: not a name, not an id, not a
+   * hint that there was an inviter. A profile is readable by a contact, by
+   * anyone sharing a live channel and by yourself, and that last audience is
+   * exactly the one this must not leak to. Somebody an acquaintance brought
+   * into a channel would otherwise learn, from a screen they are entitled to
+   * open, the name of a stranger who knows them — which is the shape of thing
+   * `pending_invites` exists to avoid answering.
+   *
+   * A tombstone is excluded, for the reason it is excluded from the counts: it
+   * is not a person, and "Invited by Deleted account" tells a reader nothing
+   * except that somebody left.
+   *
+   * Note this is not symmetrical with the count, and deliberately. The number
+   * on a profile is the same number for everybody who can see the profile;
+   * this line is not, because a name is a name and a total is not.
+   */
+  private invitedByFor(
+    row: AccountRow,
+    viewerId: string
+  ): PublicAccount | undefined {
+    if (!row.invited_by) return undefined;
+    const inviter = this.byId(row.invited_by);
+    if (!inviter) return undefined;
+    if (inviter.identifier.startsWith(ERASED_IDENTIFIER_PREFIX)) return undefined;
+    const known =
+      inviter.id === viewerId || this.areContacts(viewerId, inviter.id);
+    if (!known) return undefined;
+    return { id: inviter.id, displayName: inviter.display_name };
   }
 
   /**

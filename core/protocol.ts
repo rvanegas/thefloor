@@ -62,6 +62,35 @@ export interface ProfileView {
    * hiding a genuine nought.
    */
   invited?: number;
+  /**
+   * Who invited them, when that is somebody you would recognise.
+   *
+   * **Present only when the inviter is you or one of your contacts**, which is
+   * the whole of the rule and is enforced by the server rather than filtered
+   * for here. Otherwise absent — never a name you have no other way of
+   * knowing, and never an id for a client to resolve, since either would turn
+   * a profile into a way of learning who a stranger knows.
+   *
+   * Absent is therefore three things at once: they were not invited by anyone
+   * recorded, or they were and you do not know that person, or the server
+   * predates the field. A client cannot tell them apart and does not need to —
+   * all three mean there is no line to draw.
+   */
+  invitedBy?: PublicAccount;
+}
+
+/**
+ * One row of the invitation standings: somebody, and how many people are here
+ * because of them.
+ *
+ * Carries `PublicAccount` rather than a bare name so that a row can be tapped
+ * through to a profile — which will refuse unless the reader is entitled to
+ * it, the same as from anywhere else. Seeing a name in the standings is not
+ * itself entitlement to anything.
+ */
+export interface LeaderboardEntry {
+  account: PublicAccount;
+  invited: number;
 }
 
 export type ContactStatus = 'accepted' | 'outgoing' | 'incoming';
@@ -391,6 +420,22 @@ export type ServerMessage =
        * loses nothing it was entitled to.
        */
       debug?: boolean;
+      /**
+       * Whether this account may see the invitation standings — the
+       * `leaderboard` column on `accounts`, null for everybody until somebody
+       * sets it by hand.
+       *
+       * Here, and optional-when-true, for both of the reasons `debug` above
+       * is: it is a fact about you rather than part of the identity every
+       * roster carries, and a field a server can start sending before any
+       * client reads it.
+       *
+       * **Unlike `debug`, this one gates more than a display.** The route it
+       * unlocks refuses anybody without the column set, so a client that
+       * ignored this and asked anyway would be refused — the flag says whether
+       * to offer the screen, and the server decides whether to answer it.
+       */
+      leaderboard?: boolean;
     }
   | { type: 'home'; home: HomeView }
   | { type: 'channel'; view: ChannelView }

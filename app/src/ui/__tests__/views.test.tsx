@@ -24,6 +24,7 @@ import { ContactsSettingsView } from '../ContactsSettingsView';
 import { ContactsView } from '../ContactsView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
+import { LeaderboardView } from '../LeaderboardView';
 import { Alert, KeyboardAvoidingView, StyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { colors } from '../theme';
@@ -80,6 +81,12 @@ const mockApp = {
     })
   ),
   saveProfile: jest.fn(async () => {}),
+  // Nobody has the standings by default, matching the column that grants them.
+  leaderboard: false,
+  loadLeaderboard: jest.fn(async () => [
+    { account: { id: 'acct_a', displayName: 'Ada' }, invited: 4 },
+    { account: { id: 'acct_b', displayName: 'Grace' }, invited: 1 },
+  ]),
   // Configured by default, so the Support section is exercised rather than
   // skipped; the tests that care about it absent override this.
   loadSupport: jest.fn(async () => ({
@@ -3195,6 +3202,44 @@ describe('the invited count', () => {
 });
 
 /**
+ * Who invited them. The server sends this only when the inviter is you or one
+ * of your contacts, so there is no case here where the name is a stranger's —
+ * absent simply means there is no line, and the client does not need to know
+ * which of the three reasons it was.
+ */
+describe('who invited them', () => {
+  async function profileInvitedBy(
+    invitedBy: { id: string; displayName: string } | undefined
+  ) {
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: THEM, displayName: 'Dana Chu' },
+      bio: null,
+      invited: 0,
+      ...(invitedBy === undefined ? {} : { invitedBy }),
+    });
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = render(
+        <ProfileView accountId={THEM} fallbackName="Dana Chu" onBack={() => {}} />
+      );
+    });
+    return tree;
+  }
+
+  it('names the inviter when there is one to name', async () => {
+    const tree = await profileInvitedBy({ id: 'acct_a', displayName: 'Ada' });
+    expect(textOf(tree)).toContain('Invited by Ada');
+    act(() => tree.unmount());
+  });
+
+  it('draws no line when the server sent no name', async () => {
+    const tree = await profileInvitedBy(undefined);
+    expect(textOf(tree)).not.toContain('Invited by');
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * Ending a contact, which is more than forgetting a name: it takes the
  * channels that held only the two of you, and it takes them for both.
  */
@@ -3708,6 +3753,71 @@ describe('Support', () => {
     const tree = await open(<SupportView onBack={() => {}} />);
     expect(findButton(tree, 'Chip in')).toBeUndefined();
     expect(textOf(tree)).toContain('no way to give');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The way in to the standings, which hangs off this screen because it is the
+   * one already about the project rather than about a conversation. Absent
+   * unless the account has been granted them, and nothing here says so.
+   */
+  it('offers Invitations only when there is a way in', async () => {
+    const tree = await open(<SupportView onBack={() => {}} />);
+    expect(findButton(tree, 'Invitations')).toBeUndefined();
+    act(() => tree.unmount());
+
+    const opened = jest.fn();
+    const granted = await open(
+      <SupportView onBack={() => {}} onOpenLeaderboard={opened} />
+    );
+    const button = findButton(granted, 'Invitations');
+    expect(button).toBeTruthy();
+    act(() => button!.props.onPress());
+    expect(opened).toHaveBeenCalled();
+    act(() => granted.unmount());
+  });
+});
+
+/**
+ * The one screen that shows people who never agreed to be shown to you. There
+ * is no way to ask for it and no setting that turns it on, so what this covers
+ * is that it renders what it is given and says what the number means.
+ */
+describe('the invitation standings', () => {
+  /** Renders and waits for the fetch, which lands in a microtask. */
+  async function open(element: React.ReactElement) {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(element);
+    });
+    return tree;
+  }
+
+  it('lists people in order, with what the number counts', async () => {
+    const tree = await open(<LeaderboardView onBack={() => {}} />);
+
+    const text = textOf(tree);
+    expect(text).toContain('Ada');
+    expect(text).toContain('Grace');
+    expect(text.indexOf('Ada')).toBeLessThan(text.indexOf('Grace'));
+    // Said once, because a reader will otherwise take it for invitations sent.
+    expect(text).toContain('all the way down');
+    act(() => tree.unmount());
+  });
+
+  it('says so plainly when nobody has invited anybody', async () => {
+    mockApp.loadLeaderboard.mockResolvedValueOnce([]);
+    const tree = await open(<LeaderboardView onBack={() => {}} />);
+    expect(textOf(tree)).toContain('Nobody has brought anybody here yet');
+    act(() => tree.unmount());
+  });
+
+  it('shows the refusal rather than an empty board', async () => {
+    // A client that asked without the grant, or an older server. Either way
+    // an empty list would be a claim, and this is not one.
+    mockApp.loadLeaderboard.mockRejectedValueOnce(new Error('Not found.'));
+    const tree = await open(<LeaderboardView onBack={() => {}} />);
+    expect(textOf(tree)).toContain('Not found.');
     act(() => tree.unmount());
   });
 });

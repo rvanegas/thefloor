@@ -143,6 +143,157 @@ describe('when somebody leaves', () => {
   });
 });
 
+/**
+ * The standings are the only view in this application that shows somebody
+ * people who have not agreed to be shown to them, so the gate is the whole of
+ * what is worth testing. It is a column set by hand, nobody has it, and the
+ * refusal has to be indistinguishable from the path not existing.
+ */
+describe('the invitation standings', () => {
+  const grant = (user: User) =>
+    app.db
+      .prepare('UPDATE accounts SET leaderboard = 1 WHERE id = ?')
+      .run(user.account.id);
+
+  const standings = (user: User) =>
+    app.fastify.inject({
+      method: 'GET',
+      url: '/leaderboard',
+      headers: auth(user.token),
+    });
+
+  it('is refused to an ordinary account, as a 404', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+
+    // Not a 403: "you may not" and "there is nothing here" are deliberately
+    // the same answer, matching the profile route.
+    expect((await standings(alice)).statusCode).toBe(404);
+  });
+
+  it('is refused to somebody with no token at all', async () => {
+    await signIn('alice@example.com', 'Alice');
+
+    const response = await app.fastify.inject({
+      method: 'GET',
+      url: '/leaderboard',
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('ranks by the transitive count once granted', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await invited(alice, 'bob@example.com', 'Bob');
+    await invited(bob, 'carol@example.com', 'Carol');
+    const dave = await signIn('dave@example.com', 'Dave');
+    await invited(dave, 'erin@example.com', 'Erin');
+    grant(alice);
+
+    const response = await standings(alice);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().entries).toEqual([
+      { account: { id: alice.account.id, displayName: 'Alice' }, invited: 2 },
+      { account: { id: bob.account.id, displayName: 'Bob' }, invited: 1 },
+      { account: { id: dave.account.id, displayName: 'Dave' }, invited: 1 },
+    ]);
+  });
+
+  it('leaves out everybody who has brought nobody', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    grant(alice);
+
+    expect((await standings(alice)).json().entries).toEqual([]);
+  });
+});
+
+/**
+ * Who invited somebody is a name, and a name is the thing this service is
+ * careful with. The rule is that it reaches you only when you would recognise
+ * it — you, or one of your contacts — so what is tested is who is refused.
+ */
+describe('who invited them', () => {
+  /** Accepts a request that has already been sent, making the pair contacts. */
+  const accept = (requester: User, by: User) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${requester.account.id}/accept`,
+      headers: auth(by.token),
+    });
+
+  const profileOf = (viewer: User, subject: User) =>
+    app.fastify.inject({
+      method: 'GET',
+      url: `/profiles/${subject.account.id}`,
+      headers: auth(viewer.token),
+    });
+
+  it('tells a reader who knows the inviter', async () => {
+    // Alice invited Bob; Carol knows them both, so Bob's profile names Alice.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await invited(alice, 'bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await invite(carol, 'alice@example.com');
+    await accept(carol, alice);
+    await invite(carol, 'bob@example.com');
+    await accept(carol, bob);
+
+    const response = await profileOf(carol, bob);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().invitedBy).toEqual({
+      id: alice.account.id,
+      displayName: 'Alice',
+    });
+  });
+
+  it('says nothing to a reader who does not know the inviter', async () => {
+    // Carol is entitled to read Bob's profile and is not entitled to learn
+    // Alice's name from it. This is the case the whole rule exists for.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await invited(alice, 'bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await invite(carol, 'bob@example.com');
+    await accept(carol, bob);
+
+    const response = await profileOf(carol, bob);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().invitedBy).toBeUndefined();
+  });
+
+  it('tells the inviter, reading the profile of somebody they brought', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await invited(alice, 'bob@example.com', 'Bob');
+    await accept(alice, bob);
+
+    expect((await profileOf(alice, bob)).json().invitedBy).toEqual({
+      id: alice.account.id,
+      displayName: 'Alice',
+    });
+  });
+
+  it('says nothing about somebody nobody invited', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+
+    expect((await profileOf(alice, alice)).json().invitedBy).toBeUndefined();
+  });
+
+  it('says nothing when the inviter has deleted their account', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await invited(alice, 'bob@example.com', 'Bob');
+    await accept(alice, bob);
+    await app.fastify.inject({
+      method: 'DELETE',
+      url: '/me',
+      headers: auth(alice.token),
+    });
+
+    // A tombstone is not a person, and "Invited by Deleted account" says only
+    // that somebody left.
+    expect((await profileOf(bob, bob)).json().invitedBy).toBeUndefined();
+  });
+});
+
 describe('what a profile says', () => {
   it('carries your own count, and one you are entitled to read', async () => {
     const alice = await signIn('alice@example.com', 'Alice');

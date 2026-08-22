@@ -55,6 +55,14 @@ export interface AccountRow {
    * `Accounts.resolveInvitesFor`, which is the only writer.
    */
   invited_by: string | null;
+  /**
+   * Whether this account may see the invitation standings: 1 for yes, null or
+   * 0 for no. Nobody has it by default and there is no screen that grants it —
+   * it is set by hand, `bin/db --write`, exactly like `debug` above and for a
+   * related reason. What it reveals is other people's names against a number,
+   * which is the one thing this service otherwise promises not to publish.
+   */
+  leaderboard: number | null;
 }
 
 export interface ContactRow {
@@ -230,7 +238,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- per account, so these rows form a forest, and the credit a profile shows
   -- is the size of the subtree under it. Acyclic by construction: an inviter
   -- had to exist before the account that names them.
-  invited_by TEXT REFERENCES accounts(id)
+  invited_by TEXT REFERENCES accounts(id),
+  -- Lets this account see the invitation standings. Null for everyone until
+  -- somebody sets it by hand; see the row type above for why there is no
+  -- screen that does.
+  leaderboard INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -673,6 +685,12 @@ function migrate(db: Db): void {
   // earliest in a table that was never keeping score.
   if (!accountColumns.some((c) => c.name === 'invited_by')) {
     db.exec('ALTER TABLE accounts ADD COLUMN invited_by TEXT REFERENCES accounts(id)');
+  }
+  // Null for everyone, which is the value that means no standings. There is
+  // nobody this should be true of by default: it is the only view in this
+  // application that lists people who have not agreed to be listed to you.
+  if (!accountColumns.some((c) => c.name === 'leaderboard')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN leaderboard INTEGER');
   }
   // The index is created *here* rather than in SCHEMA, and that is not tidiness.
   // SCHEMA runs before this function, and `CREATE TABLE IF NOT EXISTS accounts`

@@ -271,6 +271,19 @@ export function ProfileView({
         {profile?.invited !== undefined ? (
           <Text style={type.muted}>{`Invited ${profile.invited}`}</Text>
         ) : null}
+        {/*
+          Who invited them, and only ever a name you already know: the server
+          sends this when the inviter is you or one of your contacts, and sends
+          nothing otherwise. So there is no case to handle here where the name
+          would be a stranger's — absent means there is no line, whether that
+          is because nobody invited them, because you do not know who did, or
+          because the server predates the field.
+        */}
+        {profile?.invitedBy ? (
+          <Text style={type.muted} numberOfLines={1}>
+            {`Invited by ${profile.invitedBy.displayName}`}
+          </Text>
+        ) : null}
       </View>
 
       <Card style={styles.stack}>

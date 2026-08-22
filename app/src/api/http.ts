@@ -1,5 +1,6 @@
 import type {
   HomeView,
+  LeaderboardEntry,
   PublicAccount,
   ProfileView,
   SupportView,
@@ -164,6 +165,17 @@ export const api = {
     token: string,
     changes: { displayName?: string; bio?: string }
   ) => request<ProfileView>('/me', { method: 'POST', body: changes, token }),
+
+  /**
+   * The invitation standings.
+   *
+   * Refused as a 404 to anybody whose account has not been granted them, which
+   * is nobody by default — the same answer the server gives for a profile you
+   * may not read, and for the same reason. `hello` says whether to offer the
+   * screen at all, so in practice this is only called by somebody who has it.
+   */
+  leaderboard: (token: string) =>
+    request<{ entries: LeaderboardEntry[] }>('/leaderboard', { token }),
 
   /**
    * Where to donate, and what this person has already given.

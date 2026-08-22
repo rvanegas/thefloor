@@ -25,15 +25,16 @@ export interface RealtimeHandlers {
   /**
    * Identifies who this connection belongs to, per the server.
    *
-   * `debug` is the diagnostic panel's gate, and is false against any server
-   * that has never heard of it — the field is optional and sent only when
-   * true. Passed alongside the account rather than folded into it, because it
-   * is not part of the identity every roster carries: see `ServerMessage` in
-   * core/protocol.ts.
+   * `debug` is the diagnostic panel's gate and `leaderboard` the standings',
+   * and both are false against any server that has never heard of them — each
+   * field is optional and sent only when true. Passed alongside the account
+   * rather than folded into it, because neither is part of the identity every
+   * roster carries: see `ServerMessage` in core/protocol.ts.
    */
   onHello?: (
     account: { id: string; displayName: string },
-    debug: boolean
+    debug: boolean,
+    leaderboard: boolean
   ) => void;
   onHome?: (home: HomeView) => void;
   onChannel?: (view: ChannelView) => void;
@@ -168,7 +169,11 @@ export class Realtime {
 
         case 'hello':
           this.handlers.onServerTime?.(message.serverNow);
-          this.handlers.onHello?.(message.account, message.debug === true);
+          this.handlers.onHello?.(
+            message.account,
+            message.debug === true,
+            message.leaderboard === true
+          );
           break;
         case 'home':
           this.handlers.onHome?.(message.home);

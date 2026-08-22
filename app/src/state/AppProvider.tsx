@@ -13,6 +13,7 @@ import { AppState as NativeAppState, Platform } from 'react-native';
 import type {
   ClientAction,
   HomeView,
+  LeaderboardEntry,
   ProfileView,
   PublicAccount,
   ChannelView,
@@ -77,6 +78,13 @@ interface AppState {
    * other screen already waits for.
    */
   debug: boolean;
+  /**
+   * Whether this account may see the invitation standings, from the same
+   * `hello` and on exactly the same terms as `debug` above: not persisted,
+   * false until a socket says otherwise, so revoking the column takes the
+   * screen away at the next connection rather than at the next reinstall.
+   */
+  leaderboard: boolean;
   home: HomeView | null;
   /**
    * The latest snapshot of each channel this client is watching, by id.
@@ -172,6 +180,13 @@ interface AppValue extends AppState {
   ping: (channelId: string, targetId: string, text: string) => Promise<void>;
   /** Where to donate, and what you have already given. */
   loadSupport: () => Promise<SupportView>;
+  /**
+   * The invitation standings, read when the screen opens.
+   *
+   * Held nowhere, for the reason `loadSupport` is not: one screen reads it, it
+   * gates nothing, and a cached ranking is wrong the moment anybody signs up.
+   */
+  loadLeaderboard: () => Promise<LeaderboardEntry[]>;
   /**
    * Asks somebody you share a channel with to be a contact. Resolves to
    * whether it went straight through, which happens when they had already
@@ -287,6 +302,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     token: null,
     me: null,
     debug: false,
+    leaderboard: false,
     home: null,
     channelViews: {},
     goneChannels: [],
@@ -324,8 +340,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // only thing that tells a relaunched app who it is. Without it `me`
         // stays null, and every screen that compares against the current user
         // — the whole floor mechanic — silently compares against nothing.
-        onHello: (account, debug) =>
-          setState((s) => ({ ...s, me: account, debug })),
+        onHello: (account, debug, leaderboard) =>
+          setState((s) => ({ ...s, me: account, debug, leaderboard })),
         onHome: (home) => setState((s) => ({ ...s, home })),
         // Keyed by the channel the snapshot is about, never by which screen
         // asked for it: whoever is looking picks out the one they want.
@@ -490,6 +506,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         token: null,
         me: null,
         debug: false,
+        leaderboard: false,
         home: null,
         channelViews: {},
         goneChannels: [],
@@ -628,6 +645,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           token: null,
           me: null,
           debug: false,
+          leaderboard: false,
           home: null,
           channelViews: {},
           goneChannels: [],
@@ -663,6 +681,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           token: null,
           me: null,
           debug: false,
+          leaderboard: false,
           home: null,
           channelViews: {},
           goneChannels: [],
@@ -735,6 +754,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadSupport: async () => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         return api.support(state.token);
+      },
+
+      loadLeaderboard: async () => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const { entries } = await api.leaderboard(state.token);
+        return entries;
       },
 
       connectWith: async (accountId) => {

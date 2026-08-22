@@ -330,6 +330,10 @@ export function registerWebsocket(deps: {
       // each connection, so turning the flag on in the database takes effect
       // at the next reconnect rather than needing a restart.
       ...(account.debug === 1 ? { debug: true } : {}),
+      // Same shape and the same reasoning: absent unless granted, read fresh
+      // per connection, so setting the column by hand takes effect at the next
+      // reconnect rather than needing a restart.
+      ...(account.leaderboard === 1 ? { leaderboard: true } : {}),
     });
 
     socket.on('message', (raw: Buffer | string) => {

@@ -11,6 +11,7 @@ import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
 import { ContactsView } from './src/ui/ContactsView';
 import { SupportView } from './src/ui/SupportView';
+import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { anyMicrophoneOpen, microphoneNeeded } from '../core/micNeeded';
@@ -44,6 +45,7 @@ function Root() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** The screen explaining what donating is for, reached from Home. */
   const [supportOpen, setSupportOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   /**
    * The contact list, reached from Home. It owns its own settings screen and
    * its own profile screen, the way ChannelView does — the three of them are
@@ -212,8 +214,22 @@ function Root() {
     return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
   }
 
+  // Reached from Support and from nowhere else, and offered only to an account
+  // that has been granted it by hand. `app.leaderboard` comes from `hello`, so
+  // revoking the column closes the way in at the next connection.
+  if (leaderboardOpen) {
+    return <LeaderboardView onBack={() => setLeaderboardOpen(false)} />;
+  }
+
   if (supportOpen) {
-    return <SupportView onBack={() => setSupportOpen(false)} />;
+    return (
+      <SupportView
+        onBack={() => setSupportOpen(false)}
+        onOpenLeaderboard={
+          app.leaderboard ? () => setLeaderboardOpen(true) : undefined
+        }
+      />
+    );
   }
 
   if (contactsOpen) {

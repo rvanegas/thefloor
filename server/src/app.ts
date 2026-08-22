@@ -25,7 +25,6 @@ import {
   MIN_SUPPORTED_BUILD,
 } from './release';
 import { supportPage } from './support';
-import { basicPasswordMatches, leaderboardPage } from './leaderboard';
 import { donationsVisibleFor } from './region';
 import { ChannelRegistry, type RefusalCode } from './channels';
 import { ConsolePusher, createPushNotifier, type Pusher } from './push';
@@ -106,17 +105,6 @@ export interface BuildOptions {
    * which is honest — a link that opens nothing is worse than a sentence.
    */
   updateUrl?: string;
-  /**
-   * The password for `/leaderboard`. **Unset — the default, and what a box
-   * that has not been told otherwise has — the route does not exist at all.**
-   *
-   * A 404 rather than a 401 when it is unset, so that the answer to "is there
-   * a leaderboard here" is the same as for any path this server has never
-   * heard of. See leaderboard.ts for why that page is an operator's and not a
-   * user's, which is the whole of the reasoning; this field is just where the
-   * switch is.
-   */
-  leaderboardKey?: string;
 }
 
 export interface App {
@@ -703,35 +691,6 @@ export function buildApp(options: BuildOptions = {}): App {
     return supportPage(options.contactEmail);
   });
 
-  /**
-   * Who has brought the most people here.
-   *
-   * The two pages above are documents anybody may read; this one is a list of
-   * people's names, which is exactly what both of them promise in writing this
-   * service does not publish. It is therefore **off unless a password is
-   * configured**, and behind HTTP Basic when it is — the browser-shaped
-   * sibling of `bin/usage`, for the person who runs the box.
-   *
-   * Basic rather than the bearer token every other authenticated route takes,
-   * because a browser cannot send one: there is no client here, only Safari,
-   * and Basic is the one scheme it will prompt for unaided. It is not a way in
-   * to anything else — nothing on this server accepts these credentials, and
-   * this route reads and never writes.
-   */
-  fastify.get('/leaderboard', async (request, reply) => {
-    const key = options.leaderboardKey;
-    if (!key) return reply.code(404).send({ error: 'Not found.' });
-
-    if (!basicPasswordMatches(request.headers.authorization, key)) {
-      return reply
-        .code(401)
-        .header('WWW-Authenticate', 'Basic realm="The Floor", charset="UTF-8"')
-        .send({ error: 'Not authorised.' });
-    }
-
-    reply.type('text/html; charset=utf-8');
-    return leaderboardPage(accounts.leaderboard());
-  });
 
   // --- Donations ----------------------------------------------------------
 
@@ -864,7 +823,7 @@ export function buildApp(options: BuildOptions = {}): App {
         .map((entry) => entry.account.id)
         .filter(Boolean),
     ]);
-    return accounts.profile(account.id);
+    return accounts.profile(account.id, account.id);
   });
 
   /**
@@ -925,7 +884,7 @@ export function buildApp(options: BuildOptions = {}): App {
       id === account.id || contact || channels.shareAChannel(account.id, id);
     // Absent and not-allowed answer the same way, so this cannot be used to
     // discover which ids exist.
-    const profile = allowed ? accounts.profile(id) : null;
+    const profile = allowed ? accounts.profile(id, account.id) : null;
     if (!profile) return reply.code(404).send({ error: 'No such profile.' });
 
     // Where somebody is, for the people who could already see it. This is the
@@ -949,6 +908,34 @@ export function buildApp(options: BuildOptions = {}): App {
       inApp: reachability.inApp(id),
       lastSeenAt: accounts.lastSeenAt(id),
     };
+  });
+
+  /**
+   * The invitation standings: who has brought the most people here.
+   *
+   * **Refused to anybody whose `leaderboard` column is not set**, which is
+   * nobody by default and is granted by hand with `bin/db --write`. It is the
+   * only view in this application that lists people who have not agreed to be
+   * listed to you — everywhere else, a name reaches you because you and they
+   * both said yes. `/privacy` and `/support` promise there is no directory
+   * here, and an ungated version of this would be one.
+   *
+   * A 404 rather than a 403 for somebody without the flag, matching the
+   * profile route: the answer to "may I see this" and "is there anything here"
+   * are deliberately the same answer.
+   *
+   * Not on the Home snapshot, though `hello` carries the flag: that snapshot
+   * is pushed to every client on every change, and this is read by one screen
+   * when it opens. The same argument the protocol already makes for keeping a
+   * bio off `PublicAccount`.
+   */
+  fastify.get('/leaderboard', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    if (account.leaderboard !== 1) {
+      return reply.code(404).send({ error: 'Not found.' });
+    }
+    return { entries: accounts.leaderboard() };
   });
 
   fastify.get('/home', async (request, reply) => {

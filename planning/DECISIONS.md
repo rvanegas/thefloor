@@ -780,29 +780,42 @@ field sends no key, and a nought it never claimed would be a number we made up.
 So `invited` is optional on the wire and the client distinguishes absent from
 zero, which is the same shape `lastSeenAt` already has and for the same reason.
 
-### The leaderboard is off by default, because it is the directory we promise not to have
+### The standings are in the app, behind a column set by hand
 
-Asked for in the same session and built as `/leaderboard`, a served HTML page
-listing accounts by credit. It is the third page this server serves and the
-first that is not a document: `/privacy` and `/support` exist because App Store
-Connect will not take a submission without a URL for each, and both are prose
-anybody may read.
+Built as a served HTML page first, at `/leaderboard`, gated on a
+`LEADERBOARD_KEY` and HTTP Basic — an operator's page, the browser-shaped
+sibling of `bin/usage`. **That version was deleted the same day and none of it
+shipped.** It is written down because the reasoning that killed it is the
+reasoning that shaped what replaced it, and because a future session proposing
+a web page for this should know it has been tried.
 
-**This one is a list of real people's names, which is exactly what those two
-pages promise in writing does not exist here** — *"There is no directory, no
-search for strangers, and no way to be added to anything without saying yes."*
-So it is an operator's page, the browser-shaped sibling of `bin/usage`: **off
-unless `LEADERBOARD_KEY` is set**, and behind HTTP Basic when it is. Making it
-something users can see is a separate decision, and it starts by changing what
-those two pages say.
+The objection was never the password. It is that **a list of real people's
+names is exactly what `/privacy` and `/support` promise in writing does not
+exist here** — *"There is no directory, no search for strangers, and no way to
+be added to anything without saying yes."* A page on the public internet is a
+directory whether or not it asks for a password first, and the promise is about
+what this service *is*, not about who currently holds a credential.
 
-Two details of the gate are deliberate. Unset, the route **404s** rather than
-401s, so an unconfigured box gives the same answer here as for any path it has
-never heard of and the page cannot be found by asking whether it is protected.
-And Basic rather than a key in the query string, because a URL with a secret in
-it ends up in history, in a bookmark and in the referer of anything the page
-links to — the page is opened by a person, not scripted. The username is
-ignored; there is one credential and no accounts here.
+So the standings are in the app, and the gate is an `accounts.leaderboard`
+column set by hand with `bin/db --write`. **That is `debug`'s pattern reused
+whole**, deliberately: nobody has it by default, there is no screen that grants
+it, it rides on `hello` as an optional-when-true field, and it is read fresh per
+connection so revoking it closes the way in at the next reconnect rather than at
+the next reinstall. Copying a pattern that already exists is worth more here
+than a better one invented for a second user.
+
+**One way it is not like `debug`**, and the difference is the point: `debug`
+gates a display and nothing else, so a client ignoring it loses nothing it was
+entitled to. This gates *data*. `GET /leaderboard` refuses anybody whose column
+is unset, so the flag on `hello` says whether to offer the screen and the server
+decides whether to answer it — two enforcements, and the client's is only the
+polite one. The refusal is a **404 rather than a 403**, matching the profile
+route: "you may not" and "there is nothing here" are deliberately one answer.
+
+The way in is a button below *Chip in* on Support, absent unless the flag is
+set. Support is the one screen already about the project rather than about a
+conversation, and a screen nobody can reach needs somewhere unobtrusive to be
+reached from.
 
 The board itself is one query rather than a recursive walk per account: the
 closure of `(ancestor, descendant)` pairs, grouped. Only accounts with a count
@@ -810,6 +823,60 @@ of one or more appear, which falls out of the join — an account nobody arrived
 through is in no pair — and is the right shape, since a list whose tail is every
 account that ever existed all reading nought is a list of accounts rather than a
 ranking. Ties break on display name so two reads agree.
+
+### Who invited them is a name, so it is told only to somebody who knows it
+
+A profile carries `invitedBy`, and the rule is that the inviter is **you, or one
+of your contacts**. Carol, who knows both Alice and Bob, sees *Invited by Alice*
+on Bob's profile. Carol, who knows only Bob, sees no line at all.
+
+The asymmetry with the count above is deliberate and is the whole design. The
+number on a profile is the same number for everybody who can read the profile,
+because a total names nobody. A name is not like that. **A profile is readable
+by a contact, by anyone sharing a live channel, and by yourself** — and that
+middle audience is exactly the one this must not leak to: somebody an
+acquaintance brought into a channel would otherwise learn, from a screen they
+are perfectly entitled to open, the name of a stranger who knows them. That is
+the shape of question `pending_invites` exists to avoid answering, arriving by a
+different door.
+
+Refused means **absent**, never a placeholder and never an id for the client to
+resolve — either would be the same disclosure with an extra step. So absent is
+three things at once: nobody recorded invited them, or somebody did and you do
+not know that person, or the server predates the field. The client cannot tell
+them apart and does not need to, since all three mean there is no line to draw.
+A tombstone is excluded too: *Invited by Deleted account* tells a reader nothing
+except that somebody left.
+
+### The backfill is a script with four private addresses in it, not a migration
+
+Two arrivals predate the column and their `pending_invites` rows were deleted the
+moment they resolved, so who invited them is not recoverable from the database
+and had to be supplied by hand. `bin/backfill-invited` does it.
+
+**It is not in `migrate()`, and that was the tempting place** — it runs on
+deploy, so nobody can forget it, which is the argument this repository usually
+finds decisive. It lost to a simpler fact: `migrate()` runs against every
+database this project ever creates, including the in-memory one in every test,
+and naming four private individuals in the file that defines the schema is
+wrong at a level that outlives the two rows it fixes.
+
+Everything about it is a read until it finds a blank to fill. Every statement
+carries `WHERE invited_by IS NULL`, so running it twice is a no-op and it can
+never overwrite an attribution the server made itself — which matters more than
+it looks, because **one of the two named people had not signed up when it was
+written**. If they sign up before it runs, the server credits them correctly on
+its own and the script must leave them alone; an invitee with no account is
+skipped and reported rather than treated as an error.
+
+One bug in it is worth keeping, because it is a bash trap rather than a mistake
+about this feature. The database check was `if ! query ... | grep -q 1`, and
+`query`'s `exit 1` on an unreadable database ended **only the pipeline's
+subshell** — so a database that could not be opened at all came back as empty
+output and was reported as a missing column, which sends somebody off to deploy
+for no reason. The result now comes back in a variable and the call sites are
+`query ... || exit 1`, in the main shell. `set -e` does not fire inside a
+pipeline or a condition, which is the whole of why this class of thing survives.
 
 ### The index had to move, and the failure was a boot rather than a test
 

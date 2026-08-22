@@ -1,0 +1,123 @@
+#!/bin/bash
+#
+# Records who invited whom, for the arrivals that predate the column.
+#
+#   bin/backfill-invited            against the deployed server
+#   bin/backfill-invited --local    against the development database
+#   bin/backfill-invited --dry-run  print what it would do, change nothing
+#
+# `accounts.invited_by` is written once, at signup, by the server — and it did
+# not exist when the people below signed up. Their `pending_invites` rows were
+# deleted the moment they resolved, so the fact is not recoverable from the
+# database and is supplied here by hand, from somebody who remembers.
+#
+# **Idempotent, and only ever fills a blank.** Every statement carries
+# `WHERE invited_by IS NULL`, so running it twice is a no-op and it can never
+# overwrite an attribution the server made itself. That matters more than it
+# looks: the second name below is somebody who had not signed up when this was
+# written, and if they sign up before this runs the server credits them
+# correctly on its own — at which point this script must leave them alone.
+#
+# An invitee with no account yet is skipped and reported, not an error. There is
+# nothing to write until they arrive, and by then this script is not needed.
+#
+# This is not a migration. It names four private individuals and belongs
+# nowhere near db.ts, which every fresh database in every test also runs.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+# invitee identifier : inviter identifier
+PAIRS=(
+  "danielreillyjensen@gmail.com:rvanegas@gmail.com"
+  "theraltimpson@gmail.com:rvanegas@gmail.com"
+)
+
+db_args=()
+dry_run=false
+for arg in "$@"; do
+  case "$arg" in
+    --local) db_args+=(--local) ;;
+    --dry-run) dry_run=true ;;
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
+  esac
+done
+
+# Read-only first, and every check is a read. Nothing below decides to write
+# until it has established there is a blank to fill.
+#
+# The result comes back in QUERY_OUT rather than on stdout, and the call sites
+# are `query ... || exit 1` rather than `$(query ...)` or a pipeline. Both of
+# those run the function in a *subshell*, where an `exit` on a failed read ends
+# only the subshell — so the failure came back as empty output and was read as
+# an absent column, sending somebody off to deploy over a database that could
+# not be opened at all. An unreadable database and a missing column are two
+# different problems with two different fixes.
+QUERY_OUT=""
+query() {
+  local out
+  if ! out=$(bin/db ${db_args[@]+"${db_args[@]}"} "$1" 2>&1); then
+    echo "Could not read the database:" >&2
+    echo "$out" >&2
+    return 1
+  fi
+  QUERY_OUT="$out"
+}
+
+# The third line of `-header -column` output is the first row; blank when the
+# query matched nothing, which is how "no such account" is told from an id.
+first_value() { printf '%s\n' "$QUERY_OUT" | sed -n '3p' | tr -d ' '; }
+
+query "select 1 from pragma_table_info('accounts') where name = 'invited_by'" || exit 1
+if [ -z "$(first_value)" ]; then
+  echo "This database has no invited_by column — deploy first." >&2
+  exit 1
+fi
+
+statements=""
+for pair in "${PAIRS[@]}"; do
+  invitee="${pair%%:*}"
+  inviter="${pair##*:}"
+
+  query "select id from accounts where identifier = '$invitee' collate nocase" || exit 1
+  invitee_id=$(first_value)
+  query "select id from accounts where identifier = '$inviter' collate nocase" || exit 1
+  inviter_id=$(first_value)
+
+  if [ -z "$inviter_id" ]; then
+    echo "no account for inviter $inviter — nothing to credit to" >&2
+    exit 1
+  fi
+  if [ -z "$invitee_id" ]; then
+    echo "skipped $invitee — no account yet, so the server will credit it at signup"
+    continue
+  fi
+
+  query "select coalesce(invited_by, '-') from accounts where id = '$invitee_id'" || exit 1
+  current=$(first_value)
+  if [ "$current" != "-" ]; then
+    echo "left alone $invitee — already credited to $current"
+    continue
+  fi
+
+  echo "crediting $invitee ($invitee_id) to $inviter ($inviter_id)"
+  statements+="update accounts set invited_by = '$inviter_id' where id = '$invitee_id' and invited_by is null;"
+done
+
+if [ -z "$statements" ]; then
+  echo "Nothing to do."
+  exit 0
+fi
+
+if $dry_run; then
+  echo
+  echo "$statements"
+  exit 0
+fi
+
+bin/db ${db_args[@]+"${db_args[@]}"} --write "$statements"
+echo "Done."

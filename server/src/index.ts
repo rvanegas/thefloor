@@ -163,9 +163,6 @@ const app = buildApp({
   // because the client that reads it cannot be given a new one. See
   // BuildOptions.updateUrl.
   updateUrl: process.env.APP_STORE_URL,
-  // Turns on /leaderboard, which is off and 404s without it. See
-  // BuildOptions.leaderboardKey and leaderboard.ts.
-  leaderboardKey: process.env.LEADERBOARD_KEY,
   mailer,
   media,
   mediaUrl: liveKitUrl,
