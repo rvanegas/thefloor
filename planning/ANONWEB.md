@@ -3,8 +3,48 @@
 A person with no account joins one channel from a browser, is heard, and
 leaves nothing behind.
 
-Specified 2026-08-12. Not started. Delete this file when it ships, as
-PLAN-bluetooth-speakers.md was — what survives it belongs in DECISIONS.md.
+Specified 2026-08-12. **Built 2026-08-22, and shipped to nobody**: it is on a
+branch, the box has not been deployed and no build carries the app half. Delete
+this file when it ships, as PLAN-bluetooth-speakers.md was — what survives it
+belongs in DECISIONS.md.
+
+**What is built, and where it lives.** Read this before the design below, which
+is written in the future tense and now describes something that exists.
+
+| | |
+| --- | --- |
+| The tables | `server/src/db.ts`, and `server/src/guests.ts` for the rules about them |
+| The rules | `core/guests.ts`, `core/types.ts` (`guests`, `knocks`), and the guest branches in `core/channel.ts` |
+| The server | `mintGuestLink` through `dispatchGuest` in `server/src/channels.ts`, the routes in `app.ts`, the `/gws` socket in `ws.ts` |
+| The page | `server/web/`, bundled by `bin/deploy` before the rsync |
+| The app | knocks and guest cards in `ChannelView.tsx`, links in `ChannelSettingsView.tsx` |
+| The tests | `core/__tests__/guests.test.ts`, `server/__tests__/guests.test.ts`, `server/__tests__/guest-flow.test.ts`, and the guest block in the app's `views.test.tsx` |
+
+**What is left is shipping it**, which is four separate days and not one: a
+deploy, an upload, a submission and a release. See AGENTS.md § *the five
+verbs*. Two things to check before the first of them:
+
+- **The wire moves.** `ChannelState` grows `guests` and `knocks`, and every
+  installed build reads that type. Nothing there reads the new fields, so the
+  server can go first — which is the ordering the rule requires anyway. What
+  must not happen is the reverse: a *client* build shipped before the deploy
+  reads both fields, and both are `?? `-guarded for exactly that hour.
+- **Nothing here has been heard.** The page has no test in this repository and
+  never will — there is no browser in the suite — so the first time a guest's
+  audio actually flows will be somebody opening a link against the deployed
+  box. That is the whole of what the end-to-end tests could not cover.
+
+**Two decisions differ from what is written below**, and the design text was
+left as it was rather than quietly corrected, so the difference is visible:
+
+- **A knock at an empty room is nearly unreachable.** The design has the page
+  told "there is nobody to let you in". True, but the link is *revoked* when
+  the last member leaves, so a page arriving afterwards is refused at the door
+  instead. The guard is still there and only a race now reaches it.
+- **`mic` has five states rather than four.** `'muted'` was missing: a guest
+  who has been granted the microphone and muted themselves is not in the same
+  position as one who was never granted it, and a page that said `'open'` for
+  both would be lying to whichever of them was wrong.
 
 ---
 
@@ -194,13 +234,6 @@ channel rather than about the conversation.
 ---
 
 ## The database model
-
-**Built 2026-08-22**, and the only part of this file that exists: the two
-tables are in `server/src/db.ts`, the rules about them are `server/src/guests.ts`
-and `server/__tests__/guests.test.ts`, and `ChannelRegistry` owns a `Guests` and
-calls it on the three transitions named below. Nothing above this layer knows
-what a guest is yet — the reducer has no `guests`, there is no link route and no
-page — so what is here admits nobody to anything.
 
 Almost nothing about a guest outlives the process, and the exceptions are the
 whole design. Three facts do: **the link**, because it is handed to people who

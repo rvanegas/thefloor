@@ -414,7 +414,15 @@ export function ChannelView({
             the door is waiting on an answer from this screen and nothing else
             here is. Both lists are usually empty and render nothing at all.
           */}
-          {channel.knocks.map((knock) => (
+          {/*
+            `?? []` on both lists, and it is not defensive noise: a build of
+            this app will meet a server that has never heard of guests every
+            time somebody runs it against a box that has not been deployed yet,
+            and the failure without it is a crash on the channel screen rather
+            than a channel with nobody at the door. Same reasoning as
+            core/guests.ts.
+          */}
+          {(channel.knocks ?? []).map((knock) => (
             <Card key={knock.id} style={styles.stack}>
               <Text style={type.body}>
                 <Text style={type.heading}>{knock.name}</Text> is at the door
