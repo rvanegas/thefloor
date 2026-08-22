@@ -58,6 +58,10 @@ const mockApp = {
       channel: ChannelState;
       participants: Array<{ id: string; displayName: string }>;
       recordings: RecordingView[];
+      // Absent on most of these, as it is on the wire: a missing entry means
+      // pingable now, so a view without the map is a channel nobody has been
+      // pinged in.
+      pingableAt?: Record<string, number>;
       serverNow: number;
     }
   >,
@@ -106,6 +110,9 @@ const mockApp = {
     } | null,
   })),
   connectWith: jest.fn(async () => ({ accepted: false })),
+  // Resolves, which is what the card's wordless shortcut expects; the tests
+  // about a refusal make it reject.
+  ping: jest.fn(async () => {}),
   // A channel with no guest links, which is every channel until somebody makes
   // one. The settings screen reads this when it opens, so a mock without it is
   // a screen that throws rather than a screen with an empty section.
@@ -4094,12 +4101,16 @@ describe('who is in the channel, and who is talking', () => {
     act(() => tree.unmount());
   });
 
-  it('says somebody is waiting when their connection went, not their finger', () => {
+  it('says somebody is nearby when their connection went, not their finger', () => {
     // A tap and a suspended phone leave the same absence and used to read the
     // same. They do not mean the same thing to whoever has just walked in:
     // this one is expecting company and has already been notified that some
     // arrived. Said as a length rather than a moment, which is what `duration`
     // is for.
+    //
+    // "Nearby" rather than "Waiting", which reversed who was doing what: the
+    // person reading it is standing in an empty room, and they are the one
+    // waiting.
     showChannel(
       channelOf((s) => {
         const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
@@ -4119,8 +4130,104 @@ describe('who is in the channel, and who is talking', () => {
         onExit={() => {}}
       />
     );
-    expect(textOf(tree)).toContain('Waiting for 5 minutes');
+    expect(textOf(tree)).toContain('Nearby for 5 minutes');
+    expect(textOf(tree)).not.toContain('Waiting');
     expect(textOf(tree)).not.toContain('Stepped out');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The shortcut the state exists to offer. Nearby means one notification
+   * would fetch them, and the tap that sends it is on the card saying so
+   * rather than two screens away — with no composer, because the thing being
+   * said is "come back", which the notification says by arriving.
+   */
+  it('offers a wordless ping on the card of somebody nearby', async () => {
+    showChannel(
+      channelOf((s) => {
+        const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
+        return reduce(dropped, { type: 'TICK' }, NOW + DISCONNECT_GRACE_MS + 1);
+      })
+    );
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    const ping = findButton(tree, 'Ping');
+    expect(ping).toBeDefined();
+    await act(async () => {
+      ping!.props.onPress();
+    });
+
+    // Empty text, not absent: the composer's contract is a string, and no
+    // words is what this shortcut means rather than a missing argument.
+    expect(mockApp.ping).toHaveBeenCalledWith('sess_1', THEM, '');
+    // And it says so, without waiting for the snapshot that carries the
+    // server's window — the notification has already gone.
+    expect(textOf(tree)).toContain('Pinged');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Somebody who stepped out an hour ago is a different act — open their
+   * profile and say something. A button on every absent card would turn the
+   * roster into a row of controls rather than a picture of the room.
+   */
+  it('offers no ping on a card that is merely absent', () => {
+    showChannel(channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW)));
+    mockApp.serverNow = () => NOW + 60 * 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    expect(textOf(tree)).toContain('Stepped out');
+    expect(findButton(tree, 'Ping')).toBeUndefined();
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The window the server keeps, arriving on the snapshot. Disabled rather
+   * than gone: a button that vanishes under the finger reads as a mistake,
+   * where one that says "Pinged" says what happened.
+   */
+  it('refuses a second ping while the window is open, and says which', () => {
+    showChannel(
+      channelOf((s) => {
+        const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
+        return reduce(dropped, { type: 'TICK' }, NOW + DISCONNECT_GRACE_MS + 1);
+      })
+    );
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    mockApp.channelViews.sess_1 = {
+      ...mockApp.channelViews.sess_1,
+      pingableAt: { [THEM]: NOW + 8 * 60_000 },
+    };
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    const ping = findButton(tree, 'Pinged');
+    expect(ping).toBeDefined();
+    expect(ping!.props.accessibilityState.disabled).toBe(true);
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });

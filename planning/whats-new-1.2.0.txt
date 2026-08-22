@@ -1,0 +1,13 @@
+Guests. You can now bring someone in who doesn't have The Floor. Share a link, they knock from their browser, and anyone in the room can let them in — with the floor, the same as everybody else.
+
+Every channel has a clipboard. One piece of text, there for everyone in the channel to read, replace or clear.
+
+Notifications are quieter, and you choose how quiet. Only a ping — somebody asking for you by name — makes a sound. Each channel has its own setting if you want to hear everything, or nothing at all. A ping now reaches you even when the app is already open, and nothing else can bump it off your lock screen.
+
+Your phone buzzes if you're silenced while you're still talking, so you find out without looking at it.
+
+Home says how quiet each channel is, so the ones worth stepping into come first. And if you'd rather look before you walk in, there's a setting that makes tapping a channel open it without entering it.
+
+Recordings upload with a progress bar and a way to stop.
+
+Better audio throughout: muting no longer restarts the audio engine, the output picker no longer offers an output that can't record you, and the speaking dot goes out when the sound does rather than when the person leaves.

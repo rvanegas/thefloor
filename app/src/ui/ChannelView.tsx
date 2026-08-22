@@ -436,6 +436,16 @@ export function ChannelView({
                 speaking={audio.speaking.includes(participant.id)}
                 now={now}
                 onPress={() => setViewing(participant)}
+                // The same test the profile's composer uses and the server
+                // enforces: not yourself, and not somebody standing in the
+                // room, who can hear you. The card narrows it further to
+                // whoever is nearby, which is the state the shortcut is for.
+                onPing={
+                  participant.id !== me && !isPresent(channel, participant.id)
+                    ? () => app.ping(channel.id, participant.id, '')
+                    : undefined
+                }
+                pingableAt={view.pingableAt?.[participant.id] ?? null}
               />
             ))}
           </View>
@@ -1188,6 +1198,8 @@ function ParticipantCard({
   speaking,
   now,
   onPress,
+  onPing,
+  pingableAt = null,
 }: {
   channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   participant: { id: string; displayName: string };
@@ -1196,6 +1208,19 @@ function ParticipantCard({
   /** The server's clock, which is what the idle time is measured against. */
   now: number;
   onPress?: () => void;
+  /**
+   * Sends a ping with no words, or absent when this person cannot be pinged
+   * from here at all — they are you, or they are standing in the room.
+   *
+   * Wordless on purpose, and it is the whole point of putting it here. The
+   * composer on the profile is for when you have something to say; this is for
+   * when the thing to say is *come back*, which the notification already says
+   * by existing. A field would make the quick case slower than the considered
+   * one.
+   */
+  onPing?: () => Promise<void>;
+  /** When they may next be pinged, or null for now. */
+  pingableAt?: number | null;
 }) {
   const here = isPresent(channel, participant.id);
   const reconnecting = channel.disconnectedAt[participant.id] !== undefined;
@@ -1221,6 +1246,49 @@ function ParticipantCard({
    * to say something that is one clause long.
    */
   const away = idleMs(channel, participant.id, now);
+  /**
+   * Present in spirit: their phone has gone to sleep on them, and they are
+   * inside the window where a notification would still fetch them. The status
+   * line says so and the ping button hangs off it, which is the one place in
+   * the app where those two are the same fact.
+   */
+  const nearby = !here && away !== null && isWaiting(channel, participant.id, now);
+  const [pinging, setPinging] = useState(false);
+  /**
+   * That this card sent one, which the server's window does not say yet.
+   *
+   * The snapshot carrying `pingableAt` is half a second behind the tap and the
+   * notification has already gone, so waiting for it would leave the button
+   * looking as though the press had been dropped. Same trade the profile
+   * composer makes with `pingSent`.
+   */
+  const [pinged, setPinged] = useState(false);
+  const app = useApp();
+  // Recomputed rather than held, so it expires on its own: this card re-renders
+  // twice a second while anybody is audible, and every second regardless while
+  // `now` ticks.
+  const pingWait =
+    pingableAt !== null && pingableAt > app.serverNow()
+      ? pingableAt - app.serverNow()
+      : null;
+
+  const sendPing = async () => {
+    if (!onPing) return;
+    setPinging(true);
+    try {
+      await onPing();
+      setPinged(true);
+    } catch {
+      // Left to correct itself rather than reported on a card with no room for
+      // a sentence. Both refusals the server can give are already on their way
+      // here as state: they walked in, and the card stops being nearby; or
+      // somebody pinged them a moment ago, and the next snapshot brings the
+      // window that disables this button and says "Pinged".
+    } finally {
+      setPinging(false);
+    }
+  };
+
   const status = here
     ? // Present but unreachable is its own state, not absence: they are still
       // in the channel and still hold whatever they hold. Saying so beats
@@ -1237,7 +1305,17 @@ function ParticipantCard({
         // uses; only the name changes, and only for WAITING_WINDOW_MS. Said as
         // a length rather than a moment, `away` being how long they have been
         // at it rather than when it started.
-        `Waiting for ${duration(away)}`
+        //
+        // **"Nearby", not "Waiting", since 2026-08-22.** The state is read by
+        // somebody standing in an empty room, and that person is the one who
+        // is waiting — a card telling them that the absent party is waiting
+        // reverses who is doing what, and invites the reply *no, I am*.
+        // Nearby says the useful thing instead: this person is within reach,
+        // and one tap will fetch them. Which is also why the tap is on the
+        // card. The state name in `core/` is still `waiting`, deliberately —
+        // `ChannelState.waiting` is on the wire and cannot be renamed without
+        // a two-step migration for a word no user ever sees.
+        `Nearby for ${duration(away)}`
       : channel.everPresent.includes(participant.id)
         ? away === null
           ? 'Stepped out'
@@ -1263,11 +1341,35 @@ function ParticipantCard({
           accessibilityElementsHidden
         />
       </View>
-      <Text style={type.muted}>
-        {status}
-        {muted ? ' · muted' : ''}
-        {holdsFloor ? ' · has the floor' : ''}
-      </Text>
+      <View style={styles.cardFoot}>
+        <Text style={[type.muted, styles.cardStatus]}>
+          {status}
+          {muted ? ' · muted' : ''}
+          {holdsFloor ? ' · has the floor' : ''}
+        </Text>
+        {/*
+          Offered only while they are nearby, which is the state it answers.
+          Somebody who stepped out an hour ago is a different act — open their
+          profile and say something — and a button on every absent card would
+          make the roster a row of buttons rather than a picture of the room.
+        */}
+        {onPing && nearby ? (
+          <Button
+            label={
+              pinging ? 'Pinging…' : pinged || pingWait !== null ? 'Pinged' : 'Ping'
+            }
+            variant="ghost"
+            style={styles.cardPing}
+            // Disabled rather than hidden inside the window. The button
+            // vanishing at the moment it is pressed reads as a mistake; saying
+            // "Pinged" and refusing a second one says what happened.
+            disabled={pinging || pinged || pingWait !== null}
+            onPress={() => {
+              void sendPing();
+            }}
+          />
+        ) : null}
+      </View>
     </>
   );
 
@@ -1449,6 +1551,26 @@ const styles = StyleSheet.create({
     gap: spacing(1),
   },
   cardName: { flexShrink: 1, fontSize: 16, fontWeight: '600', color: colors.text },
+  /**
+   * The status line and, when there is one, the ping beside it. A row rather
+   * than a second line under the card: the status is one clause long and the
+   * button is two words, and stacking them would make every roster card taller
+   * to hold a control that only a nearby person's card has.
+   */
+  cardFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1),
+  },
+  /** Takes the slack, so a long status wraps rather than crushing the button. */
+  cardStatus: { flexShrink: 1 },
+  /**
+   * Tightened, since `Button` is sized for a card of its own and this one sits
+   * inside a row of text. Ghost keeps it from competing with the floor, which
+   * is the only thing on this screen entitled to colour.
+   */
+  cardPing: { paddingVertical: spacing(0.5), paddingHorizontal: spacing(1), minHeight: 0 },
   speakingDot: {
     width: 10,
     height: 10,

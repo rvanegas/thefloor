@@ -1762,3 +1762,52 @@ and can pass the channel's name, which `started` had no parameter for.
 The wording is no less true there than what it replaced. `Started a channel
 with you` was already an approximation: the channel had existed, silently,
 since the pair became contacts. What is new is being asked into it.
+
+## Nearby, not waiting — and the ping is on the card — 2026-08-22
+
+A member whose websocket drops reads as present-in-spirit for
+`WAITING_WINDOW_MS`, on the reasoning that pocketing a phone suspends the
+process in under a second, so most absences from an otherwise empty channel are
+a connection rather than a decision. The card said **Waiting for 5 minutes**.
+
+**It named the wrong person.** The card is read by somebody standing in an
+empty room, and that person is the one waiting. Being told that the absent
+party is waiting reverses who is doing what, and invites the reply *no, I am*.
+
+**Nearby** says the useful thing instead: this person is within reach, and one
+notification would fetch them. Which is also the argument for what went with
+it — if the state means a ping would work, the ping belongs on the card that
+says so, not two screens away behind a profile and a composer.
+
+### Wordless, which is the point rather than a shortcut taken
+
+The composer on the profile is for when you have something to say. This is for
+when the thing to say is *come back* — which the notification already says by
+arriving. A field would make the quick case slower than the considered one, so
+the card sends `''` and the body reads *Alice is asking for you*, which is the
+sentence `pinged` has always had for a ping with no words.
+
+Offered only while somebody is nearby, and that narrowing is deliberate.
+Somebody who stepped out an hour ago is a different act — open their profile
+and say something — and a button on every absent card would turn the roster
+into a row of controls rather than a picture of the room.
+
+### What is not renamed
+
+`ChannelState.waiting` and `isWaiting` in `core/` keep their names. The field is
+on the wire, and renaming it would cost a two-step migration — teach the server
+both names, deploy, ship the client, remove the alias a release later — for a
+word no user ever sees. The screen is where the word was wrong. There is a
+comment at the call site saying so, because the gap between the state's name
+and the card's word is exactly the kind of thing somebody later tidies into
+agreement, in the wrong direction.
+
+### The refusal is left to correct itself
+
+The card has no room for a sentence, so a failed ping reverts the button rather
+than reporting. Both refusals the server can give are already on their way here
+as state: they walked in, and the card stops being nearby; or somebody pinged
+them a moment ago, and the next snapshot carries the window that disables the
+button and says **Pinged**. The optimistic *Pinged* does not wait for that
+snapshot — the notification has already gone, and half a second of a button
+that looks unpressed reads as a dropped tap.
