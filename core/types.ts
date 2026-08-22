@@ -1,5 +1,71 @@
 export type UserId = string;
 
+/**
+ * A guest's identity: `guest_...`, minted by the server, never an account id.
+ *
+ * The same type as `UserId` on purpose rather than by omission. A guest id
+ * appears wherever an identity does — the floor's holder, `selfMuted`, a
+ * recording's stems — and giving it a nominal type would mean widening every
+ * one of those to a union, which is a large edit in service of a distinction
+ * the rules already make by asking `isParticipant`. What separates a guest
+ * from a member is which list they are in, and that is checkable at runtime;
+ * see core/guests.ts.
+ */
+export type GuestId = string;
+
+/**
+ * Somebody in the room with no account, admitted by a member.
+ *
+ * Held beside `participants` rather than in it, which is the decision the rest
+ * of the guest design follows from: every guard is written in terms of
+ * `isParticipant`, so a guest is refused everything by construction and the
+ * few things they *may* do are granted one at a time, in writing.
+ *
+ * Membership of `ChannelState.guests` means present. A guest who steps out,
+ * whose grace period runs out, or who is ejected is removed from it — their
+ * seat outlives that in the database, which is what lets them come back.
+ */
+export interface Guest {
+  id: GuestId;
+  /** What they typed at the door, or the `Anon <n>` they were given. */
+  name: string;
+  admittedAt: number;
+  /**
+   * Whether a member has granted them the microphone. False until one does,
+   * and enforced on the media plane by the publish grant rather than here —
+   * this is the record of what was granted, not the grant.
+   */
+  maySpeak: boolean;
+  /**
+   * Whether they have asked to speak, and what came of it.
+   *
+   * `'refused'` is kept rather than collapsed back to `'none'` because the two
+   * are different things to be told: one is a question nobody has answered and
+   * the other is a question that was answered no. A page that showed the same
+   * thing for both would leave somebody waiting for a reply they have already
+   * had.
+   *
+   * Reset to `'none'` by a grant, so that withdrawing the microphone later
+   * leaves them able to ask again rather than reading as refused.
+   */
+  request: 'none' | 'asking' | 'refused';
+}
+
+/**
+ * Somebody at the door, waiting for a member to answer.
+ *
+ * Volatile, like `present`: a knock is a live conversation between a page and
+ * whoever is looking at the channel, and a process that dies mid-knock leaves
+ * a page that knocks again. Held in the reducer so that every member sees the
+ * same queue and one answer settles it.
+ */
+export interface Knock {
+  /** Minted by the server, as `runId` and a clip's id are. */
+  id: string;
+  name: string;
+  at: number;
+}
+
 export interface FloorState {
   /** Who holds the floor right now, or null if nobody does. */
   holder: UserId | null;
@@ -242,7 +308,25 @@ export interface ChannelState {
    * invitation is expressed now that there is no separate invite object.
    */
   everPresent: UserId[];
+  /**
+   * Everybody in the room without an account, by id.
+   *
+   * Volatile — it describes who is here, not what the channel is, and the
+   * durable half is the `guest_sessions` table. A restart brings the channel
+   * back with nobody in it, guests included, and their pages reconnect on
+   * their own with the secret each was given.
+   */
+  guests: Record<GuestId, Guest>;
+  /**
+   * Who is at the door, oldest first. Volatile, and empty almost always.
+   */
+  knocks: Knock[];
   floor: FloorState;
+  /**
+   * Keyed by anybody in the room, guests included. A guest's own mute is
+   * theirs exactly as a member's is: the publish grant decides whether they
+   * *may* speak, and this decides whether they are.
+   */
   selfMuted: Record<UserId, boolean>;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
@@ -411,6 +495,62 @@ export type ChannelAction =
   | { type: 'PASTE_CLIP'; userId: UserId; clip: Clip }
   /** Empties the channel's clipboard. */
   | { type: 'CLEAR_CLIP'; userId: UserId }
+  /**
+   * Somebody with a link is at the door. Raised by the server when a knock
+   * arrives over HTTP, so that every member's screen shows the same queue.
+   *
+   * Carries the whole `Knock` assembled, for the reason `PASTE_CLIP` carries a
+   * whole `Clip`: the id and the time are the server's to mint.
+   */
+  | { type: 'KNOCKED'; knock: Knock }
+  /**
+   * A member answers. Removing the knock is all this does — admitting is the
+   * server's next step, since a guest's id and secret are minted rather than
+   * decided, and a rejection has nothing further to do.
+   */
+  | { type: 'ANSWER_KNOCK'; userId: UserId; knockId: string; accept: boolean }
+  /**
+   * A guest is in the room: on admission, and again whenever their page
+   * reconnects with the secret it was given. Raised by the server, which is
+   * the only thing that can check either.
+   *
+   * Idempotent by construction — the guest is keyed by id, so a reconnection
+   * replaces the entry rather than making a second one. `maySpeak` arrives
+   * with it because the answer outlives this process and the row is what
+   * remembers it.
+   */
+  | { type: 'GUEST_ENTERED'; guest: Guest }
+  /**
+   * A guest is out of the room, for a reason nobody has to distinguish here:
+   * ejected by a member, expired with their connection, or gone with the last
+   * member. A guest leaving of their own accord sends `STEP_OUT` instead, like
+   * anybody else.
+   */
+  | { type: 'GUEST_GONE'; guestId: GuestId }
+  /**
+   * A guest asks for the microphone.
+   *
+   * The one thing a guest may do that is addressed to the members rather than
+   * to the room. It changes nothing about what they can do — only a member's
+   * grant does that — and exists so the asking has somewhere to appear other
+   * than a person talking into a channel that cannot hear them.
+   */
+  | { type: 'REQUEST_SPEECH'; userId: UserId }
+  /**
+   * A member grants or withdraws a guest's microphone.
+   *
+   * The state is what the interface reads; the media plane is told separately
+   * by the server, which holds the only thing that can actually make somebody
+   * audible. Withdrawing is one tap and does not eject: a guest who is a
+   * problem stops being audible without being thrown out mid-sentence.
+   */
+  | { type: 'SET_GUEST_SPEECH'; userId: UserId; guestId: GuestId; maySpeak: boolean }
+  /**
+   * A member removes a guest. Distinct from withdrawing the microphone, and
+   * the difference is that this closes the door they came through — see
+   * `Guests.eject`, which revokes the link with them.
+   */
+  | { type: 'EJECT_GUEST'; userId: UserId; guestId: GuestId }
   /**
    * Transport, not intent: reported by whatever holds the connection rather
    * than performed by anyone. Neither changes presence directly — DISCONNECTED

@@ -35,7 +35,14 @@ import {
   startRecording,
   stopRecording,
 } from './recording';
-import type { ChannelAction, ChannelState, UserId } from './types';
+import { inRoom, isGuest, roomOccupants } from './guests';
+import type {
+  ChannelAction,
+  ChannelState,
+  Guest,
+  GuestId,
+  UserId,
+} from './types';
 
 export function createChannel(params: {
   id: string;
@@ -99,6 +106,8 @@ export function createChannel(params: {
     // what separates a channel you have opened from one you were added to,
     // and everyone else has still only been added.
     everPresent: present,
+    guests: {},
+    knocks: [],
     floor: initialFloorState(),
     selfMuted: Object.fromEntries(participants.map((p) => [p, false])),
     recording: initialRecordingState(),
@@ -250,10 +259,15 @@ export function canClaimFloor(
   now: number
 ): boolean {
   if (state.status !== 'active') return false;
-  if (!isPresent(state, userId) || !atLeastTwoPresent(state)) return false;
-  // Ranked against who is present, not who is in the channel: someone who has
-  // left must not occupy the zero slot they cannot use.
-  return satisfiesEligibilityRule(state.floor, state.present, userId, now);
+  // The room rather than the roster, which is what lets a guest claim. The
+  // floor is about who is talking, and a guest who has been given the
+  // microphone is talking; it is also the one grant that was a decision rather
+  // than an oversight, made when the capability list was rewritten.
+  const room = roomOccupants(state);
+  if (!inRoom(state, userId) || room.length < 2) return false;
+  // Ranked against who is in the room, not who belongs to the channel: someone
+  // who has left must not occupy the zero slot they cannot use.
+  return satisfiesEligibilityRule(state.floor, room, userId, now);
 }
 
 export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
@@ -420,7 +434,7 @@ export function canControlPlayback(
  * paste makes no sound.
  */
 export function canPasteClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && isPresent(state, userId);
+  return state.status === 'active' && inRoom(state, userId);
 }
 
 /**
@@ -432,8 +446,74 @@ export function canPasteClip(state: ChannelState, userId: UserId): boolean {
  * nothing.
  */
 export function canClearClip(state: ChannelState, userId: UserId): boolean {
+  return state.status === 'active' && inRoom(state, userId);
+}
+
+/**
+ * Whether `userId` may mint a link to this channel.
+ *
+ * Membership, not presence, because minting is done from channel settings and
+ * a link is a fact about the channel rather than an act in a conversation.
+ * What the link *does* still needs somebody in the room: nobody is admitted
+ * without a member to answer the door.
+ */
+export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
+  return state.status === 'active' && isParticipant(state, userId);
+}
+
+/**
+ * Whether `userId` may answer somebody at the door.
+ *
+ * Presence, and membership — a guest cannot let another guest in. That is what
+ * keeps a link from being self-propagating: anybody with the address may
+ * knock, and only somebody already in the room may open it.
+ */
+export function canAnswerKnock(state: ChannelState, userId: UserId): boolean {
   return state.status === 'active' && isPresent(state, userId);
 }
+
+/**
+ * Whether `userId` may grant or withdraw a guest's microphone, or remove them.
+ *
+ * The same test for all three, and deliberately not "whoever admitted them".
+ * A guest is in the room with everybody, so anybody in the room with them has
+ * the standing to answer for what they may do — and a rule that named the
+ * admitter would leave a channel unable to silence a guest the moment that one
+ * person stepped out.
+ */
+export function canManageGuest(
+  state: ChannelState,
+  userId: UserId,
+  guestId: GuestId
+): boolean {
+  return (
+    state.status === 'active' &&
+    isPresent(state, userId) &&
+    isGuest(state, guestId)
+  );
+}
+
+/**
+ * The actions a guest may perform.
+ *
+ * A second lock rather than the only one: what refuses a guest everything else
+ * is that they are not in `participants`, and every guard is written in those
+ * terms. This exists because the reducer's membership check would otherwise
+ * refuse them the handful of things they are meant to be able to do.
+ *
+ * Adding to it is a decision about what a stranger in the room may do. Note
+ * what is not in it: recording, playback, invitations, the name, the
+ * description, deleting anything, and answering the door.
+ */
+export const GUEST_ACTIONS: ReadonlySet<ChannelAction['type']> = new Set([
+  'STEP_OUT',
+  'CLAIM_FLOOR',
+  'RELEASE_FLOOR',
+  'SET_SELF_MUTE',
+  'PASTE_CLIP',
+  'CLEAR_CLIP',
+  'REQUEST_SPEECH',
+]);
 
 // --- Reducer ----------------------------------------------------------------
 
@@ -465,7 +545,11 @@ export function reduce(
     // Only meaningful for someone actually in the channel, and a second report
     // must not restart the clock — that would make a flapping connection
     // survive indefinitely.
-    if (!isPresent(state, action.userId)) return state;
+    //
+    // The room rather than the roster: a guest's connection flaps like
+    // anybody's, and a guest dropped at the first stumble would be one who has
+    // to knock again to get back into a conversation they are in the middle of.
+    if (!inRoom(state, action.userId)) return state;
     if (action.userId in state.disconnectedAt) return state;
     return {
       ...state,
@@ -504,7 +588,56 @@ export function reduce(
     };
   }
 
-  if (!isParticipant(state, action.userId)) return state;
+  // Raised by the server rather than performed by anyone, exactly as the two
+  // failure reports above are: a knock arrives over HTTP from somebody who is
+  // by definition not in the channel, and admission is settled by a member
+  // through ANSWER_KNOCK below.
+  if (action.type === 'KNOCKED') {
+    // Nobody to answer means nobody enters, and the page is told rather than
+    // left waiting. Stated here as well as at the route, so that a knock
+    // cannot survive the room emptying between the two.
+    if (state.present.length === 0) return state;
+    if (state.knocks.some((knock) => knock.id === action.knock.id)) return state;
+    return { ...state, knocks: [...state.knocks, action.knock] };
+  }
+
+  if (action.type === 'GUEST_ENTERED') {
+    // Same rule, and the reason it is repeated: a guest whose page reconnects
+    // into a room everybody has left would otherwise be alone in a channel
+    // they cannot be admitted to.
+    if (state.present.length === 0) return state;
+    return {
+      ...state,
+      guests: { ...state.guests, [action.guest.id]: action.guest },
+      // Keyed on arrival rather than on admission, so a reconnection puts the
+      // microphone back as they left it rather than as they were let in.
+      selfMuted: { ...state.selfMuted, [action.guest.id]: false },
+      // Arriving is proof of a live connection, as it is for a member.
+      disconnectedAt: without(state.disconnectedAt, action.guest.id),
+      lastActiveAt: now,
+    };
+  }
+
+  if (action.type === 'GUEST_GONE') {
+    return guestGone(state, action.guestId, now);
+  }
+
+  // Before the membership check, because a guest cannot be refused this one:
+  // it carries an actor but nobody performs it — the tick raises it when a
+  // connection outlives its grace — and a guest is exactly who it is most
+  // often about. Left below the check it returned the state unchanged, and the
+  // stale clock made the tick fire on it again, for ever.
+  if (action.type === 'DISCONNECT_EXPIRED' && isGuest(state, action.userId)) {
+    return guestGone(state, action.userId, now);
+  }
+
+  // The wall every prohibition in the guest design rests on. A guest is not a
+  // participant, so this refuses them everything — including every action
+  // written after this line, which is the property the design was chosen for.
+  // What they may do is named once, in GUEST_ACTIONS.
+  if (isGuest(state, action.userId)) {
+    if (!GUEST_ACTIONS.has(action.type)) return state;
+  } else if (!isParticipant(state, action.userId)) return state;
 
   switch (action.type) {
     case 'ENTER': {
@@ -545,6 +678,67 @@ export function reduce(
 
     case 'DISCONNECT_EXPIRED':
       return stepOut(state, action.userId, now, { chosen: false });
+
+    case 'ANSWER_KNOCK': {
+      if (!canAnswerKnock(state, action.userId)) return state;
+      const answered = state.knocks.some((k) => k.id === action.knockId);
+      if (!answered) return state;
+      // Accepting and refusing do the same thing here, and that is not a
+      // shortcut: what accepting *additionally* does is mint an identity and a
+      // secret, which the reducer has no business generating. The server reads
+      // its own answer back off this transition and admits them.
+      return {
+        ...state,
+        knocks: state.knocks.filter((k) => k.id !== action.knockId),
+      };
+    }
+
+    case 'SET_GUEST_SPEECH': {
+      if (!canManageGuest(state, action.userId, action.guestId)) return state;
+      const guest = state.guests[action.guestId];
+      // An answer to a question nobody asked is still an answer, so a grant
+      // out of the blue is allowed — but repeating one changes nothing, and a
+      // no-op has to return the same object for `commit` to leave the media
+      // plane alone.
+      const request = action.maySpeak
+        ? 'none'
+        : guest.request === 'asking'
+          ? 'refused'
+          : guest.request;
+      if (guest.maySpeak === action.maySpeak && guest.request === request) {
+        return state;
+      }
+      return {
+        ...state,
+        guests: {
+          ...state.guests,
+          [action.guestId]: { ...guest, maySpeak: action.maySpeak, request },
+        },
+      };
+    }
+
+    case 'REQUEST_SPEECH': {
+      const asking = state.guests[action.userId];
+      // Members do not ask; they take. Nothing routes one here — the action is
+      // in GUEST_ACTIONS and a member is refused it by the same check that
+      // refuses guests everything else — but the reducer says so itself rather
+      // than relying on that.
+      if (!asking || asking.maySpeak || asking.request === 'asking') {
+        return state;
+      }
+      return {
+        ...state,
+        guests: {
+          ...state.guests,
+          [action.userId]: { ...asking, request: 'asking' },
+        },
+      };
+    }
+
+    case 'EJECT_GUEST': {
+      if (!canManageGuest(state, action.userId, action.guestId)) return state;
+      return guestGone(state, action.guestId, now);
+    }
 
     case 'INVITE': {
       if (!canInvite(state, action.userId, action.inviteeId)) return state;
@@ -789,6 +983,10 @@ function stepOut(
   now: number,
   { chosen = true }: { chosen?: boolean } = {}
 ): ChannelState {
+  // A guest's departure is the same event and a different removal: they are
+  // not in `present` and never were, and there is no membership for them to
+  // keep on the way out.
+  if (isGuest(state, userId)) return guestGone(state, userId, now);
   if (!isPresent(state, userId)) return state;
   const present = state.present.filter((id) => id !== userId);
   // However they went — a tap or a grace period running out — they are no
@@ -854,6 +1052,46 @@ function stepOut(
 }
 
 /**
+ * Takes a guest out of the room, however they came to be out of it.
+ *
+ * Their seat in the database is untouched, which is the difference between
+ * this and a member leaving: a member keeps their membership and gives up
+ * presence, and a guest gives up presence and keeps a secret that will let
+ * them back in until it expires. Ejection is the case where that is not true,
+ * and `Guests.eject` is what makes it not true — by revoking, not by anything
+ * here.
+ *
+ * A claim goes with them, exactly as it would for a member: whoever is left
+ * must not be silenced by somebody who is no longer in the room.
+ */
+function guestGone(
+  state: ChannelState,
+  guestId: GuestId,
+  now: number
+): ChannelState {
+  if (!(guestId in state.guests)) return state;
+  const { [guestId]: _gone, ...guests } = state.guests;
+  return {
+    ...state,
+    guests,
+    selfMuted: without(state.selfMuted, guestId),
+    disconnectedAt: without(state.disconnectedAt, guestId),
+    lastActiveAt: now,
+    floor:
+      state.floor.holder === guestId
+        ? releaseFloor(state.floor, now)
+        : state.floor,
+  };
+}
+
+/** One key removed, without mutating what it came from. */
+function without<T>(map: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in map)) return map;
+  const { [key]: _dropped, ...rest } = map;
+  return rest;
+}
+
+/**
  * What being empty costs, applied wherever `present` may have just emptied.
  *
  * **A recording stops when the last person leaves.** Capture needs somebody
@@ -884,6 +1122,21 @@ function stepOut(
  */
 function settleEmpty(state: ChannelState, now: number): ChannelState {
   if (state.present.length > 0) return state;
+  // **The guests go with the last member**, and this is the rule the whole
+  // admission design rests on rather than a tidy-up: nobody may be admitted
+  // without a member present to answer for them, so nobody may *remain* in a
+  // room that has no member in it either. Without this, the last member
+  // stepping out would leave a stranger alone in a channel — able to hear
+  // whoever came back next, having been let in by somebody who has gone.
+  //
+  // Their seats end with it, in `Guests.channelEmptied`, which the server
+  // calls on the same transition. The two say the same thing in the two places
+  // that have to agree: this one so no screen shows a guest in an empty room,
+  // that one so no secret reopens the door.
+  state =
+    Object.keys(state.guests).length > 0 || state.knocks.length > 0
+      ? { ...state, guests: {}, knocks: [], floor: releaseFloor(state.floor, now) }
+      : state;
   const settled =
     state.playback.status === 'playing'
       ? { ...state, playback: pausePlayback(state.playback, now) }
@@ -920,6 +1173,8 @@ function endChannel(state: ChannelState, now: number): ChannelState {
     status: 'ended',
     endedAt: now,
     present: [],
+    guests: {},
+    knocks: [],
     floor: releaseFloor(state.floor, now),
     recording: initialRecordingState(),
     lastRecording: isRecordingActive(state.recording)

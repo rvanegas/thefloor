@@ -1418,6 +1418,7 @@ export function buildApp(options: BuildOptions = {}): App {
       now,
       homeNotifier,
       reachability,
+      mediaUrl: options.mediaUrl,
     });
   });
 

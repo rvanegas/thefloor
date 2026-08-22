@@ -1,3 +1,4 @@
+import { guestMaySpeak, isGuest, roomOccupants } from './guests';
 import { isRecordingActive } from './recording';
 import type { ChannelState, UserId } from './types';
 
@@ -20,7 +21,17 @@ export function microphoneNeeded(
   channel: ChannelState,
   me: UserId
 ): boolean {
-  if (channel.present.some((id) => id !== me)) return true;
+  // A guest with no grant has no microphone to need. Their LiveKit token is
+  // minted unable to publish, so asking for capture would open a device
+  // microphone that nothing is allowed to carry — and on a phone that is the
+  // same profile handover as a real call, paid for to publish nothing.
+  if (isGuest(channel, me) && !guestMaySpeak(channel, me)) return false;
+  // The room, not the roster. A member alone with a guest is not alone: the
+  // guest can hear them, and a microphone that stayed shut would leave the
+  // member talking to somebody who is demonstrably there. This is the first of
+  // the three places the guest design named as wanting the wider question, and
+  // it is the one whose failure is silent.
+  if (roomOccupants(channel).some((id) => id !== me)) return true;
   return isRecordingActive(channel.recording);
 }
 
@@ -63,7 +74,12 @@ export function microphoneNeeded(
  * both read as obvious cleanups and both delete the cue.
  */
 export function anyMicrophoneOpen(channel: ChannelState): boolean {
-  return channel.present.some(
+  // Guests included, and for the reason the whole rule exists: what decides
+  // the audio session is whether anybody in this room is capturing, and a
+  // guest who has been given the microphone is somebody in this room who is
+  // capturing. A member listening to a guest speak wants the same call-shaped
+  // session they would want listening to a member.
+  return roomOccupants(channel).some(
     (id) => microphoneNeeded(channel, id) && !channel.selfMuted[id]
   );
 }

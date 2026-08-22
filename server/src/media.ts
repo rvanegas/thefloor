@@ -39,7 +39,36 @@ export interface MediaServer {
     room: string;
     identity: string;
     displayName: string;
+    /**
+     * Whether this identity may publish audio at all. Defaults to true, which
+     * is every member.
+     *
+     * A guest's token is minted `false`, and that is the whole of what stops a
+     * stranger being audible before anybody has said they may be: the grant
+     * lives in the token rather than in the interface, so a client that
+     * ignores every rule in this application still cannot make a sound. It is
+     * lifted live by `setPublishAllowed` when a member grants it, without a
+     * reconnection.
+     */
+    canPublish?: boolean;
   }): Promise<string>;
+
+  /**
+   * Grants or withdraws one participant's ability to publish, live.
+   *
+   * The counterpart of `canPublish` above, for the moment somebody says yes.
+   * Withdrawing it unpublishes them — which is exactly what is wanted for a
+   * guest whose microphone is taken back, and exactly what made it the wrong
+   * tool for silencing a member; see `setSilenced` for that story.
+   */
+  setPublishAllowed(params: {
+    room: string;
+    identity: string;
+    allowed: boolean;
+  }): Promise<void>;
+
+  /** Removes one participant from the room, disconnecting them. */
+  removeParticipant(params: { room: string; identity: string }): Promise<void>;
 
   /**
    * Stops `listener` from receiving `speaker`, or restores it.
@@ -244,10 +273,12 @@ export class LiveKitMediaServer implements MediaServer {
     room,
     identity,
     displayName,
+    canPublish = true,
   }: {
     room: string;
     identity: string;
     displayName: string;
+    canPublish?: boolean;
   }): Promise<string> {
     const token = new AccessToken(this.options.apiKey, this.options.apiSecret, {
       identity,
@@ -257,7 +288,7 @@ export class LiveKitMediaServer implements MediaServer {
     token.addGrant({
       room,
       roomJoin: true,
-      canPublish: true,
+      canPublish,
       canSubscribe: true,
       // Participants must not be able to republish their way out of a mute, nor
       // mute each other directly — the floor decides, and only the server
@@ -266,6 +297,38 @@ export class LiveKitMediaServer implements MediaServer {
       canUpdateOwnMetadata: false,
     });
     return token.toJwt();
+  }
+
+  async setPublishAllowed({
+    room,
+    identity,
+    allowed,
+  }: {
+    room: string;
+    identity: string;
+    allowed: boolean;
+  }): Promise<void> {
+    // `undefined` for the metadata argument leaves it alone; the permission
+    // object replaces the whole set, so the other three are restated rather
+    // than defaulted — omitting them grants nothing and would silently take
+    // away a guest's ability to hear the room at the moment they were given
+    // the ability to speak to it.
+    await this.rooms.updateParticipant(room, identity, undefined, {
+      canPublish: allowed,
+      canSubscribe: true,
+      canPublishData: false,
+      canUpdateMetadata: false,
+    });
+  }
+
+  async removeParticipant({
+    room,
+    identity,
+  }: {
+    room: string;
+    identity: string;
+  }): Promise<void> {
+    await this.rooms.removeParticipant(room, identity);
   }
 
   async setSilenced({
@@ -480,7 +543,19 @@ export class MemoryMediaServer implements MediaServer {
     handle: string;
     stopped: boolean;
   }> = [];
-  readonly issued: Array<{ room: string; identity: string }> = [];
+  readonly issued: Array<{
+    room: string;
+    identity: string;
+    canPublish: boolean;
+  }> = [];
+  /** Every publish grant asked for, in order. */
+  readonly publishGrants: Array<{
+    room: string;
+    identity: string;
+    allowed: boolean;
+  }> = [];
+  /** Everyone thrown out of a room, in order. */
+  readonly removed: Array<{ room: string; identity: string }> = [];
   readonly closed: string[] = [];
   /** Playback channels opened, in order, live or closed. */
   readonly playbacks: MemoryPlaybackSession[] = [];
@@ -506,10 +581,50 @@ export class MemoryMediaServer implements MediaServer {
    */
   private known = new Set<string>();
 
-  async issueToken({ room, identity }: { room: string; identity: string }) {
-    this.issued.push({ room, identity });
+  async issueToken({
+    room,
+    identity,
+    canPublish = true,
+  }: {
+    room: string;
+    identity: string;
+    canPublish?: boolean;
+  }) {
+    this.issued.push({ room, identity, canPublish });
     this.known.add(`${room}/${identity}`);
+    // A participant who may not publish has nothing published, which is what
+    // the rest of this class already models — and it is what makes a guest's
+    // silence testable end to end rather than asserted about a token string.
+    if (canPublish) this.unpublished.delete(`${room}/${identity}`);
+    else this.unpublished.add(`${room}/${identity}`);
     return `token:${room}:${identity}`;
+  }
+
+  async setPublishAllowed({
+    room,
+    identity,
+    allowed,
+  }: {
+    room: string;
+    identity: string;
+    allowed: boolean;
+  }) {
+    this.publishGrants.push({ room, identity, allowed });
+    this.known.add(`${room}/${identity}`);
+    if (allowed) this.unpublished.delete(`${room}/${identity}`);
+    else this.unpublished.add(`${room}/${identity}`);
+  }
+
+  async removeParticipant({
+    room,
+    identity,
+  }: {
+    room: string;
+    identity: string;
+  }) {
+    this.removed.push({ room, identity });
+    this.known.delete(`${room}/${identity}`);
+    this.unpublished.delete(`${room}/${identity}`);
   }
 
   async setSilenced({

@@ -1,4 +1,4 @@
-import type { ChannelState, UserId } from './types';
+import type { ChannelState, Clip, UserId } from './types';
 
 /**
  * The wire contract between the app and the server. It lives in core for the
@@ -329,6 +329,126 @@ export interface ChannelView {
   serverNow: number;
 }
 
+/**
+ * A channel as a guest sees it, which is deliberately not `ChannelView`.
+ *
+ * That type carries the description, the floor timeline, the recording state,
+ * the playback state and the channel's recordings. Sending all of it to a
+ * stranger and hiding the parts they may not have is the same mistake as a
+ * greyed-out button the server does not enforce: the information has already
+ * left the building. So a guest gets a projection of their own, and it is
+ * small.
+ *
+ * What is in it is what a person in a room needs in order not to be confused
+ * about their own situation: what this place is called, who else is here, and
+ * whether they are being heard.
+ */
+export interface GuestView {
+  channelId: string;
+  /**
+   * The channel's name, or the roster description members would see when
+   * nobody has named it. Resolved here rather than sent as a null, because a
+   * guest has no roster to fall back on.
+   */
+  channelName: string;
+  /** Their own id, name, and standing. */
+  you: {
+    id: string;
+    name: string;
+    /**
+     * Where their microphone stands, which is the one thing beyond the roster
+     * that has to be on screen.
+     *
+     * `'listening'` — no grant and nothing asked. `'asking'` — asked, nobody
+     * has answered. `'refused'` — asked, and a member said no. `'open'` — the
+     * microphone is theirs and live. `'muted'` — granted, and they have muted
+     * themselves.
+     *
+     * Silently withholding this is how somebody talks into a room that cannot
+     * hear them, or worse, believes themselves muted when they are not.
+     */
+    mic: 'listening' | 'asking' | 'refused' | 'open' | 'muted';
+    /** Whether they hold the floor. */
+    holdingFloor: boolean;
+    /** Whether somebody else holds it, so they are not being heard. */
+    silenced: boolean;
+    /** Whether they may claim it right now. */
+    canClaimFloor: boolean;
+  };
+  /**
+   * Everybody else in the room: members by name, and any other guests. Names
+   * only — no ids that mean anything elsewhere, no bios, no profiles.
+   */
+  others: Array<{ name: string; kind: 'member' | 'guest'; speaking: boolean }>;
+  /**
+   * Whether a recording is capturing right now, and therefore capturing them.
+   *
+   * On screen continuously while it is true, which is half of what makes this
+   * consent rather than a surprise; the other half is said on the way in,
+   * before the microphone can open.
+   */
+  recording: boolean;
+  /** The channel's clipboard, which a guest may read and replace. */
+  clip: Clip | null;
+  serverNow: number;
+}
+
+/** What the guest page may ask for. The server supplies the actor. */
+export type GuestAction =
+  | { type: 'STEP_OUT' }
+  | { type: 'CLAIM_FLOOR' }
+  | { type: 'RELEASE_FLOOR' }
+  | { type: 'SET_SELF_MUTE'; muted: boolean }
+  | { type: 'REQUEST_SPEECH' }
+  | { type: 'PASTE_CLIP'; text: string }
+  | { type: 'CLEAR_CLIP' };
+
+/**
+ * The guest page's half of its socket.
+ *
+ * A separate protocol from `ClientMessage` rather than a mode of it, for the
+ * same reason `GuestView` is a separate type: what a guest may say is a short
+ * list, and a shared union would make it a long list with most of it refused
+ * at runtime.
+ */
+export type GuestClientMessage =
+  /** Ask to be let in, having arrived with a link. */
+  | { type: 'knock'; name: string }
+  | { type: 'action'; action: GuestAction }
+  | { type: 'ping' };
+
+export type GuestServerMessage =
+  /**
+   * The door: this is the channel the link opens, and whether there is
+   * anybody inside to answer. `occupied: false` is not a refusal — it is what
+   * the page says instead of leaving somebody knocking at an empty room.
+   */
+  | { type: 'door'; channelName: string; occupied: boolean }
+  /** Somebody has been told you are here. */
+  | { type: 'knocking' }
+  /**
+   * You are in. `secret` is the reconnection credential, and this is the only
+   * time it exists in the clear — the page keeps it so that a dropped
+   * connection, or a deploy, does not mean knocking again.
+   */
+  | {
+      type: 'admitted';
+      guestId: string;
+      secret: string;
+      media: { url: string; token: string } | null;
+    }
+  /** A member said no, or removed you. */
+  | { type: 'refused'; reason: string }
+  | { type: 'guest'; view: GuestView }
+  /**
+   * Your publish grant changed, so the page must open or close the
+   * microphone. Carried separately from the view because acting on it is a
+   * device operation rather than a re-render.
+   */
+  | { type: 'speech'; maySpeak: boolean }
+  | { type: 'error'; message: string }
+  | { type: 'pong'; serverNow: number };
+
 /** Channel mutations. The server supplies the actor. */
 export type ClientAction =
   | { type: 'ENTER' }
@@ -379,7 +499,17 @@ export type ClientAction =
    * put there first.
    */
   | { type: 'PASTE_CLIP'; text: string }
-  | { type: 'CLEAR_CLIP' };
+  | { type: 'CLEAR_CLIP' }
+  /**
+   * Answers somebody at the door. Carries the knock rather than a person,
+   * there being no person yet — an id and a secret are minted on acceptance
+   * and go to the page that knocked.
+   */
+  | { type: 'ANSWER_KNOCK'; knockId: string; accept: boolean }
+  /** Grants or withdraws a guest's microphone. */
+  | { type: 'SET_GUEST_SPEECH'; guestId: string; maySpeak: boolean }
+  /** Removes a guest, and revokes the link they came through. */
+  | { type: 'EJECT_GUEST'; guestId: string };
 
 export type ClientMessage =
   /** Start receiving Home snapshots. */

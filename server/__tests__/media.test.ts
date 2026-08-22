@@ -251,6 +251,8 @@ describe('the floor as an actual mute', () => {
         async audioTracks(): Promise<Map<string, string[]>> {
           throw new Error('livekit unreachable');
         },
+        async setPublishAllowed() {},
+        async removeParticipant() {},
         async closeRoom() {},
         async startRecording() {
           return 'egress_x';

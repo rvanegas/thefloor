@@ -6,6 +6,8 @@ import {
 } from '../../core/constants';
 import type {
   ClientMessage,
+  GuestClientMessage,
+  GuestServerMessage,
   HomeView,
   PublicAccount,
   RecordingView,
@@ -45,6 +47,30 @@ interface Connection {
 
 /** Close code for a credential the server will not accept. */
 const UNAUTHORIZED_CLOSE = 4401;
+
+/**
+ * One guest's page, which is a much smaller thing than a member's connection.
+ *
+ * It watches exactly one channel, has no Home, and holds no token — what it
+ * holds is a seat, and the credential for that seat is checked once when the
+ * socket opens and then never again, because revoking a *link* deliberately
+ * does not end a session already inside. What does end one is ejection or the
+ * room emptying, and both of those reach this connection as a change to the
+ * channel rather than as a change to a credential.
+ */
+interface GuestConnection {
+  socket: WebSocket;
+  /** The link this page arrived with, while it is still at the door. */
+  linkToken: string | null;
+  /** Their knock, from when they ask until somebody answers. */
+  knockId: string | null;
+  /** Set on admission. Null while they are still outside. */
+  guestId: string | null;
+  channelId: string | null;
+  lastSeen: number;
+  /** What they were last told about their microphone, to notice a change. */
+  maySpeak: boolean;
+}
 
 /**
  * Lets non-channel code (contact changes, which arrive over HTTP) push Home to
@@ -91,6 +117,8 @@ export function registerWebsocket(deps: {
   now: () => number;
   homeNotifier: HomeNotifier;
   reachability: Reachability;
+  /** Where a guest's page should connect for audio. Absent without a media plane. */
+  mediaUrl?: string;
 }): void {
   const {
     fastify,
@@ -101,8 +129,10 @@ export function registerWebsocket(deps: {
     now,
     homeNotifier,
     reachability,
+    mediaUrl,
   } = deps;
   const connections = new Set<Connection>();
+  const guestConnections = new Set<GuestConnection>();
 
   /** Whether this user still has any live socket. */
   const hasConnection = (userId: string): boolean =>
@@ -145,6 +175,12 @@ export function registerWebsocket(deps: {
    */
   const sweep = setInterval(() => {
     const cutoff = now() - HEARTBEAT_TIMEOUT_MS;
+    // Guests first, and for the same reason members are swept: a half-open
+    // socket that nobody closes holds somebody in a room they have left, and a
+    // guest in a room is somebody the members can be heard by.
+    for (const guest of guestConnections) {
+      if (guest.lastSeen < cutoff) guest.socket.close();
+    }
     for (const connection of connections) {
       if (connection.lastSeen < cutoff) {
         connection.socket.close();
@@ -244,6 +280,9 @@ export function registerWebsocket(deps: {
           pushChannel(connection, channelId);
         }
       }
+      for (const guest of guestConnections) {
+        if (guest.channelId === channelId) pushGuest(guest);
+      }
       const channel = channels.get(channelId);
       if (channel) {
         homeNotifier.notify(channel.participants);
@@ -258,6 +297,199 @@ export function registerWebsocket(deps: {
         if (connection.watchingHome) pushHome(connection);
       }
     }
+  });
+
+  function sendGuest(
+    connection: GuestConnection,
+    message: GuestServerMessage
+  ): void {
+    if (connection.socket.readyState === 1) {
+      connection.socket.send(JSON.stringify(message));
+    }
+  }
+
+  /**
+   * Sends this guest their view, and notices the two things a view cannot say.
+   *
+   * A guest who is no longer in the channel — ejected, or gone with the last
+   * member — has no view to send, and is told and disconnected rather than
+   * left holding a page that has quietly stopped updating. And a change in
+   * their publish grant is announced separately, because acting on it is a
+   * device operation: the page has to open or close a microphone, which no
+   * amount of re-rendering does.
+   */
+  function pushGuest(connection: GuestConnection): void {
+    if (!connection.channelId || !connection.guestId) return;
+    const view = channels.guestView(connection.channelId, connection.guestId);
+    if (!view) {
+      sendGuest(connection, {
+        type: 'refused',
+        reason: 'You are no longer in this channel.',
+      });
+      connection.socket.close();
+      return;
+    }
+    const maySpeak = view.you.mic === 'open' || view.you.mic === 'muted';
+    if (maySpeak !== connection.maySpeak) {
+      connection.maySpeak = maySpeak;
+      sendGuest(connection, { type: 'speech', maySpeak });
+    }
+    sendGuest(connection, { type: 'guest', view });
+  }
+
+  /**
+   * Completes an admission: the seat exists, so hand the page its secret and
+   * the credential for the room.
+   *
+   * The secret is sent exactly once and is never stored in the clear, so a
+   * page that loses this message has to knock again — which is why it goes
+   * before anything else and is not batched with the view.
+   */
+  async function admit(
+    connection: GuestConnection,
+    channelId: string,
+    guestId: string,
+    secret: string
+  ): Promise<void> {
+    connection.channelId = channelId;
+    connection.guestId = guestId;
+    connection.knockId = null;
+    const token = await channels.guestMediaToken(channelId, guestId);
+    sendGuest(connection, {
+      type: 'admitted',
+      guestId,
+      secret,
+      media: token.ok && mediaUrl ? { url: mediaUrl, token: token.token } : null,
+    });
+    pushGuest(connection);
+  }
+
+  /** The page a link opens. One channel, no Home, and no account anywhere. */
+  fastify.get('/gws', { websocket: true }, (socket, request) => {
+    const url = new URL(request.url, 'http://localhost');
+    const linkToken = url.searchParams.get('link');
+    const guestId = url.searchParams.get('guest');
+    const secret = url.searchParams.get('secret');
+
+    const connection: GuestConnection = {
+      socket,
+      linkToken,
+      knockId: null,
+      guestId: null,
+      channelId: null,
+      lastSeen: now(),
+      maySpeak: false,
+    };
+
+    const refuse = (reason: string): void => {
+      sendGuest(connection, { type: 'refused', reason });
+      socket.close(UNAUTHORIZED_CLOSE, 'Unauthorized');
+    };
+
+    if (guestId && secret) {
+      // A page coming back: after a dropped connection, after a deploy, or
+      // after somebody closed the tab and reopened the link. The secret is the
+      // whole credential, and it is checked here and nowhere else.
+      const resumed = channels.resumeGuest(guestId, secret);
+      if (!resumed.ok) {
+        refuse(resumed.error);
+        return;
+      }
+      guestConnections.add(connection);
+      channels.reportGuest(resumed.channelId, guestId, 'CONNECTED');
+      void admit(connection, resumed.channelId, guestId, secret);
+    } else if (linkToken) {
+      const door = channels.doorFor(linkToken);
+      if (!door.ok) {
+        refuse(door.error);
+        return;
+      }
+      guestConnections.add(connection);
+      sendGuest(connection, {
+        type: 'door',
+        channelName: door.channelName,
+        occupied: door.occupied,
+      });
+    } else {
+      refuse('This link is not valid.');
+      return;
+    }
+
+    socket.on('message', (raw: Buffer | string) => {
+      connection.lastSeen = now();
+      let message: GuestClientMessage;
+      try {
+        message = JSON.parse(String(raw)) as GuestClientMessage;
+      } catch {
+        sendGuest(connection, { type: 'error', message: 'Malformed message.' });
+        return;
+      }
+
+      switch (message.type) {
+        case 'ping':
+          sendGuest(connection, { type: 'pong', serverNow: now() });
+          return;
+
+        case 'knock': {
+          if (!connection.linkToken || connection.guestId) return;
+          const knocked = channels.knock(
+            connection.linkToken,
+            typeof message.name === 'string' ? message.name : ''
+          );
+          if (!knocked.ok) {
+            sendGuest(connection, { type: 'refused', reason: knocked.error });
+            return;
+          }
+          connection.knockId = knocked.knockId;
+          connection.channelId = knocked.channelId;
+          sendGuest(connection, { type: 'knocking' });
+          return;
+        }
+
+        case 'action': {
+          if (!connection.guestId || !connection.channelId) {
+            sendGuest(connection, {
+              type: 'error',
+              message: 'You are not in this channel.',
+            });
+            return;
+          }
+          const result = channels.dispatchGuest(
+            connection.channelId,
+            connection.guestId,
+            message.action as { type: string; [key: string]: unknown }
+          );
+          if (!result.ok) {
+            sendGuest(connection, { type: 'error', message: result.error });
+            return;
+          }
+          pushGuest(connection);
+          return;
+        }
+
+        default:
+          sendGuest(connection, { type: 'error', message: 'Unknown message type.' });
+      }
+    });
+
+    socket.on('close', () => {
+      guestConnections.delete(connection);
+      // A page that gave up at the door takes its knock with it, so nobody is
+      // left answering for somebody who is no longer there.
+      if (connection.knockId && connection.channelId) {
+        channels.withdrawKnock(connection.channelId, connection.knockId);
+      }
+      // Losing a socket is not leaving, exactly as for a member: the grace
+      // period runs, and a page that reconnects inside it keeps its place in
+      // the conversation. What removes them is `DISCONNECT_EXPIRED`.
+      if (connection.guestId && connection.channelId) {
+        channels.reportGuest(
+          connection.channelId,
+          connection.guestId,
+          'DISCONNECTED'
+        );
+      }
+    });
   });
 
   fastify.get('/ws', { websocket: true }, (socket, request) => {
@@ -391,6 +623,44 @@ export function registerWebsocket(deps: {
           return;
 
         case 'channel.action': {
+          // Answering the door is the one action whose result goes to somebody
+          // else's socket: accepting mints an id and a secret, and the page
+          // waiting at the door is the only thing that can use them. So it is
+          // routed here rather than through `dispatch`, which has no way to
+          // reach another connection.
+          if (message.action.type === 'ANSWER_KNOCK') {
+            const answer = message.action;
+            const answered = channels.answerKnock(
+              message.channelId,
+              connection.userId,
+              answer.knockId,
+              answer.accept
+            );
+            if (!answered.ok) {
+              send(connection, { type: 'error', message: answered.error });
+              return;
+            }
+            for (const guest of guestConnections) {
+              if (guest.knockId !== answer.knockId) continue;
+              if (answered.admitted) {
+                void admit(
+                  guest,
+                  message.channelId,
+                  answered.admitted.session.id,
+                  answered.admitted.secret
+                );
+              } else {
+                sendGuest(guest, {
+                  type: 'refused',
+                  reason: 'Somebody in the channel said no.',
+                });
+                guest.knockId = null;
+                guest.socket.close();
+              }
+            }
+            pushChannel(connection, message.channelId);
+            return;
+          }
           // The actor comes from the authenticated connection, never the
           // payload — a client cannot act as the other party.
           const result = channels.dispatch(

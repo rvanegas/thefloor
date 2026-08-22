@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   DELETED_RETENTION_MS,
+  MAX_DISPLAY_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_PING_TEXT_LENGTH,
   MAX_RECORDING_NAME_LENGTH,
@@ -11,8 +12,12 @@ import {
 import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
 import {
+  canAnswerKnock,
+  canClaimFloor,
   canControlPlayback,
   canDeleteChannel,
+  canInviteGuest,
+  GUEST_ACTIONS,
   createChannel,
   isNamed,
   isParticipant,
@@ -21,6 +26,7 @@ import {
   reduce,
 } from '../../core/channel';
 import { initialFloorState } from '../../core/floor';
+import { roomOccupants, statedIdentities } from '../../core/guests';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { initialPlaybackState } from '../../core/playback';
 import { initialRecordingState } from '../../core/recording';
@@ -30,16 +36,19 @@ import type {
   ChannelState,
 } from '../../core/types';
 import type {
+  GuestView,
   InviteView,
   PublicAccount,
   RejoinableView,
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
-import { Guests } from './guests';
+import { Guests, isGuestId, type AdmittedGuest } from './guests';
 import {
   insertWithUniqueKey,
   newId,
   type Db,
+  type GuestLinkRow,
+  type GuestSessionRow,
   type RecordingRow,
 } from './db';
 import { encodeRecording } from './export';
@@ -174,6 +183,8 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_VOLUME',
   'PASTE_CLIP',
   'CLEAR_CLIP',
+  'SET_GUEST_SPEECH',
+  'EJECT_GUEST',
 ]);
 
 /**
@@ -847,6 +858,41 @@ export class ChannelRegistry {
     // the state watchers would otherwise be told about.
     if (action.type === 'ENTER') {
       this.stepOutOfOthers(userId, channelId);
+    }
+
+    // Both carry a guest id from the wire, so both check it is a string before
+    // the reducer sees it — and both have consequences outside the reducer,
+    // which is why they are here rather than falling through.
+    if (action.type === 'SET_GUEST_SPEECH' || action.type === 'EJECT_GUEST') {
+      const guestId = (action as { guestId?: unknown }).guestId;
+      if (typeof guestId !== 'string' || !guestId) {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      if (
+        action.type === 'SET_GUEST_SPEECH' &&
+        typeof (action as { maySpeak?: unknown }).maySpeak !== 'boolean'
+      ) {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      const room = channel.mediaRoom;
+      const applied = this.apply(channelId, userId, action);
+      // Whether the reducer agreed, rather than whether the call returned:
+      // `apply` reports success for a refused action, that being how every
+      // guard in core/ says no. Ejecting is durable and irreversible — it
+      // revokes the link — so it must not happen off the back of a refusal.
+      const gone =
+        applied.ok && !this.channels.get(channelId)?.guests[guestId];
+      if (action.type === 'EJECT_GUEST' && gone) {
+        // The seat and the door, in that order, and then the connection. The
+        // db call is what makes this outlast the process; the room call is
+        // what makes it immediate.
+        this.guests.eject(guestId, userId, this.now());
+        this.run(
+          () => this.media?.removeParticipant({ room, identity: guestId }),
+          `removeParticipant ${channelId}/${guestId}`
+        );
+      }
+      return applied;
     }
 
     // A run's id is minted here, never accepted from the client — it becomes
@@ -1593,13 +1639,18 @@ export class ChannelRegistry {
       this.markDeleted(after.id, after.endedAt ?? this.now());
     }
     this.applyFloorToMedia(before, after);
+    this.applyGuestSpeech(before, after);
     this.applyRecordingToMedia(before, after);
     // A run's audience only ever grows. Someone who arrives mid-recording is
     // in that recording and must be able to reach it afterwards; someone who
     // leaves — the channel or merely the room — was still in it, so they are
     // never taken back out.
     const audience = this.recordingAudience.get(after.id);
-    if (audience) for (const id of after.present) audience.add(id);
+    // Guests are in the audience of a run in the sense that matters here —
+    // they were in the room, so their name belongs on the recording. What they
+    // are not is entitled to it: reach is `recordingsFor`, which reads the
+    // *channel's* participants, and a guest is not one. See fileRun.
+    if (audience) for (const id of roomOccupants(after)) audience.add(id);
     this.applyPlaybackToMedia(before, after);
     this.trackFloorWindows(before, after);
     this.meterCommit(before, after);
@@ -1609,7 +1660,11 @@ export class ChannelRegistry {
     // original statements were made against a roster that did not include them.
     const arrived =
       after.participants.length > before.participants.length ||
-      after.present.some((id) => !before.present.includes(id));
+      after.present.some((id) => !before.present.includes(id)) ||
+      // A guest arriving is an arrival in every way this matters: they need a
+      // stem if a run is going, and they need to be told about a claim that
+      // was made before they walked in.
+      Object.keys(after.guests).some((id) => !(id in before.guests));
     // Whoever has just walked in has answered whatever they were last told
     // about this channel. Done before the announcement below rather than
     // after, so that the arrival cannot be the thing that silences its own
@@ -1904,6 +1959,13 @@ export class ChannelRegistry {
   }
 
   private displayName(userId: string): string {
+    // A guest resolves to nothing in `accounts` by construction, so asking
+    // there first would name every guest 'Someone' — including in the frozen
+    // names of a recording they spoke in, which is the one place a name is
+    // kept for ever. The prefix is what tells the two apart without a query.
+    if (isGuestId(userId)) {
+      return this.guests.displayName(userId) ?? 'Guest';
+    }
     return this.accounts.public(userId)?.displayName ?? 'Someone';
   }
 
@@ -1938,15 +2000,59 @@ export class ChannelRegistry {
    */
   private assertSilence(
     state: ChannelState,
-    speakers: string[] = state.participants
+    speakers: string[] = statedIdentities(state)
   ): void {
     if (!this.media || state.status !== 'active') return;
     const holder = state.floor.holder;
+    // The room in both directions, guests included, which is the second of the
+    // three widenings the guest design named. A guest must be silenced when a
+    // member holds the floor — otherwise a claim silences everybody it knows
+    // about and nobody it does not — and must go on hearing whoever holds it,
+    // which is the direction that would fail as silence rather than as noise.
+    const room = statedIdentities(state);
     for (const speaker of speakers) {
       const silenced = holder !== null && speaker !== holder;
-      for (const listener of state.participants) {
+      for (const listener of room) {
         if (listener === speaker) continue;
         this.stateSilence(state, speaker, listener, silenced);
+      }
+    }
+  }
+
+  /**
+   * Carries a change in what a guest may do out to the two places that have to
+   * agree with the state: the row that outlives this process, and the room
+   * that decides whether anybody can hear them.
+   *
+   * Keyed on the transition rather than on the action, so that any other route
+   * to a grant — a future rule, a restore — takes the same two steps. Only
+   * guests already in the room are considered: one who has just *arrived*
+   * carries their grant in the token they joined with, and calling
+   * `setPublishAllowed` against a participant who is still connecting is a
+   * `participant does not exist` for nothing.
+   */
+  private applyGuestSpeech(before: ChannelState, after: ChannelState): void {
+    for (const guest of Object.values(after.guests)) {
+      const was = before.guests[guest.id];
+      if (!was || was.maySpeak === guest.maySpeak) continue;
+      this.guests.setMaySpeak(guest.id, guest.maySpeak, this.now());
+      if (!this.media) continue;
+      const room = after.mediaRoom;
+      this.run(
+        () =>
+          this.media?.setPublishAllowed({
+            room,
+            identity: guest.id,
+            allowed: guest.maySpeak,
+          }),
+        `setPublishAllowed ${after.id}/${guest.id}`
+      );
+      // Somebody who has just been given a microphone during a claim must be
+      // silenced by it like everybody else, and their new track is not covered
+      // by anything stated before it existed.
+      if (guest.maySpeak) {
+        this.assertSilence(after, [guest.id]);
+        this.ensureEgress(after);
       }
     }
   }
@@ -2095,7 +2201,7 @@ export class ChannelRegistry {
     const now = this.channels.get(state.id);
     if (!now || now.mediaRoom !== room || now.floor.holder !== holder) return;
 
-    const present = state.participants.filter((id) => roster.has(id));
+    const present = statedIdentities(state).filter((id) => roster.has(id));
     const stated = this.silenceStated.get(state.id) ?? new Map<string, string>();
     this.silenceStated.set(state.id, stated);
     for (const speaker of present) {
@@ -2291,7 +2397,12 @@ export class ChannelRegistry {
     if (!this.media || state.status !== 'active') return;
     const run = this.capturing.get(state.id);
     if (!run || state.recording.status !== 'recording') return;
-    for (const identity of state.present) {
+    // Guests included: a recording is of the conversation, and a guest who was
+    // speaking was in the conversation. They arrive by this path rather than
+    // by the fatal cohort that starts a run, because a guest may be in the
+    // room with no publish grant and therefore no track — which is not a
+    // failure and must not kill somebody else's recording.
+    for (const identity of roomOccupants(state)) {
       if (run.requested.has(identity)) continue;
       if (this.now() < (run.retryAt.get(identity) ?? 0)) continue;
       this.startEgress(state, identity, { fatal: false });
@@ -2708,6 +2819,358 @@ export class ChannelRegistry {
     return { ok: true, token };
   }
 
+  // --- Guests ---------------------------------------------------------------
+  //
+  // Everything below turns a row in `guest_sessions` into somebody in a room,
+  // and back. The rules are in core/ and the storage is in guests.ts; what is
+  // here is the *when*, which is this class's job for members too.
+
+  /** Mints a link a member can hand to anybody. */
+  mintGuestLink(
+    channelId: string,
+    userId: string
+  ): { ok: true; link: GuestLinkRow } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
+    if (!canInviteGuest(channel, userId)) {
+      return { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    return {
+      ok: true,
+      link: this.guests.mintLink(channelId, userId, this.now()),
+    };
+  }
+
+  /** Every link ever minted for a channel, for whoever belongs to it. */
+  guestLinksFor(channelId: string, userId: string): GuestLinkRow[] {
+    const channel = this.channels.get(channelId);
+    if (!channel || !isParticipant(channel, userId)) return [];
+    return this.guests.linksFor(channelId);
+  }
+
+  revokeGuestLink(
+    channelId: string,
+    userId: string,
+    token: string
+  ): { ok: true } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || !isParticipant(channel, userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    const link = this.guests.link(token);
+    if (!link || link.channel_id !== channelId) {
+      return { ok: false, error: 'No such link.', code: 'not_found' };
+    }
+    this.guests.revokeLink(token, userId, this.now());
+    this.emit([channelId]);
+    return { ok: true };
+  }
+
+  /** What a link opens onto, for the page that has just been opened with it. */
+  doorFor(token: string):
+    | { ok: true; channelId: string; channelName: string; occupied: boolean }
+    | Refused {
+    const link = this.guests.liveLink(token);
+    const channel = link ? this.channels.get(link.channel_id) : undefined;
+    if (!link || !channel || channel.status !== 'active') {
+      return { ok: false, error: 'This link is no longer open.', code: 'not_found' };
+    }
+    return {
+      ok: true,
+      channelId: channel.id,
+      channelName: this.channelName(channel),
+      occupied: channel.present.length > 0,
+    };
+  }
+
+  /**
+   * Somebody with a link is at the door.
+   *
+   * The knock is state rather than a message, so that every member sees the
+   * same queue and one answer settles it — and so that a member who walks in
+   * ten seconds later sees somebody still waiting rather than nothing.
+   */
+  knock(
+    token: string,
+    name: string
+  ): { ok: true; channelId: string; knockId: string } | Refused {
+    const door = this.doorFor(token);
+    if (!door.ok) return door;
+    if (!door.occupied) {
+      return {
+        ok: false,
+        error: 'There is nobody in this channel to let you in.',
+        code: 'conflict',
+      };
+    }
+    const knockId = newId('knock');
+    const applied = this.apply(door.channelId, '', {
+      type: 'KNOCKED',
+      knock: {
+        id: knockId,
+        // What they typed, or something that says a person is there without
+        // pretending to be a name. The `Anon <n>` they may end up with is
+        // assigned on admission, when there is a channel to number them in.
+        name: name.trim().slice(0, MAX_DISPLAY_NAME_LENGTH) || 'Someone',
+        at: this.now(),
+      },
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    if (!applied.ok) return applied;
+    return { ok: true, channelId: door.channelId, knockId };
+  }
+
+  /** Takes a knock back, for a page that gave up waiting. */
+  withdrawKnock(channelId: string, knockId: string): void {
+    const channel = this.channels.get(channelId);
+    if (!channel || !channel.knocks.some((k) => k.id === knockId)) return;
+    const next = {
+      ...channel,
+      knocks: channel.knocks.filter((k) => k.id !== knockId),
+    };
+    this.commit(channel, next);
+    this.emit([channelId]);
+  }
+
+  /**
+   * A member answers the door.
+   *
+   * Acceptance is two steps that must not come apart: the reducer takes the
+   * knock off the queue, and this mints the seat. Doing the second first would
+   * leave a session behind if the first were refused, and there would be
+   * nothing to attach it to.
+   */
+  answerKnock(
+    channelId: string,
+    userId: string,
+    knockId: string,
+    accept: boolean
+  ): { ok: true; admitted: AdmittedGuest | null } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
+    if (!canAnswerKnock(channel, userId)) {
+      return { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    const knock = channel.knocks.find((k) => k.id === knockId);
+    if (!knock) return { ok: false, error: 'Nobody is waiting.', code: 'not_found' };
+
+    const answered = this.apply(channelId, userId, {
+      type: 'ANSWER_KNOCK',
+      knockId,
+      accept,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    if (!answered.ok) return answered;
+    if (!accept) return { ok: true, admitted: null };
+
+    const admitted = this.guests.admit(
+      channelId,
+      // The link is not recorded on the knock, so an ejection later revokes
+      // nothing. Left this way deliberately for now: the knock is transport
+      // state and the seat is durable, and threading the token through the
+      // reducer would put a credential in the channel snapshot every member
+      // watches. `Guests.eject` handles a null link by ejecting alone.
+      null,
+      knock.name === 'Someone' ? null : knock.name,
+      userId,
+      this.now()
+    );
+    this.enterGuest(channelId, admitted.session);
+    return { ok: true, admitted };
+  }
+
+  /**
+   * Puts an admitted guest in the room — on admission, and again on every
+   * reconnection.
+   */
+  private enterGuest(channelId: string, session: GuestSessionRow): void {
+    this.apply(channelId, '', {
+      type: 'GUEST_ENTERED',
+      guest: {
+        id: session.id,
+        name: session.display_name,
+        admittedAt: session.admitted_at,
+        maySpeak: session.may_speak === 1,
+        request: 'none',
+      },
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+  }
+
+  /**
+   * A guest's page comes back with the secret it was given.
+   *
+   * The path a deploy takes: the box restarts, every socket drops, and this is
+   * what stops a guest having to knock at a room whose members may not be
+   * looking. It is also what makes revoking a link survivable for the people
+   * already inside.
+   */
+  resumeGuest(
+    guestId: string,
+    secret: string
+  ): { ok: true; channelId: string; session: GuestSessionRow } | Refused {
+    const session = this.guests.reconnect(guestId, secret, this.now());
+    if (!session) {
+      return { ok: false, error: 'This session has ended.', code: 'forbidden' };
+    }
+    const channel = this.channels.get(session.channel_id);
+    if (!channel || channel.status !== 'active') {
+      return { ok: false, error: 'This channel is gone.', code: 'not_found' };
+    }
+    if (channel.present.length === 0) {
+      return {
+        ok: false,
+        error: 'There is nobody in this channel.',
+        code: 'conflict',
+      };
+    }
+    this.enterGuest(channel.id, session);
+    return { ok: true, channelId: channel.id, session };
+  }
+
+  /** A guest's socket has gone, or their grace has run out. */
+  guestGone(channelId: string, guestId: string): void {
+    this.apply(channelId, '', {
+      type: 'GUEST_GONE',
+      guestId,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+  }
+
+  /** Reports a guest's connection, on the same terms as a member's. */
+  reportGuest(
+    channelId: string,
+    guestId: string,
+    state: 'CONNECTED' | 'DISCONNECTED'
+  ): void {
+    this.report(channelId, guestId, state);
+  }
+
+  /**
+   * A join credential for a guest, minted unable to publish.
+   *
+   * That is the whole of what keeps a stranger inaudible until somebody says
+   * otherwise: the grant is in the token rather than in the interface, so a
+   * page that ignores every rule in this application still cannot make a
+   * sound. `SET_GUEST_SPEECH` lifts it live, without a reconnection.
+   */
+  async guestMediaToken(
+    channelId: string,
+    guestId: string
+  ): Promise<{ ok: true; token: string } | Refused> {
+    if (!this.media) {
+      return { ok: false, error: 'Audio is not configured.', code: 'invalid' };
+    }
+    const channel = this.channels.get(channelId);
+    const guest = channel?.guests[guestId];
+    if (!channel || !guest) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    const token = await this.media.issueToken({
+      room: channel.mediaRoom,
+      identity: guestId,
+      displayName: guest.name,
+      canPublish: guest.maySpeak,
+    });
+    return { ok: true, token };
+  }
+
+  /** What this guest is shown. See `GuestView` for what is deliberately absent. */
+  guestView(channelId: string, guestId: string): GuestView | undefined {
+    const channel = this.channels.get(channelId);
+    const guest = channel?.guests[guestId];
+    if (!channel || !guest) return undefined;
+    const holder = channel.floor.holder;
+    const muted = channel.selfMuted[guestId] === true;
+    const mic: GuestView['you']['mic'] = guest.maySpeak
+      ? muted
+        ? 'muted'
+        : 'open'
+      : guest.request === 'asking'
+        ? 'asking'
+        : guest.request === 'refused'
+          ? 'refused'
+          : 'listening';
+    return {
+      channelId: channel.id,
+      channelName: this.channelName(channel),
+      you: {
+        id: guestId,
+        name: guest.name,
+        mic,
+        holdingFloor: holder === guestId,
+        silenced: holder !== null && holder !== guestId,
+        canClaimFloor: canClaimFloor(channel, guestId, this.now()),
+      },
+      others: [
+        ...channel.present.map((id) => ({
+          name: this.displayName(id),
+          kind: 'member' as const,
+          speaking: holder === id,
+        })),
+        ...Object.values(channel.guests)
+          .filter((other) => other.id !== guestId)
+          .map((other) => ({
+            name: other.name,
+            kind: 'guest' as const,
+            speaking: holder === other.id,
+          })),
+      ],
+      recording: channel.recording.status === 'recording',
+      clip: channel.clip,
+      serverNow: this.now(),
+    };
+  }
+
+  /**
+   * Applies an action on behalf of a guest.
+   *
+   * Separate from `dispatch` because that one refuses anybody who is not a
+   * participant, which is the property the whole design rests on and not one
+   * to soften with a flag. What this shares with it is everything that
+   * matters: the actor comes from the connection, the allowlist is checked
+   * before the reducer sees anything, and ids are minted here rather than
+   * accepted.
+   */
+  dispatchGuest(
+    channelId: string,
+    guestId: string,
+    action: { type: string; [key: string]: unknown }
+  ): { ok: true } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || !channel.guests[guestId]) {
+      return { ok: false, error: 'You are not in this channel.', code: 'forbidden' };
+    }
+    if (!GUEST_ACTIONS.has(action.type as ChannelAction['type'])) {
+      return { ok: false, error: 'Not an action.', code: 'invalid' };
+    }
+    if (action.type === 'PASTE_CLIP') {
+      if (typeof action.text !== 'string') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      const pasted = this.apply(channelId, guestId, {
+        type: 'PASTE_CLIP',
+        clip: {
+          id: newId('clip'),
+          authorId: guestId,
+          pastedAt: this.now(),
+          kind: 'text',
+          text: action.text,
+        },
+      } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+      return pasted.ok ? { ok: true } : pasted;
+    }
+    const applied = this.apply(channelId, guestId, action as Omit<
+      ChannelAction,
+      'userId'
+    > & { type: ChannelAction['type'] });
+    return applied.ok ? { ok: true } : applied;
+  }
+
+  /** What to call a channel to somebody with no roster to fall back on. */
+  private channelName(channel: ChannelState): string {
+    if (channel.name) return channel.name;
+    return describeChannel(
+      channel.participants.map((id) => this.displayName(id))
+    );
+  }
+
   /**
    * The part of a channel that means anything after a restart.
    *
@@ -3037,6 +3500,11 @@ export class ChannelRegistry {
       status: 'active',
       endedAt: null,
       present: [],
+      // Nobody comes back a guest either, and their sessions are what makes
+      // that survivable: the room is empty of them, and each of their pages
+      // reconnects with the secret it was given. See guests.ts.
+      guests: {},
+      knocks: [],
       // Nobody comes back waiting. A restart dropped every socket at once, and
       // that says nothing about whether any of them had walked into a channel
       // to hold on for somebody — see `waiting` in core/types.ts.

@@ -23,6 +23,22 @@ import {
  */
 export const GUEST_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * What every guest id begins with.
+ *
+ * Load-bearing rather than decorative: it is how anything holding an identity
+ * — a recording's stems, a usage span, the floor's holder — can tell whether
+ * to look for an account or a seat without asking the database twice. The
+ * `MEDIA_IDENTITY` precedent already establishes that the room holds
+ * identities that are not people.
+ */
+export const GUEST_PREFIX = 'guest_';
+
+/** Whether this identity is a guest's rather than an account's. */
+export function isGuestId(id: string): boolean {
+  return id.startsWith(GUEST_PREFIX);
+}
+
 /** What a guest is called when they do not say. */
 export const ANON_NAME_PREFIX = 'Anon ';
 
