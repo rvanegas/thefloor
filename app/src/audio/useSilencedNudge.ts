@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
+import { vibrate } from '../../modules/audio-route';
 import { isSilenced } from '../../../core/floor';
 import type { ChannelState, UserId } from '../../../core/types';
 import { NO_NUDGE, step } from './nudge';
@@ -26,27 +27,40 @@ import { NO_NUDGE, step } from './nudge';
  * voice it is announcing. See TASKS.md § *Being Silenced Without Looking*;
  * that trade is not settled and is not settled by building this.
  *
- * `Warning` rather than an impact: it is a two-beat pattern rather than a
- * single knock, which is what makes it legible through a pocket and
- * distinguishable from every incidental tap the interface makes.
+ * **The alert vibration, not a notification haptic, and that took two builds
+ * to arrive at.** Build 70 produced nothing at all — iOS mutes haptics for the
+ * duration of any session using audio input, which is every moment this cue
+ * can fire, and `notificationAsync` *resolved* throughout rather than failing.
+ * Build 71 fixed the permission and the buzz arrived: "very slight, hardly
+ * perceptible". Which is an accurate description of what
+ * `NotificationFeedbackType.Warning` is. Apple's notification haptics are
+ * tuned for a hand already holding the phone and looking at it, and the whole
+ * premise here is the opposite — a phone in a pocket, against a leg, with
+ * somebody mid-sentence.
+ *
+ * So the cue is the strength iOS uses for the same problem when it has one: an
+ * incoming call. `vibrate()` in `modules/audio-route` is the vibration motor
+ * rather than the Taptic Engine.
+ *
+ * **The two failures were the same shape and neither announced itself.** One
+ * was suppressed by a session property, the other was delivered at a strength
+ * nobody could feel; both reported success. There is no readable evidence for
+ * either from JavaScript, which is why `haptics ok` in the diagnostics panel
+ * exists and why this comment is longer than the function.
  */
-const buzz = () =>
+const buzz = () => {
+  // Android, jest, and any build whose native half predates `vibrate` — none
+  // of which is iOS in a pocket, so the weaker cue is the right answer there
+  // rather than a compromise.
+  if (vibrate()) return;
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(
     // A device with no haptic engine, or one that refuses while another
     // generator is running. There is nothing to do about it and nothing to
     // say: the cue is an extra, and a failed cue must not become an error in
     // a conversation.
-    //
-    // **What this does not catch is the way it actually failed**, and that is
-    // worth knowing before trusting a quiet log. In build 70 nothing arrived
-    // at all, because iOS mutes haptics for the duration of any session that
-    // is using audio input and the default is to do so — so this call
-    // *resolved*, every time, and produced nothing. A rejection would have
-    // been the easy version. The fix is one property on the session, asserted
-    // by `applyConfiguration` and read back in the diagnostics panel as
-    // `haptics ok`; see `modules/audio-route`.
     () => {}
   );
+};
 
 export function useSilencedNudge(
   channel: ChannelState | null,

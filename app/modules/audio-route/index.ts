@@ -68,6 +68,7 @@ export interface RouteSnapshot {
 interface NativeAudioRoute {
   snapshot(): RouteSnapshot;
   setAllowHapticsDuringRecording(allow: boolean): Promise<boolean>;
+  vibrate(): boolean;
   addListener(
     event: 'onRouteChange',
     listener: (payload: RouteSnapshot) => void
@@ -126,6 +127,30 @@ export async function setAllowHapticsDuringRecording(
 ): Promise<boolean> {
   try {
     return (await native?.setAllowHapticsDuringRecording(allow)) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The alert vibration, at the strength an incoming call uses.
+ *
+ * Build 71 made the haptic arrive and proved it was the wrong haptic:
+ * `NotificationFeedbackType.Warning` is a Taptic transient meant for a hand
+ * already holding the phone, and against a leg through a pocket it was
+ * reported as hardly perceptible. This is the vibration motor instead. See
+ * `ios/AudioRouteModule.swift` for why not `CHHapticEngine`.
+ *
+ * It is a *system sound*, so `setAllowHapticsDuringRecording` governs it too —
+ * without that, this is as silent as the haptic was.
+ *
+ * @returns whether it played. False means no module, which is Android, jest,
+ * or a build whose native half predates this — and is the signal to fall back
+ * to `expo-haptics`, which is what `useSilencedNudge` does.
+ */
+export function vibrate(): boolean {
+  try {
+    return native?.vibrate() ?? false;
   } catch {
     return false;
   }

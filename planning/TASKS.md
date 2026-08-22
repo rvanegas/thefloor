@@ -273,8 +273,14 @@ which is exactly when somebody can be silenced, so the feature never had a
 state in which it could work. `applyConfiguration` now asserts
 `setAllowHapticsDuringRecording(true)` at every write to the session and the
 diagnostics panel reads it back as `haptics ok`; DECISIONS.md § *The buzz was
-allowed and then discarded* has the header text and the reasoning. **Still
-unverified on a device** — this needs a build, the write being Swift.
+allowed and then discarded* has the header text and the reasoning.
+
+**Build 71 was felt, and was the wrong cue** — "very slight, hardly
+perceptible", which is a fair account of what a notification haptic is. It is
+the alert vibration now, `vibrate()` in `modules/audio-route`, at the strength
+iOS uses for an incoming call. The noise that implies costs nothing while it
+fires, because being silenced means nobody is subscribed. **Build 72 is
+unverified.**
 
 **Reported and built 2026-08-21, unverified on a device.** A floor claim cuts
 everybody else, and the only place it was said is the screen. Somebody with the
@@ -330,15 +336,22 @@ AirPods tone that cost six builds. Taking it back for this would reopen a
 closed bug to obtain an answer already in hand. Do not reach for it later
 either.
 
-**What is still open, and it is the pocket.** iOS feedback generators are
-ignored when the app is not active, silently and with no error, so a locked or
-backgrounded phone gets nothing. What is built covers the phone face down on a
-table or held and not looked at; it does not cover the phone that has locked
-itself, which is a fair share of the reported case. The remaining delivery is a
-**tone into the audio session**, which reaches a background app because the
-audio does — at the cost of playing over the voice it is announcing, which is
-the interruption this whole app exists to prevent. That trade is not settled
-and was not settled by building the haptic.
+**What was open is the pocket, and build 72 may have closed it by accident.**
+The haptic could not reach a locked phone: `UIFeedbackGenerator` is ignored
+when the app is not *active*, silently and with no error. Two things change
+that. **Suspension is not the obstacle** — DECISIONS-2026-08-20-to-2026-08-21.md
+§ *Backgrounding costs presence* measured a capturing app running twenty-five
+minutes in the background, and this cue only fires while the microphone is
+live, so the process is awake whenever there is anything to deliver. And
+**`AudioServicesPlaySystemSound` is not a feedback generator** and is not gated
+on `UIApplication` state, which is how iOS vibrates for a call while every app
+is backgrounded. So the motor may reach the locked phone the tap could not.
+
+**Test it before believing it**: lock the phone, have somebody claim the floor,
+keep talking. If it buzzes, the remaining delivery — a **tone into the audio
+session**, which reaches a background app because the audio does, at the cost
+of playing over the voice it is announcing — is not needed and should not be
+built. If it does not, that trade is still unsettled.
 
 **Whatever any of it says must not be heard as "nothing is being kept".**
 Silenced and recorded is unheard but captured, which `ChannelView` already says

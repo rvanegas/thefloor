@@ -3,6 +3,7 @@ import {
   routeLine,
   routeSnapshot,
   setAllowHapticsDuringRecording,
+  vibrate,
 } from '../../../modules/audio-route';
 
 /**
@@ -43,6 +44,15 @@ describe('when the native module is not there, which is the case under test', ()
    */
   it('answers false for the haptics permission rather than rejecting', async () => {
     await expect(setAllowHapticsDuringRecording(true)).resolves.toBe(false);
+  });
+
+  /**
+   * False is what `useSilencedNudge` reads as "fall back to `expo-haptics`",
+   * so this is not merely an absence being tolerated — it is the branch that
+   * keeps a cue on Android and on any build older than the Swift beside it.
+   */
+  it('says the vibration did not play rather than throwing', () => {
+    expect(vibrate()).toBe(false);
   });
 });
 

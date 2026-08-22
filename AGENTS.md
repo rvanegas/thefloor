@@ -35,10 +35,11 @@ live volume and the only one new decisions are appended to; closed volumes are
 `planning/DECISIONS-2026-08-07-to-2026-08-13.md`, runs from the beginning to the
 day the media server came off LiveKit Cloud; the second ends at the first App
 Review submission, which is the seam between a project with no installed
-population and one with. The live volume's header carries the index and the rule
-for closing it. **Grep across the set** —
-`planning/DECISIONS*.md` — rather than the live one alone, or you will search
-only the last few days of the project's reasoning.
+population and one with. **The later ones are cut where the line count fell,
+not at a seam**, and say so. The live volume's header carries the index and the
+rule for closing it. **Grep across the set** — `planning/DECISIONS*.md` —
+rather than the live one alone, or you will search only the last few days of
+the project's reasoning.
 
 **`planning/RELEASING.md`** answers a fourth, and is different in kind from the
 rest: it is not deferred work or history but standing guidance that was in this
@@ -56,8 +57,9 @@ The rest are temporary, and say so in their own first lines. Designs for
 unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
 deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
 `planning/USAGE.md` was the third and went that way on 2026-08-19: the reasoning
-is `DECISIONS.md` § *The meter is two tables and a script*, and the queries it
-carried are `bin/usage`, which is the only way anything reads those tables.
+is `DECISIONS-2026-08-16-to-2026-08-19.md` § *The meter is two tables and a
+script*, and the queries it carried are `bin/usage`, which is the only way
+anything reads those tables.
 The three App Store files — `APPREVIEW.md`, `APPREVIEW2.md` and
 `APPREVIEWSCRIPT.md` — were exactly that, and were deleted on 2026-08-19 when
 1.0.0 was approved and released. Everything in them that recurs went to
@@ -108,7 +110,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 593 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 601 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -161,10 +163,16 @@ the material, while the judgement about what is durable is still fresh.
 context — nothing loads them unprompted — but because a plain read stops at
 2,000 and what it drops is the tail, which in an append-only file is the newest
 material and the most likely to matter. The notice is easy to miss in a file
-that reads like an archive. It has been split twice — at 2,433 lines on
-2026-08-15, and again on 2026-08-18 at the App Review seam — and the live
-volume's header says how to close one and start the next. Cut on a section
-boundary and on a seam that means something.
+that reads like an archive.
+
+**Roll over rather than look for a seam**, which is the rule as of 2026-08-21:
+if the entry you are about to write would take the live volume past 2,000
+lines, close it first and make that entry the first of the next one. The live
+volume's header says how. The first three volumes were cut at seams that meant
+something and it was worth doing while they were obvious; hunting for one under
+a line-count deadline turns a filing decision into an argument about what an
+epoch is, in the middle of the work that raised it. Volumes closed by rollover
+say so in their own headers, so nobody reads meaning into where they stop.
 
 Line *length* is not a constraint worth thinking about — a read truncates at
 2,000 characters and the prose here wraps at 79.

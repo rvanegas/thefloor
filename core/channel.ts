@@ -779,8 +779,9 @@ function tick(state: ChannelState, now: number): ChannelState {
  * gone as of 2026-08-21, because the state it produced could not be described
  * — the roster said "Stepped out 2 hours ago · muted" about somebody who was
  * both absent and, apparently, doing something. A mute belongs to a
- * conversation; every way of leaving one ends it. See DECISIONS.md § *Every
- * departure clears the self-mute, and the microphone is not the reason why*.
+ * conversation; every way of leaving one ends it. See
+ * planning/DECISIONS-2026-08-20-to-2026-08-21.md § *Every departure clears the
+ * self-mute, and the microphone is not the reason why*.
  */
 function stepOut(
   state: ChannelState,

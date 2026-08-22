@@ -52,8 +52,8 @@ somebody who is not there. **Note what did not change: nothing is cleared
 during the grace period**, so a connection that flaps and returns inside
 `DISCONNECT_GRACE_MS` keeps the mute, because nobody has left. The exposure
 traded away is bounded by `microphoneNeeded`, which keeps the device shut until
-somebody else is present. See DECISIONS.md § *Every departure clears the
-self-mute, and the microphone is not the reason why*.
+somebody else is present. See DECISIONS-2026-08-20-to-2026-08-21.md § *Every
+departure clears the self-mute, and the microphone is not the reason why*.
 
 **Where the sources disagree.** *One person's self-mute is now an input to
 everybody's audio session.* Since 2026-08-18 the session configuration is chosen
@@ -394,8 +394,9 @@ the screen, now hears when a person walks in.
 the point rather than a loss: self-muting no longer releases the device, so
 there is no handover to hear. What survives is the crossing that carries the
 meaning — somebody arriving, the last person leaving — which is arguably what
-this section should have claimed from the start. DECISIONS.md § *Muting and
-letting go are two different closes*.
+this section should have claimed from the start.
+DECISIONS-2026-08-20-to-2026-08-21.md § *Muting and letting go are two
+different closes*.
 
 **So do not pin `CALL` on, and do not debounce the transitions that are left.**
 Both read as obvious cleanups. Both delete the cue.

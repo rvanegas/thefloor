@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 import ExpoModulesCore
 
 /**
@@ -77,6 +78,36 @@ public class AudioRouteModule: Module {
      session server to *change* something, where the read is a property
      access, and the JavaScript thread is not the place to wait on that.
      */
+    /**
+     The alert vibration — the one an incoming call uses.
+
+     Build 71 proved the permission above works and, in the same breath, that
+     `UINotificationFeedbackGenerator`'s warning is not the right cue: it
+     arrived, and it was described as very slight, hardly perceptible. That is
+     a fair account of what it is. The notification haptics are designed to be
+     felt by a hand already holding the phone and looking at it, and the case
+     this cue exists for is the opposite one — a phone in a pocket, against a
+     leg, with somebody talking.
+
+     `AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)` is the whole
+     vibration motor rather than a Taptic transient, and it is what iOS itself
+     reaches for when it has to reach somebody who is not looking. Borrowing
+     the strength iOS uses for the same problem is the argument for it.
+
+     Not `CHHapticEngine`, which would give finer control over intensity and is
+     the obvious alternative: it is an engine, started next to a live voice
+     session, and this app has spent six builds on what that neighbourhood does
+     to audio. A system sound starts nothing.
+
+     **It is a system sound, so it is governed by the property above** — which
+     is why this could not have worked before build 71 either, and why the two
+     belong in the same file.
+     */
+    Function("vibrate") { () -> Bool in
+      AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+      return true
+    }
+
     AsyncFunction("setAllowHapticsDuringRecording") { (allow: Bool) -> Bool in
       do {
         try AVAudioSession.sharedInstance()
