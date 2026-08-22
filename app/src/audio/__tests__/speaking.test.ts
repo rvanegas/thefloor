@@ -3,7 +3,7 @@ import {
   SPEAKING_HOLD_MS,
   nextReleaseAt,
   onActiveSpeakers,
-  onParticipantGone,
+  onAudioGone,
   shownAsSpeaking,
 } from '../speaking';
 
@@ -89,12 +89,12 @@ describe('holding the speaking indicator', () => {
   });
 });
 
-describe('somebody leaving the room', () => {
+describe('somebody\u2019s audio going away', () => {
   it('stops showing whoever stepped out mid-word', () => {
     // The bug this exists for: talking at the moment of departure, so no
     // speaker event ever names them again and `active` has no expiry.
     const hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
-    expect(shownAsSpeaking(onParticipantGone(hold, A), T)).toEqual([]);
+    expect(shownAsSpeaking(onAudioGone(hold, A), T)).toEqual([]);
   });
 
   it('never clears them without this, however long you wait', () => {
@@ -110,7 +110,7 @@ describe('somebody leaving the room', () => {
     // A departure is not a breath. Two more seconds of a lit dot would sit
     // beside a card that already reads "Stepped out".
     const hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
-    const gone = onParticipantGone(hold, A);
+    const gone = onAudioGone(hold, A);
     expect(nextReleaseAt(gone, T)).toBeNull();
   });
 
@@ -119,12 +119,12 @@ describe('somebody leaving the room', () => {
     // in `releaseAt` rather than `active`, and both have to be swept.
     let hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
     hold = onActiveSpeakers(hold, [], T);
-    expect(shownAsSpeaking(onParticipantGone(hold, A), T)).toEqual([]);
+    expect(shownAsSpeaking(onAudioGone(hold, A), T)).toEqual([]);
   });
 
   it('leaves everybody else alone', () => {
     let hold = onActiveSpeakers(NOBODY_SPEAKING, [A, B], T);
-    hold = onParticipantGone(hold, A);
+    hold = onAudioGone(hold, A);
     expect(shownAsSpeaking(hold, T)).toEqual([B]);
     // And B's own hold still runs from when B stops, untouched by the
     // departure.
@@ -137,7 +137,28 @@ describe('somebody leaving the room', () => {
     // Most departures are of somebody silent. The caller compares by
     // identity to decide whether to publish, so this must not be a copy.
     const hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
-    expect(onParticipantGone(hold, B)).toBe(hold);
+    expect(onAudioGone(hold, B)).toBe(hold);
+  });
+
+  it('stops showing us when our own microphone closes', () => {
+    // The same fault from the local end, and the one that reaches somebody
+    // sitting alone: the last other person steps out while we are talking,
+    // the microphone is released because nobody is left to hear it, and no
+    // speaker event ever mentions us again. `LocalTrackUnpublished` is the
+    // only thing that reports it.
+    let hold = onActiveSpeakers(NOBODY_SPEAKING, [A, B], T);
+    hold = onAudioGone(hold, B); // B stepped out.
+    hold = onAudioGone(hold, A); // ...so A's microphone was released.
+    expect(shownAsSpeaking(hold, T)).toEqual([]);
+  });
+
+  it('stops showing somebody who muted mid-word', () => {
+    // A self-mute keeps the device, so nothing else says they went quiet —
+    // and the server stops observing a muted track, so no speaker event
+    // does either.
+    let hold = onActiveSpeakers(NOBODY_SPEAKING, [A, B], T);
+    hold = onAudioGone(hold, A);
+    expect(shownAsSpeaking(hold, T)).toEqual([B]);
   });
 
   it('does not resurrect them when the next event arrives', () => {
@@ -145,7 +166,7 @@ describe('somebody leaving the room', () => {
     // the departed id were still in there, somebody else speaking would put
     // the gone participant into a fresh hold and light them up again.
     let hold = onActiveSpeakers(NOBODY_SPEAKING, [A], T);
-    hold = onParticipantGone(hold, A);
+    hold = onAudioGone(hold, A);
     hold = onActiveSpeakers(hold, [B], T + 5_000);
     expect(shownAsSpeaking(hold, T + 5_000)).toEqual([B]);
   });

@@ -21,7 +21,7 @@ import {
   NOBODY_SPEAKING,
   nextReleaseAt,
   onActiveSpeakers,
-  onParticipantGone,
+  onAudioGone,
   shownAsSpeaking,
   type SpeakingHold,
 } from './speaking';
@@ -534,25 +534,41 @@ export function useSessionAudio(
     };
 
     /**
-     * Somebody left the room, which is the departure the speaker event does
-     * not report — see `onParticipantGone`. Without this the indicator of
-     * whoever was talking when they stepped out stayed lit until somebody
-     * else spoke, and in a two-person channel that is nobody.
+     * Somebody's audio stopped existing, which is what the speaker event does
+     * not report — see `onAudioGone`. It is computed from tracks the server is
+     * observing, so a track that goes away leaves whoever was in the set stuck
+     * there, and `active` has no expiry.
+     *
+     * Three ways in, and they are not interchangeable: leaving the room,
+     * unpublishing, and muting. The third is the one that looks skippable —
+     * a self-mute keeps the device — and it is the one that fires when we go
+     * quiet with somebody else still here.
      */
-    const onGone = (participant: Participant) => {
-      const next = onParticipantGone(hold, participant.identity);
+    const onQuiet = (participant: Participant) => {
+      const next = onAudioGone(hold, participant.identity);
       if (next === hold) return;
       hold = next;
       publish(Date.now());
     };
+    /** The same, for the events that hand us a publication first. */
+    const onTrackQuiet = (pub: TrackPublication, participant: Participant) => {
+      if (pub.kind !== Track.Kind.Audio) return;
+      onQuiet(participant);
+    };
 
     room
       .on(RoomEvent.TrackMuted, onMuted)
+      .on(RoomEvent.TrackMuted, onTrackQuiet)
       .on(RoomEvent.TrackUnmuted, onUnmuted)
       .on(RoomEvent.TrackSubscribed, onSubscribed)
       .on(RoomEvent.TrackUnsubscribed, onUnsubscribed)
       .on(RoomEvent.ActiveSpeakersChanged, onSpeakers)
-      .on(RoomEvent.ParticipantDisconnected, onGone)
+      .on(RoomEvent.ParticipantDisconnected, onQuiet)
+      // Releasing the microphone is ours and only ever reported here; the
+      // remote event is for somebody else's track going away. Both mean the
+      // same thing to the indicator.
+      .on(RoomEvent.LocalTrackUnpublished, onTrackQuiet)
+      .on(RoomEvent.TrackUnpublished, onTrackQuiet)
       // Nobody is speaking on a connection that is gone, and the last thing
       // heard would otherwise stay lit for as long as the screen is open. The
       // hold is dropped outright rather than allowed to run out: it is a

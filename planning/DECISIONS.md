@@ -1147,3 +1147,47 @@ false, and unrecoverable, there being nothing left on screen to explain itself.
 The room half now arrives as a prop and disables the buttons; the contact half
 still filters. **A guard that gains a clause can turn a filter into a lie**,
 and the filter is the call site that will not fail loudly.
+
+## The speaking dot needs three ways to go out, not one
+
+2026-08-22. Somebody sat alone in a channel with the microphone shut and their
+own speaking dot lit — filled, plus the floor-coloured card border, on a screen
+that also said "Closed until somebody else is here". It had been that way since
+the other person stepped out.
+
+`ActiveSpeakersChanged` is computed from tracks the server is *observing*, so
+it reports nothing about a track that stops existing. Whoever was in the set
+stays in `hold.active`, and **`active` has no expiry — only `releaseAt` does**,
+because the hold is a smoothing of live speech and there is no such thing as
+speech running out. So the set is only ever narrowed by a later event, and in
+a two-person channel there is nobody left to produce one.
+
+The remote half of this was found and fixed on a departure: `onParticipantGone`
+and `ParticipantDisconnected`, for somebody who leaves mid-word. **What that
+fix got wrong was its own scope** — it named a participant leaving, when the
+thing that matters is a *track* leaving, and there are three ways in:
+
+- leaving the room, which was covered;
+- unpublishing, which is what releasing the microphone does — and releasing is
+  exactly what the last other person stepping out causes, so the transition
+  that produces the empty channel is the same one that strands the dot;
+- muting, which looks skippable because a self-mute keeps the device open, and
+  is the one that fires while somebody else is still here.
+
+`onParticipantGone` is now `onAudioGone` and takes all three, `TrackMuted`,
+`LocalTrackUnpublished` and `TrackUnpublished` joining the departure event. The
+rename is the point rather than tidiness: the old name is what made the second
+and third cases invisible, and the same fix will need making again if it goes
+back to being about people.
+
+**The general shape is worth keeping: a state cleared only by the event that
+sets it is stuck for as long as nothing else happens.** The floor and the
+recording both have this property and both are reconciled against what the room
+is actually carrying rather than trusted; this indicator is not, deliberately —
+it changes several times a second and a tick's reconciliation would be a worse
+account of speech than the events are. So the events have to be complete
+instead, which is why they are enumerated above rather than left to whoever
+next reads the file.
+
+An installed app already showing the stuck dot keeps showing it until it
+reconnects; there is nothing on the wire to correct it with.

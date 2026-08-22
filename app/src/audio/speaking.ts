@@ -74,29 +74,38 @@ export function onActiveSpeakers(
 }
 
 /**
- * Takes somebody's departure from the room.
+ * Takes somebody's audio off the wire — they left the room, or their
+ * microphone track did.
  *
  * Dropped outright rather than given a hold. The hold is a smoothing of live
- * speech — it exists so a breath does not put the dot out — and somebody who
- * has left is not between two words. Holding them would show a person as
+ * speech — it exists so a breath does not put the dot out — and somebody whose
+ * track has gone is not between two words. Holding them would show a person as
  * speaking for two seconds after their card already reads "Stepped out", which
  * is the same contradiction in miniature.
  *
- * This is the one transition `ActiveSpeakersChanged` does not cover, and the
- * reason the indicator could stick indefinitely before it existed. The event
- * fires when the *set* changes, so it says nothing about somebody who leaves
- * mid-word: LiveKit drops them from the room without re-emitting, so they stay
- * in `active` — and `active` has no expiry, only `releaseAt` does. With two
- * people in a channel there was then nobody left to speak and produce the
- * event that would have cleared them, so the dot stayed lit for the rest of
- * the session.
+ * These are the transitions `ActiveSpeakersChanged` does not cover, and the
+ * reason the indicator could stick indefinitely before this existed. The event
+ * fires when the *set* changes, and that set is computed from tracks the
+ * server is observing — so it says nothing about a track that stops existing
+ * mid-word. Whoever was in it stays in `active`, and `active` has no expiry;
+ * only `releaseAt` does.
+ *
+ * Both ends of that produce a dot that stays lit for the rest of the session
+ * in a two-person channel, and both have been seen:
+ *
+ * - **They leave mid-word.** LiveKit drops them from the room without
+ *   re-emitting, and with nobody left to speak there is no later event to
+ *   clear them.
+ * - **Our own microphone closes.** The last other person stepping out releases
+ *   the device, and a released — or merely muted — track is one the server has
+ *   stopped observing, so nothing ever says we went quiet. That left the dot
+ *   lit on your own card while you sat alone in a channel with the microphone
+ *   shut, which is the state that says most plainly that it is a fault.
  */
-export function onParticipantGone(
-  hold: SpeakingHold,
-  id: string
-): SpeakingHold {
+export function onAudioGone(hold: SpeakingHold, id: string): SpeakingHold {
   // Returned untouched when they were not being shown, so the caller's
-  // identity check sees no change. Most departures are of somebody silent.
+  // identity check sees no change. Most of these are about somebody who was
+  // already silent, and every closing microphone raises one.
   if (!hold.active.includes(id) && hold.releaseAt[id] === undefined) {
     return hold;
   }
