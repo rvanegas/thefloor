@@ -193,20 +193,33 @@ export function ContactsSettingsView({
             <Text style={styles.count}>
               {bio.length} / {MAX_BIO_LENGTH}
             </Text>
+          </Card>
 
-            {/*
-              The preview above shows the bio rendered; this shows the screen it
-              lands on. They are different questions — one is "did the markup
-              come out right", the other is "what does somebody who taps my name
-              actually get", and the second is the one nobody could answer
-              without another account to look from.
+          {/*
+            Its own card rather than inside the one above. Everything in that
+            card edits one field; this leaves the screen, and sitting among the
+            controls that change a value in place it read as another way to
+            edit the bio. A card of its own says it is a separate thing while
+            keeping the screen's one unit of layout — a bare button after the
+            last card was the odd shape here, not the card.
 
-              It saves first, because opening the profile mid-edit would show
-              the version still on the server. It opens even when the save
-              fails: a button that silently does nothing is worse than a screen
-              with the error already under the field.
-            */}
-            {onOpenProfile ? (
+            No section label, unlike every other card on this screen: the
+            heading would say what the button already says. That costs the
+            spacing the labels supply, hence the margin.
+
+            The preview inside shows the bio rendered; this shows the screen it
+            lands on. They are different questions — one is "did the markup come
+            out right", the other is "what does somebody who taps my name
+            actually get", and the second is the one nobody could answer without
+            another account to look from.
+
+            It saves first, because opening the profile mid-edit would show the
+            version still on the server. It opens even when the save fails: a
+            button that silently does nothing is worse than a screen with the
+            error already under the field.
+          */}
+          {onOpenProfile ? (
+            <Card style={styles.profile}>
               <Button
                 label="See your profile"
                 onPress={() => {
@@ -215,8 +228,8 @@ export function ContactsSettingsView({
                     .then(onOpenProfile);
                 }}
               />
-            ) : null}
-          </Card>
+            </Card>
+          ) : null}
         </>
       )}
 
@@ -236,6 +249,9 @@ const styles = StyleSheet.create({
   loading: { marginTop: spacing(4) },
   stack: { gap: spacing(1) },
   preview: { gap: spacing(0.5) },
+  /* The cards take their spacing from the section labels between them, and
+     there is no label after this one to supply it. */
+  profile: { marginTop: spacing(1.5) },
   previewText: { color: colors.text },
   count: { ...type.muted, textAlign: 'right' },
   error: { color: colors.danger, fontSize: 13 },
