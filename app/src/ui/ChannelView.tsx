@@ -549,6 +549,70 @@ export function ChannelView({
           )}
         </Card>
 
+        <SectionLabel>Shared clipboard</SectionLabel>
+        <Card style={styles.stack}>
+          {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
+
+          {clip ? (
+            <>
+              <Text style={type.heading}>Pasted by {nameOf(clip.authorId)}</Text>
+              {/* One line: never more than fits, and a short paste therefore
+                  shows in full. The bound is the line, not some notion of
+                  withholding — enough to tell which link this is without
+                  turning the card into a place long things are read, a
+                  channel screen being one that gets left face-up on tables.
+                  `numberOfLines` truncates with an ellipsis, so anything
+                  longer says how it begins and stops. */}
+              <Text style={type.body} numberOfLines={1}>
+                {clipPreview}
+              </Text>
+              <Text style={type.muted}>{ago(now - clip.pastedAt)}</Text>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label={
+                    copied === 'done'
+                      ? '✓ copied'
+                      : copied === 'failed'
+                        ? '✗ copy failed'
+                        : 'Copy'
+                  }
+                  variant="primary"
+                  style={styles.flexButton}
+                  onPress={() => void copyClip()}
+                />
+                {clipUrl ? (
+                  <Button
+                    label="Open"
+                    style={styles.flexButton}
+                    onPress={() => void openUrl(clipUrl)}
+                  />
+                ) : null}
+                <Button
+                  label="Clear"
+                  style={styles.flexButton}
+                  disabled={!canClearClip(channel, me)}
+                  onPress={() => act({ type: 'CLEAR_CLIP' })}
+                />
+              </View>
+            </>
+          ) : (
+            <Empty>Nothing on the channel clipboard.</Empty>
+          )}
+
+          <Button
+            label={clip ? 'Replace with my clipboard' : 'Paste my clipboard'}
+            disabled={!canPasteClip(channel, me)}
+            onPress={() => void pasteClip()}
+          />
+
+          <Text style={type.muted}>
+            {canPasteClip(channel, me)
+              ? 'One clipboard for the channel — pasting replaces what is on it, and anyone here can copy it.'
+              : 'Step in to put something on the channel clipboard.'}
+          </Text>
+        </Card>
+
         <SectionLabel>Shared audio</SectionLabel>
         <Card style={styles.stack}>
           {playback.failure ? (
@@ -692,70 +756,6 @@ export function ChannelView({
                 : track
                   ? 'Everyone hears this, and anyone present can change it.'
                   : 'Whatever you play, everyone hears — and it is kept in the recording.'}
-          </Text>
-        </Card>
-
-        <SectionLabel>Shared clipboard</SectionLabel>
-        <Card style={styles.stack}>
-          {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
-
-          {clip ? (
-            <>
-              <Text style={type.heading}>Pasted by {nameOf(clip.authorId)}</Text>
-              {/* One line: never more than fits, and a short paste therefore
-                  shows in full. The bound is the line, not some notion of
-                  withholding — enough to tell which link this is without
-                  turning the card into a place long things are read, a
-                  channel screen being one that gets left face-up on tables.
-                  `numberOfLines` truncates with an ellipsis, so anything
-                  longer says how it begins and stops. */}
-              <Text style={type.body} numberOfLines={1}>
-                {clipPreview}
-              </Text>
-              <Text style={type.muted}>{ago(now - clip.pastedAt)}</Text>
-
-              <View style={styles.buttonRow}>
-                <Button
-                  label={
-                    copied === 'done'
-                      ? '✓ copied'
-                      : copied === 'failed'
-                        ? '✗ copy failed'
-                        : 'Copy'
-                  }
-                  variant="primary"
-                  style={styles.flexButton}
-                  onPress={() => void copyClip()}
-                />
-                {clipUrl ? (
-                  <Button
-                    label="Open"
-                    style={styles.flexButton}
-                    onPress={() => void openUrl(clipUrl)}
-                  />
-                ) : null}
-                <Button
-                  label="Clear"
-                  style={styles.flexButton}
-                  disabled={!canClearClip(channel, me)}
-                  onPress={() => act({ type: 'CLEAR_CLIP' })}
-                />
-              </View>
-            </>
-          ) : (
-            <Empty>Nothing on the channel clipboard.</Empty>
-          )}
-
-          <Button
-            label={clip ? 'Replace with my clipboard' : 'Paste my clipboard'}
-            disabled={!canPasteClip(channel, me)}
-            onPress={() => void pasteClip()}
-          />
-
-          <Text style={type.muted}>
-            {canPasteClip(channel, me)
-              ? 'One clipboard for the channel — pasting replaces what is on it, and anyone here can copy it.'
-              : 'Step in to put something on the channel clipboard.'}
           </Text>
         </Card>
 

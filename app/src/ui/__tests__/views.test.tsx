@@ -1226,8 +1226,11 @@ describe('Channel', () => {
   it('orders the screen by what somebody in a conversation reaches for', () => {
     // Roughly by how often it is wanted, and pinned here because the order is
     // a decision rather than an accident of how the JSX was written. It has
-    // changed once already: the floor used to sit at the top and inviting
-    // directly under the roster, and this test is what noticed.
+    // changed twice already: the floor used to sit at the top, inviting
+    // directly under the roster, and the clipboard between the audio cards —
+    // and this test is what noticed each time. The three audio sections are
+    // contiguous on purpose, which is the constraint most easily broken by
+    // adding a section in the obvious place.
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -1241,8 +1244,8 @@ describe('Channel', () => {
       'Your microphone',
       'Step out',
       'The floor',
-      'Shared audio',
       'Shared clipboard',
+      'Shared audio',
       'Recording',
       'Recordings',
       'Invite',
