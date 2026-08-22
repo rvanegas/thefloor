@@ -64,7 +64,11 @@ The three App Store files — `APPREVIEW.md`, `APPREVIEW2.md` and
 `APPREVIEWSCRIPT.md` — were exactly that, and were deleted on 2026-08-19 when
 1.0.0 was approved and released. Everything in them that recurs went to
 `planning/RELEASING.md` first, and the open policy questions they carried went
-to `planning/BACKLOG.md`.
+to `planning/BACKLOG.md`. **`APPREVIEWSCRIPT.md` is back, for 1.2.0** — a
+walkthrough is per-release, and the 1.0.0 recording shows none of guests, the
+clipboard or notification settings. `planning/review-notes-1.2.0.txt` and
+`planning/whats-new-1.2.0.txt` are the text of that submission, and all three go
+when it is approved.
 
 **`planning/DEMO-ACCOUNT.md`** looked temporary in the same way and is not: the
 two accounts App Review signs in as, why there are two rather than one, and the
@@ -110,7 +114,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 622 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 626 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
