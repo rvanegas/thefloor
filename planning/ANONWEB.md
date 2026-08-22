@@ -193,6 +193,190 @@ channel rather than about the conversation.
 
 ---
 
+## The database model
+
+Almost nothing about a guest outlives the process, and the exceptions are the
+whole design. Three facts do: **the link**, because it is handed to people who
+open it later; **the seat**, because a guest who has been admitted must be able
+to come back without knocking again; and **the name**, because a recording that
+captured them has to be able to say who was in it. Everything else about a
+guest — presence, their track, what the room has been told about silencing them,
+an unanswered knock — is volatile, in exactly the class as `present` and for the
+same reason. See STATES.md.
+
+Two tables, and no row in `accounts` ever.
+
+```sql
+-- A capability to knock at one channel's door. Not a credential: holding it
+-- gets you as far as asking, and a member present has to say yes. See below
+-- for why it is stored in the clear when every other token here is hashed.
+CREATE TABLE IF NOT EXISTS guest_links (
+  token       TEXT PRIMARY KEY,
+  channel_id  TEXT NOT NULL REFERENCES channels(id),
+  created_by  TEXT NOT NULL REFERENCES accounts(id),
+  created_at  INTEGER NOT NULL,
+  -- Set when a member revokes it, when a guest admitted through it is
+  -- ejected, when the channel empties of present members, and when the
+  -- channel is deleted. Null means live. Rows are kept revoked rather than
+  -- deleted so settings can say a link existed and stopped working.
+  revoked_at  INTEGER,
+  revoked_by  TEXT REFERENCES accounts(id)
+);
+CREATE INDEX IF NOT EXISTS guest_links_channel ON guest_links(channel_id);
+
+-- One admitted guest. The row is written on accept, never on knock: an
+-- unanswered knock is a live conversation between a page and a screen, and
+-- if the process dies mid-knock the page knocks again, which is what it
+-- would do anyway.
+CREATE TABLE IF NOT EXISTS guest_sessions (
+  -- guest_<...>. The LiveKit identity, the key in the recording's stems, the
+  -- account_id on its usage spans, and the key in participant_names. One id
+  -- in four places and no mapping table anywhere.
+  id           TEXT PRIMARY KEY,
+  channel_id   TEXT NOT NULL REFERENCES channels(id),
+  -- Which link admitted them. Ejecting a guest implicitly revokes the link
+  -- they came through, and this is how that revocation knows which one.
+  link_token   TEXT,
+  -- The reconnection credential, hashed as tokens and otp_codes are. This one
+  -- is a credential: it re-enters a seat without anybody being asked again.
+  secret_hash  TEXT NOT NULL,
+  -- What they typed at the door, or the assigned "Anon <n>".
+  display_name TEXT NOT NULL,
+  admitted_at  INTEGER NOT NULL,
+  admitted_by  TEXT NOT NULL REFERENCES accounts(id),
+  -- Whether a member has granted the microphone: 1 or 0, durable, and it has
+  -- to be. See below.
+  may_speak    INTEGER NOT NULL DEFAULT 0,
+  ejected_at   INTEGER,
+  last_seen_at INTEGER NOT NULL,
+  -- last_seen_at + the session TTL, refreshed while they are here. A page
+  -- left open overnight in an empty channel is not a standing seat.
+  expires_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS guest_sessions_channel ON guest_sessions(channel_id);
+```
+
+Both are new tables in `SCHEMA` and nothing goes in `migrate()`. There are no
+guests before there are guests, so there is nothing to backfill and no column
+whose null means something historical — which is the first time that has been
+true of anything added to this database.
+
+### Two tokens, stored differently, and the difference is the point
+
+The link is **not** a credential and is stored in the clear. What it buys is
+the right to ask; a member present has to accept, and what they accept is a
+name typed by a stranger. A copy of this database therefore buys the ability
+to knock, which is a nuisance rather than an entry.
+
+What it buys us is that a link can be **shared again**. Hash it and the app can
+show it once, at minting, and never again — after which "send it to Dana too"
+means minting a second link, and every extra link is another thing somebody has
+to remember to revoke. The escape hatch is one column: if this is ever judged
+wrong, `token` becomes `token_hash`, minting returns the only plaintext copy
+that will exist, and settings lists links rather than showing them.
+
+The session secret is the opposite and is hashed. It skips the knock — that is
+its entire purpose, so that revoking a link does not strand somebody who was
+already let in — so it is a seat, and a seat is stored the way `tokens` are.
+
+### `may_speak` is durable, and this is not a nicety
+
+The guest's LiveKit token is minted `canPublish: false` and the grant is a live
+`updateParticipant`. **LiveKit is a separate process on this box**, so a restart
+of the Node server does not close the room or take the grant back: a guest who
+was granted speech is still publishing while this process boots. If the
+permission were volatile, the restored state would say "not speaking" about
+somebody the room is currently carrying — which is the disagreement
+`reconcileSilence` exists to catch, arriving by a second route. Read it back at
+`restore()` and the two agree.
+
+### The guests map is a projection, not a second copy
+
+`ChannelState.guests` is **not** in `durableOf`. The tables are the authority
+for who was admitted, what they are called and whether they may speak;
+`restore()` rebuilds the map from `guest_sessions` for each revived channel. The
+alternative writes `may_speak` in two places that are updated by different code
+paths at different rates — `persistChannel` compares and writes the whole blob
+on every commit, a grant is one row and one call — and two durable copies of one
+permission is how a guest comes back muted on one side and audible on the other.
+
+### "Valid until the channel is emptied" is an event, not a query
+
+Presence does not survive a restart. Evaluating *emptied of present members* as
+a query, at boot, would find every channel empty and revoke every outstanding
+link at every deploy — a deploy costs presence, not channels, and this rule
+must not be the place that stops being true.
+
+So the emptying is a **transition** the registry observes: the last present
+member steps out, and that commit stamps `revoked_at` on the channel's live
+links and `expires_at = now` on its sessions. A restart empties nothing that
+anybody chose to empty and revokes nothing. The guests are disconnected by it
+all the same, and their sessions are what let their pages come back — which is
+the case the reconnection token was asked for, met by a cause nobody listed.
+
+### Rows die with the channel and nothing else deletes them
+
+An expired or ejected session is **unusable, not absent**. Nothing deletes a
+`guest_sessions` row except the channel sweep, which is what removes an ordering
+hazard: a guest can leave, and their session expire, while the run that captured
+them is still capturing, and `fileRun` needs their name at the end of it. Rows
+are tiny and a channel's guests are few; keeping them until the channel goes is
+cheaper than a rule about which sweep may run first.
+
+Two consequences to build deliberately:
+
+- **`sweepDeleted` has to clear both tables for a due channel before the
+  `DELETE FROM channels`.** That statement is guarded by `NOT EXISTS (SELECT 1
+  FROM recordings …)` and by nothing else, so a foreign key from a guest row
+  does not skip the channel — it throws, in a sweep, on a timer, an hour after
+  anybody did anything.
+- **`markDeleted` revokes immediately.** A deleted channel's link stops working
+  when it is marked, not a week later when its row goes.
+
+The cost is that a name somebody typed at a door persists for as long as the
+channel does. It is in the recording's frozen names regardless, so this adds
+nothing that was not already kept — but CREDENTIALS.md and the privacy
+page describe what this database holds about people, and a guest is a person.
+
+### What a recording keeps of a guest
+
+`fileRun` already writes `stems` keyed by identity and `participant_names`
+frozen at filing time, and a guest needs both. The frozen column is what makes
+this work at all: names are resolved live only on legacy rows, and a guest id
+resolves to nothing by construction and would be **silently dropped** — which
+is the exact failure `participant_names` was added to prevent, in its purest
+form.
+
+- **`displayName()` needs a guest branch**, reading `guest_sessions` by id. The
+  live channel is not enough: a guest who left mid-run is gone from
+  `ChannelState.guests` and is still in the recording.
+- **Guests go into `recordings.participants` too**, after the members, so the
+  card names everyone who was in the room. This grants nothing — reach is
+  `recordingsFor`, which reads `channels.participants` through `json_each` and
+  has never read the recording's own list — and `toRecordingView` prefers the
+  frozen name, so a guest resolves without an account lookup.
+  **That safety is a property of one query and should have a test that says
+  so**: a guest id in `recordings.participants`, and `recordingsFor(guestId)`
+  returning nothing.
+
+### "Anon 3" needs the rows as much as the recording does
+
+The assigned name is per channel and has to not collide with one already in the
+room or one that just left mid-conversation. The number comes from the channel's
+`guest_sessions` rows rather than from a live count, which is the second reason
+they outlive a disconnect: a guest who leaves and a guest who is ejected both
+stop being present, and neither should hand their number to the next arrival.
+
+### Where guest usage lands
+
+`usage_spans.account_id` takes a guest id as it stands — that table has no
+foreign key to `accounts`, deliberately, and a guest's microphone minute costs
+this box exactly what anybody else's does. `bin/usage` will print `guest_…`
+where it prints account ids, unresolvable, which is correct and worth expecting
+rather than discovering.
+
+---
+
 ## Deliberately not built
 
 - **No guest accounts.** A guest that becomes a row in `accounts` acquires
@@ -209,8 +393,9 @@ channel rather than about the conversation.
 
 1. **Core**: `guests` in `ChannelState`, knock actions, `microphoneNeeded`,
    and the tests for each. Nothing else can be right if this is wrong.
-2. **Server**: links, knocks, guest tokens, `updateParticipant`, the silencing
-   matrix, `GuestView`. Testable end to end without a browser.
+2. **Server**: the two tables, links, knocks, guest tokens,
+   `updateParticipant`, the silencing matrix, `GuestView`. Testable end to end
+   without a browser.
 3. **The page**: join, listen, request, speak.
 4. **The app**: mint, admit, grant, eject.
 
