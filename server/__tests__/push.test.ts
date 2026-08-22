@@ -208,8 +208,8 @@ describe('an invite', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Alice',
-        kind: 'started',
-        body: 'Started a channel with you.',
+        kind: 'invited',
+        body: 'Invited you to a channel.',
         channelId,
         collapseKey: `${channelId}:you`,
         threadId: ASKING_THREAD,
@@ -237,8 +237,8 @@ describe('an invite', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([
       {
         title: 'Alice',
-        kind: 'started',
-        body: 'Started a channel with you.',
+        kind: 'invited',
+        body: 'Invited you to a channel.',
         channelId: standing.channelId,
         collapseKey: `${standing.channelId}:you`,
         threadId: ASKING_THREAD,
@@ -317,8 +317,8 @@ describe('an invite', () => {
       expect(pusher.messagesFor(phone)).toEqual([
         {
           title: 'Alice',
-          kind: 'started',
-          body: 'Started a channel with you.',
+          kind: 'invited',
+          body: 'Invited you to a channel.',
           channelId,
           collapseKey: `${channelId}:you`,
           threadId: ASKING_THREAD,
@@ -1176,14 +1176,12 @@ describe('how loudly a channel may interrupt', () => {
  */
 describe('how long a notification stays worth delivering', () => {
   it('keeps an invitation alive long after an arrival would have lapsed', () => {
-    const started = notifications.started('Alice', 'chan_1');
     const invited = notifications.invited('Alice', 'Standup', 'chan_1');
     const arrived = notifications.arrived('Standup', 'Alice', 'chan_1');
 
-    expect(started.lifetimeMs).toBe(PARTICIPATION_LIFETIME_MS);
     expect(invited.lifetimeMs).toBe(PARTICIPATION_LIFETIME_MS);
     expect(arrived.lifetimeMs).toBe(PRESENCE_LIFETIME_MS);
-    expect(arrived.lifetimeMs).toBeLessThan(started.lifetimeMs);
+    expect(arrived.lifetimeMs).toBeLessThan(invited.lifetimeMs);
   });
 
   /**
@@ -1215,18 +1213,14 @@ describe('how long a notification stays worth delivering', () => {
    * else.
    */
   it('keeps membership news out of the reach of the room', () => {
-    const started = notifications.started('Alice', 'chan_1');
     const invited = notifications.invited('Alice', 'Standup', 'chan_1');
     const arrived = notifications.arrived('Standup', 'Alice', 'chan_1');
 
-    // The two that stay true share a key, which is safe: being invited to a
-    // channel you were just started into does not happen.
-    expect(started.collapseKey).toBe(invited.collapseKey);
-    // And the one that does not stay true cannot touch them.
-    expect(arrived.collapseKey).not.toBe(started.collapseKey);
-    // The pair that shares a key is the pair that shares a lifetime.
-    expect(started.lifetimeMs).toBe(invited.lifetimeMs);
-    expect(arrived.lifetimeMs).not.toBe(started.lifetimeMs);
+    // The one that stays true and the one that does not, about one channel,
+    // and nothing the room says may overwrite the membership.
+    expect(invited.collapseKey).not.toBe(arrived.collapseKey);
+    // The keys follow the lifetimes, which is the whole of the rule.
+    expect(invited.lifetimeMs).not.toBe(arrived.lifetimeMs);
   });
 
   /**
@@ -1237,15 +1231,13 @@ describe('how long a notification stays worth delivering', () => {
    * answers "is anybody asking for me" in one place rather than once per
    * channel.
    */
-  it('gathers the three that ask for you into one stack', () => {
-    const started = notifications.started('Alice', 'chan_1');
+  it('gathers the ones that ask for you into one stack', () => {
     const invited = notifications.invited('Alice', 'Standup', 'chan_2');
     const pinged = notifications.pinged('Standup', 'Alice', 'come back', 'chan_3');
     const arrived = notifications.arrived('Standup', 'Alice', 'chan_4');
 
-    // Across three different channels, deliberately: the pile is about being
-    // asked for, and which room it was is what tapping is for.
-    expect(started.threadId).toBe(ASKING_THREAD);
+    // Across different channels, deliberately: the pile is about being asked
+    // for, and which room it was is what tapping is for.
     expect(invited.threadId).toBe(ASKING_THREAD);
     expect(pinged.threadId).toBe(ASKING_THREAD);
     expect(arrived.threadId).toBe('chan_4');
@@ -1264,8 +1256,7 @@ describe('how long a notification stays worth delivering', () => {
     expect(pinged.threadId).toBe(ASKING_THREAD);
   });
 
-  it('says which of the four it is, so a level can be applied to it', () => {
-    expect(notifications.started('Alice', 'chan_1').kind).toBe('started');
+  it('says which of the three it is, so a level can be applied to it', () => {
     expect(notifications.invited('Alice', null, 'chan_1').kind).toBe('invited');
     expect(notifications.arrived('Standup', 'Alice', 'chan_1').kind).toBe(
       'arrived'
@@ -1276,7 +1267,6 @@ describe('how long a notification stays worth delivering', () => {
   });
 
   it('delivers only a ping to somebody who is already in the app', () => {
-    expect(notifications.started('Alice', 'chan_1').reachesInApp).toBe(false);
     expect(notifications.invited('Alice', null, 'chan_1').reachesInApp).toBe(
       false
     );
@@ -1291,7 +1281,6 @@ describe('how long a notification stays worth delivering', () => {
 
   it('never asks APNs to store nothing', () => {
     for (const message of [
-      notifications.started('Alice', 'chan_1'),
       notifications.invited('Alice', null, 'chan_1'),
       notifications.arrived('Standup', 'Alice', 'chan_1'),
     ]) {

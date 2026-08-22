@@ -6,7 +6,7 @@ import {
   type NotificationKind,
 } from '../notifications';
 
-const automatic: NotificationKind[] = ['started', 'invited', 'arrived'];
+const automatic: NotificationKind[] = ['invited', 'arrived'];
 
 describe('how loudly a channel may interrupt', () => {
   it('leaves the default arrangement alone', () => {

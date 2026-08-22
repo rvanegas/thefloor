@@ -1317,6 +1317,7 @@ covers it, so it is certain rather than probable. And the exclusion is narrow
 on purpose: an erased row keeps its `last_build` for `bin/db` to read, and the
 demo accounts are still counted by everything else that counts accounts. This
 is a change to one census, not to what a deleted account is.
+
 ## A ping is delivered to a phone whose app is open — 2026-08-22
 
 The first real test of the feature failed in the one way nobody had tried.
@@ -1720,3 +1721,44 @@ tell an announcement from a summons without being told. Nothing in the server
 suite would notice that field going missing, and the symptom on a phone is an
 old announcement that never goes away, so there is a test on the payload
 specifically.
+
+## Four notifications became three — 2026-08-22
+
+`started` — somebody opened a channel with you — is gone, folded into
+`invited`. By the end of the day it differed from `invited` in nothing a rule
+could see: the same collapse key, the same thread, the same month-long
+lifetime, the same alert at every level, swept by neither, and never
+distinguished from it at any site that reads `kind`. What remained was one
+sentence.
+
+**Two kinds that no rule separates are one kind with two bodies**, and
+`invited` had the two bodies already: it says *Invited you to Standup* when the
+channel has a name and *Invited you to a channel* when it does not. A channel is
+never named at creation, so the nameless form is precisely what a new channel
+is. Nothing had to be written to absorb the case; the sentence was there.
+
+The name was worth having while it lasted. `notifications` exists so that a
+question about one of these can be asked about a word rather than a fragment of
+prose, and the day the four were named was the day the two seams became
+visible. This is the same exercise carried one step further: a name that turns
+out to mark no distinction is a name that will eventually be given one by
+somebody who assumes it already means something.
+
+### The second call site is why this needed reading twice
+
+`started` had two, and only one of them was creation. The other is
+`announceStarted`, which fires the first time anybody is present in a channel
+nobody has ever been in — the standing channel a pair get on becoming contacts,
+entered from a Home card. It reads like presence and is deliberately not:
+`commit` says so at the branch, because `arrived` would give it five minutes and
+let the room's own traffic overwrite an invitation about a conversation the
+other person has never had.
+
+So the fold covers it, and covers it better than a glance suggests. That site
+wanted membership semantics all along and was borrowing `started`'s wording to
+get them; it now sends the notification whose semantics those actually are —
+and can pass the channel's name, which `started` had no parameter for.
+
+The wording is no less true there than what it replaced. `Started a channel
+with you` was already an approximation: the channel had existed, silently,
+since the pair became contacts. What is new is being asked into it.

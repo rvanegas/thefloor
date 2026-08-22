@@ -38,11 +38,10 @@ export const PARTICIPATION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * The stack that somebody asking for you lands in.
  *
- * Shared by `started`, `invited` and `pinged` across every channel, which is
- * the seam this app turned out to want and is not the one the rest of this
- * file is organised around: those three are the ones where **a person did
- * something aimed at you** — opened a channel with you, added you to one,
- * called you into one. `arrived` is the only one that is merely the room
+ * Shared by `invited` and `pinged` across every channel, which is the seam this
+ * app turned out to want and is not the one the rest of this file is organised
+ * around: those are the ones where **a person did something aimed at you** —
+ * added you to a channel, or called you into one. `arrived` is the only one that is merely the room
  * reporting its own state, and it keeps a stack per channel.
  *
  * So a phone shows at most two kinds of pile: somebody wants you, and this
@@ -100,9 +99,10 @@ export interface PushMessage {
    * one rung down: a notification that stays true discarded by one that does
    * not.
    *
-   * `started` and `invited` share the second key safely, since being invited to
-   * a channel you were just started into is not a thing that happens — one
-   * makes you a participant and the other refuses everybody who already is.
+   * Only `invited` uses the second key now. It shared it with `started` until
+   * the two were folded together — a pair safe to collapse into each other for
+   * the same reason they were safe to merge outright: being invited to a
+   * channel you were just added to does not happen.
    *
    * **Null for a ping, and that is the whole of the rule.** Each one carries
    * words somebody chose, so no two are versions of each other and there is
@@ -128,7 +128,7 @@ export interface PushMessage {
    * expandable pile and keeps every one of them. Nothing is ever lost here,
    * which is why this one can be shared freely where `collapseKey` cannot.
    *
-   * `ASKING_THREAD` for the three where somebody did something aimed at you,
+   * `ASKING_THREAD` for the ones where somebody did something aimed at you,
    * whatever channel they did it in. The channel's own id for `arrived`, which
    * is the room talking about itself and belongs with the rest of that room.
    *
@@ -198,15 +198,13 @@ export interface PushMessage {
  * happened to compose the same sentence.
  *
  * The names are words the code already used rather than new coinages.
- * `started` and `invited` are the first word of the body each one sends, so
- * the name and the sentence on the lock screen cannot drift apart; `arrived`
- * is what `announceActive` already calls the person walking in.
+ * `invited` is the first word of the body it sends, so the name and the
+ * sentence on the lock screen cannot drift apart; `arrived` is what
+ * `announceActive` already calls the person walking in.
  *
- * - `started` — somebody opened a channel with you. It did not exist a moment
- *   ago, and you are being asked into it.
- * - `invited` — somebody asked you into a channel already under way. Since an
- *   unnamed channel widens in place rather than moving the conversation, this
- *   is now the only way anybody joins one in progress.
+ * - `invited` — somebody added you to a channel: one already under way, or one
+ *   that did not exist until they made it with you. Those were two
+ *   notifications until 2026-08-22 and are one now; see the constructor.
  * - `arrived` — somebody stepped into a channel you already belong to. Nobody
  *   is asking for you; the room simply has someone in it.
  * - `pinged` — somebody in a channel asked for you by name, in their own words.
@@ -215,13 +213,13 @@ export interface PushMessage {
  * **Two seams, and they do not fall in the same place**, which is why the names
  * earn their keep rather than merely tidying.
  *
- * By *what stays true*: `started` and `invited` change who belongs to a channel
- * and go on being true while a phone is off, so they get a month. `arrived` and
- * `pinged` both say come now, which stops being worth saying almost at once, so
- * they get five minutes.
+ * By *what stays true*: `invited` changes who belongs to a channel and goes on
+ * being true while a phone is off, so it gets a month. `arrived` and `pinged`
+ * both say come now, which stops being worth saying almost at once, so they
+ * get five minutes.
  *
  * By *who decided to send it*: `pinged` is the only one a person composed. The
- * other three are the channel reporting on itself, which is what lets them
+ * others are the channel reporting on itself, which is what lets them
  * overwrite one another on the lock screen — one line about a room that filled
  * and emptied all evening is a mercy. That is not safe for something somebody
  * typed and aimed, so `pinged` collapses into nothing and nothing collapses
@@ -229,7 +227,7 @@ export interface PushMessage {
  *
  * That second seam decides two things rather than one, which is what makes it
  * worth having found. What may overwrite a notification and who a notification
- * may reach turn out to be the same question asked twice: the three automatic
+ * may reach turn out to be the same question asked twice: the automatic
  * ones are safe to overwrite *because* they are the channel repeating itself,
  * and for that same reason they are withheld from anybody whose socket has
  * already drawn what they describe, and — at the default level — for that same
@@ -262,30 +260,25 @@ export interface PushMessage {
  * told remains the registry's, exactly as before.
  */
 export const notifications = {
-  /** A channel has just been started, and you are one of the invitees. */
-  started(initiator: string, channelId: string): PushMessage {
-    // Titled with whoever asked rather than with the channel: a channel is
-    // never named at creation, so every perspective-dependent fallback would
-    // reduce to the roster anyway, and the one thing the recipient wants to
-    // know is who is asking.
-    return {
-      kind: 'started',
-      title: initiator,
-      body: 'Started a channel with you.',
-      channelId,
-      // Membership, which nothing about the room may overwrite. See the field.
-      collapseKey: `${channelId}:you`,
-      threadId: ASKING_THREAD,
-      lifetimeMs: PARTICIPATION_LIFETIME_MS,
-      reachesInApp: false,
-    };
-  },
-
   /**
-   * You have been asked into a channel that already exists.
+   * You have been added to a channel, whether or not it existed a moment ago.
    *
    * `channelName` is null when the channel has none, which is the ordinary
    * case: a channel is named only if somebody has bothered to.
+   *
+   * **This covers creation too, since 2026-08-22.** There was a fourth
+   * notification, `started`, for the channel that did not exist until somebody
+   * made it with you — and by the end of the day it differed from this one in
+   * nothing a rule could see. Same collapse key, same thread, same month-long
+   * lifetime, the same alert at every level, swept by neither. What remained
+   * was one sentence, and a channel is never named at creation, so the
+   * sentence it would have used is the one this already sends when there is no
+   * name: *Invited you to a channel.* Two kinds that no rule separates are one
+   * kind with two bodies, and this had the two bodies already.
+   *
+   * Titled with the person rather than the channel, which is the other half of
+   * why it can absorb the case: at creation there is no name to use, and the
+   * one thing the recipient wants to know is who is asking.
    */
   invited(
     inviter: string,
@@ -299,7 +292,7 @@ export const notifications = {
         ? `Invited you to ${channelName}.`
         : 'Invited you to a channel.',
       channelId,
-      // The same key `started` uses, and for the same reason.
+      // Membership, which nothing about the room may overwrite. See the field.
       collapseKey: `${channelId}:you`,
       threadId: ASKING_THREAD,
       lifetimeMs: PARTICIPATION_LIFETIME_MS,
@@ -358,8 +351,8 @@ export const notifications = {
    * on notifications nobody received: the run of refusals that followed one
    * undelivered ping was the feature working exactly as written.
    *
-   * Titled with the channel and not the sender, unlike `started` and `invited`.
-   * Those announce a channel you may not know exists, so the name is the useful
+   * Titled with the channel and not the sender, unlike `invited`. That one
+   * announces a channel you may not know exists, so the person is the useful
    * half; this arrives about a channel you are already a member of, and what
    * you want to know first is where you are being called to. The sender leads
    * the body instead.
@@ -540,7 +533,7 @@ export class ApnsPusher implements Pusher {
         // above it — `time-sensitive` and `critical` — pierce a Focus mode and
         // the ring switch, need entitlements, and are not this app's to claim.
         ...(alert === 'passive' ? { 'interruption-level': 'passive' } : {}),
-        // Grouping, not replacing, and chosen per kind: the three that mean
+        // Grouping, not replacing, and chosen per kind: the ones that mean
         // somebody is asking for you share one stack across every channel,
         // and an arrival stacks with its own room. See `threadId`.
         'thread-id': message.threadId,

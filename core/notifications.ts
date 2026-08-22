@@ -9,8 +9,17 @@
  * complains that a setting lied to them.
  */
 
-/** The four notifications this system sends, named as `push.ts` names them. */
-export type NotificationKind = 'started' | 'invited' | 'arrived' | 'pinged';
+/**
+ * The three notifications this system sends, named as `push.ts` names them.
+ *
+ * There were four until 2026-08-22. `started` — somebody opened a channel with
+ * you — was folded into `invited`, having ended the day differing from it in
+ * nothing a rule could see: same collapse key, same thread, same lifetime,
+ * same alert at every level, swept by neither. What was left was one sentence,
+ * and `invited`'s sentence covers both cases, since a channel is never named
+ * at creation and "Invited you to a channel" is what a new one is.
+ */
+export type NotificationKind = 'invited' | 'arrived' | 'pinged';
 
 /**
  * How much of a channel's activity is worth being interrupted for.
@@ -39,9 +48,9 @@ export type NotificationAlert = 'passive' | 'silent' | 'audible';
 /**
  * What somebody gets who has never touched the setting.
  *
- * `medium` is the arrangement the four notifications were built with: the
- * three a channel sends about itself arrive silently, and the one a person
- * composed makes a sound.
+ * `medium` is the arrangement these notifications were built with: the ones a
+ * channel sends about itself arrive silently, and the one a person composed
+ * makes a sound.
  */
 export const DEFAULT_NOTIFICATION_LEVEL: NotificationLevel = 'medium';
 
@@ -57,11 +66,11 @@ export const NOTIFICATION_LEVELS: readonly NotificationLevel[] = [
  * The table is small enough to read and is deliberately written out rather
  * than computed, because the interesting part is not the arithmetic:
  *
- * | | started | invited | arrived | pinged |
- * | --- | --- | --- | --- | --- |
- * | `low` | passive | passive | passive | **passive** |
- * | `medium` | silent | silent | silent | **audible** |
- * | `high` | **audible** | **audible** | **audible** | audible |
+ * | | invited | arrived | pinged |
+ * | --- | --- | --- | --- |
+ * | `low` | passive | passive | **passive** |
+ * | `medium` | silent | silent | **audible** |
+ * | `high` | **audible** | **audible** | audible |
  *
  * **`low` takes the ping down with everything else**, and that is the one
  * entry not dictated by the brief, which said only that a ping goes passive

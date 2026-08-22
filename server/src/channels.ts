@@ -643,7 +643,10 @@ export class ChannelRegistry {
     if (unique.length > 0) {
       this.push.notify(
         unique,
-        notifications.started(this.displayName(initiator), channel.id)
+        // The same notification an invitation into an existing channel sends,
+        // and a channel is never named at creation — so the nameless form goes
+        // out, which is exactly what a new channel is.
+        notifications.invited(this.displayName(initiator), null, channel.id)
       );
     }
     return { ok: true, channel };
@@ -1790,6 +1793,18 @@ export class ChannelRegistry {
    * present to somebody present. Fired from `commit`, so it cannot disagree
    * with what the clients were told.
    *
+   * **It sends the invitation, not the arrival**, and that is the whole reason
+   * this exists as a branch of its own: a standing channel nobody has ever been
+   * in is one the other person has never had a conversation in, so the first
+   * entry is an invitation to one. `arrived` would give it five minutes and let
+   * the room's own traffic overwrite it. See the call site in `commit`.
+   *
+   * It said `Started a channel with you` until 2026-08-22, when that
+   * notification was folded into `invited` for want of any rule that told the
+   * two apart. The wording moved with it and is no less true: the channel had
+   * existed, silently, since the pair became contacts — what is new is being
+   * asked into it.
+   *
    * Suppressed within `ANNOUNCE_INTERVAL_MS` of the last announcement, because
    * presence follows a websocket: one person on a bad connection produces a
    * run of empty-to-occupied transitions that are a network artefact rather
@@ -1803,7 +1818,11 @@ export class ChannelRegistry {
     if (absent.length === 0) return;
     this.push.notify(
       absent,
-      notifications.started(this.displayName(opener), channel.id)
+      notifications.invited(
+        this.displayName(opener),
+        isNamed(channel) ? channel.name : null,
+        channel.id
+      )
     );
     // Deliberately *not* stamping `lastAnnouncedAt`. That map exists to absorb
     // a flapping connection's run of empty-to-occupied transitions, and this

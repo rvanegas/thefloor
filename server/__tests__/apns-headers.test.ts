@@ -192,7 +192,6 @@ describe('what a notification is allowed to interrupt', () => {
   it('never claims an interruption level above the default', async () => {
     for (const alert of ['silent', 'audible'] as const) {
       for (const message of [
-        notifications.started('Alice', 'chan_1'),
         notifications.invited('Alice', null, 'chan_1'),
         notifications.arrived('Standup', 'Alice', 'chan_1'),
         notifications.pinged('Standup', 'Alice', null, 'chan_1'),
