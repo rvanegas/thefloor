@@ -46,7 +46,7 @@ export function LeaderboardView({ onBack }: { onBack: () => void }) {
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Invitations</Text>
-        <Button label="Done" variant="ghost" onPress={onBack} />
+        <Button label="Back" variant="ghost" onPress={onBack} />
       </View>
 
       {!loaded ? (
