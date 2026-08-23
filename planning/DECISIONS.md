@@ -75,6 +75,31 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-23 — `4fb597c` → `6dd3735`
+
+The headphone advice and the watch party's mute-all. **Three deploys went out
+that day** before this one — the watch party itself, the follower page's
+full-screen control, and this; a fourth followed within the hour.
+
+The mute is the wire-visible half and it is additive: `watch.mutedAll` and
+`SET_WATCH_MUTE`. A build below 82 neither reads nor sends it, so such a phone
+in a muted room **keeps its microphone open and is inaudible anyway** — the
+server withholds the subscriptions regardless, which is why both ends enforce
+it and neither alone would do. planning/STATES.md § *Party-Muted* has the rest,
+including that this is neither a self-mute nor a claim.
+
+Verified against production afterwards: `/healthz` on `6dd3735`,
+`deployed.json` stamped clean, the service active, 25 live channels revived,
+`mutedAll` in the synced `core/watch.ts`, `/watch/:id` serving the headphone
+advice. The `requested room does not exist` burst at startup is **not** new —
+one at each restart, `restore()` closing rooms that went with the old process.
+
+**This one was superseded the same hour**, which is the thing worth knowing
+about it: the mute it shipped holds regardless of the transport, and the deploy
+after it made the mute follow play and pause. No installed build ever had the
+first behaviour — mute-all landed after `build/81` was tagged — so nothing in
+anybody's hands was ever governed by it.
+
 ### 2026-08-23 — `5645ada` → `4fb597c`
 
 Three commits: the follower page's full-screen control, and the two from the

@@ -118,7 +118,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 636 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 637 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -353,23 +353,24 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-23, `4fb597c` → `6dd3735`: the headphone advice and
-the watch party's mute-all. **Three deploys went out that day** and the two
-before this one are in the history — the watch party itself, then the follower
-page's full-screen control.
+Most recently on 2026-08-23, `6dd3735` → `d76908e`: the watch party's mute now
+follows the transport, holding while the video plays and lifting on a pause.
+**Four deploys went out that day** and the three before it are in the history.
 
-The mute is the wire-visible half and it is additive: `watch.mutedAll` and
-`SET_WATCH_MUTE`. A build below 82 neither reads nor sends it, so such a phone
-in a muted room **keeps its microphone open and is inaudible anyway** — the
-server withholds the subscriptions regardless, which is why both ends enforce
-it and neither alone would do. planning/STATES.md § *Party-Muted* has the rest,
-including that this is neither a self-mute nor a claim.
+**It was deployed before the client that needs it, and that ordering was the
+point.** `core/` is imported by both ends, so the two have to agree on what
+*muted* means: a build 82 client against the previous server would open its
+microphone on a pause and say "you can talk" while the server went on
+withholding every subscription. People talk, nobody hears, and the screen
+insists otherwise. That is RELEASING.md's step 1, met rather than read. Nothing
+installed could disagree either way — mute-all landed after `build/81` was
+tagged, so build 82 is the first build with any mute at all.
 
-Verified against production afterwards: `/healthz` on `6dd3735`,
+Verified against production afterwards: `/healthz` on `d76908e`,
 `deployed.json` stamped clean, the service active, 25 live channels revived,
-`mutedAll` in the synced `core/watch.ts`, `/watch/:id` serving the headphone
-advice. The `requested room does not exist` burst at startup is **not** new —
-one at each restart, `restore()` closing rooms that went with the old process.
+`partyWithholds` in the synced `core/watch.ts` and `core/micNeeded.ts`. The
+`requested room does not exist` burst at startup is **not** new — one at each
+restart, `restore()` closing rooms that went with the old process.
 
 **Half the watch party ships like a website and half like an app**, which is
 what will catch somebody out: the follower page is server-served, so a deploy
