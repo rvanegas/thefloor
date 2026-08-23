@@ -1,7 +1,7 @@
 The information requested, in order.
 
 1. SCREEN RECORDING
-Attached. Physical iPhone, current iOS, build 79 — the build submitted here.
+Attached. Physical iPhone, current iOS, build 80 — the build submitted here.
 Cold launch, sign-in, the microphone prompt, creating and using a channel, the
 floor, the channel clipboard, a guest joining from a browser link, recording,
 playback, rename, export, delete, notification settings, the donation link, the
@@ -25,9 +25,10 @@ A voice app for talking with people you already know. A call demands to be
 answered now; a group chat never finishes a thought. A channel is a place rather
 than a call — up to six people, keeping its name and recordings between
 conversations, still there after everyone closes the app. Anyone present may
-claim "the floor", and while they hold it every other microphone is withheld: a
-way to be heard without being interrupted. Recording captures each person
-separately. For small groups who already know each other. Not a social network.
+claim "the floor", and while they hold it every other microphone is withheld
+for a minute: a way to be heard without being interrupted. Recording captures
+each person separately. For small groups who already know each other. Not a
+social network.
 
 New in this version, and all of it inside a channel somebody already belongs to:
 a shared clipboard holding one piece of text; guest links, described under
@@ -56,10 +57,12 @@ of its own, reached from the button at the top of Home, where a contact is added
 by searching an email address. The Settings button beside it holds Appearance,
 Privacy policy, Sign out and Delete account.
 
-TWO THINGS THAT LOOK LIKE BUGS AND ARE NOT: "Claim the floor" is unavailable
+THREE THINGS THAT LOOK LIKE BUGS AND ARE NOT: "Claim the floor" is unavailable
 while you are alone — claiming it asks a room to be quiet, and there is no room
-to ask; and a recording just stopped shows Play and Export greyed for a few
-seconds while its mix is made.
+to ask; a floor claim ends by itself after sixty seconds, which is the feature
+rather than a timeout, and the countdown on the card says how long is left; and
+a recording just stopped shows Play and Export greyed for a few seconds while
+its mix is made.
 
 5. EXTERNAL SERVICES
 LiveKit (open-source, self-hosted by us) carries audio and produces recordings;

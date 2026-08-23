@@ -363,6 +363,27 @@ submission detail page "Resubmit to App Review" stays greyed; the live control
 is **Update Review** on the version page. The red banner there is informational
 and does not need clearing.
 
+**A version holding a build cannot take a different one, and the state that
+says so is easy to misread.** Once `bin/submit-ios` has run, the version sits
+at `READY_FOR_REVIEW` with a build attached and a reviewSubmission open — and
+that is *not* submitted. Apple has received nothing; `submittedDate` is null
+and `bin/submit-ios --status` prints `not submitted` against it. But the
+version is no longer editable, so uploading a newer build and running the
+script again fails with "1.2.0 is READY_FOR_REVIEW, which is not editable".
+
+Two ways out, and the cheap one is nearly always right. **Remove the version
+from the review submission in App Store Connect**, which returns it to
+`PREPARE_FOR_SUBMISSION` and costs nothing when nothing was submitted — no
+review has begun and there is no rejection to answer. Then attach the newer
+build and run the script again. The expensive way is to bump
+`CFBundleShortVersionString`, upload against a new train and abandon the
+version record, which is right only when the version number itself was wrong.
+
+The trap is the interval: the gap between running the script and pressing
+Submit is exactly where a walkthrough finds defects and a new build gets made,
+so this is the ordinary case rather than a corner. Learned on 2026-08-22, with
+1.2.0 holding build 79 while build 80 was the one worth submitting.
+
 **The UI is a poor witness to what state a submission is in.** The API is the
 authority, and answers in a second:
 

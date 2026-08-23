@@ -37,7 +37,12 @@ what people had just recorded. So shoot it even if Apple never asks again.
   demonstrating.
 - **Check the build.** Settings → the build number should be the one you are
   submitting. A recording of the wrong build is worse than none, because the
-  notes claim it is the right one.
+  notes claim it is the right one. **And the build worth recording is usually
+  the one after the walk**, not the one you walked: if this finds anything, the
+  fix means a new build, and the recording has to be of that. Budget for
+  shooting it twice, or shoot properly only once the walk has come up clean.
+  RELEASING.md § *App Store Connect* has what to do when the version record is
+  already holding the older build.
 - Silence other notifications, and turn the ringer *on* — a ping is meant to be
   audible and this release changed which notifications are.
 
