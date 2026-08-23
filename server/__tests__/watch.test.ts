@@ -222,6 +222,21 @@ describe('the link', () => {
     expect(page.body).toContain(channelId);
   });
 
+  it('asks for headphones before it makes any sound', async () => {
+    const { channelId } = await channelOfTwo();
+    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
+
+    // On the gate, which is the last moment before this screen makes a sound
+    // and so the last moment the advice can be acted on. The mechanism it is
+    // about is not fixable in code: a microphone near this screen sends the
+    // video back into the channel, arriving late on top of everybody's own
+    // copy, and the phone's echo canceller cancels only what the phone plays.
+    expect(page.body).toContain('headphones');
+    expect(page.body.indexOf('headphones')).toBeLessThan(
+      page.body.indexOf('id="status"')
+    );
+  });
+
   it('offers full screen without giving the player its controls back', async () => {
     const { channelId } = await channelOfTwo();
     const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });

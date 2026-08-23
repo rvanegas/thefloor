@@ -1156,6 +1156,29 @@ export function ChannelView({
             </>
           )}
 
+          {/*
+            The one thing about a watch party that nothing in the code can fix,
+            said where somebody is about to start one.
+
+            Everybody plays the video on their own device, so their phone's
+            microphone hears their own screen and sends it down the channel —
+            arriving late, on top of the copy the others are already watching.
+            The phone's echo canceller does not touch it: it cancels what the
+            *phone* plays, not a laptop sitting next to it.
+
+            Headphones on the screen end is the whole remedy, and it is
+            complete: a microphone that cannot hear the video cannot send it.
+            Said as advice rather than as a failure, because nothing is broken
+            — this is what watching together on separate devices costs.
+          */}
+          {party ? (
+            <Text style={type.muted}>
+              <Text style={styles.emphasis}>Headphones on the screen end.</Text>{' '}
+              Otherwise your microphone picks up your own screen and everybody
+              else hears it twice, slightly late.
+            </Text>
+          ) : null}
+
           <Text style={type.muted}>
             {recordingLive
               ? // Said out loud rather than left as a dead button. The two are
@@ -1866,6 +1889,9 @@ const styles = StyleSheet.create({
     gap: spacing(1),
   },
   warning: { color: colors.silenced, fontSize: 13, marginTop: spacing(0.5) },
+  // Advice rather than a failure, so it carries weight without the colour a
+  // warning uses — nothing is broken when a watch party needs headphones.
+  emphasis: { fontWeight: '600', color: colors.text },
   recordingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',

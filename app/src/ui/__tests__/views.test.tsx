@@ -5616,6 +5616,25 @@ describe('Channel, watching together', () => {
     share.mockRestore();
   });
 
+  it('asks for headphones once a party is loaded', () => {
+    // The one thing about a watch party no code fixes: everybody plays the
+    // video on their own device, so a phone beside a screen hears it and sends
+    // it down the channel, late. Found by walking it rather than by a test,
+    // which is why it is said in the interface rather than fixed.
+    showChannel(watching());
+    const tree = open();
+    expect(textOf(tree)).toContain('Headphones on the screen end');
+    act(() => tree.unmount());
+  });
+
+  it('does not ask for headphones before there is anything to watch', () => {
+    // Advice about a sound nothing is making yet is noise on an empty card.
+    showChannel(channelOf());
+    const tree = open();
+    expect(textOf(tree)).not.toContain('Headphones on the screen end');
+    act(() => tree.unmount());
+  });
+
   it('offers the link before anybody has chosen a video', () => {
     // The ordinary order of doing this is to open the screen first and then
     // pick something, so the link cannot be behind a loaded party.

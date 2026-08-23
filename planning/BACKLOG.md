@@ -18,12 +18,20 @@ find the reasoning.
 
 ---
 
-## Nobody has watched anything, and that is the whole of what the watch party is missing
+## The watch party has been walked once, and the rest of the walk is outstanding
 
-Shipped 2026-08-23 with 45 core tests, 17 server tests and 11 view tests behind
-it, and not one of them has played a video. The reasoning is DECISIONS.md
-§ *The Floor carries no video, and that is the whole watch party*; what is
-outstanding is the walk, which no test can stand in for. Two phones in one
+**Partly done as of 2026-08-23**, and the heading here used to read "Nobody has
+watched anything", which stopped being true the first time somebody did. The
+verdict was *mostly works*, and the one thing it found is recorded in
+DECISIONS.md § *A watch party leaks into the channel through the microphone*
+— not a defect but a property of the design, now said in the interface rather
+than fixed, because no code can fix it.
+
+What the first pass did **not** cover, and what is still outstanding: steps 2
+through 6 below, and in particular step 1's ten minutes. Drift over time is the
+thing `WATCH_DRIFT_MS` was chosen to buy and the only one a clock and a pair of
+eyes can check. The reasoning for the feature is DECISIONS.md § *The Floor
+carries no video, and that is the whole watch party*. Two phones in one
 channel, a desktop browser open on each:
 
 1. Paste a link, Start, Play. Both browsers should be within a second or two of
@@ -39,6 +47,9 @@ channel, a desktop browser open on each:
    was.
 6. Restart the server; the party comes back paused at its position and both
    pages reconnect on their own.
+
+**Do it with headphones**, or the microphone bleed above dominates everything
+else and you will be listening to that rather than to the drift.
 
 Two things are known-unknown rather than untested, and are worth watching for
 during the walk. **Nobody has seen what a video whose embedding is disabled

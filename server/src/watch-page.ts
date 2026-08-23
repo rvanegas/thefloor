@@ -103,6 +103,8 @@ export function watchPage(options: {
   }
   #gate span { font-size: 1.25rem; font-weight: 600; }
   #gate small { color: #a1a1aa; }
+  /* Held to a readable measure, this one being a sentence rather than a label. */
+  #gate .advice { max-width: 26rem; margin-top: 0.75rem; color: #d4d4d8; }
   #gate[hidden] { display: none; }
 </style>
 </head>
@@ -112,6 +114,15 @@ export function watchPage(options: {
   <button id="gate" type="button">
     <span>Tap to join the watch party</span>
     <small>Your browser will not start a video on its own.</small>
+    <!--
+      The headphone line, on the gate because the gate is the last moment
+      before this screen makes any sound — which is exactly when it can still
+      be acted on. Told to the screen as well as to the phone, since the person
+      reading this is often not the person holding the phone that will do the
+      transmitting.
+    -->
+    <small class="advice">Wear headphones — an open microphone nearby will
+    send this audio back into the channel, and everybody will hear it twice.</small>
   </button>
 </div>
 <div id="status">

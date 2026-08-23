@@ -709,7 +709,66 @@ Verified by 45 core tests, 17 server tests and 11 view tests, and none of them
 has watched anything. The same lesson as the choppy pump: **a promise resolving
 is not evidence of what it waited for**, and nothing here is confirmed until two
 people have watched something on two screens for ten minutes without a visible
-correction. The walk that would establish it is in BACKLOG.md § *Nobody has
-watched anything*, along with the two things that are known-unknown rather than
-untested.
+correction. The walk that would establish it is in BACKLOG.md § *The watch
+party has been walked once*, along with the two things that are known-unknown
+rather than untested.
+
+---
+
+## A watch party leaks into the channel through the microphone — 2026-08-23
+
+The first walk, hours after the entry above predicted that a walk was the only
+thing that could tell us anything. Verdict: mostly works. What it found is not
+a defect, which is why this entry exists rather than a fix.
+
+**Everybody plays the video on their own device, so everybody's microphone can
+hear their own screen.** A phone sitting beside a laptop picks up the video and
+publishes it to the channel like any other sound in the room; it arrives at
+everybody else a network delay later, on top of the copy their own screen is
+already playing. Two copies, tens or hundreds of milliseconds apart. The
+listener hears a slapback and reasonably concludes the sync is broken.
+
+**The sync is not broken, and tightening it would not help.** `WATCH_DRIFT_MS`
+is a *correction* threshold, not an accuracy: two independent YouTube players
+on two devices cannot be sample-aligned, and even perfectly corrected they sit
+tens of milliseconds apart, which is already comb filtering. Lowering the
+tolerance buys more stutter and exactly no less doubling. The leak is a
+different quantity from the drift and is not bounded by it — it is bounded by
+network latency, which nothing here controls.
+
+**And the echo canceller is the wrong tool, which is the part most likely to be
+misdiagnosed.** iOS voice processing cancels what *this device* is playing,
+because that is the only signal it has a reference for. A laptop across the
+desk is, to the phone, a person talking. POSTMORTEM-echo.md is about the other
+kind of echo entirely — the device hearing itself — and reaching for it here
+would be an afternoon spent on the wrong layer.
+
+So the remedy is headphones on the screen end, and it is complete rather than
+partial: a microphone that cannot hear the video cannot send it. That is a
+sentence, not a feature, and it is now said in the two places somebody meets
+the decision — the channel card once a party is loaded, and the follower page's
+gate, which is the last moment before that screen makes any sound. The gate
+matters because the person reading the laptop is frequently not the person
+holding the phone that will do the transmitting.
+
+### What was considered and not built
+
+- **Auto-muting while a party plays.** It would cut the loop completely and it
+  defeats the feature: the point of watching together is reacting to it, and a
+  channel that silences everybody for the length of a film is a channel nobody
+  needs. If it is ever built it is an offer, never automatic.
+- **Warning when a screen is already following.** The server knows how many
+  watch-scoped sockets a channel has, so the phone could be told. It addresses
+  a *different* cause — one person hearing both their laptop and their own
+  hand-off via "Open on this phone" — which is not what was observed. Kept
+  here because it is cheap and wire-additive if that one ever bites.
+- **Routing the video's audio through The Floor instead**, so there would be
+  one copy. This is the extraction the terms forbid and the thing the whole
+  design exists to avoid; see the entry above. It would also put the video into
+  recordings, which is the other thing being refused.
+
+The general lesson, which is the same one the choppy pump taught and the entry
+above predicted: **the walk finds what the suite cannot, and what it finds is
+often not a bug.** 74 tests passed on a feature whose most noticeable property
+in real use is not expressible as an assertion.
 
