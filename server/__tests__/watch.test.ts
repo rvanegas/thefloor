@@ -221,6 +221,20 @@ describe('the link', () => {
     expect(page.headers['content-type']).toContain('text/html');
     expect(page.body).toContain(channelId);
   });
+
+  it('offers full screen without giving the player its controls back', async () => {
+    const { channelId } = await channelOfTwo();
+    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
+
+    expect(page.body).toContain('id="fullscreen"');
+    // On the root element, never on the player: taking the iframe fullscreen
+    // would mean handing YouTube's control bar back, and scrubbing with it.
+    expect(page.body).toContain('requestFullscreen');
+    // The guard that keeps this page a follower. If `controls: 0` ever goes,
+    // the viewer gets a scrubber and becomes a second authority over a shared
+    // transport — which is the one thing the whole design refuses.
+    expect(page.body).toContain('controls: 0');
+  });
 });
 
 describe('a watch token is not a session', () => {

@@ -63,6 +63,32 @@ export function watchPage(options: {
     border-top: 1px solid #27272a;
   }
   #status strong { color: #f4f4f5; font-weight: 600; }
+  #right { display: flex; align-items: center; gap: 0.75rem; }
+  #fullscreen {
+    font: inherit; font-size: 0.85rem; color: #f4f4f5; cursor: pointer;
+    background: #27272a; border: 1px solid #3f3f46; border-radius: 0.35rem;
+    padding: 0.3rem 0.7rem;
+  }
+  #fullscreen:hover { background: #3f3f46; }
+  /*
+    Hidden until the API is known to exist — see fullscreenSupported. A
+    control that does nothing is worse than no control, and iPhone Safari is
+    the case where it would do nothing.
+  */
+  #fullscreen[hidden] { display: none; }
+  /*
+    Fullscreen is taken on the root element rather than on the stage, so the
+    status line survives it. That line is the only evidence on this screen that
+    the page is still following the channel — a video filling the display with
+    no indication of whether it is still in step would be the wrong trade.
+
+    The rules below are defensive. The root element being fullscreen means the
+    viewport is the display, which is what height: 100vh on the body already
+    assumes; browsers vary in what they do to a fullscreened root, so this
+    states it rather than relying on the default.
+  */
+  :root:fullscreen body { height: 100vh; }
+  :root:-webkit-full-screen body { height: 100vh; }
   /*
     The gate. Browsers will not start audio without a gesture, so the page
     cannot simply begin — and a player that silently refuses to start is the
@@ -90,7 +116,10 @@ export function watchPage(options: {
 </div>
 <div id="status">
   <span id="what">Connecting…</span>
-  <span id="where"></span>
+  <span id="right">
+    <span id="where"></span>
+    <button id="fullscreen" type="button" hidden>Full screen</button>
+  </span>
 </div>
 <script>
 (function () {
@@ -357,6 +386,84 @@ export function watchPage(options: {
     gate.hidden = true;
     follow();
   });
+
+  // --- Full screen --------------------------------------------------------
+  //
+  // Taken on our own root element, never on YouTube's player, and the
+  // distinction is the whole reason this works at all. The player's own
+  // controls are off — see playerVars above — so its fullscreen button does
+  // not exist, and handing it back would hand back scrubbing with it. Putting
+  // *our* element fullscreen leaves the iframe exactly as it is: controls-less,
+  // driven by the channel, with the phone still the remote. The video simply
+  // fills the display.
+  //
+  // The button lives in the status bar rather than being a double-click on the
+  // video, because a cross-origin iframe swallows pointer events: a click on
+  // the player area never reaches this page. Our own chrome is the only
+  // surface here that can be clicked.
+
+  var fsButton = document.getElementById('fullscreen');
+  var fsRoot = document.documentElement;
+
+  function fsRequest() {
+    return fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
+  }
+
+  function fsExit() {
+    return document.exitFullscreen || document.webkitExitFullscreen;
+  }
+
+  function inFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  /*
+    Feature-detected rather than assumed, and the case it is detecting is a
+    real one: iPhone Safari has no element fullscreen at all — only a genuine
+    <video> can go fullscreen there, and ours is inside a cross-origin iframe
+    nothing on this page can reach into. iPad and desktop are fine. The button
+    is hidden rather than disabled, since a permanently dead control invites
+    somebody to work out what they did wrong.
+  */
+  function fullscreenSupported() {
+    return !!fsRequest();
+  }
+
+  function paintFullscreenButton() {
+    fsButton.textContent = inFullscreen() ? 'Exit full screen' : 'Full screen';
+  }
+
+  if (fullscreenSupported()) {
+    fsButton.hidden = false;
+    fsButton.addEventListener('click', function () {
+      /*
+        Both calls can reject — a browser may refuse fullscreen for reasons
+        this page cannot see, and an unhandled rejection in a click handler is
+        a console error nobody is looking at. Caught and dropped: the button
+        not working is self-evident on screen, and there is nothing useful to
+        say about it that the viewer cannot already see.
+      */
+      try {
+        var run = inFullscreen()
+          ? fsExit().call(document)
+          : fsRequest().call(fsRoot);
+        if (run && run.catch) run.catch(function () {});
+      } catch (error) {
+        /* As above. */
+      }
+    });
+
+    /*
+      Listened for rather than toggled on click, because fullscreen ends by
+      routes this page never hears about as a click — Escape, the window
+      manager, another tab taking the display. A label kept in step by the
+      click handler alone would sit there saying "Exit full screen" on a window
+      that had left it minutes ago.
+    */
+    document.addEventListener('fullscreenchange', paintFullscreenButton);
+    document.addEventListener('webkitfullscreenchange', paintFullscreenButton);
+    paintFullscreenButton();
+  }
 
   var api = document.createElement('script');
   api.src = 'https://www.youtube.com/iframe_api';
