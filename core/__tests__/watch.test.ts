@@ -1,10 +1,13 @@
 import { DISCONNECT_GRACE_MS, FLOOR_CLAIM_MS } from '../constants';
 import { parseYouTubeUrl, watchPositionMs } from '../watch';
+import { anyMicrophoneOpen, microphoneNeeded } from '../micNeeded';
 import {
   canControlWatch,
   canStartRecording,
   canStartWatch,
   createChannel,
+  isPartyMuted,
+  isWithheld,
   reduce,
 } from '../channel';
 import type { ChannelAction, ChannelState, PlaybackTrack } from '../types';
@@ -286,6 +289,93 @@ describe('a channel attends to one thing', () => {
   it('lets a recording start again once the party is stopped', () => {
     const s = reduce(watching(), { type: 'STOP_WATCH', userId: A }, T0 + 1_000);
     expect(canStartRecording(s, A)).toBe(true);
+  });
+});
+
+describe('muting the room', () => {
+  const mute = (muted: boolean) =>
+    ({ type: 'SET_WATCH_MUTE', userId: A, muted }) as ChannelAction;
+
+  it('withholds everybody, the floor-holder included', () => {
+    const s = apply(watching(), [
+      [{ type: 'CLAIM_FLOOR', userId: A }, T0],
+      [mute(true), T0 + 1_000],
+    ]);
+    // Muting a room is not taking the floor in it: a claim withholds everybody
+    // but one and confers control, and this withholds everybody.
+    expect(isWithheld(s, A)).toBe(true);
+    expect(isWithheld(s, B)).toBe(true);
+  });
+
+  it('closes every microphone in the room', () => {
+    const s = reduce(watching(), mute(true), T0);
+    expect(microphoneNeeded(s, A)).toBe(false);
+    expect(microphoneNeeded(s, B)).toBe(false);
+    // Which takes every audio session out of its call configuration for the
+    // length of the film, and falls out rather than being arranged.
+    expect(anyMicrophoneOpen(s)).toBe(false);
+  });
+
+  it('leaves each person their own mute, and gives it back unchanged', () => {
+    const muted = apply(watching(), [
+      [{ type: 'SET_SELF_MUTE', userId: B, muted: true }, T0],
+      [mute(true), T0 + 1_000],
+    ]);
+    // Set while the room is muted, and still set after it is cleared. The two
+    // are different states and this is the difference.
+    expect(muted.selfMuted[B]).toBe(true);
+    expect(muted.selfMuted[A]).toBe(false);
+
+    const cleared = reduce(muted, mute(false), T0 + 2_000);
+    expect(cleared.selfMuted[B]).toBe(true);
+    expect(cleared.selfMuted[A]).toBe(false);
+    expect(isWithheld(cleared, A)).toBe(false);
+  });
+
+  it('does not mute anybody individually on the way in', () => {
+    const s = reduce(watching(), mute(true), T0);
+    // The temptation is to implement this as muting everyone; the reason not
+    // to is that unmuting could then never restore what people had chosen.
+    expect(Object.values(s.selfMuted).every((m) => m === false)).toBe(true);
+  });
+
+  it('is the floor-holders alone while a claim is live', () => {
+    const claimed = reduce(watching(), { type: 'CLAIM_FLOOR', userId: A }, T0);
+    const s = reduce(claimed, { type: 'SET_WATCH_MUTE', userId: B, muted: true }, T0 + 1);
+    expect(isPartyMuted(s)).toBe(false);
+  });
+
+  it('cannot be set without a party to be muted for', () => {
+    const s = reduce(joined(), mute(true), T0);
+    expect(isPartyMuted(s)).toBe(false);
+  });
+
+  it('ends with the party rather than outliving it', () => {
+    const s = apply(watching(), [
+      [mute(true), T0],
+      [{ type: 'STOP_WATCH', userId: A }, T0 + 1_000],
+    ]);
+    expect(isPartyMuted(s)).toBe(false);
+    expect(isWithheld(s, A)).toBe(false);
+  });
+
+  it('does not carry from one party into the next', () => {
+    const s = apply(watching(), [
+      [mute(true), T0],
+      [{ type: 'START_WATCH', userId: A, videoId: 'abcdefghijk', url: URL }, T0 + 1_000],
+    ]);
+    expect(isPartyMuted(s)).toBe(false);
+  });
+
+  it('leaves the floor rule alone once cleared', () => {
+    const s = apply(watching(), [
+      [{ type: 'CLAIM_FLOOR', userId: A }, T0],
+      [mute(true), T0 + 1_000],
+      [mute(false), T0 + 2_000],
+    ]);
+    // Back to the claim's own answer, rather than to everybody audible.
+    expect(isWithheld(s, A)).toBe(false);
+    expect(isWithheld(s, B)).toBe(true);
   });
 });
 

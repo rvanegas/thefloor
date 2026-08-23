@@ -21,6 +21,8 @@ import {
   createChannel,
   isNamed,
   isParticipant,
+  isPartyMuted,
+  isWithheld,
   lastPresenceAt,
   otherParticipants,
   reduce,
@@ -196,6 +198,7 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'WATCH_PAUSE',
   'WATCH_SEEK',
   'WATCH_READY',
+  'SET_WATCH_MUTE',
   'PASTE_CLIP',
   'CLEAR_CLIP',
   'SET_GUEST_SPEECH',
@@ -256,6 +259,13 @@ function revivedWatch(stored: ChannelState['watch'] | undefined): ChannelState['
     status: 'paused',
     positionMs: stored.positionMs,
     startedAt: null,
+    // **Not restored**, and this is the same rule `selfMuted` follows across a
+    // restart rather than a new one: a mute nobody in the room set, on a
+    // conversation that is not happening because the process died, is a
+    // silence with nothing on screen to explain it. Everybody comes back
+    // audible, and whoever wants the room quiet for the rest of the film says
+    // so again — one tap, against a party that is paused anyway.
+    mutedAll: false,
     // Dropped, unlike the position: a failure is about the run that met it,
     // and the run is over. Coming back with a warning about a page that no
     // longer exists would be a sentence nobody could act on.
@@ -530,7 +540,13 @@ export class ChannelRegistry {
     // further, and re-checks a mute that *did* land, because a track it was
     // stated against can be replaced under it — see `reconcileSilence`.
     for (const [id, channel] of this.channels) {
-      if (channel.status !== 'active' || channel.floor.holder === null) continue;
+      if (channel.status !== 'active') continue;
+      // Either reason to withhold wants the same reconciliation, and for the
+      // same reason: a track can be replaced under a statement made about it,
+      // so a phone that flaps during a muted film comes back audible unless
+      // somebody re-checks. Skipping a muted room here would leave exactly the
+      // gap this loop exists to close.
+      if (channel.floor.holder === null && !isPartyMuted(channel)) continue;
       this.run(() => this.reconcileSilence(channel), `reconcileSilence ${id}`);
     }
     for (const id of this.capturing.keys()) {
@@ -1739,7 +1755,7 @@ export class ChannelRegistry {
     if (before.status === 'active' && after.status === 'ended') {
       this.markDeleted(after.id, after.endedAt ?? this.now());
     }
-    this.applyFloorToMedia(before, after);
+    this.applySilenceToMedia(before, after);
     this.applyGuestSpeech(before, after);
     this.applyRecordingToMedia(before, after);
     // A run's audience only ever grows. Someone who arrives mid-recording is
@@ -2095,9 +2111,26 @@ export class ChannelRegistry {
    * Note this reacts to the *committed* state, so it cannot disagree with what
    * the reducer decided or with what the clients were told.
    */
-  private applyFloorToMedia(before: ChannelState, after: ChannelState): void {
+  /**
+   * Carries a change in *who may be heard* out to the media plane.
+   *
+   * Two things can change it and they are combined in `isWithheld`: the floor,
+   * which withholds everybody but its holder, and a watch party's mute, which
+   * withholds everybody. Both are transitions worth acting on immediately
+   * rather than at the next tick — somebody muting a room for a film should
+   * not have to wait out a poll to stop being audible.
+   *
+   * It was `applyFloorToMedia` until the party mute existed, at which point
+   * the name would have described half of what it does.
+   */
+  private applySilenceToMedia(before: ChannelState, after: ChannelState): void {
     if (!this.media) return;
-    if (before.floor.holder === after.floor.holder) return;
+    if (
+      before.floor.holder === after.floor.holder &&
+      isPartyMuted(before) === isPartyMuted(after)
+    ) {
+      return;
+    }
     this.assertSilence(after);
   }
 
@@ -2120,15 +2153,17 @@ export class ChannelRegistry {
     speakers: string[] = statedIdentities(state)
   ): void {
     if (!this.media || state.status !== 'active') return;
-    const holder = state.floor.holder;
     // The room in both directions, guests included, which is the second of the
     // three widenings the guest design named. A guest must be silenced when a
     // member holds the floor — otherwise a claim silences everybody it knows
     // about and nobody it does not — and must go on hearing whoever holds it,
     // which is the direction that would fail as silence rather than as noise.
+    //
+    // A party mute covers guests by the same argument and more simply: it
+    // withholds everybody, so there is no exception to get wrong.
     const room = statedIdentities(state);
     for (const speaker of speakers) {
-      const silenced = holder !== null && speaker !== holder;
+      const silenced = isWithheld(state, speaker);
       for (const listener of room) {
         if (listener === speaker) continue;
         this.stateSilence(state, speaker, listener, silenced);
@@ -2311,12 +2346,23 @@ export class ChannelRegistry {
   private async reconcileSilence(state: ChannelState): Promise<void> {
     if (!this.media || state.status !== 'active') return;
     const holder = state.floor.holder;
-    if (holder === null) return;
+    const muted = isPartyMuted(state);
+    // Nothing to reconcile when nobody is being withheld for either reason.
+    if (holder === null && !muted) return;
     const room = state.mediaRoom;
     const roster = await this.media.audioTracks(room);
-    // The channel may have moved rooms or released the floor while we asked.
+    // The channel may have moved rooms, released the floor, or unmuted the
+    // room while we asked. Any of the three makes the answer we are about to
+    // state one about a state that no longer holds.
     const now = this.channels.get(state.id);
-    if (!now || now.mediaRoom !== room || now.floor.holder !== holder) return;
+    if (
+      !now ||
+      now.mediaRoom !== room ||
+      now.floor.holder !== holder ||
+      isPartyMuted(now) !== muted
+    ) {
+      return;
+    }
 
     const present = statedIdentities(state).filter((id) => roster.has(id));
     const stated = this.silenceStated.get(state.id) ?? new Map<string, string>();
@@ -2324,7 +2370,7 @@ export class ChannelRegistry {
     for (const speaker of present) {
       const tracks = roster.get(speaker) ?? [];
       if (tracks.length === 0) continue;
-      const silenced = speaker !== holder;
+      const silenced = isWithheld(state, speaker);
       const signature = silenceSignature(room, silenced, tracks);
       for (const listener of present) {
         if (listener === speaker) continue;

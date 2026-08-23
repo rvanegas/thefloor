@@ -36,6 +36,7 @@ import {
   canStartRecording,
   canStartWatch,
   canControlWatch,
+  isPartyMuted,
   canStopRecording,
   canPasteClip,
   canClearClip,
@@ -373,6 +374,7 @@ export function ChannelView({
   // button lights up and the server decides whether to accept, and a greyed
   // control and a refused action must not disagree about what a link is.
   const pastedIsLink = parseYouTubeUrl(watchUrl) !== null;
+  const partyMuted = isPartyMuted(channel);
 
   /**
    * Mints a follower link and hands it to the share sheet.
@@ -540,6 +542,25 @@ export function ChannelView({
               />
             ))}
           </View>
+
+          {/*
+            Under the roster rather than on each card, because it is one fact
+            about the room and not six facts about six people. A badge per card
+            would say the same thing as many times as there are people and
+            invite the reading that they had each been muted individually —
+            which is precisely what this is not: nobody's own mute has been
+            touched, and clearing this gives every one of them back as they set
+            it.
+
+            Placed here rather than in the watch card, though that is where the
+            control is, because this is a claim about the roster directly above
+            it: those people cannot be heard right now.
+          */}
+          {partyMuted ? (
+            <Text style={styles.partyMuted}>
+              Party-muted — nobody is heard while the watch party is on.
+            </Text>
+          ) : null}
 
           {/*
             Under the roster and above everything else, because somebody at
@@ -1093,6 +1114,30 @@ export function ChannelView({
                 />
               </View>
 
+              {/*
+                Muting the room, which is a different act from muting yourself
+                and says so. Watching something together is mostly not talking,
+                and every open microphone in a party is one pointed at
+                somebody's screen — so this is the remedy for the bleed as well
+                as for the noise.
+
+                It restores nothing when cleared: each person's own mute is
+                theirs and comes back exactly as they left it. See
+                `WatchState.mutedAll`.
+              */}
+              <Button
+                label={partyMuted ? 'Unmute the room' : 'Mute the room'}
+                sublabel={
+                  partyMuted
+                    ? 'Everyone can speak again; your own mute is unchanged'
+                    : 'Nobody is heard until this is cleared — for watching, not talking'
+                }
+                disabled={!mayControlWatch}
+                onPress={() =>
+                  act({ type: 'SET_WATCH_MUTE', muted: !partyMuted })
+                }
+              />
+
               <View style={styles.buttonRow}>
                 <Button
                   label={linking ? 'Making a link…' : 'Watch on another screen'}
@@ -1172,11 +1217,25 @@ export function ChannelView({
             — this is what watching together on separate devices costs.
           */}
           {party ? (
-            <Text style={type.muted}>
-              <Text style={styles.emphasis}>Headphones on the screen end.</Text>{' '}
-              Otherwise your microphone picks up your own screen and everybody
-              else hears it twice, slightly late.
-            </Text>
+            partyMuted ? (
+              // The mute is the stronger remedy for the same problem, so while
+              // it holds the advice above is not true and saying it anyway
+              // would be two warnings about one thing. What is worth saying
+              // instead is *why* it is quiet, since a room that has stopped
+              // carrying voices is otherwise indistinguishable from a room
+              // where nobody is talking.
+              <Text style={type.muted}>
+                <Text style={styles.emphasis}>The room is muted.</Text> No
+                microphone is open, so nothing leaks in from anybody's screen —
+                and nobody can be heard until this is cleared.
+              </Text>
+            ) : (
+              <Text style={type.muted}>
+                <Text style={styles.emphasis}>Headphones on the screen end.</Text>{' '}
+                Otherwise your microphone picks up your own screen and everybody
+                else hears it twice, slightly late.
+              </Text>
+            )
           ) : null}
 
           <Text style={type.muted}>
@@ -1892,6 +1951,13 @@ const styles = StyleSheet.create({
   // Advice rather than a failure, so it carries weight without the colour a
   // warning uses — nothing is broken when a watch party needs headphones.
   emphasis: { fontWeight: '600', color: colors.text },
+  // Under the roster, in the same muted grey the descriptions use rather than
+  // the silenced colour: nothing is wrong, the room is quiet on purpose.
+  partyMuted: {
+    ...type.muted,
+    textAlign: 'center',
+    marginTop: spacing(0.75),
+  },
   recordingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',

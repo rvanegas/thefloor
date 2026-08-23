@@ -478,6 +478,81 @@ describe('a party and the rest of the channel', () => {
   });
 });
 
+describe('muting the room reaches the media plane', () => {
+  /** Every pair the plane was told about, newest last. */
+  const silencedFor = (speaker: string) =>
+    media.subscriptions.filter((s) => s.speaker === speaker);
+
+  async function partyOf(muted: boolean) {
+    const { alice, bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'START_WATCH',
+      url: URL,
+    } as never);
+    if (muted) {
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'SET_WATCH_MUTE',
+        muted: true,
+      } as never);
+    }
+    await new Promise((r) => setTimeout(r, 0));
+    return { alice, bob, channelId };
+  }
+
+  it('withholds everybody, not everybody-but-one', async () => {
+    const { alice, bob } = await partyOf(true);
+    // The distinction from a floor claim, stated against the plane rather than
+    // against the reducer: a claim leaves its holder audible and this does not.
+    expect(silencedFor(alice.account.id).at(-1)?.silenced).toBe(true);
+    expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(true);
+  });
+
+  it('gives everybody back when it is cleared', async () => {
+    const { alice, bob, channelId } = await partyOf(true);
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_WATCH_MUTE',
+      muted: false,
+    } as never);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(silencedFor(alice.account.id).at(-1)?.silenced).toBe(false);
+    expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(false);
+  });
+
+  it('returns to the floors answer rather than to everybody audible', async () => {
+    const { alice, bob, channelId } = await partyOf(false);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_WATCH_MUTE',
+      muted: true,
+    } as never);
+    await new Promise((r) => setTimeout(r, 0));
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_WATCH_MUTE',
+      muted: false,
+    } as never);
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The claim outlived the mute and is still in force underneath it.
+    expect(silencedFor(alice.account.id).at(-1)?.silenced).toBe(false);
+    expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(true);
+  });
+
+  it('is refused to somebody who is not in the room', async () => {
+    const { alice, bob, channelId } = await partyOf(false);
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    const refused = app.channels.dispatch(channelId, bob.account.id, {
+      type: 'SET_WATCH_MUTE',
+      muted: true,
+    } as never);
+    expect(refused.ok).toBe(true);
+    // Accepted as an action and refused by the guard, which is how every
+    // reducer-level refusal reads from here.
+    expect(app.channels.get(channelId)?.watch.mutedAll).toBe(false);
+    expect(alice).toBeDefined();
+  });
+});
+
 describe('across a restart', () => {
   it('comes back paused where it was', async () => {
     const { alice, channelId } = await channelOfTwo();

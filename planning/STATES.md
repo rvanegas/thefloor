@@ -19,9 +19,11 @@ three things about each state and is answered in that shape:
 - **Conditions** — when it holds, according to the code rather than the name.
 - **Where the sources disagree** — the part worth the file.
 
-The request named eleven. This carries twelve: `Audio Session Configuration`
-was missing and is the one the audio items all turn on, and one of the eleven
-turned out not to be a state at all.
+The request named eleven. This carries thirteen: `Audio Session Configuration`
+was missing and is the one the audio items all turn on, one of the eleven
+turned out not to be a state at all, and `Party-Muted` arrived with the watch
+party on 2026-08-23 — the third reason a microphone can be quiet, and not
+either of the other two.
 
 ---
 
@@ -54,6 +56,11 @@ during the grace period**, so a connection that flaps and returns inside
 traded away is bounded by `microphoneNeeded`, which keeps the device shut until
 somebody else is present. See DECISIONS-2026-08-20-to-2026-08-21.md § *Every
 departure clears the self-mute, and the microphone is not the reason why*.
+
+**Not the only reason a microphone is quiet, and the newest one is deliberately
+kept apart from it.** `Party-Muted` below withholds the whole room for a watch
+party and writes nothing here, so clearing it restores each person's own mute
+as they set it. A control that folded the two together could not do that.
 
 **Where the sources disagree.** *One person's self-mute is now an input to
 everybody's audio session.* Since 2026-08-18 the session configuration is chosen
@@ -91,6 +98,55 @@ and they can differ for a window:
   one into the other. See AGENTS.md and DECISIONS-2026-08-13-to-2026-08-15.md.
 - The app's `mutedByServer` is an observation of an event, so it lags.
 - The word on screen is "silenced", which appears in neither layer.
+
+---
+
+## Party-Muted
+
+Added 2026-08-23 with the watch party's mute-all. **The third reason a
+microphone can be quiet, and it is not either of the other two** — which is the
+whole reason it has an entry rather than a clause in one of theirs.
+
+**Name in source.** `ChannelState.watch.mutedAll` (`core/types.ts`), written by
+`SET_WATCH_MUTE`, guarded by `canControlWatch`. Read through
+`isPartyMuted(state)` — a question about the room, taking no user. Combined
+with the floor by `isWithheld(state, speaker)` (`core/channel.ts`), which is
+the only thing either end should ask. In the interface it is **"party-muted"**,
+said once under the roster.
+
+**Conditions.** Set only while a party is loaded; `setPartyMute` refuses
+otherwise and `stopParty` clears it, so it cannot outlive the thing it was for.
+Not inherited by the next party — `startParty` returns the room unmuted. **Not
+restored across a restart**, the same rule `selfMuted` follows and for the same
+reason: a silence nobody in the room set, on a conversation the process
+interrupted, has nothing on screen to explain it.
+
+**How it differs from the two it will be mistaken for.**
+
+- **Not a self-mute.** It writes nothing to `selfMuted` in either direction, so
+  clearing it gives every person back the mute they chose. Implementing it as
+  "mute everybody individually" is the obvious shortcut and destroys exactly
+  that: unmuting could then never restore what people had set. The requirement
+  was stated in those words when it was asked for.
+- **Not a claim.** A claim withholds everybody *but one* and confers control of
+  the channel; this withholds everybody, holder included, and confers nothing.
+  A claim and a party mute can hold at once, and `isWithheld` returns true for
+  everyone while they do — clearing the mute drops back to the claim's own
+  answer rather than to everybody audible.
+
+**Where the sources disagree.** They do not, and the reason is worth stating
+because it took an extra decision to get there: **both ends read the same
+predicate.** The server states subscriptions from `isWithheld`, and the app
+closes its own microphone from `microphoneNeeded`, which returns false for a
+muted room. Either alone would be incomplete — the server's half is what makes
+it true for builds that predate the rule and go on publishing, and the app's
+half is what stops the microphone hearing the video at all, which is the
+problem the feature exists for.
+
+That second half has a consequence which falls out rather than being arranged:
+`anyMicrophoneOpen` is false for the whole room while it holds, so every
+audio session goes to its high-quality configuration for the length of the
+film. See `Audio Session Configuration`.
 
 ---
 
@@ -206,7 +262,10 @@ as `micNeeded && !selfMuted`, where `micNeeded` is `microphoneNeeded`
 **Conditions.** `microphoneNeeded` is true when somebody else is present, or
 when a recording is active — the exception being load-bearing, since one person
 alone may record and a rule written as "alone means closed" would capture
-silence and report success. `App.tsx` widens it with `recordingAsked`, because
+silence and report success. **And false for everybody while the room is
+party-muted**, which is answered here rather than at the call site because it
+is the same question this function already asks: whether the microphone has
+anything to capture *for*. See `Party-Muted`. `App.tsx` widens it with `recordingAsked`, because
 server state arrives a round trip after the tap and that round trip is when a
 short run recorded nothing at all.
 

@@ -10,6 +10,7 @@ import {
   claimFloor,
   hasExpired,
   initialFloorState,
+  isSilenced,
   releaseFloor,
   satisfiesEligibilityRule,
 } from './floor';
@@ -29,6 +30,7 @@ import {
   hasReachedEnd as watchHasReachedEnd,
   initialWatchState,
   learnDuration,
+  setPartyMute,
   startParty,
   stopParty,
   watchPause,
@@ -555,6 +557,39 @@ export function canStartWatch(state: ChannelState, userId: UserId): boolean {
   return (
     canControlWatch(state, userId) && state.recording.status === 'idle'
   );
+}
+
+/**
+ * Whether the room's microphones are withheld for the party.
+ *
+ * A question about the room, so it takes no user — which is the difference
+ * from `isSilenced`, and the reason the interface says it once under the
+ * roster rather than on six cards. Six identical badges would say one thing
+ * six times and imply it was six different facts.
+ *
+ * `?.` because a server older than the field sends snapshots without it, which
+ * this build meets between its release and the deploy that follows.
+ */
+export function isPartyMuted(state: ChannelState): boolean {
+  return state.watch?.mutedAll === true;
+}
+
+/**
+ * Whether this speaker's audio is withheld from everybody else.
+ *
+ * The one place the two reasons for withholding are combined, so that no
+ * caller has to remember there are two. A claim withholds everybody but its
+ * holder and confers control; a party mute withholds everybody and confers
+ * nothing — **the holder included**, that being the point of muting a room
+ * rather than taking the floor in it.
+ *
+ * Both ends read this: the server states subscriptions from it, and the app
+ * closes its own microphone from it. That is what stops a device deciding it
+ * is audible while the room has been told otherwise.
+ */
+export function isWithheld(state: ChannelState, speaker: UserId): boolean {
+  if (isPartyMuted(state)) return true;
+  return isSilenced(state.floor, speaker);
 }
 
 /**
@@ -1104,12 +1139,22 @@ export function reduce(
     case 'STOP_WATCH':
     case 'WATCH_PLAY':
     case 'WATCH_PAUSE':
-    case 'WATCH_SEEK': {
+    case 'WATCH_SEEK':
+    case 'SET_WATCH_MUTE': {
       if (!canControlWatch(state, action.userId)) return state;
       const watch = state.watch;
       switch (action.type) {
         case 'STOP_WATCH':
+          // `stopParty` returns the initial state, so the room's microphones
+          // come back with the party's end. Nothing in the interface would
+          // explain a mute that outlived the thing it was for.
           return { ...state, watch: stopParty() };
+        case 'SET_WATCH_MUTE':
+          // Note what is *not* here: no write to `selfMuted`. The two are
+          // separate states and clearing this one restores each person's own
+          // mute exactly as they left it, which is the whole reason it is not
+          // implemented as muting everybody individually.
+          return { ...state, watch: setPartyMute(watch, action.muted) };
         case 'WATCH_PLAY':
           return { ...state, watch: watchPlay(watch, now) };
         case 'WATCH_PAUSE':

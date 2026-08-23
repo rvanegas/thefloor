@@ -5635,6 +5635,75 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  const muted = () =>
+    watching((s) => reduce(s, { type: 'SET_WATCH_MUTE', userId: ME, muted: true }, NOW));
+
+  it('offers to mute the room once a party is loaded', () => {
+    showChannel(watching());
+    const tree = open();
+    const button = findButton(tree, 'Mute the room')!;
+    expect(button).toBeDefined();
+    act(() => button.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_WATCH_MUTE',
+      muted: true,
+    });
+    act(() => tree.unmount());
+  });
+
+  it('offers to clear it, and says the self-mute is untouched', () => {
+    showChannel(muted());
+    const tree = open();
+    const button = findButton(tree, 'Unmute the room')!;
+    expect(labelOf(button)).toContain('your own mute is unchanged');
+    act(() => button.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_WATCH_MUTE',
+      muted: false,
+    });
+    act(() => tree.unmount());
+  });
+
+  it('says it once under the roster, not on every card', () => {
+    // One fact about the room rather than six about six people. Six badges
+    // would also imply each person had been muted individually, which is the
+    // one thing this deliberately does not do.
+    showChannel(muted());
+    const tree = open();
+    const text = textOf(tree);
+    expect(text).toContain('Party-muted');
+    expect(text.match(/Party-muted/g)).toHaveLength(1);
+    act(() => tree.unmount());
+  });
+
+  it('says nothing about party-muting when the room is not muted', () => {
+    showChannel(watching());
+    const tree = open();
+    expect(textOf(tree)).not.toContain('Party-muted');
+    act(() => tree.unmount());
+  });
+
+  it('drops the headphone advice while the room is muted', () => {
+    // The mute is the stronger remedy for the same problem, so the advice is
+    // not true while it holds — and two warnings about one thing is one too
+    // many. What replaces it says why the room has gone quiet.
+    showChannel(muted());
+    const tree = open();
+    const text = textOf(tree);
+    expect(text).not.toContain('Headphones on the screen end');
+    expect(text).toContain('The room is muted');
+    act(() => tree.unmount());
+  });
+
+  it('greys the mute while somebody else holds the floor', () => {
+    showChannel(
+      watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
+    );
+    const tree = open();
+    expect(findButton(tree, 'Mute the room')!.props.disabled).toBe(true);
+    act(() => tree.unmount());
+  });
+
   it('offers the link before anybody has chosen a video', () => {
     // The ordinary order of doing this is to open the screen first and then
     // pick something, so the link cannot be behind a loaded party.

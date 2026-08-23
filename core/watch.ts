@@ -22,6 +22,7 @@ export function initialWatchState(): WatchState {
     status: 'idle',
     positionMs: 0,
     startedAt: null,
+    mutedAll: false,
     failure: null,
   };
 }
@@ -56,15 +57,35 @@ export function hasReachedEnd(watch: WatchState, now: number): boolean {
   return watchPositionMs(watch, now) >= watch.party.durationMs;
 }
 
-/** Starts a party on this video, replacing whatever was there. */
+/**
+ * Starts a party on this video, replacing whatever was there.
+ *
+ * The room comes back unmuted, whatever the last party left behind. A mute is
+ * for the thing being watched — somebody choosing quiet for *this* film — and
+ * inheriting it would mean a channel that silently stopped carrying voices for
+ * reasons nobody present was party to.
+ */
 export function startParty(party: WatchParty): WatchState {
   return {
     party,
     status: 'paused',
     positionMs: 0,
     startedAt: null,
+    mutedAll: false,
     failure: null,
   };
+}
+
+/**
+ * Withholds every microphone in the room, or gives them all back.
+ *
+ * Refused when there is no party, so the state cannot be left set on an idle
+ * channel where nothing in the interface would explain it — `stopParty`
+ * returns the initial state and clears it for the same reason.
+ */
+export function setPartyMute(watch: WatchState, muted: boolean): WatchState {
+  if (!watch.party) return watch;
+  return { ...watch, mutedAll: muted };
 }
 
 export function stopParty(): WatchState {

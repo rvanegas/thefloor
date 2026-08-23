@@ -756,7 +756,9 @@ holding the phone that will do the transmitting.
 - **Auto-muting while a party plays.** It would cut the loop completely and it
   defeats the feature: the point of watching together is reacting to it, and a
   channel that silences everybody for the length of a film is a channel nobody
-  needs. If it is ever built it is an offer, never automatic.
+  needs. If it is ever built it is an offer, never automatic. **Built as an
+  offer the same day** — see the entry below, where the "never automatic" half
+  is the part that survived.
 - **Warning when a screen is already following.** The server knows how many
   watch-scoped sockets a channel has, so the phone could be told. It addresses
   a *different* cause — one person hearing both their laptop and their own
@@ -771,4 +773,71 @@ The general lesson, which is the same one the choppy pump taught and the entry
 above predicted: **the walk finds what the suite cannot, and what it finds is
 often not a bug.** 74 tests passed on a feature whose most noticeable property
 in real use is not expressible as an assertion.
+
+---
+
+## Muting the room is a third state, not a sixfold self-mute — 2026-08-23
+
+Asked for hours after the entry above, and it is the other half of it: the
+headphone advice is what you do to keep talking through a film, and this is
+what you do when you would rather not. Both remedy the same leak, at opposite
+ends of the same choice, and the card now says whichever is true rather than
+stacking two warnings about one thing.
+
+**The requirement that shaped it was stated in the asking**: clearing the mute
+must not clear anybody's self-mute. That one sentence rules out the obvious
+implementation — writing `true` into every entry of `selfMuted` — because
+unmuting could then never give back what people had chosen. Somebody who muted
+themselves before the film starts would come out of it audible, which is the
+exact failure `DECISIONS-2026-08-20-to-2026-08-21.md` § *Every departure clears
+the self-mute* was careful about from the other direction.
+
+So it is `watch.mutedAll`: a property of the room, held with the party, cleared
+when the party ends and never inherited by the next one. STATES.md carries it
+as `Party-Muted`, the third reason a microphone can be quiet.
+
+**It is not a claim either**, and the pair is worth stating because both
+withhold audio and the difference is the whole of what each is for. A claim
+withholds everybody *but one* and confers control; this withholds everybody,
+the holder included, and confers nothing. They compose rather than conflict:
+`isWithheld(state, speaker)` is the one place the two reasons are combined, so
+no caller has to remember there are two, and clearing a mute over a live claim
+drops back to the claim's answer rather than to everybody audible.
+
+### Both ends enforce it, and neither alone would do
+
+The server withholds the subscriptions, as it does for the floor. The app
+closes its own microphone, via `microphoneNeeded` returning false for a muted
+room. That looks redundant and is not:
+
+- **The server's half is what makes it true.** A build that predates this rule
+  goes on publishing, and only the plane can stop that reaching anybody.
+- **The app's half is what makes it useful.** The whole point is that the video
+  on the screen beside the phone is never picked up *at all* — withholding the
+  subscription would stop others hearing it while the microphone went on
+  listening to it.
+
+Answering it inside `microphoneNeeded` rather than at the call site has a
+consequence that falls out rather than being arranged: `anyMicrophoneOpen` is
+false for the whole room, so every audio session goes to its high-quality
+configuration for the length of the film. That is the behaviour anybody would
+want and nobody would have thought to ask for, and it is a second reason not to
+special-case this at the top of `useSessionAudio`.
+
+The reconciliation loop was widened to match. It previously skipped any channel
+with no floor holder, which would have left a muted room outside the one
+mechanism that catches a track being replaced under a statement made about it —
+so a phone that flapped mid-film would come back audible with every screen
+saying otherwise. That is the `reconcileSilence` fault of 2026-08-14 arriving
+by a new route, and it was avoided by reading the rule rather than by meeting
+it again.
+
+### Said once, under the roster
+
+Asked for on the participant cards first and moved during the asking, which was
+the right call: it is one fact about the room, not six facts about six people.
+Six badges would also imply each person had been muted individually — precisely
+what this is not, and precisely the misreading the implementation was chosen to
+avoid. It sits under the roster because it is a claim about the roster directly
+above it: those people cannot be heard right now.
 

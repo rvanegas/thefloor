@@ -527,6 +527,12 @@ export type ClientAction =
   | { type: 'WATCH_PAUSE' }
   | { type: 'WATCH_SEEK'; positionMs: number }
   /**
+   * Withholds every microphone in the room for the length of the party, or
+   * gives them all back. Distinct from `SET_SELF_MUTE` in both directions:
+   * clearing this restores each person's own mute as they set it.
+   */
+  | { type: 'SET_WATCH_MUTE'; muted: boolean }
+  /**
    * A follower's player reporting how long the video is. Sent by the follower
    * page and by nothing else — it is the one action a watch-scoped socket may
    * send, and the only fact about a party that does not originate here.

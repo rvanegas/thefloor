@@ -248,6 +248,27 @@ export interface WatchState {
   /** When the current run began; null unless status is 'playing'. */
   startedAt: number | null;
   /**
+   * Whether the room's microphones are withheld for the duration.
+   *
+   * A property of the room and not of any person, which is the whole reason it
+   * lives here rather than as six entries in `selfMuted`. Watching something
+   * together is mostly not talking, and every open microphone in a watch party
+   * is a microphone pointed at somebody's screen — see DECISIONS.md § *A watch
+   * party leaks into the channel through the microphone*.
+   *
+   * **Deliberately not the same state as a self-mute, in either direction.**
+   * Clearing this leaves each person's own mute exactly as they set it, and
+   * setting it does not write anybody's. One is the room being quiet for a
+   * film; the other is a decision somebody made about their own microphone,
+   * and a control that silently discarded the second while doing the first
+   * would hand back a live microphone its owner had closed.
+   *
+   * Nor is it the floor: a claim withholds everybody *but one* and confers
+   * control, and this withholds everybody and confers nothing. `isWithheld`
+   * in core/channel.ts is where the two are combined.
+   */
+  mutedAll: boolean;
+  /**
    * Why the party stopped, when it stopped for a reason nobody asked for.
    *
    * The same reasoning as `PlaybackState.failure`, one screen further out: a
@@ -548,6 +569,14 @@ export type ChannelAction =
   | { type: 'WATCH_PLAY'; userId: UserId }
   | { type: 'WATCH_PAUSE'; userId: UserId }
   | { type: 'WATCH_SEEK'; userId: UserId; positionMs: number }
+  /**
+   * Withholds every microphone in the room for the length of the party, or
+   * gives them all back. Guarded by `canControlWatch` like the transport, for
+   * the same reason: it governs what the channel is attending to.
+   *
+   * Writes nothing to `selfMuted`. See `WatchState.mutedAll`.
+   */
+  | { type: 'SET_WATCH_MUTE'; userId: UserId; muted: boolean }
   /**
    * A follower's player says how long the video is.
    *

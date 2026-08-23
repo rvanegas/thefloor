@@ -25,6 +25,23 @@ export function microphoneNeeded(
   // minted unable to publish, so asking for capture would open a device
   // microphone that nothing is allowed to carry — and on a phone that is the
   // same profile handover as a real call, paid for to publish nothing.
+  // A muted room has nothing for anybody's microphone to capture for, which is
+  // the same question this function already asks about being alone — so it is
+  // answered in the same place rather than as a special case at the call site.
+  //
+  // **Closing the device is the point, not a bonus.** The server withholds the
+  // subscriptions anyway, so nobody would hear anything either way; what only
+  // closing the microphone achieves is that the video playing on the screen
+  // beside the phone is never picked up at all. See DECISIONS.md § *A watch
+  // party leaks into the channel through the microphone*. The server's half
+  // still has to exist, for builds that predate this rule and go on
+  // publishing.
+  //
+  // It also means `anyMicrophoneOpen` is false for the whole room, so every
+  // audio session goes to its high-quality configuration for the film — which
+  // falls out of asking the question here and would have to be written by hand
+  // anywhere else.
+  if (channel.watch?.mutedAll) return false;
   if (isGuest(channel, me) && !guestMaySpeak(channel, me)) return false;
   // The room, not the roster. A member alone with a guest is not alone: the
   // guest can hear them, and a microphone that stayed shut would leave the
