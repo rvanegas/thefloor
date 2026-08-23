@@ -64,11 +64,12 @@ The three App Store files — `APPREVIEW.md`, `APPREVIEW2.md` and
 `APPREVIEWSCRIPT.md` — were exactly that, and were deleted on 2026-08-19 when
 1.0.0 was approved and released. Everything in them that recurs went to
 `planning/RELEASING.md` first, and the open policy questions they carried went
-to `planning/BACKLOG.md`. **`APPREVIEWSCRIPT.md` is back, for 1.2.0** — a
-walkthrough is per-release, and the 1.0.0 recording shows none of guests, the
-clipboard or notification settings. `planning/review-notes-1.2.0.txt` and
-`planning/whats-new-1.2.0.txt` are the text of that submission, and all three go
-when it is approved.
+to `planning/BACKLOG.md`. **`APPREVIEWSCRIPT.md` is back and is standing**, on a
+narrower premise than its predecessor: Apple does not require a demo video, and
+1.2.0 went without one. What the file is for is the *walk*, which is what found
+eight defects before 1.0.0; filming is the optional half.
+`planning/review-notes-1.2.0.txt` and `planning/whats-new-1.2.0.txt` are the
+text of that submission and go when it is approved.
 
 **`planning/DEMO-ACCOUNT.md`** looked temporary in the same way and is not: the
 two accounts App Review signs in as, why there are two rather than one, and the

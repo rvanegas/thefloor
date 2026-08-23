@@ -1,23 +1,28 @@
 # The App Review walkthrough, as a script to follow
 
-**Temporary, for the 1.2.0 submission.** A file of this name existed for 1.0.0
-and was deleted on 2026-08-19 when that version was approved; this is a fresh
-one for a release that adds guests, the channel clipboard and per-channel
-notification settings, none of which the 1.0.0 recording shows. Delete it when
-1.2.0 is approved, moving anything that turned out to recur into RELEASING.md
-first — that is what happened to its predecessor and it is why nothing here
-repeats what that file already says.
+**Standing, and about the walk rather than the video.** A file of this name
+existed for 1.0.0, when Apple's 2.1 rejection had to be answered with a
+recording, and was deleted on approval. This one is back on a narrower premise:
+**Apple does not require a demo video, and 1.2.0 was submitted without one** —
+a recording of the previous release would have misrepresented this one, and
+re-shooting per release is a burden worth refusing until something asks for it.
 
-It has a second use, and on the evidence it is the more valuable one.
-RELEASING.md § *What one build costs* calls the walk-through the highest-yield
-item on the whole list: making the 1.0.0 recording meant walking the app in the
-order a stranger would, and it found **eight defects in an app that had been
-used daily for months**, including a recording feature that silently discarded
-what people had just recorded. So shoot it even if Apple never asks again.
+What is not worth refusing is the walk. RELEASING.md § *What one build costs*
+calls it the highest-yield item on the whole list: making the 1.0.0 recording
+meant walking the app in the order a stranger would, and it found **eight
+defects in an app that had been used daily for months**, including a recording
+feature that silently discarded what people had just recorded. The camera found
+none of those. Walking did.
+
+So: follow this before a submission whether or not anything is being filmed.
+Film it when Apple asks, when a rejection has to be answered, or when a release
+adds something a reviewer would not find on their own — and then the setup
+notes below matter. Otherwise treat the recording steps as optional and the
+order as the point.
 
 ---
 
-## Before you press record
+## Before you start, and before you press record if you are filming
 
 - **A separate test account, not the review account.** The walk ends in account
   deletion, and deleting the review account takes Sam Rivera with it and leaves
@@ -98,11 +103,13 @@ whether the thing works, not for a pitch.
 
 ## After
 
-- Trim the dead air, keep it under about fifteen minutes, and upload it to the
-  version's App Review Information as the attachment.
-- **Re-read the first paragraph of the notes** and make it describe the
-  recording you actually made — the build number, and the list of what it
-  covers. That paragraph named build 51 for months after build 51 stopped being
-  what was submitted, which is the mistake this line exists to prevent.
-- If the walk found defects, they matter more than the recording. Fix them and
-  shoot again on the build that has the fixes.
+- **If the walk found defects, they matter more than anything else here.** Fix
+  them, and walk again on the build that has the fixes.
+- **Re-read the first paragraph of the notes and make it true.** If you filmed,
+  it says what the recording shows and which build it is of; if you did not, it
+  says that none is attached and why. That paragraph claimed build 51 for
+  months after build 51 stopped being what was submitted, and claimed an
+  attachment that a new version record did not carry over — attachments belong
+  to a version, and a fresh version starts with none.
+- If you filmed: trim the dead air, keep it under about fifteen minutes, and
+  upload it to the version's App Review Information as the attachment.

@@ -1,18 +1,17 @@
 The information requested, in order.
 
 1. SCREEN RECORDING
-Attached. Physical iPhone, current iOS, build 80 — the build submitted here.
-Cold launch, sign-in, the microphone prompt, creating and using a channel, the
-floor, the channel clipboard, a guest joining from a browser link, recording,
-playback, rename, export, delete, notification settings, the donation link, the
-privacy policy, and account deletion.
+None attached to this version. The recording submitted with 1.0.0 showed that
+release and would misrepresent this one, and a stale walkthrough seemed worse
+than none. Everything in the app is reachable from the demo account below in a
+few taps, and section 4 walks it in order. If you would like a recording of any
+part of it, ask and we will send one the same day.
 
 No purchase, subscription or paid-content flow exists, and no App Tracking
 Transparency prompt, because the app does no tracking. The microphone is the
-only permission requested, and notifications are the only other prompt. Sign-up
-and sign-in share one screen, so the recording shows both. It was shot on a
-separate test account, leaving the review account below intact; the deletion
-shown is real.
+only permission requested; notifications are the only other prompt. Sign-up and
+sign-in are one screen. Account deletion is real and immediate — please see the
+note at the end about testing it last.
 
 2. DEVICES AND OS TESTED
 iPhone 16 Pro Max, 16 Pro, 13 mini, 12 Pro Max on iOS 26.6; iPhone 16e on 18.5.
