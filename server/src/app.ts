@@ -34,6 +34,7 @@ import {
   MIN_SUPPORTED_BUILD,
 } from './release';
 import { supportPage } from './support';
+import { watchPage } from './watch-page';
 import { donationsVisibleFor } from './region';
 import { ChannelRegistry, type RefusalCode } from './channels';
 import { ConsolePusher, createPushNotifier, type Pusher } from './push';
@@ -1263,6 +1264,43 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(statusFor(result.code)).send({ error: result.error });
     }
     return { token: result.token, url: options.mediaUrl };
+  });
+
+  /**
+   * A link to open the watch party on another screen.
+   *
+   * **The token is in the fragment**, which is the whole of why this returns a
+   * URL rather than a token: a fragment is never sent to a server, so it
+   * reaches no access log, no `Referer` header and no proxy. The page reads it
+   * in JavaScript and sends it exactly once, to the websocket. A caller
+   * assembling its own URL is a caller who might put it in the query string.
+   */
+  fastify.post('/channels/:id/watch-token', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    const result = channels.watchToken(id, account.id);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { url: `${origin(request)}/watch/${id}#${result.token}` };
+  });
+
+  /**
+   * The follower page.
+   *
+   * Unauthenticated, necessarily and harmlessly — the credential is in the
+   * fragment, which by construction never arrives here. This route answers the
+   * same page for a live link and a dead one, exactly as `/g/:token` does, and
+   * the refusal arrives a moment later over the socket with a reason. Nothing
+   * is handed out: the page is a static document that knows a channel id,
+   * which is not a secret and never was.
+   */
+  fastify.get('/watch/:channelId', async (request, reply) => {
+    const { channelId } = request.params as { channelId: string };
+    reply.type('text/html; charset=utf-8');
+    return watchPage({ channelId });
   });
 
   /**

@@ -213,6 +213,16 @@ interface AppValue extends AppState {
    * everybody.
    */
   inviteGuest: (channelId: string) => Promise<string>;
+  /**
+   * Mints a link that follows this channel's watch party on another screen,
+   * and hands it to the share sheet.
+   *
+   * A fresh one each time, like a guest link and for a smaller reason: there
+   * is nothing to revoke, so what a second link costs is a row that expires in
+   * six hours. Reusing one would mean storing it, and a stored credential is a
+   * thing to lose.
+   */
+  watchLink: (channelId: string) => Promise<string>;
   /** Every link this channel has, for settings. */
   guestLinks: (channelId: string) => Promise<GuestLinkSummary[]>;
   /**
@@ -862,6 +872,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         const link = await api.mintGuestLink(state.token, channelId);
         return link.url;
+      },
+
+      watchLink: async (channelId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const { url } = await api.watchLink(state.token, channelId);
+        return url;
       },
 
       guestLinks: async (channelId) => {

@@ -215,6 +215,48 @@ export interface PlaybackState {
   failure: string | null;
 }
 
+/**
+ * A video everybody is watching, on their own screens.
+ *
+ * Not a second `PlaybackTrack`, and the difference is what the whole feature
+ * rests on: a track is a file this server holds and publishes, and this is a
+ * link. Nothing here is ever fetched, decoded, published or stored by The
+ * Floor — everybody watches the real player on their own device, with its own
+ * audio, which is also why a channel running one refuses to record.
+ */
+export interface WatchParty {
+  /** YouTube's own id, parsed from whatever was pasted. */
+  videoId: string;
+  /** The URL as given, kept so the interface can hand back exactly that. */
+  url: string;
+  /**
+   * How long it runs. Null until a follower's player says — nothing here ever
+   * asks YouTube anything, so this is the one fact the channel learns from a
+   * client rather than deciding.
+   */
+  durationMs: number | null;
+}
+
+export type WatchStatus = 'idle' | 'playing' | 'paused';
+
+export interface WatchState {
+  /** The video being watched, or null when there is none. Null iff idle. */
+  party: WatchParty | null;
+  status: WatchStatus;
+  /** Position banked at the last transition, in ms into the video. */
+  positionMs: number;
+  /** When the current run began; null unless status is 'playing'. */
+  startedAt: number | null;
+  /**
+   * Why the party stopped, when it stopped for a reason nobody asked for.
+   *
+   * The same reasoning as `PlaybackState.failure`, one screen further out: a
+   * transport that says playing while three people are looking at a stopped
+   * player needs to say which of those two is the lie.
+   */
+  failure: string | null;
+}
+
 export interface ChannelState {
   id: string;
   /**
@@ -332,6 +374,14 @@ export interface ChannelState {
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
   playback: PlaybackState;
+  /**
+   * What everybody is watching, on their own screens.
+   *
+   * Beside `playback` rather than inside it, and mutually exclusive with it:
+   * a channel attends to one thing, so starting a party clears the track and
+   * loading a track ends the party. See `canStartWatch`.
+   */
+  watch: WatchState;
   /** What is on the channel's clipboard, or null when nothing is. */
   clip: Clip | null;
   /**
@@ -481,6 +531,34 @@ export type ChannelAction =
   | { type: 'SET_VOLUME'; userId: UserId; volume: number }
   /** Reported by the media plane, like RECORDING_FAILED: no actor, no guard. */
   | { type: 'PLAYBACK_FAILED'; reason: string }
+  /**
+   * Starts a watch party on a pasted link, replacing whatever the channel was
+   * attending to. The `videoId` arrives parsed rather than being parsed here,
+   * so that the app's decision to light the button and the server's decision
+   * to accept are made by one function — see `parseYouTubeUrl`.
+   */
+  | { type: 'START_WATCH'; userId: UserId; videoId: string; url: string }
+  | { type: 'STOP_WATCH'; userId: UserId }
+  /**
+   * The party's transport, gated by `canControlWatch` — the same rule shared
+   * playback follows, for the same reason. A claim confers exclusive control
+   * of what is attended to, and a video on everybody's second screen is
+   * squarely that.
+   */
+  | { type: 'WATCH_PLAY'; userId: UserId }
+  | { type: 'WATCH_PAUSE'; userId: UserId }
+  | { type: 'WATCH_SEEK'; userId: UserId; positionMs: number }
+  /**
+   * A follower's player says how long the video is.
+   *
+   * A fact rather than a control, so it is gated by nothing but being in the
+   * room: it changes no transport and grants nobody anything. It carries a
+   * `userId` all the same, because the socket it arrives on has one and the
+   * reducer refuses anybody who is not a participant.
+   */
+  | { type: 'WATCH_READY'; userId: UserId; durationMs: number }
+  /** Reported, not performed — like PLAYBACK_FAILED: no actor, no guard. */
+  | { type: 'WATCH_FAILED'; reason: string }
   /**
    * Puts something on the channel's clipboard, replacing whatever was there.
    *

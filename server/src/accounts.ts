@@ -26,6 +26,22 @@ export const OTP_MAX_ATTEMPTS = 5;
 export const TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
+ * How long a watch party's follower link stays good.
+ *
+ * Six hours, and the figure is a film with an interval rather than a round
+ * number. The socket layer re-checks a connection's credential every
+ * heartbeat, so a fifteen-minute token — which is what a link handed to
+ * another screen otherwise wants to be — would cut the page off in the third
+ * act, with nothing on screen to say why.
+ *
+ * Long is affordable here in a way it would not be for a session token,
+ * because of what this one *can do*: follow one channel on one screen and
+ * report a duration. A leaked link exposes what is being watched, not the
+ * ability to change it and not the account.
+ */
+export const WATCH_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
+
+/**
  * How long a request to an address with no account waits for that address to
  * sign up.
  *
@@ -103,6 +119,7 @@ export class Accounts {
     codes: number;
     invites: number;
     tokens: number;
+    watchTokens: number;
   } {
     const codes = this.db
       .prepare('DELETE FROM otp_codes WHERE expires_at <= ?')
@@ -113,10 +130,18 @@ export class Accounts {
     const tokens = this.db
       .prepare('DELETE FROM tokens WHERE expires_at <= ?')
       .run(now).changes;
+    // Counted separately from the sessions above rather than folded in with
+    // them, because they answer different questions: one number says how many
+    // phones stopped being signed in, and a watch link that expired is a
+    // browser tab nobody closed.
+    const watchTokens = this.db
+      .prepare('DELETE FROM watch_tokens WHERE expires_at <= ?')
+      .run(now).changes;
     return {
       codes: Number(codes),
       invites: Number(invites),
       tokens: Number(tokens),
+      watchTokens: Number(watchTokens),
     };
   }
 
@@ -629,6 +654,63 @@ export class Accounts {
     this.db.prepare('DELETE FROM tokens WHERE token_hash = ?').run(sha256(token));
   }
 
+  // --- Watch tokens ---------------------------------------------------------
+  //
+  // A credential for one channel on one screen. Kept apart from the sessions
+  // above at every level — its own table, its own two methods, and nothing in
+  // between that could confuse the two. See the schema for why that separation
+  // is load-bearing rather than tidy.
+
+  /**
+   * Mints a link credential for one participant to follow one channel.
+   *
+   * Revokes nothing, which is the whole difference from `issueToken`: a person
+   * may have a laptop and an iPad open on the same party, and one of them
+   * arriving must not close the other or sign their phone out.
+   */
+  issueWatchToken(accountId: string, channelId: string, now: number): string {
+    return insertWithUniqueKey(
+      () => randomBytes(32).toString('base64url'),
+      (token) =>
+        this.db
+          .prepare(
+            `INSERT INTO watch_tokens (token_hash, account_id, channel_id, created_at, expires_at)
+             VALUES (?, ?, ?, ?, ?)`
+          )
+          .run(
+            sha256(token),
+            accountId,
+            channelId,
+            now,
+            now + WATCH_TOKEN_TTL_MS
+          )
+    );
+  }
+
+  /**
+   * Who this watch link belongs to and which channel it may follow.
+   *
+   * Returns the pair rather than an account, because half of what the token
+   * says is the channel — a socket that took only the account from it would be
+   * back to holding a session credential, which is exactly what this table
+   * exists not to be.
+   */
+  watchTokenFor(
+    token: string,
+    now: number
+  ): { account: AccountRow; channelId: string } | undefined {
+    const row = this.db
+      .prepare(
+        'SELECT account_id, channel_id, expires_at FROM watch_tokens WHERE token_hash = ?'
+      )
+      .get(sha256(token)) as
+      | { account_id: string; channel_id: string; expires_at: number }
+      | undefined;
+    if (!row || now > row.expires_at) return undefined;
+    const account = this.byId(row.account_id);
+    return account ? { account, channelId: row.channel_id } : undefined;
+  }
+
   /**
    * Ends every session for one account, and says how many there were.
    *
@@ -1064,6 +1146,12 @@ export class Accounts {
       .prepare('DELETE FROM otp_codes WHERE identifier = ? COLLATE NOCASE')
       .run(account.identifier);
     this.db.prepare('DELETE FROM tokens WHERE account_id = ?').run(accountId);
+    // The same reasoning one line up, applied to the other kind of credential
+    // this account may have handed out: a link that outlived the account would
+    // be a browser tab following a channel on behalf of nobody.
+    this.db
+      .prepare('DELETE FROM watch_tokens WHERE account_id = ?')
+      .run(accountId);
     this.db
       .prepare(
         'UPDATE donations SET account_id = NULL, matched_by = NULL WHERE account_id = ?'

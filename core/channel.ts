@@ -25,6 +25,17 @@ import {
   setVolume,
 } from './playback';
 import {
+  failWatch,
+  hasReachedEnd as watchHasReachedEnd,
+  initialWatchState,
+  learnDuration,
+  startParty,
+  stopParty,
+  watchPause,
+  watchPlay,
+  watchSeek,
+} from './watch';
+import {
   canPauseOrStopRecording,
   failRecording,
   finishedRun,
@@ -113,6 +124,7 @@ export function createChannel(params: {
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
+    watch: initialWatchState(),
     clip: null,
     waiting: [],
     disconnectedAt: {},
@@ -379,6 +391,10 @@ export function canStartRecording(
   return (
     state.status === 'active' &&
     state.recording.status === 'idle' &&
+    // The mirror of `canStartWatch`'s clause. A recording made while a watch
+    // party is loaded would be missing the thing everybody was reacting to,
+    // and nothing in the file would say so.
+    state.watch.party === null &&
     isPresent(state, userId)
   );
 }
@@ -484,6 +500,19 @@ export function canControlPlayback(
   state: ChannelState,
   userId: UserId
 ): boolean {
+  return holdsSharedControl(state, userId);
+}
+
+/**
+ * Whether `userId` may change what the channel is attending to.
+ *
+ * Shared playback and the watch party ask the same question, so they ask it
+ * once. Both are things the whole channel is given at once, and the floor
+ * governs both by the same argument: a claim is not a device for hearing
+ * yourself over competing sound, it is for being in control of what is
+ * attended to.
+ */
+function holdsSharedControl(state: ChannelState, userId: UserId): boolean {
   if (state.status !== 'active') return false;
   // `isParticipant` where this used to read `isPresent`, and it is doing the
   // work that word used to: playback is not among GUEST_ACTIONS, and presence
@@ -491,6 +520,41 @@ export function canControlPlayback(
   // through, since a guest is always in the room.
   if (!isParticipant(state, userId) || !hasTheRoom(state, userId)) return false;
   return state.floor.holder === null || state.floor.holder === userId;
+}
+
+/**
+ * Whether `userId` may drive the watch party's transport.
+ *
+ * The same rule as `canControlPlayback`, deliberately — see
+ * `holdsSharedControl`. A claim confers control of the video without pausing
+ * it: the film keeps running and stops being anybody else's to change.
+ */
+export function canControlWatch(
+  state: ChannelState,
+  userId: UserId
+): boolean {
+  return holdsSharedControl(state, userId);
+}
+
+/**
+ * Whether `userId` may start a watch party.
+ *
+ * Control of what is attended to, **and** no recording in progress. The two
+ * are mutually exclusive because a party is watched on YouTube's own player
+ * with its own audio, which The Floor never touches — so a recording made
+ * alongside one would be a recording of people reacting to something it does
+ * not contain, and could not be made to contain without extracting audio the
+ * terms forbid extracting.
+ *
+ * Refused rather than resolved in the party's favour: the alternative is that
+ * one tap silently ends a run somebody may be speaking on the strength of.
+ * `canStartRecording` carries the mirror clause, so both buttons grey with a
+ * reason rather than either surprising anyone.
+ */
+export function canStartWatch(state: ChannelState, userId: UserId): boolean {
+  return (
+    canControlWatch(state, userId) && state.recording.status === 'idle'
+  );
 }
 
 /**
@@ -685,6 +749,14 @@ export function reduce(
       ...state,
       playback: failPlayback(state.playback, action.reason, now),
     };
+  }
+
+  // Handled here, above the membership check, for the reason the report above
+  // it is: it carries no actor, being reported by whatever noticed rather than
+  // performed by anybody.
+  if (action.type === 'WATCH_FAILED') {
+    if (!state.watch.party) return state;
+    return { ...state, watch: failWatch(state.watch, action.reason, now) };
   }
 
   // Raised by the server rather than performed by anyone, exactly as the two
@@ -986,7 +1058,14 @@ export function reduce(
       const playback = state.playback;
       switch (action.type) {
         case 'SET_TRACK':
-          return { ...state, playback: setTrack(playback, action.track) };
+          // Loading a track ends any party, the same way starting a party
+          // clears any track. A channel attends to one thing, and mutual
+          // replacement is what stops either button ever being dead.
+          return {
+            ...state,
+            playback: setTrack(playback, action.track),
+            watch: stopParty(),
+          };
         case 'CLEAR_TRACK':
           return { ...state, playback: clearTrack(playback) };
         case 'PLAY':
@@ -1001,6 +1080,52 @@ export function reduce(
         case 'SET_VOLUME':
           return { ...state, playback: setVolume(playback, action.volume) };
       }
+    }
+
+    case 'START_WATCH': {
+      if (!canStartWatch(state, action.userId)) return state;
+      return {
+        ...state,
+        watch: startParty({
+          videoId: action.videoId,
+          url: action.url,
+          durationMs: null,
+        }),
+        // The other half of the mutual replacement `SET_TRACK` makes. The
+        // server's media plane follows committed state, so this is the whole
+        // of what tears the playback participant down — there is no
+        // `applyWatchToMedia` and nothing here has to know there is a room.
+        playback: clearTrack(state.playback),
+      };
+    }
+
+    // The transport, which is one guard for the same reason playback's five
+    // share one: they are all the same kind of act.
+    case 'STOP_WATCH':
+    case 'WATCH_PLAY':
+    case 'WATCH_PAUSE':
+    case 'WATCH_SEEK': {
+      if (!canControlWatch(state, action.userId)) return state;
+      const watch = state.watch;
+      switch (action.type) {
+        case 'STOP_WATCH':
+          return { ...state, watch: stopParty() };
+        case 'WATCH_PLAY':
+          return { ...state, watch: watchPlay(watch, now) };
+        case 'WATCH_PAUSE':
+          return { ...state, watch: watchPause(watch, now) };
+        case 'WATCH_SEEK':
+          return { ...state, watch: watchSeek(watch, action.positionMs, now) };
+      }
+    }
+
+    case 'WATCH_READY': {
+      // Being in the room and nothing more. A duration is a fact reported by
+      // a player, not a control, and the floor has no business gating it —
+      // the follower page of somebody who does not hold the floor is exactly
+      // the one most likely to have loaded the video first.
+      if (!isParticipant(state, action.userId)) return state;
+      return { ...state, watch: learnDuration(state.watch, action.durationMs) };
     }
 
     case 'PASTE_CLIP': {
@@ -1049,6 +1174,13 @@ function tick(state: ChannelState, now: number): ChannelState {
   // and the interface shows a track for ever playing its final instant.
   if (hasReachedEnd(next.playback, now)) {
     next = { ...next, playback: pausePlayback(next.playback, now) };
+  }
+
+  // And a video that has, once a follower has told the channel how long it is.
+  // Until one has there is nothing to compare against, so a party whose length
+  // is unknown runs until somebody stops it.
+  if (watchHasReachedEnd(next.watch, now)) {
+    next = { ...next, watch: watchPause(next.watch, now) };
   }
 
   // Nothing here ends a channel. A channel outlives every silence in it and
@@ -1238,10 +1370,17 @@ function settleEmpty(state: ChannelState, now: number): ChannelState {
     Object.keys(state.guests).length > 0 || state.knocks.length > 0
       ? { ...state, guests: {}, knocks: [], floor: releaseFloor(state.floor, now) }
       : state;
-  const settled =
+  const paused =
     state.playback.status === 'playing'
       ? { ...state, playback: pausePlayback(state.playback, now) }
       : state;
+  // **And so does a watch party**, on exactly the reasoning above: a film
+  // running itself out for nobody is not shared watching, and whoever comes
+  // back would find it twenty minutes further along than they left it.
+  const settled =
+    paused.watch.status === 'playing'
+      ? { ...paused, watch: watchPause(paused.watch, now) }
+      : paused;
   if (!isRecordingActive(settled.recording)) return settled;
   return endRun(settled, now);
 }
@@ -1285,5 +1424,10 @@ function endChannel(state: ChannelState, now: number): ChannelState {
     // what a watcher sees explaining the channel ended, and a track vanishing
     // from it at the same moment reads as a second, unexplained event.
     playback: pausePlayback(state.playback, now),
+    // Comes to rest rather than being cleared, for the reason playback does:
+    // the final snapshot is what explains the channel ended, and a video
+    // vanishing from it at the same moment reads as a second, unexplained
+    // event.
+    watch: watchPause(state.watch, now),
   };
 }

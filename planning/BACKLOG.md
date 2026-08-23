@@ -18,6 +18,39 @@ find the reasoning.
 
 ---
 
+## Nobody has watched anything, and that is the whole of what the watch party is missing
+
+Shipped 2026-08-23 with 45 core tests, 17 server tests and 11 view tests behind
+it, and not one of them has played a video. The reasoning is DECISIONS.md
+§ *The Floor carries no video, and that is the whole watch party*; what is
+outstanding is the walk, which no test can stand in for. Two phones in one
+channel, a desktop browser open on each:
+
+1. Paste a link, Start, Play. Both browsers should be within a second or two of
+   each other, and **stay there for ten minutes without a visible correction** —
+   which is the one thing `WATCH_DRIFT_MS` was chosen to buy and the one thing
+   only a clock and a pair of eyes can check.
+2. Seek from one phone; both browsers jump.
+3. Claim the floor from one phone; the other phone's transport greys out and
+   **the video keeps playing** — a claim confers control, it does not pause.
+4. Record is greyed with its reason. Load an audio file: the party ends and the
+   shared audio takes over.
+5. Both step out; the party pauses. Step back in; it is still paused, where it
+   was.
+6. Restart the server; the party comes back paused at its position and both
+   pages reconnect on their own.
+
+Two things are known-unknown rather than untested, and are worth watching for
+during the walk. **Nobody has seen what a video whose embedding is disabled
+does** — the page says "That video will not play here" and the channel does not
+learn it, so the transport goes on saying playing while one screen shows an
+error; whether that is tolerable or wants a `WATCH_FAILED` from the page is a
+decision to make after seeing it. And **the gate is per page**: a follower who
+has not tapped yet is a screen the transport believes is watching, which is
+correct and may still read as a bug to whoever is looking at it.
+
+---
+
 ## Two things that ship unbounded, both from channels being permanent
 
 Channels themselves survive a restart — `9761d72`, 2026-08-10 — and this entry

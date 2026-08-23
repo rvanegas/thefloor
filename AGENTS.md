@@ -54,12 +54,15 @@ costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 
 The rest are temporary, and say so in their own first lines. Designs for
-unbuilt work — **`planning/ANONWEB.md`**, **`planning/WATCHPARTY.md`** — are
-deleted when the work ships, with whatever survives moving to `DECISIONS.md`.
-`planning/USAGE.md` was the third and went that way on 2026-08-19: the reasoning
-is `DECISIONS-2026-08-16-to-2026-08-19.md` § *The meter is two tables and a
+unbuilt work — **`planning/ANONWEB.md`** is the only one left — are deleted
+when the work ships, with whatever survives moving to `DECISIONS.md`.
+`planning/USAGE.md` went that way on 2026-08-19: the reasoning is
+`DECISIONS-2026-08-16-to-2026-08-19.md` § *The meter is two tables and a
 script*, and the queries it carried are `bin/usage`, which is the only way
-anything reads those tables.
+anything reads those tables. **`planning/WATCHPARTY.md` went the same way on
+2026-08-23**, to `DECISIONS.md` § *The Floor carries no video* — and it is
+worth knowing it existed, because the design it carried is not what the task
+that asked for it appears to ask for.
 The three App Store files — `APPREVIEW.md`, `APPREVIEW2.md` and
 `APPREVIEWSCRIPT.md` — were exactly that, and were deleted on 2026-08-19 when
 1.0.0 was approved and released. Everything in them that recurs went to
@@ -115,7 +118,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 630 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 633 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a

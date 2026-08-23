@@ -513,6 +513,25 @@ export type ClientAction =
    * in the channel snapshot, so there is nothing on disk for a route to have
    * put there first.
    */
+  /**
+   * Starts a watch party on a pasted link.
+   *
+   * Carries the URL as typed and nothing else. The server parses it — with
+   * `parseYouTubeUrl`, the same function the app used to decide whether to
+   * offer the button — and dispatches the reducer's `START_WATCH` with the id
+   * it got, so a client cannot name a video by an id nobody has checked.
+   */
+  | { type: 'START_WATCH'; url: string }
+  | { type: 'STOP_WATCH' }
+  | { type: 'WATCH_PLAY' }
+  | { type: 'WATCH_PAUSE' }
+  | { type: 'WATCH_SEEK'; positionMs: number }
+  /**
+   * A follower's player reporting how long the video is. Sent by the follower
+   * page and by nothing else — it is the one action a watch-scoped socket may
+   * send, and the only fact about a party that does not originate here.
+   */
+  | { type: 'WATCH_READY'; durationMs: number }
   | { type: 'PASTE_CLIP'; text: string }
   | { type: 'CLEAR_CLIP' }
   /**

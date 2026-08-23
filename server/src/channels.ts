@@ -30,6 +30,7 @@ import { roomOccupants, statedIdentities } from '../../core/guests';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { initialPlaybackState } from '../../core/playback';
 import { initialRecordingState } from '../../core/recording';
+import { initialWatchState, parseYouTubeUrl } from '../../core/watch';
 import type {
   PlaybackTrack,
   ChannelAction,
@@ -181,6 +182,20 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'PAUSE',
   'SEEK',
   'SET_VOLUME',
+  // Every watch action a person performs. `WATCH_FAILED` is left out, the same
+  // way `PLAYBACK_FAILED` and `RECORDING_FAILED` are: it is a report, and a
+  // client able to send one could say a party had stopped that had not.
+  //
+  // `START_WATCH` *is* here, unlike `SET_TRACK` — the difference being that a
+  // track names a file only the server can put on disk, while a party names a
+  // link anybody can read. What the server still refuses to take on trust is
+  // the id: the wire form carries the URL, and `dispatch` parses it.
+  'START_WATCH',
+  'STOP_WATCH',
+  'WATCH_PLAY',
+  'WATCH_PAUSE',
+  'WATCH_SEEK',
+  'WATCH_READY',
   'PASTE_CLIP',
   'CLEAR_CLIP',
   'SET_GUEST_SPEECH',
@@ -221,6 +236,31 @@ function silenceSignature(
   tracks: string[]
 ): string {
   return `${room}:${silenced}:${[...tracks].sort().join(',')}`;
+}
+
+/**
+ * A watch party as it comes back from the durable blob: where it was, stopped.
+ *
+ * The position is banked rather than derived, so the value in the blob is only
+ * true of a party that was paused when it was written. One that was playing
+ * has a `startedAt` from a process that is gone, and deriving from it would
+ * add however long the box was down to a position nobody watched through. So
+ * the position it comes back at is the last one anybody actually banked, which
+ * understates by at most the length of the final run — the safe direction, and
+ * the same one an interrupted recording's duration errs in.
+ */
+function revivedWatch(stored: ChannelState['watch'] | undefined): ChannelState['watch'] {
+  if (!stored?.party) return initialWatchState();
+  return {
+    party: stored.party,
+    status: 'paused',
+    positionMs: stored.positionMs,
+    startedAt: null,
+    // Dropped, unlike the position: a failure is about the run that met it,
+    // and the run is over. Coming back with a warning about a page that no
+    // longer exists would be a sentence nobody could act on.
+    failure: null,
+  };
 }
 
 /**
@@ -757,6 +797,27 @@ export class ChannelRegistry {
     }
     if (!CLIENT_ACTIONS.has(action.type)) {
       return { ok: false, error: 'Not an action.', code: 'invalid' };
+    }
+
+    // The wire form of START_WATCH carries the URL as typed; the reducer's
+    // carries a parsed id beside it. The parse is made here for the same
+    // reason INVITE's contact check is made here — it is the server's to make,
+    // and the reducer must not be reachable with a video id nobody checked.
+    //
+    // By the same function the app used to decide whether to offer the button,
+    // which is the whole reason `parseYouTubeUrl` is in core: a greyed-out
+    // control and a refused action cannot disagree about what a link is.
+    if (action.type === 'START_WATCH') {
+      const url = (action as { url?: unknown }).url;
+      const parsed = typeof url === 'string' ? parseYouTubeUrl(url) : null;
+      if (!parsed) {
+        return { ok: false, error: 'That is not a YouTube link.', code: 'invalid' };
+      }
+      return this.apply(channelId, userId, {
+        type: 'START_WATCH',
+        videoId: parsed.videoId,
+        url: url as string,
+      } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
     }
 
     // The wire form of INVITE names a contact; the reducer's names an invitee.
@@ -2875,6 +2936,36 @@ export class ChannelRegistry {
     return { ok: true, token };
   }
 
+  /**
+   * A credential for one participant to follow one channel's watch party from
+   * another screen.
+   *
+   * The same three checks `mediaToken` makes, and for the same reason — the
+   * follower page is reachable by anybody who knows a channel id, and this is
+   * the whole of what stands between that and watching along with a
+   * conversation you are not in.
+   *
+   * Minted whether or not a party is running. A link handed to a laptop before
+   * anybody has pasted anything is a page that waits, which is the ordinary
+   * order of doing this: open the screen, then choose the video.
+   */
+  watchToken(
+    channelId: string,
+    userId: string
+  ): { ok: true; token: string } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (!isParticipant(channel, userId)) {
+      return { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    return {
+      ok: true,
+      token: this.accounts.issueWatchToken(userId, channelId, this.now()),
+    };
+  }
+
   // --- Guests ---------------------------------------------------------------
   //
   // Everything below turns a row in `guest_sessions` into somebody in a room,
@@ -3308,6 +3399,14 @@ export class ChannelRegistry {
       // which is rebuilt on every commit for the comparison below — cheap at
       // eight thousand, and the reason the cap is not larger.
       clip: channel.clip,
+      // Durable, where playback is not, and the difference is the same one the
+      // clipboard turns on: playback points at a temp file the dead process
+      // owned, and a party is a link and a number. Nothing external has to
+      // survive for it to mean what it meant.
+      //
+      // What is *not* preserved is that it was playing — see `revive`, which
+      // brings it back paused.
+      watch: channel.watch,
     });
   }
 
@@ -3542,6 +3641,7 @@ export class ChannelRegistry {
       lastPresentAt?: ChannelState['lastPresentAt'];
       lastRecording?: ChannelState['lastRecording'];
       clip?: ChannelState['clip'];
+      watch?: ChannelState['watch'];
     };
     const stored =
       durable.participants ??
@@ -3604,6 +3704,16 @@ export class ChannelRegistry {
       // before the field existed, which is an empty clipboard — the same thing
       // those channels had.
       clip: durable.clip ?? null,
+      // Kept for the same reason the clipboard is, and brought back
+      // **paused at its position** whatever the blob says. The clock ran on
+      // through the restart with nobody driving it and every follower's page
+      // disconnected, so coming back playing would assert a position no screen
+      // in the world is at. Paused is a claim about where everybody had got
+      // to, which is true, and pressing play is one tap.
+      //
+      // Absent on rows written before the field existed, which is a channel
+      // with no party — the same thing those channels had.
+      watch: revivedWatch(durable.watch),
       disconnectedAt: {},
       // Empty on a channel written before this existed, which reads as "not
       // known" and shows no idle time — the honest answer, rather than dating

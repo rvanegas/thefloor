@@ -13,6 +13,11 @@ import {
   isSilenced,
 } from '../../../core/floor';
 import { playbackPositionMs } from '../../../core/playback';
+import {
+  initialWatchState,
+  parseYouTubeUrl,
+  watchPositionMs,
+} from '../../../core/watch';
 import { isRecordingActive, recordedMs } from '../../../core/recording';
 import {
   MAX_CHANNEL_PARTICIPANTS,
@@ -29,6 +34,8 @@ import {
   canResumeRecording,
   canSetSelfMute,
   canStartRecording,
+  canStartWatch,
+  canControlWatch,
   canStopRecording,
   canPasteClip,
   canClearClip,
@@ -52,6 +59,7 @@ import {
   Button,
   Card,
   Empty,
+  Field,
   RecordingRow,
   Screen,
   SectionLabel,
@@ -145,6 +153,17 @@ export function ChannelView({
   /** While a guest link is being minted, which is a round trip. */
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  /**
+   * The link somebody is typing into the watch card, before it is anything.
+   *
+   * Local rather than in the channel: a half-typed URL is not something the
+   * other people in the room should be watching arrive character by character,
+   * and the party begins when Start is pressed.
+   */
+  const [watchUrl, setWatchUrl] = useState('');
+  /** While a follower link is being minted, which is a round trip. */
+  const [linking, setLinking] = useState(false);
+  const [watchError, setWatchError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{
     id: string;
     displayName: string;
@@ -342,6 +361,42 @@ export function ChannelView({
   const track = playback.track;
   const position = playbackPositionMs(playback, now);
   const mayControlPlayback = canControlPlayback(channel, me);
+
+  // `?? initialWatchState()` for the reason `clip` has its `?? null`: a server
+  // that predates this field sends snapshots without it, which is what this
+  // build meets between its release and the deploy that follows.
+  const watch = channel.watch ?? initialWatchState();
+  const party = watch.party;
+  const watchAt = watchPositionMs(watch, now);
+  const mayControlWatch = canControlWatch(channel, me);
+  // The whole of why `parseYouTubeUrl` is in core: this decides whether the
+  // button lights up and the server decides whether to accept, and a greyed
+  // control and a refused action must not disagree about what a link is.
+  const pastedIsLink = parseYouTubeUrl(watchUrl) !== null;
+
+  /**
+   * Mints a follower link and hands it to the share sheet.
+   *
+   * `Share` rather than the clipboard, because the destination is another
+   * device: what somebody does with this is mail it to themselves, drop it in
+   * a note, or send it to the iPad on the sofa. Offered whether or not a party
+   * is running — opening the screen first and choosing the video afterwards is
+   * the ordinary order of doing this.
+   */
+  const shareWatchLink = async () => {
+    setLinking(true);
+    setWatchError(null);
+    try {
+      const url = await app.watchLink(channel.id);
+      await Share.share({ message: url });
+    } catch (error) {
+      setWatchError(
+        error instanceof Error ? error.message : 'That did not work.'
+      );
+    } finally {
+      setLinking(false);
+    }
+  };
 
   // `?? null` for the same reason `recordings` has its `?? []`: a server that
   // predates this field sends snapshots without it, which is what this build
@@ -953,6 +1008,173 @@ export function ChannelView({
           </Text>
         </Card>
 
+        {/*
+          Watching, which is deliberately not a second kind of shared audio.
+          Nothing about the video travels through The Floor — everybody's own
+          player shows it, with its own sound, and what this card drives is a
+          clock. That is why it refuses recordings and why the audio card above
+          empties when this one fills.
+        */}
+        <SectionLabel>Watch together</SectionLabel>
+        <Card style={styles.stack}>
+          {watch.failure ? (
+            <Text style={styles.warning}>
+              The watch party stopped — {watch.failure}
+            </Text>
+          ) : null}
+          {watchError ? <Text style={styles.warning}>{watchError}</Text> : null}
+
+          {party ? (
+            <>
+              <Text style={type.heading} numberOfLines={1}>
+                {party.url}
+              </Text>
+              {party.durationMs ? (
+                <>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${Math.min(
+                            100,
+                            (watchAt / Math.max(1, party.durationMs)) * 100
+                          )}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.progressLabels}>
+                    <Text style={styles.progressTime}>
+                      {formatDuration(watchAt)}
+                    </Text>
+                    <Text style={styles.progressTime}>
+                      {formatDuration(party.durationMs)}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                // No bar until a screen has said how long the video is —
+                // nothing here asks YouTube anything, so until then the only
+                // honest thing to show is how far in everybody is.
+                <Text style={styles.progressTime}>
+                  {formatDuration(watchAt)} in
+                </Text>
+              )}
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label="−15s"
+                  style={styles.flexButton}
+                  disabled={!mayControlWatch}
+                  onPress={() =>
+                    act({ type: 'WATCH_SEEK', positionMs: watchAt - SKIP_MS })
+                  }
+                />
+                <Button
+                  label={watch.status === 'playing' ? 'Pause' : 'Play'}
+                  variant="primary"
+                  style={styles.flexButton}
+                  disabled={!mayControlWatch}
+                  onPress={() =>
+                    act({
+                      type:
+                        watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
+                    })
+                  }
+                />
+                <Button
+                  label="+15s"
+                  style={styles.flexButton}
+                  disabled={!mayControlWatch}
+                  onPress={() =>
+                    act({ type: 'WATCH_SEEK', positionMs: watchAt + SKIP_MS })
+                  }
+                />
+              </View>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label={linking ? 'Making a link…' : 'Watch on another screen'}
+                  style={styles.flexButton}
+                  disabled={linking}
+                  onPress={shareWatchLink}
+                />
+                <Button
+                  label="Stop"
+                  variant="ghost"
+                  style={styles.flexButton}
+                  disabled={!mayControlWatch}
+                  onPress={() => act({ type: 'STOP_WATCH' })}
+                />
+              </View>
+
+              {/*
+                Handing off rather than following, and labelled so that is
+                clear. A player opened this way runs on its own clock — it
+                starts at the right second and drifts from there, because
+                nothing on this phone can correct a video it has handed to
+                another app.
+              */}
+              <Button
+                label="Open on this phone"
+                sublabel="Starts where everybody is; will not stay in step"
+                variant="ghost"
+                onPress={() =>
+                  openUrl(
+                    `https://www.youtube.com/watch?v=${party.videoId}&t=${Math.floor(
+                      watchAt / 1000
+                    )}`
+                  )
+                }
+              />
+            </>
+          ) : (
+            <>
+              <Field
+                value={watchUrl}
+                onChangeText={setWatchUrl}
+                placeholder="Paste a YouTube link"
+                editable={canStartWatch(channel, me)}
+              />
+              <Button
+                label="Watch something together"
+                variant="primary"
+                disabled={!canStartWatch(channel, me) || !pastedIsLink}
+                onPress={() => {
+                  act({ type: 'START_WATCH', url: watchUrl.trim() });
+                  setWatchUrl('');
+                }}
+              />
+              <Button
+                label={linking ? 'Making a link…' : 'Watch on another screen'}
+                sublabel="A page for a laptop or a tablet, which follows this channel"
+                variant="ghost"
+                disabled={linking}
+                onPress={shareWatchLink}
+              />
+            </>
+          )}
+
+          <Text style={type.muted}>
+            {recordingLive
+              ? // Said out loud rather than left as a dead button. The two are
+                // exclusive because the video's sound never reaches The Floor,
+                // so a recording made alongside one would be missing the thing
+                // everybody was reacting to.
+                'Stop the recording first — a watch party is not recorded.'
+              : theyHoldFloor
+                ? `${holderName} has the floor, so they decide what plays.`
+                : iHoldFloor
+                  ? 'You have the floor — only you can change what plays.'
+                  : !mayControlWatch
+                    ? 'Step in to start a watch party. What everybody is watching is for whoever is here.'
+                    : party
+                      ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
+                      : 'Open the link on a laptop or a tablet and it follows the channel. Recording is off while a party is on.'}
+          </Text>
+        </Card>
+
         <SectionLabel>Recording</SectionLabel>
         <Card style={styles.stack}>
           {channel.recording.failure ? (
@@ -1017,7 +1239,12 @@ export function ChannelView({
           ) : channel.recording.status === 'idle' &&
             !canStartRecording(channel, me) ? (
             <Text style={type.muted}>
-              Step in to record. A recording stops when the last person leaves.
+              {party
+                ? // The reason, rather than a dead button. Named before the
+                  // presence reason because it is the one that surprises
+                  // somebody who is plainly standing in the room.
+                  'Stop the watch party to record. A video is watched on your own screen and never reaches the recording.'
+                : 'Step in to record. A recording stops when the last person leaves.'}
             </Text>
           ) : null}
         </Card>

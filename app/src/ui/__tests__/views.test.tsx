@@ -117,6 +117,7 @@ const mockApp = {
   // one. The settings screen reads this when it opens, so a mock without it is
   // a screen that throws rather than a screen with an empty section.
   inviteGuest: jest.fn(async () => 'https://example.test/g/tok'),
+  watchLink: jest.fn(async () => 'https://example.test/watch/sess_1#tok'),
   guestLinks: jest.fn(async () => [] as GuestLinkSummary[]),
   // Echoes what it was asked for, as the server does when the level is not the
   // default. A test about the refusal path overrides it.
@@ -1670,6 +1671,10 @@ describe('Channel', () => {
       'The floor',
       'Shared clipboard',
       'Shared audio',
+      // Between the audio and the recording because it is the third thing the
+      // channel can be attending to, and because the two on either side are
+      // the two it is mutually exclusive with.
+      'Watch together',
       'Recording',
       'Recordings',
       'Invite',
@@ -5433,6 +5438,190 @@ describe('the channel clipboard', () => {
     act(() => findButton(tree, 'Clear')!.props.onPress());
 
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'CLEAR_CLIP' });
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * The watch party card.
+ *
+ * What is under test here is the card's judgement rather than the transport's
+ * arithmetic, which is core's — whether the button lights up, whether the
+ * controls grey, and whether the two things a party is exclusive with say so
+ * rather than going quietly dead.
+ */
+describe('Channel, watching together', () => {
+  const URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+
+  function watching(mutate: (s: ChannelState) => ChannelState = (s) => s) {
+    return channelOf((s) =>
+      mutate(
+        reduce(
+          s,
+          { type: 'START_WATCH', userId: ME, videoId: 'dQw4w9WgXcQ', url: URL },
+          NOW
+        )
+      )
+    );
+  }
+
+  function open() {
+    return render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+  }
+
+  /** The link field, which is the only TextInput in the empty card. */
+  function pasteLink(tree: ReactTestRenderer, text: string) {
+    const field = tree.root
+      .findAll((node) => node.type === TextInput)
+      .find((n) => n.props.placeholder === 'Paste a YouTube link');
+    act(() => field!.props.onChangeText(text));
+  }
+
+  it('will not start on something that is not a YouTube link', () => {
+    showChannel(channelOf());
+    const tree = open();
+    expect(
+      findButton(tree, 'Watch something together')!.props.disabled
+    ).toBe(true);
+
+    pasteLink(tree, 'https://vimeo.com/123456');
+    expect(
+      findButton(tree, 'Watch something together')!.props.disabled
+    ).toBe(true);
+    act(() => tree.unmount());
+  });
+
+  it('lights up on one, and sends the link as typed', () => {
+    showChannel(channelOf());
+    const tree = open();
+    pasteLink(tree, URL);
+
+    const start = findButton(tree, 'Watch something together')!;
+    expect(start.props.disabled).toBe(false);
+    act(() => start.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'START_WATCH',
+      url: URL,
+    });
+    act(() => tree.unmount());
+  });
+
+  it('shows the transport once a party is loaded', () => {
+    showChannel(watching());
+    const tree = open();
+    expect(textOf(tree)).toContain(URL);
+    expect(findButton(tree, 'Play')).toBeDefined();
+    expect(findButton(tree, 'Stop')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('says how far in everybody is before any screen has said how long it is', () => {
+    showChannel(watching());
+    const tree = open();
+    // A progress bar would have to invent a denominator. Nothing here ever
+    // asks YouTube anything, so until a follower reports one there is only the
+    // elapsed figure to show.
+    expect(textOf(tree)).toContain('in');
+    act(() => tree.unmount());
+  });
+
+  it('greys the transport while somebody else holds the floor', () => {
+    showChannel(
+      watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
+    );
+    const tree = open();
+    expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('Dana Chu has the floor');
+    act(() => tree.unmount());
+  });
+
+  it('leaves the follower link alone while somebody else holds it', () => {
+    // Opening a screen of your own is not changing what the channel is doing,
+    // so the floor has no business governing it.
+    showChannel(
+      watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
+    );
+    const tree = open();
+    expect(
+      findButton(tree, 'Watch on another screen')!.props.disabled
+    ).toBeFalsy();
+    act(() => tree.unmount());
+  });
+
+  it('refuses Record with the reason, rather than a dead button', () => {
+    showChannel(watching());
+    const tree = open();
+    expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('Stop the watch party to record');
+    act(() => tree.unmount());
+  });
+
+  it('refuses a party with the reason while a recording runs', () => {
+    showChannel(
+      channelOf((s) =>
+        reduce(s, { type: 'START_RECORDING', userId: ME, runId: 'run1' }, NOW)
+      )
+    );
+    const tree = open();
+    expect(textOf(tree)).toContain('Stop the recording first');
+    act(() => tree.unmount());
+  });
+
+  it('hands the phone off at the second everybody is at', async () => {
+    const { Linking } = require('react-native');
+    const opened = jest
+      .spyOn(Linking, 'openURL')
+      .mockResolvedValue(undefined as never);
+
+    showChannel(
+      watching((s) =>
+        reduce(s, { type: 'WATCH_SEEK', userId: ME, positionMs: 90_000 }, NOW)
+      )
+    );
+    const tree = open();
+    const handoff = findButton(tree, 'Open on this phone')!;
+    // The caveat is on the button rather than in small print: a player opened
+    // this way runs on its own clock and drifts from the second it starts.
+    expect(labelOf(handoff)).toContain('will not stay in step');
+
+    await act(async () => handoff.props.onPress());
+    expect(opened).toHaveBeenCalledWith(
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90'
+    );
+
+    opened.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('shares a follower link for another screen', async () => {
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: 'sharedAction' } as never);
+    showChannel(watching());
+    const tree = open();
+    await act(async () => {
+      findButton(tree, 'Watch on another screen')!.props.onPress();
+    });
+    expect(mockApp.watchLink).toHaveBeenCalledWith('sess_1');
+    expect(share).toHaveBeenCalledWith({
+      message: 'https://example.test/watch/sess_1#tok',
+    });
+    act(() => tree.unmount());
+    share.mockRestore();
+  });
+
+  it('offers the link before anybody has chosen a video', () => {
+    // The ordinary order of doing this is to open the screen first and then
+    // pick something, so the link cannot be behind a loaded party.
+    showChannel(channelOf());
+    const tree = open();
+    expect(findButton(tree, 'Watch on another screen')).toBeDefined();
     act(() => tree.unmount());
   });
 });

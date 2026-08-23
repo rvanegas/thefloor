@@ -58,6 +58,23 @@ export const MAX_CHANNEL_PARTICIPANTS = 6;
 export const PLAYBACK_DEFAULT_VOLUME = 0.7;
 
 /**
+ * How far a watch party's follower may drift before it is corrected.
+ *
+ * A second and a half, and the figure is generous on purpose: correcting a
+ * follower means seeking, and a seek is a visible stutter and an audible one.
+ * Two people half a second apart are watching the same thing; two people
+ * stuttering every four seconds are not, however well synchronised the
+ * numbers say they are. So the tolerance is set where the correction stops
+ * being worse than the drift it fixes.
+ *
+ * In core rather than in the follower page because it is a property of the
+ * shared clock rather than of one client — the phone's readout is derived from
+ * the same `watchPositionMs`, and a page correcting to a different tolerance
+ * than the transport is described with would be two answers to one question.
+ */
+export const WATCH_DRIFT_MS = 1_500;
+
+/**
  * The most characters a channel name may hold.
  *
  * Long enough for "Tuesday planning with the cousins", short enough that the

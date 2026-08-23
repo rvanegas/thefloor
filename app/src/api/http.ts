@@ -339,6 +339,21 @@ export const api = {
       token,
     }),
 
+  /**
+   * A link to follow this channel's watch party on another screen.
+   *
+   * Returns a URL and not a token, deliberately: the credential belongs in the
+   * fragment, and the server is the only thing that should be deciding that.
+   * A client assembling its own is a client that might put it in the query
+   * string, where every proxy and access log between here and there would see
+   * it.
+   */
+  watchLink: (token: string, channelId: string) =>
+    request<{ url: string }>(`/channels/${channelId}/watch-token`, {
+      method: 'POST',
+      token,
+    }),
+
   mediaToken: (token: string, channelId: string) =>
     request<{ token: string; url?: string }>(
       `/channels/${channelId}/media-token`,
