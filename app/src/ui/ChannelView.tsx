@@ -37,11 +37,13 @@ import {
   hasTheRoom,
   isPresent,
 } from '../../../core/channel';
+import { inRoom } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { copyText, pasteText } from '../clipboard';
 import { useApp } from '../state/AppProvider';
+import { liveChannelView } from '../state/live';
 import { AudioDebugPanel } from './AudioDebugPanel';
 import { ChannelSettingsView } from './ChannelSettingsView';
 import { ProfileView } from './ProfileView';
@@ -283,6 +285,33 @@ export function ChannelView({
    */
   const iAmPresent = isPresent(channel, me);
   /**
+   * Whether somebody is to be shown as speaking *on this screen*, as against
+   * somebody the room happens to be hearing.
+   *
+   * `audio.speaking` is one room's active speakers, and the audio follows
+   * presence rather than navigation: you can stand in one channel and look at
+   * another, and these ids index straight into any channel's roster. So
+   * without narrowing, a person talking where you are standing lights up on
+   * the screen of a channel they are absent from — a dot pulsing next to
+   * "Stepped out", on a screen carrying no audio at all.
+   *
+   * Two narrowings, and neither implies the other. The screen has to be the
+   * channel the audio is for, decided by the same `liveChannelView` App.tsx
+   * passes the connection, so the two cannot drift into disagreeing about
+   * which room this is. And the person has to be in that room — which is not
+   * redundant, because presence and the room's judgement arrive by different
+   * routes: a snapshot saying somebody stepped out can land before LiveKit
+   * says their audio went, and the hold in `speaking.ts` would otherwise keep
+   * them lit for two seconds after their own card says they left.
+   *
+   * `inRoom` rather than `isPresent` because a guest is in the room without
+   * being in `present`, and the guest cards below ask this too.
+   */
+  const audioIsThisChannel =
+    liveChannelView(app.channelViews, me)?.channel.id === channelId;
+  const speakingHere = (id: string) =>
+    audioIsThisChannel && inRoom(channel, id) && audio.speaking.includes(id);
+  /**
    * Whether the channel is mine to change, as against somebody else's
    * conversation to leave alone. See `hasTheRoom` in core.
    *
@@ -440,7 +469,7 @@ export function ChannelView({
                 // Audible right now, as the room hears it rather than as the
                 // reducer imagines it: the floor says who *may* speak, and
                 // this says who is.
-                speaking={audio.speaking.includes(participant.id)}
+                speaking={speakingHere(participant.id)}
                 now={now}
                 onPress={() => setViewing(participant)}
                 // The same test the profile's composer uses and the server
@@ -518,7 +547,7 @@ export function ChannelView({
               guest={guest}
               muted={!!channel.selfMuted[guest.id]}
               holdsFloor={channel.floor.holder === guest.id}
-              speaking={audio.speaking.includes(guest.id)}
+              speaking={speakingHere(guest.id)}
               manageable={canManageGuest(channel, me, guest.id)}
               onSpeech={(maySpeak) =>
                 act({ type: 'SET_GUEST_SPEECH', guestId: guest.id, maySpeak })

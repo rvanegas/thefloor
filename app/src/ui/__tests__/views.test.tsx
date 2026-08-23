@@ -4085,6 +4085,63 @@ describe('who is in the channel, and who is talking', () => {
     act(() => tree.unmount());
   });
 
+  it('leaves the card clear for somebody absent from this channel', () => {
+    // The room's active speakers are ids, and an id means the same person in
+    // every channel they belong to. A dot next to "Stepped out" is the shape
+    // of that going wrong, and it is what a stale speaker survives as while
+    // the hold in speaking.ts runs down.
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW))
+    );
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={audioWith(THEM)}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const them = cardFor(tree, 'Dana Chu');
+    expect(them.style.borderColor).not.toBe(colors.floor);
+    expect(String(them.node!.props.accessibilityLabel)).not.toContain(
+      'Speaking'
+    );
+    act(() => tree.unmount());
+  });
+
+  it('lights nobody on a channel whose audio is somewhere else', () => {
+    // You are standing in one channel and looking at another. The connection
+    // belongs to where you are standing, so nothing it hears is evidence
+    // about this screen — including about a person present on both rosters,
+    // which is why presence alone does not settle it.
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW))
+    );
+    showChannel(
+      reduce(
+        createChannel({
+          id: 'sess_2',
+          initiator: ME,
+          invitees: [THEM],
+          now: NOW,
+        }),
+        { type: 'ENTER', userId: THEM },
+        NOW
+      )
+    );
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={audioWith(THEM)}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const them = cardFor(tree, 'Dana Chu');
+    expect(them.style.borderColor).not.toBe(colors.floor);
+    act(() => tree.unmount());
+  });
+
   it('says how long somebody has been gone, in words', () => {
     showChannel(
       channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW))

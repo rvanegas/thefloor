@@ -1876,3 +1876,33 @@ actionable fact, being how long the tap beside it will still work, but it
 promises something the app does not know: the window is how long we go on
 calling somebody reachable, not how long they will be. The perfect tense fixes
 the reading without touching the number. **Been nearby for 5 minutes.**
+
+## The speaking dot belongs to a room, not to an id — 2026-08-22
+
+`audio.speaking` is one LiveKit room's active speakers, by account id, and the
+ids index straight into any channel's roster — which is the convenience the
+identity scheme was chosen for and is also the defect. The audio follows
+presence and the screen follows navigation, and the two part company every time
+somebody walks back to Home and opens a different channel: the connection stays
+where you are standing, the roster on screen is somewhere else, and anybody who
+belongs to both got a lit dot and " Speaking." in their accessibility label on a
+screen carrying no audio at all. Next to *Stepped out*, in the ordinary case.
+
+Narrowed at the call site in `ChannelView`, in `speakingHere`, on two
+conditions that look redundant and are not.
+
+**The screen has to be the channel the audio is for**, decided by calling the
+same `liveChannelView` that App.tsx passes the connection. Recomputing it from
+`iAmPresent` would have been the obvious move and would have been a second
+opinion about which channel is live — right until two snapshots disagreed about
+a move, which is the case `liveChannelView` exists to settle and the one where a
+second opinion is worth nothing.
+
+**And the person has to be in that room**, `inRoom` rather than `isPresent`
+because a guest is in the room without being in `present` and the guest cards
+ask the same question. Not implied by the first: presence and the room's
+judgement arrive by different routes, so a snapshot saying somebody stepped out
+can land before LiveKit says their audio went, and the trailing hold in
+`speaking.ts` would otherwise keep them lit for two seconds after their own card
+says they left. The hold is a smoothing of speech and has no opinion about
+presence; this is where presence gets its say.
