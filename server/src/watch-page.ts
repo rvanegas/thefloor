@@ -152,7 +152,7 @@ export function watchPage(options: {
   <span id="right">
     <span id="what">Connecting…</span>
     <span id="where"></span>
-    <button id="copy" type="button" hidden>Copy link</button>
+    <button id="copy" type="button" hidden>Copy video link</button>
     <button id="fullscreen" type="button" hidden>Full screen</button>
   </span>
 </div>
@@ -570,6 +570,12 @@ export function watchPage(options: {
   // the screen the video is on. Somebody watching on a laptop who wants to
   // send it to a friend, or open it in their own tab afterwards, is here and
   // not there.
+  //
+  // Called "Copy video link" rather than "Copy link", which it was until the
+  // phone grew two of these. There is only one kind of link to copy *here* —
+  // this page is the screen, so it has no screen link to offer — but two
+  // surfaces naming the same act differently is how a vocabulary drifts, and
+  // the phone has to distinguish a public YouTube URL from a credential.
 
   var copyTimer = null;
 
@@ -593,7 +599,7 @@ export function watchPage(options: {
           copyButton.textContent = 'Copied';
           if (copyTimer) clearTimeout(copyTimer);
           copyTimer = setTimeout(function () {
-            copyButton.textContent = 'Copy link';
+            copyButton.textContent = 'Copy video link';
           }, 2000);
         },
         function () {
@@ -603,7 +609,7 @@ export function watchPage(options: {
           copyButton.textContent = 'Copy failed';
           if (copyTimer) clearTimeout(copyTimer);
           copyTimer = setTimeout(function () {
-            copyButton.textContent = 'Copy link';
+            copyButton.textContent = 'Copy video link';
           }, 2000);
         }
       );

@@ -1041,6 +1041,42 @@ can only search the page for substrings, and the second was produced by the
 first one's fix. BACKLOG.md § *The follower page's control logic has no test*
 says what would catch the fourth.
 
+### Two links, and only one of them is public
+
+The watch card now copies both, and the reason they are two buttons with two
+names rather than one labelled "Copy" is that they are different kinds of
+thing and one of them is a capability.
+
+**The video's link** is a YouTube URL. Anybody may hold it, it says nothing
+about this channel, and it is the one to send to somebody who is not in the
+conversation at all. **The screen's link** carries a watch token in its
+fragment and follows this channel for six hours; it is for another device
+belonging to somebody already here. A single "Copy" would have made those
+interchangeable at exactly the moment somebody pastes one into the wrong
+window.
+
+Copying is offered *beside* sharing rather than instead of it, which is a
+distinction worth keeping: a share sheet is for sending to a person, and a
+clipboard is for putting somewhere — a note, the browser on the desk, the
+other half of a conversation happening elsewhere. Both routes hand over the
+same six-hour credential, so copying is no wider than sharing already was; it
+simply lands somewhere quieter, and a clipboard is a place things are
+forgotten. Worth knowing rather than worth preventing.
+
+The follower page's own button was renamed from "Copy link" to "Copy video
+link" in the same change. There is only one kind of link to copy there — that
+page *is* the screen, so it has no screen link to offer — but two surfaces
+naming one act differently is how a vocabulary drifts apart, and this project
+has a section about exactly that.
+
+One implementation note, because the shape looks over-thought and is not: the
+two buttons share a single piece of state naming which of them last landed.
+Two independent flags would allow both to read "copied" at once, which
+describes something that cannot happen. And whether the copy *landed* is
+carried rather than assumed — `copyText` returns a boolean precisely so that a
+clipboard refusal is not announced as a success, and a copy that silently did
+nothing is discovered at the paste, by somebody who has already moved on.
+
 ### Said once, under the roster
 
 Asked for on the participant cards first and moved during the asking, which was

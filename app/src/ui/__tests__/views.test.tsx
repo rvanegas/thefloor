@@ -5763,6 +5763,55 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  it('copies the video link, which is the public one', async () => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+    showChannel(watching());
+    const tree = open();
+    await act(async () => findButton(tree, 'Copy video link')!.props.onPress());
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(URL);
+    expect(textOf(tree)).toContain('✓ copied');
+    act(() => tree.unmount());
+  });
+
+  it('mints and copies the screen link, which is a credential', async () => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+    showChannel(watching());
+    const tree = open();
+    await act(async () => findButton(tree, 'Copy screen link')!.props.onPress());
+
+    expect(mockApp.watchLink).toHaveBeenCalledWith('sess_1');
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
+      'https://example.test/watch/sess_1#tok'
+    );
+    act(() => tree.unmount());
+  });
+
+  it('says so when the clipboard declines, rather than claiming a copy', async () => {
+    // `copyText` returns whether it landed precisely so that a refusal is not
+    // announced as a success — discovered otherwise at the paste, by somebody
+    // who has already moved on.
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => false);
+    showChannel(watching());
+    const tree = open();
+    await act(async () => findButton(tree, 'Copy video link')!.props.onPress());
+
+    expect(textOf(tree)).toContain('✗ copy failed');
+    act(() => tree.unmount());
+  });
+
+  it('reports only the button that was pressed', async () => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+    showChannel(watching());
+    const tree = open();
+    await act(async () => findButton(tree, 'Copy video link')!.props.onPress());
+
+    // One piece of state for two buttons: the other must still offer itself
+    // rather than both reading as copied.
+    expect(findButton(tree, 'Copy screen link')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
   it('greys the mute while somebody else holds the floor', () => {
     showChannel(
       watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))

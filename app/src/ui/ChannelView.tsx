@@ -174,6 +174,19 @@ export function ChannelView({
    */
   const [changing, setChanging] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
+  /**
+   * Which of the watch card's two copy buttons last landed, and whether it did.
+   *
+   * One piece of state for two buttons rather than two, because only one of
+   * them can have been pressed most recently and a shape that allowed both to
+   * read "copied" at once would be describing something that cannot happen.
+   * `ok` is carried rather than assumed — `copyText` returns whether it landed
+   * precisely so a refusal is not announced as a success.
+   */
+  const [watchCopied, setWatchCopied] = useState<{
+    which: 'video' | 'screen';
+    ok: boolean;
+  } | null>(null);
   const [viewing, setViewing] = useState<{
     id: string;
     displayName: string;
@@ -186,6 +199,15 @@ export function ChannelView({
     const timer = setTimeout(() => setCopied('idle'), 2_500);
     return () => clearTimeout(timer);
   }, [copied]);
+
+  // The same 2.5s the clipboard card uses, for the same reason: long enough to
+  // read, short enough that a second copy is not mistaken for the first one's
+  // acknowledgement.
+  useEffect(() => {
+    if (!watchCopied) return;
+    const timer = setTimeout(() => setWatchCopied(null), 2_500);
+    return () => clearTimeout(timer);
+  }, [watchCopied]);
 
   useEffect(() => {
     app.watchChannel(channelId);
@@ -399,6 +421,52 @@ export function ChannelView({
    * is running — opening the screen first and choosing the video afterwards is
    * the ordinary order of doing this.
    */
+  /**
+   * The video's link, as it was pasted.
+   *
+   * Straight onto the clipboard rather than through the share sheet, which is
+   * the difference from the button below it: sharing is for sending to
+   * somebody, copying is for putting somewhere — a note, a browser, the other
+   * half of a conversation happening elsewhere.
+   */
+  const copyVideoLink = async () => {
+    if (!party) return;
+    setWatchCopied({ which: 'video', ok: await copyText(party.url) });
+  };
+
+  /**
+   * A follower link, minted and copied.
+   *
+   * **This one is a credential**, unlike the video's link: the token rides in
+   * the fragment and is good for six hours of following this channel. That is
+   * the same thing `shareWatchLink` hands to the share sheet, so copying is no
+   * wider a capability than sharing already was — but it lands somewhere
+   * quieter, and a clipboard is a place things are forgotten. Worth knowing
+   * rather than worth preventing.
+   */
+  const copyScreenLink = async () => {
+    setLinking(true);
+    setWatchError(null);
+    try {
+      const url = await app.watchLink(channel.id);
+      setWatchCopied({ which: 'screen', ok: await copyText(url) });
+    } catch (error) {
+      setWatchError(
+        error instanceof Error ? error.message : 'That did not work.'
+      );
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  /** What a copy button says, given whether it is the one that just landed. */
+  const copyLabel = (which: 'video' | 'screen', idle: string) =>
+    watchCopied?.which !== which
+      ? idle
+      : watchCopied.ok
+        ? '✓ copied'
+        : '✗ copy failed';
+
   const shareWatchLink = async () => {
     setLinking(true);
     setWatchError(null);
@@ -1061,6 +1129,40 @@ export function ChannelView({
                   />
                 </View>
               )}
+
+              {/*
+                Two links and they are not the same kind of thing, which is why
+                the labels name which is which rather than both saying "Copy".
+
+                **The video's** is public: a YouTube URL anybody may hold, and
+                the one to send to somebody who is not in this channel at all.
+                **The screen's** is a credential — the token rides in its
+                fragment and follows this channel for six hours — and is for
+                another device belonging to somebody already here.
+
+                Copying rather than sharing, both of them, because the share
+                sheet is for sending to a person and a clipboard is for putting
+                somewhere: a note, a browser on the desk, the other half of a
+                conversation happening elsewhere. `shareWatchLink` is still
+                below for the sending case.
+              */}
+              <View style={styles.buttonRow}>
+                <Button
+                  label={copyLabel('video', 'Copy video link')}
+                  style={styles.flexButton}
+                  onPress={() => void copyVideoLink()}
+                />
+                <Button
+                  label={
+                    linking
+                      ? 'Making a link…'
+                      : copyLabel('screen', 'Copy screen link')
+                  }
+                  style={styles.flexButton}
+                  disabled={linking}
+                  onPress={() => void copyScreenLink()}
+                />
+              </View>
 
               <Button
                 label={linking ? 'Making a link…' : 'Watch on another screen'}
