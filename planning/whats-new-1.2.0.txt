@@ -1,8 +1,8 @@
-Guests. You can now bring someone in who doesn't have The Floor. Share a link, they knock from their browser, and anyone in the room can let them in — with the floor, the same as everybody else.
+Guests. You can now bring someone in who doesn't have The Floor. Share a link, they knock from their browser, and anyone in the room can let them in - with the floor, the same as everybody else.
 
 Every channel has a clipboard. One piece of text, there for everyone in the channel to read, replace or clear.
 
-Notifications are quieter, and you choose how quiet. Only a ping — somebody asking for you by name — makes a sound. Each channel has its own setting if you want to hear everything, or nothing at all. A ping now reaches you even when the app is already open, and nothing else can bump it off your lock screen.
+Notifications are quieter, and you choose how quiet. Only a ping - somebody asking for you by name - makes a sound. Each channel has its own setting if you want to hear everything, or nothing at all. A ping now reaches you even when the app is already open, and nothing else can bump it off your lock screen.
 
 A floor claim now lasts a minute rather than three. Three minutes was chosen before anyone had used it, and everyone else is muted for the whole of it.
 

@@ -1,5 +1,5 @@
 1. SCREEN RECORDING
-None attached — the 1.0.0 recording would misrepresent this release. Section 4 walks it in order; ask and we will record any part the same
+None attached - the 1.0.0 recording would misrepresent this release. Section 4 walks it in order; ask and we will record any part the same
 day. No purchases, no tracking, no ATT prompt. The microphone and
 notifications are the only prompts.
 
@@ -23,11 +23,11 @@ three channels: "Weekly Convo" with her, holding a recording called "Short
 Sample"; an older unnamed one; and "Just you".
 
 
-Open "Weekly Convo" > Step in (microphone prompt). Record/Stop — nothing asks
+Open "Weekly Convo" > Step in (microphone prompt). Record/Stop - nothing asks
 for a name; Rename, Play, Export and Delete are on the recording's row. "Play
 something together" plays a phone file into the room. "Shared clipboard" holds
 one text item. "Share a guest link" is at the foot of that screen, and the
-channel's Settings lists and revokes its links and holds Notifications — how
+channel's Settings lists and revokes its links and holds Notifications - how
 loudly this channel may interrupt you. "Start a channel" is the last row on
 Home; Contacts and Settings are the buttons at its top, and Settings holds
 Privacy policy, Sign out and Delete account.
@@ -51,7 +51,7 @@ All content is user-created; a member may play their own audio file into a
 channel.
 
 GUIDELINE 1.2: no discovery, no directory. Nothing can be browsed and nobody
-found. The one field taking an email address does not search — it sends
+found. The one field taking an email address does not search - it sends
 a request there and returns no result, disclosing nothing about whether an
 account exists. Contacts require acceptance on both sides, and only an accepted
 contact can be added to a channel.
@@ -59,7 +59,7 @@ contact can be added to a channel.
 Guest links are the one way somebody without an account takes part, and they
 are an invitation rather than an open door. Opening one joins nothing: the
 visitor types a name and knocks, and a member must admit them, one knock at a
-time; a knock can be refused. Any member present — not only whoever admitted them — can
+time; a knock can be refused. Any member present - not only whoever admitted them - can
 withdraw a guest's microphone or remove them, and removal revokes that link; a
 link can also be revoked from Settings, shutting it for everyone holding it.
 When the last member steps out, every guest goes with them. A link reaches only
@@ -68,5 +68,5 @@ channel. A guest is recorded on the same terms as anyone present, which the
 recording indicator shows to all, guest included.
 
 Any member can delete any recording in their channel and may leave at any time.
-Recording is never automatic and is visible to everyone present.PLEASE TEST ACCOUNT DELETION LAST — it is immediate, and removes this account's
+Recording is never automatic and is visible to everyone present.PLEASE TEST ACCOUNT DELETION LAST - it is immediate, and removes this account's
 contacts, leaving a working but empty app.
