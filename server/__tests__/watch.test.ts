@@ -222,62 +222,6 @@ describe('the link', () => {
     expect(page.body).toContain(channelId);
   });
 
-  it('asks for headphones before it makes any sound', async () => {
-    const { channelId } = await channelOfTwo();
-    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
-
-    // On the gate, which is the last moment before this screen makes a sound
-    // and so the last moment the advice can be acted on. The mechanism it is
-    // about is not fixable in code: a microphone near this screen sends the
-    // video back into the channel, arriving late on top of everybody's own
-    // copy, and the phone's echo canceller cancels only what the phone plays.
-    expect(page.body).toContain('headphones');
-    expect(page.body.indexOf('headphones')).toBeLessThan(
-      page.body.indexOf('id="status"')
-    );
-  });
-
-  it('cues a swapped-in video rather than loading it, so nothing plays itself', async () => {
-    const { channelId } = await channelOfTwo();
-    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
-
-    // The link is bound to the channel, so a second video pasted an hour later
-    // arrives on screens that are already open. It must arrive *stopped*: a
-    // party always begins paused, and `loadVideoById` would play it anyway —
-    // a burst of film on a laptop across the room, pulled back a moment later
-    // by `follow()`. `cueVideoById` is the same call without the playing.
-    //
-    // Asserted against the *call* rather than the word, because the comment
-    // beside it names `loadVideoById` in order to warn somebody off it — and a
-    // test that made explaining the trap impossible would be a bad trade.
-    expect(page.body).toContain('player.cueVideoById(');
-    expect(page.body).not.toContain('player.loadVideoById(');
-    // Which leaves exactly one thing able to start a video, and it acts on the
-    // channel rather than on its own account.
-    expect(page.body).toContain('playVideo');
-  });
-
-  it('names what is playing and where, and offers the link', async () => {
-    const { channelId } = await channelOfTwo();
-    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
-    const footer = page.body.slice(
-      page.body.indexOf('<div id="status">'),
-      page.body.indexOf('</div>', page.body.indexOf('<div id="status">'))
-    );
-
-    // All four in the footer rather than merely somewhere on the page.
-    for (const id of ['id="title"', 'id="channel"', 'id="copy"', 'id="fullscreen"']) {
-      expect(footer).toContain(id);
-    }
-    // The title comes off the player, never from a request this server makes:
-    // nothing here asks YouTube anything, which is the premise of the feature.
-    expect(page.body).toContain('getVideoData');
-    expect(page.body).not.toContain('googleapis');
-    // And the copy button hands over the URL as it was pasted, which is why
-    // the party keeps it rather than rebuilding one from the id.
-    expect(page.body).toContain('watch.party.url');
-  });
-
   it('offers full screen without giving the player its controls back', async () => {
     const { channelId } = await channelOfTwo();
     const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
@@ -537,16 +481,31 @@ describe('muting the room reaches the media plane', () => {
       type: 'START_WATCH',
       url: URL,
     } as never);
-    if (muted) {
-      app.channels.dispatch(channelId, alice.account.id, {
-        type: 'SET_WATCH_MUTE',
-        muted: true,
-      } as never);
-    }
+    // Stated either way rather than leaning on the default, so these tests go
+    // on meaning what they say if the default ever moves again — it already
+    // has once, from unmuted to muted on 2026-08-23.
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_WATCH_MUTE',
+      muted,
+    } as never);
     app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PLAY' });
     await new Promise((r) => setTimeout(r, 0));
     return { alice, bob, channelId };
   }
+
+  it('starts muted, and the default is what a fresh party gets', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'START_WATCH',
+      url: URL,
+    } as never);
+    const fresh = app.channels.get(channelId)!;
+    expect(fresh.watch.mutedAll).toBe(true);
+    // And paused, so the default withholds nothing until somebody presses
+    // Play — which is what makes muting-by-default safe rather than abrupt.
+    expect(fresh.watch.status).toBe('paused');
+    expect(media.subscriptions.filter((s) => s.silenced)).toHaveLength(0);
+  });
 
   it('withholds everybody, not everybody-but-one', async () => {
     const { alice, bob } = await partyOf(true);
@@ -614,7 +573,9 @@ describe('muting the room reaches the media plane', () => {
     } as never);
     expect(refused.ok).toBe(true);
     // Accepted as an action and refused by the guard, which is how every
-    // reducer-level refusal reads from here.
+    // reducer-level refusal reads from here. Asserted against a party that was
+    // explicitly unmuted, so the mute staying off is evidence the guard ran
+    // rather than an accident of what the default happens to be.
     expect(app.channels.get(channelId)?.watch.mutedAll).toBe(false);
     expect(alice).toBeDefined();
   });

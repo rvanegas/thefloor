@@ -413,12 +413,27 @@ describe('muting the room', () => {
     expect(isWithheld(s, A)).toBe(false);
   });
 
-  it('does not carry from one party into the next', () => {
-    const s = apply(watching(), [
-      [mute(true), T0],
-      [{ type: 'START_WATCH', userId: A, videoId: 'abcdefghijk', url: URL }, T0 + 1_000],
-    ]);
+  it('is what a fresh party gets, without anybody asking', () => {
+    const s = watching();
+    expect(partyMuteRequested(s)).toBe(true);
+    // Paused, so the default withholds nothing yet — which is the whole reason
+    // it is safe to default to. The first thing it can do is the thing it is
+    // for: quiet over a running film.
+    expect(s.watch.status).toBe('paused');
     expect(isPartyMuted(s)).toBe(false);
+    expect(isWithheld(s, A)).toBe(false);
+  });
+
+  it('does not carry an unmute from one party into the next', () => {
+    // The direction that carries information. Muted-to-muted would pass
+    // whatever `startParty` did, since the default is muted anyway.
+    const s = apply(watching(), [
+      [mute(false), T0],
+      [{ type: 'START_WATCH', userId: A, videoId: 'abcdefghijk', url: URL }, T0 + 1_000],
+      [{ type: 'WATCH_PLAY', userId: A }, T0 + 2_000],
+    ]);
+    expect(partyMuteRequested(s)).toBe(true);
+    expect(isPartyMuted(s)).toBe(true);
   });
 
   it('leaves the floor rule alone once cleared', () => {

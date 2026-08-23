@@ -128,10 +128,23 @@ the channel ended.
 
 **Conditions.** Set only while a party is loaded; `setPartyMute` refuses
 otherwise and `stopParty` clears it, so it cannot outlive the thing it was for.
-Not inherited by the next party — `startParty` returns the room unmuted. **Not
-restored across a restart**, the same rule `selfMuted` follows and for the same
-reason: a silence nobody in the room set, on a conversation the process
-interrupted, has nothing on screen to explain it.
+
+**The default is muted, since 2026-08-23**, and it is a default rather than an
+inheritance: `startParty` returns `mutedAll: true` whatever the last party was
+left at, so an explicit *unmute* does not carry into the next video. The
+default is only tolerable because the state is derived — a mute that held
+regardless of the transport would silence a channel from the moment somebody
+pasted a link and keep it silent through every pause. What it actually asserts
+is quiet over a running film, and a party starts paused, so the first thing the
+default can do is the thing it is for.
+
+**Restored across a restart**, which it deliberately was not until the default
+moved. The old rule dropped it, on the reasoning that a silence nobody set is
+one nothing explains; that held while unmuted was the norm and a mute ignored
+the transport. Now a party revives paused, so a restored mute withholds nothing
+until somebody presses Play — at which point it does what a fresh party would
+do anyway. What survives is the room's own answer, including an explicit
+unmute, which is the only case where the stored value carries information.
 
 **How it differs from the two it will be mistaken for.**
 

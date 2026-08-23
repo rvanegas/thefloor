@@ -165,6 +165,14 @@ export function ChannelView({
   const [watchUrl, setWatchUrl] = useState('');
   /** While a follower link is being minted, which is a round trip. */
   const [linking, setLinking] = useState(false);
+  /**
+   * Whether the field for swapping the video is open over a loaded party.
+   *
+   * Local and transient, like `watchUrl` itself: somebody halfway through
+   * pasting a link has not changed what the channel is watching, and the other
+   * people in it have no business seeing the field appear on their screens.
+   */
+  const [changing, setChanging] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{
     id: string;
@@ -994,21 +1002,72 @@ export function ChannelView({
                 }
               />
 
-              <View style={styles.buttonRow}>
-                <Button
-                  label={linking ? 'Making a link…' : 'Watch on another screen'}
-                  style={styles.flexButton}
-                  disabled={linking}
-                  onPress={shareWatchLink}
-                />
-                <Button
-                  label="Stop"
-                  variant="ghost"
-                  style={styles.flexButton}
-                  disabled={!mayControlWatch}
-                  onPress={() => act({ type: 'STOP_WATCH' })}
-                />
-              </View>
+              {/*
+                Changing what is on without stopping first.
+
+                Without it the only route from one video to the next is Stop
+                and start again, which empties the card, drops the followers to
+                "Nothing is playing", and makes a continuous evening read as
+                two unrelated ones. `START_WATCH` already replaces a party in
+                place — this is the interface catching up with what the reducer
+                could always do.
+              */}
+              {changing ? (
+                <>
+                  <Field
+                    value={watchUrl}
+                    onChangeText={setWatchUrl}
+                    placeholder="Paste a YouTube link"
+                    autoFocus
+                    editable={canStartWatch(channel, me)}
+                  />
+                  <View style={styles.buttonRow}>
+                    <Button
+                      label="Watch this instead"
+                      variant="primary"
+                      style={styles.flexButton}
+                      disabled={!canStartWatch(channel, me) || !pastedIsLink}
+                      onPress={() => {
+                        act({ type: 'START_WATCH', url: watchUrl.trim() });
+                        setWatchUrl('');
+                        setChanging(false);
+                      }}
+                    />
+                    <Button
+                      label="Cancel"
+                      variant="ghost"
+                      style={styles.flexButton}
+                      onPress={() => {
+                        setWatchUrl('');
+                        setChanging(false);
+                      }}
+                    />
+                  </View>
+                </>
+              ) : (
+                <View style={styles.buttonRow}>
+                  <Button
+                    label="Change video"
+                    style={styles.flexButton}
+                    disabled={!canStartWatch(channel, me)}
+                    onPress={() => setChanging(true)}
+                  />
+                  <Button
+                    label="Stop"
+                    variant="ghost"
+                    style={styles.flexButton}
+                    disabled={!mayControlWatch}
+                    onPress={() => act({ type: 'STOP_WATCH' })}
+                  />
+                </View>
+              )}
+
+              <Button
+                label={linking ? 'Making a link…' : 'Watch on another screen'}
+                variant="ghost"
+                disabled={linking}
+                onPress={shareWatchLink}
+              />
 
               {/*
                 Handing off rather than following, and labelled so that is
@@ -1058,28 +1117,23 @@ export function ChannelView({
           )}
 
           {/*
-            The one thing about a watch party that nothing in the code can fix,
-            said where somebody is about to start one.
+            Why the room is quiet, or why it is not.
 
-            Everybody plays the video on their own device, so their phone's
-            microphone hears their own screen and sends it down the channel —
-            arriving late, on top of the copy the others are already watching.
-            The phone's echo canceller does not touch it: it cancels what the
-            *phone* plays, not a laptop sitting next to it.
-
-            Headphones on the screen end is the whole remedy, and it is
-            complete: a microphone that cannot hear the video cannot send it.
-            Said as advice rather than as a failure, because nothing is broken
-            — this is what watching together on separate devices costs.
+            The headphone advice used to be the third branch here and is gone
+            as of 2026-08-23. It warned about a leak — a microphone hearing its
+            owner's own screen and sending the video back into the channel — at
+            a time when an unmuted room was the norm. Muting is the default
+            now, so the leak is prevented rather than advised against, and
+            whoever deliberately unmutes is the last person who needs telling.
+            The reasoning it carried is DECISIONS.md § *A watch party leaks into
+            the channel through the microphone*, which is where it belongs: the
+            constraint is still true, it is just no longer news.
           */}
           {party ? (
             partyMuted ? (
-              // The mute is the stronger remedy for the same problem, so while
-              // it holds the advice above is not true and saying it anyway
-              // would be two warnings about one thing. What is worth saying
-              // instead is *why* it is quiet, since a room that has stopped
-              // carrying voices is otherwise indistinguishable from a room
-              // where nobody is talking.
+              // A room that has stopped carrying voices is otherwise
+              // indistinguishable from a room where nobody is talking, so it
+              // says which, and how to get out of it.
               <Text style={type.muted}>
                 <Text style={styles.emphasis}>The room is muted.</Text> No
                 microphone is open, so nothing leaks in from anybody's screen.
@@ -1095,10 +1149,14 @@ export function ChannelView({
                 The room goes quiet again when the video resumes.
               </Text>
             ) : (
+              // Explicitly unmuted, which is a choice somebody made against the
+              // default. Said plainly rather than left silent, because it is
+              // the state in which the channel behaves least like the rest of
+              // the watch party.
               <Text style={type.muted}>
-                <Text style={styles.emphasis}>Headphones on the screen end.</Text>{' '}
-                Otherwise your microphone picks up your own screen and everybody
-                else hears it twice, slightly late.
+                <Text style={styles.emphasis}>The room is unmuted.</Text>{' '}
+                Everybody can be heard, including whatever their own screen is
+                playing.
               </Text>
             )
           ) : null}

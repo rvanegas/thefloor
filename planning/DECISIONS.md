@@ -951,6 +951,63 @@ and blooms back as the film resumes. That is the mono/stereo cue
 `core/micNeeded.ts` argues for at length, arriving for a reason nobody designed
 and saying precisely what it always said.
 
+### And then muted became the default, which only the derivation allows
+
+Same day again. **Every party now starts muted**, and the headphone advice that
+this entry's parent added is deleted rather than kept beside it.
+
+The order those two happened in is the argument. Muting by default would have
+been heavy-handed a few hours earlier: a mute that ignored the transport would
+have silenced a channel from the moment somebody pasted a link and kept it
+silent through every pause, until a person noticed a control they had never
+touched. Because the mute is derived — intent **and** playing — the default
+only ever asserts itself over a running film, and a party begins paused, so the
+first thing it can possibly do is the thing it is for. **A default is only as
+good as what it defaults you into**, and the derivation is what made this one
+worth having.
+
+So the advice goes. It warned about a leak the default now prevents, and
+advice about a thing that no longer happens is a sentence people learn to skip
+past — while the person who deliberately unmutes is the last one who needs
+telling. The constraint has not changed and is still recorded above; it has
+just stopped being news. What the card says instead is which of the three
+states the room is in, since a room that has stopped carrying voices is
+otherwise indistinguishable from one where nobody is talking.
+
+Two smaller things went with it. `revive` now **restores** the mute, having
+deliberately dropped it a few hours before: that rule was written for a world
+where unmuted was the norm and a mute ignored the transport, and in this one a
+revived party comes back paused, so a restored mute withholds nothing until
+Play. What survives is the room's own answer — including an explicit unmute,
+the only case where the stored value says anything the default does not.
+
+And **the card can change the video without stopping first**. `START_WATCH`
+always replaced a party in place; the interface simply had no way to ask for
+it, so the only route from one video to the next was Stop and start again —
+which empties the card, drops every follower to "Nothing is playing", and makes
+a continuous evening read as two unrelated ones.
+
+### A cued video has no duration yet, which broke the readout
+
+Found by somebody looking at a footer that said `Playing 2:31` with nothing to
+measure it against. Both readouts show `elapsed / length` and always did — but
+only once the length is *known*, and the channel learns it from exactly one
+place: a follower page's `WATCH_READY`.
+
+That report fired on `onStateChange`, on the assumption that a player knows its
+duration by the time it changes state. **A cued video does not.**
+`getDuration()` returns 0 until enough metadata has loaded, and a video cued
+and left paused may produce no further state change at all — so nothing was
+ever reported and nothing retried. Latent until the swap started cueing rather
+than loading, an hour earlier, because a *loaded* video plays and a played
+video has a duration. One fix produced the other's symptom.
+
+It now retries from the same 500ms tick that corrects drift, so the duration
+lands whenever the player learns it, at the cost of one guarded property read
+until it does. **The lesson is the same one this file keeps recording**: an
+event is a claim that something has happened, not that a value is available,
+and a fact worth having is worth asking for again.
+
 ### Said once, under the roster
 
 Asked for on the participant cards first and moved during the asking, which was

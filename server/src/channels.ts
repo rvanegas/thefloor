@@ -259,13 +259,21 @@ function revivedWatch(stored: ChannelState['watch'] | undefined): ChannelState['
     status: 'paused',
     positionMs: stored.positionMs,
     startedAt: null,
-    // **Not restored**, and this is the same rule `selfMuted` follows across a
-    // restart rather than a new one: a mute nobody in the room set, on a
-    // conversation that is not happening because the process died, is a
-    // silence with nothing on screen to explain it. Everybody comes back
-    // audible, and whoever wants the room quiet for the rest of the film says
-    // so again — one tap, against a party that is paused anyway.
-    mutedAll: false,
+    // **Restored**, which it deliberately was not until muting became the
+    // default. The old rule dropped it, on the reasoning that a silence nobody
+    // in the room set is one nothing on screen explains — and that was right
+    // while a mute held regardless of the transport and unmuted was the norm.
+    // Neither is true now: a party comes back paused, so a restored mute
+    // withholds nothing until somebody presses Play, and at that point it is
+    // doing exactly what a freshly started party would do anyway.
+    //
+    // So what survives is the room's own answer, including an explicit
+    // *unmute* — which is the case that would be lost by defaulting either
+    // way, and the only one where the stored value carries information.
+    //
+    // Absent on rows written between the watch party shipping and the mute
+    // shipping, which read as false: those channels had no mute to state.
+    mutedAll: stored.mutedAll === true,
     // Dropped, unlike the position: a failure is about the run that met it,
     // and the run is over. Coming back with a warning about a page that no
     // longer exists would be a sentence nobody could act on.

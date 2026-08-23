@@ -5631,14 +5631,29 @@ describe('Channel, watching together', () => {
     share.mockRestore();
   });
 
-  it('asks for headphones once a party is loaded', () => {
-    // The one thing about a watch party no code fixes: everybody plays the
-    // video on their own device, so a phone beside a screen hears it and sends
-    // it down the channel, late. Found by walking it rather than by a test,
-    // which is why it is said in the interface rather than fixed.
+  it('starts muted, which is what makes the default safe', () => {
+    // Muted *and* paused, so a fresh party asserts nothing until Play — and
+    // the first thing the default can do is the thing it is for. The headphone
+    // advice that used to be tested here is gone: the leak it warned about is
+    // prevented now rather than advised against.
     showChannel(watching());
     const tree = open();
-    expect(textOf(tree)).toContain('Headphones on the screen end');
+    expect(findButton(tree, 'Unmute the room')).toBeDefined();
+    expect(textOf(tree)).not.toContain('Headphones');
+    // Paused, so nothing is actually withheld yet.
+    expect(textOf(tree)).not.toContain('Party-muted');
+    act(() => tree.unmount());
+  });
+
+  it('says so when somebody has unmuted against the default', () => {
+    showChannel(
+      watching((s) =>
+        reduce(s, { type: 'SET_WATCH_MUTE', userId: ME, muted: false }, NOW)
+      )
+    );
+    const tree = open();
+    expect(textOf(tree)).toContain('The room is unmuted');
+    expect(findButton(tree, 'Mute the room')).toBeDefined();
     act(() => tree.unmount());
   });
 
@@ -5664,8 +5679,12 @@ describe('Channel, watching together', () => {
   const mutedAndPaused = () =>
     watching((s) => reduce(s, { type: 'SET_WATCH_MUTE', userId: ME, muted: true }, NOW));
 
-  it('offers to mute the room once a party is loaded', () => {
-    showChannel(watching());
+  it('offers to mute the room again once it has been unmuted', () => {
+    showChannel(
+      watching((s) =>
+        reduce(s, { type: 'SET_WATCH_MUTE', userId: ME, muted: false }, NOW)
+      )
+    );
     const tree = open();
     const button = findButton(tree, 'Mute the room')!;
     expect(button).toBeDefined();
@@ -5749,7 +5768,40 @@ describe('Channel, watching together', () => {
       watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
     const tree = open();
-    expect(findButton(tree, 'Mute the room')!.props.disabled).toBe(true);
+    // "Unmute", the party having started muted — the label follows the intent.
+    expect(findButton(tree, 'Unmute the room')!.props.disabled).toBe(true);
+    act(() => tree.unmount());
+  });
+
+  it('swaps the video without stopping the party first', () => {
+    showChannel(watching());
+    const tree = open();
+    act(() => findButton(tree, 'Change video')!.props.onPress());
+
+    const field = tree.root
+      .findAll((node) => node.type === TextInput)
+      .find((n) => n.props.placeholder === 'Paste a YouTube link');
+    act(() => field!.props.onChangeText('https://youtu.be/abcdefghijk'));
+    act(() => findButton(tree, 'Watch this instead')!.props.onPress());
+
+    // START_WATCH replaces a party in place, so the followers never see
+    // "Nothing is playing" between one video and the next.
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'START_WATCH',
+      url: 'https://youtu.be/abcdefghijk',
+    });
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'STOP_WATCH' });
+    act(() => tree.unmount());
+  });
+
+  it('lets the swap be abandoned without changing anything', () => {
+    showChannel(watching());
+    const tree = open();
+    act(() => findButton(tree, 'Change video')!.props.onPress());
+    act(() => findButton(tree, 'Cancel')!.props.onPress());
+
+    expect(findButton(tree, 'Change video')).toBeDefined();
+    expect(mockApp.act).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 

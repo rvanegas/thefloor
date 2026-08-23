@@ -60,10 +60,22 @@ export function hasReachedEnd(watch: WatchState, now: number): boolean {
 /**
  * Starts a party on this video, replacing whatever was there.
  *
- * The room comes back unmuted, whatever the last party left behind. A mute is
- * for the thing being watched — somebody choosing quiet for *this* film — and
- * inheriting it would mean a channel that silently stopped carrying voices for
- * reasons nobody present was party to.
+ * **The room begins muted**, which is a default rather than an inheritance —
+ * every party starts this way regardless of what the last one was left at.
+ *
+ * That default would have been heavy-handed before the mute followed the
+ * transport, and this is the one place worth spelling out why it is not now.
+ * A mute that held regardless of play state would silence a channel from the
+ * moment somebody pasted a link, and keep it silent through every pause,
+ * until a person noticed a control they had not touched. What holds instead is
+ * quiet *while the video plays* — so the default only ever asserts itself over
+ * a running film, which is the one time nobody wants an open microphone
+ * pointed at their own screen. Pause, and everybody has their voice back
+ * without having asked for it.
+ *
+ * The party also starts paused, so the mute asserts nothing at all until
+ * somebody presses Play. Between them, the first thing this default can
+ * possibly do is the thing it is for.
  */
 export function startParty(party: WatchParty): WatchState {
   return {
@@ -71,7 +83,7 @@ export function startParty(party: WatchParty): WatchState {
     status: 'paused',
     positionMs: 0,
     startedAt: null,
-    mutedAll: false,
+    mutedAll: true,
     failure: null,
   };
 }

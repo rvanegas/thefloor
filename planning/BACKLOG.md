@@ -57,8 +57,13 @@ channel, a desktop browser open on each:
    click the video itself: it may pause locally, and `follow()` should undo
    that within half a second — nothing should reach the other screens.
 
-**Do it with headphones**, or the microphone bleed above dominates everything
-else and you will be listening to that rather than to the drift.
+**Unmute the room before doing any of this**, which is now a deliberate act:
+parties start muted, so a walk done on the defaults will be a walk with every
+microphone shut and no drift audible at all. Then use headphones, or the
+microphone bleed above dominates everything and you will be listening to that
+rather than to what you came for. **And do it muted at least once too** — the
+mute lifting on pause and returning on resume is the behaviour most likely to
+feel wrong in use, and no test can tell you how it feels.
 
 **Steps 7 and 8 are unverified by anything.** The swap-in behaviour rests on
 YouTube's documented distinction between `cueVideoById` and `loadVideoById`,

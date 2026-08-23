@@ -118,8 +118,6 @@ export function watchPage(options: {
   }
   #gate span { font-size: 1.25rem; font-weight: 600; }
   #gate small { color: #a1a1aa; }
-  /* Held to a readable measure, this one being a sentence rather than a label. */
-  #gate .advice { max-width: 26rem; margin-top: 0.75rem; color: #d4d4d8; }
   #gate[hidden] { display: none; }
 </style>
 </head>
@@ -130,14 +128,14 @@ export function watchPage(options: {
     <span>Tap to join the watch party</span>
     <small>Your browser will not start a video on its own.</small>
     <!--
-      The headphone line, on the gate because the gate is the last moment
-      before this screen makes any sound — which is exactly when it can still
-      be acted on. Told to the screen as well as to the phone, since the person
-      reading this is often not the person holding the phone that will do the
-      transmitting.
+      The headphone advice was here and is gone as of 2026-08-23, because
+      muting the room became the default. The leak it warned about — a
+      microphone beside this screen sending the video back into the channel —
+      is now prevented rather than advised against: every party starts muted
+      while the video plays. Advice about a thing that no longer happens by
+      default is a sentence people learn to skip, and the ones who deliberately
+      unmute are the ones who least need telling.
     -->
-    <small class="advice">Wear headphones — an open microphone nearby will
-    send this audio back into the channel, and everybody will hear it twice.</small>
   </button>
 </div>
 <div id="status">
@@ -229,6 +227,45 @@ export function watchPage(options: {
     accordingly: if it ever goes, the title is blank and the footer loses a
     line it never promised.
   */
+  /*
+    Tells the channel how long the video is, once and as soon as it is known.
+    This is the one fact the channel learns from a client rather than deciding
+    — nothing on this server ever asks YouTube anything — and the reducer keeps
+    the first answer, so a second follower reporting differently changes
+    nothing.
+
+    **Retried rather than reported on an event**, which is a correction. It
+    used to fire only from onStateChange, on the assumption that the player
+    knows its duration by the time it changes state. A cued video does not:
+    getDuration returns 0 until enough metadata has loaded, and a video that is
+    cued and left paused may produce no further state change at all — so the
+    duration was never reported, the channel never learned it, and both
+    readouts showed an elapsed time with nothing to measure it against. That
+    became reachable when the swap started cueing instead of loading, since a
+    loaded video plays and a played video has a duration.
+
+    Called from the follow() tick as well, so it lands whenever the answer
+    turns up. It costs one guarded property read every 500ms until it does, and
+    nothing at all afterwards.
+  */
+  function reportDuration() {
+    if (reportedDuration || !player || !player.getDuration) return;
+    var seconds;
+    try {
+      seconds = player.getDuration();
+    } catch (error) {
+      return;
+    }
+    if (!seconds) return;
+    if (!socket || socket.readyState !== 1) return;
+    reportedDuration = true;
+    socket.send(JSON.stringify({
+      type: 'channel.action',
+      channelId: CHANNEL_ID,
+      action: { type: 'WATCH_READY', durationMs: Math.round(seconds * 1000) },
+    }));
+  }
+
   function paintTitle() {
     if (!player || !player.getVideoData) return;
     var data;
@@ -357,27 +394,10 @@ export function watchPage(options: {
           follow();
         },
         onStateChange: function () {
-          // The title arrives with the metadata rather than at ready, so it is
-          // painted on every state change until it lands.
+          // Both of these land whenever the player learns them, which is not
+          // a moment anything here can predict — see reportDuration.
           paintTitle();
-          /*
-            Reported once, when the player first knows. This is the one fact
-            the channel learns from a client rather than deciding — nothing on
-            this server ever asks YouTube anything — and the reducer keeps the
-            first answer, so a second follower saying something different
-            changes nothing.
-          */
-          if (reportedDuration || !player.getDuration) return;
-          var seconds = player.getDuration();
-          if (!seconds) return;
-          reportedDuration = true;
-          if (socket && socket.readyState === 1) {
-            socket.send(JSON.stringify({
-              type: 'channel.action',
-              channelId: CHANNEL_ID,
-              action: { type: 'WATCH_READY', durationMs: Math.round(seconds * 1000) },
-            }));
-          }
+          reportDuration();
         },
         onError: function () {
           say('That video will not play here.');
@@ -484,9 +504,16 @@ export function watchPage(options: {
     if (Math.abs(here - at) > DRIFT_MS) player.seekTo(at / 1000, true);
   }
 
-  /* Twice a second, which is well inside the tolerance above: what this
-     catches is a player that stalled to buffer, which no snapshot reports. */
-  setInterval(follow, 500);
+  /*
+    Twice a second, which is well inside the tolerance above: what this catches
+    is a player that stalled to buffer, which no snapshot reports — and the
+    duration and title turning up, neither of which announces itself either.
+  */
+  setInterval(function () {
+    reportDuration();
+    paintTitle();
+    follow();
+  }, 500);
 
   gate.addEventListener('click', function () {
     started = true;
