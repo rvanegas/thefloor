@@ -1306,6 +1306,12 @@ function ParticipantCard({
         // a length rather than a moment, `away` being how long they have been
         // at it rather than when it started.
         //
+        // **"Been nearby", not "Nearby", since 2026-08-22.** Bare, the line
+        // takes a future reading — *nearby for ten minutes* is heard as how
+        // long they will still be within reach, which is not what the number
+        // is. The perfect tense puts the length behind them, where `away`
+        // measures it.
+        //
         // **"Nearby", not "Waiting", since 2026-08-22.** The state is read by
         // somebody standing in an empty room, and that person is the one who
         // is waiting — a card telling them that the absent party is waiting
@@ -1315,7 +1321,7 @@ function ParticipantCard({
         // card. The state name in `core/` is still `waiting`, deliberately —
         // `ChannelState.waiting` is on the wire and cannot be renamed without
         // a two-step migration for a word no user ever sees.
-        `Nearby for ${duration(away)}`
+        `Been nearby for ${duration(away)}`
       : channel.everPresent.includes(participant.id)
         ? away === null
           ? 'Stepped out'

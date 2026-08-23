@@ -4130,7 +4130,7 @@ describe('who is in the channel, and who is talking', () => {
         onExit={() => {}}
       />
     );
-    expect(textOf(tree)).toContain('Nearby for 5 minutes');
+    expect(textOf(tree)).toContain('Been nearby for 5 minutes');
     expect(textOf(tree)).not.toContain('Waiting');
     expect(textOf(tree)).not.toContain('Stepped out');
     mockApp.serverNow = () => NOW;
