@@ -75,6 +75,63 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-23 — `5645ada` → `4fb597c`
+
+Three commits: the follower page's full-screen control, and the two from the
+build-81 upload — `expo.version` to 1.3.0 and the build number itself. Only the
+first reaches anybody, and it reaches them immediately: the follower page is
+server-served HTML, so a deploy puts it on every screen without an App Store
+anywhere in the path. **That asymmetry is worth remembering** — half of the
+watch party ships like a website and half of it ships like an app.
+
+No wire change. Verified against production afterwards: `/healthz` on
+`4fb597c`, `deployed.json` stamped clean, the service active, 25 live channels
+revived, and the served page at `/watch/:id` actually carrying the button, one
+`requestFullscreen`, two `fullscreenchange` listeners and — the guard that
+matters — `controls: 0` still in place.
+
+### 2026-08-23 — `306dc5f` → `5645ada`
+
+The watch party, and eight commits of 1.2.0 submission text that had landed
+over the preceding day. **A deploy carries whatever has landed**, again: the
+session that ran it was working on the watch party alone.
+
+Wire-additive, so installed builds were unaffected — they ignore `watch` and
+never send the actions. The one dent is that a build below this one can start a
+recording the server now refuses, and will see its shared audio vanish when
+somebody else starts a party; both correct, neither explained on that screen.
+
+The migration added `watch_tokens` and touched no existing row. Verified
+against production afterwards: `/healthz` on `5645ada`, `deployed.json` stamped
+clean, the table created with its `ON DELETE CASCADE`, all 25 live channels
+revived, `GET /watch/:id` serving the follower page and
+`POST /channels/:id/watch-token` refusing an unauthenticated caller with a 401.
+A build-80 client reconnected within a second of the restart, which is presence
+recovery working across a deploy — the thing recorded as half-observed on
+2026-08-19.
+
+### 2026-08-23 — `0d5476c` → `306dc5f`
+
+Most recently on 2026-08-23, `0d5476c` → `306dc5f`, which is nineteen commits
+rather than one: the notification levels, the two push stacks, the phone
+clearing announcements that have stopped being true, the ping on the nearby
+card, and a floor claim cut from three minutes to sixty seconds. Most of it had
+landed over the preceding day and none of it had been deployed — **a deploy
+carries whatever has landed, not what the session that ran it was working on**,
+and the two drift apart when several sessions land in a day and nobody deploys.
+
+The claim length is the only wire-visible behaviour in it. `FLOOR_CLAIM_MS` is
+in `core/`, which both ends import, so an install below build 79 counts down
+from three minutes while the server releases at sixty seconds; the server is
+authoritative and the release arrives as a snapshot with a null holder, so the
+old countdown stops early. Nothing else about the protocol moved.
+
+Verified against production afterwards: `/healthz` on `306dc5f`,
+`deployed.json` stamped clean, `FLOOR_CLAIM_MS = 60_000` in the synced tree,
+the service active. A burst of `requested room does not exist` from `closeRoom`
+at startup is **not** new — one at each of the last seven restarts, `restore()`
+closing LiveKit rooms that went with the old process.
+
 ### 2026-08-22 — `8ef2615` → `0d5476c`
 
 Most recently on 2026-08-22, `8ef2615` → `0d5476c`, which fixes nothing and

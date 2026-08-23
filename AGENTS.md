@@ -118,7 +118,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 633 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 636 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -353,25 +353,28 @@ one is in planning/DECISIONS.md under `## The deploy history`, newest first —
 which build kept working across which restart, and what was verified against
 production each time. Look there before assuming a behaviour is new.
 
-Most recently on 2026-08-23, `0d5476c` → `306dc5f`, which is nineteen commits
-rather than one: the notification levels, the two push stacks, the phone
-clearing announcements that have stopped being true, the ping on the nearby
-card, and a floor claim cut from three minutes to sixty seconds. Most of it had
-landed over the preceding day and none of it had been deployed — **a deploy
-carries whatever has landed, not what the session that ran it was working on**,
-and the two drift apart when several sessions land in a day and nobody deploys.
+Most recently on 2026-08-23, `4fb597c` → `6dd3735`: the headphone advice and
+the watch party's mute-all. **Three deploys went out that day** and the two
+before this one are in the history — the watch party itself, then the follower
+page's full-screen control.
 
-The claim length is the only wire-visible behaviour in it. `FLOOR_CLAIM_MS` is
-in `core/`, which both ends import, so an install below build 79 counts down
-from three minutes while the server releases at sixty seconds; the server is
-authoritative and the release arrives as a snapshot with a null holder, so the
-old countdown stops early. Nothing else about the protocol moved.
+The mute is the wire-visible half and it is additive: `watch.mutedAll` and
+`SET_WATCH_MUTE`. A build below 82 neither reads nor sends it, so such a phone
+in a muted room **keeps its microphone open and is inaudible anyway** — the
+server withholds the subscriptions regardless, which is why both ends enforce
+it and neither alone would do. planning/STATES.md § *Party-Muted* has the rest,
+including that this is neither a self-mute nor a claim.
 
-Verified against production afterwards: `/healthz` on `306dc5f`,
-`deployed.json` stamped clean, `FLOOR_CLAIM_MS = 60_000` in the synced tree,
-the service active. A burst of `requested room does not exist` from `closeRoom`
-at startup is **not** new — one at each of the last seven restarts, `restore()`
-closing LiveKit rooms that went with the old process.
+Verified against production afterwards: `/healthz` on `6dd3735`,
+`deployed.json` stamped clean, the service active, 25 live channels revived,
+`mutedAll` in the synced `core/watch.ts`, `/watch/:id` serving the headphone
+advice. The `requested room does not exist` burst at startup is **not** new —
+one at each restart, `restore()` closing rooms that went with the old process.
+
+**Half the watch party ships like a website and half like an app**, which is
+what will catch somebody out: the follower page is server-served, so a deploy
+puts it on every screen in a minute, while the channel card beside it needs an
+upload, a submission, an approval and a release.
 
 Read `/healthz` before assuming this section is current. It was a day stale here
 once already, and that is how it will fail again.
