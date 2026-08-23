@@ -124,7 +124,7 @@ export function cooldownRemainingMs(
   return remaining > 0 ? remaining : null;
 }
 
-/** Whether the active claim has run past its three-minute limit. */
+/** Whether the active claim has run past its FLOOR_CLAIM_MS limit. */
 export function hasExpired(floor: FloorState, now: number): boolean {
   return floor.claimedAt !== null && now - floor.claimedAt >= FLOOR_CLAIM_MS;
 }

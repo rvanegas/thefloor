@@ -149,7 +149,7 @@ describe('the floor and self-mute', () => {
   });
 
   it('lets a claim that expires give the mute back', () => {
-    // The auto-release at three minutes is a release like any other.
+    // The auto-release at the claim limit is a release like any other.
     let s = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
     s = reduce(s, { type: 'TICK' }, T0 + FLOOR_CLAIM_MS);
     expect(s.floor.holder).toBeNull();
@@ -196,7 +196,7 @@ describe('presence gating', () => {
 });
 
 describe('claim expiry', () => {
-  it('auto-releases at exactly three minutes', () => {
+  it('auto-releases at exactly the claim limit', () => {
     const claimed = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
     const justBefore = reduce(claimed, { type: 'TICK' }, T0 + FLOOR_CLAIM_MS - 1);
     expect(justBefore.floor.holder).toBe(A);
@@ -217,7 +217,7 @@ describe('claim expiry', () => {
 describe('intended emergent behavior', () => {
   it('produces strict gapless alternation under maximal mutual use', () => {
     // Each party claims the moment they are eligible and rides out the full
-    // three minutes. The result should be exactly symmetric turns.
+    // claim. The result should be exactly symmetric turns.
     let s = joined();
     let now = T0;
     const turns: Array<{ holder: string; start: number; end: number }> = [];

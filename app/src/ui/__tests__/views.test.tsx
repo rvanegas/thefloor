@@ -1301,7 +1301,9 @@ describe('Channel', () => {
       reduce(s, { type: 'CLAIM_FLOOR', userId: ME }, NOW)
     );
     showChannel(claimed);
-    // Device clock is irrelevant; serverNow decides. 40s into a 3:00 claim.
+    // Device clock is irrelevant; serverNow decides. 40s into a 60s claim,
+    // said in seconds — the claim cannot reach a minute, so a clock face would
+    // spend its left digit on a zero.
     mockApp.serverNow = () => NOW + 40_000;
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -1309,7 +1311,7 @@ describe('Channel', () => {
         onHome={() => {}}
         onExit={() => {}}
       />);
-    expect(textOf(tree)).toContain('2:20');
+    expect(textOf(tree)).toContain('20s');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });
@@ -4060,7 +4062,7 @@ describe('who is in the channel, and who is talking', () => {
 
   it('asks the room who is talking rather than the floor', () => {
     // Holding the floor is permission to speak, not speech. A card lit by the
-    // reducer would glow through three minutes of silence — and would leave a
+    // reducer would glow through a whole claim of silence — and would leave a
     // self-muted person's card lit while nothing of theirs is heard.
     showChannel(
       channelOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))

@@ -1811,3 +1811,68 @@ them a moment ago, and the next snapshot carries the window that disables the
 button and says **Pinged**. The optimistic *Pinged* does not wait for that
 snapshot — the notification has already gone, and half a second of a button
 that looks unpressed reads as a dropped tap.
+
+## A claim is a minute, and its clock is a number — 2026-08-22
+
+`FLOOR_CLAIM_MS` was three minutes, chosen before anybody had used the thing.
+Sixty seconds now.
+
+**Three minutes is longer than the turn it was protecting.** An uninterrupted
+minute is a long time to speak into a phone, and the ceiling is not paid for by
+the person holding it — it is paid by everybody else in the room, whose
+microphones are cut for the whole of it. The asymmetry is what makes a generous
+ceiling the wrong default: a claim that runs out is cheap to fix, since the
+holder claims again and nobody else has done anything in the meantime, where
+three minutes of being unable to say a word is the kind of thing somebody
+leaves over rather than complains about.
+
+### The display follows, because there is no minutes column left
+
+The floor card's two clocks — the claim countdown and the cooldown — were
+`mm:ss` through `formatDuration`. Both are now bounded under a minute by
+construction (the claim by `FLOOR_CLAIM_MS`, the cooldown by
+`FLOOR_CLAIM_DELAY_STEP_MS × FLOOR_CLAIM_DELAY_MAX_STEPS`, which is twenty
+seconds), so the left-hand digit could only ever be a zero, and **0:47** asks a
+reader to parse a clock face to learn a number. `formatSeconds` says **47s**.
+
+It is a second function rather than a mode of the first. What makes seconds
+safe here is that these two durations are bounded, and nothing else on screen
+is: a recording or a loaded track passes a minute routinely and keeps the
+clock.
+
+### The one place the two constants stopped being independent
+
+`DISCONNECT_GRACE_MS` is also sixty seconds. It used to be a third of the
+claim, which meant a disconnected holder was always removed by the grace period
+long before the claim could expire — the expiry never ran for them, and
+`connectivity.test.ts` pinned that with `toBeLessThan`. The two now land on the
+same tick.
+
+Nothing changes in the outcome, because both release the floor, so the test now
+pins the outcome and not the ordering: the holder is gone, the floor is free,
+and their `lastClaimedAt` still stands so they rank as having spoken most
+recently. Written that way deliberately — a later change to either bound
+should not have to care which of them is asked first.
+
+### Old installs will count down wrong for one release
+
+The constant lives in `core/`, which both ends import, so a phone on build 51
+holds three minutes while the server holds one. The server's reducer is
+authoritative and releases at sixty seconds; the old client's countdown is
+simply reading its own copy of the number, and the release arrives as a
+snapshot with a null holder, at which point the countdown disappears. It shows
+a number that is too large for up to a minute and then stops. Not worth a
+two-step migration for.
+
+## "Been nearby for", the bare form having read as a promise — 2026-08-22
+
+Same day as the entry two above, and a correction to it. **Nearby for 5
+minutes** was elapsed time, and next to a Ping button it is not heard that way:
+*for five minutes* reads as how long this person will still be within reach.
+
+A remaining-time version was built first and thrown away — *Nearby for another
+10 minutes*, counting down the rest of `WAITING_WINDOW_MS`. It is the more
+actionable fact, being how long the tap beside it will still work, but it
+promises something the app does not know: the window is how long we go on
+calling somebody reachable, not how long they will be. The perfect tense fixes
+the reading without touching the number. **Been nearby for 5 minutes.**

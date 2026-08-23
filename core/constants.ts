@@ -3,8 +3,25 @@
  * All durations in milliseconds.
  */
 
-/** Maximum length of a floor claim before it is released automatically. */
-export const FLOOR_CLAIM_MS = 3 * 60 * 1000;
+/**
+ * Maximum length of a floor claim before it is released automatically.
+ *
+ * **Sixty seconds, down from three minutes on 2026-08-22.** Three was picked
+ * before anybody had used the thing, and it is longer than the turn it was
+ * meant to protect: an uninterrupted minute is a long time to speak into a
+ * phone, and the cost of the ceiling being generous is paid by everyone else
+ * in the room, who are muted for the whole of it. A minute that runs out is
+ * also cheap to fix — claim again — where three minutes of being cut is the
+ * kind of thing somebody leaves over.
+ *
+ * It is now equal to DISCONNECT_GRACE_MS rather than three times it, which
+ * matters in one place: a disconnected holder used to lose the floor to the
+ * grace period long before this expiry could run, and now the two land on the
+ * same tick. Both release it, so the outcome is unchanged — see
+ * `core/__tests__/connectivity.test.ts`, which pins that rather than the
+ * ordering.
+ */
+export const FLOOR_CLAIM_MS = 60_000;
 
 /**
  * One step of the claim delay, and the most steps anyone ever waits.

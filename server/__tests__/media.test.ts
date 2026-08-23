@@ -192,7 +192,7 @@ describe('the floor as an actual mute', () => {
     expect(media.isMuted(channelId, alice.account.id)).toBe(false);
   });
 
-  it('unmutes when the three minutes expire, without anyone acting', async () => {
+  it('unmutes when the claim expires, without anyone acting', async () => {
     const { alice, bob, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     await settle();

@@ -14,7 +14,7 @@
  * seconds apart. Somebody who has been told four times and is still talking
  * has either understood and carried on deliberately, or is not going to be
  * reached by a fifth — and a phone that buzzes every three seconds for the
- * three minutes a claim can last is its own kind of hostile.
+ * whole of a claim is its own kind of hostile.
  *
  * **The budget is per claim, not per run of speech.** Resetting it on every
  * pause would let a conversational speaker — a sentence, a breath, a sentence

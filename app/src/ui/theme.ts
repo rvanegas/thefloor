@@ -114,7 +114,23 @@ export const type = {
   },
 };
 
-/** mm:ss, for floor countdowns, cooldowns, and elapsed time. */
+/**
+ * Seconds, for the two clocks on the floor card.
+ *
+ * Both are under a minute by construction — a claim runs FLOOR_CLAIM_MS and a
+ * cooldown at most FLOOR_CLAIM_DELAY_STEP_MS × FLOOR_CLAIM_DELAY_MAX_STEPS —
+ * so `mm:ss` spent its left-hand digit saying nothing but zero, and "0:47"
+ * asks the reader to parse a clock to learn a number. "47s" is the number.
+ *
+ * Separate from `formatDuration` rather than a mode of it: what makes this
+ * safe is that these two durations are bounded, and nothing else on screen is.
+ * A recording or a track passes a minute routinely and must keep the clock.
+ */
+export function formatSeconds(ms: number): string {
+  return `${Math.max(0, Math.ceil(ms / 1000))}s`;
+}
+
+/** mm:ss, for recordings, playback, and elapsed time. */
 export function formatDuration(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
   const m = Math.floor(total / 60);

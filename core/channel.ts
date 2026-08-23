@@ -477,7 +477,7 @@ export function canStopRecording(state: ChannelState, userId: UserId): boolean {
  *
  * Being derived from `floor.holder` rather than stored is what makes it
  * self-correcting: control returns to both parties the instant a claim ends,
- * however it ends — released, run out after three minutes, or dropped when the
+ * however it ends — released, run out at FLOOR_CLAIM_MS, or dropped when the
  * holder left — with nothing to keep in step.
  */
 export function canControlPlayback(
@@ -1039,7 +1039,7 @@ function tick(state: ChannelState, now: number): ChannelState {
     }
   }
 
-  // A claim that has run its three minutes releases automatically.
+  // A claim that has run its FLOOR_CLAIM_MS releases automatically.
   if (hasExpired(next.floor, now)) {
     next = { ...next, floor: releaseFloor(next.floor, now) };
   }

@@ -55,7 +55,14 @@ import {
   SectionLabel,
 } from './components';
 import { ago, duration } from './relativeTime';
-import { colors, formatDuration, radius, spacing, type } from './theme';
+import {
+  colors,
+  formatDuration,
+  formatSeconds,
+  radius,
+  spacing,
+  type,
+} from './theme';
 import { louder, quieter } from './volume';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
@@ -662,10 +669,10 @@ export function ChannelView({
           </Text>
 
           {claimRemaining !== null ? (
-            <Text style={styles.countdown}>{formatDuration(claimRemaining)}</Text>
+            <Text style={styles.countdown}>{formatSeconds(claimRemaining)}</Text>
           ) : cooldown !== null ? (
             <Text style={[styles.countdown, styles.countdownMuted]}>
-              {formatDuration(cooldown)}
+              {formatSeconds(cooldown)}
             </Text>
           ) : null}
 
@@ -673,8 +680,8 @@ export function ChannelView({
             <Text style={styles.floorHint}>
               {iHoldFloor
                 ? others.length === 1
-                  ? `${others[0].displayName} is muted until you release, up to three minutes.`
-                  : 'Everyone else is muted until you release, up to three minutes.'
+                  ? `${others[0].displayName} is muted until you release, up to a minute.`
+                  : 'Everyone else is muted until you release, up to a minute.'
                 : !iAmPresent
                   ? 'Step in to claim the floor.'
                   : theyHoldFloor
@@ -683,7 +690,7 @@ export function ChannelView({
                       ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
                       : !atLeastTwoPresent(channel)
                         ? 'The floor becomes available once at least two people are present.'
-                        : 'Speak uninterrupted for up to three minutes.'}
+                        : 'Speak uninterrupted for up to a minute.'}
             </Text>
           )}
 

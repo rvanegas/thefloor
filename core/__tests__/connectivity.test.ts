@@ -114,9 +114,9 @@ describe('disconnecting', () => {
 
 describe('a disconnected floor-holder', () => {
   it('keeps the floor while disconnected', () => {
-    // Their claimed time is theirs. It is bounded twice over — by the
-    // three-minute expiry and by the grace period — so a bad signal need not
-    // also cost them the floor.
+    // Their claimed time is theirs. It is bounded twice over — by the claim's
+    // own expiry and by the grace period — so a bad signal need not also cost
+    // them the floor.
     let state = reduce(joined(), { type: 'CLAIM_FLOOR', userId: B }, T0);
     state = reduce(state, { type: 'DISCONNECTED', userId: B }, T0 + 1_000);
     state = tick(state, T0 + DISCONNECT_GRACE_MS - 1);
@@ -134,13 +134,17 @@ describe('a disconnected floor-holder', () => {
     expect(state.floor.lastClaimedAt[B]).toBeDefined();
   });
 
-  it('is removed by the grace period long before the claim would expire', () => {
-    // The two bounds are an order of magnitude apart — 60s against 180s — so in
-    // practice a disconnected holder is always removed by the grace period
-    // first, and the expiry never gets to run. Worth pinning: it means the
-    // grace period is what actually limits how long a vanished user can hold
-    // the floor.
-    expect(DISCONNECT_GRACE_MS).toBeLessThan(FLOOR_CLAIM_MS);
+  it('loses the floor at the same instant either bound would take it', () => {
+    // These were an order of magnitude apart — 60s of grace against a
+    // 180s expiry — so the grace period always got there first and the expiry
+    // never ran for a disconnected holder. Since the claim came down to sixty
+    // seconds on 2026-08-22 they coincide, and a holder who drops at the
+    // moment they claim is removed and expired on the same tick.
+    //
+    // Which is why this pins the outcome rather than the ordering: both
+    // release the floor, so nothing depends on which of them is asked first,
+    // and a later change to either bound should not have to care.
+    expect(DISCONNECT_GRACE_MS).toBeLessThanOrEqual(FLOOR_CLAIM_MS);
 
     let state = reduce(joined(), { type: 'CLAIM_FLOOR', userId: B }, T0);
     state = reduce(state, { type: 'DISCONNECTED', userId: B }, T0);
@@ -148,6 +152,9 @@ describe('a disconnected floor-holder', () => {
 
     expect(isPresent(state, B)).toBe(false);
     expect(state.floor.holder).toBeNull();
+    // Released as a departure releases it, however it was reached: their claim
+    // is still on record, so they still rank as having spoken most recently.
+    expect(state.floor.lastClaimedAt[B]).toBe(T0);
   });
 
   it('keeps the floor through a disconnect and reconnect', () => {
