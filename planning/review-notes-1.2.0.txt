@@ -1,116 +1,72 @@
-The information requested, in order.
-
 1. SCREEN RECORDING
-None attached to this version. The recording submitted with 1.0.0 showed that
-release and would misrepresent this one, and a stale walkthrough seemed worse
-than none. Everything in the app is reachable from the demo account below in a
-few taps, and section 4 walks it in order. If you would like a recording of any
-part of it, ask and we will send one the same day.
+None attached — the 1.0.0 recording would misrepresent this release. Section 4 walks it in order; ask and we will record any part the same
+day. No purchases, no tracking, no ATT prompt. The microphone and
+notifications are the only prompts.
 
-No purchase, subscription or paid-content flow exists, and no App Tracking
-Transparency prompt, because the app does no tracking. The microphone is the
-only permission requested; notifications are the only other prompt. Sign-up and
-sign-in are one screen. Account deletion is real and immediate — please see the
-note at the end about testing it last.
+2. DEVICES TESTED
+iPhone 16 Pro Max, 16 Pro, 16e, 13 mini and 12 Pro Max on iOS 18.5 and 26.6;
+iPad Pro 12.9" and iPad 7th gen in iPhone compatibility mode, the app being
+iPhone-only. All physical, portrait only.
 
-2. DEVICES AND OS TESTED
-iPhone 16 Pro Max, 16 Pro, 13 mini, 12 Pro Max on iOS 26.6; iPhone 16e on 18.5.
-Also iPad Pro 12.9" (4th gen) on iPadOS 26.5 and iPad (7th gen) on 18.7.9, in
-iPhone compatibility mode — the app is iPhone-only. All physical devices, our
-internal testers' own. Portrait-only.
-
-3. WHAT IT DOES AND WHO FOR
-A voice app for talking with people you already know. A call demands to be
-answered now; a group chat never finishes a thought. A channel is a place rather
-than a call — up to six people, keeping its name and recordings between
-conversations, still there after everyone closes the app. Anyone present may
-claim "the floor", and while they hold it every other microphone is withheld
-for a minute: a way to be heard without being interrupted. Recording captures
-each person separately. For small groups who already know each other. Not a
-social network.
-
-New in this version, and all of it inside a channel somebody already belongs to:
-a shared clipboard holding one piece of text; guest links, described under
-GUIDELINE 1.2 below; and per-channel notification settings, so one conversation
-can be allowed to interrupt you and another not.
+3. WHAT IT DOES
+Voice conversation between people who already know each other. A channel holds
+up to six and persists between conversations; anyone present may claim "the
+floor", withholding every other microphone for a minute. New here: a shared
+clipboard, guest links (see GUIDELINE 1.2), a per-channel notification level.
 
 4. GETTING IN AND REACHING FEATURES
 No passwords; a six-digit code is normally emailed. This account has a fixed
-code: appreview@rvanegas.co / SIX-DIGIT CODE GOES HERE BEFORE SUBMITTING
+one: appreview@rvanegas.co / SIX-DIGIT CODE GOES HERE BEFORE SUBMITTING
 
-You do not need a second person: a channel can be started with nobody in it, and
-recording needs only that you are present. The account holds one contact, Sam
-Rivera, and three channels — "Weekly Convo" with her, holding a recording called
-"Short Sample"; an older unnamed one with her, described by who is in it; and
-"Just you", which is what starting a channel alone looks like.
+You do not need a second person. The account holds one contact, Sam Rivera, and
+three channels: "Weekly Convo" with her, holding a recording called "Short
+Sample"; an older unnamed one; and "Just you".
 
-Open "Weekly Convo" > Step in (microphone prompt). Record/Stop; nothing asks for
-a name — a channel lends its name to what it records, and Rename, Play, Export
-and Delete are on the recording's row. "Play something together" plays a phone
-file into the room. "Shared clipboard" holds one piece of text for everyone in
-the channel. "Share a guest link" is at the foot of the channel screen; the
-links a channel has are listed in its Settings, where each can be revoked.
-Settings also holds Notifications, which is how loudly that one channel may
-interrupt you. "Start a channel" is the last row on Home. Contacts has a screen
-of its own, reached from the button at the top of Home, where a contact is added
-by searching an email address. The Settings button beside it holds Appearance,
+
+Open "Weekly Convo" > Step in (microphone prompt). Record/Stop — nothing asks
+for a name; Rename, Play, Export and Delete are on the recording's row. "Play
+something together" plays a phone file into the room. "Shared clipboard" holds
+one text item. "Share a guest link" is at the foot of that screen, and the
+channel's Settings lists and revokes its links and holds Notifications — how
+loudly this channel may interrupt you. "Start a channel" is the last row on
+Home; Contacts and Settings are the buttons at its top, and Settings holds
 Privacy policy, Sign out and Delete account.
 
-THREE THINGS THAT LOOK LIKE BUGS AND ARE NOT: "Claim the floor" is unavailable
-while you are alone — claiming it asks a room to be quiet, and there is no room
-to ask; a floor claim ends by itself after sixty seconds, which is the feature
-rather than a timeout, and the countdown on the card says how long is left; and
-a recording just stopped shows Play and Export greyed for a few seconds while
-its mix is made.
+NOT BUGS: "Claim the floor" is unavailable while alone, there being no room to
+ask for quiet; a claim ends itself after sixty seconds, which is the feature; a
+just-stopped recording greys Play and Export while its mix is made.
 
 5. EXTERNAL SERVICES
-LiveKit (open-source, self-hosted by us) carries audio and produces recordings;
-Amazon S3 stores them; Amazon SES sends sign-in codes; Apple Push Notification
-service delivers notifications; Ko-fi hosts the donation page. No third-party
-sign-in, payment processor, advertising, analytics or AI service, and no usage
-data is collected. A guest joining by link speaks through the same self-hosted
-LiveKit server, in the browser, with no account and nothing stored about them
-beyond the name they type and the fact that they knocked.
+LiveKit (open-source, self-hosted by us) for audio and recordings; S3 to store
+them; Amazon SES for sign-in codes; APNs; Ko-fi for donations. No third-party sign-in,
+payment processor, advertising, analytics or AI; no usage data collected. A guest speaks through that same self-hosted server, in the browser;
+nothing is stored beyond the name they type.
 
 6. REGIONAL DIFFERENCES
-Identical everywhere but one: the Support screen's external Ko-fi link is shown
-only in the US storefront, per 3.1.1(a). Voluntary, unlocks nothing; the app is
-free everywhere with no in-app purchase.
+The Support screen's Ko-fi link appears only in the US storefront, per 3.1.1(a).
+Voluntary, unlocks nothing; the app is free everywhere.
 
-7. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
-Not applicable. All content is user-created. Two surfaces worth naming: a member
-may play their own audio file into a channel, which a recording captures — their
-file, their choice, in a private room; and a guest admitted by a member may
-speak, and is recorded on the same terms as anybody else present, which the
-recording indicator shows to everyone in the room including the guest.
+7. THIRD-PARTY MATERIAL
+All content is user-created; a member may play their own audio file into a
+channel.
 
-GUIDELINE 1.2: no discovery, no directory, and no way to reach a person who has
-not agreed to it. Nothing can be browsed and nobody can be found. The one field
-that takes an email address does not search for it — it sends a request to that
-address and returns no result, disclosing nothing about whether an account
-exists. Contacts require acceptance on both sides, and an accepted contact is
-the only person who can be added to a channel.
+GUIDELINE 1.2: no discovery, no directory. Nothing can be browsed and nobody
+found. The one field taking an email address does not search — it sends
+a request there and returns no result, disclosing nothing about whether an
+account exists. Contacts require acceptance on both sides, and only an accepted
+contact can be added to a channel.
 
 Guest links are the one way somebody without an account takes part, and they
-are an invitation rather than a door left open. A member of a channel mints a
-link and hands it out. Opening it does not join anything: the visitor types a
-name and knocks, and somebody already in that channel has to admit them, one
-knock at a time. A knock can be refused. A guest can have their microphone
-withdrawn or be removed outright by any member present — not only by whoever
-let them in, so a room is never stuck with a guest because one person stepped
-out — and removing them revokes the link they came through. The link can also
-be revoked from the channel's Settings at any time, which shuts it for everyone
-holding it.
+are an invitation rather than an open door. Opening one joins nothing: the
+visitor types a name and knocks, and a member must admit them, one knock at a
+time; a knock can be refused. Any member present — not only whoever admitted them — can
+withdraw a guest's microphone or remove them, and removal revokes that link; a
+link can also be revoked from Settings, shutting it for everyone holding it.
+When the last member steps out, every guest goes with them. A link reaches only
+the channel it was made for, with no way to walk from it to a person or another
+channel. A guest is recorded on the same terms as anyone present, which the
+recording indicator shows to all, guest included.
 
-Two further limits are structural rather than settings anybody has to remember.
-When the last member steps out of a channel, every guest in it is removed
-automatically: nobody remains in a room with no member to answer for them. And
-a link reaches exactly the channel it was made for and nothing else — there is
-no way to walk from a channel to a person, to another channel, or to any list
-of either.
-
-Any member of a channel can delete any recording in it and may leave at any
-time. Recording is never automatic and is visible to everyone present.
-
-PLEASE TEST ACCOUNT DELETION LAST — it works and takes effect immediately, but
-removes this account's contacts, leaving a working but empty app.
+Any member can delete any recording in their channel and may leave at any time.
+Recording is never automatic and is visible to everyone present.PLEASE TEST ACCOUNT DELETION LAST — it is immediate, and removes this account's
+contacts, leaving a working but empty app.

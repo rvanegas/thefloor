@@ -245,9 +245,16 @@ there and goes on being true survives them.
 And the thing that is not a command: **walk the app on a device first, in the
 order a stranger would, with nothing skipped.** Answering the 2.1 rejection
 meant making a screen recording, which meant exactly that walk, and it found
-eight defects in an app that had been used daily for months — including a
-recording feature that silently discarded what people had just recorded. Twenty
-minutes, and it is the highest-yield thing on this list.
+eight defects in an app its author had been using daily since the first commit
+a fortnight before — including a recording feature that silently discarded what
+people had just recorded. Twenty minutes, and it is the highest-yield thing on
+this list.
+
+**"For months" is what this said until 2026-08-22, and the project was two
+weeks old.** The number was doing rhetorical work — surely a long-used app is
+past such things — and the real claim is stronger without it: eight defects in
+two weeks of daily use, by the person who wrote it, none of them found by
+using it and all of them found by walking it in a stranger's order.
 
 ### What the second build costs that the first did not
 

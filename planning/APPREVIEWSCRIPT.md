@@ -10,9 +10,9 @@ re-shooting per release is a burden worth refusing until something asks for it.
 What is not worth refusing is the walk. RELEASING.md § *What one build costs*
 calls it the highest-yield item on the whole list: making the 1.0.0 recording
 meant walking the app in the order a stranger would, and it found **eight
-defects in an app that had been used daily for months**, including a recording
-feature that silently discarded what people had just recorded. The camera found
-none of those. Walking did.
+defects in two weeks of daily use by the person who wrote it**, including a
+recording feature that silently discarded what people had just recorded. Using
+it found none of those. Walking it did.
 
 So: follow this before a submission whether or not anything is being filmed.
 Film it when Apple asks, when a rejection has to be answered, or when a release
