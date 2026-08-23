@@ -74,6 +74,25 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-22 — `8ef2615` → `0d5476c`
+
+Most recently on 2026-08-22, `8ef2615` → `0d5476c`, which fixes nothing and
+says something: a guest whose link opened inside Telegram was prompted for the
+microphone, granted it, and was heard by nobody. **Every in-app browser on iOS
+is a `WKWebView` whose audio session belongs to the host app**, so capture can
+be granted and still deliver digital silence, with no failure anywhere in the
+WebRTC API and no fix available to a page. So the page detects that it is
+embedded and says so at the door — before the knock, since the seat is
+per-browser and switching later costs it — listens to what it published with an
+`AnalyserNode` and raises a notice after eight silent seconds, and offers a
+retry from a real tap, the `speech` message having no gesture behind it.
+
+The wire did not move and the app is untouched.
+
+Verified against production afterwards: `/healthz` on `0d5476c`; the served
+bundle containing `TelegramWebviewProxy` and the page containing `embedded`,
+`mic-trouble` and `copy-link-button`.
+
 ### 2026-08-22 — `24a3920` → `8ef2615`
 
 Most recently on 2026-08-22, `24a3920` → `8ef2615`, carrying the two defects
