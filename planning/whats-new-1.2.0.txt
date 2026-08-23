@@ -4,6 +4,8 @@ Every channel has a clipboard. One piece of text, there for everyone in the chan
 
 Notifications are quieter, and you choose how quiet. Only a ping — somebody asking for you by name — makes a sound. Each channel has its own setting if you want to hear everything, or nothing at all. A ping now reaches you even when the app is already open, and nothing else can bump it off your lock screen.
 
+A floor claim now lasts a minute rather than three. Three minutes was chosen before anyone had used it, and everyone else is muted for the whole of it.
+
 Your phone buzzes if you're silenced while you're still talking, so you find out without looking at it.
 
 Home says how quiet each channel is, so the ones worth stepping into come first. And if you'd rather look before you walk in, there's a setting that makes tapping a channel open it without entering it.
