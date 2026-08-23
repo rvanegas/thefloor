@@ -885,161 +885,11 @@ export function ChannelView({
           </Text>
         </Card>
 
-        <SectionLabel>Shared audio</SectionLabel>
-        <Card style={styles.stack}>
-          {playback.failure ? (
-            <Text style={styles.warning}>
-              Playback stopped — {playback.failure}
-            </Text>
-          ) : null}
-          {uploadError ? <Text style={styles.warning}>{uploadError}</Text> : null}
-
-          {track ? (
-            <>
-              <Text style={type.heading} numberOfLines={1}>
-                {track.title}
-              </Text>
-              <View style={styles.progressTrack}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${Math.min(
-                        100,
-                        (position / Math.max(1, track.durationMs)) * 100
-                      )}%`,
-                    },
-                  ]}
-                />
-              </View>
-              <View style={styles.progressLabels}>
-                <Text style={styles.progressTime}>
-                  {formatDuration(position)}
-                </Text>
-                <Text style={styles.progressTime}>
-                  {formatDuration(track.durationMs)}
-                </Text>
-              </View>
-
-              <View style={styles.buttonRow}>
-                <Button
-                  label="−15s"
-                  style={styles.flexButton}
-                  disabled={!mayControlPlayback}
-                  onPress={() =>
-                    act({ type: 'SEEK', positionMs: position - SKIP_MS })
-                  }
-                />
-                <Button
-                  label={playback.status === 'playing' ? 'Pause' : 'Play'}
-                  variant="primary"
-                  style={styles.flexButton}
-                  disabled={!mayControlPlayback}
-                  onPress={() =>
-                    act({ type: playback.status === 'playing' ? 'PAUSE' : 'PLAY' })
-                  }
-                />
-                <Button
-                  label="+15s"
-                  style={styles.flexButton}
-                  disabled={!mayControlPlayback}
-                  onPress={() =>
-                    act({ type: 'SEEK', positionMs: position + SKIP_MS })
-                  }
-                />
-              </View>
-
-              <View style={styles.buttonRow}>
-                <Button
-                  label="Quieter"
-                  style={styles.flexButton}
-                  disabled={!mayControlPlayback || playback.volume <= 0}
-                  onPress={() =>
-                    act({
-                      type: 'SET_VOLUME',
-                      volume: quieter(playback.volume),
-                    })
-                  }
-                />
-                <View style={styles.volumeReadout}>
-                  <Text style={styles.progressTime}>
-                    {Math.round(playback.volume * 100)}%
-                  </Text>
-                </View>
-                <Button
-                  label="Louder"
-                  style={styles.flexButton}
-                  disabled={!mayControlPlayback || playback.volume >= 1}
-                  onPress={() =>
-                    act({
-                      type: 'SET_VOLUME',
-                      volume: louder(playback.volume),
-                    })
-                  }
-                />
-              </View>
-
-              <View style={styles.buttonRow}>
-                <Button
-                  label={upload ? uploadingLabel(upload.percent) : 'Change track'}
-                  style={styles.flexButton}
-                  disabled={!mayControlPlayback || uploading}
-                  onPress={loadTrack}
-                />
-                <Button
-                  label="Remove"
-                  variant="ghost"
-                  style={styles.flexButton}
-                  disabled={!mayControlPlayback}
-                  onPress={() => act({ type: 'CLEAR_TRACK' })}
-                />
-              </View>
-            </>
-          ) : (
-            <Button
-              label={upload ? uploadingLabel(upload.percent) : 'Play something together'}
-              sublabel="An audio file from this phone"
-              disabled={!mayControlPlayback || uploading}
-              onPress={loadTrack}
-            />
-          )}
-
-          {upload ? (
-            // Outside both branches above, because an upload can be a first
-            // track or a replacement and the way out is the same either way.
-            // Disabled for the moment before the bytes move: the picker has
-            // closed, there is no task yet, and a Cancel that did nothing
-            // would read as the stuck upload it exists to escape.
-            <Button
-              label="Cancel upload"
-              variant="ghost"
-              disabled={!upload.cancel}
-              onPress={() => upload.cancel?.()}
-            />
-          ) : null}
-
-          <Text style={type.muted}>
-            {theyHoldFloor
-              ? // The point of the mechanic, stated where it bites: the track
-                // does not stop, but it stops being yours to change.
-                `${holderName} has the floor, so they decide what plays.`
-              : iHoldFloor
-                ? 'You have the floor — only you can change what plays.'
-                : !mayControlPlayback
-                  ? // The only remaining way these are disabled, the floor
-                    // having been ruled out by the two branches above.
-                    'Step in to put something on. What everybody is listening to is for whoever is listening.'
-                  : track
-                    ? 'Everyone hears this, and anyone present can change it.'
-                    : 'Whatever you play, everyone hears — and it is kept in the recording.'}
-          </Text>
-        </Card>
-
         {/*
           Watching, which is deliberately not a second kind of shared audio.
           Nothing about the video travels through The Floor — everybody's own
           player shows it, with its own sound, and what this card drives is a
-          clock. That is why it refuses recordings and why the audio card above
+          clock. That is why it refuses recordings and why the audio card below
           empties when this one fills.
         */}
         <SectionLabel>Watch together</SectionLabel>
@@ -1271,6 +1121,157 @@ export function ChannelView({
                       : 'Open the link on a laptop or a tablet and it follows the channel. Recording is off while a party is on.'}
           </Text>
         </Card>
+
+        <SectionLabel>Shared audio</SectionLabel>
+        <Card style={styles.stack}>
+          {playback.failure ? (
+            <Text style={styles.warning}>
+              Playback stopped — {playback.failure}
+            </Text>
+          ) : null}
+          {uploadError ? <Text style={styles.warning}>{uploadError}</Text> : null}
+
+          {track ? (
+            <>
+              <Text style={type.heading} numberOfLines={1}>
+                {track.title}
+              </Text>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.min(
+                        100,
+                        (position / Math.max(1, track.durationMs)) * 100
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <View style={styles.progressLabels}>
+                <Text style={styles.progressTime}>
+                  {formatDuration(position)}
+                </Text>
+                <Text style={styles.progressTime}>
+                  {formatDuration(track.durationMs)}
+                </Text>
+              </View>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label="−15s"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback}
+                  onPress={() =>
+                    act({ type: 'SEEK', positionMs: position - SKIP_MS })
+                  }
+                />
+                <Button
+                  label={playback.status === 'playing' ? 'Pause' : 'Play'}
+                  variant="primary"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback}
+                  onPress={() =>
+                    act({ type: playback.status === 'playing' ? 'PAUSE' : 'PLAY' })
+                  }
+                />
+                <Button
+                  label="+15s"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback}
+                  onPress={() =>
+                    act({ type: 'SEEK', positionMs: position + SKIP_MS })
+                  }
+                />
+              </View>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label="Quieter"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback || playback.volume <= 0}
+                  onPress={() =>
+                    act({
+                      type: 'SET_VOLUME',
+                      volume: quieter(playback.volume),
+                    })
+                  }
+                />
+                <View style={styles.volumeReadout}>
+                  <Text style={styles.progressTime}>
+                    {Math.round(playback.volume * 100)}%
+                  </Text>
+                </View>
+                <Button
+                  label="Louder"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback || playback.volume >= 1}
+                  onPress={() =>
+                    act({
+                      type: 'SET_VOLUME',
+                      volume: louder(playback.volume),
+                    })
+                  }
+                />
+              </View>
+
+              <View style={styles.buttonRow}>
+                <Button
+                  label={upload ? uploadingLabel(upload.percent) : 'Change track'}
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback || uploading}
+                  onPress={loadTrack}
+                />
+                <Button
+                  label="Remove"
+                  variant="ghost"
+                  style={styles.flexButton}
+                  disabled={!mayControlPlayback}
+                  onPress={() => act({ type: 'CLEAR_TRACK' })}
+                />
+              </View>
+            </>
+          ) : (
+            <Button
+              label={upload ? uploadingLabel(upload.percent) : 'Play something together'}
+              sublabel="An audio file from this phone"
+              disabled={!mayControlPlayback || uploading}
+              onPress={loadTrack}
+            />
+          )}
+
+          {upload ? (
+            // Outside both branches above, because an upload can be a first
+            // track or a replacement and the way out is the same either way.
+            // Disabled for the moment before the bytes move: the picker has
+            // closed, there is no task yet, and a Cancel that did nothing
+            // would read as the stuck upload it exists to escape.
+            <Button
+              label="Cancel upload"
+              variant="ghost"
+              disabled={!upload.cancel}
+              onPress={() => upload.cancel?.()}
+            />
+          ) : null}
+
+          <Text style={type.muted}>
+            {theyHoldFloor
+              ? // The point of the mechanic, stated where it bites: the track
+                // does not stop, but it stops being yours to change.
+                `${holderName} has the floor, so they decide what plays.`
+              : iHoldFloor
+                ? 'You have the floor — only you can change what plays.'
+                : !mayControlPlayback
+                  ? // The only remaining way these are disabled, the floor
+                    // having been ruled out by the two branches above.
+                    'Step in to put something on. What everybody is listening to is for whoever is listening.'
+                  : track
+                    ? 'Everyone hears this, and anyone present can change it.'
+                    : 'Whatever you play, everyone hears — and it is kept in the recording.'}
+          </Text>
+        </Card>
+
 
         <SectionLabel>Recording</SectionLabel>
         <Card style={styles.stack}>

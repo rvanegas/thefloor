@@ -63,19 +63,34 @@ export function watchPage(options: {
     border-top: 1px solid #27272a;
   }
   #status strong { color: #f4f4f5; font-weight: 600; }
-  #right { display: flex; align-items: center; gap: 0.75rem; }
-  #fullscreen {
+  /*
+    min-width: 0 is what makes the ellipsis below work at all: a flex item
+    will not shrink past its content otherwise, so a long video title would
+    push the controls off the right of the window rather than truncate.
+  */
+  #left { display: flex; flex-direction: column; min-width: 0; }
+  #title {
+    color: #f4f4f5; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #title:empty { display: none; }
+  #channel { font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #channel:empty { display: none; }
+  #right { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+  #copy, #fullscreen {
     font: inherit; font-size: 0.85rem; color: #f4f4f5; cursor: pointer;
     background: #27272a; border: 1px solid #3f3f46; border-radius: 0.35rem;
     padding: 0.3rem 0.7rem;
   }
-  #fullscreen:hover { background: #3f3f46; }
+  #copy:hover, #fullscreen:hover { background: #3f3f46; }
+  #copy:disabled { opacity: 0.5; cursor: default; }
   /*
-    Hidden until the API is known to exist — see fullscreenSupported. A
-    control that does nothing is worse than no control, and iPhone Safari is
-    the case where it would do nothing.
+    Both hidden until the API each needs is known to exist — see
+    fullscreenSupported and the clipboard check. A control that does nothing is
+    worse than no control: iPhone Safari has no element fullscreen, and a page
+    served over plain http has no clipboard.
   */
-  #fullscreen[hidden] { display: none; }
+  #copy[hidden], #fullscreen[hidden] { display: none; }
   /*
     Fullscreen is taken on the root element rather than on the stage, so the
     status line survives it. That line is the only evidence on this screen that
@@ -126,9 +141,20 @@ export function watchPage(options: {
   </button>
 </div>
 <div id="status">
-  <span id="what">Connecting…</span>
+  <!--
+    What is being watched and where, which is the half of the footer that says
+    *which* party this screen is following. It matters most with two pages
+    open: before this, two channels watching two videos gave two identical
+    footers.
+  -->
+  <span id="left">
+    <span id="title"></span>
+    <span id="channel"></span>
+  </span>
   <span id="right">
+    <span id="what">Connecting…</span>
     <span id="where"></span>
+    <button id="copy" type="button" hidden>Copy link</button>
     <button id="fullscreen" type="button" hidden>Full screen</button>
   </span>
 </div>
@@ -151,6 +177,9 @@ export function watchPage(options: {
   var what = document.getElementById('what');
   var where = document.getElementById('where');
   var gate = document.getElementById('gate');
+  var titleEl = document.getElementById('title');
+  var channelEl = document.getElementById('channel');
+  var copyButton = document.getElementById('copy');
 
   function say(text) { what.textContent = text; }
 
@@ -182,6 +211,33 @@ export function watchPage(options: {
     var elapsed = watch.positionMs + (Date.now() + offset - watch.startedAt);
     var length = watch.party && watch.party.durationMs;
     return length ? Math.min(elapsed, length) : elapsed;
+  }
+
+  /*
+    The video's title, read off the player rather than fetched.
+
+    Nothing on this server ever asks YouTube anything — that is the whole
+    premise of the feature — so the title comes from the same place the
+    duration does: the player already showing the video. Unlike the duration it
+    is **not** sent to the channel, because nothing there needs it. Every
+    follower is watching the same video and will read the same title off its
+    own player, so putting it in the snapshot would be a wire field, a
+    migration and a restore rule to carry a string each page already has.
+
+    getVideoData is not in YouTube's published method list, though it has been
+    stable for years and is what every player on the web uses for this. Guarded
+    accordingly: if it ever goes, the title is blank and the footer loses a
+    line it never promised.
+  */
+  function paintTitle() {
+    if (!player || !player.getVideoData) return;
+    var data;
+    try {
+      data = player.getVideoData();
+    } catch (error) {
+      return;
+    }
+    titleEl.textContent = (data && data.title) || '';
   }
 
   function mmss(ms) {
@@ -235,6 +291,18 @@ export function watchPage(options: {
         and a device an hour fast would seek an hour into every video.
       */
       offset = message.view.serverNow - Date.now();
+      /*
+        The channel's own name, when it has one.
+
+        Unnamed channels show nothing rather than falling back to the roster,
+        and the reason is the screen this runs on. The app describes an unnamed
+        channel by who is in it, which is right for a phone in somebody's hand
+        and wrong for a laptop propped up in a room: it would put the names of
+        everybody in the conversation on a display other people can see. A
+        blank line costs the reader nothing — they know which channel they
+        opened.
+      */
+      channelEl.textContent = message.view.channel.name || '';
       apply(message.view.channel.watch);
     };
 
@@ -285,9 +353,13 @@ export function watchPage(options: {
       events: {
         onReady: function () {
           ready = true;
+          paintTitle();
           follow();
         },
         onStateChange: function () {
+          // The title arrives with the metadata rather than at ready, so it is
+          // painted on every state change until it lands.
+          paintTitle();
           /*
             Reported once, when the player first knows. This is the one fact
             the channel learns from a client rather than deciding — nothing on
@@ -317,19 +389,43 @@ export function watchPage(options: {
   function apply(next) {
     var was = watch;
     watch = next;
+    paintCopy();
 
     if (!watch || !watch.party) {
+      titleEl.textContent = '';
       if (player && player.stopVideo) player.stopVideo();
       say('Nothing is playing. Start something from the app.');
       where.textContent = '';
       return;
     }
 
-    /* A different video is a different player, since loadVideoById is the
-       only thing that can change what an existing one is showing. */
+    /*
+      A new video swapped into the player that is already here — which is what
+      makes the link worth keeping: it is bound to the channel rather than to
+      anything being watched, so a second link pasted an hour later arrives on
+      the same screens.
+
+      **cueVideoById, never loadVideoById.** The two differ in exactly one
+      respect and it is the one that matters here: load plays what it loads,
+      cue does not. A party always begins paused — startParty says so — so
+      loading would start every open screen playing a video the transport says
+      is stopped, and follow() a moment later would yank it back. A burst of
+      somebody else's film on a laptop across the room, unasked.
+
+      Cueing leaves the page with **no way to start a video on its own**, which
+      is the same rule the missing control bar enforces: the phone is the
+      remote. Playback begins in follow() and nowhere else, so a snapshot
+      that changes the video *and* says playing — possible if a page missed the
+      pause between them — still plays, one line later, because the channel
+      said to and not because the player felt like it.
+    */
     if (player && was && was.party && was.party.videoId !== watch.party.videoId) {
       reportedDuration = false;
-      if (player.loadVideoById) player.loadVideoById(watch.party.videoId);
+      // Cleared rather than left showing the previous video's title while the
+      // new one loads, which would be a footer confidently naming the wrong
+      // thing for a second or two.
+      titleEl.textContent = '';
+      if (player.cueVideoById) player.cueVideoById(watch.party.videoId);
     } else if (!player && window.YT && YT.Player) {
       build(watch.party.videoId);
     }
@@ -397,6 +493,56 @@ export function watchPage(options: {
     gate.hidden = true;
     follow();
   });
+
+  // --- Copy the video's link ----------------------------------------------
+  //
+  // The URL as it was pasted, which the channel keeps for exactly this: the
+  // party carries the link as given rather than a reconstruction, so what
+  // lands on the clipboard is what somebody chose to share.
+  //
+  // Worth having on this screen rather than only on the phone because this is
+  // the screen the video is on. Somebody watching on a laptop who wants to
+  // send it to a friend, or open it in their own tab afterwards, is here and
+  // not there.
+
+  var copyTimer = null;
+
+  function paintCopy() {
+    // Nothing to copy until there is a party, and a button that copies the
+    // empty string is worse than one that is plainly unavailable.
+    copyButton.disabled = !watch || !watch.party;
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    copyButton.hidden = false;
+    paintCopy();
+    copyButton.addEventListener('click', function () {
+      if (!watch || !watch.party) return;
+      navigator.clipboard.writeText(watch.party.url).then(
+        function () {
+          // Said on the button itself, which is where somebody is looking at
+          // the moment they press it. Two seconds, then back — long enough to
+          // read and short enough that a second copy is not confused with the
+          // first one's acknowledgement.
+          copyButton.textContent = 'Copied';
+          if (copyTimer) clearTimeout(copyTimer);
+          copyTimer = setTimeout(function () {
+            copyButton.textContent = 'Copy link';
+          }, 2000);
+        },
+        function () {
+          // A refusal by the browser, which nothing here can fix. Said rather
+          // than swallowed: a button that appears to do nothing reads as
+          // broken, and the reader can still select the URL from the app.
+          copyButton.textContent = 'Copy failed';
+          if (copyTimer) clearTimeout(copyTimer);
+          copyTimer = setTimeout(function () {
+            copyButton.textContent = 'Copy link';
+          }, 2000);
+        }
+      );
+    });
+  }
 
   // --- Full screen --------------------------------------------------------
   //

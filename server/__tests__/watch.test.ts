@@ -237,6 +237,47 @@ describe('the link', () => {
     );
   });
 
+  it('cues a swapped-in video rather than loading it, so nothing plays itself', async () => {
+    const { channelId } = await channelOfTwo();
+    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
+
+    // The link is bound to the channel, so a second video pasted an hour later
+    // arrives on screens that are already open. It must arrive *stopped*: a
+    // party always begins paused, and `loadVideoById` would play it anyway —
+    // a burst of film on a laptop across the room, pulled back a moment later
+    // by `follow()`. `cueVideoById` is the same call without the playing.
+    //
+    // Asserted against the *call* rather than the word, because the comment
+    // beside it names `loadVideoById` in order to warn somebody off it — and a
+    // test that made explaining the trap impossible would be a bad trade.
+    expect(page.body).toContain('player.cueVideoById(');
+    expect(page.body).not.toContain('player.loadVideoById(');
+    // Which leaves exactly one thing able to start a video, and it acts on the
+    // channel rather than on its own account.
+    expect(page.body).toContain('playVideo');
+  });
+
+  it('names what is playing and where, and offers the link', async () => {
+    const { channelId } = await channelOfTwo();
+    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
+    const footer = page.body.slice(
+      page.body.indexOf('<div id="status">'),
+      page.body.indexOf('</div>', page.body.indexOf('<div id="status">'))
+    );
+
+    // All four in the footer rather than merely somewhere on the page.
+    for (const id of ['id="title"', 'id="channel"', 'id="copy"', 'id="fullscreen"']) {
+      expect(footer).toContain(id);
+    }
+    // The title comes off the player, never from a request this server makes:
+    // nothing here asks YouTube anything, which is the premise of the feature.
+    expect(page.body).toContain('getVideoData');
+    expect(page.body).not.toContain('googleapis');
+    // And the copy button hands over the URL as it was pasted, which is why
+    // the party keeps it rather than rebuilding one from the id.
+    expect(page.body).toContain('watch.party.url');
+  });
+
   it('offers full screen without giving the player its controls back', async () => {
     const { channelId } = await channelOfTwo();
     const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });

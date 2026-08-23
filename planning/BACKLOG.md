@@ -48,8 +48,25 @@ channel, a desktop browser open on each:
 6. Restart the server; the party comes back paused at its position and both
    pages reconnect on their own.
 
+7. **Paste a second link while the pages are open.** They should swap to it
+   *stopped*, showing its title and staying that way until somebody presses
+   Play. A burst of the new video before it settles means `cueVideoById` is
+   not doing what its contract says, and the fix would be to hold the swap
+   until the transport asks for it.
+8. Copy the link from a follower page and check it is the URL as pasted. Then
+   click the video itself: it may pause locally, and `follow()` should undo
+   that within half a second — nothing should reach the other screens.
+
 **Do it with headphones**, or the microphone bleed above dominates everything
 else and you will be listening to that rather than to the drift.
+
+**Steps 7 and 8 are unverified by anything.** The swap-in behaviour rests on
+YouTube's documented distinction between `cueVideoById` and `loadVideoById`,
+read rather than observed, and `getVideoData` — which supplies the title — is
+not in YouTube's published method list at all, though it has been stable for
+years and is what every player on the web uses for this. Both are guarded so
+that failure is a blank line rather than a broken page, and both want one look
+at a real player.
 
 Two things are known-unknown rather than untested, and are worth watching for
 during the walk. **Nobody has seen what a video whose embedding is disabled

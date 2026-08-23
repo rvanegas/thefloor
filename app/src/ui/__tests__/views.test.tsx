@@ -18,6 +18,7 @@ import type {
 } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { ChannelView, uploadingLabel } from '../ChannelView';
+import { SectionLabel } from '../components';
 import type { UploadHooks } from '../../api/upload';
 import type { GuestLinkSummary } from '../../api/http';
 import { ProfileView } from '../ProfileView';
@@ -1664,28 +1665,42 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    const text = textOf(tree);
     const order = [
       'Your microphone',
-      'Step out',
+      // "Step Out", capitalised, and the label flips to "Step In" when you are
+      // not present — the text search read a lowercase "step out" out of some
+      // card's prose and never checked the heading at all.
+      'Step Out',
       'The floor',
       'Shared clipboard',
-      'Shared audio',
-      // Between the audio and the recording because it is the third thing the
-      // channel can be attending to, and because the two on either side are
-      // the two it is mutually exclusive with.
+      // Above the audio rather than below it, moved 2026-08-23. Both are
+      // things the channel can be attending to and only one can be, so the
+      // order is a claim about which is reached for first — and a party is a
+      // deliberate act somebody sets up, where a track is loaded and left.
       'Watch together',
+      'Shared audio',
       'Recording',
       'Recordings',
       'Invite',
+      // Last, and absent from this list until the structural read insisted on
+      // it. A list that named eight of nine sections was only ever checking
+      // the eight it happened to name.
+      'Guest link',
     ];
-    const at = order.map((label) => [label, text.indexOf(label)] as const);
-    for (const [label, index] of at) {
-      expect([label, index]).not.toEqual([label, -1]);
-    }
-    // Compared as a whole rather than pairwise, so a failure names the order
-    // it actually rendered in instead of one crossed pair.
-    expect([...at].sort((x, y) => x[1] - y[1]).map(([l]) => l)).toEqual(order);
+    /*
+      Read off the `SectionLabel`s themselves rather than by searching the
+      flattened text for each word.
+      **The search version was quietly wrong and this move is what exposed it**:
+      the watch card's own prose contained the word "Recording", so
+      `indexOf('Recording')` found a sentence rather than the heading, and the
+      order it computed depended on which cards happened to mention each
+      other. It passed for the wrong reason until the card moved above the one
+      whose name it mentioned.
+    */
+    const labels = tree.root
+      .findAll((node) => node.type === SectionLabel)
+      .map((node) => labelOf(node).trim());
+    expect(labels).toEqual(order);
     act(() => tree.unmount());
   });
 
