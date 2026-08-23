@@ -1,0 +1,241 @@
+#!/usr/bin/env node
+//
+// Writes App Review Information notes, with the demo code filled in at send.
+//
+//   bin/set-review-notes                 planning/review-notes-<version>.txt
+//   bin/set-review-notes FILE            some other file
+//   bin/set-review-notes --dry-run       say what it would do and write nothing
+//   bin/set-review-notes --show          print what Apple holds now, stop
+//
+// Split out on 2026-08-23, the day a hand-paste put the wrong file in front of
+// App Review. bin/submit-ios *checks* the notes and refuses an incomplete one;
+// nothing wrote them, so they were pasted by hand each time — and the paste
+// that landed was planning/recent-changes.txt, an internal changelog. It named
+// build numbers and a debug-flag diagnostics panel, and it carried none of what
+// the notes are for: the warning to test account deletion last, and the
+// Guideline 1.2 account of guest links. A reviewer would have read it and every
+// check in submit-ios would have passed, the field being non-empty.
+//
+// So the notes now come from a file in the tree, which is reviewed like
+// anything else, and this is what puts them where Apple can see them.
+//
+// **The demo code is not in that file, and this is why the split exists.**
+// bin/deploy rsyncs the tree with --delete, so credentials live in
+// ~/.config/thefloor/demo-account.txt and nowhere near it. The file carries a
+// placeholder; the code is read here, substituted once, and never printed.
+// CREDENTIALS.md and DEMO-ACCOUNT.md have the wider rule.
+//
+// **Editable during review, which is the one mercy here.** The notes field
+// takes a PATCH while the version is WAITING_FOR_REVIEW and the submission is
+// undisturbed by it — verified on 2026-08-23 against a live submission. So a
+// wrong paste is recoverable right up until a reviewer opens it, and the fix
+// is this command rather than withdrawing anything.
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const ROOT = path.resolve(__dirname, '..');
+const HOST = 'https://api.appstoreconnect.apple.com';
+const CAP = 4000;
+const PLACEHOLDER = 'SIX-DIGIT CODE GOES HERE BEFORE SUBMITTING';
+
+function die(message, ...rest) {
+  console.error(`✗ ${message}`);
+  for (const line of rest) console.error(`  ${line}`);
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------- arguments
+
+const argv = process.argv.slice(2);
+const opts = { dryRun: false, show: false, file: null };
+while (argv.length) {
+  const arg = argv.shift();
+  if (arg === '--dry-run') opts.dryRun = true;
+  else if (arg === '--show') opts.show = true;
+  else if (arg === '--help' || arg === '-h') {
+    console.log(fs.readFileSync(__filename, 'utf8').split('\n')
+      .slice(1, 9).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+    process.exit(0);
+  } else if (!arg.startsWith('-')) opts.file = arg;
+  else die(`unknown argument ${arg}`);
+}
+
+const appJson = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'app/app.json'), 'utf8')
+);
+const version = appJson.expo.version;
+const bundleId = appJson.expo.ios.bundleIdentifier;
+const file = opts.file
+  ? path.resolve(opts.file)
+  : path.join(ROOT, `planning/review-notes-${version}.txt`);
+
+// -------------------------------------------------------------------- auth
+
+// Its own directory, and not tidiness: the APNs key is a `.p8` under
+// ~/.config/thefloor too, both are ES256 private keys, and a glob cannot tell
+// them apart by content. bin/upload-ios and bin/submit-ios carry the same guard.
+const ASC_DIR = process.env.THEFLOOR_ASC_DIR
+  || path.join(os.homedir(), '.config/thefloor/asc');
+const keys = fs.existsSync(ASC_DIR)
+  ? fs.readdirSync(ASC_DIR).filter((f) => /^AuthKey_.+\.p8$/.test(f))
+  : [];
+if (keys.length === 0) die(`no App Store Connect key in ${ASC_DIR}`,
+  'CREDENTIALS.md says where it lives and how to make another.');
+if (keys.length > 1) die(`more than one key in ${ASC_DIR}`);
+
+const keyId = keys[0].replace(/^AuthKey_|\.p8$/g, '');
+const issuerId = (process.env.APP_STORE_CONNECT_ISSUER_ID
+  || fs.readFileSync(path.join(ASC_DIR, 'issuer-id'), 'utf8')).trim();
+
+const token = (() => {
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const iat = Math.floor(Date.now() / 1000);
+  const body = `${b64({ alg: 'ES256', kid: keyId, typ: 'JWT' })}.`
+    + b64({ iss: issuerId, iat, exp: iat + 1200, aud: 'appstoreconnect-v1' });
+  // ES256 wants the raw r||s pair; node signs DER unless told otherwise, and
+  // Apple answers 401 NOT_AUTHORIZED to a DER signature without saying why.
+  const sig = crypto.sign('sha256', Buffer.from(body), {
+    key: fs.readFileSync(path.join(ASC_DIR, keys[0])),
+    dsaEncoding: 'ieee-p1363',
+  });
+  return `${body}.${sig.toString('base64url')}`;
+})();
+
+async function api(method, endpoint, payload) {
+  const res = await fetch(HOST + endpoint, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(payload ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
+  });
+  const text = await res.text();
+  const body = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const detail = (body?.errors || [])
+      .map((e) => `${e.title}: ${e.detail}`).join('\n  ');
+    die(`${method} ${endpoint} → ${res.status}`, detail || text.slice(0, 400));
+  }
+  return body;
+}
+
+// -------------------------------------------------------------- the secrets
+
+function demoSecret(key) {
+  const secretsPath = path.join(os.homedir(), '.config/thefloor/demo-account.txt');
+  if (!fs.existsSync(secretsPath)) {
+    die(`no ${secretsPath}`, 'DEMO-ACCOUNT.md says what belongs in it.');
+  }
+  const line = fs.readFileSync(secretsPath, 'utf8')
+    .split('\n').find((l) => l.startsWith(`${key}=`));
+  return line ? line.slice(key.length + 1).trim() : null;
+}
+
+// ------------------------------------------------------------------- notes
+
+function notesToSend() {
+  if (!fs.existsSync(file)) die(`no such file: ${file}`);
+  const raw = fs.readFileSync(file, 'utf8').trim();
+  if (!raw) die(`${path.basename(file)} is empty`);
+
+  // **Refused rather than sent as it stands.** Either somebody filled the code
+  // in by hand — in which case a credential is sitting in a tree that gets
+  // committed — or the line this exists to write has been renamed and the
+  // reviewer would get a placeholder where the sign-in should be.
+  if (!raw.includes(PLACEHOLDER)) {
+    die(`${path.basename(file)} has no placeholder to fill`,
+      `Expected the line: ${PLACEHOLDER}`,
+      'If the code was written in by hand, take it out again: bin/deploy',
+      'rsyncs this tree and credentials belong in demo-account.txt.');
+  }
+
+  const code = demoSecret('REVIEW_CODE');
+  if (!code) die('no REVIEW_CODE in demo-account.txt');
+  const text = raw.replace(PLACEHOLDER, code);
+
+  // Apple's cap, and it is on the stored text rather than on the file — the
+  // substitution changes the length. RELEASING.md § *App Store Connect*: there
+  // is no larger field, so the answer is to say it in 4,000.
+  if (text.length > CAP) {
+    die(`${text.length} characters once the code is in; the cap is ${CAP}`,
+      'There is no larger field. Cut passages rather than words — trimming',
+      'a clause at a time takes many passes and rarely gets there.');
+  }
+  // Not a rule Apple publishes, and kept because it costs nothing: a plain
+  // ASCII field cannot be the thing a validator objects to.
+  const exotic = [...new Set([...text].filter((c) => c.charCodeAt(0) > 126))];
+  if (exotic.length) {
+    console.log(`  ⚠ non-ASCII: ${exotic.map((c) => JSON.stringify(c)).join(' ')}`);
+  }
+  return { text, code };
+}
+
+// -------------------------------------------------------------------- main
+
+(async () => {
+  const app = (await api('GET',
+    `/v1/apps?filter[bundleId]=${bundleId}&limit=1`)).data[0];
+  if (!app) die(`no app for ${bundleId}`);
+
+  const record = (await api('GET',
+    `/v1/apps/${app.id}/appStoreVersions?limit=10`)).data
+    .filter((v) => v.attributes.platform === 'IOS')
+    .find((v) => v.attributes.versionString === version);
+  if (!record) die(`no ${version} version record`,
+    'bin/submit-ios creates one; this only writes to one that exists.');
+
+  console.log(`→ ${version} is ${record.attributes.appStoreState}`);
+
+  const detail = (await api('GET',
+    `/v1/appStoreVersions/${record.id}/appStoreReviewDetail`)).data;
+  if (!detail) die(`${version} has no review details at all`,
+    'App Review Information in App Store Connect, or run bin/submit-ios.');
+
+  if (opts.show) {
+    console.log(`\n--- what Apple holds (${(detail.attributes.notes || '').length} chars) ---`);
+    console.log(detail.attributes.notes || '(empty)');
+    return;
+  }
+
+  const { text, code } = notesToSend();
+
+  // The sign-in a reviewer will actually use lives in its own fields, not in
+  // the prose — so it is worth saying whether the three agree. Compared, never
+  // printed: the code is published in the notes and is a secret from nobody,
+  // but a terminal log is not where it belongs.
+  const a = detail.attributes;
+  console.log(`  demo account matches demo-account.txt: `
+    + `${a.demoAccountName === demoSecret('REVIEW_IDENTIFIER')}`);
+  console.log(`  demo code matches demo-account.txt:    `
+    + `${a.demoAccountPassword === code}`);
+  console.log(`  ${(a.notes || '').length} chars → ${text.length} chars`
+    + ` from ${path.basename(file)}`);
+
+  if (opts.dryRun) {
+    console.log(`  would set the notes for ${version}`);
+    return;
+  }
+
+  await api('PATCH', `/v1/appStoreReviewDetails/${detail.id}`, {
+    data: {
+      type: 'appStoreReviewDetails',
+      id: detail.id,
+      attributes: { notes: text },
+    },
+  });
+
+  // Read back rather than trusting the 200. What went wrong the day this was
+  // written was a field holding something nobody meant to send, and a write
+  // that reports success is exactly what that looked like.
+  const after = ((await api('GET',
+    `/v1/appStoreVersions/${record.id}/appStoreReviewDetail`))
+    .data.attributes.notes || '').trim();
+  console.log(`\n✓ notes are ${after.length} characters`);
+  console.log(`  match what was sent: ${after === text}`);
+  console.log(`  placeholder gone:    ${!after.includes(PLACEHOLDER)}`);
+  console.log(`  code present:        ${after.includes(code)}`);
+  if (after !== text) die('what Apple stored is not what was sent');
+})();

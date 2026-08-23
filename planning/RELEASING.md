@@ -232,7 +232,17 @@ there and goes on being true survives them.
    tooling enforces.
 3. **`bin/upload-ios`.** One command: refuses a dirty tree, bumps and commits
    the build number, prebuilds, archives, uploads, tags.
-4. **`bin/submit-ios`,** which prepares the submission and stops before the
+4. **`bin/set-review-notes`**, which fills the demo code into
+   `planning/review-notes-<version>.txt` and sends it. The notes come from a
+   file in the tree so they are reviewed like anything else; the code is not in
+   that file, and the script refuses one where the placeholder has been filled
+   in by hand. Before this existed the notes were pasted, and on 2026-08-23 the
+   paste that landed was `planning/recent-changes.txt` — an internal changelog,
+   naming build numbers and a debug-flag diagnostics panel, carrying neither
+   the warning to test account deletion last nor the Guideline 1.2 account of
+   guest links. Every check in `bin/submit-ios` passed, the field being
+   non-empty.
+5. **`bin/submit-ios`,** which prepares the submission and stops before the
    button: it creates the version record if there is none, refuses a build
    whose train does not match `expo.version` or that is still processing,
    insists on "What's New" and on review details a reviewer can sign in with,
@@ -240,7 +250,7 @@ there and goes on being true survives them.
    to press Submit on, because that PATCH is the irreversible half and
    everything before it is editable. `--dry-run` says what it would do;
    `--status` reports what App Store Connect holds and writes nothing.
-5. **Press Submit**, having read the page and the list below.
+6. **Press Submit**, having read the page and the list below.
 
 And the thing that is not a command: **walk the app on a device first, in the
 order a stranger would, with nothing skipped.** Answering the 2.1 rejection
@@ -369,6 +379,14 @@ because the first could not be corrected. Attach before sending, not after.
 submission detail page "Resubmit to App Review" stays greyed; the live control
 is **Update Review** on the version page. The red banner there is informational
 and does not need clearing.
+
+**The notes can be rewritten while a submission is waiting.** A PATCH to
+`appStoreReviewDetails` is accepted at `WAITING_FOR_REVIEW` and the submission
+is undisturbed — same state, same submitted date — verified against a live one
+on 2026-08-23. So a wrong paste is recoverable right up until a reviewer opens
+it, and the fix is `bin/set-review-notes` rather than withdrawing anything.
+Worth knowing before somebody withdraws a submission to correct a typo, which
+costs the place in the queue.
 
 **A version holding a build cannot take a different one, and the state that
 says so is easy to misread.** Once `bin/submit-ios` has run, the version sits

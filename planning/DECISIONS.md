@@ -1925,3 +1925,54 @@ can land before LiveKit says their audio went, and the trailing hold in
 `speaking.ts` would otherwise keep them lit for two seconds after their own card
 says they left. The hold is a smoothing of speech and has no opinion about
 presence; this is where presence gets its say.
+
+## The review notes come from a file now — 2026-08-23
+
+1.2.0 went in front of App Review with `planning/recent-changes.txt` in the
+notes field: an internal changelog another session had written, naming build
+numbers, defect histories and a diagnostics panel behind a debug flag. What it
+did not carry was the two things the notes exist for — the warning to test
+account deletion last, and the Guideline 1.2 account of guest links, guests
+being the surface most likely to raise a question this release.
+
+**Every check passed.** `bin/submit-ios` validates the notes and refuses an
+incomplete one, but what it can check is that the field is non-empty and that
+the demo credentials agree with `demo-account.txt`. A field holding the wrong
+3,995 characters satisfies all of that. Nothing wrote the notes, so they were
+pasted by hand every time, and the one step with no tool behind it is the one
+that eventually goes wrong.
+
+So `bin/set-review-notes` writes them from `planning/review-notes-<version>.txt`
+— a file in the tree, reviewed like anything else, diffable against what went
+last time. The demo code stays out of it: the file carries a placeholder, the
+code is read from `~/.config/thefloor/demo-account.txt` at send, substituted
+once and never printed, and the script **refuses a file whose placeholder has
+been filled in by hand** — that being either a credential sitting in a tree
+that gets committed, or a renamed line that would send a reviewer a placeholder
+where the sign-in should be.
+
+It reads back what Apple stored and compares it to what was sent, which is not
+ceremony: the failure being fixed was a field holding something nobody meant to
+send, and a write that reports success is exactly what that looked like.
+
+### The notes are editable during review, which is the mercy
+
+A PATCH to `appStoreReviewDetails` is accepted while the version is
+`WAITING_FOR_REVIEW`, and the submission is undisturbed — same state, same
+submitted date. Verified against the live 1.2.0 submission rather than assumed.
+So a wrong paste is recoverable until a reviewer opens it, and the repair is one
+command rather than a withdrawal, which would cost the place in the queue.
+
+### And a misread that is worth recording
+
+The first report of this was "Apple says `planning/recent-changes.txt` has
+invalid characters", which named a file that is untracked scratch, is never
+sent to Apple, and is pure ASCII. Read as a fact about that file it is false
+three times over; read as a description of what somebody was pasting, it says
+exactly what had happened. The em dashes that got stripped in response were in
+a different file and were never the problem.
+
+**A report about a file that nothing sends is a report about an act, not a
+file.** The check that would have found it in a minute is the one that found it
+in the end: read what the field actually holds, rather than what it was last
+written with.
