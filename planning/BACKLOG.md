@@ -56,6 +56,11 @@ channel, a desktop browser open on each:
 8. Copy the link from a follower page and check it is the URL as pasted. Then
    click the video itself: it may pause locally, and `follow()` should undo
    that within half a second — nothing should reach the other screens.
+9. **Let a video run to its end.** It should stop there and say Finished, on
+   every screen, and stay stopped. Then press Play: it should start again from
+   the beginning on all of them. The failure this replaces was the first second
+   stuttering endlessly, and the failure the fix risks is the opposite — a
+   screen stuck on Finished that will not replay.
 
 **Unmute the room before doing any of this**, which is now a deliberate act:
 parties start muted, so a walk done on the defaults will be a walk with every
@@ -83,6 +88,36 @@ has not tapped yet is a screen the transport believes is watching, which is
 correct and may still read as a bug to whoever is looking at it.
 
 ---
+
+## The follower page's control logic has no test, and has now produced three defects
+
+`server/src/watch-page.ts` is a template string, so nothing executes it. The
+server tests assert that certain substrings are present, which catches a
+deletion and nothing else — and the part that keeps being wrong is not the
+markup but `follow()`, the twenty lines deciding what to do to the player given
+what the channel says.
+
+Three defects came out of it in a single day, all found by somebody watching a
+screen rather than by anything automated:
+
+1. **A swapped-in video played itself**, because `loadVideoById` plays what it
+   loads and every party starts paused.
+2. **The duration was never reported** for a cued video, because the report
+   fired on a state change and a cued player has no duration yet — which is the
+   first defect's fix producing the second's symptom.
+3. **An ended video restarted for ever**, because "not playing, so play it" is
+   right for every player state except ENDED, and `correct()` then seeked back
+   to the end, ending it again. Every 500ms.
+
+Each is a one-line fix and each was invisible to the suite. What would catch
+the next one is running the script rather than reading it: extract the
+`<script>` body, evaluate it against stubs for `document`, `WebSocket` and
+`YT.Player`, and drive `follow()` through the states — ENDED with the transport
+still playing, ENDED with a replay behind it, cued with no duration, a swap
+mid-play. The stubs are the work; the assertions are three lines each.
+
+Not done because each fix was small and the walk was about to happen anyway.
+Worth doing before the fourth.
 
 ## Two things that ship unbounded, both from channels being permanent
 

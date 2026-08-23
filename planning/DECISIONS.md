@@ -1008,6 +1008,39 @@ until it does. **The lesson is the same one this file keeps recording**: an
 event is a claim that something has happened, not that a value is available,
 and a fact worth having is worth asking for again.
 
+### An ended video is not a stopped one
+
+Reported as the first second of a finished video stuttering endlessly, which is
+the visible half of a loop with four steps. The video ends, so the player is
+ENDED. The transport still says playing — the server pauses on its own tick, a
+moment later, and never at all while the duration is unknown. `follow()` read
+"the transport says playing and the player is not playing, so play it" and
+called `playVideo()`, **which on an ENDED player starts the video again from
+the beginning.** `correct()` then compared a player at zero against a position
+at the end, called the difference drift, and seeked back to the end — which
+ended it again. Half a second later, the same.
+
+Every step is individually correct and the composition is not, which is what
+made it invisible on the way in. The rule the page needed is that an ended
+player is left alone: the video is over, and nothing on a follower page has any
+business restarting it.
+
+**With one clause, and the clause is the interesting part.** Pressing Play on a
+finished video moves the transport back to zero — `watchPlay` replays from the
+start, being the only reading of "play" available at that position — while the
+player is still ENDED. So a flat "never touch an ended player" trades an
+endless restart for a screen stuck on Finished that will not replay, which is
+the same bug facing the other way. The guard therefore holds only while the
+channel *agrees* the video is over; a transport position behind the player's is
+a replay or a seek, and then restarting is exactly right.
+
+It is the third defect in a day out of the same twenty lines, and the three are
+related in a way worth recording: the swap autoplaying, the duration never
+arriving, and this. Each was a one-line fix, each was invisible to a suite that
+can only search the page for substrings, and the second was produced by the
+first one's fix. BACKLOG.md § *The follower page's control logic has no test*
+says what would catch the fourth.
+
 ### Said once, under the roster
 
 Asked for on the participant cards first and moved during the asking, which was

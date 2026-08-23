@@ -473,16 +473,55 @@ export function watchPage(options: {
       return;
     }
 
+    var state = player.getPlayerState();
+    var ended = state === YT.PlayerState.ENDED;
+
     if (watch.failure) {
       say(watch.failure);
+    } else if (ended) {
+      // Said rather than reported: this page may not drive the transport, so
+      // "Playing" while the picture has stopped would be the screen and the
+      // channel disagreeing with nothing to explain it.
+      say('Finished');
     } else {
       say(watch.status === 'playing' ? 'Playing' : 'Paused');
     }
 
+    /*
+      **An ended video is not a stopped one, and nothing here may restart it.**
+
+      This branch used to read "if the transport says playing and the player is
+      not playing, play it", which is right for every state but one. playVideo()
+      on an ENDED player starts the video again from the beginning — so a
+      transport still saying playing, which it is for at least one tick after
+      the end and for ever when the duration was never learned, restarted the
+      video; correct() then saw the player at zero against a position at the
+      end, called that drift and seeked back to the end; and the end ended it
+      again. Half a second later, the same. The whole loop is invisible except
+      as the first second of the video stuttering endlessly, which is exactly
+      how it was reported.
+
+      So an ended player is left alone. The video is over, the page says so,
+      and it waits for the channel to agree — which the server's own tick does,
+      pausing at the end, once anybody has told it how long the video is.
+
+      **Only while the channel agrees it is over**, though, and that clause is
+      what keeps replay working. Pressing Play on a finished video moves the
+      transport back to zero — watchPlay says so — and the player is still
+      ENDED at that moment, so a flat "never touch an ended player" would leave
+      every screen sitting at Finished for ever. When the channel's position is
+      behind the player's, somebody has replayed or seeked, and restarting is
+      then the right thing rather than the loop.
+    */
+    if (ended) {
+      var here = player.getCurrentTime ? player.getCurrentTime() * 1000 : at;
+      if (at >= here - DRIFT_MS) return;
+    }
+
     if (watch.status === 'playing') {
       correct(at);
-      if (player.getPlayerState() !== YT.PlayerState.PLAYING) player.playVideo();
-    } else if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+      if (state !== YT.PlayerState.PLAYING) player.playVideo();
+    } else if (state === YT.PlayerState.PLAYING) {
       player.pauseVideo();
       correct(at);
     }

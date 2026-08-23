@@ -222,6 +222,21 @@ describe('the link', () => {
     expect(page.body).toContain(channelId);
   });
 
+  it('leaves an ended player alone rather than restarting it', async () => {
+    const { channelId } = await channelOfTwo();
+    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
+
+    // playVideo() on an ENDED player restarts from the beginning, and correct()
+    // then seeks back to the end, which ends it again — the endless stutter of
+    // the first second. The guard is the whole fix.
+    expect(page.body).toContain('YT.PlayerState.ENDED');
+    // And it is conditional, because a replay moves the transport back to zero
+    // while the player is still ended: an unconditional guard would leave every
+    // screen stuck on "Finished" for ever.
+    expect(page.body).toContain('at >= here - DRIFT_MS');
+    expect(page.body).toContain("say('Finished')");
+  });
+
   it('offers full screen without giving the player its controls back', async () => {
     const { channelId } = await channelOfTwo();
     const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
