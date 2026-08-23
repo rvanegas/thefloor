@@ -97,6 +97,10 @@ describe('writing your own profile', () => {
       account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
       bio: 'Cellist.',
       invited: 0,
+      // Nobody has any channels here. Empty rather than absent, and the
+      // distinction is the client's to act on: an absent key is a server too
+      // old to answer, where an empty array is the answer.
+      sharedChannels: [],
     });
   });
 
@@ -350,5 +354,117 @@ describe('asking somebody in your channel to be a contact', () => {
       url: `/contacts/${carol.account.id}/request`,
     });
     expect(response.statusCode).toBe(401);
+  });
+});
+
+/**
+ * The channels two people share, on the profile of one of them.
+ *
+ * A profile carries where *they* have been in each — not where the room has,
+ * which the client already has from Home and which is the maximum across
+ * everybody in it. The two answers differ in exactly the case the section
+ * exists for: a busy channel one member has never opened.
+ */
+describe('the channels on somebody’s profile', () => {
+  type Shared = {
+    sharedChannels?: {
+      channelId: string;
+      present: boolean;
+      lastPresentAt: number | null;
+    }[];
+  };
+
+  const sharedOf = async (viewer: User, id: string) =>
+    ((await read(viewer, id)).json() as Shared).sharedChannels!;
+
+  it('lists the ones you both belong to, and no others', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(alice, carol, 'carol@example.com');
+
+    const shared = app.channels.create(alice.account.id, [bob.account.id]);
+    const other = app.channels.create(alice.account.id, [carol.account.id]);
+    if (!shared.ok || !other.ok) throw new Error('channel not created');
+
+    const ids = (await sharedOf(alice, bob.account.id)).map(
+      (entry) => entry.channelId
+    );
+    // The one with carol in it is alice's own and is on her Home; it is not a
+    // channel she shares with bob, so it says nothing on his profile.
+    expect(ids).toContain(shared.channel.id);
+    expect(ids).not.toContain(other.channel.id);
+  });
+
+  it('answers about them rather than about the room', async () => {
+    // The case the section is for. Alice sits in the channel and bob never
+    // has: the room reads as occupied, and the fact on bob's card is that he
+    // has never been in it.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+
+    const created = app.channels.create(alice.account.id, [bob.account.id]);
+    if (!created.ok) throw new Error('channel not created');
+    app.channels.dispatch(created.channel.id, alice.account.id, {
+      type: 'ENTER',
+    });
+
+    const [about] = await sharedOf(alice, bob.account.id);
+    expect(about.present).toBe(false);
+    // Null rather than a number: nothing has ever been heard from him here,
+    // and an invented stamp is the failure `lastPresentAt` exists to avoid.
+    expect(about.lastPresentAt).toBe(null);
+
+    // Read the other way round it is alice who is there, which is what makes
+    // the pair asymmetric: the viewer decides which channels appear, the
+    // subject decides what is said about each.
+    const [aboutAlice] = await sharedOf(bob, alice.account.id);
+    expect(aboutAlice.present).toBe(true);
+    expect(aboutAlice.lastPresentAt).toBe(clock);
+  });
+
+  it('remembers when somebody who has stepped out was last in', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+
+    const created = app.channels.create(alice.account.id, [bob.account.id]);
+    if (!created.ok) throw new Error('channel not created');
+    app.channels.dispatch(created.channel.id, bob.account.id, {
+      type: 'ENTER',
+    });
+    const entered = clock;
+    clock += 3_600_000;
+    app.channels.dispatch(created.channel.id, bob.account.id, {
+      type: 'STEP_OUT',
+    });
+
+    const [about] = await sharedOf(alice, bob.account.id);
+    expect(about.present).toBe(false);
+    // The last moment he was heard from, which is his departure an hour after
+    // he arrived — not the arrival, and not now.
+    expect(about.lastPresentAt).toBe(entered + 3_600_000);
+  });
+
+  it('tells somebody who merely shares a channel, unlike availability', async () => {
+    // The rule that narrows `lastSeenAt` to contacts does not reach here, and
+    // the difference is scope rather than sensitivity: every entry is a
+    // channel the reader is themselves a member of.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(alice, carol, 'carol@example.com');
+    app.channels.create(alice.account.id, [bob.account.id, carol.account.id]);
+
+    const profile = (await read(bob, carol.account.id)).json() as Record<
+      string,
+      unknown
+    > &
+      Shared;
+    expect(profile).not.toHaveProperty('lastSeenAt');
+    expect(profile.sharedChannels).toHaveLength(1);
   });
 });

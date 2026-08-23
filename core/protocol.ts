@@ -78,6 +78,59 @@ export interface ProfileView {
    * all three mean there is no line to draw.
    */
   invitedBy?: PublicAccount;
+  /**
+   * Where this person has been in each channel the two of you share.
+   *
+   * One entry per shared channel, and deliberately nothing that Home already
+   * says about those channels — no name, no roster, no occupancy count. Home's
+   * `rejoinable` list *is* the set of channels you belong to, so the client has
+   * all of that already and joins on `channelId`; what it cannot know from
+   * there is the half that is about **this person** rather than about the
+   * room. A channel's own `lastPresenceAt` is the maximum across everybody in
+   * it, so on a card about one member it answers a question nobody asked: two
+   * other people talking all afternoon says nothing about whether the person
+   * whose profile this is has ever opened the place.
+   *
+   * `present` first, and `lastPresentAt` second, for the reason `inApp` comes
+   * before `lastSeenAt`: presence is a fact that stays true until an event
+   * changes it, where a stamp subtracted from an advancing clock ages by
+   * however long the screen has gone without a snapshot. And a present member
+   * heartbeats, so their stamp reads as roughly now anyway — which is an
+   * inference the flag makes unnecessary rather than one it agrees with.
+   *
+   * `lastPresentAt` is null when they have never been in that channel, which
+   * is an ordinary state rather than a gap: a channel a pair get for becoming
+   * contacts has been entered by nobody, and a channel somebody was asked into
+   * and has not yet answered has been entered by everybody but them.
+   *
+   * Not withheld from a non-contact, unlike availability, and the difference is
+   * the scope rather than the sensitivity. Availability says where somebody is
+   * in the world; this says only whether they have been in a room the reader is
+   * themselves a member of — the same fact the reader could have by sitting in
+   * it, and about the reader's own channels. Every entry is a channel you both
+   * belong to; there is no entry here for a channel you are not in.
+   *
+   * Optional because a server that predates it sends no such key, and an empty
+   * array is a real answer that must not be confused with an absent one: the
+   * client falls back to the channel's own idleness for an absent field, and
+   * shows no channels at all for an empty one.
+   */
+  sharedChannels?: SharedChannelView[];
+}
+
+/**
+ * One shared channel, on somebody's profile. See `ProfileView.sharedChannels`
+ * for why it carries so little.
+ */
+export interface SharedChannelView {
+  channelId: string;
+  /** Whether they are standing in it right now. */
+  present: boolean;
+  /**
+   * When they were last heard from in it, or null for never. Minute-resolution
+   * once it has been through the database — see `ChannelState.lastPresentAt`.
+   */
+  lastPresentAt: number | null;
 }
 
 /**

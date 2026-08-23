@@ -981,8 +981,25 @@ export function buildApp(options: BuildOptions = {}): App {
       id === account.id || contact || channels.shareAChannel(account.id, id);
     // Absent and not-allowed answer the same way, so this cannot be used to
     // discover which ids exist.
-    const profile = allowed ? accounts.profile(id, account.id) : null;
-    if (!profile) return reply.code(404).send({ error: 'No such profile.' });
+    const found = allowed ? accounts.profile(id, account.id) : null;
+    if (!found) return reply.code(404).send({ error: 'No such profile.' });
+
+    // The channels the two of you share, and where *they* have been in each.
+    // Added here rather than in `accounts.profile` because it is a fact about
+    // conversations rather than about the account, and the registry is what
+    // holds them — the same seam that keeps `inApp` out of the query below.
+    //
+    // Given to everybody who may read the profile at all, unlike availability:
+    // every entry is a channel the reader belongs to, so this says where
+    // somebody has been in the reader's own rooms rather than where they are
+    // in the world. Not special-cased for your own profile — asked about
+    // yourself it answers with your own channels, truthfully and uselessly,
+    // and the screen leaves the section out the same way it leaves out the
+    // Contact card. A rule stated in one place beats a rule stated in two.
+    const profile = {
+      ...found,
+      sharedChannels: channels.sharedChannelsFor(account.id, id),
+    };
 
     // Where somebody is, for the people who could already see it. This is the
     // line Home's contact rows used to carry, and it moved here rather than

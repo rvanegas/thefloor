@@ -79,6 +79,38 @@ export function describeQuiet(
 }
 
 /**
+ * Where one person has been in one channel — "Here now", "Last here 5 minutes
+ * ago", "Never been here" — for a card on somebody's profile.
+ *
+ * A third sentence rather than a reuse of either of the two above, because it
+ * is about a different subject and the words have to say so. `describeQuiet`
+ * answers for the room and would report an afternoon two other people spent in
+ * it as though it were theirs; `describeAvailability` answers for the person
+ * but across the whole app, and "In the app now" on a channel card would be
+ * read as "in this channel", which is exactly the thing it does not mean.
+ *
+ * `present` first, and the floor under the gap, for the same reason
+ * `describeAvailability` has both: a present member's stamp is refreshed by a
+ * heartbeat rather than at the moment it describes, so subtracting it reports
+ * the age of the snapshot, and a connection flapping would otherwise show as
+ * somebody leaving and coming back.
+ *
+ * Null is never one of the answers, unlike the other two. This is drawn from a
+ * field the server either sent or did not, and the caller has already decided
+ * what an absent field means — so by the time anything is being described here
+ * there is a fact to describe, and "never" is a fact rather than a gap.
+ */
+export function describePresence(
+  where: { present: boolean; lastPresentAt: number | null },
+  now: number
+): string {
+  if (where.present) return 'Here now';
+  if (where.lastPresentAt === null) return 'Never been here';
+  const gap = agoOrNull(now - where.lastPresentAt);
+  return gap ? `Last here ${gap}` : 'Here now';
+}
+
+/**
  * Capitalised, for the two places one of these lines stands alone rather than
  * ending a sentence somebody else began. Here rather than in either view, so
  * the profile and Home cannot disagree about the capital.

@@ -13,7 +13,12 @@ import { MAX_PING_TEXT_LENGTH } from '../../../core/constants';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
-import { describeAvailability, describeQuiet, sentence } from './availability';
+import {
+  describeAvailability,
+  describePresence,
+  describeQuiet,
+  sentence,
+} from './availability';
 import { duration } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
 
@@ -49,9 +54,15 @@ export function ProfileView({
   fallbackName: string;
   onBack: () => void;
   /**
-   * Opens a channel the two of you share. Omitted where entering one would be
-   * wrong — from inside a channel, which is the other way this screen is
-   * reached — and the section is then left out rather than shown dead.
+   * Opens a channel the two of you share. Omitted where going somewhere else
+   * would be wrong — from inside a channel, which is the other way this screen
+   * is reached — and the cards are then drawn as cards rather than as buttons.
+   *
+   * **The section itself does not depend on this.** It used to, and that is
+   * why nobody ever saw it: neither caller in the app passes this, so a list
+   * that only existed alongside it existed nowhere. Which channels you share
+   * with somebody, and when they were last in each, is worth reading whether
+   * or not this screen is the place to act on it.
    */
   onEnterChannel?: (channelId: string) => void;
   /**
@@ -132,13 +143,37 @@ export function ProfileView({
 
   /**
    * Channels the two of you are both in. Drawn from Home's own list rather
-   * than fetched, because that list already *is* "channels you belong to and
-   * are not currently in" — the exact set for which "step in" is the right
-   * verb. One you are presently inside is therefore absent, correctly: you
-   * are already there.
+   * than fetched, because that list already *is* every live channel you belong
+   * to — including the one you are standing in, which belongs here as much as
+   * any other: a card saying they have not been in the room you are sitting in
+   * for a week is the whole point of the section.
+   *
+   * So the profile carries no names, no rosters and no occupancy. What it adds
+   * is `sharedChannels`, joined below on the id — where *they* have been in
+   * each of these, which is the one fact a list about channels cannot hold.
    */
   const shared = (app.home?.rejoinable ?? []).filter((channel) =>
     channel.others.some((other) => other.id === accountId)
+  );
+
+  /**
+   * Where they have been in each, by channel id.
+   *
+   * Absent for a server that predates the field, and the map is then simply
+   * empty — every card falls back to describing the room, which is what these
+   * cards said before there was anything better to say. An empty map and an
+   * empty array are the same thing here only because a channel missing from
+   * one is treated exactly as a channel missing from the other.
+   *
+   * As of when the screen opened, and deliberately not refreshed: it is
+   * fetched with the profile, so a card reading "Here now" goes on saying so
+   * if they walk out while it is on screen. The same is already true of the
+   * availability line at the top, for the same reason, and the alternative is
+   * a request per snapshot to keep a card fresher than the screen it is on.
+   * The room's own half of the line is live, coming from Home.
+   */
+  const presence = new Map(
+    (profile?.sharedChannels ?? []).map((entry) => [entry.channelId, entry])
   );
 
   const ask = async () => {
@@ -303,74 +338,113 @@ export function ProfileView({
       </Card>
 
       {/*
-        Meeting somebody in a channel an acquaintance opened is exactly when
-        you want to keep them, and until now there was no way to: you had their
-        name and their id, and adding a contact needed an address they had not
-        given you.
+        Every channel the two of you share, and when they were last in each.
 
-        Being in a channel together is permission to ask, not consent to be
-        anybody's contact — so this sends a request like any other, and they
-        decide.
+        Left out for your own profile, the same way the Contact card is: it
+        would be Home's list of your own channels with your own name against
+        every line, which is a screen you already have.
       */}
-      {onEnterChannel && shared.length > 0 ? (
+      {isSelf || shared.length === 0 ? null : (
         <>
           <SectionLabel>Channels with them</SectionLabel>
           <View style={styles.stack}>
-            {shared.map((channel) => (
-              <Pressable
-                key={channel.channelId}
-                accessibilityRole="button"
-                accessibilityLabel={`${
-                  channel.name ??
-                  describeChannel(channel.others.map((o) => o.displayName))
-                }. Step in.`}
-                onPress={() => {
-                  app.act(channel.channelId, { type: 'ENTER' });
-                  onEnterChannel(channel.channelId);
-                }}
-                style={({ pressed }) => [
-                  styles.channel,
-                  pressed && styles.channelPressed,
-                ]}
-              >
-                <Text
-                  style={channel.name ? type.body : styles.channelDescribed}
-                  numberOfLines={1}
+            {shared.map((channel) => {
+              const title =
+                channel.name ??
+                describeChannel(channel.others.map((o) => o.displayName));
+              const where = presence.get(channel.channelId);
+              /*
+                Where they have been, and — when it is a different fact — how
+                many people are in the room. Theirs comes first and is always
+                drawn, this screen being about them; the count is appended only
+                when there is somebody to count, since a card reading "Last
+                here 2 days ago" while three people were talking in there would
+                be true and would be withholding the reason to tap it.
+
+                The second branch is the line these cards drew before a profile
+                carried anything about the person, kept for a server that sends
+                no `sharedChannels`. It describes the room: it said "Nobody
+                here right now" for any empty channel whatever its age, so the
+                room Home called five minutes ago was described here as merely
+                empty, and a contact channel neither of you has ever opened
+                claimed to have been left.
+              */
+              const line = where
+                ? [
+                    describePresence(where, app.serverNow()),
+                    channel.presentCount > 0
+                      ? `${channel.presentCount} present`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                : channel.presentCount > 0
+                  ? `${channel.presentCount} present`
+                  : sentence(
+                      describeQuiet(
+                        {
+                          everUsed: channel.everUsed,
+                          // `lastActiveAt` for a server that predates the
+                          // better stamp, as on Home: the same answer for
+                          // every channel nobody is in, which is the only
+                          // kind this line is drawn for.
+                          lastPresenceAt:
+                            channel.lastPresenceAt ?? channel.lastActiveAt,
+                        },
+                        app.serverNow()
+                      ) ?? ''
+                    );
+              const body = (
+                <>
+                  <Text
+                    style={channel.name ? type.body : styles.channelDescribed}
+                    numberOfLines={1}
+                  >
+                    {title}
+                  </Text>
+                  <Text style={type.muted}>{line}</Text>
+                </>
+              );
+              /*
+                A card rather than a button where there is nowhere to go: from
+                inside a channel this screen is something to read, and an
+                affordance that is present but refuses is worse than one that
+                is honestly absent — the rule the ping section follows, applied
+                to the tap rather than to the section, because the reading is
+                worth having on its own.
+              */
+              return onEnterChannel ? (
+                <Pressable
+                  key={channel.channelId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${title}. ${line}. Step in.`}
+                  onPress={() => {
+                    // The same tap Home's rows take, preference and all: with
+                    // "Tap a channel to step in" off, this opens the channel
+                    // without arriving in it. Two lists of the same channels
+                    // answering a tap differently would be a setting that held
+                    // in one place and not the other.
+                    if (app.tapToStepIn) {
+                      app.act(channel.channelId, { type: 'ENTER' });
+                    }
+                    onEnterChannel(channel.channelId);
+                  }}
+                  style={({ pressed }) => [
+                    styles.channel,
+                    pressed && styles.channelPressed,
+                  ]}
                 >
-                  {channel.name ??
-                    describeChannel(channel.others.map((o) => o.displayName))}
-                </Text>
-                {/*
-                  The same line Home's channel rows draw, from the same
-                  function. This said "Nobody here right now" for any empty
-                  channel whatever its age, so the room Home called five
-                  minutes ago was described here as merely empty, and a
-                  contact channel neither of you has ever opened claimed to
-                  have been left.
-                */}
-                <Text style={type.muted}>
-                  {channel.presentCount > 0
-                    ? `${channel.presentCount} present`
-                    : sentence(
-                        describeQuiet(
-                          {
-                            everUsed: channel.everUsed,
-                            // `lastActiveAt` for a server that predates the
-                            // better stamp, as on Home: the same answer for
-                            // every channel nobody is in, which is the only
-                            // kind this line is drawn for.
-                            lastPresenceAt:
-                              channel.lastPresenceAt ?? channel.lastActiveAt,
-                          },
-                          app.serverNow()
-                        ) ?? ''
-                      )}
-                </Text>
-              </Pressable>
-            ))}
+                  {body}
+                </Pressable>
+              ) : (
+                <View key={channel.channelId} style={styles.channel}>
+                  {body}
+                </View>
+              );
+            })}
           </View>
         </>
-      ) : null}
+      )}
 
       {/*
         Somebody who belongs to this channel and is not in it. The one
@@ -434,6 +508,15 @@ export function ProfileView({
       ) : null}
 
       {/*
+        Meeting somebody in a channel an acquaintance opened is exactly when
+        you want to keep them, and until there was an "Add contact" here there
+        was no way to: you had their name and their id, and adding a contact
+        needed an address they had not given you.
+
+        Being in a channel together is permission to ask, not consent to be
+        anybody's contact — so this sends a request like any other, and they
+        decide.
+
         Left out entirely when this is you. Every branch below is about the
         relationship between two people, and there is no such relationship to
         report or to change — "Add contact" aimed at yourself is the one the

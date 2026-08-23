@@ -3334,9 +3334,11 @@ describe('channels you share with somebody', () => {
     act(() => tree.unmount());
   });
 
-  it('says nothing at all when there is nowhere to send you', async () => {
-    // Reached from inside a channel, there is no `onEnterChannel` and the
-    // section is left out rather than shown dead.
+  it('still lists them when there is nowhere to send you', async () => {
+    // Reached from inside a channel there is no `onEnterChannel`, and the
+    // section used to be left out entirely — which meant nobody ever saw it,
+    // neither caller in the app passing one. What you share with somebody is
+    // worth reading where it cannot be acted on; only the tap goes.
     withChannels([channel('sess_shared', 'Thursday rehearsal', THEM)]);
 
     let tree!: ReactTestRenderer;
@@ -3347,6 +3349,84 @@ describe('channels you share with somebody', () => {
           fallbackName="Dana Chu"
           onBack={() => {}}
         />
+      );
+    });
+
+    const text = textOf(tree);
+    expect(text).toContain('Channels with them');
+    expect(text).toContain('Thursday rehearsal');
+    // A card rather than a button: nothing here claims to be pressable.
+    expect(
+      tree.root.findAll(
+        (n) =>
+          n.props?.accessibilityRole === 'button' &&
+          typeof n.props?.accessibilityLabel === 'string' &&
+          n.props.accessibilityLabel.startsWith('Thursday rehearsal')
+      )
+    ).toHaveLength(0);
+    act(() => tree.unmount());
+  });
+
+  it('says where they have been in each, which is not where the room has', async () => {
+    // The point of the section. `lastPresenceAt` is the maximum across
+    // everybody in the channel, so a room two other people sat in all
+    // afternoon reads as busy while the person whose profile this is has not
+    // opened it for a week — and the card is about them.
+    withChannels([
+      {
+        ...channel('sess_busy', 'Thursday rehearsal', THEM),
+        presentCount: 3,
+        lastPresenceAt: NOW,
+      },
+      { ...channel('sess_here', 'Quartet', THEM), presentCount: 1 },
+      { ...channel('sess_never', 'Just the two of us', THEM) },
+    ]);
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: THEM, displayName: 'Dana Chu' },
+      bio: null,
+      sharedChannels: [
+        {
+          channelId: 'sess_busy',
+          present: false,
+          lastPresentAt: NOW - 7 * 24 * 3_600_000,
+        },
+        { channelId: 'sess_here', present: true, lastPresentAt: NOW },
+        { channelId: 'sess_never', present: false, lastPresentAt: null },
+      ],
+    });
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView
+          accountId={THEM}
+          fallbackName="Dana Chu"
+          onBack={() => {}}
+        />
+      );
+    });
+
+    const text = textOf(tree);
+    // Theirs first, and the room's occupancy after it — the second is why you
+    // would tap, and dropping it would leave the card honest and unhelpful.
+    expect(text).toContain('Last here 7 days ago · 3 present');
+    expect(text).toContain('Here now · 1 present');
+    // Never, which is an ordinary state: nobody has opened the channel a pair
+    // get for becoming contacts. No count, there being nobody to count.
+    expect(text).toContain('Never been here');
+    expect(text).not.toContain('Never been here · ');
+    act(() => tree.unmount());
+  });
+
+  it('leaves the section out when the profile is your own', async () => {
+    // It would be Home's list of your channels with your own name against
+    // every line. The Contact card goes for the same reason.
+    withChannels([channel('sess_shared', 'Thursday rehearsal', ME)]);
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView accountId={ME} fallbackName="Me" onBack={() => {}} />
       );
     });
 

@@ -1112,3 +1112,63 @@ what this is not, and precisely the misreading the implementation was chosen to
 avoid. It sits under the roster because it is a claim about the roster directly
 above it: those people cannot be heard right now.
 
+
+## A profile says where they have been in each of your channels — 2026-08-23
+
+The profile screen had a "Channels with them" section already, and **nobody had
+ever seen it**. It was gated on `onEnterChannel`, and neither of the two
+callers in the app passes one: `ContactsView` opens a profile with no channel
+navigation of its own, and `ChannelView` deliberately withholds it, since
+walking out of the conversation you are in to go to another is not a thing that
+screen should offer. A section that only existed alongside an unpassed prop
+existed nowhere. Only the *tap* now depends on the prop; the cards are drawn
+either way, as cards rather than as buttons, because what you share with
+somebody is worth reading where it cannot be acted on.
+
+The fact the cards were missing is the one the section is for. They drew
+`describeQuiet`, which is the room's own idleness — `lastPresenceAt`, the
+**maximum** across everybody in the channel. On a card about one person that
+answers a question nobody asked: two other members talking all afternoon says
+nothing whatever about whether the person whose profile you are reading has
+ever opened the place. So the card now leads with them — "Here now", "Last here
+7 days ago", "Never been here" — and appends the room's occupancy after a
+middot when there is somebody to count, that being the reason you would tap it.
+
+**The wire carries only the half Home cannot say.** `ProfileView.sharedChannels`
+is `{ channelId, present, lastPresentAt }` and no more: no name, no roster, no
+count. Home's `rejoinable` list already *is* every live channel you belong to —
+including the one you are standing in, since the change that stopped it
+skipping that one — so the client holds the display half and joins on the id.
+Sending it twice would be two lists to disagree with each other.
+
+`present` before `lastPresentAt`, for the same reason `inApp` comes before
+`lastSeenAt`: presence is a fact that stays true until an event changes it,
+where a stamp subtracted from an advancing clock reports the age of the
+snapshot on top of the real gap. A present member heartbeats, so their stamp
+reads as roughly now anyway; the flag makes that inference unnecessary rather
+than agreeing with it. `null` is never, which `lastPresentAt` can say honestly
+because it is written by heartbeats and never invented by a restart — and never
+is an ordinary state here, being what a contact channel neither of you has
+opened looks like, and what an unanswered invitation looks like from the
+invitee's side.
+
+**Not withheld from a non-contact, unlike availability, and the difference is
+scope rather than sensitivity.** `lastSeenAt` says where somebody is in the
+world; this says only whether they have been in a room the reader is themselves
+a member of, which the reader could learn by sitting in it. `sharedChannelsFor`
+takes the viewer and the subject as separate arguments and they are not
+interchangeable: the viewer's membership decides which channels appear, the
+subject's decides what is said about each. There is no entry for a channel the
+reader is not in.
+
+Left out entirely on your own profile, the same way the Contact card is — it
+would be Home's list with your own name against every line. The server does not
+special-case it and answers truthfully and uselessly; the screen is where the
+rule is stated, once.
+
+One thing it does not do: the person's half of each line is fetched with the
+profile and is not refreshed, so a card reading "Here now" goes on saying so if
+they walk out while the screen is open. The availability line at the top has
+always behaved that way, and the alternative is a request per snapshot to keep
+a card fresher than the screen it sits on. The room's half is live, coming from
+Home.

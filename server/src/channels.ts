@@ -22,6 +22,7 @@ import {
   isNamed,
   isParticipant,
   isPartyMuted,
+  isPresent,
   isWithheld,
   lastPresenceAt,
   otherParticipants,
@@ -43,6 +44,7 @@ import type {
   InviteView,
   PublicAccount,
   RejoinableView,
+  SharedChannelView,
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
 import { Guests, isGuestId, type AdmittedGuest } from './guests';
@@ -1173,6 +1175,45 @@ export class ChannelRegistry {
       if (isParticipant(channel, a) && isParticipant(channel, b)) return true;
     }
     return false;
+  }
+
+  /**
+   * Every live channel two people share, and where the second of them has been
+   * in each — which is the whole of what a profile adds to what Home already
+   * knows about those channels.
+   *
+   * The same membership test `shareAChannel` asks, run to exhaustion rather
+   * than stopped at the first hit, and the pair is deliberately asymmetric:
+   * `viewerId` decides which channels appear, `userId` decides what is
+   * reported about each. Reading it the other way round would answer a
+   * question about the reader on somebody else's screen.
+   *
+   * Membership rather than presence, for the reason `shareAChannel` gives —
+   * and it is what makes "never been here" a state this can report at all. A
+   * channel a pair get for becoming contacts is one neither has opened; a
+   * channel somebody has been asked into is one everybody but them has. Both
+   * are shared channels and both belong on the card.
+   *
+   * No ordering. The client already holds this set in Home's order, which is
+   * least idle first, and joins on the id; a second order here would be one
+   * more thing for the two ends to disagree about.
+   */
+  sharedChannelsFor(viewerId: string, userId: string): SharedChannelView[] {
+    const shared: SharedChannelView[] = [];
+    for (const channel of this.channels.values()) {
+      if (channel.status !== 'active') continue;
+      if (!isParticipant(channel, viewerId)) continue;
+      if (!isParticipant(channel, userId)) continue;
+      shared.push({
+        channelId: channel.id,
+        present: isPresent(channel, userId),
+        // Absent means never, which is the one thing a number must not be
+        // invented for: `lastPresentAt` is written by every heartbeat and
+        // never by a restart, so an empty slot is evidence rather than a hole.
+        lastPresentAt: channel.lastPresentAt[userId] ?? null,
+      });
+    }
+    return shared;
   }
 
   /**
