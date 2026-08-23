@@ -107,12 +107,24 @@ Added 2026-08-23 with the watch party's mute-all. **The third reason a
 microphone can be quiet, and it is not either of the other two** — which is the
 whole reason it has an entry rather than a clause in one of theirs.
 
-**Name in source.** `ChannelState.watch.mutedAll` (`core/types.ts`), written by
-`SET_WATCH_MUTE`, guarded by `canControlWatch`. Read through
-`isPartyMuted(state)` — a question about the room, taking no user. Combined
+**Name in source.** `ChannelState.watch.mutedAll` (`core/types.ts`) is the
+**intent**, written by `SET_WATCH_MUTE` and guarded by `canControlWatch`. What
+actually holds is `partyWithholds(watch)` (`core/watch.ts`) — the intent
+**and** `status === 'playing'` — surfaced as `isPartyMuted(state)` and combined
 with the floor by `isWithheld(state, speaker)` (`core/channel.ts`), which is
-the only thing either end should ask. In the interface it is **"party-muted"**,
-said once under the roster.
+the only thing either end should ask. `partyMuteRequested(state)` reads the
+intent, for the interface. In the interface the effective state is
+**"party-muted"**, said once under the roster.
+
+**The intent and the state are deliberately two things**, which is the whole
+shape of this entry. A mute holds while the video plays and lifts the moment it
+pauses, so pausing to talk about what you are watching needs no second tap and
+resuming does not need anybody to remember. Derived rather than written on
+every play and pause, for the reason `isSilenced` is derived from
+`floor.holder`: there is no transition that can forget to write it, and every
+route out of `playing` gives the room its voice back for free — a video running
+out under `TICK`, a channel emptying through `settleEmpty`, the party stopped,
+the channel ended.
 
 **Conditions.** Set only while a party is loaded; `setPartyMute` refuses
 otherwise and `stopParty` clears it, so it cannot outlive the thing it was for.
@@ -146,7 +158,9 @@ problem the feature exists for.
 That second half has a consequence which falls out rather than being arranged:
 `anyMicrophoneOpen` is false for the whole room while it holds, so every
 audio session goes to its high-quality configuration for the length of the
-film. See `Audio Session Configuration`.
+film — and back to the call one at each pause, which is the existing mono/stereo
+cue arriving for a new reason and saying exactly what it always said: somebody
+can be heard now. See `Audio Session Configuration`.
 
 ---
 

@@ -889,6 +889,43 @@ saying otherwise. That is the `reconcileSilence` fault of 2026-08-14 arriving
 by a new route, and it was avoided by reading the rule rather than by meeting
 it again.
 
+### And then it follows the transport, which is what it should have been
+
+Asked for within the hour, and it is the better shape: **a party mute holds
+while the video plays and lifts the moment it pauses.** You pause a film to
+talk about it, so the mute gets out of the way exactly when talking starts and
+comes back when it stops. Nobody taps anything.
+
+The implementation is one line and the choice behind it is the interesting
+part. `mutedAll` became the *intent*; what holds is `partyWithholds(watch)` —
+the intent **and** `status === 'playing'`, derived. The alternative was to
+write the mute on every play and pause, which is two states to keep in step and
+one of them drifts. Derivation is the same trick `isSilenced` plays on
+`floor.holder`, and it pays the same dividend: **every route out of `playing`
+gives the room its voice back for nothing.** A video running out under `TICK`,
+a channel emptying through `settleEmpty`, the party being stopped, the channel
+ending — none of them knows the mute exists, and all four do the right thing.
+
+`applySilenceToMedia` already compared `isPartyMuted(before)` against
+`isPartyMuted(after)`, so play and pause now reach the media plane with no new
+code at all — the transition it was watching for simply has a second cause.
+
+Two things had to stay apart in the interface, and this is where the two
+questions earn their names. The toggle reads `partyMuteRequested`, the intent:
+a button that flipped itself back to *Mute the room* at every pause would be a
+control fighting its owner. The line under the roster reads `isPartyMuted`, the
+truth: it appears while the video plays and goes when it pauses. And a paused
+muted room says *"Paused, so you can talk — the room goes quiet again when the
+video resumes"*, because the silence **returning** on the next tap of Play is
+the surprise, and that pause is the one moment somebody learns the rule.
+
+The audio-session consequence is nicer than it had any right to be. Each pause
+crosses the `anyMicrophoneOpen` boundary, so the room drops from its
+high-quality configuration to the call one exactly as talking becomes possible
+and blooms back as the film resumes. That is the mono/stereo cue
+`core/micNeeded.ts` argues for at length, arriving for a reason nobody designed
+and saying precisely what it always said.
+
 ### Said once, under the roster
 
 Asked for on the participant cards first and moved during the asking, which was

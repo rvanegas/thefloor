@@ -5635,7 +5635,18 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  /** Muted *and* playing, which is the only combination that withholds. */
   const muted = () =>
+    watching((s) =>
+      reduce(
+        reduce(s, { type: 'SET_WATCH_MUTE', userId: ME, muted: true }, NOW),
+        { type: 'WATCH_PLAY', userId: ME },
+        NOW
+      )
+    );
+
+  /** Muted, but paused — so everybody has their voice back. */
+  const mutedAndPaused = () =>
     watching((s) => reduce(s, { type: 'SET_WATCH_MUTE', userId: ME, muted: true }, NOW));
 
   it('offers to mute the room once a party is loaded', () => {
@@ -5692,6 +5703,29 @@ describe('Channel, watching together', () => {
     const text = textOf(tree);
     expect(text).not.toContain('Headphones on the screen end');
     expect(text).toContain('The room is muted');
+    act(() => tree.unmount());
+  });
+
+  it('says the room can talk while the video is paused', () => {
+    // The mute holds only while the video plays, so a paused party is a room
+    // with its voice back — and the silence returning on the next tap of Play
+    // is the surprise worth heading off.
+    showChannel(mutedAndPaused());
+    const tree = open();
+    const text = textOf(tree);
+    expect(text).not.toContain('Party-muted');
+    expect(text).toContain('Paused, so you can talk');
+    expect(text).toContain('quiet again when the video resumes');
+    act(() => tree.unmount());
+  });
+
+  it('keeps the toggle on the intent, not on what the transport is doing', () => {
+    // A button that flipped itself back to "Mute the room" at every pause
+    // would be a control fighting its owner.
+    showChannel(mutedAndPaused());
+    const tree = open();
+    expect(findButton(tree, 'Unmute the room')).toBeDefined();
+    expect(findButton(tree, 'Mute the room')).toBeUndefined();
     act(() => tree.unmount());
   });
 

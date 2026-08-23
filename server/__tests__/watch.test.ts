@@ -483,6 +483,13 @@ describe('muting the room reaches the media plane', () => {
   const silencedFor = (speaker: string) =>
     media.subscriptions.filter((s) => s.speaker === speaker);
 
+  /**
+   * A party, playing, optionally muted.
+   *
+   * **Playing matters**: the mute holds only while the video does, so a muted
+   * party that was never started withholds nothing — which is the rule, not an
+   * oversight in the fixture.
+   */
   async function partyOf(muted: boolean) {
     const { alice, bob, channelId } = await channelOfTwo();
     app.channels.dispatch(channelId, alice.account.id, {
@@ -495,6 +502,7 @@ describe('muting the room reaches the media plane', () => {
         muted: true,
       } as never);
     }
+    app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PLAY' });
     await new Promise((r) => setTimeout(r, 0));
     return { alice, bob, channelId };
   }
@@ -536,6 +544,24 @@ describe('muting the room reaches the media plane', () => {
     // The claim outlived the mute and is still in force underneath it.
     expect(silencedFor(alice.account.id).at(-1)?.silenced).toBe(false);
     expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(true);
+  });
+
+  it('gives everybody back on pause, and takes them away again on resume', async () => {
+    const { alice, bob, channelId } = await partyOf(true);
+    expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(true);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PAUSE' });
+    await new Promise((r) => setTimeout(r, 0));
+    // Nothing wrote a mute here: the media plane is told because the derived
+    // answer changed, which is what `applySilenceToMedia` compares.
+    expect(silencedFor(alice.account.id).at(-1)?.silenced).toBe(false);
+    expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(false);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PLAY' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(true);
+    // And the intent was never touched by either.
+    expect(app.channels.get(channelId)?.watch.mutedAll).toBe(true);
   });
 
   it('is refused to somebody who is not in the room', async () => {

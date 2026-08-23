@@ -30,6 +30,7 @@ import {
   hasReachedEnd as watchHasReachedEnd,
   initialWatchState,
   learnDuration,
+  partyWithholds,
   setPartyMute,
   startParty,
   stopParty,
@@ -560,18 +561,37 @@ export function canStartWatch(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
- * Whether the room's microphones are withheld for the party.
+ * Whether somebody has asked for the room to be quiet for this film.
  *
- * A question about the room, so it takes no user — which is the difference
- * from `isSilenced`, and the reason the interface says it once under the
- * roster rather than on six cards. Six identical badges would say one thing
- * six times and imply it was six different facts.
+ * The *intent*, which outlives any pause. The interface reads this for the
+ * toggle — a button that flipped itself back to "Mute the room" every time the
+ * video paused would be a control fighting its owner.
  *
  * `?.` because a server older than the field sends snapshots without it, which
  * this build meets between its release and the deploy that follows.
  */
-export function isPartyMuted(state: ChannelState): boolean {
+export function partyMuteRequested(state: ChannelState): boolean {
   return state.watch?.mutedAll === true;
+}
+
+/**
+ * Whether the room's microphones are withheld **right now**.
+ *
+ * The intent and the transport together: a party mute holds while the video is
+ * playing and lifts the moment it pauses, so pausing to talk about what you
+ * are watching needs no second tap. Derived rather than stored, which is what
+ * makes it self-correcting — there is no play or pause path that has to
+ * remember to write it, and every route out of `playing` gives the room its
+ * voice back for free: a video running out under `TICK`, a channel emptying
+ * through `settleEmpty`, the party being stopped, the channel ending.
+ *
+ * A question about the room, so it takes no user — the difference from
+ * `isSilenced`, and the reason the interface says it once under the roster
+ * rather than on six cards. Six identical badges would say one thing six times
+ * and imply it was six different facts.
+ */
+export function isPartyMuted(state: ChannelState): boolean {
+  return state.watch ? partyWithholds(state.watch) : false;
 }
 
 /**
@@ -1150,10 +1170,14 @@ export function reduce(
           // explain a mute that outlived the thing it was for.
           return { ...state, watch: stopParty() };
         case 'SET_WATCH_MUTE':
-          // Note what is *not* here: no write to `selfMuted`. The two are
-          // separate states and clearing this one restores each person's own
-          // mute exactly as they left it, which is the whole reason it is not
-          // implemented as muting everybody individually.
+          // Note the two things that are *not* here. No write to `selfMuted`:
+          // the two are separate states, and clearing this one restores each
+          // person's own mute exactly as they left it, which is the whole
+          // reason it is not implemented as muting everybody individually.
+          // And nothing about the transport, because the mute only holds
+          // while the video plays and that is derived — see `isPartyMuted`.
+          // A play or pause that had to remember to write a mute would be a
+          // pair of states to keep in step, and one of them would drift.
           return { ...state, watch: setPartyMute(watch, action.muted) };
         case 'WATCH_PLAY':
           return { ...state, watch: watchPlay(watch, now) };

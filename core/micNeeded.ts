@@ -1,5 +1,6 @@
 import { guestMaySpeak, isGuest, roomOccupants } from './guests';
 import { isRecordingActive } from './recording';
+import { partyWithholds } from './watch';
 import type { ChannelState, UserId } from './types';
 
 /**
@@ -21,13 +22,10 @@ export function microphoneNeeded(
   channel: ChannelState,
   me: UserId
 ): boolean {
-  // A guest with no grant has no microphone to need. Their LiveKit token is
-  // minted unable to publish, so asking for capture would open a device
-  // microphone that nothing is allowed to carry — and on a phone that is the
-  // same profile handover as a real call, paid for to publish nothing.
-  // A muted room has nothing for anybody's microphone to capture for, which is
-  // the same question this function already asks about being alone — so it is
-  // answered in the same place rather than as a special case at the call site.
+  // A room muted for a watch party has nothing for anybody's microphone to
+  // capture for, which is the same question this function already asks about
+  // being alone — so it is answered here rather than as a special case at the
+  // call site.
   //
   // **Closing the device is the point, not a bonus.** The server withholds the
   // subscriptions anyway, so nobody would hear anything either way; what only
@@ -37,11 +35,18 @@ export function microphoneNeeded(
   // still has to exist, for builds that predate this rule and go on
   // publishing.
   //
-  // It also means `anyMicrophoneOpen` is false for the whole room, so every
-  // audio session goes to its high-quality configuration for the film — which
-  // falls out of asking the question here and would have to be written by hand
-  // anywhere else.
-  if (channel.watch?.mutedAll) return false;
+  // **Only while the video plays** — `partyWithholds` is the intent and the
+  // transport together — so a pause reopens every microphone in the room. Both
+  // crossings then land where they are wanted: `anyMicrophoneOpen` follows, so
+  // the room sits in its high-quality configuration for the film and drops to
+  // the call one at the moment talking becomes possible again. That is the cue
+  // documented at length below, arriving for a new reason and saying exactly
+  // what it always said.
+  if (channel.watch && partyWithholds(channel.watch)) return false;
+  // A guest with no grant has no microphone to need. Their LiveKit token is
+  // minted unable to publish, so asking for capture would open a device
+  // microphone that nothing is allowed to carry — and on a phone that is the
+  // same profile handover as a real call, paid for to publish nothing.
   if (isGuest(channel, me) && !guestMaySpeak(channel, me)) return false;
   // The room, not the roster. A member alone with a guest is not alone: the
   // guest can hear them, and a microphone that stayed shut would leave the

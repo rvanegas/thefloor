@@ -88,6 +88,21 @@ export function setPartyMute(watch: WatchState, muted: boolean): WatchState {
   return { ...watch, mutedAll: muted };
 }
 
+/**
+ * Whether this party is withholding the room's microphones at this moment.
+ *
+ * The stored intent **and** the transport: a mute holds while the video plays
+ * and lifts the moment it pauses. Lives here rather than in channel.ts so that
+ * `micNeeded.ts` and the reducer can ask the same question without one of them
+ * importing the other — the derivation is the thing that must not exist twice.
+ *
+ * See `WatchState.mutedAll` for why it is derived rather than written on every
+ * play and pause.
+ */
+export function partyWithholds(watch: WatchState): boolean {
+  return watch.mutedAll && watch.status === 'playing';
+}
+
 export function stopParty(): WatchState {
   return initialWatchState();
 }

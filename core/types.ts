@@ -248,7 +248,21 @@ export interface WatchState {
   /** When the current run began; null unless status is 'playing'. */
   startedAt: number | null;
   /**
-   * Whether the room's microphones are withheld for the duration.
+   * Whether the room's microphones are to be withheld **while the video
+   * plays**.
+   *
+   * An intent rather than the state itself, and the distinction is the whole
+   * of how this behaves: what is actually withheld at any moment is this
+   * *and* `status === 'playing'`, derived by `isPartyMuted` in
+   * core/channel.ts. So pausing gives everybody their voice back and resuming
+   * takes it away again, with nothing here to keep in step and no transition
+   * to write — the same reason `isSilenced` is derived from `floor.holder`
+   * rather than stored beside it.
+   *
+   * That falls out as the behaviour anybody would want: you pause a film to
+   * talk about it. It also means the mute ends itself when a video runs out,
+   * when the channel empties, and when the party is stopped, because all three
+   * leave `status` somewhere other than playing.
    *
    * A property of the room and not of any person, which is the whole reason it
    * lives here rather than as six entries in `selfMuted`. Watching something

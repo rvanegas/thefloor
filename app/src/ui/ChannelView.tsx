@@ -37,6 +37,7 @@ import {
   canStartWatch,
   canControlWatch,
   isPartyMuted,
+  partyMuteRequested,
   canStopRecording,
   canPasteClip,
   canClearClip,
@@ -374,6 +375,11 @@ export function ChannelView({
   // button lights up and the server decides whether to accept, and a greyed
   // control and a refused action must not disagree about what a link is.
   const pastedIsLink = parseYouTubeUrl(watchUrl) !== null;
+  // Two questions, and the interface needs both. `muteRequested` is what the
+  // toggle shows — a button that flipped itself back every time the video
+  // paused would be a control fighting its owner. `partyMuted` is what is
+  // true right now, which is what the roster reports.
+  const muteRequested = partyMuteRequested(channel);
   const partyMuted = isPartyMuted(channel);
 
   /**
@@ -558,7 +564,7 @@ export function ChannelView({
           */}
           {partyMuted ? (
             <Text style={styles.partyMuted}>
-              Party-muted — nobody is heard while the watch party is on.
+              Party-muted — nobody is heard while the video plays.
             </Text>
           ) : null}
 
@@ -1126,15 +1132,15 @@ export function ChannelView({
                 `WatchState.mutedAll`.
               */}
               <Button
-                label={partyMuted ? 'Unmute the room' : 'Mute the room'}
+                label={muteRequested ? 'Unmute the room' : 'Mute the room'}
                 sublabel={
-                  partyMuted
+                  muteRequested
                     ? 'Everyone can speak again; your own mute is unchanged'
-                    : 'Nobody is heard until this is cleared — for watching, not talking'
+                    : 'Quiet while the video plays; pause to talk'
                 }
                 disabled={!mayControlWatch}
                 onPress={() =>
-                  act({ type: 'SET_WATCH_MUTE', muted: !partyMuted })
+                  act({ type: 'SET_WATCH_MUTE', muted: !muteRequested })
                 }
               />
 
@@ -1226,8 +1232,17 @@ export function ChannelView({
               // where nobody is talking.
               <Text style={type.muted}>
                 <Text style={styles.emphasis}>The room is muted.</Text> No
-                microphone is open, so nothing leaks in from anybody's screen —
-                and nobody can be heard until this is cleared.
+                microphone is open, so nothing leaks in from anybody's screen.
+                Pause the video to talk.
+              </Text>
+            ) : muteRequested ? (
+              // Muted, but paused — so everybody has their voice back without
+              // having asked for it. Said because the silence *returning* on
+              // the next tap of Play would otherwise be the surprise: this is
+              // the one moment somebody learns the rule.
+              <Text style={type.muted}>
+                <Text style={styles.emphasis}>Paused, so you can talk.</Text>{' '}
+                The room goes quiet again when the video resumes.
               </Text>
             ) : (
               <Text style={type.muted}>

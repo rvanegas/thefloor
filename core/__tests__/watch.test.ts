@@ -8,6 +8,7 @@ import {
   createChannel,
   isPartyMuted,
   isWithheld,
+  partyMuteRequested,
   reduce,
 } from '../channel';
 import type { ChannelAction, ChannelState, PlaybackTrack } from '../types';
@@ -296,10 +297,16 @@ describe('muting the room', () => {
   const mute = (muted: boolean) =>
     ({ type: 'SET_WATCH_MUTE', userId: A, muted }) as ChannelAction;
 
+  /** Muted and playing, which is the only combination that withholds. */
+  const mutedAndPlaying = () =>
+    apply(watching(), [
+      [mute(true), T0],
+      [{ type: 'WATCH_PLAY', userId: A }, T0 + 1_000],
+    ]);
+
   it('withholds everybody, the floor-holder included', () => {
-    const s = apply(watching(), [
-      [{ type: 'CLAIM_FLOOR', userId: A }, T0],
-      [mute(true), T0 + 1_000],
+    const s = apply(mutedAndPlaying(), [
+      [{ type: 'CLAIM_FLOOR', userId: A }, T0 + 2_000],
     ]);
     // Muting a room is not taking the floor in it: a claim withholds everybody
     // but one and confers control, and this withholds everybody.
@@ -308,12 +315,59 @@ describe('muting the room', () => {
   });
 
   it('closes every microphone in the room', () => {
-    const s = reduce(watching(), mute(true), T0);
+    const s = mutedAndPlaying();
     expect(microphoneNeeded(s, A)).toBe(false);
     expect(microphoneNeeded(s, B)).toBe(false);
     // Which takes every audio session out of its call configuration for the
     // length of the film, and falls out rather than being arranged.
     expect(anyMicrophoneOpen(s)).toBe(false);
+  });
+
+  it('holds only while the video plays', () => {
+    // The whole of the rule: you pause a film to talk about it, and the mute
+    // is what makes that possible rather than what stands in its way.
+    const paused = reduce(watching(), mute(true), T0);
+    expect(partyMuteRequested(paused)).toBe(true);
+    expect(isPartyMuted(paused)).toBe(false);
+    expect(microphoneNeeded(paused, A)).toBe(true);
+
+    const playing = reduce(paused, { type: 'WATCH_PLAY', userId: A }, T0 + 1_000);
+    expect(isPartyMuted(playing)).toBe(true);
+    expect(microphoneNeeded(playing, A)).toBe(false);
+  });
+
+  it('gives every voice back on pause and takes it away again on resume', () => {
+    const playing = mutedAndPlaying();
+    const paused = reduce(playing, { type: 'WATCH_PAUSE', userId: B }, T0 + 5_000);
+    expect(isWithheld(paused, A)).toBe(false);
+    expect(isWithheld(paused, B)).toBe(false);
+    // The intent survives the pause — this is a room that is muted for a film,
+    // not a mute somebody has to set again at every interruption.
+    expect(partyMuteRequested(paused)).toBe(true);
+
+    const resumed = reduce(paused, { type: 'WATCH_PLAY', userId: B }, T0 + 9_000);
+    expect(isWithheld(resumed, A)).toBe(true);
+  });
+
+  it('lifts when the video runs out, with nothing written to do it', () => {
+    const s = apply(mutedAndPlaying(), [
+      [{ type: 'TICK' }, T0 + 1_000 + LENGTH + 5_000],
+    ]);
+    // `TICK` pauses a finished video, and the mute is derived from the status
+    // rather than stored beside it — so the room can talk about what it just
+    // watched without anybody reaching for a control.
+    expect(s.watch.status).toBe('paused');
+    expect(isPartyMuted(s)).toBe(false);
+    expect(partyMuteRequested(s)).toBe(true);
+  });
+
+  it('lifts when the channel empties, for the same reason', () => {
+    const s = apply(mutedAndPlaying(), [
+      [{ type: 'STEP_OUT', userId: A }, T0 + 2_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 3_000],
+    ]);
+    // `settleEmpty` pauses the party, and the mute follows it out.
+    expect(isPartyMuted(s)).toBe(false);
   });
 
   it('leaves each person their own mute, and gives it back unchanged', () => {
