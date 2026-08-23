@@ -5588,32 +5588,6 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('hands the phone off at the second everybody is at', async () => {
-    const { Linking } = require('react-native');
-    const opened = jest
-      .spyOn(Linking, 'openURL')
-      .mockResolvedValue(undefined as never);
-
-    showChannel(
-      watching((s) =>
-        reduce(s, { type: 'WATCH_SEEK', userId: ME, positionMs: 90_000 }, NOW)
-      )
-    );
-    const tree = open();
-    const handoff = findButton(tree, 'Open on this phone')!;
-    // The caveat is on the button rather than in small print: a player opened
-    // this way runs on its own clock and drifts from the second it starts.
-    expect(labelOf(handoff)).toContain('will not stay in step');
-
-    await act(async () => handoff.props.onPress());
-    expect(opened).toHaveBeenCalledWith(
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90'
-    );
-
-    opened.mockRestore();
-    act(() => tree.unmount());
-  });
-
   it('shares a follower link for another screen', async () => {
     const share = jest
       .spyOn(Share, 'share')

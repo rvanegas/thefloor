@@ -1172,24 +1172,18 @@ export function ChannelView({
               />
 
               {/*
-                Handing off rather than following, and labelled so that is
-                clear. A player opened this way runs on its own clock — it
-                starts at the right second and drifts from there, because
-                nothing on this phone can correct a video it has handed to
-                another app.
+                "Open on this phone" was here and is gone as of 2026-08-23. It
+                handed the video to the device's own YouTube app at the right
+                second, and could correct nothing after that — a player outside
+                this app runs on its own clock, so it drifted from the party
+                from the moment it started. It was the one control here that
+                did not follow the channel.
+
+                What replaced it is "Copy video link" above: the same link, on
+                the clipboard, for whoever actually wants to open it somewhere
+                else. That is the honest version of the same act — it does not
+                imply the party goes with it.
               */}
-              <Button
-                label="Open on this phone"
-                sublabel="Starts where everybody is; will not stay in step"
-                variant="ghost"
-                onPress={() =>
-                  openUrl(
-                    `https://www.youtube.com/watch?v=${party.videoId}&t=${Math.floor(
-                      watchAt / 1000
-                    )}`
-                  )
-                }
-              />
             </>
           ) : (
             <>

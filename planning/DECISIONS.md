@@ -664,7 +664,9 @@ the same reason recordings are **refused rather than merely lossy**.
 **The phone is the remote.** It holds the transport, shows where the party is,
 and can hand the link to the YouTube app. It cannot correct anything it has
 opened that way, and the button says so — a hand-opened player starts at the
-right second and runs on its own clock from there.
+right second and runs on its own clock from there. **That button is gone as of
+the same day** — see § *The hand-off goes, being a worse copy* below; the phone
+is still the remote, and it no longer pretends to be a screen as well.
 
 **The follower page is the screen.** `server/src/watch-page.ts`, served at
 `/watch/:channelId`, running YouTube's IFrame API and following the channel
@@ -1076,6 +1078,30 @@ describes something that cannot happen. And whether the copy *landed* is
 carried rather than assumed — `copyText` returns a boolean precisely so that a
 clipboard refusal is not announced as a success, and a copy that silently did
 nothing is discovered at the paste, by somebody who has already moved on.
+
+### The hand-off goes, being a worse copy
+
+"Open on this phone" handed the video to the device's own YouTube app at the
+right second and could correct nothing afterwards — a player outside this
+application runs on its own clock, so it drifted from the party from the moment
+it started. The button said so, in a sublabel, which was the honest thing to do
+about a control that could not be made to work.
+
+It is deleted rather than fixed, because the thing that would fix it is an
+in-app player and that is deliberately not built — see the entry above, where
+`react-native-webview` and build 2's black screen are the argument.
+
+What actually retired it was the copy button landing an hour earlier. **A
+hand-off is a copy with a promise attached that cannot be kept**: both put the
+same URL in front of the same person, and only one of them implies the party
+goes with it. Once the plain version existed, the version with the caveat was
+strictly worse — and one fewer control on a card that had grown to nine of
+them.
+
+The rule it leaves behind is worth keeping: **this card holds controls that
+drive the channel, and nothing that merely leaves it.** Copying a link is a
+neutral act about a string; opening a player is starting a second, unsynchronised
+watch of the same thing, which is the one shape this feature exists to avoid.
 
 ### Said once, under the roster
 
