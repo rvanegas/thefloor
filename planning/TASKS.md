@@ -70,10 +70,6 @@ written from `RoomEvent.TrackMuted` and read by nothing, and since the floor
 withholds subscriptions rather than muting the publication, it is not clear it
 can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
-## Deleting a Channel
-
-Deleting a channel leaves its card in HomeView. Wasn't this already fixed?
-
 ## Stepping Into Channels Listed in Profile View
 
 It should be possible to step into channels listed in the profile view.
