@@ -730,6 +730,67 @@ The alone case is `playback`, and there the same activation is evidently not
 enough — which fits every other narrowing in this entry, all of which say the
 fault lives in the playout-only session.
 
+### The recovery buttons answered it, and reopened the suspect I had cleared
+
+Build 89, 2026-08-24. *Restart audio session* — `stopAudioSession()` then
+`startAudioSession()` — took **31ms, produced no engine events at all, and no
+sound**. So re-activating the session does not revive a dead playout engine, and
+the fallback this file has carried unadopted for a week would not have worked.
+
+*Rebuild the room* did restart the engine, and **produced a fraction of a second
+of audio before going silent again**. That fraction is the finding. Lining the
+two events up at every connect in the session:
+
+| connect | which came first | the other, after |
+| --- | --- | --- |
+| 20:17:32 | `released LISTENING` | engine start +12.2s |
+| 20:17:58 | `released LISTENING` | engine start +9ms |
+| 20:20:18 | `released LISTENING` | engine start +16.0s |
+| 20:21:17 | `released LISTENING` | engine start +21ms |
+| **20:23:10** | **engine start** | **`released LISTENING` +1ms** |
+
+The rebuild is the one connect in the whole session where the engine started
+*before* the category write — and it is the only one where anything was heard.
+It played until the write landed and then stopped.
+
+**So the `IDLE` → `LISTENING` write is the suspect again, and the reason I
+cleared it was a mistake.** The clearing rested on there being no `engine stop`
+after the write, in four places. But the rebuild proves the kill is *silent*:
+audio was heard and then lost with no stop event anywhere near it. The delegate
+reports stops the ADM initiates; a session reconfigured underneath a running
+engine is not one of those. **I required an event that this mechanism does not
+produce, and read its absence as evidence.** That is the exact failure this
+subsystem's instruments were built against, committed by the person reading
+them.
+
+Both orderings then say the same thing. Write first, engine starts after:
+nothing is ever heard. Engine starts first, write lands 1ms later: a fraction of
+a second, then nothing. The write and the engine start interfere, and which one
+loses depends only on which got there first.
+
+### What to build next, and it is an experiment that doubles as the fix
+
+**Stop making the transition at all while the microphone is closed.** Have
+`sessionFor` return one configuration for both closed states, so `IDLE` and
+`LISTENING` stop being two things and the only remaining category change is the
+one at the microphone boundary — which is `CALL`, and which demonstrably works.
+
+It is a fix and a measurement in the same change: if audio then plays and keeps
+playing, the transition was the whole of it. If it still dies, the write is
+exonerated and what is left is the engine start itself.
+
+**What it costs is real and should be stated.** `e3991fe` added `LISTENING` so
+that shared playback interrupts another app's audio rather than mixing with it
+— *"Other Audio Output"*, a deliberate feature. Collapsing the two closed states
+gives that up: a podcast would play on underneath a shared track. That is a
+worse product than the one on paper and a better one than the one that exists,
+where the shared track cannot be heard at all. **And the entry above this one
+says the feature was never confirmed to work on a device anyway.**
+
+Do not reach for `stopAudioSession`/`startAudioSession` bracketing, which is
+what this file recommended for a week: the *Restart audio session* result is
+direct evidence that it does not bring a playout engine back.
+
 ### What survives either way
 
 **Build 89's panel fix stands regardless.** Reading the audio engine stops it —
