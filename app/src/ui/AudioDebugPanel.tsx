@@ -5,12 +5,14 @@ import {
   diagnosticSections,
   diagnosticText,
   readDiagnostic,
+  recordEvent,
   startDiagnosticRecording,
   subscribeDiagnostics,
   type AudioDiagnostic,
 } from '../audio/diagnostics';
 import { appBuild } from '../api/build';
 import { copyText } from '../clipboard';
+import { PROBES, PROBE_GROUPS, restartAudioSession, runProbe } from '../audio/probe';
 import type { AudioIntent } from '../audio/useSessionAudio';
 import { colors, radius, spacing, type } from './theme';
 
@@ -43,7 +45,14 @@ import { colors, radius, spacing, type } from './theme';
  * Larger than the rest of the app on purpose. It is read while doing something
  * else with a phone at arm's length, usually while talking to somebody.
  */
-export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
+export function AudioDebugPanel({
+  asked,
+  onReconnect,
+}: {
+  asked: AudioIntent | null;
+  /** Tears the room down and builds a fresh one. See `SessionAudio.reconnect`. */
+  onReconnect: () => void;
+}) {
   /**
    * Collapsed by default.
    *
@@ -52,9 +61,23 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
    * recorder below starts either way, so nothing is missed by leaving it shut.
    */
   const [open, setOpen] = useState(false);
-  const [reading, setReading] = useState<AudioDiagnostic>(() =>
-    readDiagnostic(asked)
-  );
+  /**
+   * **Null until somebody asks, and that is the whole of the 2026-08-24 fix.**
+   *
+   * This was a lazy `useState` initializer calling `readDiagnostic`, plus a
+   * once-a-second poll while open — so the panel read the audio engine on every
+   * mount, and the panel mounts with `ChannelView`. Reading the engine is what
+   * stops it: the audio cut the instant this was expanded, on a device, and
+   * "walk to Home and back" is a remount and therefore a read. The instrument
+   * was the fault, and every reading taken before this change is evidence about
+   * an app that was observing itself to death.
+   *
+   * So nothing is read until *Read now* is pressed, and one press is one
+   * reading. See `audio/probe.ts` for the bisection that says which of the nine
+   * readers does it — none of which can be settled while something takes all
+   * nine on a timer.
+   */
+  const [reading, setReading] = useState<AudioDiagnostic | null>(null);
   /** Bumped when a line lands in the log, which is not on the poll's clock. */
   const [, bump] = useState(0);
 
@@ -75,12 +98,8 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
    * person can read is what the event log is for: it catches the transitions
    * that a poll would miss between two frames.
    */
-  useEffect(() => {
-    if (!open) return;
-    setReading(readDiagnostic(asked));
-    const timer = setInterval(() => setReading(readDiagnostic(asked)), 1000);
-    return () => clearInterval(timer);
-  }, [open, asked]);
+  // Deliberately no polling effect. The one that was here is the bug; see the
+  // note on `reading` above.
 
   /**
    * What the copy button last did, shown on the button itself.
@@ -99,11 +118,14 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
   }, [copied]);
 
   const copy = () => {
-    // Read fresh rather than reusing `reading`, which is up to a second old.
-    // A copy taken at the moment somebody pressed the button should be the
-    // state at that moment, not the state at the last tick.
+    // **Copies the last reading rather than taking a new one**, which is the
+    // opposite of what it did. Reading fresh here was right while a reading was
+    // free; it is now a call that can stop the audio, and a *copy* button that
+    // silently changes the thing being copied is the worst possible shape for
+    // it. With no reading yet, the sections say so and the log — which costs
+    // nothing and is the point — comes out regardless.
     const text = diagnosticText(
-      readDiagnostic(asked),
+      reading ?? readingPlaceholder(asked),
       diagnosticEvents(),
       appBuild()
     );
@@ -113,7 +135,7 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
     void copyText(text).then((ok) => setCopied(ok ? 'done' : 'failed'));
   };
 
-  const sections = diagnosticSections(reading);
+  const sections = reading ? diagnosticSections(reading) : [];
   const alarms = sections.reduce(
     (total, section) => total + section.rows.filter((r) => r.alarm).length,
     0
@@ -158,6 +180,61 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
                   : 'Copy all as text'}
             </Text>
           </Pressable>
+          {/*
+            The harness. Above the readings because it is now the reason to
+            open this panel at all, and because the readings below are a single
+            press rather than a live view.
+          */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Probe — one native call each</Text>
+            <Text style={styles.note}>
+              Play something, alone, then press one. If the sound stops, that
+              call is the fault. Groups first, then the members of whichever
+              group cut it.
+            </Text>
+            <Tap label="Read now (all nine at once)" onPress={() => setReading(readDiagnostic(asked))} />
+            {PROBE_GROUPS.map((group) => (
+              <Tap
+                key={group.name}
+                label={`▸ ${group.name}`}
+                onPress={() => {
+                  for (const probe of group.probes) runProbe(probe, recordEvent);
+                }}
+              />
+            ))}
+            {PROBES.map((probe) => (
+              <Tap
+                key={probe.name}
+                label={`· ${probe.name}`}
+                onPress={() => runProbe(probe, recordEvent)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recover — so a kill costs no reinstall</Text>
+            <Tap
+              label="Restart audio session"
+              onPress={() => void restartAudioSession(recordEvent)}
+            />
+            <Tap
+              label="Rebuild the room"
+              onPress={() => {
+                recordEvent('rebuild room');
+                onReconnect();
+              }}
+            />
+          </View>
+
+          {sections.length === 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Session — asked vs actual</Text>
+              <Text style={styles.rowValue}>
+                nothing read yet — press Read now
+              </Text>
+            </View>
+          ) : null}
+
           {sections.map((section) => (
             <View key={section.title} style={styles.section}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -195,6 +272,40 @@ export function AudioDebugPanel({ asked }: { asked: AudioIntent | null }) {
   );
 }
 
+/**
+ * One button, sized for a thumb at arm's length like everything else here.
+ *
+ * Its own component because there are now fifteen of them and the panel is read
+ * while somebody is listening for a sound rather than looking at a screen.
+ */
+function Tap({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Text style={styles.tap}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * A reading that took no readings, for a copy made before anybody pressed
+ * *Read now*.
+ *
+ * `asked` is carried because it costs nothing — it is what this app last
+ * requested, held in JavaScript, and reading it back touches no native audio
+ * anything. The two that do are null, which every renderer here already
+ * renders as `unreadable` rather than as false. That distinction is the oldest
+ * rule in `diagnostics.ts` and it is exactly right for this case: nothing was
+ * measured, which is not the same as measuring nothing.
+ */
+function readingPlaceholder(asked: AudioIntent | null): AudioDiagnostic {
+  return { asked, engine: null, route: null, at: Date.now() };
+}
+
 /** hh:mm:ss, so a line in the log can be lined up against a memory of a sound. */
 function clock(at: number): string {
   const d = new Date(at);
@@ -223,6 +334,18 @@ const styles = StyleSheet.create({
   },
   header: { ...type.heading, fontSize: 17 },
   body: { marginTop: spacing(1) },
+  tap: {
+    fontFamily: monospace,
+    fontSize: 17,
+    color: colors.floor,
+    paddingVertical: spacing(0.5),
+  },
+  note: {
+    fontFamily: monospace,
+    fontSize: 13,
+    color: colors.textMuted,
+    paddingBottom: spacing(0.5),
+  },
   copy: {
     fontFamily: monospace,
     fontSize: 17,

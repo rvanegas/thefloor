@@ -114,6 +114,22 @@ export interface SessionAudio {
    * by null, and the two must not drift.
    */
   asked: AudioIntent | null;
+  /**
+   * Tears the room down and builds a fresh one, session activation included.
+   *
+   * Added 2026-08-24 for the probe harness, and it is the only way back from a
+   * dead engine that the app has. `startAudioSession` runs once per connection
+   * and the foreground listener returns early while the status is `connected`,
+   * so an engine that dies under a healthy room leaves nothing to press — the
+   * operator investigating it reinstalled the app to carry on.
+   *
+   * It is the same generation bump the reconnect backoff uses, so it goes
+   * through the ordinary teardown rather than a second path that would have to
+   * agree with it. Exposed rather than triggered automatically on purpose:
+   * whether a dead engine *should* rebuild itself is the fix still being
+   * argued, and a harness must not quietly apply the change it exists to test.
+   */
+  reconnect: () => void;
 }
 
 /**
@@ -386,6 +402,9 @@ export function useSessionAudio(
     speaking: [],
     micOpen: false,
     asked: null,
+    // Replaced below, once `setGeneration` exists to close over. Never called
+    // in between: nothing renders before the hook returns.
+    reconnect: () => {},
   });
   const roomRef = useRef<Room | null>(null);
   /**
@@ -823,5 +842,18 @@ export function useSessionAudio(
     );
   }, [selfMuted, micNeeded, anyMicOpen, state.status, state.othersAudible]);
 
-  return state;
+  /**
+   * Attached on the way out rather than held in state, so a rebuild is not
+   * itself a state change that could re-run anything above.
+   *
+   * The backoff is reset with it, for `socket.resume`'s reason: a delay grown
+   * to ten seconds was earned in a network condition that no longer applies,
+   * and somebody pressing this is asking for now rather than eventually.
+   */
+  const reconnect = () => {
+    attemptRef.current = 0;
+    setGeneration((g) => g + 1);
+  };
+
+  return { ...state, reconnect };
 }

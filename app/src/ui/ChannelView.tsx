@@ -809,7 +809,12 @@ export function ChannelView({
                 reconnect. DECISIONS.md § *How the diagnostic panel comes out, and
                 what would trigger it* says who decides and names every piece.
               */}
-              {app.debug ? <AudioDebugPanel asked={audio.asked} /> : null}
+              {app.debug ? (
+                <AudioDebugPanel
+                  asked={audio.asked}
+                  onReconnect={audio.reconnect}
+                />
+              ) : null}
             </Card>
           </>
         ) : null}

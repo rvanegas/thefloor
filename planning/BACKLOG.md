@@ -614,16 +614,80 @@ That lines up with everything else: the failure is in `playback`, the working
 case is `playAndRecord`, and the difference between them at the engine is
 whether recording is enabled.
 
-**One reading would exclude the alternative, and it is free.** `isEngineRunning`
-being false may simply be what a playout-only engine reports, in which case the
-field is not evidence of anything and the fault is elsewhere. **Take a reading
-while shared audio is actually audible** — alone, so the session is `LISTENING`,
-with the panel open and the track playing. `run/rec/play` reading `T F T` there
-proves the field tracks a playout-only engine and that `F` afterwards means
-stopped. Reading `F F T` while sound is coming out proves the opposite, and this
-entry is then built on an instrument artefact.
+### The instrument was the fault
 
-Do that before build 89. Nothing below is worth writing until it is answered.
+**Reported 2026-08-24, from a device, and it reframes every reading above.**
+After a reinstall the audio played; the panel was opened; *the audio cut
+immediately*. The panel's only job is to read the audio stack, and reading it
+is what stops it.
+
+It read in two places, and the first is the one that matters:
+
+    const [reading, setReading] = useState(() => readDiagnostic(asked));  // on mount
+    useEffect(() => { … poll once a second while open … }, [open]);
+
+A lazy `useState` initializer **runs on every mount, expanded or not**, and the
+panel mounts with `ChannelView`. So entering the channel screen took a reading.
+That is the original symptom exactly: walk to Home, come back, silence.
+
+It accounts for all of it, including the parts nothing else could:
+
+| symptom | why |
+| --- | --- |
+| Home → back kills it | `ChannelView` remounts, panel remounts, one read |
+| force-quitting does not help | relaunch, enter, panel mounts, reads again |
+| **only a new channel restores it** | on entry nothing is loaded, so the mount read hits an idle engine harmlessly; you upload, play, the engine starts — and nothing reads again until you leave and return |
+| others present is fine | that is `playAndRecord`, which survives the read |
+| stepping out and back in does not restore it | it does rebuild — and an open panel's poll kills it again within the second |
+
+`engineState.ts` says of its readers: *"a snapshot costs nothing… not a theory
+about what moves, but a reading of what is."* **That claim is false**, and it
+was the licence for polling nine ADM properties from the JS thread once a
+second. `RTCAudioDeviceModule.h` marks five of the six engine flags *"For
+testing purposes"*, which is not a promise of safety under a poll.
+
+**Which of the nine cannot be reasoned out.** They are properties on a prebuilt
+`RTCAudioDeviceModule` and LiveKit's WebRTC fork is not a public repository —
+only the header ships. So it is measured, which is where `audio/probe.ts` comes
+in.
+
+### What build 89 carries
+
+**The panel no longer reads anything on its own.** No mount read, no poll; one
+press of *Read now* is one pass. *Copy all as text* copies the last reading
+rather than silently taking a new one. Two tests pin the absence of a reading,
+which is a thing a test can see and a person cannot.
+
+**A bisection harness**, ordered by suspicion, one native call per button, with
+a log line either side: `engineAvailability` (a computed struct, likeliest to
+query the engine), `isEngineRunning`, `recordingAlwaysPrepared` (whose *setter*
+rebuilds the input path), `voiceProcessingEnabled` (documented as live OS
+readback), `voiceProcessingBypassed` (declared `assign`, not `readonly`), then
+the remaining four, then `routeSnapshot` as a control that touches
+`AVAudioSession` and never the ADM. Group buttons halve the list, because each
+hit costs re-establishing audio.
+
+**Two ways back from a dead engine**, because the alternative was reinstalling
+the app between iterations: *Restart audio session* (`stopAudioSession` then
+`startAudioSession` — also the fallback this file has carried unadopted for a
+week) and *Rebuild the room* (`SessionAudio.reconnect`, the same generation bump
+the backoff uses).
+
+### The protocol, and the second axis
+
+Alone, fresh track, audible. Press one probe. **The ear is ground truth** —
+every API that could confirm it is itself a suspect. If the sound stops, that
+call is the fault; confirm twice.
+
+Then force `CALL` while still alone by **starting a recording** —
+`microphoneNeeded` is true whenever a recording is active — and re-run the
+culprit. If it does not kill there, the fault is specific to the playout-only
+engine, which is what the others-present data point already suggests.
+
+**Run in parallel, needing no build:** `debug` was set to 0 on 2026-08-24, which
+removes the panel entirely. If the original recipe survives that, the panel is
+the whole bug and no ordinary user has ever been affected — nobody else renders
+it. Set it back to 1 to use the harness.
 
 **Build 88 was instrument-only and that is what made the negative worth
 having.** It logs engine transitions — `willStartEngine` and `didStopEngine`,

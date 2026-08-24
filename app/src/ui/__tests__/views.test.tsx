@@ -197,6 +197,9 @@ const AUDIO = {
   // renders against: the diagnostic panel is gated on `mockApp.debug` and is
   // absent from every case here but its own.
   asked: null,
+  // The probe harness's way back from a dead engine. Never pressed by these
+  // tests: the panel it lives on is gated on `mockApp.debug`.
+  reconnect: () => {},
 };
 
 /** The same connection, with somebody audible on it. */
@@ -5407,24 +5410,75 @@ describe('the audio diagnostic panel', () => {
       />);
     expect(textOf(tree)).toContain('Audio diagnostics');
     // Collapsed: even for the one account that asked for it, the channel
-    // screen is not what this is for, and an open panel polls once a second.
+    // screen is not what this is for.
     expect(textOf(tree)).not.toContain('Session — asked vs actual');
     act(() => tree.unmount());
   });
 
-  it('reads out both halves once opened', () => {
+  /**
+   * **The panel must take no reading until it is asked to, and this is the
+   * assertion that says so.**
+   *
+   * It used to read on mount, through a lazy `useState` initializer, and again
+   * once a second while open. Reading the audio engine is what stops it: the
+   * sound cut the instant the panel was expanded, on a device, and since the
+   * panel mounts with this screen, "walk to Home and come back" was a read.
+   * The instrument was the fault. So what is pinned here is the absence of a
+   * reading, which is a thing a test can check and a person cannot see.
+   */
+  it('takes no reading of its own until Read now is pressed', () => {
     mockApp.debug = true;
     showChannel(channelOf());
+    const { AudioDeviceModule } = require('@livekit/react-native');
+    AudioDeviceModule.isEngineRunning.mockClear();
+    AudioDeviceModule.getEngineAvailability.mockClear();
+
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
         onHome={() => {}}
         onExit={() => {}}
       />);
+    // Mounting the screen is the case that mattered: it is what a walk back
+    // from Home does.
+    expect(AudioDeviceModule.isEngineRunning).not.toHaveBeenCalled();
+
     const toggle = tree.root
       .findAll((n) => n.props?.accessibilityRole === 'button')
       .find((n) => n.props?.accessibilityLabel === 'Audio diagnostics');
     act(() => toggle!.props.onPress());
+    // And opening it is the case that was caught by ear.
+    expect(AudioDeviceModule.isEngineRunning).not.toHaveBeenCalled();
+    expect(AudioDeviceModule.getEngineAvailability).not.toHaveBeenCalled();
+
+    const text = textOf(tree);
+    expect(text).toContain('nothing read yet');
+    expect(text).toContain('nothing recorded yet');
+    act(() => tree.unmount());
+  });
+
+  it('reads once, and only once, when Read now is pressed', () => {
+    mockApp.debug = true;
+    showChannel(channelOf());
+    const { AudioDeviceModule } = require('@livekit/react-native');
+    AudioDeviceModule.isEngineRunning.mockClear();
+
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    const button = (label: string) =>
+      tree.root
+        .findAll((n) => n.props?.accessibilityRole === 'button')
+        .find((n) => n.props?.accessibilityLabel === label);
+    act(() => button('Audio diagnostics')!.props.onPress());
+    act(() => button('Read now (all nine at once)')!.props.onPress());
+
+    // One press, one pass over the readers — not a poll that starts on the
+    // first press and runs until the screen goes away.
+    expect(AudioDeviceModule.isEngineRunning).toHaveBeenCalledTimes(1);
 
     const text = textOf(tree);
     expect(text).toContain('Session — asked vs actual');
@@ -5432,7 +5486,40 @@ describe('the audio diagnostic panel', () => {
     // rather than render a blank line — the failure mode five instruments fell
     // into on 2026-08-20. See src/audio/diagnostics.ts.
     expect(text).toContain('unreadable');
-    expect(text).toContain('nothing recorded yet');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * One probe is one native call. The whole harness rests on it: a button that
+   * quietly took two readings would name the wrong culprit, and naming the
+   * wrong culprit is how four fixes were written for one symptom in August.
+   */
+  it('makes exactly one native call per probe, and logs either side of it', () => {
+    mockApp.debug = true;
+    showChannel(channelOf());
+    const { AudioDeviceModule } = require('@livekit/react-native');
+    AudioDeviceModule.getEngineAvailability.mockClear();
+    AudioDeviceModule.isEngineRunning.mockClear();
+
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    const button = (label: string) =>
+      tree.root
+        .findAll((n) => n.props?.accessibilityRole === 'button')
+        .find((n) => n.props?.accessibilityLabel === label);
+    act(() => button('Audio diagnostics')!.props.onPress());
+    act(() => button('· engineAvailability')!.props.onPress());
+
+    expect(AudioDeviceModule.getEngineAvailability).toHaveBeenCalledTimes(1);
+    expect(AudioDeviceModule.isEngineRunning).not.toHaveBeenCalled();
+
+    const text = textOf(tree);
+    expect(text).toContain('probe engineAvailability →');
+    expect(text).toContain('probe engineAvailability ✓');
     act(() => tree.unmount());
   });
 });
