@@ -960,6 +960,44 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE device_tokens ADD COLUMN session_hash TEXT');
   }
 
+  // Backfill: every session that predates those two columns inherits its
+  // account's answer, because until the same day it *was* its account's only
+  // session. One session per account was enforced until 2026-08-24, so
+  // `accounts.last_seen_at` and `accounts.last_build` are not an approximation
+  // of the row below them — they are the same fact, written one level up.
+  //
+  // **Adding the columns null was not harmless, which is why this exists.**
+  // The census reads MIN(last_build) over sessions with a non-null
+  // `last_seen_at`, so the deploy that added them emptied it: /healthz went
+  // from `oldestBuild: 56` to `oldestBuild: null` with nine unstamped rows
+  // behind it. Null is loud and nobody raises a floor on it. What is not loud
+  // is the recovery — sessions stamp themselves as their clients reconnect, so
+  // for as long as that takes `oldestBuild` is the minimum over whichever
+  // phones have opened the app since, which reads like a measurement and is
+  // biased upwards. Upwards is the direction that strands installs.
+  //
+  // And an unstamped session is in neither number: `silentBuilds` counts
+  // sessions *present in the window that declined to say*, so the guard rail
+  // built to stop `oldestBuild` being trusted while anything is unaccounted
+  // for reads zero throughout. A backfill is the only thing that closes that,
+  // because it is the only thing that can speak for a phone that has not
+  // opened the app yet.
+  //
+  // Idempotent by the null test rather than by a version marker, and it stays
+  // correct if it runs again later: a session that has spoken since has a
+  // stamp and is skipped, and one that never has is still best described by
+  // the account it belongs to. Accounts that have never held a socket carry
+  // null themselves, so their sessions stay null and stay out of the census,
+  // which is what they were before this ran.
+  db.exec(`UPDATE tokens
+              SET last_seen_at = (
+                    SELECT a.last_seen_at FROM accounts a WHERE a.id = tokens.account_id
+                  ),
+                  last_build = (
+                    SELECT a.last_build FROM accounts a WHERE a.id = tokens.account_id
+                  )
+            WHERE last_seen_at IS NULL`);
+
   // Channels from before persistence whose ended_at is null are ghosts: the
   // old server held live channels in memory only, so a null here means the
   // process died with the channel in it, not that the channel is live.

@@ -330,3 +330,122 @@ it('adds the debug column to a database that predates it', () => {
   expect(row.debug).toBeNull();
   db.close();
 });
+
+/**
+ * A database as the box held it on 2026-08-24, the moment before sessions
+ * learned to say when they were last heard from and what build they are.
+ *
+ * `accounts` already carries both facts — one row per person, which is all
+ * anybody needed while one session per account was enforced — and `tokens`
+ * carries neither.
+ */
+const BEFORE_SESSION_STAMPS = `
+CREATE TABLE accounts (
+  id           TEXT PRIMARY KEY,
+  identifier   TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  last_seen_at INTEGER,
+  last_build   INTEGER
+);
+CREATE TABLE tokens (
+  token_hash TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id),
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+`;
+
+function seedSessions(db: DatabaseSync): void {
+  const account = db.prepare(
+    `INSERT INTO accounts (id, identifier, display_name, created_at, last_seen_at, last_build)
+     VALUES (?,?,?,?,?,?)`
+  );
+  account.run('acct_old', 'old@example.com', 'Old', 1, 1_000, 56);
+  account.run('acct_new', 'new@example.com', 'New', 1, 2_000, 86);
+  // Never held a socket, so there is nothing to say about it and nothing to
+  // copy down.
+  account.run('acct_quiet', 'quiet@example.com', 'Quiet', 1, null, null);
+
+  const token = db.prepare(
+    'INSERT INTO tokens (token_hash, account_id, created_at, expires_at) VALUES (?,?,?,?)'
+  );
+  token.run('hash_old', 'acct_old', 1, 9_000_000);
+  token.run('hash_new', 'acct_new', 1, 9_000_000);
+  token.run('hash_quiet', 'acct_quiet', 1, 9_000_000);
+}
+
+const sessionRow = (db: ReturnType<typeof openDb>, hash: string) =>
+  db
+    .prepare('SELECT last_seen_at, last_build FROM tokens WHERE token_hash = ?')
+    .get(hash) as { last_seen_at: number | null; last_build: number | null };
+
+/**
+ * The build census moved from accounts to sessions on 2026-08-24, and adding
+ * the two columns null emptied it: `/healthz` went from `oldestBuild: 56` to
+ * `oldestBuild: null` on the deploy, with nine unstamped rows behind it.
+ *
+ * Null is loud, and nobody raises a compatibility floor on a null. What is not
+ * loud is the recovery — sessions stamp themselves as their clients reconnect,
+ * so while that is happening `oldestBuild` is the minimum over whichever
+ * phones have opened the app since, which reads like a measurement and is
+ * biased *upwards*. Upwards is the direction that strands installs. And an
+ * unstamped session is in neither `oldestBuild` nor `silentBuilds`, so the
+ * guard rail built to stop the first being trusted reads zero throughout.
+ *
+ * The backfill is exact rather than approximate, which is what makes it
+ * legitimate: one session per account was enforced until that same day, so an
+ * account's answer *is* its only session's answer.
+ */
+it('gives a session that predates the columns its account’s answer', () => {
+  const path = join(dir, 'sessions.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_SESSION_STAMPS);
+  seedSessions(old);
+  old.close();
+
+  const db = openDb(path);
+
+  expect(sessionRow(db, 'hash_old')).toEqual({
+    last_seen_at: 1_000,
+    last_build: 56,
+  });
+  expect(sessionRow(db, 'hash_new')).toEqual({
+    last_seen_at: 2_000,
+    last_build: 86,
+  });
+  // Nothing to say, so nothing is said — this session stays out of the census
+  // exactly as its account did.
+  expect(sessionRow(db, 'hash_quiet')).toEqual({
+    last_seen_at: null,
+    last_build: null,
+  });
+  db.close();
+});
+
+/**
+ * The backfill speaks only for sessions that have not spoken for themselves.
+ * A session stamped since is the better evidence — it is the device reporting
+ * its own build, where the account column is whichever device wrote last.
+ */
+it('does not overwrite a session that has since been heard from', () => {
+  const path = join(dir, 'sessions-live.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_SESSION_STAMPS);
+  seedSessions(old);
+  old.close();
+
+  const first = openDb(path);
+  first
+    .prepare('UPDATE tokens SET last_seen_at = ?, last_build = ? WHERE token_hash = ?')
+    .run(5_000, 90, 'hash_old');
+  first.close();
+
+  // Reopening runs every migration again, which is the case this is about.
+  const db = openDb(path);
+  expect(sessionRow(db, 'hash_old')).toEqual({
+    last_seen_at: 5_000,
+    last_build: 90,
+  });
+  db.close();
+});
