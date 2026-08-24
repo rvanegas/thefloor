@@ -70,9 +70,10 @@ The three App Store files — `APPREVIEW.md`, `APPREVIEW2.md` and
 to `planning/BACKLOG.md`. **`APPREVIEWSCRIPT.md` is back and is standing**, on a
 narrower premise than its predecessor: Apple does not require a demo video, and
 1.2.0 went without one. What the file is for is the *walk*, which is what found
-eight defects before 1.0.0; filming is the optional half.
-`planning/review-notes-1.2.0.txt` and `planning/whats-new-1.2.0.txt` are the
-text of that submission and go when it is approved.
+eight defects before 1.0.0; filming is the optional half. A submission's own
+text — `planning/review-notes-<version>.txt` and `whats-new-<version>.txt`,
+written by `bin/set-review-notes` — is temporary in the same way and goes when
+that version is approved.
 
 **`planning/DEMO-ACCOUNT.md`** looked temporary in the same way and is not: the
 two accounts App Review signs in as, why there are two rather than one, and the
@@ -118,7 +119,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 621 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 625 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -322,11 +323,14 @@ rules.
   dirty tree: a tag is permanent where a deploy is reversible. Tags are not
   pushed automatically; the command is printed.
 - **`released` points at what is downloadable.** It moves on release, not
-  approval — which is why the release is manual. `git diff released..master` is
-  the drift users cannot see. **It is at `build/51` since 2026-08-19**, that
-  being the first public build; 52 was already in TestFlight and was passed
-  over, because the declaration to Apple stays clear when what was approved is
-  what ships.
+  approval — which is why the release is manual. **No sha here**, for the same
+  reason the deploy section carries none: `git describe --tags released` says
+  which build, `git diff released..master` is the drift users cannot see, and
+  `bin/submit-ios --status` is the second opinion, since what is downloadable
+  is a state Apple holds rather than a ref. It is a **lightweight ref pointing
+  at the `build/<n>` tag object**, not at a commit — move it with `git
+  update-ref`, since `git tag -f` peels it to the commit and silently changes
+  the convention.
 - **`MIN_SUPPORTED_BUILD` in `server/src/release.ts` is the compatibility
   floor**: a shim may be deleted only once the floor has passed the build that
   needed it. The server enforces nothing, but **the client does, since
