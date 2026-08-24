@@ -138,14 +138,18 @@ interface AppState {
    */
   movedChannel: { from: string; to: string } | null;
   /**
-   * Whether another of this account's devices has taken the room.
+   * Whether another of this account's devices has taken the room, or given it
+   * up on this account's behalf.
    *
    * An account may be signed in on several devices at once and is still in at
    * most one channel, so the newest device to step into one is the device
    * standing there. When the other device went somewhere *else*, the snapshot
    * says so by itself and this flag changes nothing; when it stepped into the
    * same channel, the account is present either way and the snapshot cannot
-   * say anything at all — which is the case this exists for.
+   * say anything at all — which is the case this exists for. A Step Out taken
+   * on another device says it too, and there the snapshot does say so: this
+   * arrives beside it and stops this device re-entering on its next
+   * connection, which is what used to undo that Step Out.
    *
    * What it does is withhold `live` in App.tsx, which is what the audio
    * follows. It is not a screen and not an error: the channel is still open,

@@ -214,7 +214,8 @@ export function registerWebsocket(deps: {
 
   /**
    * Tells this account's other devices that they are no longer standing
-   * anywhere, because this one has just entered a channel.
+   * anywhere, because this one has just entered a channel — or has just left
+   * the one the account was in.
    *
    * An account may hold several sessions and is still in at most one channel.
    * The channel half of that is `stepOutOfOthers` in channels.ts, which is
@@ -909,7 +910,19 @@ export function registerWebsocket(deps: {
           // state, because entering a channel this account is already present
           // in changes nothing and is exactly the case that needs saying. See
           // `displaceOtherSessions`.
-          if (message.action.type === 'ENTER') {
+          //
+          // Leaving is told the same way as arriving, and for a reason that is
+          // not symmetry. An account has one voice; every other session is
+          // holding a belief about where it is, and both of these actions make
+          // that belief wrong. A session that is not told goes on believing it
+          // is present, and `onopen` in the app's socket re-sends ENTER from
+          // exactly that belief — so a Step Out taken on the phone in somebody's
+          // hand is undone by another device reconnecting.
+          if (
+            message.action.type === 'ENTER' ||
+            message.action.type === 'STEP_OUT' ||
+            message.action.type === 'LEAVE_CHANNEL'
+          ) {
             displaceOtherSessions(connection);
           }
           connection.watchingChannels.add(message.channelId);

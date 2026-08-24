@@ -1,4 +1,5 @@
 import {
+  DISCONNECT_GRACE_MS,
   HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_TIMEOUT_MS,
 } from '../../../core/constants';
@@ -61,6 +62,15 @@ export interface RealtimeHandlers {
   onServerTime?: (serverNow: number) => void;
 }
 
+/**
+ * A handshake still in flight, as `readyState` spells it.
+ *
+ * The literal rather than `WebSocket.CONNECTING`, which not every environment
+ * this runs in carries on the constructor — and being wrong about it here
+ * would mean tearing down a connection that was about to succeed.
+ */
+const CONNECTING = 0;
+
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
 
@@ -98,6 +108,23 @@ export class Realtime {
   private watchedChannel: string | null = null;
   /** Channels this client considers itself present in, to restore on reconnect. */
   private enteredChannel: string | null = null;
+  /**
+   * When the socket that was carrying that presence went away.
+   *
+   * The re-entry below is only honest inside `DISCONNECT_GRACE_MS`, which is
+   * the window in which the server has not removed anybody: inside it nothing
+   * happened, and re-entering restores a state that was never given up.
+   * Outside it the server stepped this person out a while ago, everybody in
+   * the room watched them go, and the account may since have entered somewhere
+   * else from another device — so walking back in would be this client
+   * asserting a stale belief over what has happened since.
+   *
+   * That is not hypothetical. A device that cannot hold a connection re-sends
+   * ENTER on every attempt, and with several sessions per account since
+   * 2026-08-24 it takes the room from the phone in somebody's hand, or undoes
+   * a Step Out taken on another device, once per reconnect.
+   */
+  private enteredLostAt = 0;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -126,6 +153,15 @@ export class Realtime {
 
   private open(): void {
     if (!this.token) return;
+
+    // Whatever was here is not ours any more. Its handlers are neutered below
+    // by the identity check, so this is only about not leaving a live socket
+    // open with nothing referencing it — the server would carry it until the
+    // sweep, and the phone would carry it until the process ended.
+    const previous = this.socket;
+    this.socket = null;
+    previous?.close();
+
     this.handlers.onStatus?.('connecting');
 
     // A query parameter rather than a header, because the token is already one
@@ -140,7 +176,30 @@ export class Realtime {
     );
     this.socket = socket;
 
+    /**
+     * Whether the events arriving are from the socket this client is using.
+     *
+     * A WebSocket that has been replaced goes on delivering events — a close
+     * in particular arrives whenever the network gets round to it, which can
+     * be long after something else opened its successor. Every handler below
+     * writes shared state, so without this an old socket's close nulls
+     * `this.socket`, stops the live heartbeat, reports the connection down and
+     * schedules a reconnect, all against a connection that is perfectly
+     * healthy. What that leaves is the worst version of being connected: an
+     * open socket nothing references, every `send` queueing instead of
+     * writing, and a fresh connection opened on every backoff — which is what
+     * a phone reconnecting on a ten-second cadence looks like from a server.
+     *
+     * Two ordinary things overlap sockets. `connect` closes the old one and
+     * opens the new one in the same turn, and the close event lands after
+     * `closedByUs` has been set false again; and `resume` opens one whenever
+     * the current socket is not OPEN, which includes a handshake still in
+     * flight after a spell in the background.
+     */
+    const current = () => this.socket === socket;
+
     socket.onopen = () => {
+      if (!current()) return;
       this.reconnectAttempt = 0;
       this.lastSeen = Date.now();
       this.startHeartbeat();
@@ -151,17 +210,30 @@ export class Realtime {
         this.send({ type: 'watch.channel', channelId: this.watchedChannel });
       }
       if (this.enteredChannel) {
-        // The server removed us on disconnect, so this is a genuine re-entry.
-        this.send({
-          type: 'channel.action',
-          channelId: this.enteredChannel,
-          action: { type: 'ENTER' },
-        });
+        // The server removed us on disconnect, so this is a genuine re-entry —
+        // but only while it is still true that nothing has happened. Past the
+        // grace period this client is not restoring a state, it is asserting
+        // an old one: see `enteredLostAt`.
+        const gone = this.enteredLostAt === 0 ? 0 : Date.now() - this.enteredLostAt;
+        if (gone <= DISCONNECT_GRACE_MS) {
+          this.send({
+            type: 'channel.action',
+            channelId: this.enteredChannel,
+            action: { type: 'ENTER' },
+          });
+        } else {
+          // Stepped out by the server a while ago, and everybody in the room
+          // watched it happen. The snapshot that arrives from the watch above
+          // says so, and the screen offers Step In.
+          this.enteredChannel = null;
+        }
       }
+      this.enteredLostAt = 0;
       this.flushQueued();
     };
 
     socket.onmessage = (event) => {
+      if (!current()) return;
       // Anything at all is proof the connection is alive, not only a pong.
       this.lastSeen = Date.now();
 
@@ -209,11 +281,15 @@ export class Realtime {
           this.handlers.onChannelMoved?.(message.from, message.to);
           break;
         case 'displaced':
-          // Another of this account's devices has stepped into a channel, so
-          // this one is standing nowhere. Forgetting `enteredChannel` is the
-          // load-bearing half: without it the next reconnect would re-send
-          // ENTER and take the room back from the device somebody is holding,
-          // and a phone with patchy signal would do it repeatedly.
+          // This session is not the one standing anywhere: another of this
+          // account's devices has entered a channel, or has stepped out of the
+          // one this account was in. Both are the same fact from here, and it
+          // is the only one that matters — the account has one voice and this
+          // is not where it is.
+          //
+          // Forgetting `enteredChannel` is the load-bearing half: without it
+          // the next reconnect would re-send ENTER and take the room back from
+          // the device somebody is holding, or undo a Step Out taken there.
           this.enteredChannel = null;
           this.handlers.onDisplaced?.();
           break;
@@ -224,19 +300,33 @@ export class Realtime {
     };
 
     socket.onclose = (event?: { code?: number }) => {
-      this.socket = null;
-      this.stopHeartbeat();
-      this.handlers.onStatus?.('closed');
-      if (this.closedByUs) return;
-
-      // 4401 is the server refusing the credential we connected with, which
-      // now happens whenever this account signs in somewhere else. Reconnecting
-      // would loop against a token that can never work again, so this is the
-      // one close worth treating as final.
-      if (event?.code === UNAUTHORIZED_CLOSE) {
+      // Ahead of the identity check, alone among the work here, because it is
+      // about the credential rather than about this socket: every connection
+      // this client makes carries the same token, so one of them being refused
+      // refuses all of them, whichever socket heard it.
+      if (!this.closedByUs && event?.code === UNAUTHORIZED_CLOSE) {
+        // 4401 is the server refusing the credential we connected with.
+        // Reconnecting would loop against a token that can never work again,
+        // so this is the one close worth treating as final.
         reportSignedOut();
         return;
       }
+
+      // An orphan's close says nothing about the connection this client is
+      // using. See `current`.
+      if (!current()) return;
+
+      this.socket = null;
+      this.stopHeartbeat();
+      this.handlers.onStatus?.('closed');
+      // Presence has an age from here on, and the age is what decides whether
+      // re-entering on the next connection is restoring something or making
+      // something up. Stamped even for a close of our own, since `disconnect`
+      // clears the channel anyway and a stamp costs nothing.
+      if (this.enteredChannel && this.enteredLostAt === 0) {
+        this.enteredLostAt = Date.now();
+      }
+      if (this.closedByUs) return;
       this.scheduleReconnect();
     };
 
@@ -301,6 +391,42 @@ export class Realtime {
       this.send({ type: 'ping' });
       return;
     }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempt = 0;
+    this.open();
+  }
+
+  /**
+   * Stops waiting out a backoff, because somebody has just done something.
+   *
+   * The backoff is right for a client failing on its own: doubling to ten
+   * seconds is what keeps a phone with no signal from hammering a server it
+   * cannot reach. It is wrong the moment a person taps a button. The delay
+   * still to run was earned by failures nobody was waiting on, and what it
+   * costs now is the whole of the symptom — an action is held until the timer
+   * happens to fire, up to ten seconds later, with nothing on screen to say
+   * so, and dropped entirely if the reconnect takes longer than the queue's
+   * ten-second life. A button that does nothing for ten seconds and then
+   * either works or does not is indistinguishable from a button that is
+   * broken.
+   *
+   * The same argument `resume` makes, from the other end: there it is the app
+   * coming back, here it is somebody using it.
+   *
+   * A handshake already in flight is left alone, which is where this differs
+   * from `resume`. A tap is not evidence that the network has changed, so
+   * restarting a connection that may be about to succeed would push the thing
+   * being asked for further away — and a run of taps would restart it once
+   * each.
+   */
+  private reconnectNow(): void {
+    if (!this.token || this.closedByUs) return;
+    const state = this.socket?.readyState;
+    if (state === WebSocket.OPEN || state === CONNECTING) return;
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -375,13 +501,20 @@ export class Realtime {
 
   act(channelId: string, action: ClientAction): void {
     // Track presence locally so a reconnect can restore it.
-    if (action.type === 'ENTER') this.enteredChannel = channelId;
+    if (action.type === 'ENTER') {
+      this.enteredChannel = channelId;
+      this.enteredLostAt = 0;
+    }
     // Both give up presence, so neither should be re-entered on a reconnect.
     if (action.type === 'STEP_OUT' || action.type === 'LEAVE_CHANNEL') {
       if (this.enteredChannel === channelId) this.enteredChannel = null;
     }
     this.watchedChannel = channelId;
     this.send({ type: 'channel.action', channelId, action });
+    // After the send, which either wrote it or queued it. Either way somebody
+    // is here and waiting on an answer, which is the one thing a backoff is
+    // not allowed to sit on. See `reconnectNow`.
+    this.reconnectNow();
   }
 
   disconnect(): void {
@@ -395,6 +528,7 @@ export class Realtime {
     this.watchingHome = false;
     this.watchedChannel = null;
     this.enteredChannel = null;
+    this.enteredLostAt = 0;
     // Signing out is not a gap to be bridged. Anything still waiting belongs to
     // the session being ended, and replaying it into the next one would act as
     // whoever signs in next.

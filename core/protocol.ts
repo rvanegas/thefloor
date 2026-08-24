@@ -708,8 +708,15 @@ export type ServerMessage =
    */
   | { type: 'channel.moved'; from: string; to: string }
   /**
-   * Another of this account's devices has stepped into a channel, so this one
-   * is no longer the device standing anywhere.
+   * This session is no longer the one standing anywhere, because another of
+   * this account's devices has entered a channel or left the one the account
+   * was in.
+   *
+   * The two are one message because they are one fact from the receiver's
+   * side, and because the alternative — telling a session only about arrivals
+   * — leaves it believing it is present somewhere the account has left. That
+   * belief is not inert: a client re-enters from it on its next connection, so
+   * a Step Out on one device is undone by another device reconnecting.
    *
    * An account may hold several sessions at once, but it has one voice and one
    * pair of ears: presence belongs to whichever session entered a channel most
@@ -727,7 +734,7 @@ export type ServerMessage =
    * whether it agreed, and a client that disagreed would be the one holding an
    * open microphone.
    *
-   * Sent to every session of the account but the one that entered, identified
+   * Sent to every session of the account but the one that acted, identified
    * by its token rather than by its socket — a device that is reconnecting
    * briefly has two sockets, and displacing the older of them would let a flap
    * take the room away from the device somebody is holding.

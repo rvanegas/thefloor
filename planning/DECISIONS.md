@@ -1025,3 +1025,122 @@ new channel are not told apart by that mechanism. The correction is worth the
 space because the false version is the more satisfying story: it closes the
 case, and it closed it on a premise nobody had checked against the dependency
 array.
+
+## A tap that waits ten seconds, and the socket that was nobody's — 2026-08-24
+
+Reported from a device: stepping out of a channel had become "noticeably
+delayed — there appears to be a server round trip, and it is so slow that one
+isn't sure the button was pressed." Attributed, reasonably, to the work that
+allowed several sessions per account, that being what had just changed.
+
+**The step-out path contains no round trip, and did not gain one.** The button
+in `ChannelView` fires the action, drops the channel view and navigates home in
+the same tap handler; `git diff build/86 build/88 -- app/src/ui/ChannelView.tsx`
+touches `iAmPresent`, `displaced` and the watch-party wording, and not that.
+The box answers a channel action in one to five milliseconds and an HTTP round
+trip to it is about 150ms, most of that the trip to us-west-2. So a delay of
+seconds is not a slow answer. It is the question never being asked.
+
+**`send` queues anything it cannot write, and the reconnect backoff decides
+when it gets written.** The backoff doubles to a ten-second cap, and the
+queue's TTL is also ten seconds — so an action taken while the socket is down
+lands whenever the retry timer happens to fire, up to ten seconds later, and is
+dropped outright if the reconnect takes longer than that. Nothing on screen
+says either. That is the reported symptom exactly, and it is not specific to
+stepping out: every control on the channel screen goes through the same path,
+which is why the report said "stepping in or out".
+
+**And the box shows a device living in that state.** In six hours one session
+opened `/ws` 448 times at a ten-second cadence — the backoff cap, arriving over
+and over — where the other active session opened it twenty times.
+
+Three things are wrong, and they compound. They are fixed together because any
+one of them alone leaves the symptom reachable.
+
+### A replaced socket goes on speaking for the client
+
+`open()` assigned `this.socket` and left the previous socket's handlers live.
+Those handlers write shared state: `onclose` nulls `this.socket`, stops the
+heartbeat, reports the connection down and schedules a reconnect. So a close
+belonging to a socket nobody was using any more tore down the connection that
+had replaced it — leaving an open socket nothing referenced, every `send`
+queueing instead of writing, and a fresh connection on every backoff. Which is
+what a ten-second cadence looks like from a server.
+
+Two ordinary things overlap sockets, and neither is a fault: `connect` closes
+the old one and opens the new one in the same turn, and the close event lands
+after `closedByUs` has been set false again; and `resume` — the foreground
+probe — opens one whenever the current socket is not OPEN, which includes a
+handshake still in flight after a spell in the background.
+
+Every handler now checks that it belongs to `this.socket` and returns if it
+does not, and `open` closes what it replaces rather than abandoning it. **The
+one exception is an unauthorized close**, which is acted on whichever socket
+heard it: every connection carries the same token, so one of them being refused
+refuses all of them.
+
+### A backoff is not for a person who is waiting
+
+The backoff is right for a client failing on its own — a phone with no signal
+must not hammer a server it cannot reach. It is wrong the moment somebody taps
+a button: the delay still to run was earned by failures nobody was waiting on.
+So `act` now asks for a connection immediately rather than only queueing, which
+is the argument `resume` already makes from the other end — there the app
+coming back, here somebody using it.
+
+**A handshake already in flight is left alone**, which is where this differs
+from `resume`. A tap is not evidence that the network changed, so restarting a
+connection that may be about to succeed would push the thing being asked for
+further away, once per tap.
+
+### A device's belief about where it is standing goes stale
+
+`onopen` re-sends ENTER for whatever channel this client thinks it is in. That
+is right inside `DISCONNECT_GRACE_MS`, where the server has removed nobody and
+re-entering restores a state that was never given up. Outside it, the server
+stepped this person out a while ago and everybody in the room watched them go —
+and since 2026-08-24 the account may have entered somewhere else from another
+device since. So the re-entry is now bounded by the grace period, measured from
+the moment the socket was lost.
+
+The same belief had a second way of going wrong, and this one was created by
+several sessions per account. `displaced` was sent only on ENTER, so a session
+was told when another device *took* the room and never when one *gave it up* —
+leaving it believing it was present somewhere the account had left, and
+re-entering from that belief on its next connection. **A Step Out on the phone
+in somebody's hand was undone by another device reconnecting**, once per
+reconnect, which for a device that cannot hold a connection is every few
+seconds. `STEP_OUT` and `LEAVE_CHANNEL` now displace the account's other
+sessions exactly as `ENTER` does.
+
+The message keeps its name and its shape — wire-compatible in both directions,
+no floor change — because what it means was never "somebody took the room". It
+means *this session is not the one standing anywhere*, which both cases are.
+
+**The two halves of that fix are not redundant.** The message reaches a session
+that is connected; the grace period covers the one that is not, which is
+precisely the flapping device that made this visible.
+
+## The demo account's tokens keep dying, and one of them is now unreachable — 2026-08-24
+
+Checked while looking at something else, and worth writing down because it is
+the third time. Every token in `~/.config/thefloor/demo-account.txt` answers
+401. They were minted while `issueToken` revoked every other session for the
+account, so each sign-in killed its predecessors; that rule went on 2026-08-24,
+so this should be the last reissue for that reason.
+
+**The sign-in path itself is fine**, which is the half that matters at a
+submission: `POST /auth/request-code` for `appreview@` then `POST /auth/verify`
+with `REVIEW_CODE` was confirmed working on this date. A verify *without* the
+request first is refused — the fixed code is written to `otp_codes` when it is
+requested, not held in the configuration — which is worth knowing before
+concluding the account is broken, as this session briefly did.
+
+**Sam Rivera has no way back in.** `REVIEW_CODE` applies only to whichever
+address `REVIEW_IDENTIFIER` names, and that is `appreview@`; the second demo
+account's only credential was a token, and it is revoked. Getting in needs the
+bypass flip DEMO-ACCOUNT.md describes — point `REVIEW_IDENTIFIER` at
+`appreview2@`, restart, sign in, flip back — which costs a server restart, and
+a restart drops presence and any call in flight. Left undone deliberately: it
+is not needed until that account has to be signed in as or torn down, and it is
+not a thing to do to a live box on the way past.

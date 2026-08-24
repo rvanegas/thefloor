@@ -815,6 +815,65 @@ describe('websocket', () => {
       phone.close();
       tablet.close();
     });
+
+    /**
+     * Leaving is told the same way as arriving, and the reason is not
+     * symmetry: what every other session holds is a belief about where this
+     * account is standing, and stepping out makes that belief wrong in exactly
+     * the way entering does.
+     *
+     * The belief is not inert. The app re-sends ENTER from it on every
+     * connection, so a tablet that was never told goes on re-entering a
+     * channel its owner left on the phone — once per reconnect, which for a
+     * device that cannot hold a connection is every few seconds.
+     */
+    it('tells the tablet when the phone steps out', async () => {
+      const { alice, channelId, phone, tablet } = await twoDevices();
+      await enter(tablet, channelId, alice.account.id);
+      await phone.next('displaced');
+      phone.received.length = 0;
+      tablet.received.length = 0;
+
+      // The tablet is the one standing there, so it is the one that leaves;
+      // the phone is displaced already and has nothing to give up.
+      tablet.send({
+        type: 'channel.action',
+        channelId,
+        action: { type: 'STEP_OUT' },
+      });
+      await tablet.next('channel', (m) => !m.view.channel.present.includes(alice.account.id));
+
+      await phone.next('displaced');
+      expect(sawDisplaced(tablet)).toBe(false);
+
+      phone.close();
+      tablet.close();
+    });
+
+    /**
+     * The same for leaving the channel outright, which gives up presence on
+     * the way past. Keyed on the action rather than on a change of presence
+     * for the reason ENTER is: a session's belief is about what it would do
+     * next, and it is made wrong whether or not the roster moved.
+     */
+    it('tells the tablet when the phone leaves the channel', async () => {
+      const { alice, channelId, phone, tablet } = await twoDevices();
+      await enter(tablet, channelId, alice.account.id);
+      await phone.next('displaced');
+      tablet.received.length = 0;
+      phone.received.length = 0;
+
+      tablet.send({
+        type: 'channel.action',
+        channelId,
+        action: { type: 'LEAVE_CHANNEL' },
+      });
+
+      await phone.next('displaced');
+
+      phone.close();
+      tablet.close();
+    });
   });
 
   describe('evidence that somebody is still in a channel', () => {

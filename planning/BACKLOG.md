@@ -177,6 +177,36 @@ the obstacle it was.
 
 ---
 
+## Why one phone could not hold a socket is diagnosed, not observed
+
+**Status:** the consequences are fixed; the cause is inferred. See
+DECISIONS.md § *A tap that waits ten seconds, and the socket that was
+nobody's*.
+
+On 2026-08-24 the box showed one session opening `/ws` 448 times in six hours
+at a ten-second cadence — the reconnect backoff's cap, arriving over and over —
+while the other active session opened it twenty times. The stale-socket fault
+fixed that day explains a cadence of exactly that shape: an orphaned close
+tears down the connection that replaced it, so the client reconnects on every
+backoff while an open socket sits unreferenced. **That is a mechanism that fits,
+not a reproduction.** Nothing was instrumented on the device, and Caddy's
+access log is not enabled, so how long each of those sockets actually lived is
+not known — a connection that opened and lived nine seconds and one that never
+opened at all are indistinguishable in what was looked at.
+
+What would settle it: the cadence going away. A phone in that state now either
+holds its connection or, if something else is closing it, keeps reconnecting —
+and the count per session over an hour is one query against the journal. If it
+comes back, the next thing to add is a log line at the close, because the
+question is which end is closing and nothing on the box answers it.
+
+Worth knowing that the symptom of this is not a broken app. It is every control
+taking up to ten seconds, or silently doing nothing at all, while the screen
+says the app is connected — the queue's TTL and the backoff cap are the same
+ten seconds, so an action either just makes it or is dropped without a word.
+
+---
+
 ## Presence follows the websocket, not the room
 
 **Status:** not started. This is what survives the 2026-08 backgrounding
@@ -1124,6 +1154,28 @@ any address that has no account, and two things about it are outstanding.
   open to anybody, which is before the first release rather than after it.
   A per-requester budget over a rolling window is the shape; the sweep in
   `Accounts` is where the bookkeeping would live.
+
+---
+
+## The second demo account has no credential left
+
+**Status:** not started, and not urgent until that account has to be signed in
+as or torn down. Found 2026-08-24; see DECISIONS.md § *The demo account's
+tokens keep dying*.
+
+Every token in `~/.config/thefloor/demo-account.txt` was found revoked. For
+`appreview@` that costs nothing — a fresh one is a `request-code` and a
+`verify` away, and that path was confirmed working the same day, which is the
+half a submission depends on. For `appreview2@` (Sam Rivera) it is the whole
+way in: `REVIEW_CODE` applies only to whichever address `REVIEW_IDENTIFIER`
+names, and a token was that account's only credential.
+
+The way back is the bypass flip in DEMO-ACCOUNT.md — point `REVIEW_IDENTIFIER`
+at `appreview2@`, restart, sign in, keep the token, flip back — which costs two
+restarts of a live box, and a restart drops presence and any call in flight. So
+it wants doing deliberately and not on the way past. The reason the tokens kept
+dying is gone as of 2026-08-24: `issueToken` no longer revokes an account's
+other sessions.
 
 ---
 
