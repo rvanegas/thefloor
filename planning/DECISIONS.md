@@ -1014,7 +1014,14 @@ not happened.
 
 **That is the same fault as the one in the entry above, on the other side of the
 wire** — state entirely correct, the thing that makes noise stopped, nothing
-watching — and it explains what no client-side story otherwise could: only a new
-channel restores audio, because only a changing `mediaRoom` re-runs the connect
-effect. It is in BACKLOG.md as the recovery half, and it is worth fixing on its
-own account whatever build 89 turns out to be about.
+watching. It is in BACKLOG.md as the recovery half, and it is worth fixing on
+its own account whatever the next build turns out to be about.
+
+**It was first written here as also explaining why only a new channel restores
+audio, and that was wrong.** Stepping out makes `live` null, `mediaRoom` is a
+dependency of the connect effect, so stepping out tears the connection down and
+stepping back in rebuilds it — `startAudioSession()` included. Re-entry and a
+new channel are not told apart by that mechanism. The correction is worth the
+space because the false version is the more satisfying story: it closes the
+case, and it closed it on a premise nobody had checked against the dependency
+array.

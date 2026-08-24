@@ -553,11 +553,39 @@ when the engine dies under a *healthy* room, the socket is fine, `status` stays
 restore sound is gated on the room being broken. There is no path back.
 
 That is the same shape as the server fault it was mistaken for — state
-perfectly correct, the thing that makes noise stopped, nothing measuring it —
-and it accounts for the two symptoms no client-side story otherwise explains.
-**Only a new channel restores audio**, because only a changing `mediaRoom`
-re-runs the connect effect and calls `startAudioSession()` again; and stepping
-out and back in does not, because presence is not the room.
+perfectly correct, the thing that makes noise stopped, nothing measuring it.
+
+**It does not, however, explain why only a new channel helps, and the
+explanation first written here was wrong.** It said that only a changing
+`mediaRoom` re-runs the connect effect. Stepping out makes `live` null, which
+makes `mediaRoom` null, which is a dependency of that effect — so stepping out
+tears the connection down and stepping back in rebuilds it, `startAudioSession()`
+and all. A re-entry is *not* distinguishable from a new channel by that
+mechanism, and any reasoning resting on it starts from a false premise.
+
+What does differ between the two is **when the `LISTENING` edge lands relative
+to activation**, and that is a hypothesis rather than a finding. Re-entering a
+channel that already has a track means the media participant is already in the
+room, so its track subscribes almost immediately after `connect` and the
+category write lands on top of `startAudioSession()`. A brand-new channel has
+nothing loaded, so the session sits in `IDLE` for as long as it takes to upload
+and the same write lands seconds later, well clear of activation. The engine
+transition log is what would confirm or kill it.
+
+**Others present and it does not happen at all** — reported 2026-08-24, and
+the sharpest narrowing yet. With somebody else in the room, stepping out and
+back in leaves the audio playing. `core/micNeeded.ts` is what makes that a
+statement about the audio session rather than about company: another occupant
+makes `microphoneNeeded` and `anyMicrophoneOpen` both true, so the intent is
+`capturing` and the session is `CALL` — `playAndRecord`/`videoChat`. Alone,
+both are false, the intent is `released`, and the session is `LISTENING` —
+`playback`/`spokenAudio`.
+
+So **the fault is confined to the playout-only session.** Every reproduction has
+been in `playback`; no reproduction has been in `playAndRecord`. That is
+consistent with a playout-only engine being the thing that stops, and it is
+consistent with the `IDLE` → `LISTENING` edge being what stops it, since that
+edge exists only in the alone case. It does not separate those two.
 
 **What is not known is what stops it, and the timing is why.** The whole
 reproduction fell between two log lines. `released LISTENING` landed at
