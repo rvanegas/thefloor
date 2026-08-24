@@ -324,6 +324,25 @@ CREATE TABLE IF NOT EXISTS contacts (
   PRIMARY KEY (a_id, b_id)
 );
 
+-- One person letting one other person see their sign-in address.
+--
+-- Directional, unlike the contacts row, and that is the point: an address is
+-- yours to hand out and being somebody's contact is not consent to have it.
+-- So the pair is stored as it was meant rather than canonicalised — owner_id
+-- gave it, viewer_id may read it, and the reverse row is a separate decision
+-- somebody else has to make.
+--
+-- Nothing outlives the relationship: the pair's rows go both ways when the
+-- contact ends, and with the account when it is deleted. What it cannot undo
+-- is a reader who has already copied it down, which is what the screen says
+-- before anybody taps.
+CREATE TABLE IF NOT EXISTS email_reveals (
+  owner_id   TEXT NOT NULL REFERENCES accounts(id),
+  viewer_id  TEXT NOT NULL REFERENCES accounts(id),
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, viewer_id)
+);
+
 -- A contact request sent to an address with no account yet.
 --
 -- Requests must be storable whether or not the recipient exists, or the

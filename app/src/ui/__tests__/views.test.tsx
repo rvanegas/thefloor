@@ -129,6 +129,7 @@ const mockApp = {
   act: jest.fn(),
   clearError: jest.fn(),
   removeContact: jest.fn(async () => {}),
+  setEmailShown: jest.fn(async () => {}),
   dismissedInvites: [] as string[],
   dismissInvite: jest.fn((channelId: string) => {
     mockApp.dismissedInvites = [...mockApp.dismissedInvites, channelId];
@@ -3432,6 +3433,154 @@ describe('channels you share with somebody', () => {
 
     expect(textOf(tree)).not.toContain('Channels with them');
     act(() => tree.unmount());
+  });
+});
+
+/**
+ * Handing somebody your address, which is the one thing about a person this
+ * app will not release on a relationship alone.
+ *
+ * Two decisions rather than one, and the screen draws them as two: what they
+ * have chosen to show you, and what you have chosen to show them. Neither
+ * implies or asks for the other.
+ */
+describe('showing your email to a contact', () => {
+  const asContact = (status: 'accepted' | 'outgoing' = 'accepted') => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [
+        { account: { id: THEM, displayName: 'Dana Chu' }, status },
+      ],
+    };
+  };
+
+  const withProfile = (extra: Partial<ProfileViewData>) =>
+    mockApp.loadProfile.mockResolvedValue({
+      account: { id: THEM, displayName: 'Dana Chu' },
+      bio: null,
+      ...extra,
+    } as ProfileViewData);
+
+  async function open() {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = render(
+        <ProfileView accountId={THEM} fallbackName="Dana Chu" onBack={() => {}} />
+      );
+    });
+    return tree;
+  }
+
+  /**
+   * `withProfile` sets a standing implementation rather than a one-shot,
+   * because pressing either button re-reads the profile — so a `…Once` would
+   * answer the first read and leave the second with the shared default. A
+   * standing one outlives the test, `clearAllMocks` clearing calls and not
+   * implementations, so it is put back by hand.
+   */
+  const defaultProfile = mockApp.loadProfile.getMockImplementation()!;
+
+  beforeEach(() => {
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+  });
+
+  afterEach(() => {
+    mockApp.loadProfile.mockImplementation(defaultProfile);
+  });
+
+  it('offers the button, and says what it does', async () => {
+    asContact();
+    withProfile({ myEmailShown: false });
+    const tree = await open();
+
+    expect(findButton(tree, 'Show my email')).toBeDefined();
+    expect(textOf(tree)).toContain('Show my email to this contact.');
+    act(() => tree.unmount());
+  });
+
+  it('sends the decision and re-reads what the server now says', async () => {
+    // Re-read rather than patched in place: the server decides the field, and
+    // a screen that assumed the answer would be a second copy of the rule.
+    asContact();
+    withProfile({ myEmailShown: false });
+    const tree = await open();
+    mockApp.loadProfile.mockClear();
+
+    await act(async () => findButton(tree, 'Show my email')!.props.onPress());
+
+    expect(mockApp.setEmailShown).toHaveBeenCalledWith(THEM, true);
+    expect(mockApp.loadProfile).toHaveBeenCalledWith(THEM);
+    act(() => tree.unmount());
+  });
+
+  it('offers to stop once it is shown, and says what stopping cannot do', async () => {
+    asContact();
+    withProfile({ myEmailShown: true });
+    const tree = await open();
+
+    const text = textOf(tree);
+    expect(text).toContain('They can see your email.');
+    // The honest half: it ends the standing ability to come back for it, and
+    // reaches nowhere they have already written it down.
+    expect(text).toContain('already have it written down');
+    expect(findButton(tree, 'Show my email')).toBeUndefined();
+
+    await act(async () =>
+      findButton(tree, 'Stop showing my email')!.props.onPress()
+    );
+    expect(mockApp.setEmailShown).toHaveBeenCalledWith(THEM, false);
+    act(() => tree.unmount());
+  });
+
+  it('shows theirs with a button that copies it', async () => {
+    asContact();
+    withProfile({ email: 'dana@example.com', myEmailShown: false });
+    const tree = await open();
+
+    expect(textOf(tree)).toContain('dana@example.com');
+    await act(async () => findButton(tree, 'Copy')!.props.onPress());
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith('dana@example.com');
+    expect(textOf(tree)).toContain('copied');
+    act(() => tree.unmount());
+  });
+
+  it('says so when the clipboard declines, rather than claiming a copy', async () => {
+    // `setStringAsync` resolves to a boolean precisely so a copy that did not
+    // happen is not announced as one — see src/clipboard.ts.
+    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => false);
+    asContact();
+    withProfile({ email: 'dana@example.com' });
+    const tree = await open();
+
+    await act(async () => findButton(tree, 'Copy')!.props.onPress());
+    expect(textOf(tree)).toContain('copy failed');
+    act(() => tree.unmount());
+  });
+
+  it('says which half is empty rather than leaving a gap', async () => {
+    asContact();
+    withProfile({ myEmailShown: false });
+    expect(textOf(await open())).toContain(
+      'They are not showing you their email.'
+    );
+  });
+
+  it('is not offered to anybody who is not a contact', async () => {
+    // The server refuses the same call, and that is the load-bearing half.
+    // This is the screen agreeing with it rather than offering a button that
+    // would be refused — somebody met in a channel is asked to be a contact
+    // first, which the card above does.
+    for (const home of ['outgoing', 'none'] as const) {
+      if (home === 'none') mockApp.home = null;
+      else asContact('outgoing');
+      withProfile({ myEmailShown: false });
+      const tree = await open();
+      expect(textOf(tree)).not.toContain('Show my email');
+      act(() => tree.unmount());
+    }
   });
 });
 

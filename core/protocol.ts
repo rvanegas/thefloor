@@ -116,6 +116,38 @@ export interface ProfileView {
    * shows no channels at all for an empty one.
    */
   sharedChannels?: SharedChannelView[];
+  /**
+   * Their sign-in address, when they have chosen to show it to this reader.
+   *
+   * **Never sent on the strength of the reader's own standing.** Every other
+   * field here is decided by who is asking — a contact gets availability, a
+   * channel-sharer gets the bio. This one is decided by an act of the person it
+   * belongs to, aimed at one named reader, and being their contact is not that
+   * act. An address is how somebody reaches you outside this application for
+   * ever, and it is the only part of a person here that the app will not hand
+   * out on a relationship alone.
+   *
+   * Absent means it is not being shown, which is also what an older server
+   * sends and what somebody who is not a contact gets. The client draws no
+   * address for all three, there being nothing to draw.
+   */
+  email?: string;
+  /**
+   * Whether **you** are showing **your** address to them — the state of your
+   * own button, on their screen.
+   *
+   * The one field here that is not about the person whose profile this is, and
+   * it is named to say so. It belongs on this response rather than on some
+   * settings screen because the decision is per person: there is no global
+   * "show my email", there is only showing it to somebody, and the place that
+   * is true of is their profile.
+   *
+   * Absent for a non-contact and for an older server, which the client reads as
+   * "no such choice to offer here" rather than as false. Offering it and having
+   * the server refuse would be the dead affordance this screen avoids
+   * everywhere else.
+   */
+  myEmailShown?: boolean;
 }
 
 /**

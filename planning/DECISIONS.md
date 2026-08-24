@@ -1172,3 +1172,52 @@ they walk out while the screen is open. The availability line at the top has
 always behaved that way, and the alternative is a request per snapshot to keep
 a card fresher than the screen it sits on. The room's half is live, coming from
 Home.
+
+## An address is given to one person, not released by a relationship — 2026-08-23
+
+"Show my email" on somebody's profile, with their address and a Copy button
+above it when they have made the same decision about you.
+
+**Every other field on a profile is released by the reader's standing.** A
+contact gets availability, somebody sharing a live channel gets the bio, and
+the whole of the access rule is who is asking. The address is not, and could
+not be: it is how a person reaches you outside this application for ever, it
+survives every channel and every contact here, and it is the one part of an
+account that leaving does not take back. So it is released by an act of the
+person it belongs to, aimed at one named reader — being their contact only
+decides whether the question arises.
+
+That makes `email_reveals` **directional**, unlike `contacts`, which is stored
+once per pair with `a_id < b_id` precisely because being contacts is
+symmetrical. Showing is not a trade and cannot be made into one: there is no
+control on this screen that asks for theirs, and their showing you theirs sets
+nothing about yours. The card draws the two halves with a rule between them for
+that reason — one card read as one setting, and four stacked lines read as one
+paragraph about one address.
+
+**Contacts only, settled on the server.** A profile is also readable by anybody
+sharing a live channel, which is a wider audience than this should reach:
+meeting somebody in a room an acquaintance opened is grounds to ask them to be
+a contact — the card above does exactly that — and this is a step past it. The
+app offers the button on the same test so the two agree, but the 404 is the
+load-bearing half, and it is a 404 rather than a 403 like every other refusal
+on these screens.
+
+**Stopping is offered, and says what it cannot do.** It ends the standing
+ability to come back for the address; it reaches nowhere they have already
+written it down, and the line under the button says so rather than letting the
+button imply a recall. What it is genuinely for is the case where the
+relationship cools without ending — and where it does end, the rows go both
+ways with the contact, and both ways with a deleted account, without being
+asked.
+
+Nothing is pushed. A profile is fetched when somebody opens one, which is the
+argument the protocol already makes for keeping a bio off every roster, so the
+address appears on their screen the next time they look — the only moment it is
+of any use to them. The side that tapped re-reads its own copy rather than
+patching the field in place, so the server stays the thing that decides it.
+
+The privacy page moved with it. It said the address "is not shown to anyone who
+is not already your contact", which was written when the answer was *nobody*
+and is now the floor rather than the description. It says what the feature does
+instead, including the half the button cannot do.

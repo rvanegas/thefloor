@@ -358,6 +358,148 @@ describe('asking somebody in your channel to be a contact', () => {
 });
 
 /**
+ * Handing one contact your sign-in address.
+ *
+ * The one thing on a profile that is not released by the reader's standing.
+ * Everything else here follows from who is asking — a contact gets
+ * availability, somebody sharing a channel gets the bio — and this follows
+ * from an act of the person it belongs to, aimed at one named reader.
+ */
+describe('showing your email to a contact', () => {
+  const setShown = (user: User, id: string, shown: boolean) =>
+    app.fastify.inject({
+      method: shown ? 'POST' : 'DELETE',
+      url: `/contacts/${id}/email`,
+      headers: auth(user.token),
+    });
+
+  const emailOn = async (viewer: User, id: string) =>
+    ((await read(viewer, id)).json() as { email?: string }).email;
+
+  const pair = async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    return { alice, bob };
+  };
+
+  it('is withheld until the owner says otherwise', async () => {
+    const { alice, bob } = await pair();
+    // Being a contact is agreement to talk, not to be written to outside this
+    // application. Absent rather than null: there is nothing to draw.
+    expect(await emailOn(alice, bob.account.id)).toBeUndefined();
+  });
+
+  it('reaches the one person it was shown to, and nobody else', async () => {
+    const { alice, bob } = await pair();
+    const carol = await signIn('carol@example.com', 'Carol');
+    await befriend(bob, carol, 'carol@example.com');
+
+    expect((await setShown(bob, alice.account.id, true)).statusCode).toBe(200);
+
+    expect(await emailOn(alice, bob.account.id)).toBe('bob@example.com');
+    // Carol is bob's contact too and was told nothing. The decision is per
+    // person, which is why it lives on a profile rather than in settings.
+    expect(await emailOn(carol, bob.account.id)).toBeUndefined();
+  });
+
+  it('is one-directional, so showing is not a trade', async () => {
+    const { alice, bob } = await pair();
+    await setShown(bob, alice.account.id, true);
+
+    const onAlice = (await read(bob, alice.account.id)).json() as {
+      email?: string;
+      myEmailShown?: boolean;
+    };
+    // Alice's address is not disclosed by bob showing his, and bob's own
+    // screen says which way round it is.
+    expect(onAlice.email).toBeUndefined();
+    expect(onAlice.myEmailShown).toBe(true);
+  });
+
+  it('stops on request, and can be shown again', async () => {
+    const { alice, bob } = await pair();
+    await setShown(bob, alice.account.id, true);
+    await setShown(bob, alice.account.id, false);
+    expect(await emailOn(alice, bob.account.id)).toBeUndefined();
+
+    await setShown(bob, alice.account.id, true);
+    expect(await emailOn(alice, bob.account.id)).toBe('bob@example.com');
+  });
+
+  it('records the decision once, however many times it is made', async () => {
+    const { alice, bob } = await pair();
+    await setShown(bob, alice.account.id, true);
+    clock += 60_000;
+    // A second call is not a second decision, and must not fail on the
+    // primary key either.
+    expect((await setShown(bob, alice.account.id, true)).statusCode).toBe(200);
+    expect(await emailOn(alice, bob.account.id)).toBe('bob@example.com');
+  });
+
+  it('is refused to anybody who is not a contact, as a 404', async () => {
+    // A profile is readable by anyone sharing a live channel, which is a wider
+    // audience than an address should reach. The refusal is a 404 like every
+    // other on these screens, so it answers nothing about which ids exist.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(alice, carol, 'carol@example.com');
+    app.channels.create(alice.account.id, [bob.account.id, carol.account.id]);
+
+    expect((await setShown(bob, carol.account.id, true)).statusCode).toBe(404);
+    expect((await setShown(bob, 'acct_nobody', true)).statusCode).toBe(404);
+    expect(await emailOn(carol, bob.account.id)).toBeUndefined();
+  });
+
+  it('refuses an unauthenticated caller', async () => {
+    const { alice } = await pair();
+    const response = await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${alice.account.id}/email`,
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('goes when the contact does', async () => {
+    // It was shown to a contact; ending the contact ends the audience. Both
+    // ways, without asking, since the row is the pair either way.
+    const { alice, bob } = await pair();
+    await setShown(bob, alice.account.id, true);
+    await setShown(alice, bob.account.id, true);
+
+    await app.fastify.inject({
+      method: 'DELETE',
+      url: `/contacts/${bob.account.id}`,
+      headers: auth(alice.token),
+    });
+
+    // Not readable at all now, the profile itself being refused — so the
+    // check that matters is the row: befriending again must not silently
+    // restore a disclosure neither of them made twice.
+    await befriend(alice, bob, 'bob@example.com');
+    expect(await emailOn(alice, bob.account.id)).toBeUndefined();
+    expect(await emailOn(bob, alice.account.id)).toBeUndefined();
+  });
+
+  it('goes when the account does', async () => {
+    const { alice, bob } = await pair();
+    await setShown(alice, bob.account.id, true);
+    await app.fastify.inject({
+      method: 'DELETE',
+      url: '/me',
+      headers: auth(alice.token),
+    });
+    // A disclosure must not outlive the person who made it, and a tombstone's
+    // identifier is not an address in any case.
+    expect(
+      app.accounts.emailShownTo(alice.account.id, bob.account.id)
+    ).toBe(null);
+  });
+});
+
+/**
  * The channels two people share, on the profile of one of them.
  *
  * A profile carries where *they* have been in each — not where the room has,

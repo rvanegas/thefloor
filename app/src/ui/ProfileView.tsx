@@ -10,6 +10,7 @@ import {
 import type { ProfileView as Profile } from '../../../core/protocol';
 import { describeChannel } from '../../../core/naming';
 import { MAX_PING_TEXT_LENGTH } from '../../../core/constants';
+import { copyText } from '../clipboard';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { InlineMarkdown } from './markdown';
@@ -115,6 +116,22 @@ export function ProfileView({
   const [pingError, setPingError] = useState<string | null>(null);
   const [pingSent, setPingSent] = useState(false);
   const [removing, setRemoving] = useState(false);
+  /** While the decision about your own address is in flight. */
+  const [showingEmail, setShowingEmail] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  /**
+   * Whether the last copy landed, and nothing else. The same three states and
+   * the same 2.5s fade the channel's clipboard card uses, that being the
+   * established way a refusal is reported here: `copyText` returns a boolean
+   * precisely so that a copy which did not happen is not announced as one.
+   */
+  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
+
+  useEffect(() => {
+    if (copied === 'idle') return;
+    const timer = setTimeout(() => setCopied('idle'), 2_500);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   // Their standing with you, if any. Absent from the list means a stranger —
   // which, on a profile reached from a channel roster, is the whole point.
@@ -223,6 +240,27 @@ export function ProfileView({
         },
       ]
     );
+  };
+
+  /**
+   * Shows your own address to this person, or stops.
+   *
+   * The profile is re-read rather than patched in place, because the server is
+   * what decides the answer and this screen has just changed something it
+   * derives from. Patching would work today and would be a second copy of the
+   * rule the moment showing it stops being the only thing that sets the field.
+   */
+  const setEmailShown = async (shown: boolean) => {
+    setShowingEmail(true);
+    setEmailError(null);
+    try {
+      await app.setEmailShown(accountId, shown);
+      setProfile(await app.loadProfile(accountId));
+    } catch (e) {
+      setEmailError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setShowingEmail(false);
+    }
   };
 
   const sendPing = async () => {
@@ -573,6 +611,99 @@ export function ProfileView({
       </Card>
         </>
       )}
+
+      {/*
+        Addresses, which are two separate decisions and are drawn as two.
+
+        Theirs is above yours because it is the half you might act on — an
+        address you have been given is a thing to copy, and a thing you have
+        given is a thing you already know. Neither half implies the other:
+        somebody showing you theirs has not asked for yours, and there is no
+        control here that would let them.
+
+        Contacts only, matching the server, which refuses the same call from
+        anybody else. Somebody met in a channel an acquaintance opened can be
+        asked to be a contact — the card above does that — and this is a step
+        past it rather than part of it.
+      */}
+      {isSelf || contact?.status !== 'accepted' ? null : (
+        <>
+          <SectionLabel>Email</SectionLabel>
+          <Card style={styles.stack}>
+            {profile?.email ? (
+              <>
+                {/* Selectable, because an address on a screen is something
+                    people reach for by hand when a button is not enough — and
+                    the button is the fallback rather than the only way. */}
+                <Text style={type.body} selectable numberOfLines={1}>
+                  {profile.email}
+                </Text>
+                <Button
+                  label={
+                    copied === 'done'
+                      ? '✓ copied'
+                      : copied === 'failed'
+                        ? '✗ copy failed'
+                        : 'Copy'
+                  }
+                  variant="primary"
+                  onPress={() => {
+                    void (async () => {
+                      setCopied(
+                        (await copyText(profile.email!)) ? 'done' : 'failed'
+                      );
+                    })();
+                  }}
+                />
+              </>
+            ) : (
+              // Said rather than left blank, so the empty half of the card is
+              // an answer instead of a gap somebody reads as a bug. It is also
+              // what makes the two halves legible as independent: yours is
+              // below and may well be shown.
+              <Text style={type.muted}>
+                They are not showing you their email.
+              </Text>
+            )}
+
+            <View style={styles.rule} />
+
+            {profile?.myEmailShown ? (
+              <>
+                <Text style={type.muted}>They can see your email.</Text>
+                <Button
+                  label={showingEmail ? 'Hiding…' : 'Stop showing my email'}
+                  variant="ghost"
+                  disabled={showingEmail}
+                  onPress={() => void setEmailShown(false)}
+                />
+                {/* The one thing the button cannot do, said where it is about
+                    to be pressed. Stopping ends the standing ability to come
+                    back for the address; it does not reach into anywhere they
+                    have already written it down. */}
+                <Text style={type.muted}>
+                  They will not be able to see it again — though they may
+                  already have it written down somewhere.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Button
+                  label={showingEmail ? 'Showing…' : 'Show my email'}
+                  disabled={showingEmail}
+                  onPress={() => void setEmailShown(true)}
+                />
+                <Text style={type.muted}>
+                  Show my email to this contact.
+                </Text>
+              </>
+            )}
+            {emailError ? (
+              <Text style={styles.error}>{emailError}</Text>
+            ) : null}
+          </Card>
+        </>
+      )}
     </Screen>
   );
 }
@@ -598,6 +729,15 @@ const styles = StyleSheet.create({
   /** Italic when nobody has named it; see core/naming.ts. */
   channelDescribed: { ...type.body, fontStyle: 'italic' },
   bio: { ...type.muted, lineHeight: 20 },
+  /**
+   * Between the two halves of the email card: theirs above, yours below.
+   *
+   * A line rather than a second card, because they belong to one subject and
+   * two cards would read as two unrelated settings — and rather than nothing,
+   * because without it the four stacked lines read as one paragraph about one
+   * address.
+   */
+  rule: { height: 1, backgroundColor: colors.border, marginVertical: 2 },
   /**
    * The two lines under the name that are facts about the account rather than
    * anything it wrote: where they are, and how many people they brought here.

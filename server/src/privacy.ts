@@ -66,8 +66,10 @@ application collects little.</p>
 <ul>
   <li><strong>Your email address.</strong> It is how you sign in — a six-digit
   code is sent to it — and it is how somebody who knows your address can send
-  you a contact request. It is not shown to anyone who is not already your
-  contact.</li>
+  you a contact request. It is shown to nobody unless you choose to show it,
+  which you can do only for a contact, one person at a time, from their profile.
+  You can stop showing it at any time; that removes it from their screen, and it
+  cannot recover a copy they have already written down.</li>
   <li><strong>Your display name, and a description of yourself if you write
   one.</strong> Both are shown to people you share a channel or a contact
   relationship with.</li>

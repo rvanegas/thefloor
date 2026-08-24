@@ -865,6 +865,75 @@ export class Accounts {
     return this.contactState(x, y)?.state === 'accepted';
   }
 
+  /**
+   * Lets one contact see your sign-in address.
+   *
+   * **Directional and one at a time**, which is the whole shape of it. Being
+   * somebody's contact is agreement to talk, not to be written to outside this
+   * application — the address is how a stranger reaches you for ever, and it is
+   * the one piece of a person here that nothing else in the app hands out. So
+   * it is given to one named person by a deliberate act, and their showing you
+   * theirs is a separate decision they make on their own screen.
+   *
+   * Idempotent, and the stamp is not refreshed on a second call: what is
+   * recorded is the decision, and a decision does not happen twice.
+   *
+   * Nothing checks here that the two are contacts. The route does, alongside
+   * every other question about who may do what — see the profile route, which
+   * settles the same question for reading one.
+   */
+  showEmail(ownerId: string, viewerId: string, now: number): void {
+    this.db
+      .prepare(
+        `INSERT INTO email_reveals (owner_id, viewer_id, created_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(owner_id, viewer_id) DO NOTHING`
+      )
+      .run(ownerId, viewerId, now);
+  }
+
+  /**
+   * Stops showing it.
+   *
+   * Worth having even though it recalls nothing: what it ends is the standing
+   * ability to come back for the address later, which is not the same as
+   * unsending it. The screen says so rather than letting the button imply
+   * otherwise.
+   */
+  hideEmail(ownerId: string, viewerId: string): void {
+    this.db
+      .prepare('DELETE FROM email_reveals WHERE owner_id = ? AND viewer_id = ?')
+      .run(ownerId, viewerId);
+  }
+
+  /** Whether `ownerId` is currently showing their address to `viewerId`. */
+  showsEmail(ownerId: string, viewerId: string): boolean {
+    return !!this.db
+      .prepare(
+        'SELECT 1 FROM email_reveals WHERE owner_id = ? AND viewer_id = ?'
+      )
+      .get(ownerId, viewerId);
+  }
+
+  /**
+   * `ownerId`'s address if they are showing it to `viewerId`, and null
+   * otherwise — never the address on the strength of the reader's own standing.
+   *
+   * One method rather than a flag the caller then uses to go and read the
+   * column, so there is no call site where the address is in hand before the
+   * question has been asked.
+   */
+  emailShownTo(ownerId: string, viewerId: string): string | null {
+    if (!this.showsEmail(ownerId, viewerId)) return null;
+    const row = this.byId(ownerId);
+    if (!row) return null;
+    // A tombstone's identifier is not an address and must never be rendered as
+    // one; `erase` clears these rows anyway, so this is the belt to that
+    // braces.
+    if (row.identifier.startsWith(ERASED_IDENTIFIER_PREFIX)) return null;
+    return row.identifier;
+  }
+
   /** Every accepted pair, for the one-to-one channel each of them is owed. */
   acceptedPairs(): Array<[string, string]> {
     const rows = this.db
@@ -895,6 +964,17 @@ export class Accounts {
     const result = this.db
       .prepare("DELETE FROM contacts WHERE a_id = ? AND b_id = ? AND state = 'accepted'")
       .run(a, b);
+    // Any address either of them was showing the other goes with it, both ways
+    // and without asking. It was shown to a contact; ending the contact ends
+    // the audience, and leaving the row would keep a screen offering to copy an
+    // address off a profile the reader may no longer even open.
+    this.db
+      .prepare(
+        `DELETE FROM email_reveals
+          WHERE (owner_id = ? AND viewer_id = ?)
+             OR (owner_id = ? AND viewer_id = ?)`
+      )
+      .run(a, b, b, a);
     return result.changes > 0;
   }
 
@@ -1139,6 +1219,13 @@ export class Accounts {
     this.db
       .prepare('DELETE FROM pending_invites WHERE requester_id = ?')
       .run(accountId);
+    // Both directions: the addresses they were showing, and the ones they were
+    // being shown. The first is the account's own to take with it; the second
+    // is somebody else's address sitting in a row that now points at nobody,
+    // which is a disclosure outliving the person it was made to.
+    this.db
+      .prepare('DELETE FROM email_reveals WHERE owner_id = ? OR viewer_id = ?')
+      .run(accountId, accountId);
     this.db
       .prepare('DELETE FROM pending_invites WHERE identifier = ? COLLATE NOCASE')
       .run(account.identifier);

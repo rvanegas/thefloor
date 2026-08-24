@@ -182,6 +182,14 @@ interface AppValue extends AppState {
    * room to say so, rather than from a row in a list.
    */
   removeContact: (contactId: string) => Promise<void>;
+  /**
+   * Shows your sign-in address to one contact, or stops showing it.
+   *
+   * No snapshot follows and none is fetched here: what changes is one field on
+   * one profile, and the screen that asked for it is the screen holding that
+   * profile. It re-reads it, the same way it read it in the first place.
+   */
+  setEmailShown: (contactId: string, shown: boolean) => Promise<void>;
   /** Reads a profile. Rejects when it is not yours to see. */
   loadProfile: (accountId: string) => Promise<ProfileView>;
   /**
@@ -832,6 +840,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await api.removeContact(state.token, contactId);
         const home = await api.home(state.token);
         setState((s) => ({ ...s, home }));
+      },
+
+      setEmailShown: async (contactId, shown) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        await api.setEmailShown(state.token, contactId, shown);
       },
 
       loadProfile: async (accountId) => {

@@ -260,6 +260,23 @@ export const api = {
       token,
     }),
 
+  /**
+   * Shows your own sign-in address to one contact, or stops showing it.
+   *
+   * Yours, about them — which is why it is under `/contacts` and not under the
+   * profile it appears on. There is no global setting behind this: an address
+   * is given to a named person, and the decision exists once per person.
+   *
+   * `shown` comes back from the server rather than being assumed from what was
+   * sent, the same reasoning `notificationLevel` gives: they agree today, and
+   * the caller should be reading the stored answer on the day they do not.
+   */
+  setEmailShown: (token: string, contactId: string, shown: boolean) =>
+    request<{ ok: true; shown: boolean }>(`/contacts/${contactId}/email`, {
+      method: shown ? 'POST' : 'DELETE',
+      token,
+    }),
+
   startChannel: (token: string, contactIds: string[]) =>
     request<{ channelId: string }>('/channels', {
       method: 'POST',

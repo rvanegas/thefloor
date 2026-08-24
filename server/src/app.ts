@@ -1017,12 +1017,73 @@ export function buildApp(options: BuildOptions = {}): App {
     // `inApp` is composed at this point rather than in the query, for the
     // reason `homeFor` gives: whether somebody holds a socket is a fact about
     // this process and not a column.
+    //
+    // The address is the odd one out among these and is meant to be. Everything
+    // else here is released by the reader's standing — being a contact is the
+    // whole of what earns it. An address is released by an act of the person it
+    // belongs to, aimed at one reader, so `emailShownTo` is asked rather than
+    // told, and being a contact only decides whether the question arises.
+    // `myEmailShown` is the same question turned round: the state of the
+    // reader's own button, which lives on this screen because the choice is per
+    // person and there is nowhere else it would be true of.
+    const email = accounts.emailShownTo(id, account.id);
     return {
       ...profile,
       inApp: reachability.inApp(id),
       lastSeenAt: accounts.lastSeenAt(id),
+      ...(email ? { email } : {}),
+      myEmailShown: accounts.showsEmail(account.id, id),
     };
   });
+
+  /**
+   * Shows your sign-in address to one contact, or stops showing it.
+   *
+   * Under `/contacts` rather than `/profiles`, because the path has to read as
+   * what it does: `/profiles/:id` is somebody else's screen, and this writes a
+   * decision of *yours* about the person named. The verb carries the rest —
+   * POST gives, DELETE takes back.
+   *
+   * **Contacts only, and the server is where that is settled.** A profile is
+   * also readable by anybody sharing a live channel, which is a wider audience
+   * than an address should reach: meeting somebody in a room an acquaintance
+   * opened is grounds to ask them to be a contact, and this is a step past
+   * that. The app offers the button on the same test, so the two agree; this is
+   * the one that is load-bearing.
+   *
+   * A 404 for anybody who is not, matching every other refusal on this pair of
+   * screens: whether an id exists is not a thing to be learnt by being told
+   * "not a contact" about some of them.
+   *
+   * Nothing is pushed to the other end. A profile is fetched when somebody
+   * opens one — that is the argument the protocol makes for keeping a bio off
+   * every roster — so the address appears on their screen the next time they
+   * look, which is the only moment it is of any use to them.
+   */
+  async function setEmailShown(
+    request: FastifyRequest,
+    reply: Parameters<typeof requireAccount>[1] & {
+      code: (n: number) => { send: (body: unknown) => unknown };
+    },
+    shown: boolean
+  ) {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!accounts.areContacts(account.id, id)) {
+      return reply.code(404).send({ error: 'No such contact.' });
+    }
+    if (shown) accounts.showEmail(account.id, id, now());
+    else accounts.hideEmail(account.id, id);
+    return { ok: true, shown };
+  }
+
+  fastify.post('/contacts/:id/email', (request, reply) =>
+    setEmailShown(request, reply, true)
+  );
+  fastify.delete('/contacts/:id/email', (request, reply) =>
+    setEmailShown(request, reply, false)
+  );
 
   /**
    * The invitation standings: who has brought the most people here.
