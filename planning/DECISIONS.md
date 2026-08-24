@@ -75,6 +75,35 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-08-24 — `29266a5` → `af41969`
+
+The playback heartbeat, plus `b167172` — another session's contact-removal work,
+which had landed on `master` between the two deploys and rode along as any
+merged commit does.
+
+**Server-only, and the deploy is the whole of shipping it.** No wire change, no
+floor change, no client build: build 87 in the App Store speaks everything this
+needs, which is why the fix could be tested the same hour it was written rather
+than after an upload, a review and a release.
+
+**What it is waiting to find out is whether it ever fires.** The change is a
+correction for a shared-playback pump that has stopped producing frames — see
+§ *A channel that cannot be heard, and nothing that could tell*, the entry above
+this section — and it was diagnosed from the code and from this box rather than
+reproduced on a phone. So the deploy is also the instrument:
+
+    journalctl -u thefloor --since today | grep playbackStalled
+
+**A line there means the server had stopped being audible and rebuilt itself.
+No line, on a recurrence, means the server was producing frames throughout** and
+the fault is on the phone — which is a different afternoon's work, in the audio
+session rather than the pump. Knowing which before starting is the whole value
+of the log line, and it is the reason this went out ahead of any client change.
+
+Nothing to watch on the way in: the stall check runs on the existing tick, the
+heartbeat is a number the pump already had the information for, and a channel
+with no track loaded has no playback session to check.
+
 ### 2026-08-24 — `b37879a` → `29266a5`
 
 The backfill the entry below says was on a branch, plus the build 87 bump that
