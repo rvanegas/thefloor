@@ -152,8 +152,17 @@ export function AudioDebugPanel({
         accessibilityRole="button"
         accessibilityLabel="Audio diagnostics"
       >
+        {/*
+          **The build is on the header, not only in the paste.** It was in the
+          copied text from the start and nowhere on the screen, so the one
+          question asked before every reading — *which build am I holding?* —
+          could only be answered after the reading was taken, or by asking the
+          server what the socket last reported. During a run of one build every
+          hour or two, that is the first thing a person needs and the last
+          thing they could see.
+        */}
         <Text style={styles.header}>
-          {open ? '▾' : '▸'} Audio diagnostics
+          {open ? '▾' : '▸'} Audio diagnostics · build {appBuild() ?? '?'}
           {alarms > 0 && open ? ` · ${alarms} disagreeing` : ''}
         </Text>
       </Pressable>
