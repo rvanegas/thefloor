@@ -7,7 +7,11 @@ import {
   routeSnapshot,
   type RouteSnapshot,
 } from '../../modules/audio-route';
-import { engineSnapshot, type EngineSnapshot } from './engineState';
+import {
+  engineSnapshot,
+  watchEngineTransitions,
+  type EngineSnapshot,
+} from './engineState';
 import { WANTED_MUTE_MODE } from './muteMode';
 import { nameOf } from './session';
 import type { AudioIntent } from './useSessionAudio';
@@ -513,6 +517,12 @@ export function startDiagnosticRecording(): void {
     // gone by the next poll.
     recordEvent(`route ${routeLine(snapshot)}`);
   });
+
+  // The engine's own transitions, which the once-a-second poll above cannot
+  // see and which the reading in the panel can only ever report the aftermath
+  // of. See `watchEngineTransitions` for why these two delegate slots and no
+  // others, and why the handler must not throw.
+  watchEngineTransitions(recordEvent);
 
   AppState.addEventListener('change', (next) => {
     // Foregrounding is the moment the one unreproduced interruption was seen

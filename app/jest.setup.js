@@ -66,6 +66,15 @@ jest.mock('@livekit/react-native', () => ({
     RestartEngine: 1,
     InputMixer: 2,
   },
+  // The two free delegate slots, which src/audio/engineState.ts registers on to
+  // log engine transitions. `willEnableEngine` and `didDisableEngine` are
+  // deliberately absent: registering on those *replaces* the SDK's own audio
+  // policy, and a mock that offered them would make that mistake testable
+  // rather than impossible.
+  audioDeviceModuleEvents: {
+    setWillStartEngineHandler: jest.fn(),
+    setDidStopEngineHandler: jest.fn(),
+  },
   AudioDeviceModule: {
     getMuteMode: jest.fn(() => 1),
     setMuteMode: jest.fn(async () => {}),

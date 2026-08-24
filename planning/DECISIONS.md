@@ -933,3 +933,88 @@ describes. It is in BACKLOG.md as unconfirmed on hardware.
 
 No wire change, no client build, no floor change: `bin/deploy` is the whole of
 shipping it.
+
+## The bisection came back, and build 88 fixes nothing on purpose — 2026-08-24
+
+The entry above shipped a correction for shared playback and, with it, a log
+line whose *absence* was defined in advance to mean something. Within the hour
+the symptom was reproduced on build 87 and the line was absent. This is what
+that bought and what it cost.
+
+### What was settled
+
+Server-side, at the moment the audio was dead: the media participant publishing
+an unmuted track, the phone active in the same room, zero `playbackStalled`
+lines. Phone-side, from the panel: `asked` and `actual` in agreement,
+`audible 1`, route `Speaker`, output available, `other playing F` — and
+`run/rec/play` reading **`F F T`**. Playout enabled, engine stopped.
+
+So the pump, the publication, the room, the subscription and the audio-session
+*configuration* are all cleared in one reading, and the fault is an engine that
+is not running. **That is the whole return on the log line**: yesterday every
+one of those was a live suspect, and no amount of reading source was going to
+retire them, because each was individually plausible and none was observable.
+
+**It also killed the leading hypothesis, which is worth recording because it was
+a good one.** BACKLOG.md had carried the `IDLE` → `LISTENING` edge as never
+confirmed on a device — it changes category options on an already-active session
+rather than activating one, and iOS does not document that. The prediction was
+that the write would not take. The write took: `asked` equals `actual`. What did
+not survive the edge, if it is the edge at all, is the engine rather than the
+configuration — which is a different mechanism reached through the same door.
+
+### What was not settled, and why no fix ships with the instrument
+
+`released LISTENING` is stamped 330ms after the media track was published, and
+the whole reproduction then falls between that line and an `app active` a minute
+and a half later with nothing in between. The category write and the first audio
+that could have been rendered are a third of a second apart. **So "the edge
+stopped the engine" and "something later stopped it" are the same evidence**,
+and the log has no engine events in it to separate them.
+
+Build 88 therefore logs engine transitions and changes no behaviour. The rule it
+is obeying is `engineState.ts`'s own history — on 2026-08-20 one symptom was
+attributed in turn to the session category, to the mute releasing the track, and
+to the engine's mute mode, each reasoned from code that turned out not to
+contain the mechanism, three builds, no change. A fix written now would be a
+fourth guess dressed as a conclusion, and it would ship to a population.
+
+**The instrument registers on `willStartEngine` and `didStopEngine` and could
+not have used any other slot.** Six delegate hooks each hold one handler, and
+the SDK applies its own audio policy from inside `willEnableEngine` and
+`didDisableEngine`, both guarded on whether a JS handler exists — so registering
+there *replaces* the policy rather than observing alongside it. The failure
+would be an echo or a dropped route in a build nobody associates with logging.
+The jest mock offers only the two safe slots, which makes the wrong choice a
+compile error rather than a silent regression.
+
+Three properties of the handler are load-bearing and all three are pinned by
+tests. It must not throw, because a rejection is an error code and an error code
+**cancels the engine operation being reported on** — the instrument becoming the
+fault, which is the only outcome worse than no instrument. It must return
+immediately, because the native side blocks the audio worker thread on it. And
+it must touch nothing but its sink, because calling into the engine or a peer
+connection from inside one can deadlock against the operation it is holding up.
+
+A navigation marker goes with it. Leaving the channel screen for Home and coming
+back is not an `AppState` change, not a route change and not a session write, so
+the move the whole reproduction turns on was invisible to every existing signal.
+That it is invisible is not an oversight: presence is deliberately not
+navigation, which is why the audio hook lives above the screen switch — and
+which is exactly why the marker has to be stamped rather than inferred.
+
+### The finding that does not depend on the cause
+
+`AudioSession.startAudioSession()` is called in one place, once per connection,
+and nothing else ever re-activates the session. The foreground listener that
+would rebuild the room returns early while `status` is `connected`. So an engine
+that dies under a healthy room is unrecoverable: the socket is fine,
+`Disconnected` never fires, and the only repair is gated on a failure that has
+not happened.
+
+**That is the same fault as the one in the entry above, on the other side of the
+wire** — state entirely correct, the thing that makes noise stopped, nothing
+watching — and it explains what no client-side story otherwise could: only a new
+channel restores audio, because only a changing `mediaRoom` re-runs the connect
+effect. It is in BACKLOG.md as the recovery half, and it is worth fixing on its
+own account whatever build 89 turns out to be about.

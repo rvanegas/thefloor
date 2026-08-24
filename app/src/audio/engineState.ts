@@ -1,5 +1,8 @@
 import { Platform } from 'react-native';
-import { AudioDeviceModule } from '@livekit/react-native';
+import {
+  AudioDeviceModule,
+  audioDeviceModuleEvents,
+} from '@livekit/react-native';
 
 /**
  * What the audio engine says about itself.
@@ -97,4 +100,80 @@ export function engineSnapshot(): EngineSnapshot | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Records the moment the audio engine starts and stops, which the poll above
+ * cannot see.
+ *
+ * **`engineSnapshot` answers "what is it now"; this answers "when did it
+ * change", and the difference is the whole reason this exists.** A reading of
+ * `engineRunning: false` taken four minutes after the fact says the engine is
+ * stopped and nothing about what stopped it. Every candidate for that — a
+ * category write, a track arriving, a foregrounding — is stamped in the same
+ * log, so a transition line between two of them is what turns a list of
+ * suspects into an answer. Written 2026-08-24 for TASKS § *Stepping Back In*,
+ * where a phone held a healthy room, a subscribed track and a correctly
+ * configured session, and rendered nothing.
+ *
+ * **It registers on `willStartEngine` and `didStopEngine`, and those two
+ * specifically.** The delegate has six slots, each holding a single handler,
+ * and the SDK's own audio policy is applied from inside `willEnableEngine` and
+ * `didDisableEngine` — both guarded on whether a JS handler is registered, so
+ * registering on either does not sit alongside the policy, it **replaces** it.
+ * The symptom would be an echo or a dropped route in a build nobody associates
+ * with logging. These two are read by nothing and carry the same
+ * `isPlayoutEnabled` / `isRecordingEnabled` pair.
+ *
+ * Three rules, and each is load-bearing rather than defensive:
+ *
+ * - **Never throw.** A handler that rejects returns a non-zero code, and a
+ *   non-zero code *cancels the engine operation it was called about*. So a
+ *   logging fault here would not merely fail to log, it would stop the audio
+ *   it was watching — the instrument becoming the fault, which is the one
+ *   outcome that would make this worse than having no instrument.
+ * - **Return immediately.** The native side blocks the audio worker thread
+ *   until this resolves.
+ * - **Touch nothing but the sink.** Calling into the engine or a peer
+ *   connection from inside one of these can deadlock against the very
+ *   operation being held up.
+ *
+ * The sink is passed in rather than imported so that this file goes on owing
+ * nothing to `diagnostics.ts`, which already reads `engineSnapshot` from here.
+ */
+export function watchEngineTransitions(
+  record: (text: string) => void
+): void {
+  if (Platform.OS !== 'ios') return;
+
+  const handler =
+    (what: string) =>
+    async ({
+      isPlayoutEnabled,
+      isRecordingEnabled,
+    }: {
+      isPlayoutEnabled: boolean;
+      isRecordingEnabled: boolean;
+    }): Promise<void> => {
+      try {
+        record(
+          `engine ${what} play=${flag(isPlayoutEnabled)} rec=${flag(isRecordingEnabled)}`
+        );
+      } catch {
+        // See above: escaping here would cancel the engine operation.
+      }
+    };
+
+  try {
+    audioDeviceModuleEvents.setWillStartEngineHandler(handler('start'));
+    audioDeviceModuleEvents.setDidStopEngineHandler(handler('stop'));
+  } catch {
+    // An SDK bump that moved or removed these leaves the panel with its poll
+    // and no transitions, which is where it was before this existed.
+  }
+}
+
+/** The spelling the panel's own rows use, so the log reads like the reading. */
+function flag(value: boolean): string {
+  return value ? 'T' : 'F';
 }

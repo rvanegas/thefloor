@@ -6,6 +6,7 @@ import { useSessionAudio } from './src/audio/useSessionAudio';
 import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { AppProvider, useApp } from './src/state/AppProvider';
+import { recordEvent } from './src/audio/diagnostics';
 import { liveChannelView } from './src/state/live';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
@@ -116,6 +117,26 @@ function Root() {
    * for the reason above it.
    */
   useKnockNudge(live);
+
+  /**
+   * Which screen you are on, in the audio log.
+   *
+   * Instrumentation only, and it is here because the log could not see the one
+   * move TASKS § *Stepping Back In* is about: leaving the channel screen for
+   * Home and coming back is not an `AppState` change, not a route change and
+   * not a session write, so the whole reproduction happened between two log
+   * lines with nothing in between. Presence is deliberately not navigation —
+   * the audio hook lives above this switch precisely so that walking to Home
+   * does not hang up — which is exactly what makes a navigation marker worth
+   * stamping next to the engine's transitions rather than assumed from them.
+   *
+   * `recordEvent` is called by every build for every account and costs a
+   * string in a forty-element ring; only an account with the `debug` column
+   * can read it back.
+   */
+  useEffect(() => {
+    recordEvent(channelId ? 'screen channel' : 'screen home');
+  }, [channelId]);
 
   /**
    * Follow a conversation that has changed channels.

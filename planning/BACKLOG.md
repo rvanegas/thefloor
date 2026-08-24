@@ -501,34 +501,87 @@ Also unconfirmed on hardware, and cheap to check at the same time: that a
 Bluetooth route survives the microphone opening and closing, which is the
 ground `POSTMORTEM-echo.md` was fought on.
 
+**Half answered on 2026-08-24, and the half that came back is the less
+interesting one.** A build 87 reading taken across this exact edge — alone in a
+channel, the shared track arriving — shows `asked` and `actual` in agreement at
+`playback/spokenAudio`, so the write itself lands on an already-active session.
+What it says nothing about is the question this entry asks, because *no other
+app was playing*: `other playing F`. So whether dropping `mixWithOthers` here
+interrupts anybody is still open, and still needs a podcast running.
+
+What the same reading did find is the entry below: the engine was **stopped**
+underneath that correctly-configured session. Whether this edge is what stopped
+it is exactly what build 88 is being sent to find out — and if it is, the
+fallback above stops being a fallback and becomes the fix.
+
 ---
 
-## The playback rebuild is unconfirmed, and its absence is the next reading
+## The engine stops under a healthy room, and nothing in the app restarts it
 
-Shipped 2026-08-24 for TASKS § *Stepping Back In*, diagnosed from the code and
-from the box rather than reproduced on a device — DECISIONS.md § *A channel that
-cannot be heard, and nothing that could tell* says what the box does and does
-not prove. The fix stands on its own either way: two of the ways the pump stops
-are ways it cannot recover from, and nothing was watching. Whether they are what
-the person heard is the open question.
+**The open half of TASKS § *Stepping Back In*, which is why that entry has gone
+from TASKS and this is here instead.** The server half shipped on 2026-08-24 —
+DECISIONS.md § *A channel that cannot be heard, and nothing that could tell* —
+and the bisection it existed to run came back within the hour, against build
+87, pointing at the phone.
 
-**So the next occurrence is a bisection, and the log line is the fork.** A stall
-now logs `playbackStalled <channelId>`:
+**What the reading says**, taken from the panel with the audio dead and the
+transport still running:
 
-    ssh ... journalctl -u thefloor --since today | grep playbackStalled
+    asked           LISTENING playback/spokenAudio
+    actual          playback/spokenAudio
+    run/rec/play    F F T
+    audible         1
+    out             Speaker(Speaker)
+    other playing   F
 
-Present, and the server had stopped producing frames and has rebuilt itself —
-in which case what to check next is whether the rebuild was quick enough to be
-merely a gap, and how often it fires. **Absent, and the server was producing
-frames throughout**, which moves the whole question to the phone: the audio
-session, `useSessionAudio`'s `startAudioSession`, and the three writers of the
-process-wide configuration that POSTMORTEM-echo.md is about. Those are not the
-same afternoon's work, which is why it is worth knowing which one it is before
-starting.
+Everything is right except the one thing that makes noise. The session is
+exactly what was asked for, so this is **not** the asked-versus-actual bug class
+the panel was built for. The track is subscribed, the route is the speaker, the
+output is available, and no other app holds the session. `engineRunning` is
+false while `playing` is true: playout is enabled and the engine that would
+render it is stopped. Server-side at the same moment the media participant was
+publishing an unmuted track into a room the phone was active in, and no
+`playbackStalled` line was ever logged.
 
-Worth reading `journalctl -u livekit-server` for the same window either way: the
-media participant's `participant closing` line names the reason, and its absence
-is what says the publication survived.
+**What is structurally wrong regardless of what stops the engine.**
+`AudioSession.startAudioSession()` is called in exactly one place — inside the
+connect effect in `useSessionAudio`, once per connection — and nothing else in
+the app ever re-activates the session. The foreground listener that would
+rebuild the room opens with `if (state.status === 'connected' || …) return`. So
+when the engine dies under a *healthy* room, the socket is fine, `status` stays
+`connected`, `Disconnected` never fires, and the one mechanism that could
+restore sound is gated on the room being broken. There is no path back.
+
+That is the same shape as the server fault it was mistaken for — state
+perfectly correct, the thing that makes noise stopped, nothing measuring it —
+and it accounts for the two symptoms no client-side story otherwise explains.
+**Only a new channel restores audio**, because only a changing `mediaRoom`
+re-runs the connect effect and calls `startAudioSession()` again; and stepping
+out and back in does not, because presence is not the room.
+
+**What is not known is what stops it, and the timing is why.** The whole
+reproduction fell between two log lines. `released LISTENING` landed at
+10:47:24.884, **330ms** after the media track was published — so the category
+write and the first audio that could possibly have been rendered are a third of
+a second apart, and "the category change stopped the engine" and "something
+later stopped it" are indistinguishable in a log with no engine events in it.
+There were no route-change lines at all, and the app was backgrounded and
+foregrounded well after the fact without a reconnect.
+
+**Build 88 is instrument-only, deliberately.** It logs engine transitions —
+`willStartEngine` and `didStopEngine`, the two delegate slots the SDK's own
+policy does not use — and stamps which screen you are on, the Home round trip
+being invisible to every existing signal. It changes no behaviour and fixes
+nothing, on the rule `engineState.ts` was written for: three plausible
+mechanisms reasoned from source, three builds, no change. **Read the `engine
+stop` timestamp against `released LISTENING`, `screen channel` and `app active`
+before writing anything.**
+
+The candidate fix, once the cause is known, is in two independent parts. The
+recovery — notice a dead engine under a live room and re-activate — is driven
+by a measurement rather than by a theory about the cause, and would hold
+whatever that turns out to be. The other is the fallback already written down
+in the entry above, for the edge that is still the leading suspect.
 
 ---
 
