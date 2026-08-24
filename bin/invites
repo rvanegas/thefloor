@@ -1,0 +1,106 @@
+#!/bin/bash
+#
+# Contact requests sent to addresses with no account here yet.
+#
+#   bin/invites                against the deployed server
+#   bin/invites --local        the development database on this machine
+#
+# Read-only, always. Deleting one by hand is bin/db --write, and the sweep does
+# it anyway — see below.
+#
+# `pending_invites` is the half of the contact graph that points at people who
+# are not here. It exists so that a request to a real address and a request to
+# an imaginary one look identical from the outside, which is what stops the
+# interface answering "does this person have an account?" to anybody who asks;
+# see db.ts above the table. So this table is also the only list of people who
+# have been asked to join and have not.
+#
+# `requester` is the account id resolved to who it belongs to, which is the
+# column the raw table cannot have. `sent` is created_at as a UTC datetime
+# rather than the epoch milliseconds stored, and `expires_in_days` counts down
+# to the sweep: invites are deleted once they pass INVITE_TTL_MS, so nothing
+# here is older than thirty days and a row is not a permanent record of having
+# asked. The TTL is read from this checkout, not from the box, so it is the
+# number the deployed server enforces only while the two agree.
+#
+# Two flags, both of which mean a row is not doing what the table is for:
+#
+#   * `resolved` — an account with this identifier already exists, so the
+#     invite should have been turned into a real contacts row when they signed
+#     in. Any 1 here is a defect, not a backlog entry.
+#   * `unreachable` — the identifier has no '@' and no digit in it, so it can
+#     name nobody by either transport and no invitation was ever sent for it.
+#     `isPlausibleIdentifier` refuses these now; what is left is what predates
+#     it, and the TTL is what clears them. This test is deliberately narrower
+#     than that function — it flags only what is certainly unreachable, so a 0
+#     is not a promise that the address is good.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_DB="$ROOT/server/thefloor.db"
+
+local_mode=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the header
+    # gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+  esac
+done
+
+# The days figure out of `INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000`, so the
+# countdown moves if that does. Interpolated into SQL below, hence the numeric
+# test; 30 if the line is ever written some other way.
+ttl_days=$(sed -n 's/^export const INVITE_TTL_MS = \([0-9]*\) \* 24 .*/\1/p' \
+  "$ROOT/server/src/accounts.ts" || true)
+[[ "$ttl_days" =~ ^[0-9]+$ ]] || ttl_days=30
+
+sql="
+SELECT COALESCE(a.identifier, p.requester_id) AS requester,
+       p.identifier AS invited,
+       datetime(p.created_at / 1000, 'unixepoch') AS sent,
+       ROUND($ttl_days - (unixepoch() * 1000 - p.created_at) / 86400000.0, 1)
+         AS expires_in_days,
+       EXISTS (SELECT 1 FROM accounts b
+               WHERE b.identifier = p.identifier COLLATE NOCASE) AS resolved,
+       (p.identifier NOT LIKE '%@%'
+         AND p.identifier NOT GLOB '*[0-9]*') AS unreachable
+FROM pending_invites p
+LEFT JOIN accounts a ON a.id = p.requester_id
+ORDER BY requester, p.created_at;
+
+.print ''
+SELECT COUNT(*) AS invites,
+       COUNT(DISTINCT requester_id) AS inviters,
+       -- Folded, because that is how the lookup matches: two rows differing
+       -- only in case are one person waiting, not two.
+       COUNT(DISTINCT lower(identifier)) AS people_invited
+FROM pending_invites;
+"
+
+# Column headers and aligned output: this is for reading, not for piping into
+# something else.
+opts=(-readonly -header -column -cmd '.timeout 2000')
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  echo "→ local · $ttl_days-day TTL"
+  exec sqlite3 "${opts[@]}" "$LOCAL_DB" <<<"$sql"
+fi
+
+echo "→ production · $ttl_days-day TTL"
+# Over stdin rather than interpolated into the remote shell, for the reason
+# bin/db spells out: $, backticks and backslashes are all live in that position.
+exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+  "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \
+  <<<"$sql"
