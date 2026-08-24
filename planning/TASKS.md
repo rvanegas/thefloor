@@ -70,6 +70,14 @@ written from `RoomEvent.TrackMuted` and read by nothing, and since the floor
 withholds subscriptions rather than muting the publication, it is not clear it
 can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
+## Deleting a Channel
+
+Deleting a channel leaves its card in HomeView. Wasn't this already fixed?
+
+## Stepping Into Channels Listed in Profile View
+
+It should be possible to step into channels listed in the profile view.
+
 ## Stepping Back In
 
 To reproduce the error. I step into a channel, play something. When I hear the audio file I tap on Home. I still hear the audio. If I return to Channel View then audio is no longer heard. The player controls indicate the playback continues. It can be paused and resumed, with time indicating advance, but no audio heard. Stepping out and back in doesn't restore audio. Neither does forcibly closing the app and returning. Only stepping into a new channel restores audio with a new playback.
