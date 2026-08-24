@@ -75,6 +75,37 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-24 — `b37879a` → `29266a5`
+
+The backfill the entry below says was on a branch, plus the build 87 bump that
+`bin/upload-ios` committed on its way past.
+
+**It closed the census gap the same minute it opened, which is the only reason
+the gap cost nothing.** `/healthz` went `oldestBuild: 56` → `null` on the
+previous deploy and `null` → `56` on this one, and the nine session rows went
+from nought stamped to nine. The number is the same one it was before the
+migration, which is the point: nothing was measured differently, something was
+briefly not measured at all.
+
+**The timing was luck and is worth naming as luck.** Two things made the
+backfill exactly right rather than approximately right, and both were true only
+because the window was short. Nobody had connected since the restart, so the
+census never entered the partial phase — the dangerous one, where `oldestBuild`
+reads like a healthy number over whichever phones happen to have reconnected.
+And no account had a second session yet, so `accounts.last_build` still held
+what it held under one-session-per-account: that account's only session's
+build. `markSeen` overwrites it with whichever device spoke last, so from the
+first genuine second device onward, copying it down would have stamped a silent
+old phone with a newer phone's build — reintroducing exactly the masking the
+whole change was made to remove.
+
+So the fix had a shelf life measured against the feature it was fixing, and
+`bin/db` is what established that it had not expired: nine sessions, nought
+stamped, no account holding two. **Check the shape of the data before trusting
+a backfill, not just after** — the assertion that made this one legitimate is
+about what the source column meant at the moment it was copied, and no test can
+know that.
+
 ### 2026-08-24 — `5515f16` → `b37879a`
 
 Twelve commits, of which the two that matter are several sessions per account
@@ -116,8 +147,9 @@ to both, and the guard rail that was built for exactly this reads zero.
 The fix is a backfill the migration should have carried: before this change
 there was exactly one session per account, so `accounts.last_seen_at` and
 `accounts.last_build` *are* that session's values and can be copied into any
-`tokens` row that has none. It is on a branch rather than in this deploy,
-because it was found after the restart.
+`tokens` row that has none. It was found after the restart, so it shipped in
+the next deploy rather than this one — see the entry above, which is also where
+the reason its window was closing is written down.
 
 Nothing else was observed to change. Nobody was connected — the most recent
 `accounts.last_seen_at` was 135 minutes old when the box came back, which is
