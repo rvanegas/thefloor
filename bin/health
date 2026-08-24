@@ -1,0 +1,117 @@
+#!/bin/bash
+#
+# What the deployed server says it is, read off /healthz.
+#
+#   bin/health                 the deployed server, one field per line
+#   bin/health --raw           the response body verbatim
+#   bin/health --url URL       some other box; THEFLOOR_URL does the same
+#
+# Read-only, and the one command to run before believing anything AGENTS.md's
+# `## Deployment` section says — that section has been a day stale at least
+# once, and this is the thing that catches it.
+#
+# Three of the fields answer a question the file cannot:
+#
+#   * `commit` is what is actually running, stamped by bin/deploy from the
+#     working tree it sent, so `-dirty` means somebody deployed uncommitted
+#     work. Compared here against this checkout's HEAD, because the difference
+#     is the whole reason to look: same, ahead, or a sha neither of us has.
+#   * `minBuild` is the compatibility floor the server declares;
+#     `oldestBuild` is the oldest build that has actually called in the last
+#     thirty days. Raising the floor past that number ends sessions on phones.
+#   * `silentBuilds` counts accounts in the same window whose build is
+#     unknown — every build up to 36 sends nothing. While it is above zero,
+#     `oldestBuild` is a floor on the known population and not the real one,
+#     and a shim must not be deleted on the strength of it. See
+#     server/src/release.ts.
+#
+# Nothing here is authority over the media plane: `audio` says only that this
+# process was built with LiveKit configured, not that livekit-server is up.
+# `journalctl -u livekit-server` is that question.
+set -euo pipefail
+
+BASE=${THEFLOOR_URL:-https://thefloor.rvanegas.co}
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+raw=false
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --raw) raw=true ;;
+    --url) shift; [ $# -gt 0 ] || { echo "--url needs a value" >&2; exit 1; }
+           BASE=$1 ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the
+    # header gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
+
+# A failure here is the answer, not an error to be dressed up: an unreachable
+# box and an unhealthy one are both "no", and curl already says which.
+if ! body=$(curl -fsS --max-time 10 "$BASE/healthz"); then
+  echo "✗ $BASE/healthz did not answer" >&2
+  exit 1
+fi
+
+if $raw; then
+  echo "$body"
+  exit 0
+fi
+
+# Read one field out of the flat object /healthz returns. Flat is the whole
+# assumption — no nesting, no arrays — which is true of this endpoint and is
+# why a sed reach is enough and jq is not a dependency of this repository.
+field() {
+  echo "$body" \
+    | sed -n "s/.*\"$1\":[[:space:]]*\"\{0,1\}\([^,\"}]*\)\"\{0,1\}.*/\1/p"
+}
+
+commit=$(field commit)
+min=$(field minBuild)
+oldest=$(field oldestBuild)
+silent=$(field silentBuilds)
+
+echo "$BASE"
+printf '  %-13s %s\n' ok "$(field ok)"
+printf '  %-13s %s\n' audio "$(field audio)"
+
+# The comparison bin/deploy makes at the end of a deploy, made again whenever
+# somebody wonders. A local checkout that is ahead is the ordinary state
+# between landing and deploying; it is worth saying which way round it is
+# rather than leaving two shas side by side to be diffed by eye.
+note=""
+if head=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null); then
+  clean=${commit%-dirty}
+  if [ "$clean" = "$head" ]; then
+    note="  (this checkout's HEAD)"
+  elif git -C "$ROOT" merge-base --is-ancestor "$clean" HEAD 2>/dev/null; then
+    behind=$(git -C "$ROOT" rev-list --count "$clean"..HEAD 2>/dev/null || echo)
+    note="  (HEAD is $behind commit(s) ahead — undeployed)"
+  elif git -C "$ROOT" cat-file -e "$clean^{commit}" 2>/dev/null; then
+    note="  (not an ancestor of HEAD — this checkout is behind or diverged)"
+  else
+    note="  (unknown here — fetch, or it was never pushed)"
+  fi
+fi
+printf '  %-13s %s%s\n' commit "$commit" "$note"
+
+printf '  %-13s %s\n' minBuild "$min"
+printf '  %-13s %s\n' oldestBuild "$oldest"
+printf '  %-13s %s%s\n' silentBuilds "$silent" \
+  "$([ "$silent" = "0" ] || echo "  (oldestBuild is a floor on the known population only)")"
+printf '  %-13s %s\n' updateUrl "$(field updateUrl)"
+
+# The floor this checkout would deploy, against the one that is deployed.
+# Raising MIN_SUPPORTED_BUILD is the change whose blast radius is phones
+# rather than the box, so a difference here is worth naming out loud.
+local_min=$(sed -n 's/^export const MIN_SUPPORTED_BUILD = \([0-9]*\).*/\1/p' \
+  "$ROOT/server/src/release.ts" 2>/dev/null || true)
+if [ -n "$local_min" ] && [ "$local_min" != "$min" ]; then
+  echo
+  echo "! this checkout's MIN_SUPPORTED_BUILD is $local_min, deployed is $min"
+fi
