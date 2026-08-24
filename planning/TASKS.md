@@ -70,15 +70,13 @@ written from `RoomEvent.TrackMuted` and read by nothing, and since the floor
 withholds subscriptions rather than muting the publication, it is not clear it
 can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
+## Stepping Back In
+
+To reproduce the error. I step into a channel, play something. When I hear the audio file I tap on Home. I still hear the audio. If I return to Channel View then audio is no longer heard. The player controls indicate the playback continues. It can be paused and resumed, with time indicating advance, but no audio heard. Stepping out and back in doesn't restore audio. Neither does forcibly closing the app and returning. Only stepping into a new channel restores audio with a new playback.
+
 ## Transcripts
 
 Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel.
-
-## Watch Party
-
-**Built 2026-08-23.** Kept as an entry rather than deleted, because what the line below asked for and what it turned out to mean are two different things and the difference is the interesting part: it reads as a second media pipeline and is a shared transport clock over a YouTube link, The Floor carrying no video at all. DECISIONS.md § *The Floor carries no video, and that is the whole watch party* is the reasoning; WATCHPARTY.md is gone, having been the design while it was being designed. Walked once on the day it shipped, verdict *mostly works*; what that found is DECISIONS.md § *A watch party leaks into the channel through the microphone*, which is a property rather than a defect and is now said in the interface. The rest of the walk is outstanding and is BACKLOG.md § *The watch party has been walked once*. The in-app player is deliberately not built and would be its own entry.
-
-Currently, media play allows uploaded audio to be played and included into exportable recordings. Independently of this functionality, a watch party plays video, and disallows recordings. Plan is here: WATCHPARTY.md
 
 ## Availability Logic
 
@@ -88,7 +86,21 @@ By way of indicators and notifications, users know when their contacts are avail
 
 What happens when user receives a phone call?
 
+## Auth and Sessions
+
+Allow multiple sessions on distinct devices. What is disallowed is only to be present in more than one channel. Stepping into a channel on one device implicitly steps out of any other channel on any other device.
+
+## Watch Party Auth
+
+Members in a channel who have not stepped in should not have access to watch party controls.
+
+## App as Watch Party Player
+
+If watch party is started and a there is a second session with the same account, let the second app become the player.
+
 ## Publishable Recordings
+
+A channel may declare itself public. If public, then it has a page at thefloor.rvanegas.co where anyone can listen to selected recordings. Settings would include image. Name and description would show on the page. Contacts remain private, though they may be explicitly described in the description.
 
 ## Calendar Integrations
 
