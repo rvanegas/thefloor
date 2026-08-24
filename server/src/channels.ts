@@ -86,6 +86,24 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 export const USAGE_POLL_INTERVAL_MS = 15_000;
 
 /**
+ * How long shared playback may go without producing a frame before it is
+ * rebuilt.
+ *
+ * The pump publishes a frame every 10ms whether or not anything is playing, so
+ * anything approaching a second here is already a fault. Five seconds is slack
+ * for a garbage collection on two shared vCPUs, and it bounds how long a
+ * channel can be silent without anybody being able to tell — which used to be
+ * *for ever*, because nothing in this system measured it. Everything anybody
+ * looked at instead was computed from committed state: the transport advanced,
+ * the position moved, pause and play both worked, and no audio was produced.
+ * See TASKS § *Stepping Back In*.
+ *
+ * The rebuild is not free — a reconnect and a republish, a second or so — so
+ * this is deliberately not tight enough to fire on an ordinary stutter.
+ */
+export const PLAYBACK_STALL_MS = 5_000;
+
+/**
  * How long a channel stays quiet after announcing itself.
  *
  * A channel becoming active is worth a notification; the same channel emptying
@@ -582,6 +600,47 @@ export class ChannelRegistry {
         this.checkpointRun(channel, now);
       }
     }
+
+    // The third self-correction, and the one that is a measurement rather than
+    // a restatement: the two above ask whether what was *said* is still true,
+    // and this asks whether the shared track is producing anything at all.
+    for (const [id, session] of this.playback) {
+      const channel = this.channels.get(id);
+      if (!channel || channel.status !== 'active') continue;
+      if (now - session.producedAt() <= PLAYBACK_STALL_MS) continue;
+      this.rebuildPlayback(id, session);
+    }
+  }
+
+  /**
+   * Replaces a shared playback that has stopped being heard.
+   *
+   * The pump is not asked to recover itself, because the ways it stops are the
+   * ways it cannot: a capture that never returns from the media library leaves
+   * the loop pending for the life of the process, and a media participant whose
+   * connection has gone has nowhere to put a frame. Both leave every piece of
+   * state this server shows anybody perfectly correct — which is why this is
+   * driven off the heartbeat and not off anything the reducer knows.
+   *
+   * `openPlayback` already does the whole of the catching up: it reads the
+   * current file, resumes at the transport's position and re-opens the stem if
+   * a recording is running. So a rebuild is a close and an open, and the only
+   * thing that has to be right here is the order — the entry goes first, or the
+   * open refuses on the grounds that there is already one.
+   *
+   * Closing files whatever the old stem had captured, which is the best that
+   * can be done for a run this interrupted: the export concatenates a
+   * participant's segments, so the gap is silent audio rather than a broken
+   * recording.
+   */
+  private rebuildPlayback(channelId: string, session: PlaybackSession): void {
+    this.playback.delete(channelId);
+    this.onMediaError(
+      new Error('Shared playback stopped producing frames; rebuilding it.'),
+      `playbackStalled ${channelId}`
+    );
+    this.run(() => session.close(), `closeStalledPlayback ${channelId}`);
+    this.openPlayback(channelId);
   }
 
   onChange(listener: ChangeListener): () => void {

@@ -46,6 +46,51 @@ class ConstantDecoder implements Decoder {
   }
 }
 
+/**
+ * Serves nothing until it is told to, and models the one thing about
+ * `FfmpegDecoder` that matters here: **stopping it does not answer the read**.
+ *
+ * Killing the process wakes the waiter, which then finds neither samples nor an
+ * end and waits again; the answer — `null`, indistinguishable from the file
+ * running out — arrives only when the child's `close` event does, which is
+ * whenever the operating system gets round to it. So the read outlives the call
+ * that abandoned it, which is the whole of the race.
+ */
+class BlockingDecoder implements Decoder {
+  stopped = false;
+  private waiting: ((frame: Int16Array | null) => void) | null = null;
+
+  constructor(
+    readonly fromMs: number,
+    private samplesPerFrame = 0
+  ) {}
+
+  read(samples: number): Promise<Int16Array | null> {
+    this.samplesPerFrame = samples;
+    return new Promise((resolve) => {
+      this.waiting = resolve;
+    });
+  }
+
+  /** Answers the read that is waiting, with a frame of this value. */
+  deliver(value: number): void {
+    const waiting = this.waiting;
+    this.waiting = null;
+    waiting?.(new Int16Array(this.samplesPerFrame).fill(value));
+  }
+
+  /** The dead process's `close` event, arriving after whoever killed it left. */
+  end(): void {
+    const waiting = this.waiting;
+    this.waiting = null;
+    waiting?.(null);
+  }
+
+  async stop() {
+    this.stopped = true;
+  }
+}
+
 class RecordingSink implements FrameSink {
   readonly frames: Int16Array[] = [];
   closed = false;
@@ -164,6 +209,66 @@ describe('pacing', () => {
   });
 });
 
+/**
+ * The heartbeat, which is the only thing about this pump that anybody outside
+ * it can measure. Everything else about shared playback is committed state, and
+ * committed state goes on describing a channel that stopped being audible.
+ */
+describe('the heartbeat', () => {
+  it('advances with every frame that reaches the room', async () => {
+    const sink = new RecordingSink();
+    let clock = 1_000;
+    const p = new PlaybackPump({
+      sink,
+      openDecoder: (_f, from) => new ConstantDecoder(from),
+      now: () => clock,
+    });
+    p.start();
+    // Nothing has been produced yet, so the stamp is the moment it started —
+    // a pump that never produces a frame is stale from the off rather than
+    // permanently new.
+    expect(p.producedAt()).toBe(1_000);
+
+    clock = 5_000;
+    await p.pumpOnce();
+    expect(p.producedAt()).toBe(5_000);
+
+    await p.close();
+  });
+
+  it('stops advancing when the sink stops taking frames', async () => {
+    const pending: { release?: () => void } = {};
+    const wedged: FrameSink = {
+      capture: () =>
+        new Promise<void>((resolve) => {
+          pending.release = resolve;
+        }),
+      close: async () => {},
+    };
+    let clock = 1_000;
+    const p = new PlaybackPump({
+      sink: wedged,
+      openDecoder: (_f, from) => new ConstantDecoder(from),
+      now: () => clock,
+    });
+    p.start();
+    clock = 9_000;
+    await new Promise((r) => setTimeout(r, 10));
+
+    // The loop is inside a capture that will never return — which is what a
+    // media library that has lost its answer looks like, and what nothing in
+    // this system could see until this stamp existed.
+    expect(p.producedAt()).toBe(1_000);
+
+    // And closing it still finishes, or the rebuild that a stall triggers
+    // would be blocked by the very pump it is replacing.
+    await p.close();
+    // Only so this test leaves nothing pending behind it; the pump has already
+    // stopped caring what this frame's answer was.
+    pending.release?.();
+  }, 2_000);
+});
+
 describe('producing frames', () => {
   it('publishes silence when nothing is playing, rather than nothing at all', async () => {
     const { pump: p, sink } = build();
@@ -231,6 +336,51 @@ describe('seeking and resuming', () => {
     await p.play(30_000);
     expect(opened).toHaveLength(2);
     expect(opened[1].fromMs).toBe(30_000);
+  });
+
+  /**
+   * The seek that arrives while the pump is waiting for samples.
+   *
+   * Stopping a decoder wakes the read that is waiting on it, and a killed
+   * ffmpeg answers `null` — which is the same word the pump uses for "the file
+   * ran out". Read as the second thing, it stops the decoder that was opened a
+   * moment ago and leaves `playing` false: a channel publishing silence for the
+   * rest of its life, with the transport running on every screen. TASKS §
+   * *Stepping Back In*.
+   */
+  it('ignores a read answered by a decoder that has since been replaced', async () => {
+    const sink = new RecordingSink();
+    const opened: BlockingDecoder[] = [];
+    const p = new PlaybackPump({
+      sink,
+      volume: 1,
+      openDecoder: (_file, fromMs) => {
+        const decoder = new BlockingDecoder(fromMs);
+        opened.push(decoder);
+        return decoder;
+      },
+    });
+    await p.setFile('track.mp3');
+    await p.play(0);
+
+    // A frame is in flight, waiting on the first decoder, when the seek lands.
+    const inFlight = p.pumpOnce();
+    await p.play(30_000);
+    // And the decoder the seek abandoned ends a moment later, as a killed
+    // ffmpeg does.
+    opened[0].end();
+    await inFlight;
+
+    expect(opened).toHaveLength(2);
+    // The frame that was in flight is silence — it has no samples to carry —
+    // but the seek that overtook it is still playing.
+    const next = p.pumpOnce();
+    opened[1].deliver(1000);
+    await next;
+
+    expect(sink.frames).toHaveLength(2);
+    expect(sink.frames[1].every((s) => s === 1000)).toBe(true);
+    expect(opened[1].stopped).toBe(false);
   });
 
   it('changes file without disturbing anything else', async () => {

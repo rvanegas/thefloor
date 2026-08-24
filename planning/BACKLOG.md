@@ -503,6 +503,35 @@ ground `POSTMORTEM-echo.md` was fought on.
 
 ---
 
+## The playback rebuild is unconfirmed, and its absence is the next reading
+
+Shipped 2026-08-24 for TASKS § *Stepping Back In*, diagnosed from the code and
+from the box rather than reproduced on a device — DECISIONS.md § *A channel that
+cannot be heard, and nothing that could tell* says what the box does and does
+not prove. The fix stands on its own either way: two of the ways the pump stops
+are ways it cannot recover from, and nothing was watching. Whether they are what
+the person heard is the open question.
+
+**So the next occurrence is a bisection, and the log line is the fork.** A stall
+now logs `playbackStalled <channelId>`:
+
+    ssh ... journalctl -u thefloor --since today | grep playbackStalled
+
+Present, and the server had stopped producing frames and has rebuilt itself —
+in which case what to check next is whether the rebuild was quick enough to be
+merely a gap, and how often it fires. **Absent, and the server was producing
+frames throughout**, which moves the whole question to the phone: the audio
+session, `useSessionAudio`'s `startAudioSession`, and the three writers of the
+process-wide configuration that POSTMORTEM-echo.md is about. Those are not the
+same afternoon's work, which is why it is worth knowing which one it is before
+starting.
+
+Worth reading `journalctl -u livekit-server` for the same window either way: the
+media participant's `participant closing` line names the reason, and its absence
+is what says the publication survived.
+
+---
+
 ## Donations arrive by webhook alone, and nothing reconciles them
 
 `POST /donations/kofi` is the only writer to the `donations` table. **Ko-fi has no

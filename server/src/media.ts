@@ -9,6 +9,7 @@ import {
   AudioSource,
   LocalAudioTrack,
   Room as RtcRoom,
+  RoomEvent,
   TrackPublishOptions,
   TrackSource,
 } from '@livekit/rtc-node';
@@ -185,6 +186,21 @@ export interface PlaybackSession {
   /** Finishes the current stem and stores it. */
   stopCapture(): Promise<void>;
   close(): Promise<void>;
+  /**
+   * When this session last put a frame into the room, in the server's clock.
+   *
+   * The one thing about shared playback that is a measurement rather than a
+   * statement of intent. Everything else anybody can look at — the transport,
+   * the position, the recording's red dot — is computed from committed state
+   * and goes on being cheerful about a publication that stopped being audible
+   * an hour ago. Frames are produced whether or not anything is playing, so
+   * this advancing is what "the room can hear this channel" means.
+   *
+   * A session whose connection is gone answers 0, which is stale by
+   * construction: it will never produce another frame, and the caller's
+   * staleness test should not need a second question to find that out.
+   */
+  producedAt(): number;
 }
 
 export interface RecordingStorage {
@@ -444,13 +460,36 @@ class AudioSourceSink implements FrameSink {
 class LiveKitPlaybackSession implements PlaybackSession {
   private encoder: FfmpegStemEncoder | null = null;
   private capture: { key: string; dir: string; path: string } | null = null;
+  /**
+   * Set when the room says this participant is no longer in it.
+   *
+   * The media participant is a client like any other and can lose its
+   * connection like any other — and unlike a phone, nobody is holding it to
+   * notice. The pump goes on producing frames into a source that reaches
+   * nowhere, so its heartbeat keeps advancing and would report a healthy
+   * session that no one in the room can hear.
+   */
+  private lost = false;
 
   constructor(
     private pump: PlaybackPump,
     private rtc: RtcRoom,
     private ffmpegPath: string,
     private storage?: RecordingStorage
-  ) {}
+  ) {
+    this.rtc.on(RoomEvent.Disconnected, () => {
+      this.lost = true;
+    });
+  }
+
+  /**
+   * The pump's own stamp, which is `Date.now` — the same clock the registry
+   * measures staleness against in production. Nothing injects a clock into
+   * this class, and a second one here would be a second thing to keep in step.
+   */
+  producedAt(): number {
+    return this.lost ? 0 : this.pump.producedAt();
+  }
 
   setFile(file: string): Promise<void> {
     return this.pump.setFile(file);
@@ -754,6 +793,12 @@ export class MemoryPlaybackSession implements PlaybackSession {
   readonly captures: Array<{ key: string; offsetMs: number; stopped: boolean }> =
     [];
   closed = false;
+  /**
+   * Whether this pump is still putting frames in the room. Set false to make a
+   * test's playback look wedged, which is what the registry's stall check acts
+   * on.
+   */
+  producing = true;
 
   constructor(
     readonly room: string,
@@ -789,5 +834,16 @@ export class MemoryPlaybackSession implements PlaybackSession {
 
   async close() {
     this.closed = true;
+  }
+
+  /**
+   * Now while it is producing, and the beginning of time when it is not.
+   *
+   * A fake has no clock of its own, and the two answers the registry can act on
+   * are "recently" and "not for ages" — so they are stated as the extremes
+   * rather than by handing this a second clock to keep in step with the first.
+   */
+  producedAt(): number {
+    return this.producing ? Number.MAX_SAFE_INTEGER : 0;
   }
 }

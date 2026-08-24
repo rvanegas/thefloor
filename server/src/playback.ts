@@ -76,6 +76,21 @@ export interface PlaybackPumpOptions {
  */
 const RESYNC_AFTER_MS = 200;
 
+/**
+ * How long `close` waits for the loop to finish the frame it is on.
+ *
+ * Closing has to be bounded because the loop's own await is not: `capture`
+ * resolves when the FFI acknowledges the buffer, and an acknowledgement that
+ * never arrives leaves `pumpOnce` pending for the life of the process. Waiting
+ * on the loop unconditionally would then hang whoever is closing — a channel
+ * ending, or the rebuild that a stall is supposed to trigger — which is how a
+ * wedged pump takes the thing that would have replaced it down with it.
+ *
+ * A frame takes under a millisecond to publish, so this is generous by two
+ * orders of magnitude and is only ever paid by a pump that is already broken.
+ */
+const CLOSE_GRACE_MS = 250;
+
 export class PlaybackPump {
   private file: string | null = null;
   private decoder: Decoder | null = null;
@@ -84,6 +99,16 @@ export class PlaybackPump {
   private closed = false;
   private volume: number;
   private loop: Promise<void> | null = null;
+  /**
+   * When the last frame reached the sink, which is the only evidence that this
+   * pump is still a thing anybody can hear.
+   *
+   * Zero until `start`, so a pump that has never run reads as stale rather than
+   * as new. Nothing here acts on it — the registry does, once a tick — because
+   * the correction for a pump that has stopped is to build another one, and a
+   * pump cannot build its own replacement.
+   */
+  private lastFrameAt = 0;
 
   constructor(private options: PlaybackPumpOptions) {
     this.volume = clampVolume(options.volume ?? 1);
@@ -98,7 +123,26 @@ export class PlaybackPump {
    */
   start(): void {
     if (this.loop) return;
+    this.lastFrameAt = this.clock();
     this.loop = this.run();
+  }
+
+  /** The clock the pacing and the heartbeat share, injectable for tests. */
+  private clock(): number {
+    return (this.options.now ?? Date.now)();
+  }
+
+  /**
+   * When a frame last reached the sink.
+   *
+   * The heartbeat a stall is read off. Frames are 10ms apart and are produced
+   * whether or not anything is playing, so this advancing is the difference
+   * between a channel that is quiet and one that has stopped being audible at
+   * all — which are indistinguishable from every other signal this server has,
+   * including the transport, which is a clock rather than a measurement.
+   */
+  producedAt(): number {
+    return this.lastFrameAt;
   }
 
   /**
@@ -158,13 +202,29 @@ export class PlaybackPump {
     // received. Both get the identical buffer, which is the point.
     this.encoder?.write(frame);
     await this.options.sink.capture(frame);
+    this.lastFrameAt = this.clock();
   }
 
   private async nextFrame(): Promise<Int16Array> {
     const frame = new Int16Array(SAMPLES_PER_FRAME);
     if (!this.playing || !this.decoder) return frame;
 
-    const decoded = await this.decoder.read(SAMPLES_PER_FRAME);
+    const decoder = this.decoder;
+    const decoded = await decoder.read(SAMPLES_PER_FRAME);
+
+    /**
+     * The read was answered by a decoder that has since been replaced, so its
+     * answer says nothing about what is playing now.
+     *
+     * `play` and `pause` both stop the current decoder, and stopping one wakes
+     * whatever read is waiting on it — with `null`, because a killed ffmpeg
+     * ends. Acting on that below would set `playing` false and stop the
+     * decoder that had just been opened: a seek issued while the pump happened
+     * to be waiting for samples left the channel publishing silence for the
+     * rest of its life, with every screen showing the transport running.
+     */
+    if (this.decoder !== decoder) return frame;
+
     if (decoded === null) {
       // The file ran out. The channel's own clock decides when the track is
       // over; the pump simply has nothing more to contribute.
@@ -245,7 +305,9 @@ export class PlaybackPump {
     this.playing = false;
     await this.stopDecoder();
     await this.stopCapture();
-    if (this.loop) await this.loop.catch(() => {});
+    // Bounded, and see CLOSE_GRACE_MS: the loop exits after the frame it is
+    // on, and the frame it is on is exactly what a wedged sink never finishes.
+    if (this.loop) await Promise.race([this.loop.catch(() => {}), grace()]);
     await this.options.sink.close();
   }
 
@@ -254,6 +316,16 @@ export class PlaybackPump {
     this.decoder = null;
     if (decoder) await decoder.stop();
   }
+}
+
+/**
+ * The bound on `close`. Unref'd so a process with nothing else to do is not
+ * held open by the grace period of a pump that is already shutting down.
+ */
+function grace(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, CLOSE_GRACE_MS).unref?.();
+  });
 }
 
 function clampVolume(volume: number): number {

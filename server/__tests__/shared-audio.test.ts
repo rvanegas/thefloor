@@ -481,6 +481,65 @@ describe('what was played reaches the recording', () => {
   });
 });
 
+/**
+ * TASKS § *Stepping Back In*: a channel that stopped being audible while every
+ * screen went on saying it was playing.
+ *
+ * The reason it could last for the life of the channel is that nothing in this
+ * server measured the thing that had failed. The transport is a clock, the
+ * position is arithmetic on it, and pause and play both went on working — all
+ * of them correct, all of them about committed state, and none of them about
+ * whether a frame reached the room. Stepping out and back in did not help
+ * because the participant is kept for the channel's life on purpose, and
+ * force-quitting did not because the fault was never on the phone. Only a new
+ * channel helped, because only a new channel built a new pump.
+ */
+describe('playback that has stopped being heard', () => {
+  it('is rebuilt, and resumes where the transport says it is', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    await upload(alice.token, channelId);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PLAY' });
+    await settle();
+
+    const first = media.playbackFor(channelId)!;
+    expect(media.playbacks).toHaveLength(1);
+
+    // Half a second in, the pump stops producing frames — a capture the media
+    // library never answers, or a media participant whose connection has gone.
+    // Nothing the reducer knows changes, which is the point.
+    clock += 500;
+    first.producing = false;
+    app.channels.tick();
+    await settle();
+
+    expect(first.closed).toBe(true);
+    expect(media.playbacks).toHaveLength(2);
+    const second = media.playbacks[1];
+    expect(second.identity).toBe(playbackIdentity(channelId));
+    expect(second.file).toBe(first.file);
+    // Not from the top: the transport ran on through the silence, and the
+    // rebuild has to arrive where everybody's screen already is.
+    expect(second.commands).toContainEqual({ type: 'play', fromMs: 500 });
+    expect(app.channels.get(channelId)!.playback.status).toBe('playing');
+  }, 30_000);
+
+  it('is left alone while it is still producing, playing or not', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    await upload(alice.token, channelId);
+    await settle();
+
+    // Paused, and still pumping silence — which is what keeps a recording's
+    // stem aligned, and is exactly the state a naive "is it playing" check
+    // would mistake for a fault.
+    clock += 60_000;
+    app.channels.tick();
+    await settle();
+
+    expect(media.playbacks).toHaveLength(1);
+    expect(media.playbackFor(channelId)!.closed).toBe(false);
+  }, 30_000);
+});
+
 describe('an empty channel stops making noise', () => {
   it('pauses the pump when the last person steps out', async () => {
     // The reducer pauses; this is the half that matters to anyone standing
