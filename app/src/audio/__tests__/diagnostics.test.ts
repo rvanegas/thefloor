@@ -4,6 +4,7 @@ import {
   diagnosticEvents,
   diagnosticSections,
   diagnosticText,
+  LOG_LIMIT,
   muteModeName,
   profileHint,
   recordEvent,
@@ -307,14 +308,19 @@ describe('the event log', () => {
     expect(diagnosticEvents().map((e) => e.text)).toEqual(['first', 'second']);
   });
 
+  // Written against `LOG_LIMIT` rather than against its value, which was 40
+  // and is 200 since the fault being chased became one that takes minutes of
+  // stepping in and out to provoke. The property is the bound; the number is a
+  // judgement about how much context a reading needs, and it has moved once.
   it('is bounded, so a long session cannot grow it without limit', () => {
-    for (let i = 0; i < 60; i += 1) recordEvent(`line ${i}`);
+    const over = LOG_LIMIT + 20;
+    for (let i = 0; i < over; i += 1) recordEvent(`line ${i}`);
     const texts = diagnosticEvents().map((e) => e.text);
-    expect(texts).toHaveLength(40);
+    expect(texts).toHaveLength(LOG_LIMIT);
     // The oldest go, not the newest: a transient is interesting when it is
     // fresh, and the panel is opened after the thing was heard.
-    expect(texts[texts.length - 1]).toBe('line 59');
-    expect(texts[0]).toBe('line 20');
+    expect(texts[texts.length - 1]).toBe(`line ${over - 1}`);
+    expect(texts[0]).toBe(`line ${over - LOG_LIMIT}`);
   });
 
   it('tells a mounted panel when a line lands', () => {

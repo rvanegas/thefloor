@@ -16,6 +16,11 @@ import {
 import { setAllowHapticsDuringRecording } from '../../modules/audio-route';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
+import {
+  initialPlayoutWatch,
+  onPlayoutSample,
+  PLAYOUT_POLL_MS,
+} from './playout';
 import { nameOf, policyFor, sessionFor } from './session';
 import {
   NOBODY_SPEAKING,
@@ -818,6 +823,31 @@ export function useSessionAudio(
     // a microphone that is open, for a configuration that has not changed.
     const applied = appliedRef.current;
     if (applied && applied.intent === intent && applied.config === config) {
+      // **The configuration has not moved, but what explains it may have.**
+      // Since build 90 both closed states return the same object, so a track
+      // arriving no longer writes the session — and `asked` used to be
+      // refreshed only when it did. The panel reads `audible` off `asked`, so
+      // it froze at the connect value of zero and went on reporting *nothing
+      // subscribed* through a subscription that had plainly happened. A
+      // diagnostic asserting something false is worse than one saying nothing,
+      // and it cost a wrong diagnosis on 2026-08-24 before the log line beside
+      // it gave it away.
+      setState((s) =>
+        s.asked && s.asked.othersAudible === s.othersAudible
+          ? s
+          : {
+              ...s,
+              asked: {
+                selfMuted,
+                micNeeded,
+                anyMicOpen,
+                othersAudible: s.othersAudible,
+                intent,
+                session: config,
+                playout: policyFor(anyMicOpen, s.othersAudible).playout,
+              },
+            }
+      );
       return;
     }
     appliedRef.current = { intent, config };
@@ -876,6 +906,61 @@ export function useSessionAudio(
       s.micOpen === transmitting ? s : { ...s, micOpen: transmitting }
     );
   }, [selfMuted, micNeeded, anyMicOpen, state.status, state.othersAudible]);
+
+  /**
+   * Watches whether this device is rendering what it is subscribed to.
+   *
+   * **The one measurement here that cannot be the fault**, which is why it
+   * exists at all: every reader in `engineState.ts` touches the audio device
+   * module, and touching it is what stopped the sound for four days. This asks
+   * the *receiver* instead — `inbound-rtp` statistics, through livekit-client
+   * — and the ADM is never involved. See `audio/playout.ts` for why a sample
+   * count means anything.
+   *
+   * Log-only. It counts and dates a fault that until now was caught by ear,
+   * inside a ring, by somebody who happened to be listening.
+   *
+   * Runs only while connected with something subscribed, and stops while the
+   * app is in the background, where the engine stops on purpose and a frozen
+   * count would be a finding about nothing.
+   */
+  useEffect(() => {
+    if (state.status !== 'connected' || state.othersAudible === 0) return;
+    let watch = initialPlayoutWatch(Date.now());
+    let cancelled = false;
+
+    const poll = async () => {
+      const room = roomRef.current;
+      if (!room || cancelled || AppState.currentState !== 'active') return;
+      // Summed across whatever is subscribed, which is one track in every case
+      // this app creates and would be several in a fuller room. What matters is
+      // that *something* is being rendered, not which.
+      let total: number | null = null;
+      for (const participant of room.remoteParticipants.values()) {
+        for (const publication of participant.audioTrackPublications.values()) {
+          const track = publication.audioTrack;
+          // `remoteParticipants` cannot hold a local track, but the publication
+          // type admits one — so this is narrowed rather than asserted. A cast
+          // here would be the kind of shortcut that survives an SDK change by
+          // failing silently, which is the whole hazard this file is about.
+          if (!track || !('getReceiverStats' in track)) continue;
+          const stats = await track.getReceiverStats().catch(() => undefined);
+          const samples = stats?.totalSamplesDuration;
+          if (typeof samples === 'number') total = (total ?? 0) + samples;
+        }
+      }
+      if (cancelled) return;
+      const { next, event } = onPlayoutSample(watch, total, Date.now());
+      watch = next;
+      if (event) recordEvent(event);
+    };
+
+    const timer = setInterval(() => void poll(), PLAYOUT_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [state.status, state.othersAudible]);
 
   /**
    * Attached on the way out rather than held in state, so a rebuild is not

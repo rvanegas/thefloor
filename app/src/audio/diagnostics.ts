@@ -453,7 +453,27 @@ export interface DiagnosticEvent {
 }
 
 /** Enough to cover a minute of fiddling, and bounded so it cannot grow. */
-const LOG_LIMIT = 40;
+/**
+ * How many events the log holds, oldest dropped first.
+ *
+ * **Forty until 2026-08-24, and forty was chosen for a panel somebody read
+ * while a fault was in front of them.** What is being chased now is
+ * intermittent: it is provoked over several minutes of stepping in and out and
+ * backgrounding, and a single walk to Home and back costs six lines. Forty was
+ * about six passes — so the connect and the subscribe that explain a freeze
+ * could roll off the top before the freeze itself arrived, and the reading that
+ * survived would be the least informative part of the run.
+ *
+ * Two hundred is a few thousand characters, copied as text and read once. It
+ * costs a `slice` on an array of two hundred per event, which is nothing beside
+ * the native calls this file already makes.
+ *
+ * **It is still memory, and that is the remaining weakness.** The log does not
+ * survive a force-quit, a crash or an app update, which are exactly the three
+ * things somebody does when the audio has stopped and they want it back. Ask
+ * for the copy before the reinstall.
+ */
+export const LOG_LIMIT = 200;
 
 let events: DiagnosticEvent[] = [];
 const listeners = new Set<() => void>();
