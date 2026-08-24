@@ -53,27 +53,26 @@ day: the seven credentials, where each lives, what it can do and what losing it
 costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 
-The rest are temporary, and say so in their own first lines. Designs for
-unbuilt work — **`planning/TRANSCRIPTS.md`** is the only one now — are deleted
-when the work ships, with whatever survives moving to `DECISIONS.md`.
-`planning/USAGE.md` went that way on 2026-08-19: the reasoning is
-`DECISIONS-2026-08-16-to-2026-08-19.md` § *The meter is two tables and a
-script*, and the queries it carried are `bin/usage`, which is the only way
-anything reads those tables. **`planning/WATCHPARTY.md` went the same way on
-2026-08-23**, to `DECISIONS.md` § *The Floor carries no video* — and it is
-worth knowing it existed, because the design it carried is not what the task
-that asked for it appears to ask for.
-The three App Store files — `APPREVIEW.md`, `APPREVIEW2.md` and
-`APPREVIEWSCRIPT.md` — were exactly that, and were deleted on 2026-08-19 when
-1.0.0 was approved and released. Everything in them that recurs went to
-`planning/RELEASING.md` first, and the open policy questions they carried went
-to `planning/BACKLOG.md`. **`APPREVIEWSCRIPT.md` is back and is standing**, on a
-narrower premise than its predecessor: Apple does not require a demo video, and
-1.2.0 went without one. What the file is for is the *walk*, which is what found
-eight defects before 1.0.0; filming is the optional half. A submission's own
-text — `planning/review-notes-<version>.txt` and `whats-new-<version>.txt`,
-written by `bin/set-review-notes` — is temporary in the same way and goes when
-that version is approved.
+The rest are temporary and say so in their own first lines, and **this file
+names none of them, deliberately.** A list of what is outstanding right now is
+a list that goes stale, and every one this file has kept has been wrong within
+a fortnight — pointing at a design that had shipped, or at a file that had been
+deleted. `ls planning/` is the current list, and each file's first line says
+which kind it is. Two kinds recur: a **design for unbuilt work**, deleted when
+the work ships with whatever survives moving to `DECISIONS.md`; and a
+**submission's own text**, written by `bin/set-review-notes` and gone when that
+version is approved.
+
+**Go and look for a shipped design's reasoning rather than assuming the task
+says it.** What a design decided is not always what the task that asked for it
+appears to ask for — `DECISIONS.md` § *The Floor carries no video* is the one
+that caught somebody out — and the queries a design carried usually leave as a
+script in `bin/`, which is then the only thing that reads that data at all.
+
+**`planning/APPREVIEWSCRIPT.md` is standing**, on a narrow premise: Apple does
+not require a demo video, and 1.2.0 went without one. What the file is for is
+the *walk*, which is what found eight defects before 1.0.0; filming is the
+optional half.
 
 **`planning/DEMO-ACCOUNT.md`** looked temporary in the same way and is not: the
 two accounts App Review signs in as, why there are two rather than one, and the
@@ -119,7 +118,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 641 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 640 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
