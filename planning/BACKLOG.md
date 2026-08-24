@@ -791,6 +791,26 @@ Do not reach for `stopAudioSession`/`startAudioSession` bracketing, which is
 what this file recommended for a week: the *Restart audio session* result is
 direct evidence that it does not bring a playout engine back.
 
+**Built as build 90.** `EXCLUSIVE_WHEN_AUDIBLE` in `app/src/audio/session.ts`,
+off, one word to reverse. `IDLE` survives rather than `LISTENING` and that is
+the point of the change rather than a taste: `IDLE` is what the connect path
+applies *before* `startAudioSession`, so the session is configured once, before
+anything is active, and never written again until a microphone opens. Keeping
+`LISTENING` would have left a write landing exactly when a track subscribes,
+which is when the engine starts — the collision being removed.
+
+**What to look for.** Alone, fresh track, press Play: does the sound arrive, and
+does it stay through a step out and back in, and through Home and back? If it
+holds, the distinction was not worth what it cost and `LISTENING` should be
+deleted along with the flag. If it still dies, the write is exonerated, the flag
+goes back on, and what is left is the engine start itself — at which point the
+next question is what a *new channel* does that a rebuilt room does not, since a
+new channel is the only thing that has ever restored audio.
+
+**Also worth one listen on the way past:** whether another app's audio now plays
+on underneath a shared track. That is the feature being spent, and nobody has
+ever confirmed it worked.
+
 ### What survives either way
 
 **Build 89's panel fix stands regardless.** Reading the audio engine stops it —

@@ -5,9 +5,25 @@ describe('sessionFor', () => {
     expect(sessionFor(false, 0)).toBe(IDLE);
   });
 
-  it('takes the audio exclusively once something is audible', () => {
-    expect(sessionFor(false, 1)).toBe(LISTENING);
-    expect(sessionFor(false, 4)).toBe(LISTENING);
+  /**
+   * **Build 90 gave this up deliberately, and the test says so rather than
+   * disappearing.**
+   *
+   * `LISTENING` existed so shared playback interrupted another app instead of
+   * mixing with it. Applying it meant writing the audio session at the moment a
+   * track subscribed — which is the moment WebRTC's engine starts, and the two
+   * interfere: with the write first nothing was ever audible, with the engine
+   * first a fraction of a second was heard before it stopped. So the closed
+   * case is now one configuration and the only category write left is at the
+   * microphone boundary.
+   *
+   * Kept as an assertion of the *new* rule because a deleted test would leave
+   * the trade invisible: what is given up here is a feature, not an internal.
+   * See `EXCLUSIVE_WHEN_AUDIBLE`.
+   */
+  it('stays mixing when something is audible, which build 90 chose', () => {
+    expect(sessionFor(false, 1)).toBe(IDLE);
+    expect(sessionFor(false, 4)).toBe(IDLE);
   });
 
   it('is a call whenever the microphone is open', () => {
@@ -118,7 +134,11 @@ describe('policyFor', () => {
 
   // Between the two: nothing captured, something audible. Exclusive, but not a
   // call — the state that has no reason to hold a microphone open.
-  it('listens exclusively when something is audible and no mic is open', () => {
-    expect(policyFor(false, 2).playout).toBe(LISTENING);
+  it('hands the observer the same one answer for both closed cases', () => {
+    // The invariant this file exists for: the observer and the app must write
+    // the same thing. Collapsing the two closed states does not weaken it, it
+    // removes one of the two things they could have disagreed about.
+    expect(policyFor(false, 2).playout).toBe(IDLE);
+    expect(policyFor(false, 0).playout).toBe(IDLE);
   });
 });

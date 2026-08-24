@@ -172,12 +172,53 @@ export const CALL: AppleAudioConfiguration = {
  *                      smoothed live signal and following it would reconfigure
  *                      the session at every pause in a sentence.
  */
+/**
+ * Whether the two closed states are still two — **off since build 90, as an
+ * experiment that is also a candidate fix.**
+ *
+ * Turning it off collapses `IDLE` and `LISTENING` into one configuration, so
+ * the only category write left while connected is the one at the microphone
+ * boundary. That boundary is `CALL`, and `CALL` demonstrably works.
+ *
+ * **What it is testing.** Shared audio played to somebody alone in a channel
+ * could not be heard: the pump produced frames, LiveKit carried them into a
+ * room the phone was active in, and nothing came out. Build 89's log put the
+ * category write and the engine's own start within a millisecond of each other,
+ * and the ordering decided the outcome — write first and nothing was ever
+ * heard, engine first and a fraction of a second was heard before it stopped.
+ * They interfere. This removes the write from the closed case entirely, so
+ * there is nothing left to race the engine's start.
+ *
+ * **What it costs, and it is a real feature rather than an internal.**
+ * `LISTENING` exists so that shared playback *interrupts* another app's audio
+ * instead of mixing with it — DECISIONS.md § *Pause other apps when there is
+ * actually something to hear*. With this off, a podcast plays on underneath a
+ * shared track. That is worse than the product on paper and better than the
+ * product that exists, where the shared track cannot be heard at all. The
+ * feature was never confirmed working on a device in any case; BACKLOG.md has
+ * carried it as unheard since it shipped.
+ *
+ * **`IDLE` is the survivor rather than `LISTENING`, and that is the point of
+ * the change rather than a preference between them.** `IDLE` is what the
+ * connect path applies before `startAudioSession`, so keeping it means the
+ * session is configured once, before anything is active, and never written
+ * again until a microphone opens. Keeping `LISTENING` instead would leave a
+ * write landing at the moment a track subscribes, which is the moment the
+ * engine starts — exactly the collision being removed.
+ *
+ * **Delete this rather than leave it, either way.** If the audio holds, the
+ * distinction was not worth what it cost and `LISTENING` should go with it. If
+ * the audio still dies, the write is exonerated, this comes back on, and the
+ * next suspect is the engine start itself.
+ */
+const EXCLUSIVE_WHEN_AUDIBLE = false;
+
 export function sessionFor(
   anyMicOpen: boolean,
   othersAudible: number
 ): AppleAudioConfiguration {
   if (anyMicOpen) return CALL;
-  return othersAudible > 0 ? LISTENING : IDLE;
+  return EXCLUSIVE_WHEN_AUDIBLE && othersAudible > 0 ? LISTENING : IDLE;
 }
 
 /**
