@@ -837,7 +837,32 @@ So the next suspect cannot be watched, only removed — and removing it means
 handling. That is a bigger change than build 90 and should not be made on the
 strength of one unreproduced failure.
 
-### The build 90 failure is a different fault: `audible 0`
+### `audible 0` was an artefact, and the entry below it is wrong
+
+**Retracted 2026-08-24 the same evening it was written.** The panel's `audible`
+row is `asked.othersAudible` — the count recorded *the last time the session was
+written* — and build 90 stopped the session being written when a track
+subscribes, because both closed states now return the same configuration and the
+effect returns early on an identity comparison. So `asked` freezes at connect,
+where `othersAudible` is zero by construction, and the row reads 0 for ever
+after however many tracks arrive.
+
+Build 91's own log proves it in the same reading: `sub + media:chan_uM63vyGruvbO
+(1)` at 21:44:29.244, **no `sub -` anywhere**, and `audible 0` ten seconds later.
+The client was subscribed the whole time.
+
+**This is the same regression as the missing log line, and I drew a conclusion
+from it before noticing that.** The lesson was already written down one section
+below — *a change that removes a write can remove an observation* — and it was
+applied to the log line and not to the field beside it. Both come from the same
+early return. `asked` should be updated when `othersAudible` changes even where
+the configuration does not, which is a fix build 92 should carry so the panel
+stops asserting something false.
+
+So the fault is **subscribed and silent**, which is the engine fault of every
+earlier reading after all, and not a lost subscription.
+
+### The old entry, retracted: `audible 0`
 
 Caught 2026-08-24, 21:10, on build 90, with the panel open and reading nothing.
 `run/rec/play` reads `F F T` again — but **`audible 0`**, where every earlier
@@ -875,6 +900,34 @@ every subscribe and unsubscribe, and log lines for `Reconnecting`,
 room passes through while reporting healthy. It also acknowledges every press
 in the panel, because a probe that did nothing and a probe that never ran had
 been indistinguishable to whoever was pressing them.
+
+### A rebuild restores it, and that is the first recovery that has ever worked
+
+Build 91, 21:44. Stepping out and back in produced the failure. **Restart audio
+session did nothing; Rebuild the room brought the audio back.** Every previous
+attempt at recovery had failed, including the one this file recommended for a
+week.
+
+That is enough to build a fix on **without knowing the mechanism**, and it is
+the same shape as the server-side fix that opened this whole investigation: a
+thing that stops being audible, a measurement that notices, and a correction
+that rebuilds. The server got a heartbeat on the pump. The client needs one on
+playout.
+
+**And there is a non-destructive way to take it.** `RemoteAudioTrack.
+getReceiverStats()` returns `totalSamplesDuration` — standard WebRTC
+`inbound-rtp`, never the ADM, so unlike every reader in `engineState.ts` it
+cannot be the thing that stops the audio. The ADM pulls 10ms frames from the
+jitter buffer to render them; no pull, no samples counted. So the value
+advancing means the client is rendering, and the value frozen while a track is
+subscribed means it is not.
+
+Build 92, proposed: poll that on the subscribed remote track every few seconds;
+if a track is subscribed and the sample count has not moved for a threshold,
+rebuild the room — `SessionAudio.reconnect`, the same call the panel's button
+makes. Log both the measurement and the rebuild. Fix the stale `asked` above at
+the same time, since a panel that reads `audible 0` while subscribed is a
+diagnostic asserting something false.
 
 **What is needed first is the log from a failure**, which is now worth having
 in a way it was not before: the panel reads nothing on its own, engine
