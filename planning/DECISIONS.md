@@ -75,6 +75,37 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-23 — `0afaa1f` → `5515f16`
+
+**The first deploy that ships no server code at all.** The three commits are
+`bin/health`, the AGENTS.md rewrite that stopped it carrying a sha, and the
+`0afaa1f` entry below — a script, a rule and a paragraph. Nothing under
+`server/`, `core/` or `app/` moved, so the only thing that changed on the box
+is `server/deployed.json`'s stamp and the sha `/healthz` reports.
+
+Which was the point of running it rather than skipping it. `bin/deploy` is what
+writes that stamp, and until it runs the box reports the last commit that was
+deployed rather than the last commit that exists — `bin/health` said `0afaa1f`,
+three ahead, and that reading is exactly what the script was written to make
+visible. Deploying makes the box's answer and the checkout's HEAD agree again.
+A deploy of documentation is cheap; a box that quietly disagrees with the
+working tree is what cost the day § *The most recent deploy is not
+documentation* is about.
+
+**The cost is a restart, which is not nothing.** Presence drops, the floor
+drops, and any recording in flight goes with it — for a change no user could
+observe either way. Worth weighing next time: a docs-only deploy could as
+easily wait and ride along with the next real one, and the only reason to run
+it alone is to stop `bin/health` reading behind. That is a reporting problem,
+not a production one.
+
+Verified against production afterwards: `/healthz` on `5515f16`,
+`deployed.json` stamped clean at `2026-08-24T04:28:32Z` — UTC again, this went
+out at 21:28 local — the service active, and the startup line reporting
+`commit: 5515f16`, `minBuild: 51`, `push: apns:production`. 26 live channels
+revived, and the `requested room does not exist` burst was exactly 26, one per
+revived channel, same shape as the deploy below.
+
 ### 2026-08-23 — `be96c46` → `0afaa1f`
 
 A profile now says when the person has been in each channel you share, and
