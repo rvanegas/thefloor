@@ -118,24 +118,25 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 637 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 621 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
 figure nobody has checked: it was claiming 104 lines of headroom when there
 were 50. The two splits it records are the iOS release material to
 `planning/RELEASING.md` and the credentials to `planning/CREDENTIALS.md`. The
-headroom is about one deploy wide on purpose: each new one displaces the last,
-so the file should sit still rather than climb.
+headroom used to be about one deploy wide, back when each new deploy displaced
+the last one written up here. Nothing displaces anything now, so the file has
+no reason to climb at all: material arrives only when a rule is added, and one
+should usually leave with it.
 
 When it passes 650, **do not shave the traps.** Almost all of the excess will be
 one of these:
 
-- **Deploy narrative.** `## Deployment` keeps the *most recent* deploy and
-  nothing else. When a new one lands, the one it replaces goes to
-  `planning/DECISIONS.md` under `## The deploy history`, newest first, verbatim
-  — the verification counts and the which-build-kept-working notes are the
-  valuable part and are not to be summarised away in the move.
+- **Deploy narrative.** None of it belongs here. A deploy is written up in
+  `planning/DECISIONS.md` under `## The deploy history`, newest first, and what
+  is running right now is `bin/health` rather than any sentence. This file kept
+  the most recent deploy until 2026-08-23 and was wrong twice for it.
 - **Reasoning about unshipped work.** Belongs in `planning/DECISIONS.md`, or in
   its own `planning/` design document if it is still being decided.
 - **The story behind a rule.** Keep the rule and the cost of breaking it; move
@@ -310,8 +311,9 @@ rules.
   already. Installing per worktree costs disk and a few minutes and nothing else.
 - **`bin/deploy` rsyncs the working tree, not a git ref**, deliberately — so it
   stamps `server/deployed.json` with the sha, marked `-dirty` when the tree
-  was. `GET /healthz` and the startup log report it, and the deploy now fails
-  if the box comes back not reporting the sha just sent. **Since 2026-08-21 it
+  was. `GET /healthz` and the startup log report it — `bin/health` is that
+  read, against this checkout — and the deploy now fails if the box comes back
+  not reporting the sha just sent. **Since 2026-08-21 it
   refuses a dirty tree unless you pass `--dirty`**, which is the same trade
   `bin/db --write` makes: shipping the working tree means unrelated work in
   progress rides along, and whoever runs it is usually deploying for a
@@ -348,37 +350,19 @@ can represent.
 
 Deployed to **https://thefloor.rvanegas.co**, first on 2026-08-09.
 
-**This section carries the most recent deploy and nothing else.** Every earlier
-one is in planning/DECISIONS.md under `## The deploy history`, newest first —
-which build kept working across which restart, and what was verified against
-production each time. Look there before assuming a behaviour is new.
+**This section carries no deploy and no sha.** What is on the box is a
+measurement, and `bin/health` takes it — the commit it is running, whether
+that is this checkout's HEAD or behind it, the compatibility floor and the
+build census, with `--raw` for the body `/healthz` actually returned. Run it
+before believing anything here about the state of production.
 
-Most recently on 2026-08-23, `6dd3735` → `d76908e`: the watch party's mute now
-follows the transport, holding while the video plays and lifting on a pause.
-**Four deploys went out that day** and the three before it are in the history.
-
-**It was deployed before the client that needs it, and that ordering was the
-point.** `core/` is imported by both ends, so the two have to agree on what
-*muted* means: a build 82 client against the previous server would open its
-microphone on a pause and say "you can talk" while the server went on
-withholding every subscription. People talk, nobody hears, and the screen
-insists otherwise. That is RELEASING.md's step 1, met rather than read. Nothing
-installed could disagree either way — mute-all landed after `build/81` was
-tagged, so build 82 is the first build with any mute at all.
-
-Verified against production afterwards: `/healthz` on `d76908e`,
-`deployed.json` stamped clean, the service active, 25 live channels revived,
-`partyWithholds` in the synced `core/watch.ts` and `core/micNeeded.ts`. The
-`requested room does not exist` burst at startup is **not** new — one at each
-restart, `restore()` closing rooms that went with the old process.
-
-**Half the watch party ships like a website and half like an app**, which is
-what will catch somebody out: the follower page is server-served, so a deploy
-puts it on every screen in a minute, while the channel card beside it needs an
-upload, a submission, an approval and a release.
-
-Read `/healthz` before assuming this section is current. It was a day stale here
-once already, and that is how it will fail again.
+What each deploy *was* — which build kept working across which restart, what
+was verified against production, and what shipped before the client that needed
+it — is in planning/DECISIONS.md under `## The deploy history`, newest first.
+Look there before assuming a behaviour is new, and add an entry there when you
+deploy. This file used to carry the latest one and hand it over as the next
+landed; it went stale twice and is not coming back. See DECISIONS.md § *The
+most recent deploy is not documentation*.
 
 The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded

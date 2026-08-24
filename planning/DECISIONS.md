@@ -75,6 +75,38 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-23 — `6dd3735` → `d76908e`
+
+The watch party's mute now follows the transport, holding while the video plays
+and lifting on a pause. **Four deploys went out that day** and the three before
+it are below.
+
+**It was deployed before the client that needs it, and that ordering was the
+point.** `core/` is imported by both ends, so the two have to agree on what
+*muted* means: a build 82 client against the previous server would open its
+microphone on a pause and say "you can talk" while the server went on
+withholding every subscription. People talk, nobody hears, and the screen
+insists otherwise. That is RELEASING.md's step 1, met rather than read. Nothing
+installed could disagree either way — mute-all landed after `build/81` was
+tagged, so build 82 is the first build with any mute at all.
+
+Verified against production afterwards: `/healthz` on `d76908e`,
+`deployed.json` stamped clean, the service active, 25 live channels revived,
+`partyWithholds` in the synced `core/watch.ts` and `core/micNeeded.ts`. The
+`requested room does not exist` burst at startup is **not** new — one at each
+restart, `restore()` closing rooms that went with the old process.
+
+**Half the watch party ships like a website and half like an app**, which is
+what will catch somebody out: the follower page is server-served, so a deploy
+puts it on every screen in a minute, while the channel card beside it needs an
+upload, a submission, an approval and a release.
+
+**This entry was the last one to live in AGENTS.md**, which kept the most recent
+deploy and moved its predecessor here as each new one landed. That stopped on
+2026-08-23: a sha in a file nobody re-reads goes stale silently, and `bin/health`
+answers the same question against the box. Entries now come straight here. See
+§ *The most recent deploy is not documentation*.
+
 ### 2026-08-23 — `4fb597c` → `6dd3735`
 
 The headphone advice and the watch party's mute-all. **Three deploys went out
@@ -1221,3 +1253,39 @@ The privacy page moved with it. It said the address "is not shown to anyone who
 is not already your contact", which was written when the answer was *nobody*
 and is now the floor rather than the description. It says what the feature does
 instead, including the half the button cannot do.
+
+---
+
+## The most recent deploy is not documentation — 2026-08-23
+
+AGENTS.md's `## Deployment` carried the last deploy — the sha it went from and
+to, what was in it, and what was verified afterwards — and moved that entry
+here when the next one landed. It is now the only thing in that file with an
+expiry date, and it has been wrong twice: once by a day, and once for the whole
+afternoon somebody deployed `0afaa1f` and did not think to edit a document
+about the project's shape to say so.
+
+**The rule it broke is the one the file already states about itself.** What
+earns a place there is what stops somebody losing a day, and it is loaded in
+full before anybody types anything. A sha is neither: it is a measurement, it is
+free to take, and taking it is strictly better than reading a copy of one — the
+copy can be stale and cannot say so, while `bin/health` is wrong only if the box
+is. The section even admitted this, ending on *read `/healthz` before assuming
+this section is current*, which is a document telling you not to trust it.
+
+So the section now names the two commands and holds no sha. `bin/health` is
+what is running; `## The deploy history` above is what each deploy was. Entries
+go straight there when a deploy lands, rather than living in AGENTS.md for one
+deploy first — which also removes the step that was being skipped, since the
+history was only ever written by displacement.
+
+**What this does not fix is the deploy that goes unrecorded.** Nothing enforces
+an entry here, `bin/deploy` does not write one, and `0afaa1f` has none — the
+box was running it before this was noticed and what it contained is knowable
+only from `git log`. The narrower failure is gone, though: the file that was
+confidently wrong is now silent, and a reader who wants the answer runs the
+command instead of believing a paragraph.
+
+The durable things the last entry had accumulated went with it into the
+history, not into the bin — including the note that half the watch party ships
+like a website and half like an app.
