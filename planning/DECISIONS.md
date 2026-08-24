@@ -75,6 +75,54 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-24 — `5515f16` → `b37879a`
+
+Twelve commits, of which the two that matter are several sessions per account
+and the per-device facts that had to follow it. See § *Several sessions, one
+voice*.
+
+**The wire change in this deploy is one additive line** — `displaced` on
+`ServerMessage` — and the check that licensed deploying the server first was
+`git diff 5515f16..HEAD -- core/protocol.ts`, which is that line and nothing
+else, plus reading build 56's own `switch (message.type)` to confirm it has no
+`default` and drops an unknown type silently. `oldestBuild` said 56, so that
+was the build to read. The habit worth keeping is the second half: the
+compatibility argument is about what the oldest *installed* client does with
+the message, and that is answerable by looking at its source, not by reasoning
+about what clients generally do.
+
+**And the deploy revealed a hole in its own migration, which is the part worth
+writing down.** `tokens` gained `last_seen_at` and `last_build`, and the
+migration adds them null. The census reads `MIN(last_build)` over sessions with
+a non-null `last_seen_at`, so at the moment of the restart it had nothing to
+read: `/healthz` went from `oldestBuild: 56` to `oldestBuild: null`, and nine
+session rows carried no stamp between them.
+
+Null was *expected* and is not the problem — it is loud, and nobody raises a
+floor on a null. The problem is the shape of the recovery. Sessions stamp
+themselves as their clients reconnect, so the census refills over hours and
+days, and while it is refilling `oldestBuild` reports the minimum over
+*whichever phones have opened the app since the deploy*. That reads like a
+healthy number and is biased upwards, which is the one direction that strands
+installs.
+
+**It also created a category the design did not have.** `silentBuilds` exists
+precisely so that `oldestBuild` cannot be mistaken for a measurement while
+anything is unaccounted for — but it counts sessions *present in the window
+that declined to say*. A session that has not been stamped at all is in neither
+number. So for the length of the refill there is a population that is invisible
+to both, and the guard rail that was built for exactly this reads zero.
+
+The fix is a backfill the migration should have carried: before this change
+there was exactly one session per account, so `accounts.last_seen_at` and
+`accounts.last_build` *are* that session's values and can be copied into any
+`tokens` row that has none. It is on a branch rather than in this deploy,
+because it was found after the restart.
+
+Nothing else was observed to change. Nobody was connected — the most recent
+`accounts.last_seen_at` was 135 minutes old when the box came back, which is
+also why the stamping path is proven by tests here and not yet by production.
+
 ### 2026-08-23 — `0afaa1f` → `5515f16`
 
 **The first deploy that ships no server code at all.** The three commits are
