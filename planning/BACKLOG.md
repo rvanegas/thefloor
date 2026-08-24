@@ -809,7 +809,41 @@ new channel is the only thing that has ever restored audio.
 
 **Also worth one listen on the way past:** whether another app's audio now plays
 on underneath a shared track. That is the feature being spent, and nobody has
-ever confirmed it worked.
+ever confirmed it worked. It doubles as proof the flag took effect at all: if a
+podcast is still interrupted, the build under test is not build 90.
+
+### Build 90 made it rare rather than gone
+
+Reported 2026-08-24: the failure was seen once, and then could not be
+reproduced systematically. **That is a change of kind, and it is evidence
+rather than a fix.** Before, it was deterministic — every walk to Home and
+back, every step out and back in. A cause that was removed and left the
+symptom occasional was a real cause; a symptom that survives at all means it
+was not the only one.
+
+**What is left that can still write the session at an engine transition, and it
+is the one writer this app does not control.** `setupIOSAudioManagement`
+installs the SDK's native policy observer, which applies its playout
+configuration *from inside the engine transition itself*, on the audio thread,
+with no JavaScript in the path. It is handed `policyFor(...)`, so it now writes
+`IDLE` — the same value already in force — but a write of the same value is
+still a write, and the collision this entry is about was a write landing on a
+starting engine. Nothing in JS can observe it: the two delegate slots that
+would see it are the two that *replace* the policy when a handler is
+registered, which is forbidden for the reason `engineState.ts` gives.
+
+So the next suspect cannot be watched, only removed — and removing it means
+`setupIOSAudioManagement(false, …)`, which also gives up the SDK's activation
+handling. That is a bigger change than build 90 and should not be made on the
+strength of one unreproduced failure.
+
+**What is needed first is the log from a failure**, which is now worth having
+in a way it was not before: the panel reads nothing on its own, engine
+transitions are stamped, and the screen markers are there. When it next fails,
+**copy the diagnostics before touching anything** — the ring is forty entries
+and it survives everything but a force-quit. Two things to check on that paste:
+the header says `build 90` (a failure on 89 would explain itself), and where
+the `engine start` falls relative to everything around it.
 
 ### What survives either way
 
