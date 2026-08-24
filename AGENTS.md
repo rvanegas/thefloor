@@ -119,7 +119,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 644 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 641 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -286,18 +286,15 @@ rules.
   deleted entry beats a session's note explaining why the entry was kept.
 
 - **Landing is manually triggered, every time, and is never something a
-  session decides to do. So are deploying and uploading**, added 2026-08-24.
-  Adopted 2026-08-22. Finish the work, commit it on
+  session decides to do — and so are deploying and uploading**, added
+  2026-08-24. Adopted 2026-08-22. Finish the work, commit it on
   the branch, say it is ready, and stop. Somebody says "land it" or it does
   not land — and having been asked once does not license the next one.
-  **Naming one verb does not name the others**: "build 90" asks for the build
-  to be written, not for it to be landed, uploaded or deployed. That is the
-  whole point of keeping five words apart, and it was read the other way for a
-  dozen commits and one deploy to production on 2026-08-24. **Documentation is
-  not exempt** — the same day, a session put a dozen prose commits straight
-  onto `master` with no branch at all, reasoning that a file in `planning/`
-  cannot break anything. Nothing in this rule is about risk, so nothing in it
-  bends for a change that carries none.
+  **Naming one verb does not name the others, and documentation is not
+  exempt**: nothing in this rule is about risk, so nothing in it bends for a
+  change that carries none. When one verb is asked for and another looks
+  necessary to finish the thought, **say so and ask** rather than deciding
+  either way — RELEASING.md § *One verb does not imply the others*.
   **The reason is not the merge and not the race.** Several sessions do work
   this repository at once from separate worktrees, and `master` moved twice
   under one session in the afternoon this was written — but sequencing alone

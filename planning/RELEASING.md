@@ -50,6 +50,44 @@ artifacts that disagree about entitlements. The credentials an upload needs —
 the App Store Connect key and its Admin role, the APNs `.p8` — were split out
 of AGENTS.md the same day and are in CREDENTIALS.md.
 
+## One verb does not imply the others — say so and ask
+
+Added 2026-08-24, from the prompt: *"if I ask for deploy, prompt me in case
+upload is necessary; similarly if I ask for upload, prompt me in case deploy is
+also necessary."*
+
+Each verb is asked for explicitly, every time — AGENTS.md § *Branches, tags*.
+This is the other half of that rule, and it is not the same half. Being told
+`deploy` is not permission to upload; **but noticing that the deploy alone
+leaves the work half-delivered, and saying nothing, is its own failure.**
+
+**So: do the verb that was asked for, and then say what it does not cover.**
+
+| asked for | check | what to say |
+| --- | --- | --- |
+| **deploy** | does the change touch `app/`? | the box has it; phones do not until an upload |
+| **upload** | does it touch `server/` or `core/`? | testers will get it; the box has not changed |
+| either | does `core/` move? | it is compiled into **both**, so both are usually wanted |
+
+`core/` is the one that catches people. It is imported by the server and by the
+app, so a change there is a wire change in waiting: deployed alone it can meet a
+client that speaks the old shape, uploaded alone it can meet a server that does.
+See AGENTS.md § *Never ship a wire change to a server before the client can
+speak it*.
+
+**Ask; do not infer.** A half-delivered change is often deliberate — two tasks
+being combined, a server change wanted now and a build wanted after more work,
+or a build already in TestFlight that the box must not get ahead of. The point
+is to put the question where it can be answered in a word, not to guess which
+answer was meant. An oversight comes back as *"both, then"*; an intention comes
+back as *"no, just the deploy"*, and both are one line of the person's time.
+
+The check itself is `git diff` against what is live: `bin/health` says which
+commit the box is running, and `git describe --tags --match 'build/*'` says
+which build the last upload was cut from.
+
+---
+
 **Read this before running `bin/upload-ios`.** The branch and tag conventions
 around getting a build out are in AGENTS.md under `## Branches, tags, and what
 is actually in people's hands`; the accounts App Review signs in as are in
