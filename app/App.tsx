@@ -234,7 +234,20 @@ function Root() {
   }
 
   if (contactsOpen) {
-    return <ContactsView onHome={() => setContactsOpen(false)} />;
+    return (
+      <ContactsView
+        onHome={() => setContactsOpen(false)}
+        // A profile opened from the contact list lists the channels the two of
+        // you share, and tapping one goes there. The list closes behind it:
+        // the channel screen's way out is a button that says Home, and leaving
+        // this open under it would make that button land somewhere else. Same
+        // rule the notification tap follows above.
+        onEnterChannel={(id) => {
+          setContactsOpen(false);
+          setChannelId(id);
+        }}
+      />
+    );
   }
 
   return (

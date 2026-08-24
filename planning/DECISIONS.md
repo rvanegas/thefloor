@@ -1427,3 +1427,42 @@ recording and the floor. Somebody outside the room has no use for being told
 whose floor it is; and the presence branch is now the only one that covers the
 second screen as well as the transport, every other control on the card being
 available to anyone standing in the channel.
+
+## The channels on a profile are somewhere to go — 2026-08-24
+
+TASKS.md § *Stepping Into Channels Listed in Profile View*. `ContactsView`
+takes an `onEnterChannel` and hands it to the profile it opens; `App.tsx`
+supplies it. That is the whole change — three call sites and no new component,
+because the section, the cards, the tap and the preference it reads were all
+built the day before, in the entry above about where somebody has been in each
+of your channels. What was missing was a caller.
+
+**The gap was one screen, not the feature.** Of the two places that open a
+profile, `ChannelView` withholds the prop deliberately — walking out of the
+conversation you are standing in to go to another is not a thing that screen
+should offer, and it still does not — while `ContactsView` withheld it for no
+reason at all: it simply had no channel navigation of its own, being a screen
+about people. So the cards were drawn there and nothing happened when one was
+pressed, which is worse than either offering the tap or leaving the section
+out. It read as a broken button rather than as a decision.
+
+**The contact list still does not list channels, and this is not a step back
+towards Home's job.** That separation is why the screen exists: a contact
+*row* opens a person, because a channel's idleness says nothing about whether
+its other member is holding a phone. But a profile is about the pair, and the
+rooms the pair share belong to the pair — the reason to draw a line saying
+three people are in one of them is that somebody might want to go. The
+overlap that took the old Home apart was a row that was two things at once,
+not a screen that can reach a channel at all.
+
+**The list closes behind the tap.** The channel screen's way out is a button
+that says Home, so leaving the contact list mounted underneath would make that
+button land somewhere else — the same rule the notification tap already
+follows, and the reason `App.tsx` supplies a handler rather than passing
+`setChannelId` straight through. The cost is that coming back from the channel
+does not return to the profile you left, which is the trade: an honest Home
+button beats a back stack nobody asked for.
+
+The tap itself is the profile's, unchanged, and it reads `tapToStepIn` exactly
+as Home's rows do. Two lists of the same channels answering a tap differently
+would be a setting that held in one place and not the other.

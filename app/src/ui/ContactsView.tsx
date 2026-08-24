@@ -18,16 +18,33 @@ import { colors, spacing, type } from './theme';
  * only one of them was still being answered.
  *
  * It is a screen rather than a section because of what a contact row is for.
- * There is no channel to step into from here — the channel list is Home's job,
- * and a contact row that offered one would be the overlap that took the old
- * list apart. What a row does is open the person: their bio, where they are,
- * and the one destructive thing you can do about them.
+ * A row is not a channel — the channel list is Home's job, and a contact row
+ * that offered one would be the overlap that took the old list apart. What a
+ * row does is open the person: their bio, where they are, and the one
+ * destructive thing you can do about them.
+ *
+ * A profile opened from here is a different matter, and is why this screen now
+ * takes `onEnterChannel`. Its "Channels with them" section is not a directory
+ * of rooms competing with Home's; it is the rooms this pair share, read on the
+ * screen about the pair, and the reason to read a line saying three people are
+ * in one of them is to go there. See ProfileView.
  *
  * Requests stay on Home. They are not contacts yet, they are the one thing on
  * that screen that cannot be a channel, and answering one is a thing to do
  * rather than somebody to look up.
  */
-export function ContactsView({ onHome }: { onHome: () => void }) {
+export function ContactsView({
+  onHome,
+  onEnterChannel,
+}: {
+  onHome: () => void;
+  /**
+   * Opens a channel shared with whoever's profile is open. Optional, so this
+   * screen still renders somewhere with nowhere to go — the profile draws the
+   * cards either way and only the tap depends on it.
+   */
+  onEnterChannel?: (channelId: string) => void;
+}) {
   const app = useApp();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profile, setProfile] = useState<{ id: string; name: string } | null>(
@@ -48,6 +65,11 @@ export function ContactsView({ onHome }: { onHome: () => void }) {
         accountId={profile.id}
         fallbackName={profile.name}
         onBack={() => setProfile(null)}
+        // Stepping into a channel the two of you share. Handed straight
+        // through: what a tap does — arrive, or merely open — is the profile's
+        // business and the same preference Home reads, and where the channel
+        // screen goes when it is closed is whoever gave us this.
+        onEnterChannel={onEnterChannel}
         // Removing a contact from their own profile takes the row this screen
         // was opened from with it, so there is nothing to go back to.
         onRemoved={() => setProfile(null)}

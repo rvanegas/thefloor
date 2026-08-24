@@ -3336,9 +3336,10 @@ describe('channels you share with somebody', () => {
   });
 
   it('still lists them when there is nowhere to send you', async () => {
-    // Reached from inside a channel there is no `onEnterChannel`, and the
-    // section used to be left out entirely — which meant nobody ever saw it,
-    // neither caller in the app passing one. What you share with somebody is
+    // Reached from inside a channel there is no `onEnterChannel` — walking
+    // out of the conversation you are in to go to another is not a thing that
+    // screen offers — and the section used to be left out entirely, which
+    // meant nobody ever saw it, neither caller in the app then passing one. What you share with somebody is
     // worth reading where it cannot be acted on; only the tap goes.
     withChannels([channel('sess_shared', 'Thursday rehearsal', THEM)]);
 
@@ -5225,6 +5226,54 @@ describe('Contacts', () => {
     withContacts([]);
     const tree = open();
     expect(textOf(tree)).toContain('Nobody yet');
+    act(() => tree.unmount());
+  });
+
+  it('steps into a channel tapped on the profile it opened', async () => {
+    // The "Channels with them" section was inert from here until this screen
+    // took `onEnterChannel`: the cards were drawn and nothing happened when
+    // one was pressed. A contact *row* still opens a person rather than a
+    // room — that separation is why this screen exists — but the profile
+    // underneath it is about the pair, and the rooms the pair share are worth
+    // going to.
+    const onEnterChannel = jest.fn();
+    withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
+    mockApp.home!.rejoinable = [
+      {
+        channelId: 'sess_shared',
+        name: 'Thursday rehearsal',
+        others: [{ id: 'a', displayName: 'Dana Chu' }],
+        presentCount: 0,
+        createdAt: NOW,
+        lastActiveAt: NOW,
+      },
+    ];
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <ContactsView onHome={() => {}} onEnterChannel={onEnterChannel} />
+      );
+    });
+    const row = tree.root.findAll(
+      (n) =>
+        typeof n.props?.accessibilityLabel === 'string' &&
+        n.props.accessibilityLabel.startsWith('Dana Chu.')
+    )[0];
+    // Awaited: the profile fetches on mount, and the section is drawn from
+    // Home either way but the presence line is not.
+    await act(async () => row.props.onPress());
+
+    const card = tree.root.findAll(
+      (n) =>
+        n.props?.accessibilityRole === 'button' &&
+        typeof n.props?.accessibilityLabel === 'string' &&
+        n.props.accessibilityLabel.startsWith('Thursday rehearsal')
+    )[0];
+    act(() => card.props.onPress());
+
+    expect(mockApp.act).toHaveBeenCalledWith('sess_shared', { type: 'ENTER' });
+    expect(onEnterChannel).toHaveBeenCalledWith('sess_shared');
     act(() => tree.unmount());
   });
 });
