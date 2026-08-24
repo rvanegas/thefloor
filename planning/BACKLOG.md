@@ -922,12 +922,49 @@ jitter buffer to render them; no pull, no samples counted. So the value
 advancing means the client is rendering, and the value frozen while a track is
 subscribed means it is not.
 
-Build 92, proposed: poll that on the subscribed remote track every few seconds;
-if a track is subscribed and the sample count has not moved for a threshold,
-rebuild the room — `SessionAudio.reconnect`, the same call the panel's button
-makes. Log both the measurement and the rebuild. Fix the stale `asked` above at
-the same time, since a panel that reads `audible 0` while subscribed is a
-diagnostic asserting something false.
+**Build 92 measures and does not act**, deliberately. It polls that on the
+subscribed remote track every two seconds and logs a freeze once when it starts
+and once when it ends. It does **not** call `reconnect()`, even though a rebuild
+is known to restore the sound: what is not known is how often the counter
+freezes *legitimately* — a backgrounded app renders nothing on purpose — and
+acting on an untested detector would put a reconnect loop into other people's
+conversations. The count comes first and the decision to act is made against it.
+
+It also fixes the stale `asked`, since a panel reading `audible 0` through a
+subscription that plainly happened is a diagnostic asserting something false,
+and that cost a wrong diagnosis before the log line beside it gave it away.
+
+### The log goes to the server, because a ring dies with the process
+
+**The container was wrong and it took being said plainly.** The log was forty
+lines in memory, then two hundred, copied out by hand — which is right for a
+fault somebody is watching happen and useless for one that appears once in ten
+minutes of stepping in and out. It does not survive a force-quit, a crash or an
+app update, and those are the three things a person does when the audio has
+stopped and they want it back. If the point is to collect and compare across
+days, it cannot live inside the thing being debugged.
+
+`POST /diagnostics` takes it, gated on the same `debug` column that gates the
+panel producing the lines, and writes it to the journal:
+
+    ssh … journalctl -u thefloor --since today | grep "audio diagnostics"
+
+**The journal rather than a table**, which is a trade rather than laziness: a
+table would be queryable and would also want a migration, a sweep, and a line in
+`erase` so deleting an account takes its diagnostics with it — three standing
+obligations for data whose value expires in a day. `journalctl` already rotates
+and is already how every other question about this box is answered.
+
+The client batches every thirty seconds and on the way to the background, keeps
+what it could not send, and **drops what was refused** — a 403 is the ordinary
+answer for every other account, and a batch that comes back after every attempt
+is a loop that grows until the cap eats it.
+
+**Deploy the server before the build**, which is the ordinary two-step: the
+client is the new speaker here, so the endpoint has to exist before anything
+calls it. Nothing breaks in the other order — an old server 404s and the client
+treats that as worth retrying — but the lines would sit in the backlog until a
+deploy caught up.
 
 **What is needed first is the log from a failure**, which is now worth having
 in a way it was not before: the panel reads nothing on its own, engine

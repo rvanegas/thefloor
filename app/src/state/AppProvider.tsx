@@ -22,6 +22,7 @@ import type {
 import type { NotificationLevel } from '../../../core/notifications';
 import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
+import { startShippingDiagnostics } from '../audio/shipping';
 import { mustUpdate } from '../api/expiry';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
@@ -580,6 +581,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // and independent of sign-in state, because the tap that launched the app is
   // read before the stored token has been restored.
   useEffect(() => onNotificationTap(setPendingChannelId), []);
+
+  /**
+   * Ships the audio log off the phone, for the one account that asked to see it.
+   *
+   * **Here rather than beside the log itself** because this is where `debug`
+   * and the token both are — the shipper needs a credential and the server
+   * refuses anybody without the column, so starting it anywhere else would mean
+   * plumbing both to it. It is the same gate the panel sits behind, so nothing
+   * is collected from a phone that is not already producing these lines for its
+   * owner to read.
+   *
+   * A 403 is the ordinary answer for every other account and is reported as
+   * *finished with these lines* rather than as a failure, which is what stops a
+   * refused batch being retried every thirty seconds for the life of the app.
+   * Anything else — a tunnel, a restarting server, a build the server predates
+   * — comes back and waits.
+   */
+  useEffect(() => {
+    const token = state.token;
+    if (!state.debug || !token) return;
+    return startShippingDiagnostics(async (lines) => {
+      try {
+        await api.shipDiagnostics(token, appBuild(), lines);
+        return true;
+      } catch (error) {
+        return error instanceof ApiError && error.status === 403;
+      }
+    });
+  }, [state.debug, state.token]);
 
   // Drives countdowns while a channel *snapshot is held*, which is not the
   // same as while one is on screen: pressing Home from a channel deliberately

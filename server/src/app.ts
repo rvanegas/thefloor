@@ -572,6 +572,59 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true };
   });
 
+  /**
+   * The phone's audio diagnostic log, kept where it can be read later.
+   *
+   * **It exists because a ring in memory is the wrong container for the fault
+   * it was built for.** The log was forty lines, then two hundred, held in the
+   * app and copied out by hand — which works while somebody is holding the
+   * phone at the moment it goes wrong, and not at all for a fault that appears
+   * once in a session of stepping in and out. A force-quit, a crash or an
+   * update takes it, and those are exactly the three things somebody does when
+   * the audio has stopped and they want it back. See TASKS § *Stepping Back
+   * In* and BACKLOG § *The engine stops under a healthy room*.
+   *
+   * **To the journal rather than to a table**, which is a deliberate trade.
+   * A table would be queryable and would also need a migration, a sweep, and a
+   * line in `erase` so that deleting an account takes its diagnostics with it —
+   * three obligations for data whose whole value expires in a day or two.
+   * `journalctl` already rotates, and is already how every other question about
+   * this box is answered.
+   *
+   * **Gated on the `debug` column**, so it is not an open log sink: any signed
+   * -in account could otherwise write unbounded text into this box's journal.
+   * The same column gates the panel that produces these lines, so nothing is
+   * lost by refusing everybody else — and a client that gets a refusal drops
+   * the lines rather than retrying, which is what stops a rejected batch
+   * becoming a loop.
+   */
+  fastify.post('/diagnostics', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    if (account.debug !== 1) return reply.code(403).send({ error: 'not enabled' });
+
+    const body = request.body as
+      | { build?: number; lines?: Array<{ at?: number; text?: string }> }
+      | undefined;
+    const lines = (body?.lines ?? [])
+      // Trimmed on arrival rather than trusted: this is free-text from a client
+      // being written into a system log, and the only thing standing between a
+      // diagnostic and a way to fill a disk is a bound on both counts.
+      .filter((line) => typeof line?.text === 'string')
+      .slice(-500)
+      .map((line) => ({
+        at: typeof line.at === 'number' ? line.at : null,
+        text: String(line.text).slice(0, 300),
+      }));
+    if (lines.length === 0) return { ok: true, stored: 0 };
+
+    fastify.log.info(
+      { accountId: account.id, build: body?.build ?? null, lines },
+      'audio diagnostics'
+    );
+    return { ok: true, stored: lines.length };
+  });
+
   fastify.delete('/devices/:token', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;

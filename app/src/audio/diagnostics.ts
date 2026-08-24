@@ -476,6 +476,17 @@ export interface DiagnosticEvent {
 export const LOG_LIMIT = 200;
 
 let events: DiagnosticEvent[] = [];
+
+/**
+ * The backlog waiting to reach the server, and how much of it is kept.
+ *
+ * Larger than the display ring because it is drained on a timer and may sit
+ * through a tunnel, and because losing from here is losing a measurement. Still
+ * finite: an app left running for a day with no network must cost bounded
+ * memory.
+ */
+const UNSENT_LIMIT = 1_000;
+let unsent: DiagnosticEvent[] = [];
 const listeners = new Set<() => void>();
 
 /**
@@ -488,8 +499,33 @@ const listeners = new Set<() => void>();
  * nothing reads it unless the panel is mounted.
  */
 export function recordEvent(text: string): void {
-  events = [...events, { at: Date.now(), text }].slice(-LOG_LIMIT);
+  const event = { at: Date.now(), text };
+  events = [...events, event].slice(-LOG_LIMIT);
+  // Held separately from the ring above, because the two answer different
+  // questions. The ring is what a panel shows and is allowed to forget; this is
+  // what has not reached the server yet, and forgetting from it loses evidence
+  // rather than scrollback. Bounded all the same — a phone with no signal must
+  // not accumulate a session's worth of lines without limit.
+  unsent = [...unsent, event].slice(-UNSENT_LIMIT);
   for (const listener of listeners) listener();
+}
+
+/**
+ * Everything not yet shipped, handed over and forgotten in one step.
+ *
+ * Atomic on purpose: a reader that copied the buffer and cleared it in two
+ * statements would drop whatever landed in between, and what lands in between
+ * is precisely an audio event arriving while a batch is being sent.
+ */
+export function drainEvents(): DiagnosticEvent[] {
+  const out = unsent;
+  unsent = [];
+  return out;
+}
+
+/** Puts a failed batch back at the front, oldest first, still bounded. */
+export function returnEvents(lines: DiagnosticEvent[]): void {
+  unsent = [...lines, ...unsent].slice(-UNSENT_LIMIT);
 }
 
 /** Newest last, which is how a log is read. */
@@ -508,6 +544,7 @@ export function subscribeDiagnostics(listener: () => void): () => void {
 /** Only ever called by tests, which must not inherit each other's log. */
 export function resetDiagnostics(): void {
   events = [];
+  unsent = [];
 }
 
 /** Whether the two observers below are already installed. */

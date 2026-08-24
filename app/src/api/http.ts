@@ -119,6 +119,25 @@ export const api = {
    */
   health: () => request<HealthReport>('/healthz'),
 
+  /**
+   * Ships the audio log to the server's journal.
+   *
+   * Refused for any account without the `debug` column, which is the same gate
+   * the panel that produces these lines sits behind — so a 403 here is the
+   * ordinary answer for everybody else rather than a fault, and the caller
+   * treats it as *done with these lines* rather than as something to retry.
+   */
+  shipDiagnostics: (
+    token: string,
+    build: number | null,
+    lines: Array<{ at: number; text: string }>
+  ) =>
+    request<{ ok: true; stored: number }>('/diagnostics', {
+      method: 'POST',
+      token,
+      body: { build, lines },
+    }),
+
   requestCode: (identifier: string) =>
     request<{ sent: true }>('/auth/request-code', {
       method: 'POST',
