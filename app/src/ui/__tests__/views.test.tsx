@@ -5798,6 +5798,36 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The one card whose rule is presence rather than `hasTheRoom`. Everything
+   * else here greys only when somebody *else* is in the room; a party greys
+   * for anybody outside it, an empty channel included — see
+   * `canWatchTogether`.
+   */
+  it('refuses the whole card to somebody who has not stepped in', () => {
+    showChannel(
+      watching((s) =>
+        reduce(
+          reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW),
+          { type: 'STEP_OUT', userId: ME },
+          NOW
+        )
+      )
+    );
+    const tree = open();
+    expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
+    // The second screen goes with the transport here, unlike the floor case
+    // above: a follower page is a live view of a conversation, and this is one
+    // the viewer is not in.
+    expect(
+      findButton(tree, 'Watch on another screen')!.props.disabled
+    ).toBe(true);
+    expect(textOf(tree)).toContain('Step in to start a watch party');
+    act(() => tree.unmount());
+  });
+
   it('refuses Record with the reason, rather than a dead button', () => {
     showChannel(watching());
     const tree = open();

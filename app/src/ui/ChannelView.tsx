@@ -36,6 +36,7 @@ import {
   canStartRecording,
   canStartWatch,
   canControlWatch,
+  canWatchTogether,
   isPartyMuted,
   partyMuteRequested,
   canStopRecording,
@@ -401,6 +402,13 @@ export function ChannelView({
   const party = watch.party;
   const watchAt = watchPositionMs(watch, now);
   const mayControlWatch = canControlWatch(channel, me);
+  // Presence without the floor clause, which is what a second screen needs:
+  // opening one changes nothing, so somebody in the room whose floor is held
+  // by another may still put the film on a laptop. What it refuses is a
+  // member who has not stepped in — the follower page is a live view of a
+  // conversation, and a channel you are outside of is one you are outside of
+  // on every device you own.
+  const mayWatchTogether = canWatchTogether(channel, me);
   // The whole of why `parseYouTubeUrl` is in core: this decides whether the
   // button lights up and the server decides whether to accept, and a greyed
   // control and a refused action must not disagree about what a link is.
@@ -1159,7 +1167,7 @@ export function ChannelView({
                       : copyLabel('screen', 'Copy screen link')
                   }
                   style={styles.flexButton}
-                  disabled={linking}
+                  disabled={linking || !mayWatchTogether}
                   onPress={() => void copyScreenLink()}
                 />
               </View>
@@ -1167,7 +1175,7 @@ export function ChannelView({
               <Button
                 label={linking ? 'Making a link…' : 'Watch on another screen'}
                 variant="ghost"
-                disabled={linking}
+                disabled={linking || !mayWatchTogether}
                 onPress={shareWatchLink}
               />
 
@@ -1206,7 +1214,7 @@ export function ChannelView({
                 label={linking ? 'Making a link…' : 'Watch on another screen'}
                 sublabel="A page for a laptop or a tablet, which follows this channel"
                 variant="ghost"
-                disabled={linking}
+                disabled={linking || !mayWatchTogether}
                 onPress={shareWatchLink}
               />
             </>
@@ -1258,18 +1266,23 @@ export function ChannelView({
           ) : null}
 
           <Text style={type.muted}>
-            {recordingLive
-              ? // Said out loud rather than left as a dead button. The two are
-                // exclusive because the video's sound never reaches The Floor,
-                // so a recording made alongside one would be missing the thing
-                // everybody was reacting to.
-                'Stop the recording first — a watch party is not recorded.'
-              : theyHoldFloor
-                ? `${holderName} has the floor, so they decide what plays.`
-                : iHoldFloor
-                  ? 'You have the floor — only you can change what plays.'
-                  : !mayControlWatch
-                    ? 'Step in to start a watch party. What everybody is watching is for whoever is here.'
+            {!mayWatchTogether
+              ? // First, because it outranks the rest: somebody outside the
+                // room has no use for being told whose floor it is or that a
+                // recording is running. It is also the one reason here that
+                // covers the second screen as well as the transport, every
+                // other control on this card being available to anyone in.
+                'Step in to start a watch party. What everybody is watching is for whoever is here.'
+              : recordingLive
+                ? // Said out loud rather than left as a dead button. The two are
+                  // exclusive because the video's sound never reaches The Floor,
+                  // so a recording made alongside one would be missing the thing
+                  // everybody was reacting to.
+                  'Stop the recording first — a watch party is not recorded.'
+                : theyHoldFloor
+                  ? `${holderName} has the floor, so they decide what plays.`
+                  : iHoldFloor
+                    ? 'You have the floor — only you can change what plays.'
                     : party
                       ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
                       : 'Open the link on a laptop or a tablet and it follows the channel. Recording is off while a party is on.'}

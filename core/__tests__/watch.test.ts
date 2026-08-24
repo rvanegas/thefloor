@@ -2,9 +2,11 @@ import { DISCONNECT_GRACE_MS, FLOOR_CLAIM_MS } from '../constants';
 import { parseYouTubeUrl, watchPositionMs } from '../watch';
 import { anyMicrophoneOpen, microphoneNeeded } from '../micNeeded';
 import {
+  canControlPlayback,
   canControlWatch,
   canStartRecording,
   canStartWatch,
+  canWatchTogether,
   createChannel,
   isPartyMuted,
   isWithheld,
@@ -241,6 +243,59 @@ describe('who may drive it', () => {
     const claimed = reduce(watching(), { type: 'CLAIM_FLOOR', userId: A }, T0);
     const s = reduce(claimed, { type: 'WATCH_PLAY', userId: B }, T0 + 1_000);
     expect(s.watch.status).toBe('paused');
+  });
+});
+
+/**
+ * The rule that the room, not the roster, is what a party belongs to — and the
+ * one place the watch party is stricter than everything else on the screen.
+ */
+describe('a member who has not stepped in', () => {
+  /** Nobody present, a party still loaded, and A outside it. */
+  function empty(): ChannelState {
+    return apply(watching(), [
+      [{ type: 'STEP_OUT', userId: A }, T0 + 1_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 2_000],
+    ]);
+  }
+
+  it('may not start one, even with the channel to themselves', () => {
+    const s = empty();
+    expect(canWatchTogether(s, A)).toBe(false);
+    expect(canStartWatch(s, A)).toBe(false);
+    expect(canControlWatch(s, A)).toBe(false);
+  });
+
+  it('may not drive one that is already loaded', () => {
+    const s = reduce(empty(), { type: 'WATCH_PLAY', userId: A }, T0 + 3_000);
+    expect(s.watch.status).toBe('paused');
+  });
+
+  it('may not start one on an empty channel that never had a party', () => {
+    const idle = apply(joined(), [
+      [{ type: 'STEP_OUT', userId: A }, T0 + 1_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 2_000],
+    ]);
+    const s = reduce(
+      idle,
+      { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
+      T0 + 3_000
+    );
+    expect(s.watch.party).toBeNull();
+  });
+
+  it('gets it back by stepping in, and nothing else changes', () => {
+    const s = reduce(empty(), { type: 'ENTER', userId: A }, T0 + 3_000);
+    expect(canWatchTogether(s, A)).toBe(true);
+    expect(canStartWatch(s, A)).toBe(true);
+  });
+
+  it('may still drive shared playback there, which is the divergence', () => {
+    // `hasTheRoom` governs playback and lets an absent member set a track up
+    // before anybody arrives. A party is not preparation — it runs, and it
+    // mutes the room while it does — so it asks presence instead. This test
+    // exists to make the difference deliberate rather than incidental.
+    expect(canControlPlayback(empty(), A)).toBe(true);
   });
 });
 

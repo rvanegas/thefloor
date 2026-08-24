@@ -108,7 +108,9 @@ microphone can be quiet, and it is not either of the other two** — which is th
 whole reason it has an entry rather than a clause in one of theirs.
 
 **Name in source.** `ChannelState.watch.mutedAll` (`core/types.ts`) is the
-**intent**, written by `SET_WATCH_MUTE` and guarded by `canControlWatch`. What
+**intent**, written by `SET_WATCH_MUTE` and guarded by `canControlWatch` —
+which since 2026-08-24 is presence plus the floor, not occupation plus the
+floor, so nobody outside the room can mute it. What
 actually holds is `partyWithholds(watch)` (`core/watch.ts`) — the intent
 **and** `status === 'playing'` — surfaced as `isPartyMuted(state)` and combined
 with the floor by `isWithheld(state, speaker)` (`core/channel.ts`), which is
@@ -268,7 +270,13 @@ things that this file keeps apart:
 
   It does **not** govern leaving, exporting a recording, reading the guest
   links, or anything already about presence for its own reasons: the floor,
-  self-mute, starting a recording, answering the door. `present` counts members
+  self-mute, starting a recording, answering the door — **and, since
+  2026-08-24, the watch party**, which used to share playback's guard and now
+  asks plain presence through `canWatchTogether`. The seam is preparation
+  against performance: a track loaded on an empty channel sits silent until
+  somebody plays it, while a party runs a clock and mutes the room over
+  whoever steps in next. DECISIONS.md § *A watch party belongs to the room,
+  not to the roster*. `present` counts members
   only, so a guest never holds a room — though `settleEmpty` means a guest
   cannot be in an empty one either, and `canManageGuest` therefore gets no
   behaviour from the empty half. The reasoning is DECISIONS.md § *Nobody

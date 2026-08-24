@@ -200,6 +200,34 @@ describe('the link', () => {
     expect(refused.statusCode).toBe(403);
   });
 
+  it('is refused to a member who has not stepped in', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    const refused = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/watch-token`,
+      headers: auth(alice.token),
+    });
+    expect(refused.statusCode).toBe(403);
+    // And Bob, who is standing in it, is unaffected — the refusal is about the
+    // room rather than about the channel.
+    expect((await watchLink(bob.token, channelId)).length).toBeGreaterThan(0);
+  });
+
+  it('is refused on an empty channel, which nobody is watching together', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    const refused = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/watch-token`,
+      headers: auth(alice.token),
+    });
+    // `hasTheRoom` would have allowed this — an empty channel is nobody's
+    // conversation to interrupt. A party is not that kind of act.
+    expect(refused.statusCode).toBe(403);
+  });
+
   it('does not sign the phone out, however many screens are opened', async () => {
     const { alice, channelId } = await channelOfTwo();
     await watchLink(alice.token, channelId);
@@ -369,6 +397,10 @@ describe('a watch-scoped socket', () => {
 
   it('may not watch a second channel, nor Home', async () => {
     const { alice, channelId } = await channelOfTwo();
+    // Minted before the second channel exists, and that order is load-bearing:
+    // entering the second steps Alice out of the first, and a link is minted
+    // only for a channel its owner is standing in.
+    const link = await watchLink(alice.token, channelId);
     // A third person, so the second channel is genuinely a different one — a
     // pair already holding a channel is handed the one they have.
     const carol = await signIn('carol@example.com', 'Carol');
@@ -392,7 +424,7 @@ describe('a watch-scoped socket', () => {
     const second = (other.json() as { channelId: string }).channelId;
     expect(second).not.toBe(channelId);
 
-    const page = new Client(tokenOf(await watchLink(alice.token, channelId)), baseUrl);
+    const page = new Client(tokenOf(link), baseUrl);
     await page.open();
     page.send({ type: 'watch.channel', channelId: second });
     page.send({ type: 'watch.home' });

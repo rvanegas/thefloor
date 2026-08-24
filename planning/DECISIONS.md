@@ -1350,3 +1350,80 @@ command instead of believing a paragraph.
 The durable things the last entry had accumulated went with it into the
 history, not into the bin — including the note that half the watch party ships
 like a website and half like an app.
+
+## A watch party belongs to the room, not to the roster — 2026-08-24
+
+`canControlWatch` was `canControlPlayback` — literally, both being one call to
+`holdsSharedControl` — and that shared rule is `isParticipant && hasTheRoom`.
+`hasTheRoom` is true when nobody is present, deliberately: an empty channel is
+nobody's conversation to interrupt, so a member who wants to load a track, tidy
+the recordings or fix a typo before anybody arrives is interrupting nothing.
+
+Applied to a party, that left a member who had not stepped in able to paste a
+link, press Play, mute the room and mint a follower screen on a channel they
+were standing outside of. The card already said otherwise — *"Step in to start
+a watch party. What everybody is watching is for whoever is here"* — so the
+prose was stating a rule the guard did not have. It was reachable only through
+the empty half of `hasTheRoom`, which is why it survived: with anybody else in
+the room the guard refused, and the sentence was true every time anyone looked.
+
+**The distinction that settles it is preparation against performance.** Loading
+a track is preparation: it sits there, silent, until somebody plays it. A party
+is not — `startParty` mutes the room, `WATCH_PLAY` starts a clock, and the
+mute holds over whoever steps in next. So an absent member could leave a film
+running and a room silenced for people who arrived after the decision and had
+no part in it. Nothing is lost by requiring presence, because there is nothing
+to prepare: a party begins where somebody presses play, and the person pressing
+it is the person watching.
+
+So the watch party keeps the floor rule and drops the occupation one.
+`floorPermits` is the half both features share — nobody holds a claim, or the
+claim is yours — and `canWatchTogether` is the watch party's own standing
+requirement, which is plain presence. `canControlWatch` is the two together;
+`canStartWatch` adds the idle recording it always did. **Playback is
+deliberately unchanged**, and there is a core test asserting the divergence
+rather than leaving it to look like an oversight.
+
+### The second screen goes with the transport, and the floor does not
+
+`watchToken` checked membership. It now checks `canWatchTogether` as well,
+which makes its own comment true of members: the follower page is *"the whole
+of what stands between that and watching along with a conversation you are not
+in"*, and a channel you have not stepped into is such a conversation however
+many devices you own.
+
+`canWatchTogether` rather than `canControlWatch`, because the floor has no
+business here — a follower page changes nothing, so somebody in the room whose
+floor is held by another may still open one. That was already tested and is
+still true. The two rules now differ by exactly the clause that separates
+looking from driving.
+
+**An already-open follower page is not revoked when its owner steps out**, and
+that is a boundary rather than an oversight. The page drives nothing, the token
+expires on its own in six hours, and a screen going dark because a phone in
+another room was tapped is a worse failure than the one it would prevent.
+`ws.ts` already refuses that socket everything but a duration report. What is
+enforced is minting, which is what the button on the card does.
+
+### What it cost elsewhere
+
+One server test, and the failure was the rule working. `may not watch a second
+channel, nor Home` had Alice create a second channel and *then* mint a link for
+the first — but entering the second steps her out of the first, so the mint was
+now a 403. Minting before the second channel exists is the fix, and the order
+is commented, since the next person to add a case there will reach for the same
+shape.
+
+**Installed builds are unaffected in the way that matters and stale in the way
+that does not.** No wire name changed, so nothing here is the two-step
+AGENTS.md warns about. A build below this one carries the old guard, so its
+watch card lights up for a member outside an empty channel — and the actions
+are then ignored by the reducer on the server, which is what a stale guard has
+always cost. The follower link is the one that answers out loud, `watchToken`
+returning a 403 the card already renders as a sentence.
+
+The card's explanation moved presence to the top of its chain, above the
+recording and the floor. Somebody outside the room has no use for being told
+whose floor it is; and the presence branch is now the only one that covers the
+second screen as well as the transport, every other control on the card being
+available to anyone standing in the channel.

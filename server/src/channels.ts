@@ -16,6 +16,7 @@ import {
   canClaimFloor,
   canControlPlayback,
   canDeleteChannel,
+  canWatchTogether,
   hasTheRoom,
   GUEST_ACTIONS,
   createChannel,
@@ -3040,6 +3041,13 @@ export class ChannelRegistry {
    * the whole of what stands between that and watching along with a
    * conversation you are not in.
    *
+   * **And presence besides**, since 2026-08-24, which is the clause that makes
+   * that sentence true of members as well as strangers: a channel you have not
+   * stepped into is a conversation you are not in, and a second screen is not
+   * a way around that. `canWatchTogether` rather than `canControlWatch` — a
+   * follower page changes nothing, so somebody in the room with the floor
+   * against them may still open one.
+   *
    * Minted whether or not a party is running. A link handed to a laptop before
    * anybody has pasted anything is a page that waits, which is the ordinary
    * order of doing this: open the screen, then choose the video.
@@ -3054,6 +3062,13 @@ export class ChannelRegistry {
     }
     if (!isParticipant(channel, userId)) {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    if (!canWatchTogether(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Step in to watch on another screen.',
+        code: 'forbidden',
+      };
     }
     return {
       ok: true,

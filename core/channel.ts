@@ -522,21 +522,67 @@ function holdsSharedControl(state: ChannelState, userId: UserId): boolean {
   // was what quietly refused a guest it. `hasTheRoom` alone would let one
   // through, since a guest is always in the room.
   if (!isParticipant(state, userId) || !hasTheRoom(state, userId)) return false;
+  return floorPermits(state, userId);
+}
+
+/**
+ * Whether the floor leaves this person free to change what is attended to.
+ *
+ * The half of `holdsSharedControl` the watch party shares: nobody holds a
+ * claim, or the claim is yours. Separate from the standing half because the
+ * two features answer *where you have to be* differently and answer this
+ * identically, and a claim's effect on what is playing is one rule wherever
+ * it is asked.
+ */
+function floorPermits(state: ChannelState, userId: UserId): boolean {
   return state.floor.holder === null || state.floor.holder === userId;
+}
+
+/**
+ * Whether `userId` is in the room a watch party is for.
+ *
+ * **Presence, not occupation** — which is where the watch party parts company
+ * with shared playback, and it is worth saying why, since the two were one
+ * rule until 2026-08-24. `hasTheRoom` lets an absent member act on an *empty*
+ * channel, on the reasoning that they are interrupting nobody: loading a track
+ * or fixing a typo before anybody arrives is preparation, and preparation is
+ * harmless.
+ *
+ * A party is not preparation. It is a running transport with a clock, and it
+ * withholds every microphone in the room while it plays — so a member who
+ * pastes a link and puts the phone down leaves a film running and the room
+ * muted for whoever steps in next, with nobody there who chose either. The
+ * mute is the sharp end: `startParty` mutes by default, and the person it
+ * silences would be somebody who arrived after the decision was made.
+ *
+ * Nothing is lost by requiring presence, because there is nothing to prepare.
+ * A party begins where somebody presses play, and the person pressing it is
+ * the person watching.
+ *
+ * Guests are refused because `present` counts members only — the same reason
+ * `hasTheRoom` is not written in terms of `roomOccupants`.
+ */
+export function canWatchTogether(
+  state: ChannelState,
+  userId: UserId
+): boolean {
+  return state.status === 'active' && isPresent(state, userId);
 }
 
 /**
  * Whether `userId` may drive the watch party's transport.
  *
- * The same rule as `canControlPlayback`, deliberately — see
- * `holdsSharedControl`. A claim confers control of the video without pausing
- * it: the film keeps running and stops being anybody else's to change.
+ * Two clauses, and they come from different places. Being in the room is
+ * `canWatchTogether`, which is the watch party's own rule and is stricter than
+ * playback's — see there. The floor is `floorPermits`, which is the same rule
+ * playback follows: a claim confers control of the video without pausing it,
+ * so the film keeps running and stops being anybody else's to change.
  */
 export function canControlWatch(
   state: ChannelState,
   userId: UserId
 ): boolean {
-  return holdsSharedControl(state, userId);
+  return canWatchTogether(state, userId) && floorPermits(state, userId);
 }
 
 /**

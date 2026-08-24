@@ -92,6 +92,8 @@ Allow multiple sessions on distinct devices. What is disallowed is only to be pr
 
 ## Watch Party Auth
 
+**Built 2026-08-24.** Kept as an entry rather than deleted, because where the hole was is not where the title suggests. The card's own prose already said "Step in to start a watch party", and with anybody else in the room the guard agreed — `canControlWatch` was `canControlPlayback`, which refuses an outsider whenever a conversation is going on. What it allowed was the *empty* channel, `hasTheRoom` being true when nobody is present so that an absent member can load a track before anybody arrives. A party is not preparation, so the watch party now asks plain presence, `canWatchTogether`, and playback deliberately still does not. The second screen went with the transport and the floor did not: `watchToken` needs presence, not the floor, since a follower page drives nothing. An already-open follower page is *not* revoked when its owner steps out, which is a boundary rather than an oversight. DECISIONS.md § *A watch party belongs to the room, not to the roster*.
+
 Members in a channel who have not stepped in should not have access to watch party controls.
 
 ## App as Watch Party Player
