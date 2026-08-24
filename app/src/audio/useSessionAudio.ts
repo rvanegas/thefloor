@@ -508,6 +508,17 @@ export function useSessionAudio(
     ) => {
       if (track.kind !== Track.Kind.Audio) return;
       audible.add(participant.identity);
+      // **Logged since build 91, and the gap it fills was one this app made
+      // for itself.** Until build 90 a subscription was legible in the log by
+      // accident: it moved `othersAudible` off zero, that moved the session
+      // from `IDLE` to `LISTENING`, and the session write was recorded. Build
+      // 90 collapsed those two states to stop the write racing the engine —
+      // and took the only evidence of a subscription with it. The failure
+      // reported the same evening was `audible 0` against a server that was
+      // publishing throughout, which is a *lost subscription* and not the
+      // engine fault every earlier reading had shown. Nothing in the log said
+      // when it went.
+      recordEvent(`sub + ${participant.identity} (${audible.size})`);
       update({ othersAudible: audible.size });
     };
     const onUnsubscribed = (
@@ -517,6 +528,11 @@ export function useSessionAudio(
     ) => {
       if (track.kind !== Track.Kind.Audio) return;
       audible.delete(participant.identity);
+      // The half that matters. A subscription that goes away without the room
+      // dropping is silent everywhere else: `Disconnected` never fires, the
+      // socket is fine, the screen is right, and there is simply nothing to
+      // hear.
+      recordEvent(`sub - ${participant.identity} (${audible.size})`);
       update({ othersAudible: audible.size });
     };
 
@@ -575,7 +591,26 @@ export function useSessionAudio(
       onQuiet(participant);
     };
 
+    /**
+     * The transport's own account of itself, which nothing else records.
+     *
+     * `Disconnected` is already handled below and is the only one this app
+     * acts on. These are the states it passes *through* — a signal reconnect,
+     * a subscription the SFU could not deliver — each of which can leave a
+     * room that reports healthy and carries no audio. That combination is what
+     * `c2f5039` described in 2026-08-11 as "subscribed to the new track,
+     * reporting healthy, and silent", and it has never had a line in any log.
+     *
+     * Log-only. Acting on any of them is a change to how this app reconnects,
+     * and that decision wants the evidence these produce first.
+     */
     room
+      .on(RoomEvent.Reconnecting, () => recordEvent('room reconnecting'))
+      .on(RoomEvent.SignalReconnecting, () => recordEvent('room signal reconnecting'))
+      .on(RoomEvent.Reconnected, () => recordEvent('room reconnected'))
+      .on(RoomEvent.TrackSubscriptionFailed, (sid, participant) =>
+        recordEvent(`sub failed ${participant.identity} ${sid}`)
+      )
       .on(RoomEvent.TrackMuted, onMuted)
       .on(RoomEvent.TrackMuted, onTrackQuiet)
       .on(RoomEvent.TrackUnmuted, onUnmuted)

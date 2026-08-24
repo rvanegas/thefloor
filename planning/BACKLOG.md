@@ -837,6 +837,45 @@ So the next suspect cannot be watched, only removed — and removing it means
 handling. That is a bigger change than build 90 and should not be made on the
 strength of one unreproduced failure.
 
+### The build 90 failure is a different fault: `audible 0`
+
+Caught 2026-08-24, 21:10, on build 90, with the panel open and reading nothing.
+`run/rec/play` reads `F F T` again — but **`audible 0`**, where every earlier
+reading said 1. The client was not subscribed to anything.
+
+The server was fine throughout, and this is checkable rather than inferred:
+`media:chan_f8kjILkZrQ_X` joined the room at 21:05:54, published its track, and
+**never closed** — it was still there, unmuted, when the room was queried
+afterwards. No `playbackStalled`, no media errors. So the phone sat in a room
+with an unmuted audio track in it and was subscribed to none of it.
+
+**An engine that is not running is then correct rather than faulty.** There is
+nothing to render. Every earlier reading in this entry had `audible 1`, which
+is what made "the engine died" the right reading of them; this one is a lost
+subscription, and treating it as the same fault would be reasoning from a
+symptom two mechanisms share.
+
+Neither *Restart audio session* nor *Rebuild the room* recovered it, and the
+server log says why the second could not: LiveKit answered the rebuilds with
+`could not handle new participant` / *could not restart participant*, which is
+what it says when an identity is already in the room and the resume is refused.
+The rebuild was racing its own predecessor's teardown.
+
+**Build 90 removed the instrument that would have dated this**, which is worth
+stating as a lesson rather than a mishap. A subscription used to be legible by
+accident: it moved `othersAudible` off zero, which moved the session from
+`IDLE` to `LISTENING`, which was written and logged. Collapsing those two
+states to stop the write racing the engine took the only evidence of a
+subscription with it. **A change that removes a write can remove an
+observation**, and nothing in the log said when the track went.
+
+Build 91 restores it directly rather than by accident: `sub +`/`sub -` lines on
+every subscribe and unsubscribe, and log lines for `Reconnecting`,
+`SignalReconnecting`, `Reconnected` and `TrackSubscriptionFailed` — the states a
+room passes through while reporting healthy. It also acknowledges every press
+in the panel, because a probe that did nothing and a probe that never ran had
+been indistinguishable to whoever was pressing them.
+
 **What is needed first is the log from a failure**, which is now worth having
 in a way it was not before: the panel reads nothing on its own, engine
 transitions are stamped, and the screen markers are there. When it next fails,

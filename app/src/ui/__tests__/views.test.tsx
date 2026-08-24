@@ -5520,6 +5520,11 @@ describe('the audio diagnostic panel', () => {
     const text = textOf(tree);
     expect(text).toContain('probe engineAvailability →');
     expect(text).toContain('probe engineAvailability ✓');
+    // And the button says it was pressed. On a panel whose whole job is to
+    // correlate a tap against a sound, a press you are unsure of is a reading
+    // you cannot use — a probe that did nothing and a probe that never ran
+    // look identical without this.
+    expect(text).toContain('✓ · engineAvailability');
     act(() => tree.unmount());
   });
 });

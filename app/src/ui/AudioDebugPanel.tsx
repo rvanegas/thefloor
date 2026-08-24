@@ -275,18 +275,43 @@ export function AudioDebugPanel({
 /**
  * One button, sized for a thumb at arm's length like everything else here.
  *
- * Its own component because there are now fifteen of them and the panel is read
- * while somebody is listening for a sound rather than looking at a screen.
+ * **It acknowledges the press, and that is not decoration.** Asked for after a
+ * session of probing: "I was never quite sure" whether a press had registered.
+ * On a panel whose whole purpose is to correlate a tap against a sound, a tap
+ * you are unsure of poisons the reading — you cannot tell a probe that did
+ * nothing from a probe that never ran, which is precisely the distinction the
+ * harness exists to make. The copy button has said `✓ copied` since it was
+ * written, for the same reason and in the same words.
+ *
+ * Two and a half seconds, which is what the clipboard card and the copy button
+ * already use: long enough to read while listening, short enough that a second
+ * press is not mistaken for the first one's acknowledgement.
  */
 function Tap({ label, onPress }: { label: string; onPress: () => void }) {
+  const [pressed, setPressed] = useState(false);
+
+  useEffect(() => {
+    if (!pressed) return;
+    const timer = setTimeout(() => setPressed(false), 2500);
+    return () => clearTimeout(timer);
+  }, [pressed]);
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        // Before the work, so a call that blocks the JS thread — which is what
+        // every probe here does — still shows that it started. One that never
+        // returns would otherwise look like a press that never landed.
+        setPressed(true);
+        onPress();
+      }}
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Text style={styles.tap}>{label}</Text>
+      <Text style={pressed ? styles.tapPressed : styles.tap}>
+        {pressed ? `✓ ${label}` : label}
+      </Text>
     </Pressable>
   );
 }
@@ -338,6 +363,15 @@ const styles = StyleSheet.create({
     fontFamily: monospace,
     fontSize: 17,
     color: colors.floor,
+    paddingVertical: spacing(0.5),
+  },
+  // Deliberately a colour change as well as a tick: the panel is read at arm's
+  // length while listening for a sound, and a single character appearing at
+  // the head of a line is easy to miss.
+  tapPressed: {
+    fontFamily: monospace,
+    fontSize: 17,
+    color: colors.text,
     paddingVertical: spacing(0.5),
   },
   note: {
