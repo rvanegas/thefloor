@@ -54,7 +54,7 @@ costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 
 The rest are temporary, and say so in their own first lines. Designs for
-unbuilt work — **`planning/ANONWEB.md`** is the only one left — are deleted
+unbuilt work — **`planning/TRANSCRIPTS.md`** is the only one now — are deleted
 when the work ships, with whatever survives moving to `DECISIONS.md`.
 `planning/USAGE.md` went that way on 2026-08-19: the reasoning is
 `DECISIONS-2026-08-16-to-2026-08-19.md` § *The meter is two tables and a
