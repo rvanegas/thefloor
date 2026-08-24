@@ -684,10 +684,45 @@ Then force `CALL` while still alone by **starting a recording** —
 culprit. If it does not kill there, the fault is specific to the playout-only
 engine, which is what the others-present data point already suggests.
 
-**Run in parallel, needing no build:** `debug` was set to 0 on 2026-08-24, which
-removes the panel entirely. If the original recipe survives that, the panel is
-the whole bug and no ordinary user has ever been affected — nobody else renders
-it. Set it back to 1 to use the harness.
+### Confirmed with the panel removed, and the leftover is not a fault
+
+`debug` was set to 0 on 2026-08-24, which takes the panel out of the tree
+entirely. The recipe was then run again:
+
+- **Home and back into the channel no longer cuts the audio.** That is the
+  symptom TASKS § *Stepping Back In* was written about, and it is gone the
+  moment the reader is gone. **The panel was that bug.** No ordinary user was
+  ever affected, because nobody without the `debug` column renders it.
+- **Stepping out and back in still stops the sound** — and that one is
+  `settleEmpty` in `core/channel.ts`, which is deliberate. Stepping out while
+  alone empties the channel, an empty channel pauses playback, and *nothing
+  resumes on the way back in*: the reducer does not record why playback paused,
+  and a channel that starts making noise at whoever walks in is worse than a
+  press of Play. The comment on that function has said so since it was written.
+
+**One check separates the second from a real residual, and it is free.** After
+stepping back in, read the transport. **Paused** means this is the designed
+behaviour and Play picks up where it left off. **Playing, with no sound**, means
+something is still wrong and this entry stays open.
+
+Until that reads *paused*, treat the entry as unconfirmed rather than closed.
+
+### What survives either way
+
+**Build 89's panel fix stands regardless.** Reading the audio engine stops it —
+that is now established by ear, twice, and it is not conditional on what else
+was going on. An instrument that has to be kept away from the thing it measures
+is still worth having, and the one that reads only when asked is the version
+that can be trusted.
+
+The **bisection is no longer urgent, and is still worth running** — knowing
+which of the nine is destructive is what would let the panel read the other
+eight safely, and this is the only debugging surface this subsystem has.
+
+The **recovery** — notice a dead engine under a live room and re-activate — has
+lost its reason. It was proposed for a fault that turned out to be
+self-inflicted, and nothing now known says an engine dies on its own. Do not
+build it on the strength of this entry.
 
 **Build 88 was instrument-only and that is what made the negative worth
 having.** It logs engine transitions — `willStartEngine` and `didStopEngine`,
