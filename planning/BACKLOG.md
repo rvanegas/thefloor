@@ -707,22 +707,28 @@ immediately after the above, which **rules the `settleEmpty` explanation out**.
 the server state genuinely says playing. An emptied channel would read paused
 and frozen. Whatever is cutting the sound here, it is not the designed pause.
 
-Two readings separate what is left, and the difference decides everything:
+**Answered the same hour: it read paused, Play was pressed, and then the time
+advanced with no sound.** So the empty-channel pause worked exactly as designed,
+and what is left is the real fault:
 
-1. **Straight after stepping back in, before pressing anything** — does the
-   transport read paused or playing? Playing here would mean `settleEmpty` did
-   not fire at all, which would make the channel not empty and is a reducer
-   question.
-2. **If it read paused and Play was pressed** — then the pause worked, and what
-   is broken is the client not rendering after a teardown and rebuild. Stepping
-   out calls `stopAudioSession`, stepping back in calls `startAudioSession`, and
-   a playout-only engine that does not survive that cycle is a real fault with
-   nothing to do with the panel.
+> **A playout-only engine does not survive a teardown and rebuild.** Step out,
+> step back in, press Play: the server plays, the pump produces frames, LiveKit
+> carries them into a room the phone is active in, and the phone is silent.
 
-Reading 2 is the one that matches the original report's *"stepping out and back
-in doesn't restore audio"*, and it is the one build 89's recovery buttons test
-directly: if *Restart audio session* or *Rebuild the room* brings the sound
-back, the recovery is the fix.
+Stepping out tears the connection down — `room.disconnect()` and
+`AudioSession.stopAudioSession()` — and stepping back in builds a fresh one,
+`startAudioSession()` included. Something in that cycle leaves nothing
+rendering. It has nothing to do with the panel: this was reproduced with
+`debug` at 0 and no panel in the tree at all.
+
+**This is a symptom this codebase has already met once, from the other side.**
+`c2f5039`, 2026-08-11, explaining why `startAudioSession()` is called
+explicitly rather than left to the SDK: *"after a party left and rejoined, the
+other side's playback never resumed: subscribed to the new track, reporting
+healthy, and silent."* The explicit activation fixed it for the `CALL` case.
+The alone case is `playback`, and there the same activation is evidently not
+enough — which fits every other narrowing in this entry, all of which say the
+fault lives in the playout-only session.
 
 ### What survives either way
 
