@@ -139,6 +139,47 @@ follows is what is actually outstanding.
 
 ---
 
+## Sessions cannot be listed, only ended wholesale
+
+**Status:** not started, and a gap opened deliberately on 2026-08-24 rather
+than one that was always there. Several sessions per account became ordinary
+that day — see DECISIONS.md § *Several sessions, one voice* — and what replaced
+the old "signing in elsewhere ends everything else" rule is
+`/auth/sign-out-others`, which ends every session but the caller's.
+
+That is the right first move and it is blunt. Somebody who wants to sign out
+one of three devices has to sign out both and sign the other back in, and
+somebody who merely wants to know where they are signed in cannot find out at
+all.
+
+The reason there is no list is that there is nothing worth listing. A session
+is a row in `tokens`: a hash, an account, a minted time and an expiry. Nothing
+records what kind of device presented it, and a row reading "iOS, 3 August" is
+not something anybody recognises their own lost handset in. Making the screen
+useful means recording something at sign-in worth showing — a platform, a model
+name, the address it came from — which is a schema change, a wire change, and a
+privacy decision about keeping a log of where somebody signs in from. Each of
+those is small; wanting them is the part that has not been established.
+
+`device_tokens` is the nearer half of the answer, since it already carries a
+platform and a `last_seen_at` nothing reads. It is a register of push
+addresses rather than of sessions, though, and the two are not in step: an
+install that was never granted notification permission has a session and no
+address at all.
+
+**One thing that wants doing regardless of whether a list is ever built:
+record the build per device rather than per account.** `accounts.last_build` is
+a single column written by whichever device spoke last, and
+`buildsSeenSince` reads it to answer whether anything below the compatibility
+floor is still calling. That was exact while one session per account was
+enforced and is not any more: a newer device masks an older one belonging to
+the same person, so the census now reads as a lower bound on how modern the
+population is. Nothing enforces anything on it, but raising
+`MIN_SUPPORTED_BUILD` on a census that missed an install ends that install's
+sessions. See DECISIONS.md § *Several sessions, one voice*.
+
+---
+
 ## Presence follows the websocket, not the room
 
 **Status:** not started. This is what survives the 2026-08 backgrounding

@@ -147,6 +147,28 @@ export const api = {
     }),
 
   /**
+   * Ends every other session this account has, and forgets every other address
+   * it can be reached at.
+   *
+   * The one operation that reaches a session whose token the caller does not
+   * hold, which is what makes it the answer to a lost phone. Signing in used
+   * to do this by itself until 2026-08-24, when several sessions at once
+   * became the ordinary case; it is the same lever, pulled on purpose.
+   *
+   * The device token travels with it for the reason it travels with
+   * `signOut`: the server knows which session is asking and has no way to know
+   * which registered address belongs to the same phone, so the caller has to
+   * name the one to keep. An install with no notification permission names
+   * none and correctly loses them all.
+   */
+  signOutOthers: (token: string, deviceToken?: string) =>
+    request<{ sessions: number }>('/auth/sign-out-others', {
+      method: 'POST',
+      body: { deviceToken },
+      token,
+    }),
+
+  /**
    * Deletes the account this token belongs to, and everything it is.
    *
    * No device token, unlike sign-out. That one names a single phone, because

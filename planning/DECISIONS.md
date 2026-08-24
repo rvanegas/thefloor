@@ -1639,3 +1639,154 @@ the parity that was actually asked for — whatever the party does to somebody
 outside an occupied channel, the media player does too — and the split at the
 empty channel, on both features, in both directions.
 
+---
+
+## Several sessions, one voice
+
+2026-08-24, from TASKS § *Auth and Sessions*: allow multiple sessions on
+distinct devices, disallow only being present in more than one channel, and
+make stepping into a channel on one device step you out of any other channel on
+any other device.
+
+**The old rule was one session per account, and it was not an accident.** A
+token is good for ninety days; nothing in the product listed or cancelled a
+session; so signing in elsewhere was the only signal available that a device
+might have left its owner's hands. `issueToken` revoked every other token
+before minting one, and `Devices.register` deleted every other address for the
+account to match — the second being the first expressed twice, since an account
+with two live addresses was describing a state the auth layer forbade. That is
+`DECISIONS-2026-08-07-to-2026-08-13.md` § *Multiple auth per user*, and it was
+right for a product with no users and one author holding one phone.
+
+What it charged for that signal was the ordinary case: a phone and a tablet.
+Both halves are gone. `issueToken` revokes nothing, `register` deletes nothing,
+and `/auth/verify` no longer clears the account's addresses on the way past.
+
+**The lever comes back as a decision instead of a side effect.**
+`/auth/sign-out-others` revokes every token but the caller's and forgets every
+address but the one the caller names, behind *Sign out other devices* in
+Settings. It is the same operation signing in used to perform for free, and it
+is still the only thing that can reach a session whose token nobody holds — the
+device you left on a train is revoked by nothing else. It answers with how many
+sessions went, which the app puts in an alert, because that count is the whole
+of what can be said afterwards.
+
+**There is no list of devices, deliberately.** A session is a token and a
+minting time; the server knows nothing else about the phone holding it. A row
+reading "iOS, 3 August" is not something anybody recognises their own lost
+handset in, so the screen offers the decision it can actually be asked —
+everything but this one — rather than a list to guess from. That is a real gap
+if sessions ever want managing properly, and it is in BACKLOG.md.
+
+### Presence was already exclusive; the device holding it was not
+
+The channel half of the task needed almost nothing. `stepOutOfOthers` has
+stepped a person out of every channel but the one they are entering since it
+was written, presence is keyed by account, and the app derives where it is
+standing from the snapshots rather than from navigation — `liveChannelView`.
+So a second device entering channel B steps the account out of channel A, the
+snapshot for A lands on the first device without that person in `present`, and
+its audio hangs up by itself. That path was correct before this change and is
+untouched by it.
+
+**What no snapshot can express is two devices in the same channel.** The
+account is present either way, nothing about the channel changes, and there is
+nothing to push. Left alone it is not a harmless oddity: the media room admits
+one participant per identity and identity is the account id, so LiveKit
+disconnects the older device and the first thing anybody notices is a screen
+that says they are in a conversation they cannot hear.
+
+Making the identity per-session instead was considered and is much larger than
+it looks — identity is the key for recording stems, usage spans and the pairwise
+silence matrix, so a second identity would be a second participant in every one
+of those. And it would be modelling something the product does not mean: one
+person has one microphone.
+
+So the rule is that **presence belongs to the session that entered most
+recently**, and the server says so directly. `displaced` is a new
+`ServerMessage` carrying nothing at all, sent on a successful `ENTER` to every
+other session of that account. The client drops its audio and stops drawing
+itself as standing anywhere; the channel screen stays open, stays watched, and
+offers *Step in* again, which takes the room back with the same gesture that
+took it away. Naming a channel in the message was rejected: a client that
+checked and disagreed would be the one holding an open microphone.
+
+**Two details are load-bearing and neither is obvious.**
+
+It is sent **on the action rather than on a change of state.** Entering a
+channel this account is already present in changes nothing the reducer would
+report, and that is exactly the case the message exists for.
+
+It is keyed on **the token, not the socket.** A device that is reconnecting has
+two sockets for a moment — the old one not yet closed — and the client re-sends
+`ENTER` on the new one to restore its place. Displacing by socket would let a
+flap take the room away from the device somebody is holding, repeatedly, on
+patchy signal. For the same reason `Realtime` clears `enteredChannel` when the
+message arrives: a displaced device must not re-enter on its next reconnect and
+steal the room back from the device that took it.
+
+### What this changes for anybody reading older text
+
+Signing in elsewhere no longer signs you out, so every sentence that said it
+did is now wrong. The socket sweep's close message said *Signed in on another
+device* and now says *This device was signed out*, which covers all three ways
+to get there — a deliberate sign-out from elsewhere, a deleted account, and a
+ninety-day token. The app's own sign-out notice said the same thing and says
+the same thing instead. Settings said signing in elsewhere signs you out here;
+it now says only this device is signed out, beside the button that does the
+other thing.
+
+One claim in `devices.ts` weakened rather than moved. The registry was bounded
+by how many accounts exist, because `register` kept one row each; it is now
+bounded by how many devices have registered and never been notified at since —
+an account's own phones, plus a reinstall's predecessor until the first send
+finds it dead at Apple. `last_seen_at` is still read by nothing and is still
+what a sweep would read if one is ever wanted.
+
+**What the displaced screen narrows is deliberately not everything.**
+`iAmPresent` in `ChannelView` is what drives the microphone card, the door and
+the step in/out card, and it is narrowed — those are assertions about this
+device, and a microphone drawn as open above a closed one is the disagreement
+this whole message exists to prevent. The controls guarded by `can…` from
+`core/` are not narrowed: they ask whether this *account* may act, and it may,
+because the account genuinely is in the channel. So a displaced tablet can
+still claim the floor, and the floor it claims is held by the phone that has
+the audio. That reads oddly written down and is right in the hand: it is one
+person, in one conversation, with a second screen in front of them.
+
+### Two things this weakens, neither of them broken
+
+**The build census now has one column for two devices.** `markSeen` writes
+`accounts.last_build`, one row per account, last writer wins — and
+`buildsSeenSince` reads it to answer "is anything older than the floor still
+calling", which is the only measurement `MIN_SUPPORTED_BUILD` has ever had.
+With a phone on one build and a tablet on an older one, the answer is whichever
+spoke most recently, so an old install can be masked by a newer one belonging
+to the same person. It was exact while one session per account was enforced,
+because there was only ever one build to write.
+
+Nothing enforces anything on it, so the failure is a floor raised on an
+incomplete census rather than a session ended by surprise — but a floor raised
+that way ends sessions on phones, which is the cost AGENTS.md names. Reading it
+as a lower bound on how modern the population is, rather than as the truth, is
+the right adjustment until builds are tracked per device. That wants
+`device_tokens`, which is already per device and already carries a platform and
+a `last_seen_at` nothing reads, or a column on `tokens`.
+
+**And "in the app" is now a fact about a person with more than one screen.**
+`reachability.inApp` suppresses a notification for anybody with a live socket,
+which is what stops a push duplicating what somebody is already looking at.
+With two devices signed in, a tablet left open in another room asserts that its
+owner is looking, and the phone in their pocket stays quiet. That is the same
+rule it always was, meeting a case it could not previously reach; whether it
+should be per device is a question about what a notification is for, and this
+change does not answer it.
+
+### Compatibility
+
+**No floor change and no two-step.** The client sends nothing new, so an old
+server meets no message it has never heard of. The server sends one new message
+to clients that may not know it, and every build's socket ignores an unknown
+`type` — an old build simply behaves as it does today, which is to say it meets
+LiveKit's duplicate-identity disconnect if its owner puts two devices in one
+channel. Nothing is gated on it, so there is nothing to sequence.

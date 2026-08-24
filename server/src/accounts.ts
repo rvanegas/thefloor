@@ -439,6 +439,16 @@ export class Accounts {
    * looks like a measurement and reads like a guess, which is the exact defect
    * being fixed.
    *
+   * **And one account may now be two devices, which makes this a lower bound
+   * rather than the truth.** `last_build` is a single column written by
+   * whichever device spoke last, so a phone on a current build masks a tablet
+   * on an old one belonging to the same person. It was exact while one session
+   * per account was enforced — there was only ever one build to write — and
+   * stopped being so on 2026-08-24. Nothing enforces anything on this, so what
+   * it costs is a floor raised on a census that missed an install, which is
+   * the one thing raising the floor must not do. Tracking builds per device
+   * is what fixes it; see BACKLOG.md.
+   *
    * **Presence here is `last_seen_at`, which is the socket's to write.** An
    * account that has never held a socket is not in the window at all, however
    * many HTTP calls it has made — deliberately, because that column means "had
@@ -615,17 +625,26 @@ export class Accounts {
   // --- Tokens -------------------------------------------------------------
 
   /**
-   * Issues a session token, ending every session this account already had.
+   * Issues a session token, leaving every session this account already had.
    *
-   * One session per account, deliberately. Signing in elsewhere is the only
-   * signal available that a device may no longer be in the owner's hands — a
-   * lost phone cannot be revoked any other way, since nothing else in the
-   * product lists or cancels a session, and the token would otherwise stay
-   * good for ninety days. The cost is that a genuine second device signs the
-   * first one out, which is the trade named in BACKLOG and accepted.
+   * **Several sessions per account, as of 2026-08-24.** This used to revoke
+   * every other token first, so signing in anywhere signed you out everywhere
+   * else. The reasoning was real — a token is good for ninety days, and
+   * signing in elsewhere was the only signal available that a phone might have
+   * left its owner's hands — but it was paying for that signal with the
+   * ordinary case, which is one person with a phone and a tablet.
+   *
+   * What replaces it is `revokeOthersForAccount`, behind *Sign out other
+   * devices*: the same lever, pulled deliberately by somebody who has lost a
+   * phone rather than automatically by everybody who owns two. The difference
+   * is that it now costs a decision instead of a device.
+   *
+   * Nothing here says anything about presence. An account may be signed in on
+   * as many devices as it likes and is still in at most one channel — that is
+   * `stepOutOfOthers` in channels.ts and the `displaced` message in ws.ts,
+   * which are about rooms rather than about credentials.
    */
   issueToken(accountId: string, now: number): string {
-    this.revokeAllForAccount(accountId);
     // The token itself is what is minted, so a retry hands the caller a fresh
     // secret rather than reusing one whose hash is already stored against
     // somebody else's account.
@@ -723,6 +742,28 @@ export class Accounts {
       this.db
         .prepare('DELETE FROM tokens WHERE account_id = ?')
         .run(accountId).changes
+    );
+  }
+
+  /**
+   * Ends every session for one account **except the one asking**, and says how
+   * many went.
+   *
+   * This is what signing in elsewhere used to do by itself, kept as something
+   * somebody does on purpose — see `issueToken`. It is the only way to reach a
+   * session whose token you do not hold, which is the whole point: the device
+   * you have in your hand can revoke itself, and the one you left on a train
+   * can be revoked by nothing else.
+   *
+   * The caller's own token is spared by hash rather than by count, so a
+   * request made with an expired or already-revoked credential simply removes
+   * everything — there is no row to spare and no session to keep.
+   */
+  revokeOthersForAccount(accountId: string, keep: string): number {
+    return Number(
+      this.db
+        .prepare('DELETE FROM tokens WHERE account_id = ? AND token_hash != ?')
+        .run(accountId, sha256(keep)).changes
     );
   }
 

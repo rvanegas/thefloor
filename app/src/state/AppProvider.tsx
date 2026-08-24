@@ -137,6 +137,25 @@ interface AppState {
    */
   movedChannel: { from: string; to: string } | null;
   /**
+   * Whether another of this account's devices has taken the room.
+   *
+   * An account may be signed in on several devices at once and is still in at
+   * most one channel, so the newest device to step into one is the device
+   * standing there. When the other device went somewhere *else*, the snapshot
+   * says so by itself and this flag changes nothing; when it stepped into the
+   * same channel, the account is present either way and the snapshot cannot
+   * say anything at all — which is the case this exists for.
+   *
+   * What it does is withhold `live` in App.tsx, which is what the audio
+   * follows. It is not a screen and not an error: the channel is still open,
+   * still watched, and still shows Enter — pressing it takes the room back,
+   * which is the same gesture that took it away on the other device.
+   *
+   * Cleared by entering anywhere from this device, since that is precisely the
+   * act of standing somewhere again, and by signing out.
+   */
+  displaced: boolean;
+  /**
    * A channel where recording has been asked for and not yet confirmed.
    *
    * Only the microphone reads it. Alone in a channel the microphone is closed
@@ -165,6 +184,19 @@ interface AppValue extends AppState {
     displayName?: string
   ) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Signs out every other device, and stays signed in here.
+   *
+   * Answers with how many sessions ended, which is the only thing the caller
+   * can say afterwards — nothing lists sessions, so "two others were signed
+   * out" is the whole of what is knowable. Zero is an ordinary answer.
+   *
+   * Rejects rather than swallowing a failure, unlike `signOut`: this one is
+   * about somewhere else, so there is nothing locally that having done it
+   * would explain, and a screen that says devices were signed out when none
+   * were is worse than an error.
+   */
+  signOutOthers: () => Promise<number>;
   /**
    * Deletes the account and signs out. Rejects — leaving you signed in — if the
    * server did not do it, since the alternative is a screen that says you have
@@ -394,6 +426,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     goneChannels: [],
     recordingAsked: null,
     movedChannel: null,
+    displaced: false,
     status: 'closed',
     lastError: null,
   });
@@ -469,6 +502,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // blanking it in between would flash the channel screen empty.
         onChannelMoved: (from, to) =>
           setState((s) => ({ ...s, movedChannel: { from, to } })),
+        // Recorded rather than acted on, like a move: what it changes is
+        // whether this device counts itself as standing in a channel, which
+        // App.tsx reads off `live`. No navigation and no notice — the channel
+        // screen simply offers Enter again.
+        onDisplaced: () => setState((s) => ({ ...s, displaced: true })),
         onStatus: (status) => setState((s) => ({ ...s, status })),
         onError: (message) => setState((s) => ({ ...s, lastError: message })),
       });
@@ -579,9 +617,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    *
    * Deliberately does not call `/auth/sign-out`: the token the server would
    * want is the one it has just told us it no longer honours, so the only
-   * thing left to do is forget it here. The notice is worded for the cause
-   * that now produces this almost every time, without claiming to know which
-   * of the three it was.
+   * thing left to do is forget it here.
+   *
+   * The notice used to name signing in on another device, which was the cause
+   * of almost every one of these while only one session per account was
+   * allowed. Several are allowed as of 2026-08-24, so that sentence is now
+   * wrong as often as it is right: what is left is somebody signing this
+   * device out from another one, an account deleted, and a token ninety days
+   * old. The wording covers all three rather than guessing between them.
    */
   useEffect(() => {
     onSignedOut(() => {
@@ -598,9 +641,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         goneChannels: [],
         recordingAsked: null,
         movedChannel: null,
+        displaced: false,
         status: 'closed',
         lastError:
-          'You were signed out. Signing in on another device ends the channel here.',
+          'You were signed out. Sign in again with a fresh code by email.',
       });
     });
     return () => onSignedOut(null);
@@ -765,6 +809,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           goneChannels: [],
           recordingAsked: null,
           movedChannel: null,
+          displaced: false,
           status: 'closed',
           lastError: null,
         });
@@ -772,6 +817,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // device travels with it so the server forgets where to reach this
         // phone while the credential authorising that is still good.
         if (token) await api.signOut(token, device ?? undefined).catch(() => {});
+      },
+
+      signOutOthers: async () => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        // This device's own address is named so it survives — see the note on
+        // `api.signOutOthers`. Nothing local changes: this session is exactly
+        // the one being kept.
+        const result = await api.signOutOthers(
+          state.token,
+          deviceToken.current ?? undefined
+        );
+        return result.sessions;
       },
 
       /**
@@ -801,6 +858,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           goneChannels: [],
           recordingAsked: null,
           movedChannel: null,
+          displaced: false,
           status: 'closed',
           lastError: null,
         });
@@ -965,6 +1023,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       act: (channelId, action) => {
+        // Standing somewhere again, which is the whole of what being displaced
+        // was about. Ahead of the server for the same reason the recording
+        // request below is: the room is taken by the ENTER arriving, and there
+        // is no snapshot in the same-channel case to confirm it with.
+        if (action.type === 'ENTER') {
+          setState((s) => (s.displaced ? { ...s, displaced: false } : s));
+        }
         // Before the send, not after it: the point is to be ahead of the
         // server, and the send is where the round trip starts.
         if (action.type === 'START_RECORDING') {

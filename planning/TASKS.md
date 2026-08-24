@@ -90,10 +90,6 @@ By way of indicators and notifications, users know when their contacts are avail
 
 What happens when user receives a phone call?
 
-## Auth and Sessions
-
-Allow multiple sessions on distinct devices. What is disallowed is only to be present in more than one channel. Stepping into a channel on one device implicitly steps out of any other channel on any other device.
-
 ## App as Watch Party Player
 
 If watch party is started and a there is a second session with the same account, let the second app become the player.

@@ -707,5 +707,31 @@ export type ServerMessage =
    * everything the move requires of it.
    */
   | { type: 'channel.moved'; from: string; to: string }
+  /**
+   * Another of this account's devices has stepped into a channel, so this one
+   * is no longer the device standing anywhere.
+   *
+   * An account may hold several sessions at once, but it has one voice and one
+   * pair of ears: presence belongs to whichever session entered a channel most
+   * recently. The server steps the account out of every *other* channel by
+   * itself, and the snapshot says so — what a snapshot cannot say is that two
+   * devices are in the *same* channel, since the account is present either
+   * way and nothing about the channel has changed. That is the case this
+   * exists for, and it is handled the same way as the other so there is one
+   * rule rather than two.
+   *
+   * It names no channel deliberately. What it means is about this session
+   * rather than about a room: stop standing wherever you were standing, which
+   * a client answers by dropping its audio and forgetting what it would
+   * re-enter on a reconnect. Naming a channel would invite a client to check
+   * whether it agreed, and a client that disagreed would be the one holding an
+   * open microphone.
+   *
+   * Sent to every session of the account but the one that entered, identified
+   * by its token rather than by its socket — a device that is reconnecting
+   * briefly has two sockets, and displacing the older of them would let a flap
+   * take the room away from the device somebody is holding.
+   */
+  | { type: 'displaced' }
   | { type: 'error'; message: string; code?: string }
   | { type: 'pong'; serverNow: number };

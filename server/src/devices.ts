@@ -23,24 +23,25 @@ export class Devices {
    * end up on another person's lock screen. Moving the row is the only correct
    * reading of the same address arriving under a new name.
    *
-   * **One address per account, which mirrors one session per account.**
-   * `Accounts.issueToken` revokes every other session on sign-in, deliberately
-   * — so an account with two live addresses is describing a state the auth
-   * layer forbids, and the older of them is a device that was signed out and
-   * does not know it. This table used to model many, and the disagreement was
-   * only visible as a phone still receiving notifications for an account it had
-   * been signed out of.
+   * **Several addresses per account, which mirrors several sessions per
+   * account.** This deleted every other row for the account until 2026-08-24,
+   * because `Accounts.issueToken` revoked every other session on sign-in and a
+   * second live address was therefore describing a state the auth layer
+   * forbade. Both halves went together, as the note that used to be here said
+   * they would have to: a phone and a tablet signed in at once are two places
+   * one person can be reached, and deleting one of them would be silently
+   * taking back the device they had just been allowed to have.
    *
-   * **If the multi-device trade named in BACKLOG is ever revisited, this comes
-   * out with it.** The two rules are one decision expressed twice, and leaving
-   * this behind would silently delete the second device somebody had just been
-   * allowed to have.
+   * The failure the deletion was guarding against has not gone away — a phone
+   * signed out and left holding this account's notifications — and is now
+   * handled where it belongs, by whatever ends the session: `/auth/sign-out`
+   * forgets the address it names, and *Sign out other devices* forgets every
+   * address but the caller's alongside revoking every token but theirs.
    *
-   * Belt to the braces of `/auth/verify`, which clears the account at the
-   * moment the sessions are revoked. That one fires whether or not the new
-   * device ever registers; this one holds the invariant against every other
-   * route to a row — notably a reinstall, which mints a fresh token for the
-   * same phone and would otherwise leave its predecessor behind forever.
+   * The remaining unbounded case is a reinstall, which mints a fresh address
+   * for the same phone and leaves its predecessor behind. That row is dead the
+   * moment Apple sees it — the old token stops resolving — and is deleted at
+   * the first 410 in reply to a send. See `forget`.
    */
   register(
     token: string,
@@ -48,11 +49,6 @@ export class Devices {
     platform: DevicePlatform,
     now: number
   ): void {
-    // Before the upsert, and excluding this address, so re-registering the
-    // same device is untouched rather than deleted and rewritten.
-    this.db
-      .prepare('DELETE FROM device_tokens WHERE account_id = ? AND token != ?')
-      .run(accountId, token);
     this.db
       .prepare(
         `INSERT INTO device_tokens
@@ -120,13 +116,17 @@ export class Devices {
    *
    * **Lazily, though: 410 only arrives in reply to a send.** An address nobody
    * is ever notified at is never tested and never removed. That is a row, not
-   * a leak — `register` keeps one per account, so the table is bounded by how
-   * many accounts exist rather than by how many phones have ever held one.
+   * a leak, but it is a weaker claim than it was: `register` kept exactly one
+   * row per account until 2026-08-24, which bounded the table by how many
+   * accounts exist. Now it is bounded by how many devices have registered and
+   * never been notified at since — an account's own phones, plus a reinstall's
+   * predecessor until the first send finds it dead.
    *
    * Which is also why nothing reads `last_seen_at`. It was written against a
-   * pruning sweep that the 410 reply and that invariant between them made
-   * unnecessary; it survives as a record of when somebody last opened the app,
-   * which is worth having and is not a garbage collector.
+   * pruning sweep the 410 reply made unnecessary; it survives as a record of
+   * when somebody last opened the app, which is worth having and is not a
+   * garbage collector. If the table ever does want pruning, that column is
+   * what a sweep would read.
    */
   forget(token: string): void {
     this.db.prepare('DELETE FROM device_tokens WHERE token = ?').run(token);
@@ -135,14 +135,40 @@ export class Devices {
   /**
    * Forgets every address for one person.
    *
-   * Two callers, and the second is not obvious: deleting an account, and
-   * *signing in*, which revokes every other session and so must drop the
-   * addresses those sessions were reachable at. See `/auth/verify`.
+   * One caller now: deleting an account. It had a second and less obvious one
+   * until 2026-08-24 — signing in, which used to revoke every other session
+   * and so had to drop the addresses those sessions were reachable at. Signing
+   * in revokes nothing any more, so it takes nobody's notifications with it.
    */
   forgetAccount(accountId: string): void {
     this.db
       .prepare('DELETE FROM device_tokens WHERE account_id = ?')
       .run(accountId);
+  }
+
+  /**
+   * Forgets every address for one person **except one**.
+   *
+   * The other half of `Accounts.revokeOthersForAccount`, and it has to be the
+   * other half rather than a consequence of it: a revoked session cannot
+   * deregister its own address, because the moment it learns it is finished is
+   * a 401, at which point it holds no credential to say so with. So the device
+   * doing the signing out speaks for all of them, and names itself as the one
+   * to keep.
+   *
+   * A caller with no address of its own — an install that has never been
+   * granted notification permission — passes none, and every row goes. That is
+   * right: it is asking for every other device to be signed out, and it has no
+   * row of its own to spare.
+   */
+  forgetOthers(accountId: string, keep: string | undefined): void {
+    if (keep === undefined) {
+      this.forgetAccount(accountId);
+      return;
+    }
+    this.db
+      .prepare('DELETE FROM device_tokens WHERE account_id = ? AND token != ?')
+      .run(accountId, keep);
   }
 
   /** For tests and `bin/db`-shaped questions. */

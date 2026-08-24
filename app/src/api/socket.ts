@@ -45,6 +45,16 @@ export interface RealtimeHandlers {
    * inherited the room.
    */
   onChannelMoved?: (from: string, to: string) => void;
+  /**
+   * Another of this account's devices has stepped into a channel, so this one
+   * is no longer the device standing anywhere.
+   *
+   * Nothing about the channel is said, because nothing about it has changed —
+   * see `ServerMessage` in core/protocol.ts. What the app does with it is drop
+   * the audio and stop drawing itself as being in a room; what the socket does
+   * with it is forget what it would re-enter on a reconnect.
+   */
+  onDisplaced?: () => void;
   onStatus?: (status: ConnectionStatus) => void;
   onError?: (message: string) => void;
   /** Server time at the moment of the snapshot, for clock alignment. */
@@ -197,6 +207,15 @@ export class Realtime {
             this.watchChannel(message.to);
           }
           this.handlers.onChannelMoved?.(message.from, message.to);
+          break;
+        case 'displaced':
+          // Another of this account's devices has stepped into a channel, so
+          // this one is standing nowhere. Forgetting `enteredChannel` is the
+          // load-bearing half: without it the next reconnect would re-send
+          // ENTER and take the room back from the device somebody is holding,
+          // and a phone with patchy signal would do it repeatedly.
+          this.enteredChannel = null;
+          this.handlers.onDisplaced?.();
           break;
         case 'error':
           this.handlers.onError?.(message.message);

@@ -25,6 +25,7 @@ import type { ColorSchemePreference } from './appearance';
 export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const app = useApp();
   const [deleting, setDeleting] = useState(false);
+  const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -66,6 +67,36 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setDeleting(false);
+    }
+  };
+
+  /**
+   * Signs out every other device, and reports how many there were.
+   *
+   * The count is the whole of what can be said afterwards. Nothing lists
+   * sessions — there is no screen of devices to strike a row from — so the
+   * only evidence this did anything is the number the server answers with, and
+   * an alert is the honest place for it. Zero is worth saying too: somebody
+   * who pulled this lever because a phone went missing has learnt that the
+   * phone was not signed in.
+   */
+  const signOutOthers = async () => {
+    setSigningOutOthers(true);
+    setError(null);
+    try {
+      const sessions = await app.signOutOthers();
+      Alert.alert(
+        sessions === 0 ? 'Nothing else was signed in' : 'Other devices signed out',
+        sessions === 0
+          ? 'This is the only device signed in to your account.'
+          : sessions === 1
+            ? 'One other device was signed out. It will need a fresh code by email.'
+            : `${sessions} other devices were signed out. They will need a fresh code by email.`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSigningOutOthers(false);
     }
   };
 
@@ -183,8 +214,45 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           }
         />
         <Text style={type.muted}>
-          Signing in elsewhere signs you out here, so this is only for the
-          device in your hand.
+          Only this device. Anywhere else you are signed in stays signed in.
+        </Text>
+
+        {/*
+          Beside Sign out because it is the same act aimed the other way, and
+          it is here rather than behind a list of devices because there is no
+          such list: a session is a token, and the server knows when each was
+          minted and nothing else about the phone that holds it. A row reading
+          "iOS, 3 August" is not something anybody can recognise their own lost
+          handset in, so the screen offers the decision it can actually be
+          asked — everything but this one — instead of a list to pick from.
+
+          It is also the whole of what replaces the old rule. Signing in used
+          to sign out everywhere else, which meant a lost phone was revoked by
+          the owner signing in again anywhere; several sessions at once cost
+          that for free, and this is where it comes back as something done on
+          purpose.
+        */}
+        <Button
+          label={signingOutOthers ? 'Signing out…' : 'Sign out other devices'}
+          disabled={signingOutOthers}
+          onPress={() =>
+            Alert.alert(
+              'Sign out other devices?',
+              'Every other phone, tablet or computer signed in to your account is signed out. This device stays signed in. Your channels and recordings are kept.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Sign out others',
+                  style: 'destructive',
+                  onPress: () => void signOutOthers(),
+                },
+              ]
+            )
+          }
+        />
+        <Text style={type.muted}>
+          For a phone you have lost. It is the only way to end a session from a
+          device you no longer have.
         </Text>
 
         {/*

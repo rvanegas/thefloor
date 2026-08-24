@@ -612,12 +612,17 @@ describe('websocket', () => {
 
 
   /**
-   * Signing in elsewhere revokes the token this socket was accepted on. The
-   * socket has to go with it: it is not merely stale, it is a live
-   * conversation with an open microphone belonging to a device the account
-   * holder may no longer have.
+   * Being signed out from another device revokes the token this socket was
+   * accepted on. The socket has to go with it: it is not merely stale, it is a
+   * live conversation with an open microphone belonging to a device the
+   * account holder may no longer have.
+   *
+   * The trigger used to be a second sign-in, which revoked every other session
+   * by itself. Since 2026-08-24 it does not — see tokens.test.ts — so the
+   * thing being exercised is the lever that replaced it. The sweep is
+   * unchanged and does not care which of them emptied the row.
    */
-  it('closes a socket whose token was revoked by a sign-in elsewhere', async () => {
+  it('closes a socket whose token was revoked from another device', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
     const bob = await signIn('user2@example.com', 'Bob');
 
@@ -628,18 +633,33 @@ describe('websocket', () => {
 
     const aClosed = a.closed;
 
-    // A second device for Alice. The resend interval refuses a second code
-    // this soon, so the code is issued as of a minute from now — moving the
-    // shared clock instead would trip the heartbeat timeout and close both
-    // sockets for staleness, which is the other sweep entirely.
+    // A second device for Alice, which now leaves the first alone — and then
+    // signs it out on purpose. The resend interval refuses a second code this
+    // soon, so the code is issued as of a minute from now; moving the shared
+    // clock instead would trip the heartbeat timeout and close both sockets
+    // for staleness, which is the other sweep entirely.
     const secondCode = app.accounts.issueCode(
       'user1@example.com',
       clock + OTP_RESEND_INTERVAL_MS + 1_000
     )!;
-    await app.fastify.inject({
+    const second = await app.fastify.inject({
       method: 'POST',
       url: '/auth/verify',
       payload: { identifier: 'user1@example.com', code: secondCode },
+    });
+
+    // The lifted rule, asserted where it used to bite: a full sweep passes and
+    // the first device is still connected and still answered. This is the
+    // whole of what a second sign-in now costs.
+    await new Promise((r) => setTimeout(r, 6_500));
+    a.send({ type: 'ping' });
+    await a.next('pong');
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/auth/sign-out-others',
+      headers: { authorization: `Bearer ${second.json().token}` },
+      payload: {},
     });
 
     // The sweep runs on a real interval, so this waits rather than steps.
@@ -659,7 +679,143 @@ describe('websocket', () => {
     await b.next('pong');
 
     b.close();
-  }, 20_000);
+  }, 30_000);
+
+  /**
+   * Several sessions for one account, which is what 2026-08-24 allowed. The
+   * rule that survived is about rooms rather than credentials: an account may
+   * be signed in anywhere and is still standing in at most one channel, and
+   * the session that entered most recently is the one standing there.
+   *
+   * The same-channel case is what these are mostly about, because it is the
+   * one no snapshot can express — the account is present either way and
+   * nothing about the channel changes, so a message is the only way to say it.
+   */
+  describe('several devices for one account', () => {
+    /**
+     * A second session for an account that already has one.
+     *
+     * Minted directly rather than by signing in again: the OTP resend
+     * interval makes a second sign-in a two-step dance with the clock, and
+     * none of what is being tested here is about codes.
+     */
+    const secondSession = (accountId: string) =>
+      app.accounts.issueToken(accountId, clock);
+
+    /** Bob's channel, with Alice on two devices, neither in it yet. */
+    async function twoDevices() {
+      const { alice, bob, channelId } = await pairInSession();
+      const phone = new Client(alice.token, baseUrl);
+      const tablet = new Client(secondSession(alice.account.id), baseUrl);
+      await Promise.all([phone.open(), tablet.open()]);
+      await Promise.all([phone.next('hello'), tablet.next('hello')]);
+      return { alice, bob, channelId, phone, tablet };
+    }
+
+    const enter = async (client: Client, channelId: string, who: string) => {
+      client.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+      await client.next('channel', (m) => m.view.channel.present.includes(who));
+    };
+
+    const sawDisplaced = (client: Client) =>
+      client.received.some((m) => m.type === 'displaced');
+
+    it('tells the phone when the tablet steps into the same channel', async () => {
+      const { alice, channelId, phone, tablet } = await twoDevices();
+      await enter(phone, channelId, alice.account.id);
+      expect(sawDisplaced(phone)).toBe(false);
+
+      await enter(tablet, channelId, alice.account.id);
+      await tablet.next('channel');
+
+      // Waited for rather than asserted immediately: it is pushed on the same
+      // turn as the dispatch, but this socket is a different one.
+      await phone.next('displaced');
+      // And the account is still present, which is the whole reason the
+      // message has to exist — there is no snapshot here that says anything.
+      expect(app.channels.get(channelId)!.present).toContain(alice.account.id);
+
+      phone.close();
+      tablet.close();
+    });
+
+    /**
+     * Only the tablet enters, so that the one device which is *not* told is
+     * the one that did it. Entering on the phone first would displace the
+     * tablet on its way past and leave nothing to assert.
+     */
+    it('says nothing to the device that entered', async () => {
+      const { alice, channelId, phone, tablet } = await twoDevices();
+      await enter(tablet, channelId, alice.account.id);
+      await phone.next('displaced');
+
+      expect(sawDisplaced(tablet)).toBe(false);
+
+      phone.close();
+      tablet.close();
+    });
+
+    it('says nothing to anybody else', async () => {
+      const { alice, bob, channelId, phone, tablet } = await twoDevices();
+      const bobs = new Client(bob.token, baseUrl);
+      await bobs.open();
+      await bobs.next('hello');
+
+      await enter(phone, channelId, alice.account.id);
+      await enter(tablet, channelId, alice.account.id);
+      await phone.next('displaced');
+
+      expect(sawDisplaced(bobs)).toBe(false);
+
+      phone.close();
+      tablet.close();
+      bobs.close();
+    });
+
+    /**
+     * The trap this is keyed on a token to avoid. A device reconnecting holds
+     * two sockets for a moment — the old one not yet closed — and the client
+     * re-sends ENTER on the new one. Displacing by socket would have that
+     * ENTER take the room away from the device it is being sent from, and a
+     * phone on patchy signal would do it every few seconds.
+     */
+    it('does not displace another socket on the same session', async () => {
+      const { alice, channelId, phone } = await twoDevices();
+      const flapped = new Client(alice.token, baseUrl);
+      await flapped.open();
+      await flapped.next('hello');
+
+      await enter(flapped, channelId, alice.account.id);
+      await flapped.next('channel');
+
+      expect(sawDisplaced(phone)).toBe(false);
+      expect(sawDisplaced(flapped)).toBe(false);
+
+      phone.close();
+      flapped.close();
+    });
+
+    /**
+     * Signing in on a tablet is not stepping into anything, so the phone is
+     * left holding whatever it was holding. Presence follows entering a
+     * channel, never connecting a socket — the connect path asserts nothing
+     * about presence, deliberately, and this is the same rule seen from the
+     * other end.
+     */
+    it('leaves the phone alone until the tablet actually enters', async () => {
+      const { alice, channelId, phone, tablet } = await twoDevices();
+      await enter(phone, channelId, alice.account.id);
+
+      tablet.send({ type: 'watch.channel', channelId });
+      await tablet.next('channel');
+
+      expect(sawDisplaced(phone)).toBe(false);
+      expect(app.channels.get(channelId)!.present).toContain(alice.account.id);
+
+      phone.close();
+      tablet.close();
+    });
+  });
 
   describe('evidence that somebody is still in a channel', () => {
     /** Present in the channel, on a live socket, watching it. */

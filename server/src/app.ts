@@ -422,23 +422,18 @@ export function buildApp(options: BuildOptions = {}): App {
     // which identifiers have accounts.
     if (!result) return reply.code(401).send({ error: 'Invalid or expired code.' });
 
-    // Signing in has just ended every other session this account had —
-    // `issueToken` revokes them, one session per account being deliberate. The
-    // addresses those sessions were reachable at have to go with them, or the
-    // phone that was signed out keeps receiving this account's notifications
-    // for the life of the database.
+    // Nothing is revoked and nothing is forgotten here, which is the whole of
+    // what changed on 2026-08-24. Signing in used to end every other session
+    // and drop every address those sessions were reachable at; a phone and a
+    // tablet may now both be signed in, and both may be notified.
     //
-    // It cannot be done by the device being signed out. That device learns it
-    // is finished when a request comes back 401, at which point it holds no
-    // credential it could deregister with — so the moment it most needs to say
-    // "stop sending to me" is the one moment it cannot. Which leaves here.
-    //
-    // Every row rather than every row but one, because the device signing in
-    // registers its own address moments later, from the client. The account is
-    // briefly reachable nowhere, which is the right way to be wrong: silence
-    // for a second beats notifications to a phone somebody was signed out of.
-    devices.forgetAccount(result.account.id);
-
+    // The failure that clearing guarded against — a signed-out phone still
+    // receiving this account's notifications — has moved to the two routes
+    // that actually end a session, `/auth/sign-out` and
+    // `/auth/sign-out-others`. It belongs there rather than here: a device
+    // being signed out learns it is finished from a 401, at which point it
+    // holds no credential to deregister with, so whatever revokes the session
+    // has to forget the address in the same breath.
     return {
       token: result.token,
       account: toPublic(result.account),
@@ -450,16 +445,51 @@ export function buildApp(options: BuildOptions = {}): App {
     // whose device it was.
     const account = authenticate(request);
     const body = request.body as { deviceToken?: string } | undefined;
-    // Only the device signing out. That used to be justified by not silencing
-    // a tablet, which was reasoning about a state `issueToken` forbids — one
-    // session per account means the tablet cannot be signed in at the same
-    // time. It stands for a plainer reason: this is the address that asked to
-    // be forgotten, and it is the only one the account should have.
+    // Only the device signing out, and since 2026-08-24 that is a real
+    // distinction again rather than a distinction without a difference: a
+    // tablet may be signed in at the same time, and signing out of the phone
+    // in your hand must not silence it.
     if (account && body?.deviceToken) devices.forget(body.deviceToken);
 
     const header = request.headers.authorization;
     if (header?.startsWith('Bearer ')) accounts.revokeToken(header.slice(7));
     return reply.code(204).send();
+  });
+
+  /**
+   * Signs out every device but this one.
+   *
+   * The lever that signing in used to pull for free, kept as something
+   * somebody does on purpose. A session token is good for ninety days and a
+   * lost phone can be revoked by nothing the owner still holds, so with
+   * several sessions allowed there had to be one operation that reaches a
+   * session whose token you do not have. This is it, and it is the only one.
+   *
+   * Both halves, in that order: the sessions, then the addresses they were
+   * reachable at. The order does not matter for correctness — neither is
+   * conditional on the other — but doing the credentials first means a
+   * request that dies in the middle has revoked more than it has silenced,
+   * which is the right way round to be interrupted.
+   *
+   * The caller names its own device token for the same reason `/auth/sign-out`
+   * carries one: the server knows which *session* is asking, from the bearer
+   * token, and has no way at all to know which row in `device_tokens` belongs
+   * to the same phone. An install with no notification permission has no such
+   * row, sends none, and correctly loses every address the account had.
+   *
+   * Answers with how many sessions went, which is what the app puts on screen.
+   * Zero is an ordinary answer and means there was nowhere else signed in.
+   */
+  fastify.post('/auth/sign-out-others', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as { deviceToken?: string } | undefined;
+    // A bearer header, because `requireAccount` got an account out of one.
+    const token = request.headers.authorization?.slice(7) ?? '';
+    const sessions = accounts.revokeOthersForAccount(account.id, token);
+    devices.forgetOthers(account.id, body?.deviceToken);
+    return { sessions };
   });
 
   // --- Devices ------------------------------------------------------------

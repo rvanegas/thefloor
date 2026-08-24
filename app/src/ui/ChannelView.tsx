@@ -336,7 +336,20 @@ export function ChannelView({
    * which asks about the room rather than the roster, so they disable
    * themselves without being told about this.
    */
-  const iAmPresent = isPresent(channel, me);
+  const iAmPresent = isPresent(channel, me) && !app.displaced;
+  /**
+   * Standing here, but on one of this account's other devices.
+   *
+   * The roster says present and this screen says otherwise, and both are
+   * right: several devices may be signed in, and the one holding the room is
+   * whichever entered a channel last. So `iAmPresent` above is narrowed by it
+   * — the microphone is closed here and the card offers a way in — while the
+   * roster goes on listing this person, because the person is there.
+   *
+   * Only worth a word when the room in question is this one. Displaced while
+   * looking at a channel you were not in is a state with nothing to say.
+   */
+  const elsewhereOnAnotherDevice = app.displaced && isPresent(channel, me);
   /**
    * Whether somebody is to be shown as speaking *on this screen*, as against
    * somebody the room happens to be hearing.
@@ -361,6 +374,7 @@ export function ChannelView({
    * being in `present`, and the guest cards below ask this too.
    */
   const audioIsThisChannel =
+    !app.displaced &&
     liveChannelView(app.channelViews, me)?.channel.id === channelId;
   const speakingHere = (id: string) =>
     audioIsThisChannel && inRoom(channel, id) && audio.speaking.includes(id);
@@ -847,8 +861,9 @@ export function ChannelView({
                 onPress={() => act({ type: 'ENTER' })}
               />
               <Text style={type.muted}>
-                You are looking at this channel without being in it. Nobody can
-                hear you, and your microphone stays closed until you step in.
+                {elsewhereOnAnotherDevice
+                  ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
+                  : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
               </Text>
             </>
           )}

@@ -144,23 +144,22 @@ describe('the device registry', () => {
   });
 
   /**
-   * One address per account, mirroring the one session per account that
-   * `issueToken` enforces. An account holding two is describing a state the
-   * auth layer forbids, the older of them being a phone that was signed out
-   * and has no way of knowing.
-   *
-   * This replaced a test asserting the opposite — that registering a second
-   * address left the first alone, on the reasoning that a phone signing out
-   * should not silence a tablet. A tablet cannot be signed in at the same
-   * time, so the case it protected could not arise.
+   * Several addresses per account, mirroring the several sessions per account
+   * that `issueToken` now allows. This asserted the opposite between 2026-08-16
+   * and 2026-08-24, when one session per account made a second live address a
+   * description of a state the auth layer forbade; a phone and a tablet may
+   * both be signed in now, and both have to be reachable.
    */
-  it('keeps only the address that registered last', async () => {
+  it('keeps every address the account has registered', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
     await registerDevice(alice.token, 'phone');
     await registerDevice(alice.token, 'tablet');
 
-    expect(app.devices.tokensFor([alice.account.id])).toEqual(['tablet']);
-    expect(app.devices.list(alice.account.id)).toHaveLength(1);
+    expect(app.devices.tokensFor([alice.account.id]).sort()).toEqual([
+      'phone',
+      'tablet',
+    ]);
+    expect(app.devices.list(alice.account.id)).toHaveLength(2);
   });
 
   it('leaves a device alone when it registers again', async () => {
@@ -173,27 +172,72 @@ describe('the device registry', () => {
   });
 
   /**
-   * The forced sign-out, which is the case neither the sign-out route nor the
-   * registry could reach on its own.
-   *
-   * Signing in anywhere revokes every other session, and the phone that held
-   * one finds out only when some request comes back 401 — at which point it has
-   * no credential left to deregister with. So the address has to be dropped
-   * here, by the sign-in that ended it, or that phone goes on receiving this
-   * account's notifications for the life of the database.
-   *
-   * Note that it goes before the new device has registered anything: the
-   * account is reachable nowhere for a moment, which is the right way round.
+   * Signing in somewhere else takes nothing away, which is the half of
+   * 2026-08-24 that is easiest to break by accident: the deletion used to live
+   * in `register`, where it would have looked like housekeeping.
    */
-  it('stops sending to the phone that signing in elsewhere signed out', async () => {
+  it('goes on sending to the phone after a tablet signs in', async () => {
     const first = await signIn('alice@example.com', 'Alice');
-    await registerDevice(first.token, 'old-phone');
+    await registerDevice(first.token, 'phone');
 
     const second = await signIn('alice@example.com', 'Alice');
-    expect(app.devices.tokensFor([first.account.id])).toEqual([]);
+    await registerDevice(second.token, 'tablet');
 
-    await registerDevice(second.token, 'new-phone');
-    expect(app.devices.tokensFor([second.account.id])).toEqual(['new-phone']);
+    expect(app.devices.tokensFor([first.account.id]).sort()).toEqual([
+      'phone',
+      'tablet',
+    ]);
+  });
+
+  /**
+   * The forced sign-out, which is the case neither the ordinary sign-out route
+   * nor the registry can reach on its own.
+   *
+   * A device whose session is revoked finds out when some request comes back
+   * 401, at which point it holds no credential to deregister with — so the
+   * address has to be dropped by whatever ended the session, or that phone
+   * goes on receiving this account's notifications for the life of the
+   * database. Signing in used to be what ended it; since 2026-08-24 it is this
+   * route, and the obligation moved with it.
+   */
+  it('stops sending to the devices that were signed out from another one', async () => {
+    const phone = await signIn('alice@example.com', 'Alice');
+    await registerDevice(phone.token, 'old-phone');
+    const tablet = await signIn('alice@example.com', 'Alice');
+    await registerDevice(tablet.token, 'tablet');
+
+    const reply = await app.fastify.inject({
+      method: 'POST',
+      url: '/auth/sign-out-others',
+      headers: auth(tablet.token),
+      payload: { deviceToken: 'tablet' },
+    });
+
+    expect(reply.statusCode).toBe(200);
+    expect(reply.json()).toEqual({ sessions: 1 });
+    expect(app.devices.tokensFor([phone.account.id])).toEqual(['tablet']);
+    // And the session behind the address is gone with it, which is the point.
+    expect(app.accounts.accountForToken(phone.token, Date.now())).toBeUndefined();
+  });
+
+  /**
+   * An install that never asked for notification permission has no address to
+   * name, and asking for every *other* device to be signed out must not leave
+   * the ones it is signing out reachable.
+   */
+  it('forgets every address when the caller names none', async () => {
+    const phone = await signIn('alice@example.com', 'Alice');
+    await registerDevice(phone.token, 'old-phone');
+    const laptop = await signIn('alice@example.com', 'Alice');
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/auth/sign-out-others',
+      headers: auth(laptop.token),
+      payload: {},
+    });
+
+    expect(app.devices.tokensFor([phone.account.id])).toEqual([]);
   });
 });
 

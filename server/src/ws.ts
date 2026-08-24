@@ -171,6 +171,40 @@ export function registerWebsocket(deps: {
     );
 
   /**
+   * Tells this account's other devices that they are no longer standing
+   * anywhere, because this one has just entered a channel.
+   *
+   * An account may hold several sessions and is still in at most one channel.
+   * The channel half of that is `stepOutOfOthers` in channels.ts, which is
+   * about rooms and reaches every channel but the one being entered. This is
+   * the device half, and it exists because the room half cannot express it:
+   * when the other device is in the *same* channel, the account is present
+   * either way, nothing about the channel changes, and no snapshot anybody
+   * could push says what has happened. One account has one voice — the media
+   * room admits one participant per identity — so the newest session to enter
+   * is the one holding it.
+   *
+   * **Keyed on the token rather than on the socket**, which is the part that
+   * is easy to get wrong. A device that is reconnecting has two connections
+   * for a moment, the old one not yet closed; displacing by socket would let
+   * a flap take the room away from the device somebody is actually holding,
+   * and the client clears what it would re-enter when it hears this. A token
+   * is a sign-in, which is as close to "a device" as this server knows.
+   *
+   * Watch-scoped sockets are left alone. A follower page holds a watch token,
+   * never a session token, and is a second screen rather than a second place
+   * to be — it was never standing anywhere to be displaced from.
+   */
+  const displaceOtherSessions = (connection: Connection): void => {
+    for (const other of connections) {
+      if (other.scope.kind !== 'session') continue;
+      if (other.userId !== connection.userId) continue;
+      if (other.token === connection.token) continue;
+      send(other, { type: 'displaced' });
+    }
+  };
+
+  /**
    * Tells this user's contacts that they have arrived in the app or left it.
    *
    * Called on the two transitions only — the first socket opening and the last
@@ -225,9 +259,9 @@ export function registerWebsocket(deps: {
       // what it can put on screen.
       //
       // Each kind of socket is re-checked against the table it was accepted
-      // from. A watch link is not revoked by signing in elsewhere — it is not
-      // a session — so it dies only of its own expiry, which is what the
-      // six-hour TTL is sized for.
+      // from. A watch link is not a session and is not reached by signing out
+      // of one, so it dies only of its own expiry, which is what the six-hour
+      // TTL is sized for.
       const live =
         connection.scope.kind === 'watch'
           ? !!accounts.watchTokenFor(connection.token, now())
@@ -238,7 +272,13 @@ export function registerWebsocket(deps: {
           message:
             connection.scope.kind === 'watch'
               ? 'This watch link has expired.'
-              : 'Signed in on another device.',
+              // Not "signed in on another device" any more: since 2026-08-24
+              // signing in elsewhere revokes nothing, so the ways to arrive
+              // here are a deliberate sign-out of this device from another
+              // one, an account deleted, and a token ninety days old. The
+              // wording covers all three rather than naming the one that used
+              // to produce it almost every time.
+              : 'This device was signed out.',
           code: 'unauthorized',
         });
         connection.socket.close(UNAUTHORIZED_CLOSE, 'Unauthorized');
@@ -812,6 +852,14 @@ export function registerWebsocket(deps: {
           if (!result.ok) {
             send(connection, { type: 'error', message: result.error });
             return;
+          }
+          // After the dispatch, so nothing is displaced by an action the
+          // registry refused — and on the action rather than on a change of
+          // state, because entering a channel this account is already present
+          // in changes nothing and is exactly the case that needs saying. See
+          // `displaceOtherSessions`.
+          if (message.action.type === 'ENTER') {
+            displaceOtherSessions(connection);
           }
           connection.watchingChannels.add(message.channelId);
           pushChannel(connection, message.channelId);
