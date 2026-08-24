@@ -966,6 +966,56 @@ calls it. Nothing breaks in the other order — an old server 404s and the clien
 treats that as worth retrying — but the lines would sit in the backlog until a
 deploy caught up.
 
+### The variable is probably *what was already there when we connected*
+
+Build 92's first shipped run, 2026-08-24 22:15–22:18, eight connections. Read
+honestly — three of them had no chance to report, because *Rebuild the room* was
+pressed every seven or eight seconds and the freeze detector needs about eight —
+it comes to this:
+
+| connect | connect → engine start | outcome |
+| --- | --- | --- |
+| 22:16:03 | **16.81s** | **rendered**, 31-second window |
+| 22:16:34 | 0.72s | froze |
+| 22:17:33 | 0.51s | froze |
+| 22:17:42 / 51 / 58 | ~0.5s | window too short to say |
+| 22:18:06 | 0.46s | froze |
+| 22:18:36 | 0.46s | froze |
+
+**Every connection that had time to report froze, except the one that waited
+seventeen seconds for its track.** And `connect released IDLE` is logged before
+`startAudioSession` and before `room.connect`, so that gap spans activation,
+connection and subscription — seventeen seconds means the media participant
+*was not there yet*, and half a second means it was already publishing.
+
+So the hypothesis is not about timing, which is only a proxy: **a track already
+published when the room connects gets subscribed before playout is ready and
+never renders; a track that arrives afterwards renders normally.**
+
+It accounts for every stubborn fact in this entry. Only a *new* channel restores
+audio — a new channel has no track, so the media participant joins after you do.
+Re-entry, stepping back in and rebuilding all fail — all three arrive at a room
+where the participant is already sitting. And **rebuilding stopped working**,
+reported the same evening: a rebuild is the immediate-subscribe case by
+construction, so the one time it worked was luck rather than mechanism.
+
+**That retracts the fix this file was about to recommend.** Wiring the freeze
+detector to `reconnect()` would have made the app respond to the fault by
+re-entering the case that causes it. Build 92 shipping the detector without the
+action is the only reason that was found out by reading a log rather than by
+shipping a reconnect loop into other people's conversations.
+
+**Build 93 measures the variable itself** rather than the proxy: `room
+connected, N audio already published`, counted at the instant `connect` resolves
+and before anything subscribes. With it come the two lines that would have
+explained a `connect` appearing from nowhere — `room disconnected (reason)` and
+`foreground rebuild (was …)` — plus the backoff's own line, since a rebuild has
+two causes and neither wrote anything down.
+
+**If it holds, the fix is an ordering this app has never tried**: connect with
+`autoSubscribe: false` and subscribe once the session is known to be active,
+rather than letting the subscription land on the same tick as the socket.
+
 **What is needed first is the log from a failure**, which is now worth having
 in a way it was not before: the panel reads nothing on its own, engine
 transitions are stamped, and the screen markers are there. When it next fails,

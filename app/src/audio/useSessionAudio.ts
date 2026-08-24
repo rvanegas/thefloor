@@ -294,6 +294,30 @@ function intentFor(micNeeded: boolean, selfMuted: boolean): MicIntent {
   return selfMuted ? 'muted' : 'capturing';
 }
 
+/**
+ * How many remote audio publications exist right now.
+ *
+ * **Never throws, and that is the whole reason it is a function.** It was two
+ * lines inline and it took a connection down under test, because a room shaped
+ * slightly differently had no `remoteParticipants` to spread — which is
+ * precisely the fault this instrument was added to investigate: a diagnostic
+ * that stops the thing it measures. `engineState.ts` has carried the same rule
+ * since it was written, having learnt it the same way. An unreadable count
+ * answers `-1`, which is not a number of tracks and so cannot be mistaken for
+ * one.
+ */
+function publishedAlready(room: Room): number {
+  try {
+    let total = 0;
+    for (const participant of room.remoteParticipants.values()) {
+      total += participant.audioTrackPublications.size;
+    }
+    return total;
+  } catch {
+    return -1;
+  }
+}
+
 /** The published microphone track, or null when nothing is published. */
 function micTrack(room: Room) {
   return (
@@ -632,9 +656,16 @@ export function useSessionAudio(
       // heard would otherwise stay lit for as long as the screen is open. The
       // hold is dropped outright rather than allowed to run out: it is a
       // smoothing of live speech, and there is no longer any.
-      .on(RoomEvent.Disconnected, () => {
+      .on(RoomEvent.Disconnected, (reason) => {
         clearTimeout(release);
         hold = NOBODY_SPEAKING;
+        // **Why the room went, which the log could not say until now.** A
+        // rebuild appeared in it as a `connect` line from nowhere: the two
+        // paths to one are this handler's backoff and the foreground listener,
+        // and neither wrote anything. A reconnection whose cause is unknown is
+        // a reconnection that cannot be correlated with the failure that
+        // follows it, and every failure so far has followed one.
+        recordEvent(`room disconnected (${reason ?? 'no reason given'})`);
         if (cancelled) return;
         // `livekit-client` retries internally and only fires this once it has
         // given up, so reaching here means the connection is not coming back
@@ -654,6 +685,7 @@ export function useSessionAudio(
         RECONNECT_BASE_MS * 2 ** attemptRef.current,
         RECONNECT_MAX_MS
       );
+      recordEvent(`reconnect in ${delay}ms (attempt ${attemptRef.current + 1})`);
       attemptRef.current += 1;
       retryRef.current = setTimeout(() => {
         retryRef.current = null;
@@ -719,6 +751,26 @@ export function useSessionAudio(
           return;
         }
 
+        /**
+         * **How much was already there when we arrived, which is the variable
+         * this whole investigation now turns on.**
+         *
+         * A connection either renders from its first sample or never renders
+         * at all, and the one connection in a run of eight that rendered was
+         * the one where the shared track appeared *seventeen seconds after*
+         * connecting rather than immediately. Everything that fails —
+         * re-entering a channel, stepping back in, rebuilding the room — has
+         * the media participant already sitting in the room, so the
+         * subscription lands the instant the socket is up. Everything that
+         * works — a new channel, a track uploaded afterwards — does not.
+         *
+         * That is an inference from timing, and timing is a proxy. This is the
+         * variable itself: publications present at the moment of connection,
+         * counted before anything subscribes. See BACKLOG.md § *The engine
+         * stops under a healthy room*.
+         */
+        recordEvent(`room connected, ${publishedAlready(room)} audio already published`);
+
         // A freshly connected room has published nothing, so neither close has
         // anything to act on and only the opening case does any work.
         if (intent === 'capturing') {
@@ -781,6 +833,10 @@ export function useSessionAudio(
     const subscription = AppState.addEventListener('change', (next) => {
       if (next !== 'active' || !mediaRoom) return;
       if (state.status === 'connected' || state.status === 'connecting') return;
+      // The second path to a rebuild, and the one that leaves no other trace:
+      // it fires on a room that has already given up, so there is no
+      // `Disconnected` next to it to explain the `connect` that follows.
+      recordEvent(`foreground rebuild (was ${state.status})`);
       attemptRef.current = 0;
       setGeneration((g) => g + 1);
     });

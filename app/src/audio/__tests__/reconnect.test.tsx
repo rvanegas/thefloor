@@ -42,6 +42,14 @@ jest.mock('livekit-client', () => {
       identity: 'acct_me',
       setMicrophoneEnabled: jest.fn(async () => {}),
     };
+    /**
+     * Empty, but present — the real `Room` always has it, and a fake missing it
+     * is how the connect path's "how much was already published" count first
+     * threw and failed a connection under test. The count now survives a room
+     * of any shape; this keeps the ordinary shape honest, so the guard is a
+     * belt rather than the only thing holding it up.
+     */
+    remoteParticipants = new Map<string, { audioTrackPublications: Map<string, unknown> }>();
     connect = jest.fn(async () => {});
     disconnect = jest.fn(async () => {});
 
