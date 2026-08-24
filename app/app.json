@@ -16,7 +16,7 @@
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "87"
+      "buildNumber": "88"
     },
     "android": {
       "package": "co.rvanegas.thefloor",
