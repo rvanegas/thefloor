@@ -700,12 +700,29 @@ entirely. The recipe was then run again:
   and a channel that starts making noise at whoever walks in is worse than a
   press of Play. The comment on that function has said so since it was written.
 
-**One check separates the second from a real residual, and it is free.** After
-stepping back in, read the transport. **Paused** means this is the designed
-behaviour and Play picks up where it left off. **Playing, with no sound**, means
-something is still wrong and this entry stays open.
+**And the transport reads *playing*, with the time advancing** — reported
+immediately after the above, which **rules the `settleEmpty` explanation out**.
+`playbackPositionMs` returns the banked position the moment status leaves
+`playing`, and `pause` nulls `startedAt`, so a time display that advances means
+the server state genuinely says playing. An emptied channel would read paused
+and frozen. Whatever is cutting the sound here, it is not the designed pause.
 
-Until that reads *paused*, treat the entry as unconfirmed rather than closed.
+Two readings separate what is left, and the difference decides everything:
+
+1. **Straight after stepping back in, before pressing anything** — does the
+   transport read paused or playing? Playing here would mean `settleEmpty` did
+   not fire at all, which would make the channel not empty and is a reducer
+   question.
+2. **If it read paused and Play was pressed** — then the pause worked, and what
+   is broken is the client not rendering after a teardown and rebuild. Stepping
+   out calls `stopAudioSession`, stepping back in calls `startAudioSession`, and
+   a playout-only engine that does not survive that cycle is a real fault with
+   nothing to do with the panel.
+
+Reading 2 is the one that matches the original report's *"stepping out and back
+in doesn't restore audio"*, and it is the one build 89's recovery buttons test
+directly: if *Restart audio session* or *Rebuild the room* brings the sound
+back, the recovery is the fix.
 
 ### What survives either way
 
@@ -719,10 +736,12 @@ The **bisection is no longer urgent, and is still worth running** — knowing
 which of the nine is destructive is what would let the panel read the other
 eight safely, and this is the only debugging surface this subsystem has.
 
-The **recovery** — notice a dead engine under a live room and re-activate — has
-lost its reason. It was proposed for a fault that turned out to be
-self-inflicted, and nothing now known says an engine dies on its own. Do not
-build it on the strength of this entry.
+The **recovery** — notice a dead engine under a live room and re-activate — was
+written off here an hour before the reading above arrived, on the grounds that
+the fault had turned out to be self-inflicted. That was too quick. If reading 2
+holds, an engine does die on its own across a teardown and rebuild, and the
+recovery is exactly the fix. Build it on the strength of that reading and not
+before.
 
 **Build 88 was instrument-only and that is what made the negative worth
 having.** It logs engine transitions — `willStartEngine` and `didStopEngine`,
