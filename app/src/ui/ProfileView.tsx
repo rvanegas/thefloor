@@ -546,73 +546,6 @@ export function ProfileView({
       ) : null}
 
       {/*
-        Meeting somebody in a channel an acquaintance opened is exactly when
-        you want to keep them, and until there was an "Add contact" here there
-        was no way to: you had their name and their id, and adding a contact
-        needed an address they had not given you.
-
-        Being in a channel together is permission to ask, not consent to be
-        anybody's contact — so this sends a request like any other, and they
-        decide.
-
-        Left out entirely when this is you. Every branch below is about the
-        relationship between two people, and there is no such relationship to
-        report or to change — "Add contact" aimed at yourself is the one the
-        screen would otherwise offer, since you are not among your own
-        contacts.
-      */}
-      {isSelf ? null : (
-        <>
-      <SectionLabel>Contact</SectionLabel>
-      <Card style={styles.stack}>
-        {contact?.status === 'accepted' ? (
-          <>
-            <Text style={type.muted}>Already one of your contacts.</Text>
-            {/*
-              Filled red, as every other destructive action in the app is —
-              deleting an account, deleting a recording. It is at the bottom of
-              a screen somebody opened to read about a person, which is where
-              this belongs, and the confirmation is what actually guards it.
-            */}
-            <Button
-              label={removing ? 'Removing…' : 'Remove contact'}
-              variant="danger"
-              disabled={removing}
-              onPress={removeContact}
-            />
-          </>
-        ) : contact?.status === 'outgoing' ? (
-          <Text style={type.muted}>
-            Request sent — waiting for them to accept.
-          </Text>
-        ) : contact?.status === 'incoming' ? (
-          <>
-            <Button
-              label={asking ? 'Accepting…' : 'Accept their request'}
-              variant="primary"
-              disabled={asking}
-              onPress={() => void ask()}
-            />
-            <Text style={type.muted}>They asked you first.</Text>
-          </>
-        ) : (
-          <>
-            <Button
-              label={asking ? 'Asking…' : 'Add contact'}
-              disabled={asking || state === 'refused'}
-              onPress={() => void ask()}
-            />
-            <Text style={type.muted}>
-              They will see a request on their home screen and decide.
-            </Text>
-          </>
-        )}
-        {askError ? <Text style={styles.error}>{askError}</Text> : null}
-      </Card>
-        </>
-      )}
-
-      {/*
         Addresses, which are two separate decisions and are drawn as two.
 
         Theirs is above yours because it is the half you might act on — an
@@ -623,7 +556,7 @@ export function ProfileView({
 
         Contacts only, matching the server, which refuses the same call from
         anybody else. Somebody met in a channel an acquaintance opened can be
-        asked to be a contact — the card above does that — and this is a step
+        asked to be a contact — the card below does that — and this is a step
         past it rather than part of it.
       */}
       {isSelf || contact?.status !== 'accepted' ? null : (
@@ -701,6 +634,81 @@ export function ProfileView({
             {emailError ? (
               <Text style={styles.error}>{emailError}</Text>
             ) : null}
+          </Card>
+        </>
+      )}
+
+      {/*
+        Meeting somebody in a channel an acquaintance opened is exactly when
+        you want to keep them, and until there was an "Add contact" here there
+        was no way to: you had their name and their id, and adding a contact
+        needed an address they had not given you.
+
+        Being in a channel together is permission to ask, not consent to be
+        anybody's contact — so this sends a request like any other, and they
+        decide.
+
+        Left out entirely when this is you. Every branch below is about the
+        relationship between two people, and there is no such relationship to
+        report or to change — "Add contact" aimed at yourself is the one the
+        screen would otherwise offer, since you are not among your own
+        contacts.
+
+        Last on the screen, under Email rather than over it. Three of the four
+        branches below belong to somebody who is not a contact yet, and the
+        Email card is drawn only for somebody who is — so the two never
+        compete for the position, and putting this one at the foot costs a
+        stranger's "Add contact" nothing while keeping "Remove contact" away
+        from the top of a screen opened to read about a person.
+      */}
+      {isSelf ? null : (
+        <>
+          <SectionLabel>Contact</SectionLabel>
+          <Card style={styles.stack}>
+            {contact?.status === 'accepted' ? (
+              <>
+                <Text style={type.muted}>Already one of your contacts.</Text>
+                {/*
+                  Plain, the way "Leave channel" is in ChannelSettingsView, and
+                  on the same reasoning: the confirmation carries the weight,
+                  and colouring the button would put the loudest thing on the
+                  screen on its rarest action. Red is kept for the taps that
+                  really do destroy something — deleting an account, deleting a
+                  recording — and forgetting somebody is not one of them.
+                */}
+                <Button
+                  label={removing ? 'Removing…' : 'Remove contact'}
+                  disabled={removing}
+                  onPress={removeContact}
+                />
+              </>
+            ) : contact?.status === 'outgoing' ? (
+              <Text style={type.muted}>
+                Request sent — waiting for them to accept.
+              </Text>
+            ) : contact?.status === 'incoming' ? (
+              <>
+                <Button
+                  label={asking ? 'Accepting…' : 'Accept their request'}
+                  variant="primary"
+                  disabled={asking}
+                  onPress={() => void ask()}
+                />
+                <Text style={type.muted}>They asked you first.</Text>
+              </>
+            ) : (
+              <>
+                <Button
+                  label={asking ? 'Asking…' : 'Add contact'}
+                  disabled={asking || state === 'refused'}
+                  onPress={() => void ask()}
+                />
+                <Text style={type.muted}>
+                  They will see a request on their home screen and decide.
+                </Text>
+              </>
+            )}
+            {askError ? <Text style={styles.error}>{askError}</Text> : null}
           </Card>
         </>
       )}
