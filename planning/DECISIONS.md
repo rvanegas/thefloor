@@ -75,6 +75,36 @@ plane's vocabulary; in the interface it does not exist.
 
 ## The deploy history
 
+### 2026-08-23 — `be96c46` → `0afaa1f`
+
+A profile now says when the person has been in each channel you share, and
+carries an address either of you may show the other. The fifth deploy that day,
+and **written up after the fact** — the box was running it before anybody
+noticed there was no entry, which is the gap § *The most recent deploy is not
+documentation* names and does not fix.
+
+**Nothing installed can see either half, and the server going first cost
+nothing.** Both are read from `GET /profiles/:id`, which no released build asks
+for these fields on, so the deploy is inert until an upload — the two-step's
+step 1 met by circumstance rather than by design. The new table is `CREATE
+TABLE IF NOT EXISTS email_reveals` in `SCHEMA`, so there was no migration to
+run and no step that could be forgotten on a rebuild.
+
+Verified against production afterwards: `/healthz` on `0afaa1f`,
+`deployed.json` stamped clean, the service active, `email_reveals` present in
+the live database, and `/privacy` serving the rewritten address paragraph.
+24 live channels revived, and the `requested room does not exist` burst was
+exactly 24 — one per revived channel, `restore()` closing rooms that went with
+the old process, not new.
+
+`/privacy` is the half worth noticing: it is server-served, so the one
+user-visible part of this deploy reached every screen in a minute while the
+profile screen beside it waits on an upload, a submission, an approval and a
+release. Which is why it could be checked with `curl`.
+
+`deployed.json` reads `2026-08-24` because the box stamps UTC and this went out
+at 20:45 local; the dates in this repository are local.
+
 ### 2026-08-23 — `6dd3735` → `d76908e`
 
 The watch party's mute now follows the transport, holding while the video plays
