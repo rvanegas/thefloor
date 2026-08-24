@@ -42,7 +42,9 @@ import { readFileSync } from 'node:fs';
  * rather than released, so every build below 51 is a TestFlight install on
  * devices whose owners update on demand — and `oldestBuild` on `/healthz` read
  * 51 when this was raised, meaning every install that says which build it is
- * was already there. The three `silentBuilds` are pre-37 and cannot be stranded
+ * was already there. The three `silentBuilds` — a count of *accounts*, which
+ * is what that field meant until 2026-08-24; it counts sessions now — are
+ * pre-37 and cannot be stranded
  * by this: they predate the header, and `mustUpdate` reads a null build as not
  * expired, so they were never going to act on this number at all.
  *

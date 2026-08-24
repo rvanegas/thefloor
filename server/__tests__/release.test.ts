@@ -138,19 +138,94 @@ describe('what build is calling', () => {
    * `connect` stands in for the socket, which is what actually stamps
    * `last_seen_at` — a client from before the header holds a socket like any
    * other and is exactly the account this has to keep visible.
+   *
+   * Both rows, because the socket writes both: the account's, which a contact
+   * list renders, and the *session's*, which is what the census counts since
+   * it moved off `accounts` on 2026-08-24. Stamping only the account would
+   * leave every one of these outside the window. See `heard` in ws.ts.
    */
-  const connect = (id: string, build?: number) =>
-    app.accounts.markSeen(id, clock, build);
+  const connect = (who: { id: string; token: string }, build?: number) => {
+    app.accounts.markSeen(who.id, clock, build);
+    app.accounts.markSession(who.token, clock, build);
+  };
 
   it('reports nothing known, and says how many are silent, before anyone speaks', async () => {
-    const { id } = await signIn('quiet@example.com');
-    connect(id);
+    const quiet = await signIn('quiet@example.com');
+    connect(quiet);
 
     const body = await health();
     // Not zero, not MIN_SUPPORTED_BUILD, not a guess. Nobody has said.
     expect(body.oldestBuild).toBeNull();
     // And the count is what stops that null being read as "nobody is old".
     expect(body.silentBuilds).toBe(1);
+  });
+
+  /**
+   * The measurement one column could not make, and the reason it moved to
+   * sessions on 2026-08-24. `accounts.last_build` holds whichever device spoke
+   * last, so a phone on a current build masked a tablet below the floor — in
+   * exactly the census that exists to notice the tablet.
+   *
+   * The phone speaks *second* here on purpose: it is the ordering under which
+   * the old shape gave the wrong answer.
+   */
+  it('sees the older of one person’s two devices', async () => {
+    const tablet = await signIn('two@example.com', 41);
+    const phone = { id: tablet.id, token: app.accounts.issueToken(tablet.id, clock) };
+    connect(tablet, 41);
+    connect(phone, 56);
+
+    expect((await health()).oldestBuild).toBe(41);
+  });
+
+  /**
+   * The mirror of the above, and it would have passed against the old shape
+   * too — the tablet speaking last left 41 in the account's column by luck.
+   * That is why it is not the only one of the pair: which device spoke last is
+   * exactly what the census must stop depending on, so both orders are stated.
+   */
+  it('sees it in the other order too', async () => {
+    const phone = await signIn('two@example.com', 56);
+    const tablet = { id: phone.id, token: app.accounts.issueToken(phone.id, clock) };
+    connect(phone, 56);
+    connect(tablet, 41);
+
+    expect((await health()).oldestBuild).toBe(41);
+  });
+
+  /**
+   * `silent` counts sign-ins rather than accounts, which is what changed about
+   * the number on `/healthz` when the census moved. One person with a current
+   * phone and a pre-header tablet is one silent session, not zero — the
+   * account-level count said zero, because the phone had written a build over
+   * the tablet's silence.
+   */
+  it('counts a silent session even when the same person reported a build', async () => {
+    const phone = await signIn('mixed-devices@example.com', 56);
+    const tablet = { id: phone.id, token: app.accounts.issueToken(phone.id, clock) };
+    connect(phone, 56);
+    connect(tablet);
+
+    const body = await health();
+    expect(body.oldestBuild).toBe(56);
+    expect(body.silentBuilds).toBe(1);
+  });
+
+  /**
+   * Signing out takes the session out of the census with it, which is the
+   * cleaning the account-level shape had to do by hand. A device that has
+   * stopped calling stops being counted.
+   */
+  it('forgets a session that was signed out', async () => {
+    const stays = await signIn('stays@example.com', 56);
+    const goes = { id: stays.id, token: app.accounts.issueToken(stays.id, clock) };
+    connect(stays, 56);
+    connect(goes, 41);
+    expect((await health()).oldestBuild).toBe(41);
+
+    app.accounts.revokeToken(goes.token);
+
+    expect((await health()).oldestBuild).toBe(56);
   });
 
   it('records what a caller claims, over HTTP and over the socket alike', async () => {
@@ -179,7 +254,7 @@ describe('what build is calling', () => {
     });
     // A pre-37 client: it connects, so it is present, and says nothing.
     const old = await signIn('old@example.com');
-    connect(old.id);
+    connect(old);
 
     const body = await health();
     expect(body.oldestBuild).toBe(41);
@@ -215,8 +290,9 @@ describe('what build is calling', () => {
     expect(claimedBuild(['41', '42'])).toBe(41);
     expect(claimedBuild('41')).toBe(41);
 
-    const { id, token } = await signIn('garbled@example.com');
-    connect(id);
+    const garbled = await signIn('garbled@example.com');
+    const { token } = garbled;
+    connect(garbled);
     const answered = await app.fastify.inject({
       url: '/home',
       headers: { authorization: `Bearer ${token}`, [BUILD_HEADER]: 'thirty-seven' },
@@ -237,16 +313,23 @@ describe('what build is calling', () => {
    * `erase` nulls `last_seen_at`, so this only happens when something stamps
    * it again afterwards, which a socket already open when the account was
    * deleted does on its way out. That is the case reproduced here.
+   *
+   * Since the census moved to sessions it is doubly excluded, and the second
+   * reason is the stronger one: `erase` deletes the account's tokens, so the
+   * stamp on the way out finds no row to write and the tombstone is not in
+   * the count at all. The identifier clause is now belt to that brace. This
+   * test does not care which of them is doing the work, which is the point of
+   * keeping both.
    */
   it('leaves a deleted account out, even when a socket stamps it on the way out', async () => {
     const gone = await signIn('leaving@example.com', 41);
-    connect(gone.id, 41);
+    connect(gone, 41);
     const staying = await signIn('staying@example.com', 56);
-    connect(staying.id, 56);
+    connect(staying, 56);
     expect((await health()).oldestBuild).toBe(41);
 
     expect(app.accounts.erase(gone.id)).toBe(true);
-    connect(gone.id, 41);
+    connect(gone, 41);
 
     const body = await health();
     expect(body.oldestBuild).toBe(56);
@@ -302,8 +385,14 @@ describe('the demo accounts are not a population', () => {
       url: '/auth/verify',
       payload: { identifier, code, displayName: identifier },
     });
-    const { account } = verified.json() as { account: { id: string } };
+    const { account, token } = verified.json() as {
+      account: { id: string };
+      token: string;
+    };
+    // Both rows, as a socket writes both — the census counts sessions. See
+    // `connect` above.
     app.accounts.markSeen(account.id, clock, build);
+    app.accounts.markSession(token, clock, build);
   }
 
   const health = async () =>

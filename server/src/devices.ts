@@ -3,6 +3,19 @@ import type { Db, DeviceTokenRow } from './db';
 export type DevicePlatform = 'ios' | 'android';
 
 /**
+ * One place a person can be reached, and the sign-in that claimed it.
+ *
+ * `sessionHash` is null for a row written before the column existed and for
+ * one registered by a client that sent no credential — both of which the
+ * caller reads as "cannot tell", and answers with the person-level test it
+ * used for everybody until 2026-08-24.
+ */
+export interface DeviceAddress {
+  token: string;
+  sessionHash: string | null;
+}
+
+/**
  * Where each person can be reached when their app is not running.
  *
  * Storage only — it knows addresses, never how to send to one. `Pusher` in
@@ -47,19 +60,21 @@ export class Devices {
     token: string,
     accountId: string,
     platform: DevicePlatform,
-    now: number
+    now: number,
+    sessionHash?: string
   ): void {
     this.db
       .prepare(
         `INSERT INTO device_tokens
-           (token, account_id, platform, created_at, last_seen_at)
-         VALUES (?, ?, ?, ?, ?)
+           (token, account_id, platform, created_at, last_seen_at, session_hash)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(token) DO UPDATE SET
            account_id   = excluded.account_id,
            platform     = excluded.platform,
-           last_seen_at = excluded.last_seen_at`
+           last_seen_at = excluded.last_seen_at,
+           session_hash = excluded.session_hash`
       )
-      .run(token, accountId, platform, now, now);
+      .run(token, accountId, platform, now, now, sessionHash ?? null);
   }
 
   /** Every address these people can be reached at. */
@@ -75,7 +90,8 @@ export class Devices {
   }
 
   /**
-   * The same addresses, but keyed by whose they are.
+   * The same addresses with the session that registered each, keyed by whose
+   * they are.
    *
    * `tokensFor` flattens the accounts away, which was right while every
    * recipient of one notification was treated alike. Once each person could
@@ -86,21 +102,34 @@ export class Devices {
    * Accounts with no registered device are absent rather than present with an
    * empty list: a caller iterating this is looking for somewhere to send, and
    * an entry that resolves to nowhere is a group of no tokens to reason about.
+   *
+   * **It carries the session hash because the caller decides per address.**
+   * This returned bare tokens while a person had one device and the question
+   * "is this person in the app" could stand in for "is this phone looking at
+   * the screen". Those came apart on 2026-08-24 — see the schema — and the
+   * push notifier now suppresses an address whose own session is connected,
+   * rather than dropping the person on the strength of any of them.
    */
-  tokensByAccount(accountIds: readonly string[]): Map<string, string[]> {
-    const byAccount = new Map<string, string[]>();
+  addressesByAccount(
+    accountIds: readonly string[]
+  ): Map<string, DeviceAddress[]> {
+    const byAccount = new Map<string, DeviceAddress[]>();
     if (accountIds.length === 0) return byAccount;
     const placeholders = accountIds.map(() => '?').join(', ');
     const rows = this.db
       .prepare(
-        `SELECT account_id, token FROM device_tokens
+        `SELECT account_id, token, session_hash FROM device_tokens
          WHERE account_id IN (${placeholders})`
       )
-      .all(...accountIds) as Array<{ account_id: string; token: string }>;
+      .all(...accountIds) as Array<{
+      account_id: string;
+      token: string;
+      session_hash: string | null;
+    }>;
     for (const row of rows) {
       byAccount.set(row.account_id, [
         ...(byAccount.get(row.account_id) ?? []),
-        row.token,
+        { token: row.token, sessionHash: row.session_hash },
       ]);
     }
     return byAccount;

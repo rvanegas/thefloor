@@ -17,6 +17,7 @@ import type { Accounts } from './accounts';
 import type { NotificationPreferences } from './preferences';
 import type { ChannelRegistry } from './channels';
 import { claimedBuild } from './release';
+import { sha256 } from './db';
 
 /**
  * What a socket is allowed to be.
@@ -49,6 +50,14 @@ interface Connection {
    * running until the client happens to reconnect.
    */
   token: string;
+  /**
+   * The same credential hashed, which is how it joins to anything stored.
+   *
+   * Computed once at connect rather than per use: it is the key of this
+   * session's row in `tokens` and of every push address registered by it, and
+   * both are consulted on paths that run per notification.
+   */
+  tokenHash: string;
   watchingHome: boolean;
   watchingChannels: Set<string>;
   /** When anything was last heard from this client. */
@@ -116,10 +125,24 @@ export function createHomeNotifier(): HomeNotifier {
  */
 export interface Reachability {
   inApp: (userId: string) => boolean;
+  /**
+   * The sessions of this account that hold a live socket, as token hashes.
+   *
+   * The finer-grained half of `inApp`, and the two answer different questions.
+   * `inApp` asks whether a *person* is about, which is what a contact list
+   * renders; this asks which of their devices, which is what deciding whether
+   * to send a notification actually needs. They were the same question while
+   * one session per account was enforced.
+   *
+   * Hashes rather than tokens, because the caller is joining against
+   * `device_tokens.session_hash` and a bare credential has no business
+   * leaving this layer to be compared somewhere else.
+   */
+  liveSessions: (userId: string) => Set<string>;
 }
 
 export function createReachability(): Reachability {
-  return { inApp: () => false };
+  return { inApp: () => false, liveSessions: () => new Set() };
 }
 
 /**
@@ -169,6 +192,25 @@ export function registerWebsocket(deps: {
     [...connections].some(
       (c) => c.userId === userId && c.scope.kind === 'session'
     );
+
+  /**
+   * Writes down that this session was heard from, in both places that care.
+   *
+   * Two rows, because they answer two questions. The account's `last_seen_at`
+   * is the maximum across every device somebody holds and is what a contact
+   * list renders — one person, about or not. The session's is per device, and
+   * is what bounds the build census to sign-ins that are actually calling; its
+   * `last_build` is the one that cannot be masked by a second device, which is
+   * the whole reason it exists. See `Accounts.buildsSeenSince`.
+   *
+   * Paired here rather than folded into `markSeen` so that the account-level
+   * write keeps working for callers that hold no token — and so the three
+   * places a socket proves life do not each have to remember both.
+   */
+  const heard = (connection: Connection, at: number): void => {
+    accounts.markSeen(connection.userId, at, connection.build);
+    accounts.markSession(connection.token, at, connection.build);
+  };
 
   /**
    * Tells this account's other devices that they are no longer standing
@@ -331,6 +373,18 @@ export function registerWebsocket(deps: {
   // requester's and the recipient's. Without this the recipient learns nothing
   // until they happen to reload — a request simply never appears.
   reachability.inApp = hasConnection;
+  // Session-scoped only, for the reason `hasConnection` is: a follower page is
+  // a second screen rather than a second place to be, and it holds a watch
+  // token, which is not a session and joins to no address.
+  reachability.liveSessions = (userId) => {
+    const live = new Set<string>();
+    for (const connection of connections) {
+      if (connection.scope.kind !== 'session') continue;
+      if (connection.userId !== userId) continue;
+      live.add(connection.tokenHash);
+    }
+    return live;
+  };
 
   homeNotifier.notify = (userIds) => {
     for (const connection of connections) {
@@ -631,6 +685,7 @@ export function registerWebsocket(deps: {
         ? { kind: 'watch', channelId: follower.channelId }
         : { kind: 'session' },
       token,
+      tokenHash: sha256(token),
       watchingHome: false,
       watchingChannels: new Set(),
       lastSeen: now(),
@@ -644,7 +699,7 @@ export function registerWebsocket(deps: {
     if (connection.scope.kind === 'session') {
       // Having the app open is exactly this: a live socket. Stamped as it opens
       // so somebody who connects and says nothing still counts as here.
-      accounts.markSeen(account.id, now(), connection.build);
+      heard(connection, now());
       // The arrival itself, to whoever has this account as a contact. Without
       // it their Home learns nothing until something unrelated happens to push
       // one, which is how "in the app now" used to mean "as of whenever your
@@ -701,11 +756,7 @@ export function registerWebsocket(deps: {
       // finished film would otherwise report its owner as in the app all
       // evening, and hold their place in a channel they walked away from.
       if (connection.scope.kind === 'session') {
-        accounts.markSeen(
-          connection.userId,
-          connection.lastSeen,
-          connection.build
-        );
+        heard(connection, connection.lastSeen);
       }
       // And again per channel, which is a different question with a different
       // answer. `markSeen` says whether this person is in the app at all;
@@ -901,7 +952,7 @@ export function registerWebsocket(deps: {
       //
       // Written before the presence reporting below, so a snapshot pushed as a
       // result of it already carries the right time.
-      accounts.markSeen(connection.userId, connection.lastSeen, connection.build);
+      heard(connection, connection.lastSeen);
       // Losing a socket is not leaving a channel. It starts the grace period,
       // and reconnecting inside that minute cancels it — so a tunnel, a lift
       // or a backgrounded app costs nobody their place.

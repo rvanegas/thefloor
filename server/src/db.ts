@@ -79,6 +79,8 @@ export interface DeviceTokenRow {
   platform: 'ios' | 'android';
   created_at: number;
   last_seen_at: number;
+  /** The session that registered it, hashed. Null for a row that predates it. */
+  session_hash: string | null;
 }
 
 export interface ChannelNotificationLevelRow {
@@ -304,11 +306,30 @@ CREATE TABLE IF NOT EXISTS otp_codes (
 );
 
 -- Bearer tokens, likewise stored hashed.
+--
+-- A row here is a sign-in, and since 2026-08-24 an account may have several at
+-- once. That makes this the nearest thing the server has to a register of
+-- devices: it is keyed on the exact credential every path that learns anything
+-- about a client already presents, which neither accounts nor device_tokens
+-- is. Hence the last two columns.
 CREATE TABLE IF NOT EXISTS tokens (
   token_hash TEXT PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES accounts(id),
   created_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL
+  expires_at INTEGER NOT NULL,
+  -- When this session was last heard from, which is not when the *account*
+  -- was: accounts.last_seen_at is the maximum across every device somebody
+  -- holds, and is what a contact list renders. This one is per device, and is
+  -- what bounds the build census to sessions that are actually calling.
+  last_seen_at INTEGER,
+  -- The build this session last announced, or null if it has never said.
+  --
+  -- accounts.last_build is the same fact about a person and is still written,
+  -- for bin/db and for the write guard in requireAccount. It cannot answer
+  -- the census, because one column cannot hold two devices' builds and the
+  -- last writer wins — a phone on a current build would mask a tablet below
+  -- the floor. See Accounts.buildsSeenSince.
+  last_build INTEGER
 );
 CREATE INDEX IF NOT EXISTS tokens_account ON tokens(account_id);
 
@@ -480,19 +501,45 @@ CREATE TABLE IF NOT EXISTS device_tokens (
   created_at   INTEGER NOT NULL,
   -- Refreshed on every registration, so a device that has stopped checking in
   -- is distinguishable from one that never existed.
-  last_seen_at INTEGER NOT NULL
+  last_seen_at INTEGER NOT NULL,
+  -- The session that registered this address, as a hash into tokens.
+  --
+  -- This is the only join the server has between a push address and a live
+  -- socket, and it exists because POST /devices is the one request that
+  -- carries both credentials at once: the bearer token in the header and the
+  -- APNs token in the body. Nothing else ever sees the two together — a socket
+  -- authenticates a session and knows no APNs token, and Apple's token is
+  -- minted on the device.
+  --
+  -- What it buys is suppressing a notification per *address* rather than per
+  -- person. While one session per account was enforced, "this person has a
+  -- live socket" and "this phone is looking at the screen" were the same
+  -- statement; with a tablet signed in they are not, and the person-level test
+  -- silences the phone in somebody's pocket on the strength of a tablet in
+  -- another room.
+  --
+  -- Null for a row written before this column existed, and for one whose
+  -- session has since been revoked. Both fall back to the person-level test,
+  -- which is what the server did for all of them until 2026-08-24 — see the
+  -- push notifier in app.ts. Not a foreign key: the session may be revoked
+  -- while the address outlives it, and the fallback is what that should mean.
+  session_hash TEXT
 );
 CREATE INDEX IF NOT EXISTS device_tokens_account ON device_tokens(account_id);
 
 -- The credential a watch party's follower page holds, and deliberately not a
 -- row in tokens.
 --
--- It cannot be a session token for two separate reasons, either of which would
--- be enough on its own. issueToken revokes every other session for the
--- account, so minting one to open a page would sign the owner's phone out. And
--- accountForToken would then accept it everywhere — a link pasted into a
--- chat would be a full credential for the account rather than permission to
--- follow one channel on one screen.
+-- It cannot be a session token, and the reason that remains is the one that
+-- was always sufficient: accountForToken would accept it everywhere, so a link
+-- pasted into a chat would be a full credential for the account rather than
+-- permission to follow one channel on one screen.
+--
+-- There used to be a second reason, and it is gone rather than weakened.
+-- issueToken revoked every other session for the account, so minting one to
+-- open a page would have signed the owner's phone out; since 2026-08-24 it
+-- revokes nothing. Noted because a reader finding one reason where the file
+-- promised two would reasonably wonder which had been forgotten.
 --
 -- So it names a channel as well as an account, and nothing outside the watch
 -- socket ever looks it up. Hashed, like tokens and otp_codes and unlike the
@@ -889,6 +936,29 @@ function migrate(db: Db): void {
   db.exec(
     'CREATE INDEX IF NOT EXISTS accounts_invited_by ON accounts(invited_by)'
   );
+
+  // The session-scoped half of "which device is this", added 2026-08-24 when
+  // several sessions per account became ordinary. Every existing row is null
+  // and stays null until that session next says something or that device next
+  // registers, which is one heartbeat and one launch respectively — and null
+  // is the safe reading in both places that consult these: a session with no
+  // build is counted as `silent` rather than modern, and an address with no
+  // session falls back to the person-level in-app test.
+  const tokenColumns = db
+    .prepare('PRAGMA table_info(tokens)')
+    .all() as Array<{ name: string }>;
+  for (const column of ['last_seen_at', 'last_build']) {
+    if (!tokenColumns.some((c) => c.name === column)) {
+      db.exec(`ALTER TABLE tokens ADD COLUMN ${column} INTEGER`);
+    }
+  }
+
+  const deviceColumns = db
+    .prepare('PRAGMA table_info(device_tokens)')
+    .all() as Array<{ name: string }>;
+  if (!deviceColumns.some((c) => c.name === 'session_hash')) {
+    db.exec('ALTER TABLE device_tokens ADD COLUMN session_hash TEXT');
+  }
 
   // Channels from before persistence whose ended_at is null are ghosts: the
   // old server held live channels in memory only, so a null here means the

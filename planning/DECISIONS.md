@@ -1754,37 +1754,77 @@ still claim the floor, and the floor it claims is held by the phone that has
 the audio. That reads oddly written down and is right in the hand: it is one
 person, in one conversation, with a second screen in front of them.
 
-### Two things this weakens, neither of them broken
+### Two things it broke on the way past, both fixed
 
-**The build census now has one column for two devices.** `markSeen` writes
-`accounts.last_build`, one row per account, last writer wins — and
-`buildsSeenSince` reads it to answer "is anything older than the floor still
-calling", which is the only measurement `MIN_SUPPORTED_BUILD` has ever had.
-With a phone on one build and a tablet on an older one, the answer is whichever
-spoke most recently, so an old install can be masked by a newer one belonging
-to the same person. It was exact while one session per account was enforced,
-because there was only ever one build to write.
+Both were found by asking what else read a fact that used to be per person
+because a person could only have one device. Both were written up as accepted
+consequences first and fixed the same day; the entry keeps the diagnosis
+because the diagnosis is the part that generalises.
 
-Nothing enforces anything on it, so the failure is a floor raised on an
-incomplete census rather than a session ended by surprise — but a floor raised
-that way ends sessions on phones, which is the cost AGENTS.md names. Reading it
-as a lower bound on how modern the population is, rather than as the truth, is
-the right adjustment until builds are tracked per device. That wants
-`device_tokens`, which is already per device and already carries a platform and
-a `last_seen_at` nothing reads, or a column on `tokens`.
+**`tokens` is now the register of devices**, which is the shape both fixes
+wanted. It is one row per sign-in, keyed on the exact credential every path
+that learns anything about a client already presents — a socket keeps the token
+it was accepted on, an HTTP request carries it in the header. Neither
+`accounts` (one row per person) nor `device_tokens` (one row per *push
+address*) can be that. It gained `last_seen_at` and `last_build`, and
+`Accounts.markSession` writes them beside the account-level `markSeen`, paired
+in `ws.ts` as `heard`.
 
-**And "in the app" is now a fact about a person with more than one screen.**
-`reachability.inApp` suppresses a notification for anybody with a live socket,
-which is what stops a push duplicating what somebody is already looking at.
-With two devices signed in, a tablet left open in another room asserts that its
-owner is looking, and the phone in their pocket stays quiet. That is the same
-rule it always was, meeting a case it could not previously reach; whether it
-should be per device is a question about what a notification is for, and this
-change does not answer it.
+`device_tokens` was the tempting answer and is the wrong one. An install that
+declined notification permission has no row in it at all, and "no row" is
+indistinguishable from "no such device" — a census that quietly omits everyone
+who said no to notifications is worse than one that is merely coarse, because
+it looks complete. It is also not reachable from the paths that learn a build:
+nothing knows an APNs token except `POST /devices`.
+
+**The build census counted people, and a person is now several installs.**
+`accounts.last_build` is one column, last writer wins, and `buildsSeenSince`
+reads it to answer "is anything older than the floor still calling" — the only
+measurement `MIN_SUPPORTED_BUILD` has ever had. A phone on a current build
+masked a tablet below the floor, in exactly the census that exists to notice
+the tablet. It now reads `MIN(last_build)` over sessions active in the window.
+
+`silentBuilds` on `/healthz` changed units with it, from accounts that declined
+to say to sign-ins that did. The reading is the same and the grain is finer.
+The tombstone exclusion survived as belt to a new brace: `erase` deletes an
+account's tokens, so a deleted account leaves a session-level count by itself,
+where against `accounts` the row remained and had to be named.
+
+**And "in the app" decided whether to send, when what it needed to decide was
+where.** `reachability.inApp` suppressed a notification for anybody holding a
+live socket — right, and resting on a premise that a live socket meant *the*
+screen, which held only while one session per account did. With a tablet signed
+in, dropping the person silenced the phone in their pocket on the strength of a
+screen in another room.
+
+The filter now works per address. `device_tokens` records the hash of the
+session that registered it — `POST /devices` being the one request that ever
+holds both credentials at once, the bearer in the header and Apple's token in
+the body — and `Reachability.liveSessions` answers which of somebody's sessions
+are connected. An address whose session cannot be identified falls back to the
+old person-level test, which is what covers rows written before the column and
+rows whose session has since been revoked. That fallback is also what keeps the
+deploy quiet: behaviour changes per device as each re-registers at its next
+launch, rather than for everybody at once, and it errs toward a duplicate
+rather than toward silence.
+
+The ping is untouched and had to be: `reachesInApp` is decided by the message,
+not by any device, so a ping still reaches every address including a connected
+one. It is the one notification a person composed and aimed, and being in the
+app is not evidence of having seen it.
+
+**What is not fixed, and is not a bug.** `ContactView.inApp` — the "In the app
+now" a contact sees — still answers about the person, so a tablet left open
+advertises you as about. That one is arguably true as it stands, and the
+complaint against it is staleness rather than device identity: no join fixes
+it, and it belongs to TASKS § *Availability Logic*.
 
 ### Compatibility
 
-**No floor change and no two-step.** The client sends nothing new, so an old
+**No floor change, no two-step, and no client build at all.** Every one of the
+three changes is server-side: the census reads a column the server writes, and
+the push filter's new join is established by a request the app already makes
+with both credentials in it. The client sends nothing new, so an old
 server meets no message it has never heard of. The server sends one new message
 to clients that may not know it, and every build's socket ignores an unknown
 `type` — an old build simply behaves as it does today, which is to say it meets

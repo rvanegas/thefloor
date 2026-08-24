@@ -384,6 +384,60 @@ describe('an invite', () => {
     expect(pusher.messagesFor('alice-phone')).toEqual([]);
   });
 
+  /**
+   * The case that made the person-level test wrong. Bob has a tablet open in
+   * the kitchen and a phone in his pocket; the phone's app is backgrounded, so
+   * it holds no socket. Until 2026-08-24 the tablet's socket answered for the
+   * whole person and the phone stayed silent — see DECISIONS.md § *Several
+   * sessions, one voice*.
+   */
+  it('reaches the phone in a pocket while the tablet is looking', async () => {
+    const { alice, bob } = await twoContacts();
+    const tablet = app.accounts.issueToken(bob.account.id, clock);
+    await registerDevice(bob.token, 'bob-phone');
+    await registerDevice(tablet, 'bob-tablet');
+
+    // Only the tablet is connected.
+    const socket = new WebSocket(`ws://${baseUrl}/ws?token=${tablet}`);
+    await new Promise((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+
+    await createChannel(alice.token, [bob.account.id]);
+    await settle();
+
+    // The tablet has already drawn it; the phone has not drawn anything.
+    expect(pusher.messagesFor('bob-tablet')).toEqual([]);
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+    socket.close();
+  });
+
+  /**
+   * An address registered before the session column existed cannot be matched
+   * to a socket, so it gets the person-level test — which is what every
+   * address got until 2026-08-24. This is what keeps a deploy from turning
+   * every open app into a duplicate notification before the devices have
+   * re-registered, which each does at its next launch.
+   */
+  it('falls back to the person for an address with no session recorded', async () => {
+    const { alice, bob } = await twoContacts();
+    // The five-argument form is what the route calls; this is the old one.
+    app.devices.register('bob-legacy', bob.account.id, 'ios', clock);
+
+    const socket = new WebSocket(`ws://${baseUrl}/ws?token=${bob.token}`);
+    await new Promise((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+
+    await createChannel(alice.token, [bob.account.id]);
+    await settle();
+
+    expect(pusher.messagesFor('bob-legacy')).toEqual([]);
+    socket.close();
+  });
+
   it('is not sent to somebody who already has the app open', async () => {
     const { alice, bob } = await twoContacts();
     await registerDevice(bob.token, 'bob-phone');
@@ -853,6 +907,35 @@ describe('a ping', () => {
       headers: auth(token),
       payload: body as Record<string, unknown>,
     });
+
+  /**
+   * A ping is delivered to an open app deliberately, and that is decided by
+   * the message rather than by any device — so both of somebody's devices get
+   * it, the connected one included. The per-address suppression added on
+   * 2026-08-24 must not reach it: it is the one notification a person composed
+   * and aimed, and being in the app is not evidence of having seen it.
+   */
+  it('reaches every device, the connected one included', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    const tablet = app.accounts.issueToken(bob.account.id, clock);
+    await registerDevice(tablet, 'bob-tablet');
+
+    const socket = new WebSocket(`ws://${baseUrl}/ws?token=${tablet}`);
+    await new Promise((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+
+    await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+      text: 'we are starting',
+    });
+    await settle();
+
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+    expect(pusher.messagesFor('bob-tablet')).toHaveLength(1);
+    socket.close();
+  });
 
   it('reaches the person it names, in the sender’s words', async () => {
     const { alice, bob, channelId } = await bobStepsOut();

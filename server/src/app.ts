@@ -17,7 +17,7 @@ import {
   type NotificationLevel,
 } from '../../core/notifications';
 import { Accounts } from './accounts';
-import { openDb, type AccountRow, type Db, type RecordingRow } from './db';
+import { openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
 import { Devices, type DevicePlatform } from './devices';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
@@ -201,6 +201,9 @@ export function buildApp(options: BuildOptions = {}): App {
   const pusher = options.pusher ?? new ConsolePusher(() => {});
   const pushNotifier = createPushNotifier();
 
+  /** Nothing is suppressed for a ping; see the notifier below. */
+  const EMPTY_SESSIONS: ReadonlySet<string> = new Set();
+
   /**
    * Turns "these people should know" into notifications actually sent.
    *
@@ -221,18 +224,45 @@ export function buildApp(options: BuildOptions = {}): App {
    * transition must not wait on Apple or fail because of it.
    */
   pushNotifier.notify = (userIds, message) => {
-    const away = message.reachesInApp
-      ? userIds
-      : userIds.filter((id) => !reachability.inApp(id));
     // Grouped by how loudly it should land rather than sent per person: two
     // recipients who chose the same thing share one request, and the common
     // case — nobody has touched the setting — is a single group again, which
     // is what this path did before levels existed.
-    const levels = preferences.levelsFor(away, message.channelId);
+    const levels = preferences.levelsFor(userIds, message.channelId);
     const byAlert = new Map<NotificationAlert, string[]>();
-    for (const [id, tokens] of devices.tokensByAccount(away)) {
+    let suppressed = 0;
+    for (const [id, addresses] of devices.addressesByAccount(userIds)) {
+      // Which of this person's devices are looking at a screen right now.
+      // Asked once per person rather than once per address, and not asked at
+      // all for a ping, which reaches an open app deliberately.
+      const live = message.reachesInApp
+        ? EMPTY_SESSIONS
+        : reachability.liveSessions(id);
       const alert = alertFor(message.kind, levels.get(id) ?? DEFAULT_NOTIFICATION_LEVEL);
-      byAlert.set(alert, [...(byAlert.get(alert) ?? []), ...tokens]);
+      for (const address of addresses) {
+        // **Per address, not per person, since 2026-08-24.** The rule is
+        // unchanged — a notification to somebody already reading it on screen
+        // is a second copy of what they are looking at — but its premise was
+        // that a live socket meant *the* screen, which held while one session
+        // per account was enforced. With a tablet signed in, dropping the
+        // person silences the phone in their pocket on the strength of a
+        // screen in another room.
+        //
+        // An address whose session cannot be identified falls back to the
+        // person-level test, which is what every address got before this. That
+        // covers rows written before the column existed and rows whose session
+        // has since been revoked, and it means the behaviour changes only as
+        // devices re-register — each at its next launch — rather than all at
+        // once on deploy, in the direction of a duplicate rather than silence.
+        const quiet = address.sessionHash
+          ? live.has(address.sessionHash)
+          : !message.reachesInApp && reachability.inApp(id);
+        if (quiet) {
+          suppressed += 1;
+          continue;
+        }
+        byAlert.set(alert, [...(byAlert.get(alert) ?? []), address.token]);
+      }
     }
     // Logged even when nothing is sent, and with the reason it was not. The
     // two ways of sending nothing — everybody is already looking, and nobody
@@ -243,8 +273,8 @@ export function buildApp(options: BuildOptions = {}): App {
         {
           channelId: message.channelId,
           asked: userIds.length,
-          away: away.length,
-          why: away.length === 0 ? 'all reachable in-app' : 'no registered devices',
+          suppressed,
+          why: suppressed > 0 ? 'every device is looking' : 'no registered devices',
         },
         'push skipped'
       );
@@ -359,6 +389,19 @@ export function buildApp(options: BuildOptions = {}): App {
     if (claimed !== null && claimed !== account.last_build) {
       accounts.markSeen(account.id, now(), claimed);
     }
+    // The session's own row, unguarded, which is the difference between the
+    // two writes rather than an inconsistency. The guard above protects a
+    // column that is a constant per install and is compared against the
+    // account's single value; this one is *per session*, so there is nothing
+    // on the account row to compare it with — and it stamps `last_seen_at`,
+    // which moves constantly and is what bounds the build census. One UPDATE
+    // by primary key per authenticated request, where the socket does the
+    // same per message.
+    accounts.markSession(
+      request.headers.authorization?.slice(7) ?? '',
+      now(),
+      claimed
+    );
     return account;
   }
 
@@ -513,7 +556,19 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!token) return reply.code(400).send({ error: 'token is required' });
     const platform = body?.platform === 'android' ? 'android' : 'ios';
 
-    devices.register(token, account.id, platform as DevicePlatform, now());
+    // The session that owns this address, recorded because this is the one
+    // request that ever holds both credentials at once — the bearer token in
+    // the header and Apple's token in the body. It is what lets a notification
+    // be withheld from the device that is looking at it rather than from the
+    // person, and nothing else can establish it. See `device_tokens` in db.ts.
+    const session = request.headers.authorization?.slice(7);
+    devices.register(
+      token,
+      account.id,
+      platform as DevicePlatform,
+      now(),
+      session ? sha256(session) : undefined
+    );
     return { ok: true };
   });
 
@@ -1683,17 +1738,24 @@ export function buildApp(options: BuildOptions = {}): App {
     // point of putting it here. `minBuild` is what this server promises to
     // answer; the other two are what has actually called.
     //
-    // **`silentBuilds` is not a footnote.** It counts accounts active in the
-    // window whose build is unknown, which for now is everybody — every build
-    // up to 36 says nothing. While it is above zero, `oldestBuild` is a floor
-    // on the *known* population and not on the real one, and a shim must not
-    // be deleted on the strength of it. It reaching zero is the event that
-    // makes this number mean what it looks like it means.
+    // **`silentBuilds` is not a footnote.** It counts *sessions* active in the
+    // window whose build is unknown — every build up to 36 says nothing. While
+    // it is above zero, `oldestBuild` is a floor on the *known* population and
+    // not on the real one, and a shim must not be deleted on the strength of
+    // it. It reaching zero is the event that makes this number mean what it
+    // looks like it means.
+    //
+    // **Sessions rather than accounts since 2026-08-24**, when several
+    // sign-ins per account became ordinary and one column per person stopped
+    // being able to hold two devices' builds. Both numbers here changed grain
+    // together; a figure recorded before that date counts people, so do not
+    // read a rise across that day as a population that grew. See
+    // `Accounts.buildsSeenSince`.
     //
     // Deleted accounts and the two demo accounts are not counted by either —
     // neither is a phone a raised floor could strand, and one of the demo
     // accounts reports no build at all, so leaving them in would hold
-    // `silentBuilds` above zero for good. See `Accounts.buildsSeenSince`.
+    // `silentBuilds` above zero for good.
     const builds = accounts.buildsSeenSince(now() - BUILD_WINDOW_MS);
     return {
       ok: true,

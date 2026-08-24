@@ -161,22 +161,19 @@ name, the address it came from — which is a schema change, a wire change, and 
 privacy decision about keeping a log of where somebody signs in from. Each of
 those is small; wanting them is the part that has not been established.
 
-`device_tokens` is the nearer half of the answer, since it already carries a
-platform and a `last_seen_at` nothing reads. It is a register of push
-addresses rather than of sessions, though, and the two are not in step: an
-install that was never granted notification permission has a session and no
-address at all.
+`device_tokens` looks like the nearer half of the answer and is not: it is a
+register of push *addresses*, and an install that was never granted
+notification permission has a session and no row there at all.
 
-**One thing that wants doing regardless of whether a list is ever built:
-record the build per device rather than per account.** `accounts.last_build` is
-a single column written by whichever device spoke last, and
-`buildsSeenSince` reads it to answer whether anything below the compatibility
-floor is still calling. That was exact while one session per account was
-enforced and is not any more: a newer device masks an older one belonging to
-the same person, so the census now reads as a lower bound on how modern the
-population is. Nothing enforces anything on it, but raising
-`MIN_SUPPORTED_BUILD` on a census that missed an install ends that install's
-sessions. See DECISIONS.md § *Several sessions, one voice*.
+**What a screen would need is already half-built.** `tokens` carries
+`last_seen_at` and `last_build` per session as of 2026-08-24, so "signed in on
+a build-56 device, last heard from on Tuesday" is answerable today. What is
+missing is anything a person could *recognise* — a platform, a model name — and
+that is the schema change, the wire change, and the privacy decision about
+keeping a record of where somebody signs in from. `device_tokens.platform`
+already knows the first of those for push-enabled installs, and
+`device_tokens.session_hash` now joins the two tables, so the join is no longer
+the obstacle it was.
 
 ---
 

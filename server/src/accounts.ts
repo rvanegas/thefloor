@@ -422,6 +422,44 @@ export class Accounts {
   }
 
   /**
+   * The same two facts about one *session*, which is the nearest thing this
+   * server has to one device.
+   *
+   * `markSeen` above writes them against the account, where `last_seen_at` is
+   * the maximum across every device somebody holds — right for a contact list,
+   * which asks whether a person is about — and `last_build` is whichever
+   * device spoke last. That second one cannot answer the build census: a phone
+   * on a current build overwrites a tablet below the floor, and the census
+   * exists precisely to notice the tablet. See `buildsSeenSince`.
+   *
+   * Keyed on the token because every path that learns a build already holds
+   * one: the socket keeps the credential it was accepted on, and an HTTP
+   * request carries it in the header. Nothing had to be threaded anywhere.
+   *
+   * A token that is not in the table writes nothing, which is an ordinary
+   * outcome rather than a failure — a session revoked from another device goes
+   * on making requests until something answers 401.
+   */
+  markSession(token: string, now: number, build?: number | null): void {
+    if (build == null) {
+      this.db
+        .prepare(
+          `UPDATE tokens SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?)
+            WHERE token_hash = ?`
+        )
+        .run(now, sha256(token));
+      return;
+    }
+    this.db
+      .prepare(
+        `UPDATE tokens
+            SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?), last_build = ?
+          WHERE token_hash = ?`
+      )
+      .run(now, build, sha256(token));
+  }
+
+  /**
    * The oldest build seen from anybody active since `since`, and whether
    * anything active declined to say.
    *
@@ -439,28 +477,44 @@ export class Accounts {
    * looks like a measurement and reads like a guess, which is the exact defect
    * being fixed.
    *
-   * **And one account may now be two devices, which makes this a lower bound
-   * rather than the truth.** `last_build` is a single column written by
-   * whichever device spoke last, so a phone on a current build masks a tablet
-   * on an old one belonging to the same person. It was exact while one session
-   * per account was enforced — there was only ever one build to write — and
-   * stopped being so on 2026-08-24. Nothing enforces anything on this, so what
-   * it costs is a floor raised on a census that missed an install, which is
-   * the one thing raising the floor must not do. Tracking builds per device
-   * is what fixes it; see BACKLOG.md.
+   * **Counted over sessions rather than accounts, since 2026-08-24.** Several
+   * sessions per account became ordinary that day, and `accounts.last_build`
+   * is one column written by whichever device spoke last — so a phone on a
+   * current build masked a tablet below the floor, in exactly the measurement
+   * that exists to notice the tablet. One row per sign-in is the right grain:
+   * a session is an install, and an install is what a raised floor strands.
    *
-   * **Presence here is `last_seen_at`, which is the socket's to write.** An
-   * account that has never held a socket is not in the window at all, however
-   * many HTTP calls it has made — deliberately, because that column means "had
-   * the app open" and is what the contact list renders. The two clients that
-   * matter both connect, so this is the same set in practice; it is worth
-   * knowing before reading a low `silent` as good news.
+   * `silent` counts sessions too, and that changed what the number on
+   * `/healthz` means. It was accounts that declined to say; it is now
+   * sign-ins. The reading is the same and the units are finer.
+   *
+   * Sessions rather than `device_tokens`, which is per device and looks like
+   * the better fit until you ask what it is: a register of push *addresses*.
+   * An install that declined notification permission has no row there at all,
+   * and those are not people a census may quietly omit.
+   *
+   * Revocation does the cleaning. Signing out deletes the row, so does signing
+   * out from another device, and so does `erase` — so a session that has
+   * stopped calling stops being counted without anything having to sweep.
+   *
+   * **Presence here is `tokens.last_seen_at`, which is the socket's to
+   * write.** A session that has never held a socket is not in the window at
+   * all, however many HTTP calls it has made — deliberately, since the two
+   * clients that matter both connect. It is worth knowing before reading a low
+   * `silent` as good news. The account-level column of the same name means
+   * something different and still exists: the maximum across somebody's
+   * devices, which is what a contact list renders.
    *
    * **Two kinds of row are left out, because neither is somebody a raised
    * floor could strand.** A tombstone cannot sign in — `erase` deletes its
    * tokens and rewrites its identifier — so whatever build it last called
    * from is a fossil, and one was holding `oldest` at 51 on production while
-   * the real population started at 56. The demo accounts are a phone at Apple
+   * the real population started at 56. That exclusion is now belt as well as
+   * braces: `erase` deleting the tokens is itself enough to drop a tombstone
+   * out of a count over sessions, where against `accounts` the row remained
+   * and had to be named. It stays because it costs one clause and states the
+   * intent, and because nothing should have to know the deletion order to
+   * read this query. The demo accounts are a phone at Apple
    * that reinstalls whatever is under review at each submission, and the
    * second of them has never reported a build at all, so leaving them in
    * pins `silent` above zero permanently — which is the one condition under
@@ -481,12 +535,13 @@ export class Accounts {
       .map((id) => normalize(id).toLowerCase());
     const row = this.db
       .prepare(
-        `SELECT MIN(last_build) AS oldest,
-                SUM(CASE WHEN last_build IS NULL THEN 1 ELSE 0 END) AS silent
-           FROM accounts
-          WHERE last_seen_at IS NOT NULL AND last_seen_at >= ?
-            AND identifier NOT LIKE ?
-            AND LOWER(identifier) NOT IN (${demo.map(() => '?').join(', ') || "''"})`
+        `SELECT MIN(t.last_build) AS oldest,
+                SUM(CASE WHEN t.last_build IS NULL THEN 1 ELSE 0 END) AS silent
+           FROM tokens t
+           JOIN accounts a ON a.id = t.account_id
+          WHERE t.last_seen_at IS NOT NULL AND t.last_seen_at >= ?
+            AND a.identifier NOT LIKE ?
+            AND LOWER(a.identifier) NOT IN (${demo.map(() => '?').join(', ') || "''"})`
       )
       .get(since, `${ERASED_IDENTIFIER_PREFIX}%`, ...demo) as {
       oldest: number | null;
