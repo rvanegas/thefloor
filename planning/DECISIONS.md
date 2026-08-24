@@ -1466,3 +1466,69 @@ button beats a back stack nobody asked for.
 The tap itself is the profile's, unchanged, and it reads `tapToStepIn` exactly
 as Home's rows do. Two lists of the same channels answering a tap differently
 would be a setting that held in one place and not the other.
+## An aimed push has to aim at who left, not at who remains — 2026-08-24
+
+Deleting a channel left its card on Home. `TASKS.md` asked whether this had not
+already been fixed, and the answer is that it had never been broken until it
+quietly was: the delivery it depended on was withdrawn on 2026-08-17 as a
+side effect of a change that was right on its own terms.
+
+**The server's answer was correct the whole time.** `GET /home` returned the
+channel gone the instant it was deleted; `rejoinableFor` skips anything not
+`active`. What failed was that nobody told the phone. Home is not polled — the
+app sends `watch.home` once at connect and renders whatever was last pushed —
+so a Home snapshot that is never sent is a screen that never changes.
+
+`ws.ts` ends every channel change with `homeNotifier.notify(channel.participants)`,
+read after the change. A departure is exactly the change that takes the actor
+out of that set, and `DELETE_CHANNEL` empties it altogether: the reducer sets
+`participants: []`, so the audience was the empty list and the push went
+nowhere. The person whose Home had certainly changed was the one person
+structurally guaranteed not to be told. The `if (channel)` fallback that
+broadcasts does not save it either — an ended channel is kept in memory for
+thirty seconds, so it is still there to be found, and its later removal emits
+nothing.
+
+**The same defect, unnoticed, applied to leaving.** Somebody stepping out of a
+channel other people remain in is removed from the roster just the same, so
+everyone got a fresh Home except them. That is why the fix is written about
+departures rather than about deletion, and why it is keyed on the participant
+sets rather than on the two action names: any later rule that drops somebody
+is carried without anybody remembering to add it.
+
+Before `04bf254` this was impossible. That commit narrowed the Home push from
+a broadcast to every watcher on the server down to the channel's participants,
+which was correct — the broadcast made one person's Home accurate in proportion
+to how busy strangers were. Its own comment records that the broadcast had been
+"accidentally, most of what kept the contact rows current". Departures were the
+other thing it had been accidentally carrying, and that half went unnoticed
+because the property it provided had never been named.
+
+So the audience is now `participants ∪ departed`. `ChannelRegistry.apply` is
+the only path that can change who belongs to a channel, and it holds both
+states at the moment it emits, so it computes the departed there and carries
+them alongside the changed ids; the other six `commit` sites — ticks,
+connection reports, the two failure paths, a withdrawn knock — cannot change a
+roster and pass nothing. Working it out in the socket layer instead would mean
+reconstructing it from a channel that no longer says.
+
+**Fixed on the server, deliberately, and that is the interesting part.** The
+app could have filtered its own Home against `goneChannels`, which it already
+holds, and for a moment that looked like the smaller change. It is the worse
+one: a client fix reaches only people who update, and this bug is on every
+installed build — including build 51, which predates the expiry client and can
+never be shown an update screen. A server fix reaches all of them in a minute.
+The wire is unchanged, so there is no two-step to sequence.
+
+**One note on the tests, which is the part worth stealing.** The first version
+of the leaver's test passed against the unfixed server. `Client.next` searches
+everything received so far, so an assertion shaped as "a Home with no such
+channel in it" was satisfied by the empty Home from before the channel existed
+— it asserted nothing at all. Counting the Homes already seen and waiting for
+one *after* that is what makes the wait mean a new message, which is now
+`homeAfter` in `ws.test.ts`. Both tests were then run against the reverted
+source and watched to fail before being trusted.
+
+The aiming property itself already had a test — `does not reach somebody with
+no part in a channel that changed` — so widening the audience back out is
+caught. It was nearly duplicated here out of a bad grep.

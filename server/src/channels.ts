@@ -302,6 +302,21 @@ export interface Refused {
 }
 
 /**
+ * Told that channels changed, and who left them on the way.
+ *
+ * `departed` exists because the audience for a change cannot be read off the
+ * channel afterwards. A watcher works out who to tell from the participants,
+ * and a departure is exactly the change that removes the person who most needs
+ * telling — at the limit, `DELETE_CHANNEL` empties the roster and leaves an
+ * audience of nobody. So whoever was a participant before and is not one after
+ * is carried alongside the ids, computed where both states are in hand rather
+ * than reconstructed by the socket layer from a channel that no longer says.
+ *
+ * Empty for every change that is not a departure, which is nearly all of them.
+ */
+export type ChangeListener = (channelIds: string[], departed: string[]) => void;
+
+/**
  * The authority for live channels. Every rule it enforces comes from core/ —
  * this class owns *when* the reducer runs and *who* is allowed to act, not what
  * the rules are.
@@ -395,7 +410,7 @@ export class ChannelRegistry {
   private openingPlayback = new Set<string>();
   /** The uploaded file per channel, and the directory to remove with it. */
   private trackFiles = new Map<string, { file: string; dir: string }>();
-  private listeners = new Set<(channelIds: string[]) => void>();
+  private listeners = new Set<ChangeListener>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private usageTimer: ReturnType<typeof setInterval> | null = null;
@@ -569,7 +584,7 @@ export class ChannelRegistry {
     }
   }
 
-  onChange(listener: (channelIds: string[]) => void): () => void {
+  onChange(listener: ChangeListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
@@ -597,8 +612,8 @@ export class ChannelRegistry {
     );
   }
 
-  private emit(channelIds: string[]): void {
-    for (const listener of this.listeners) listener(channelIds);
+  private emit(channelIds: string[], departed: string[] = []): void {
+    for (const listener of this.listeners) listener(channelIds, departed);
   }
 
   // --- Commands -----------------------------------------------------------
@@ -1047,7 +1062,15 @@ export class ChannelRegistry {
     }
     if (next !== channel) {
       this.commit(channel, next);
-      this.emit([channelId]);
+      // The only path that can change who belongs to a channel, which is why
+      // it is the only one that carries departures. Read from the pair rather
+      // than from the action: `LEAVE_CHANNEL` and `DELETE_CHANNEL` are the two
+      // that do this today, and keying on the transition means a later rule
+      // that drops somebody is carried without anybody remembering to add it.
+      this.emit(
+        [channelId],
+        channel.participants.filter((id) => !next.participants.includes(id))
+      );
     }
     return { ok: true, channel: this.channels.get(channelId) ?? next };
   }

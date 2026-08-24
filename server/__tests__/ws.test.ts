@@ -102,6 +102,35 @@ async function signIn(identifier: string, displayName?: string) {
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
+/**
+ * The next Home pushed *after* this point, given how many had arrived before.
+ *
+ * `Client.next` searches everything received so far, which is what is wanted
+ * almost everywhere and is a trap for an assertion about absence: "a Home with
+ * no such channel in it" is satisfied by the empty one from before the channel
+ * existed, so a test written that way passes without the server sending
+ * anything at all. Counting first is what makes the wait mean a new message.
+ */
+async function homeAfter(
+  client: Client,
+  seen: number,
+  timeoutMs = 3000
+): Promise<Extract<ServerMessage, { type: 'home' }>> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const homes = client.received.filter(
+      (m): m is Extract<ServerMessage, { type: 'home' }> => m.type === 'home'
+    );
+    if (homes.length > seen) return homes[homes.length - 1];
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error(`no Home arrived after the ${seen} already seen`);
+}
+
+/** How many Home snapshots this client has been sent so far. */
+const homesSeen = (client: Client): number =>
+  client.received.filter((m) => m.type === 'home').length;
+
 async function pairInSession() {
   const alice = await signIn('user1@example.com', 'Alice');
   const bob = await signIn('user2@example.com', 'Bob');
@@ -247,6 +276,68 @@ describe('websocket', () => {
     );
     expect(home.home.contacts[0].account.displayName).toBe('Bob');
     aliceClient.close();
+  });
+
+  /**
+   * Found by hand: deleting a channel left its card on Home until something
+   * unrelated happened to push one.
+   *
+   * The Home push is aimed at the channel's participants, and a departure is
+   * the change that takes the actor out of that set — `DELETE_CHANNEL` empties
+   * it entirely, so the audience was nobody. The server's answer was right the
+   * whole time; `GET /home` said the channel was gone. Nothing delivered it.
+   */
+  it('pushes a fresh Home to somebody who has just deleted a channel', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    // A channel of one, which is the only kind its last member may delete.
+    const created = await app.fastify.inject({
+      method: 'POST',
+      url: '/channels',
+      headers: auth(alice.token),
+      payload: {},
+    });
+    const { channelId } = created.json() as { channelId: string };
+
+    const a = new Client(alice.token, baseUrl);
+    await a.open();
+    a.send({ type: 'watch.home' });
+    await a.next('home', (m) =>
+      m.home.rejoinable.some((r) => r.channelId === channelId)
+    );
+
+    const seen = homesSeen(a);
+    a.send({ type: 'channel.action', channelId, action: { type: 'DELETE_CHANNEL' } });
+
+    const home = await homeAfter(a, seen);
+    expect(home.home.rejoinable).toEqual([]);
+    a.close();
+  });
+
+  /**
+   * The same defect seen from the other end, and the reason the fix is about
+   * departures rather than about deletion: somebody leaving a channel other
+   * people remain in is removed from the roster just the same, so the push
+   * aimed at it reached everyone except them.
+   */
+  it('pushes a fresh Home to somebody who has just left a channel', async () => {
+    const { bob, channelId } = await pairInSession();
+    const b = new Client(bob.token, baseUrl);
+    await b.open();
+    b.send({ type: 'watch.home' });
+    // Having been here is what makes it rejoinable rather than an invitation,
+    // which are two different lists on Home — see `rejoinableFor`.
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    b.send({ type: 'channel.action', channelId, action: { type: 'STEP_OUT' } });
+    await b.next('home', (m) =>
+      m.home.rejoinable.some((r) => r.channelId === channelId)
+    );
+
+    const seen = homesSeen(b);
+    b.send({ type: 'channel.action', channelId, action: { type: 'LEAVE_CHANNEL' } });
+
+    const home = await homeAfter(b, seen);
+    expect(home.home.rejoinable).toEqual([]);
+    b.close();
   });
 
   it('pushes a floor claim to the silenced party', async () => {

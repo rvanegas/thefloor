@@ -322,7 +322,16 @@ export function registerWebsocket(deps: {
   // Participants, not the people present: somebody invited is a participant
   // and has yet to enter, and the invitation appearing on their Home is
   // exactly what this delivers.
-  channels.onChange((changedIds) => {
+  //
+  // **Plus whoever just left, which the roster no longer names.** Aiming the
+  // push is right and the audience was wrong: the survivors of a change are
+  // not the people it affected, and a departure is the case where the two come
+  // apart completely. Somebody who leaves is removed from `participants`
+  // before this runs, and deleting empties it altogether — so the person
+  // whose Home certainly changed was the one person guaranteed not to be told,
+  // and their card sat there until something unrelated happened to push Home.
+  // The broadcast this replaced was hiding it. See planning/DECISIONS.md.
+  channels.onChange((changedIds, departed) => {
     for (const channelId of changedIds) {
       for (const connection of connections) {
         if (connection.watchingChannels.has(channelId)) {
@@ -334,7 +343,9 @@ export function registerWebsocket(deps: {
       }
       const channel = channels.get(channelId);
       if (channel) {
-        homeNotifier.notify(channel.participants);
+        homeNotifier.notify([
+          ...new Set([...channel.participants, ...departed]),
+        ]);
         continue;
       }
       // A change to a channel this registry can no longer describe. Nothing
