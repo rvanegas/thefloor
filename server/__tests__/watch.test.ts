@@ -200,7 +200,11 @@ describe('the link', () => {
     expect(refused.statusCode).toBe(403);
   });
 
-  it('is refused to a member who has not stepped in', async () => {
+  it('is refused to a member outside a channel other people are in', async () => {
+    // The reported bug. These two buttons were wired to nothing but whether a
+    // mint was already in flight, and this route checked membership alone — so
+    // a member could open a live screen on a conversation they had not stepped
+    // into. Every other control on the card already refused it.
     const { alice, bob, channelId } = await channelOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     const refused = await app.fastify.inject({
@@ -214,18 +218,14 @@ describe('the link', () => {
     expect((await watchLink(bob.token, channelId)).length).toBeGreaterThan(0);
   });
 
-  it('is refused on an empty channel, which nobody is watching together', async () => {
+  it('is minted on an empty channel, which is nobody\'s conversation', async () => {
     const { alice, bob, channelId } = await channelOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
-    const refused = await app.fastify.inject({
-      method: 'POST',
-      url: `/channels/${channelId}/watch-token`,
-      headers: auth(alice.token),
-    });
-    // `hasTheRoom` would have allowed this — an empty channel is nobody's
-    // conversation to interrupt. A party is not that kind of act.
-    expect(refused.statusCode).toBe(403);
+    // `hasTheRoom`, the same rule the rest of the channel follows: with
+    // nobody in it there is no conversation to intrude on, and opening the
+    // screen before stepping in is the ordinary order of doing this.
+    expect((await watchLink(alice.token, channelId)).length).toBeGreaterThan(0);
   });
 
   it('does not sign the phone out, however many screens are opened', async () => {

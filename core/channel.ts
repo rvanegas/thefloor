@@ -528,72 +528,105 @@ function holdsSharedControl(state: ChannelState, userId: UserId): boolean {
 /**
  * Whether the floor leaves this person free to change what is attended to.
  *
- * The half of `holdsSharedControl` the watch party shares: nobody holds a
- * claim, or the claim is yours. Separate from the standing half because the
- * two features answer *where you have to be* differently and answer this
- * identically, and a claim's effect on what is playing is one rule wherever
- * it is asked.
+ * The half of `holdsSharedControl` that is about the claim rather than about
+ * where you are standing. Separate because the guards below take it in
+ * different combinations, and a claim's effect on what is playing is one rule
+ * wherever it is asked.
  */
 function floorPermits(state: ChannelState, userId: UserId): boolean {
   return state.floor.holder === null || state.floor.holder === userId;
 }
 
 /**
- * Whether `userId` is in the room a watch party is for.
+ * Whether `userId` may put something new on — a track, or a video.
  *
- * **Presence, not occupation** — which is where the watch party parts company
- * with shared playback, and it is worth saying why, since the two were one
- * rule until 2026-08-24. `hasTheRoom` lets an absent member act on an *empty*
- * channel, on the reasoning that they are interrupting nobody: loading a track
- * or fixing a typo before anybody arrives is preparation, and preparation is
- * harmless.
+ * **Presence, where driving what is already on asks only `hasTheRoom`.** The
+ * one place the two shared features are stricter than the rest of the screen,
+ * and it applies to both of them identically, which is the point: a channel
+ * attends to one thing, and the rule for changing what that thing is should
+ * not depend on which of the two it happens to be.
  *
- * A party is not preparation. It is a running transport with a clock, and it
- * withholds every microphone in the room while it plays — so a member who
- * pastes a link and puts the phone down leaves a film running and the room
- * muted for whoever steps in next, with nobody there who chose either. The
- * mute is the sharp end: `startParty` mutes by default, and the person it
- * silences would be somebody who arrived after the decision was made.
+ * `hasTheRoom` is true when nobody is present, deliberately — an empty channel
+ * is nobody's conversation to interrupt. That reasoning covers *driving* what
+ * is there: an absent member who stops a film somebody left running, or pauses
+ * a track, is tidying up after a room that has gone home.
  *
- * Nothing is lost by requiring presence, because there is nothing to prepare.
- * A party begins where somebody presses play, and the person pressing it is
- * the person watching.
+ * It does not cover putting something new on, because that is not tidying and
+ * it does not stay put. A party mutes the room by default and runs a clock; a
+ * track loads and waits to be played. Either way what the next person to step
+ * in walks into was chosen by somebody who is not there, and starting is the
+ * moment that choice gets made. So starting is for whoever is in the room, and
+ * everything else here is for whoever the room belongs to.
  *
- * Guests are refused because `present` counts members only — the same reason
+ * Guests never reach this: `present` counts members only, the same reason
  * `hasTheRoom` is not written in terms of `roomOccupants`.
  */
-export function canWatchTogether(
+function mayPutSomethingOn(state: ChannelState, userId: UserId): boolean {
+  return holdsSharedControl(state, userId) && isPresent(state, userId);
+}
+
+/**
+ * Whether `userId` may load a track for the channel to listen to.
+ *
+ * Asked at the upload route rather than in the reducer, `SET_TRACK` being the
+ * one thing here a client cannot send — only the server knows where the file
+ * landed and how long it really is. The rule is `START_WATCH`'s, and the two
+ * are written as one call for that reason.
+ */
+export function canLoadTrack(state: ChannelState, userId: UserId): boolean {
+  return mayPutSomethingOn(state, userId);
+}
+
+/**
+ * Whether `userId` may open a follower screen on this channel's party.
+ *
+ * `hasTheRoom` and **not** the floor, which is the combination nothing else
+ * uses. The floor is excluded because opening a screen of your own changes
+ * nothing about what the channel is doing — somebody in the room whose floor
+ * is held by another may still put the film on a laptop. The room is required
+ * because the page is a live view of a conversation, and a channel with people
+ * talking in it that you have not stepped into is one you are outside of on
+ * every device you own.
+ *
+ * An empty channel is nobody's conversation, so a member may open a screen on
+ * one before anybody arrives — which is close to the ordinary order of doing
+ * this: open the screen, step in, choose the video.
+ */
+export function canOpenWatchScreen(
   state: ChannelState,
   userId: UserId
 ): boolean {
-  return state.status === 'active' && isPresent(state, userId);
+  if (state.status !== 'active') return false;
+  return isParticipant(state, userId) && hasTheRoom(state, userId);
 }
 
 /**
  * Whether `userId` may drive the watch party's transport.
  *
- * Two clauses, and they come from different places. Being in the room is
- * `canWatchTogether`, which is the watch party's own rule and is stricter than
- * playback's — see there. The floor is `floorPermits`, which is the same rule
- * playback follows: a claim confers control of the video without pausing it,
- * so the film keeps running and stops being anybody else's to change.
+ * The same rule as `canControlPlayback`, deliberately — see
+ * `holdsSharedControl`. A claim confers control of the video without pausing
+ * it: the film keeps running and stops being anybody else's to change.
+ *
+ * Starting one is `canStartWatch` and is stricter. **Stopping is here rather
+ * than there**, which is the line `mayPutSomethingOn` draws: ending what
+ * somebody left running is available to whoever the room belongs to.
  */
 export function canControlWatch(
   state: ChannelState,
   userId: UserId
 ): boolean {
-  return canWatchTogether(state, userId) && floorPermits(state, userId);
+  return holdsSharedControl(state, userId);
 }
 
 /**
  * Whether `userId` may start a watch party.
  *
- * Control of what is attended to, **and** no recording in progress. The two
- * are mutually exclusive because a party is watched on YouTube's own player
- * with its own audio, which The Floor never touches — so a recording made
- * alongside one would be a recording of people reacting to something it does
- * not contain, and could not be made to contain without extracting audio the
- * terms forbid extracting.
+ * Being in the room — see `mayPutSomethingOn`, which `canLoadTrack` shares —
+ * **and** no recording in progress. The two are mutually exclusive because a
+ * party is watched on YouTube's own player with its own audio, which The Floor
+ * never touches — so a recording made alongside one would be a recording of
+ * people reacting to something it does not contain, and could not be made to
+ * contain without extracting audio the terms forbid extracting.
  *
  * Refused rather than resolved in the party's favour: the alternative is that
  * one tap silently ends a run somebody may be speaking on the strength of.
@@ -601,9 +634,7 @@ export function canControlWatch(
  * reason rather than either surprising anyone.
  */
 export function canStartWatch(state: ChannelState, userId: UserId): boolean {
-  return (
-    canControlWatch(state, userId) && state.recording.status === 'idle'
-  );
+  return mayPutSomethingOn(state, userId) && state.recording.status === 'idle';
 }
 
 /**

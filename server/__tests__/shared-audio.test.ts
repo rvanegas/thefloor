@@ -288,6 +288,44 @@ describe('loading a track', () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it('refuses a member who has stepped out of an occupied channel', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    const response = await upload(alice.token, channelId);
+    // 400 rather than 403, which is the distinction this route has always
+    // drawn: they are entitled to the channel, they are simply not in it.
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { error: string }).error).toContain('not in');
+  });
+
+  it('refuses a member outside an empty channel too, since 2026-08-24', async () => {
+    // `canLoadTrack` rather than `canControlPlayback`. Putting something on
+    // leaves it there for whoever steps in next, so it asks presence where
+    // driving what is already loaded asks only `hasTheRoom` — the same split
+    // `canStartWatch` makes for a party.
+    const { alice, bob, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    const response = await upload(alice.token, channelId);
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('still lets somebody outside an empty channel drive what is loaded', async () => {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    await upload(alice.token, channelId);
+    await settle();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+
+    // The other half of the rule: an empty channel is nobody's conversation,
+    // so tidying up after it does not need stepping in.
+    const cleared = app.channels.dispatch(channelId, alice.account.id, {
+      type: 'CLEAR_TRACK',
+    });
+    expect(cleared.ok).toBe(true);
+    expect(app.channels.get(channelId)!.playback.track).toBeNull();
+  }, 30_000);
+
   it('opens the media participant, once, on the first track', async () => {
     const { alice, channelId } = await sessionOfTwo();
     await upload(alice.token, channelId);

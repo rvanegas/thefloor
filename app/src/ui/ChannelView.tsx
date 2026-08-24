@@ -34,9 +34,10 @@ import {
   canResumeRecording,
   canSetSelfMute,
   canStartRecording,
+  canLoadTrack,
   canStartWatch,
   canControlWatch,
-  canWatchTogether,
+  canOpenWatchScreen,
   isPartyMuted,
   partyMuteRequested,
   canStopRecording,
@@ -394,6 +395,11 @@ export function ChannelView({
   const track = playback.track;
   const position = playbackPositionMs(playback, now);
   const mayControlPlayback = canControlPlayback(channel, me);
+  // Driving what is on and putting something new on are two rules, and the
+  // shared audio card needs both: an absent member may pause or clear a track
+  // on an empty channel, and may not load one. `canStartWatch` is the same
+  // split on the card below.
+  const mayLoadTrack = canLoadTrack(channel, me);
 
   // `?? initialWatchState()` for the reason `clip` has its `?? null`: a server
   // that predates this field sends snapshots without it, which is what this
@@ -402,13 +408,14 @@ export function ChannelView({
   const party = watch.party;
   const watchAt = watchPositionMs(watch, now);
   const mayControlWatch = canControlWatch(channel, me);
-  // Presence without the floor clause, which is what a second screen needs:
-  // opening one changes nothing, so somebody in the room whose floor is held
-  // by another may still put the film on a laptop. What it refuses is a
-  // member who has not stepped in — the follower page is a live view of a
-  // conversation, and a channel you are outside of is one you are outside of
-  // on every device you own.
-  const mayWatchTogether = canWatchTogether(channel, me);
+  // The room without the floor clause, which is the combination a second
+  // screen needs: opening one changes nothing, so somebody in the room whose
+  // floor is held by another may still put the film on a laptop. What it
+  // refuses is somebody outside a conversation that is going on — the follower
+  // page is a live view of one, and a channel you have not stepped into is one
+  // you are outside of on every device you own.
+  const mayOpenWatchScreen = canOpenWatchScreen(channel, me);
+  const mayStartWatch = canStartWatch(channel, me);
   // The whole of why `parseYouTubeUrl` is in core: this decides whether the
   // button lights up and the server decides whether to accept, and a greyed
   // control and a refused action must not disagree about what a link is.
@@ -1095,14 +1102,14 @@ export function ChannelView({
                     onChangeText={setWatchUrl}
                     placeholder="Paste a YouTube link"
                     autoFocus
-                    editable={canStartWatch(channel, me)}
+                    editable={mayStartWatch}
                   />
                   <View style={styles.buttonRow}>
                     <Button
                       label="Watch this instead"
                       variant="primary"
                       style={styles.flexButton}
-                      disabled={!canStartWatch(channel, me) || !pastedIsLink}
+                      disabled={!mayStartWatch || !pastedIsLink}
                       onPress={() => {
                         act({ type: 'START_WATCH', url: watchUrl.trim() });
                         setWatchUrl('');
@@ -1125,7 +1132,7 @@ export function ChannelView({
                   <Button
                     label="Change video"
                     style={styles.flexButton}
-                    disabled={!canStartWatch(channel, me)}
+                    disabled={!mayStartWatch}
                     onPress={() => setChanging(true)}
                   />
                   <Button
@@ -1167,7 +1174,7 @@ export function ChannelView({
                       : copyLabel('screen', 'Copy screen link')
                   }
                   style={styles.flexButton}
-                  disabled={linking || !mayWatchTogether}
+                  disabled={linking || !mayOpenWatchScreen}
                   onPress={() => void copyScreenLink()}
                 />
               </View>
@@ -1175,7 +1182,7 @@ export function ChannelView({
               <Button
                 label={linking ? 'Making a link…' : 'Watch on another screen'}
                 variant="ghost"
-                disabled={linking || !mayWatchTogether}
+                disabled={linking || !mayOpenWatchScreen}
                 onPress={shareWatchLink}
               />
 
@@ -1199,12 +1206,12 @@ export function ChannelView({
                 value={watchUrl}
                 onChangeText={setWatchUrl}
                 placeholder="Paste a YouTube link"
-                editable={canStartWatch(channel, me)}
+                editable={mayStartWatch}
               />
               <Button
                 label="Watch something together"
                 variant="primary"
-                disabled={!canStartWatch(channel, me) || !pastedIsLink}
+                disabled={!mayStartWatch || !pastedIsLink}
                 onPress={() => {
                   act({ type: 'START_WATCH', url: watchUrl.trim() });
                   setWatchUrl('');
@@ -1214,7 +1221,7 @@ export function ChannelView({
                 label={linking ? 'Making a link…' : 'Watch on another screen'}
                 sublabel="A page for a laptop or a tablet, which follows this channel"
                 variant="ghost"
-                disabled={linking || !mayWatchTogether}
+                disabled={linking || !mayOpenWatchScreen}
                 onPress={shareWatchLink}
               />
             </>
@@ -1266,12 +1273,12 @@ export function ChannelView({
           ) : null}
 
           <Text style={type.muted}>
-            {!mayWatchTogether
-              ? // First, because it outranks the rest: somebody outside the
-                // room has no use for being told whose floor it is or that a
-                // recording is running. It is also the one reason here that
-                // covers the second screen as well as the transport, every
-                // other control on this card being available to anyone in.
+            {!mayOpenWatchScreen
+              ? // First, because it outranks the rest: somebody outside a
+                // conversation that is going on has no use for being told whose
+                // floor it is or that a recording is running. It is also the
+                // only reason here that greys the second screen as well as
+                // everything else.
                 'Step in to start a watch party. What everybody is watching is for whoever is here.'
               : recordingLive
                 ? // Said out loud rather than left as a dead button. The two are
@@ -1283,9 +1290,16 @@ export function ChannelView({
                   ? `${holderName} has the floor, so they decide what plays.`
                   : iHoldFloor
                     ? 'You have the floor — only you can change what plays.'
-                    : party
-                      ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
-                      : 'Open the link on a laptop or a tablet and it follows the channel. Recording is off while a party is on.'}
+                    : !mayStartWatch
+                      ? // The empty channel, from outside it. Starting asks
+                        // presence and the transport does not, so Stop is live
+                        // beside a greyed Change video — see `canStartWatch`.
+                        party
+                        ? 'Step in to put something else on. What is here you can still stop.'
+                        : 'Step in to start a watch party. A screen for one you can open from here.'
+                      : party
+                        ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
+                        : 'Open the link on a laptop or a tablet and it follows the channel. Recording is off while a party is on.'}
           </Text>
         </Card>
 
@@ -1387,7 +1401,7 @@ export function ChannelView({
                 <Button
                   label={upload ? uploadingLabel(upload.percent) : 'Change track'}
                   style={styles.flexButton}
-                  disabled={!mayControlPlayback || uploading}
+                  disabled={!mayLoadTrack || uploading}
                   onPress={loadTrack}
                 />
                 <Button
@@ -1403,7 +1417,7 @@ export function ChannelView({
             <Button
               label={upload ? uploadingLabel(upload.percent) : 'Play something together'}
               sublabel="An audio file from this phone"
-              disabled={!mayControlPlayback || uploading}
+              disabled={!mayLoadTrack || uploading}
               onPress={loadTrack}
             />
           )}
@@ -1433,9 +1447,16 @@ export function ChannelView({
                   ? // The only remaining way these are disabled, the floor
                     // having been ruled out by the two branches above.
                     'Step in to put something on. What everybody is listening to is for whoever is listening.'
-                  : track
-                    ? 'Everyone hears this, and anyone present can change it.'
-                    : 'Whatever you play, everyone hears — and it is kept in the recording.'}
+                  : !mayLoadTrack
+                    ? // In the room's sense but not in the room: the channel is
+                      // empty, so what is here is yours to drive and is not
+                      // yours to replace. Said because two controls on this
+                      // card are now greyed while the rest are live, which is
+                      // otherwise the sort of thing that reads as a bug.
+                      'Step in to put something on. What is already here you can still play or clear.'
+                    : track
+                      ? 'Everyone hears this, and anyone present can change it.'
+                      : 'Whatever you play, everyone hears — and it is kept in the recording.'}
           </Text>
         </Card>
 

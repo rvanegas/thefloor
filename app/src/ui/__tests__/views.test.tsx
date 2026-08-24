@@ -1169,7 +1169,6 @@ describe('Channel', () => {
     expect(on('Invite')).toEqual({ disabled: false });
     expect(on('Share a guest link')).toEqual({ disabled: false });
     expect(on('Paste my clipboard')).toEqual({ disabled: false });
-    expect(on('Play something together')).toEqual({ disabled: false });
 
     act(() => findButton(tree, 'Book club')!.props.onPress());
     expect(on('Rename')).toEqual({ disabled: false });
@@ -1181,6 +1180,17 @@ describe('Channel', () => {
     expect(textOf(tree)).toContain('Step In');
     expect(on('Claim the floor')).toEqual({ disabled: true });
     expect(on('Record')).toEqual({ disabled: true });
+
+    // And since 2026-08-24, putting something on. This asserted the opposite
+    // until then: loading a track and starting a party are the two acts that
+    // leave something behind for whoever steps in next, so they ask presence
+    // where driving what is already there asks only the room. `canLoadTrack`
+    // and `canStartWatch` in core.
+    expect(on('Play something together')).toEqual({ disabled: true });
+    expect(on('Watch something together')).toEqual({ disabled: true });
+    // The screen link is not one of them — it changes nothing, and an empty
+    // channel is nobody's conversation to intrude on.
+    expect(on('Watch on another screen')).toEqual({ disabled: false });
     act(() => tree.unmount());
   });
 
@@ -5848,12 +5858,30 @@ describe('Channel, watching together', () => {
   });
 
   /**
-   * The one card whose rule is presence rather than `hasTheRoom`. Everything
-   * else here greys only when somebody *else* is in the room; a party greys
-   * for anybody outside it, an empty channel included — see
-   * `canWatchTogether`.
+   * Somebody looking at a conversation they are not in. The whole card greys,
+   * the second screen included — that being the control this rule was reported
+   * about, and the one that used to be wired to nothing but `linking`.
    */
-  it('refuses the whole card to somebody who has not stepped in', () => {
+  it('refuses the whole card to somebody outside an occupied channel', () => {
+    showChannel(watching((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
+    const tree = open();
+    expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
+    expect(
+      findButton(tree, 'Watch on another screen')!.props.disabled
+    ).toBe(true);
+    expect(textOf(tree)).toContain('Step in to start a watch party');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The same person on an *empty* channel, where the two halves of the rule
+   * come apart: what is already on is theirs to drive, and putting something
+   * else on is not. Two live controls beside two greyed ones is exactly the
+   * arrangement that reads as a bug, so the card says which is which.
+   */
+  it('lets somebody outside an empty channel stop what is on, not change it', () => {
     showChannel(
       watching((s) =>
         reduce(
@@ -5864,16 +5892,13 @@ describe('Channel, watching together', () => {
       )
     );
     const tree = open();
-    expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
-    expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Play')!.props.disabled).toBe(false);
+    expect(findButton(tree, 'Stop')!.props.disabled).toBe(false);
     expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
-    // The second screen goes with the transport here, unlike the floor case
-    // above: a follower page is a live view of a conversation, and this is one
-    // the viewer is not in.
     expect(
       findButton(tree, 'Watch on another screen')!.props.disabled
-    ).toBe(true);
-    expect(textOf(tree)).toContain('Step in to start a watch party');
+    ).toBe(false);
+    expect(textOf(tree)).toContain('Step in to put something else on');
     act(() => tree.unmount());
   });
 

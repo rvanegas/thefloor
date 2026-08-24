@@ -119,7 +119,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 625 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 635 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -275,6 +275,16 @@ rules.
   and the error names neither the worktree nor which one. A session working
   inside a worktree has to leave it first, since the merge has to happen where
   `master` is checked out.
+- **Fold any pending edit to `planning/TASKS.md` into the landing commit.**
+  Adopted 2026-08-24. A session that has just finished a task routinely finds
+  the entry for it already deleted or rewritten in the working tree, because
+  the person at the prompt reached the same conclusion from the other end.
+  That edit is not unrelated work in the way a half-finished feature is — it
+  is the same statement the landing is, made in the file whose whole job is
+  to say what is outstanding, so it belongs in the same commit rather than
+  stashed aside and handed back. **Take theirs where the two disagree**: a
+  deleted entry beats a session's note explaining why the entry was kept.
+
 - **Landing is manually triggered, every time, and is never something a
   session decides to do.** Adopted 2026-08-22. Finish the work, commit it on
   the branch, say it is ready, and stop. Somebody says "land it" or it does

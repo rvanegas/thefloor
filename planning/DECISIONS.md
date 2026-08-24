@@ -1353,6 +1353,13 @@ like a website and half like an app.
 
 ## A watch party belongs to the room, not to the roster — 2026-08-24
 
+**Superseded the same day by § *Starting is for whoever is in the room; driving
+is for whoever the room belongs to*, below. It is kept because the correction
+is only legible against it, and because what it got wrong is a way of getting
+things wrong: it read a one-line report as a diagnosis and rebuilt a rule that
+was mostly right.** What survives is the follower-screen half. What was reverted
+is the transport, which never had the bug.
+
 `canControlWatch` was `canControlPlayback` — literally, both being one call to
 `holdsSharedControl` — and that shared rule is `isParticipant && hasTheRoom`.
 `hasTheRoom` is true when nobody is present, deliberately: an empty channel is
@@ -1466,6 +1473,7 @@ button beats a back stack nobody asked for.
 The tap itself is the profile's, unchanged, and it reads `tapToStepIn` exactly
 as Home's rows do. Two lists of the same channels answering a tap differently
 would be a setting that held in one place and not the other.
+
 ## An aimed push has to aim at who left, not at who remains — 2026-08-24
 
 Deleting a channel left its card on Home. `TASKS.md` asked whether this had not
@@ -1532,3 +1540,102 @@ source and watched to fail before being trusted.
 The aiming property itself already had a test — `does not reach somebody with
 no part in a channel that changed` — so widening the audience back out is
 caught. It was nearly duplicated here out of a bad grep.
+
+
+## Starting is for whoever is in the room; driving is for whoever the room belongs to — 2026-08-24
+
+The correction to the entry above, made hours later, when the report that
+prompted it was restated: *the media player controls are accessible unless the
+user is not present while others are, and the watch party should be the same.*
+
+**Which is what the watch party already did**, and is the thing the previous
+session should have established before writing a line. `canControlWatch` was
+`canControlPlayback`, the same function; the transport, the mute, Start and
+Change video all refused an outsider whenever anybody else was in the channel.
+The one-line report named "watch party controls", and the session took the
+title for a diagnosis instead of going and finding out which control was
+actually reachable. It then rebuilt a correct rule around an incorrect finding,
+and the tests it wrote passed, because tests written from the same
+misunderstanding agree with it.
+
+**The actual defect was two buttons and a route.** "Watch on another screen"
+and "Copy screen link" were wired to `disabled={linking}` and nothing else, and
+`POST /channels/:id/watch-token` checked membership alone — so a member could
+mint a follower credential and open a live view of a conversation they had not
+stepped into. Every other control on the card refused them. It is the same
+shape as the 2026-08-22 finding recorded under *Nobody reaches into a
+conversation they are not in*: not a wrong guard, but a control that was never
+wired to one.
+
+`canOpenWatchScreen` is that guard — `hasTheRoom` **without** the floor, a
+combination nothing else uses. The floor is excluded because opening a screen of
+your own changes nothing about what the channel is doing, which was already
+tested and still is. The room is required because the page is a live view of a
+conversation.
+
+### The rule that came out of it, which is not the one that went in
+
+Asked whether an absent member should get starting back on an *empty* channel —
+where `hasTheRoom` says yes and the previous entry's presence rule said no —
+the answer was to keep presence for starting only, **and to apply that to
+shared playback as well as to the party**. So the split is now:
+
+| | rule | guard |
+| --- | --- | --- |
+| Driving what is on — play, pause, seek, volume, stop, clear, mute the room | occupation + floor | `canControlPlayback` = `canControlWatch` |
+| Putting something on — load a track, start or change a video | occupation + floor + **presence** | `canLoadTrack`, `canStartWatch`, both `mayPutSomethingOn` |
+| Opening a follower screen | occupation, **no floor** | `canOpenWatchScreen` |
+
+**Driving is tidying; starting is choosing.** An absent member who stops a film
+somebody left running, or clears a track, is clearing up after a room that has
+gone home — which is exactly the reasoning that makes `hasTheRoom` true of an
+empty channel. Putting something new on is not that: it stays there, and what
+the next person to step in walks into was chosen by somebody who is not in the
+room. The party makes it vivid, since `startParty` mutes by default, but the
+argument does not depend on the mute, which is why it now covers the track too.
+
+The previous entry reached for *preparation against performance* to justify
+splitting the two features apart. That distinction was real and was pointed the
+wrong way: loading a track ahead of time is preparation, and preparation by
+somebody who then leaves is still a choice made for other people. The line is
+between changing what is there and changing what it is, and it falls in the
+same place for both.
+
+### Where it is enforced, which is three different doors
+
+`canStartWatch` is in the reducer, `START_WATCH` being a client action.
+`canLoadTrack` is at `POST /channels/:id/track` in `Channels.loadTrack`, since
+`SET_TRACK` is the one thing here a client cannot send — only the server knows
+where the file landed and how long it really is. `canOpenWatchScreen` is at the
+mint. The app asks all three so the controls grey rather than failing, which is
+the standing rule about a disabled control and a refused action not disagreeing.
+
+The upload route keeps its two refusals as they were: `conflict` naming the
+floor, `invalid` for a participant who is not present — the latter now reachable
+on an empty channel, where it reads correctly as *you are not in this channel*.
+
+### What the screen says, since two live controls beside two greyed ones reads as a bug
+
+Both cards gained a branch for the case that did not exist before: in the room's
+sense, but not in the room. The audio card says *"Step in to put something on.
+What is already here you can still play or clear."* The watch card says *"Step
+in to put something else on. What is here you can still stop"* when a party is
+loaded, and offers the screen link either way. Presence sits at the top of the
+watch card's chain, above the recording and the floor, because somebody outside
+an occupied channel has no use for being told whose floor it is.
+
+### The tests that had to change say which rule they were written for
+
+One app test asserted that an empty channel gives an absent member *everything*
+back, `Play something together` included. It now asserts the two exceptions and
+says why, which is the honest version — the old line was correct when it was
+written and is a record of the rule changing, not of a bug.
+
+**The previous session's core tests were deleted rather than adapted.** They
+were written to prove a rule that no longer exists, and a test that has been
+edited into agreeing with the opposite conclusion is worse than no test: it
+carries the shape of the argument it was built for. What replaced them asserts
+the parity that was actually asked for — whatever the party does to somebody
+outside an occupied channel, the media player does too — and the split at the
+empty channel, on both features, in both directions.
+

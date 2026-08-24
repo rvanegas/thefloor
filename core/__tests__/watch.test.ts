@@ -4,9 +4,10 @@ import { anyMicrophoneOpen, microphoneNeeded } from '../micNeeded';
 import {
   canControlPlayback,
   canControlWatch,
+  canLoadTrack,
+  canOpenWatchScreen,
   canStartRecording,
   canStartWatch,
-  canWatchTogether,
   createChannel,
   isPartyMuted,
   isWithheld,
@@ -21,6 +22,8 @@ const T0 = 1_700_000_000_000;
 
 const URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const VIDEO = 'dQw4w9WgXcQ';
+const OTHER_URL = 'https://youtu.be/aaaaaaaaaaa';
+const OTHER_VIDEO = 'aaaaaaaaaaa';
 const LENGTH = 600_000;
 
 const TRACK: PlaybackTrack = {
@@ -247,8 +250,11 @@ describe('who may drive it', () => {
 });
 
 /**
- * The rule that the room, not the roster, is what a party belongs to — and the
- * one place the watch party is stricter than everything else on the screen.
+ * Where the line falls for somebody outside the room, which is in two places
+ * rather than one: putting something on asks presence, driving what is already
+ * on asks only `hasTheRoom`, and the follower screen asks the room without the
+ * floor. Playback answers all three the same way, and the parity is asserted
+ * here rather than left to be noticed.
  */
 describe('a member who has not stepped in', () => {
   /** Nobody present, a party still loaded, and A outside it. */
@@ -259,43 +265,86 @@ describe('a member who has not stepped in', () => {
     ]);
   }
 
-  it('may not start one, even with the channel to themselves', () => {
-    const s = empty();
-    expect(canWatchTogether(s, A)).toBe(false);
-    expect(canStartWatch(s, A)).toBe(false);
-    expect(canControlWatch(s, A)).toBe(false);
+  /** A conversation going on, with A outside it. */
+  function occupied(): ChannelState {
+    return reduce(watching(), { type: 'STEP_OUT', userId: A }, T0 + 1_000);
+  }
+
+  describe('while somebody else is in the channel', () => {
+    it('may not drive the party, nor open a screen on it', () => {
+      const s = occupied();
+      expect(canControlWatch(s, A)).toBe(false);
+      expect(canStartWatch(s, A)).toBe(false);
+      expect(canOpenWatchScreen(s, A)).toBe(false);
+    });
+
+    it('is refused by the reducer, not merely greyed', () => {
+      const s = reduce(occupied(), { type: 'WATCH_PLAY', userId: A }, T0 + 2_000);
+      expect(s.watch.status).toBe('paused');
+    });
+
+    it('is refused shared playback on the same terms', () => {
+      // The parity the report asked for: whatever the watch party does to
+      // somebody standing outside an occupied channel, the media player does
+      // too, and neither is stricter than the other here.
+      expect(canControlPlayback(occupied(), A)).toBe(false);
+      expect(canLoadTrack(occupied(), A)).toBe(false);
+    });
   });
 
-  it('may not drive one that is already loaded', () => {
-    const s = reduce(empty(), { type: 'WATCH_PLAY', userId: A }, T0 + 3_000);
-    expect(s.watch.status).toBe('paused');
-  });
+  describe('while the channel is empty', () => {
+    it('may drive what is already on, which is nobody else\'s conversation', () => {
+      const s = reduce(empty(), { type: 'WATCH_PLAY', userId: A }, T0 + 3_000);
+      expect(canControlWatch(empty(), A)).toBe(true);
+      expect(s.watch.status).toBe('playing');
+    });
 
-  it('may not start one on an empty channel that never had a party', () => {
-    const idle = apply(joined(), [
-      [{ type: 'STEP_OUT', userId: A }, T0 + 1_000],
-      [{ type: 'STEP_OUT', userId: B }, T0 + 2_000],
-    ]);
-    const s = reduce(
-      idle,
-      { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
-      T0 + 3_000
-    );
-    expect(s.watch.party).toBeNull();
-  });
+    it('may stop a party somebody left running', () => {
+      // Stopping is driving rather than starting, deliberately: a film left
+      // running on an empty channel should be clearable by whoever the room
+      // belongs to, without stepping in to do it.
+      const s = reduce(empty(), { type: 'STOP_WATCH', userId: A }, T0 + 3_000);
+      expect(s.watch.party).toBeNull();
+    });
 
-  it('gets it back by stepping in, and nothing else changes', () => {
-    const s = reduce(empty(), { type: 'ENTER', userId: A }, T0 + 3_000);
-    expect(canWatchTogether(s, A)).toBe(true);
-    expect(canStartWatch(s, A)).toBe(true);
-  });
+    it('may not put something else on', () => {
+      const s = reduce(
+        empty(),
+        { type: 'START_WATCH', userId: A, videoId: OTHER_VIDEO, url: OTHER_URL },
+        T0 + 3_000
+      );
+      expect(canStartWatch(empty(), A)).toBe(false);
+      expect(s.watch.party?.videoId).toBe(VIDEO);
+    });
 
-  it('may still drive shared playback there, which is the divergence', () => {
-    // `hasTheRoom` governs playback and lets an absent member set a track up
-    // before anybody arrives. A party is not preparation — it runs, and it
-    // mutes the room while it does — so it asks presence instead. This test
-    // exists to make the difference deliberate rather than incidental.
-    expect(canControlPlayback(empty(), A)).toBe(true);
+    it('may not start one where there is nothing on at all', () => {
+      const idle = apply(joined(), [
+        [{ type: 'STEP_OUT', userId: A }, T0 + 1_000],
+        [{ type: 'STEP_OUT', userId: B }, T0 + 2_000],
+      ]);
+      const s = reduce(
+        idle,
+        { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
+        T0 + 3_000
+      );
+      expect(s.watch.party).toBeNull();
+    });
+
+    it('may open a screen, there being no conversation to intrude on', () => {
+      expect(canOpenWatchScreen(empty(), A)).toBe(true);
+    });
+
+    it('is held to the same split on shared playback', () => {
+      // Driving yes, loading no — the same two answers as the party above.
+      expect(canControlPlayback(empty(), A)).toBe(true);
+      expect(canLoadTrack(empty(), A)).toBe(false);
+    });
+
+    it('gets starting back by stepping in', () => {
+      const s = reduce(empty(), { type: 'ENTER', userId: A }, T0 + 3_000);
+      expect(canStartWatch(s, A)).toBe(true);
+      expect(canLoadTrack(s, A)).toBe(true);
+    });
   });
 });
 
