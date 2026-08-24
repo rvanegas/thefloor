@@ -510,9 +510,13 @@ app was playing*: `other playing F`. So whether dropping `mixWithOthers` here
 interrupts anybody is still open, and still needs a podcast running.
 
 What the same reading did find is the entry below: the engine was **stopped**
-underneath that correctly-configured session. Whether this edge is what stopped
-it is exactly what build 88 is being sent to find out — and if it is, the
-fallback above stops being a fallback and becomes the fix.
+underneath that correctly-configured session. Build 88 was sent to find out
+whether this edge was what stopped it. **It is not** — the write is followed by
+an engine stop in none of the four places it occurs, which is the one thing this
+entry can now be sure of. The fallback above stays a fallback, and stays
+unadopted, and the question it was written for — whether dropping
+`mixWithOthers` here interrupts another app — is still open and still needs a
+podcast running.
 
 ---
 
@@ -587,29 +591,53 @@ consistent with a playout-only engine being the thing that stops, and it is
 consistent with the `IDLE` → `LISTENING` edge being what stops it, since that
 edge exists only in the alone case. It does not separate those two.
 
-**What is not known is what stops it, and the timing is why.** The whole
-reproduction fell between two log lines. `released LISTENING` landed at
-10:47:24.884, **330ms** after the media track was published — so the category
-write and the first audio that could possibly have been rendered are a third of
-a second apart, and "the category change stopped the engine" and "something
-later stopped it" are indistinguishable in a log with no engine events in it.
-There were no route-change lines at all, and the app was backgrounded and
-foregrounded well after the fact without a reconnect.
+**Build 88's log answered it on 2026-08-24, and the answer was not the
+suspect.** Two results, and the first is a clean negative.
 
-**Build 88 is instrument-only, deliberately.** It logs engine transitions —
-`willStartEngine` and `didStopEngine`, the two delegate slots the SDK's own
-policy does not use — and stamps which screen you are on, the Home round trip
-being invisible to every existing signal. It changes no behaviour and fixes
-nothing, on the rule `engineState.ts` was written for: three plausible
-mechanisms reasoned from source, three builds, no change. **Read the `engine
-stop` timestamp against `released LISTENING`, `screen channel` and `app active`
-before writing anything.**
+**The `IDLE` → `LISTENING` write does not stop the engine.** Four occurrences in
+one session, and the event after it is never a stop — it is `screen home`, `app
+inactive`, an `engine start`, and the end of the log. Every stop in that session
+is accounted for by something else: a connection being torn down, the
+transition to and from `CALL`, or the app being backgrounded. So the edge this
+was pinned on for a day is cleared, and the fallback written against it in the
+entry above would have fixed nothing.
 
-The candidate fix, once the cause is known, is in two independent parts. The
-recovery — notice a dead engine under a live room and re-activate — is driven
-by a measurement rather than by a theory about the cause, and would hold
-whatever that turns out to be. The other is the fallback already written down
-in the entry above, for the edge that is still the leading suspect.
+**What fails is the playout-only engine start.** `willStartEngine` fires with
+`play=T rec=F` at 12:22:29.501, **no stop ever follows it**, and six seconds
+later the panel reads `run/rec/play F F T` — playout enabled, engine not
+running. `willStartEngine` is a *will*: it announces an attempt, so a start that
+fails leaves exactly this, an announcement with no engine and nothing to report
+stopping. The one start in the session that carried `rec=T` — 12:15:03.704, the
+`CALL` case, somebody else in the room — is the configuration that works.
+
+That lines up with everything else: the failure is in `playback`, the working
+case is `playAndRecord`, and the difference between them at the engine is
+whether recording is enabled.
+
+**One reading would exclude the alternative, and it is free.** `isEngineRunning`
+being false may simply be what a playout-only engine reports, in which case the
+field is not evidence of anything and the fault is elsewhere. **Take a reading
+while shared audio is actually audible** — alone, so the session is `LISTENING`,
+with the panel open and the track playing. `run/rec/play` reading `T F T` there
+proves the field tracks a playout-only engine and that `F` afterwards means
+stopped. Reading `F F T` while sound is coming out proves the opposite, and this
+entry is then built on an instrument artefact.
+
+Do that before build 89. Nothing below is worth writing until it is answered.
+
+**Build 88 was instrument-only and that is what made the negative worth
+having.** It logs engine transitions — `willStartEngine` and `didStopEngine`,
+the two delegate slots the SDK's own policy does not use — and stamps which
+screen you are on. Had it carried the fallback as well, the fallback would have
+shipped, the symptom would have been unchanged, and the day would have ended
+with a fourth mechanism eliminated by guesswork instead of a suspect eliminated
+by evidence.
+
+The recovery half — notice a dead engine under a live room and re-activate —
+still holds whatever the cause turns out to be, because it is driven by a
+measurement rather than by a theory about the cause. It is the one part of this
+worth building before the mechanism is known, and it is what build 89 should
+carry if the reading above confirms the engine is genuinely stopped.
 
 ---
 
