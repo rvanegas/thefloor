@@ -155,20 +155,32 @@ describe('asking for a transcript', () => {
     expect(errors).toEqual([]);
   }, 60_000);
 
-  it('leaves played media out of it', async () => {
-    // The media stem is whatever somebody played into the room. Transcribing
-    // it would attribute a song's lyrics to a participant who does not exist,
-    // and charge for the privilege.
+  it('transcribes played media too, as its own stem', async () => {
+    // Included since 2026-08-25. It is the one stem with no owner, and the one
+    // where diarisation buys real information rather than confirming what the
+    // identities already say — nothing here knows how many voices are inside a
+    // played track. What somebody has the right to play is theirs, and is a
+    // question about the recording rather than about transcribing it.
     makeRecording({ [ALICE]: ['a.ogg'], media: ['media.ogg'] });
 
     await transcripts.request(RECORDING, ALICE);
     await transcripts.settled();
 
-    expect(jobs().map((j) => j.identity)).toEqual([ALICE]);
+    expect(jobs().map((j) => j.identity).sort()).toEqual([ALICE, 'media']);
+    expect(provider.submitted).toHaveLength(2);
   }, 60_000);
 
-  it('refuses a recording with nothing but played media in it', async () => {
+  it('will transcribe a recording that is nothing but played media', async () => {
     makeRecording({ media: ['media.ogg'] });
+
+    await transcripts.request(RECORDING, ALICE);
+    await transcripts.settled();
+
+    expect(jobs().map((j) => j.identity)).toEqual(['media']);
+  }, 60_000);
+
+  it('still refuses a recording with no audio at all', async () => {
+    makeRecording({});
     await expect(transcripts.request(RECORDING, ALICE)).rejects.toThrow(
       /no speech/i
     );

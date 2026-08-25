@@ -34,6 +34,7 @@ import { privacyPage } from './privacy';
 import type { TranscriptionProvider } from './transcription';
 import {
   formatTranscript,
+  MEDIA_LABEL,
   Transcripts,
   type TranscriptView,
 } from './transcripts';
@@ -46,7 +47,11 @@ import {
 import { supportPage } from './support';
 import { watchPage } from './watch-page';
 import { donationsVisibleFor } from './region';
-import { ChannelRegistry, type RefusalCode } from './channels';
+import {
+  ChannelRegistry,
+  MEDIA_IDENTITY,
+  type RefusalCode,
+} from './channels';
 import { ConsolePusher, createPushNotifier, type Pusher } from './push';
 import type { RecordingStore } from './storage';
 import {
@@ -2164,6 +2169,11 @@ export function buildApp(options: BuildOptions = {}): App {
   }
 
   function nameFrom(row: RecordingRow, id: string): PublicAccount | null {
+    // The played-media stem has no owner and so no frozen name. Without this
+    // it falls through to `accounts.public`, finds nothing, and renders as
+    // "Someone" — a participant nobody can identify, which is the confusion
+    // excluding the stem was once meant to avoid, reached from the other side.
+    if (id === MEDIA_IDENTITY) return { id, displayName: MEDIA_LABEL };
     const frozen: Record<string, string> = row.participant_names
       ? JSON.parse(row.participant_names)
       : {};

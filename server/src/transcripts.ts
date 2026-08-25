@@ -832,22 +832,51 @@ export class Transcripts {
   }
 
   /**
-   * Whose stems are worth transcribing.
+   * Whose stems are worth transcribing, which is all of them.
    *
-   * `media` is excluded, and it is the interesting exclusion: it is the shared
-   * playback stem — a track somebody played into the room — rather than
-   * anybody's microphone. Transcribing it would turn a recording containing a
-   * song into a transcript of the lyrics attributed to a participant who does
-   * not exist, and would charge for the privilege. Whether it should be
-   * transcribable *as the track* is an open question in TRANSCRIPTS.md, and it
-   * is a different feature from this one.
+   * **`media` included, decided 2026-08-25.** It is the shared playback stem —
+   * whatever somebody played into the room — and it was excluded on the
+   * argument that a recording containing a song would become a transcript of
+   * the lyrics attributed to a participant who does not exist. Half of that
+   * was right and the wrong half was the conclusion: the attribution problem
+   * is solved by naming the stem honestly, and excluding it lost the case that
+   * makes transcription worth having on a channel that plays anything — a
+   * discussion of a recorded talk, where the talk is most of what was said.
+   *
+   * It is also the one stem where diarisation buys real information rather
+   * than confirming what we already hold: nothing here knows how many voices
+   * are inside a played track, or what any of them are called.
+   *
+   * **What somebody plays is theirs to have the right to play**, and that is
+   * true of the recording already — transcribing it does not make a copy that
+   * did not exist. BACKLOG.md § *Playing media into a channel is a copyright
+   * surface nobody has addressed* is where that sits, and it is not this
+   * function's to answer.
    */
   private speakersOf(recording: RecordingRow): string[] {
     const stems = parse<Record<string, unknown[]>>(recording.stems) ?? {};
-    return Object.keys(stems).filter(
-      (identity) => identity !== MEDIA_IDENTITY && stems[identity]?.length
-    );
+    return Object.keys(stems).filter((identity) => stems[identity]?.length);
   }
+}
+
+/**
+ * What to call the played-media stem on screen and in an export.
+ *
+ * It has no owner, so there is no name to freeze and nothing in
+ * `participant_names` to look up. Named rather than left to fall through to
+ * "Someone", which would read as a participant nobody can identify — the exact
+ * confusion excluding the stem was once meant to avoid, arrived at from the
+ * other side.
+ */
+export const MEDIA_LABEL = 'Played audio';
+
+/** The name to show for one identity, given the names frozen with the run. */
+export function speakerName(
+  identity: string,
+  names: Record<string, string>
+): string {
+  if (identity === MEDIA_IDENTITY) return MEDIA_LABEL;
+  return names[identity] ?? identity;
 }
 
 /**
@@ -870,7 +899,7 @@ export function formatTranscript(
   names: Record<string, string>,
   format: 'txt' | 'vtt' | 'json'
 ): { body: string; contentType: string; extension: string } {
-  const who = (identity: string) => names[identity] ?? identity;
+  const who = (identity: string) => speakerName(identity, names);
 
   if (format === 'json') {
     return {

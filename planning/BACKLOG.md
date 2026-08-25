@@ -429,6 +429,15 @@ who is recorded rather than about what is played.
 
 ---
 
+**Transcripts now include what was played**, since 2026-08-25 — the `media`
+stem was excluded from transcription and is not any more, on the reasoning that
+the copy already exists in the recording and transcribing it makes no new one.
+That is a defensible line and it is not a reviewed one: a searchable text of a
+copyrighted work is a different artefact from an audio recording of it, and
+exportable in a way that invites the comparison. It does not change the shape
+of this entry, which was always that nothing here has been reviewed — but it
+widens what an answer has to cover.
+
 ## SMS authentication — shelved indefinitely
 
 **Status:** shelved 2026-08-04. Not scheduled.

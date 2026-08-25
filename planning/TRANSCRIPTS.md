@@ -77,9 +77,24 @@ mitigation is that this is a headphones-first app and the floor mechanic exists
 precisely so one person talks at a time. **The `media` identity**:
 `MEDIA_IDENTITY` (`'media'`, `server/src/channels.ts:147`) is the shared
 playback stem — a track somebody played into the room, which is not a speaker.
-It is excluded from the audience already and must be excluded here, or a
-recording containing a song becomes a transcript of the lyrics attributed to a
-participant who does not exist.
+
+This document argued for excluding it, phases 3 and 4 did, and **that was
+reversed on 2026-08-25**. The argument was that a recording containing a song
+would become a transcript of the lyrics attributed to a participant who does
+not exist. The premise was right and the conclusion was not: the attribution
+problem is fixed by naming the stem — `MEDIA_LABEL`, "Played audio" — and
+excluding it threw away the case that makes transcription worth having on a
+channel that plays anything, which is a discussion *of* a recorded talk where
+the talk is most of what was said.
+
+It is also the one stem where diarisation buys information rather than
+confirming what the identities already hold: nothing here knows how many voices
+are inside a played track or what any of them are called.
+
+**What somebody has the right to play is theirs**, and is a question about the
+recording rather than about transcribing it — the copy already exists.
+BACKLOG.md § *Playing media into a channel is a copyright surface nobody has
+addressed* is where that sits.
 
 ---
 

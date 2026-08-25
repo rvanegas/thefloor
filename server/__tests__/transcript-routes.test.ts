@@ -248,6 +248,61 @@ describe('reading one', () => {
   });
 });
 
+describe('what was played into the room', () => {
+  it('is transcribed, and named as the recording rather than as a person', async () => {
+    // Without a name of its own it falls through to "Someone", which reads as
+    // a participant nobody can identify — the confusion excluding this stem
+    // was once meant to avoid, arrived at from the other side.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    app.db
+      .prepare(
+        `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
+         VALUES (?,?,?,?,?)`
+      )
+      .run(
+        CHANNEL, alice.account.id, bob.account.id, clock,
+        JSON.stringify([alice.account.id, bob.account.id])
+      );
+    app.db
+      .prepare(
+        `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id,
+           participants, participant_names, name, started_at, duration_ms,
+           s3_key, segment_keys, stems, floor_timeline, ended_at, mix_state)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'ready')`
+      )
+      .run(
+        RECORDING, CHANNEL, alice.account.id, bob.account.id,
+        JSON.stringify([alice.account.id, bob.account.id]),
+        JSON.stringify({ [alice.account.id]: 'Alice' }),
+        'Book club', clock, 5_000, '', '[]',
+        JSON.stringify({ [alice.account.id]: ['a.ogg'], media: ['b.ogg'] }),
+        '[]', clock + 5_000
+      );
+
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await complete({
+      [alice.account.id]: 'listen to this bit',
+      media: 'and the second movement begins',
+    });
+
+    const body = (await read(alice.token)).json();
+    const played = body.lines.find(
+      (l: { identity: string }) => l.identity === 'media'
+    );
+    expect(played.displayName).toBe('Played audio');
+    expect(played.text).toBe('and the second movement begins');
+
+    // And the same in a file somebody downloads.
+    const file = await read(
+      alice.token,
+      `/recordings/${RECORDING}/transcript/export`
+    );
+    expect(file.body).toContain('Played audio: and the second movement begins');
+  }, 60_000);
+});
+
 describe('a guest who spoke in it', () => {
   const GUEST = 'guest_abc';
 
