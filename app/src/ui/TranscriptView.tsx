@@ -123,15 +123,119 @@ export function TranscriptView({
     [lines]
   );
 
+  /**
+   * Whether deleting is on offer at all, which is not the same as whether this
+   * viewer may do it: the button is shown and disabled rather than hidden, so
+   * that the sentence explaining why has something to point at.
+   */
+  const deletable =
+    !!state && state !== 'none' && recording.transcript?.mayRequest !== false;
+
   return (
     <Screen>
+      {/*
+        Everything you can do to this transcript is up here, above what it
+        says, rather than below it. A transcript is as long as the
+        conversation was, so a footer is a scroll away from the moment somebody
+        decides to export it — and the two acts that are not reading (naming
+        the voices, deleting the lot) were reachable only by passing the whole
+        thing. The screen reads top-down: what this is, what you may do to it,
+        then the words.
+      */}
       <View style={styles.header}>
-        <Button label="Back" onPress={onBack} />
+        <View style={styles.headerTop}>
+          <View style={styles.headerMain}>
+            <Text style={type.heading}>Transcript</Text>
+            <Text style={type.muted} numberOfLines={2}>
+              {recording.name}
+            </Text>
+          </View>
+          <Button label="Back" variant="ghost" onPress={onBack} />
+        </View>
+
+        {!naming && (state === 'ready' || deletable) ? (
+          // Wraps rather than shrinks: the labels say what they do, and three
+          // of them plus a long recording name will not fit on one line on a
+          // small handset. A second row of buttons is still the header.
+          <View style={styles.headerActions}>
+            {state === 'ready' && !naming && mayName && voices.length > 1 ? (
+              <Button
+                label="Name the voices"
+                variant="ghost"
+                // Only when there is a choice to make. One voice in the whole
+                // transcript is a conversation nobody needs to relabel, and a
+                // button that opens a screen with a single row on it is a
+                // button that teaches people to ignore it.
+                onPress={() => setNaming(true)}
+              />
+            ) : null}
+            {state === 'ready' && !naming ? (
+              <Button
+                label={busy ? 'Preparing…' : 'Export'}
+                variant="ghost"
+                disabled={busy}
+                onPress={() => {
+                  Alert.alert('Export transcript', 'Which format?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Text', onPress: () => download('txt') },
+                    { text: 'Subtitles', onPress: () => download('vtt') },
+                    { text: 'Data', onPress: () => download('json') },
+                  ]);
+                }}
+              />
+            ) : null}
+            {deletable && !naming ? (
+              <Button
+                label="Delete transcript"
+                variant="ghost"
+                disabled={!manageable || busy}
+                onPress={() => {
+                  Alert.alert(
+                    'Delete this transcript?',
+                    // Says the cost out loud. Nothing is refunded, and the app
+                    // should not let somebody find that out by asking again.
+                    'The recording is kept. Transcribing it again costs the same as the first time.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          if (!app.token) return;
+                          setBusy(true);
+                          try {
+                            await api.deleteTranscript(app.token, recording.id);
+                            onBack();
+                          } catch (e) {
+                            Alert.alert(
+                              'Could not delete',
+                              e instanceof Error ? e.message : String(e)
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              />
+            ) : null}
+          </View>
+        ) : null}
+
+        {/*
+          Said only where there is a greyed-out Delete to explain. It used to
+          be said whenever the viewer could not manage the recording, including
+          on transcripts that offer no deleting at all, where it answered a
+          question nobody had asked.
+        */}
+        {deletable && !naming && !manageable ? (
+          <Text style={type.muted}>
+            Step in to delete this. It leaves everybody's screen at once.
+          </Text>
+        ) : null}
       </View>
-      <SectionLabel>Transcript</SectionLabel>
-      <Text style={type.muted} numberOfLines={2}>
-        {recording.name}
-      </Text>
 
       {state === 'pending' ? (
         <Empty>
@@ -243,73 +347,6 @@ export function TranscriptView({
         </>
       ) : null}
 
-      <View style={styles.actions}>
-        {state === 'ready' && !naming && mayName && voices.length > 1 ? (
-          <Button
-            label="Name the voices"
-            // Only when there is a choice to make. One voice in the whole
-            // transcript is a conversation nobody needs to relabel, and a
-            // button that opens a screen with a single row on it is a button
-            // that teaches people to ignore it.
-            onPress={() => setNaming(true)}
-          />
-        ) : null}
-        {state === 'ready' && !naming ? (
-          <Button
-            label={busy ? 'Preparing…' : 'Export'}
-            disabled={busy}
-            onPress={() => {
-              Alert.alert('Export transcript', 'Which format?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Text', onPress: () => download('txt') },
-                { text: 'Subtitles', onPress: () => download('vtt') },
-                { text: 'Data', onPress: () => download('json') },
-              ]);
-            }}
-          />
-        ) : null}
-        {state && state !== 'none' && !naming && recording.transcript?.mayRequest !== false ? (
-          <Button
-            label="Delete transcript"
-            disabled={!manageable || busy}
-            onPress={() => {
-              Alert.alert(
-                'Delete this transcript?',
-                // Says the cost out loud. Nothing is refunded, and the app
-                // should not let somebody find that out by asking again.
-                'The recording is kept. Transcribing it again costs the same as the first time.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                      if (!app.token) return;
-                      setBusy(true);
-                      try {
-                        await api.deleteTranscript(app.token, recording.id);
-                        onBack();
-                      } catch (e) {
-                        Alert.alert(
-                          'Could not delete',
-                          e instanceof Error ? e.message : String(e)
-                        );
-                      } finally {
-                        setBusy(false);
-                      }
-                    },
-                  },
-                ]
-              );
-            }}
-          />
-        ) : null}
-        {manageable ? null : (
-          <Text style={type.muted}>
-            Step in to delete this. It leaves everybody's screen at once.
-          </Text>
-        )}
-      </View>
     </Screen>
   );
 
@@ -575,7 +612,20 @@ function Paragraph({
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row' },
+  header: { gap: spacing(1), marginBottom: spacing(1) },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing(1),
+  },
+  headerMain: { flex: 1, gap: 2 },
+  headerActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing(0.5),
+  },
   lines: { gap: spacing(1) },
   line: { gap: spacing(0.5) },
   lineHead: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing(1) },

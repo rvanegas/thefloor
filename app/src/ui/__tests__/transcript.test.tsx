@@ -373,7 +373,8 @@ describe('searching a whole channel', () => {
 describe('the transcript screen', () => {
   const show = async (
     recording: RecordingView,
-    onSeek?: (positionMs: number) => void
+    onSeek?: (positionMs: number) => void,
+    manageable = true
   ) => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -382,7 +383,7 @@ describe('the transcript screen', () => {
           recording={recording}
           onBack={() => {}}
           onSeek={onSeek}
-          manageable
+          manageable={manageable}
         />
       );
     });
@@ -700,5 +701,21 @@ describe('the transcript screen', () => {
     expect(body).toContain('costs the same as the first time');
     act(() => tree.unmount());
     alert.mockRestore();
+  });
+
+  it('says why deleting is greyed out, beside the greyed-out button', async () => {
+    const tree = await show(recordingWith('ready'), undefined, false);
+    expect(findButton(tree, 'Delete transcript')!.props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('Step in to delete this');
+    act(() => tree.unmount());
+  });
+
+  it('says nothing about stepping in where there is nothing to delete', async () => {
+    // The sentence answers a question the screen has raised. A recording that
+    // was never transcribed offers no deleting, so it has raised none.
+    const tree = await show(recordingWith('none'), undefined, false);
+    expect(findButton(tree, 'Delete transcript')).toBeUndefined();
+    expect(textOf(tree)).not.toContain('Step in to delete this');
+    act(() => tree.unmount());
   });
 });
