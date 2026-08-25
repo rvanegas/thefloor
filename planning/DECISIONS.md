@@ -75,6 +75,27 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-08-25 — `3d13362` → `ef0d0a2`
+
+Two commits, one of them the iOS build bump. The server's half is the naming
+and grouping of transcript lines: a stem the provider gave more than one
+speaker label to now reads `Played audio (A)` against `Played audio (B)`, and
+consecutive lines from one voice come back as one entry with paragraphs. See
+TRANSCRIPTS.md for what decided it and for the member-stem question it left
+open.
+
+**No wire break, and no two-step needed.** `displayName` on a transcript line
+already existed and already travelled; what changed is what the server puts in
+it. An installed build renders the new string exactly as it rendered the old
+one — the grouping is the app's own doing, and a build without it shows the
+same lines it always did, one card each.
+
+**The range starts at `3d13362` rather than at `901bdd1`, which is where this
+history stops.** That is not a typo: the box was found on `3d13362` — the whole
+of the transcripts feature, six phases of it — and nothing here records how it
+got there. Whatever ran between those two shas was deployed without an entry.
+The measurement is `bin/health`, and it was the only thing that knew.
+
 ### 2026-08-24 — `3c5f771` → `901bdd1`
 
 Nine commits, of which two are the server's: `displaceOtherSessions` now fires
