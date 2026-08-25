@@ -245,6 +245,64 @@ describe('reading one', () => {
   });
 });
 
+describe('a guest who spoke in it', () => {
+  const GUEST = 'guest_abc';
+
+  it('is named the way the recording named them, not by their id', async () => {
+    // A guest resolves to nothing in `accounts` by construction, so a
+    // transcript that looked them up live would label them "Someone" — or, if
+    // it fell back to the identity, print a raw session id at everybody. What
+    // saves it is that `participant_names` already froze their display name
+    // when the run was filed, exactly as it does for a member.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    app.db
+      .prepare(
+        `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
+         VALUES (?,?,?,?,?)`
+      )
+      .run(
+        CHANNEL, alice.account.id, bob.account.id, clock,
+        JSON.stringify([alice.account.id, bob.account.id])
+      );
+    app.db
+      .prepare(
+        `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id,
+           participants, participant_names, started_at, duration_ms, s3_key,
+           segment_keys, stems, floor_timeline, ended_at, mix_state)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, 'ready')`
+      )
+      .run(
+        RECORDING, CHANNEL, alice.account.id, bob.account.id,
+        JSON.stringify([alice.account.id, bob.account.id]),
+        JSON.stringify({
+          [alice.account.id]: 'Alice',
+          [GUEST]: 'Sam from the podcast',
+        }),
+        clock, 5_000, '', '[]',
+        JSON.stringify({ [alice.account.id]: ['a.ogg'], [GUEST]: ['b.ogg'] }),
+        '[]', clock + 5_000
+      );
+
+    await ask(alice.token);
+    await app.transcripts.settled();
+    // The guest's stem is a job like anybody's — being a guest is not a reason
+    // to leave somebody out of the record of what was said.
+    expect(provider.submitted).toHaveLength(2);
+    await complete({
+      [alice.account.id]: 'thanks for coming',
+      [GUEST]: 'glad to be here',
+    });
+
+    const body = (await read(alice.token)).json();
+    const guestLine = body.lines.find(
+      (l: { identity: string }) => l.identity === GUEST
+    );
+    expect(guestLine.displayName).toBe('Sam from the podcast');
+    expect(guestLine.displayName).not.toContain('guest_');
+  }, 60_000);
+});
+
 describe('the file it exports', () => {
   const exportUrl = (format?: string) =>
     `/recordings/${RECORDING}/transcript/export${format ? `?format=${format}` : ''}`;

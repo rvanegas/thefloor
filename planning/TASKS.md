@@ -74,6 +74,28 @@ can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
 Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel. See TRANSCRIPTS.md .
 
+## App Store Data Collection Answers
+
+The privacy questionnaire in App Store Connect was answered for an application
+that sent nothing anywhere. Transcripts change that: audio leaves for a
+third-party processor when somebody asks, which is a disclosure rather than an
+implementation detail, and getting it wrong is a rejection at the wrong end of
+a submission. Go through the questionnaire again before the next one, with the
+`/privacy` page open beside it — that page is now the honest inventory and the
+two must not disagree.
+
+Two other things have moved since it was last answered and should be checked in
+the same pass rather than found separately. The usage meter records durations
+and byte counts per account, which is data collected even though it is never
+shown to anyone and expires in thirty days. And Ko-fi reports an email address,
+a name and an amount for each donation. Neither is new — both predate the
+questionnaire's last answers — so the question is whether it was answered for
+them at all.
+
+This is not a code task and nothing in the repository settles it. RELEASING.md
+is where the answer belongs once it exists, beside the rest of what a
+submission needs.
+
 ## Phone Calls
 
 What happens when user receives a phone call?

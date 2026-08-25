@@ -649,13 +649,14 @@ have to have been changed already.
   from a sentence about *this* application's sweep, misread as being about
   theirs, and there is no source for it. The page now says only that we ask.
 
-- **Guests.** Their stems are identities too. `participant_names` should carry
-  them, but check — a transcript of a guest labelled with a raw session id is a
-  bug that only appears with a guest in the room.
-- ~~**Legacy rows.**~~ **Settled in phase 3.** Nothing reads `mix_state`, so an
-  `'unmixed'` recording transcribes exactly as any other does — the stems are
-  what matter and it has them. A row with no stems, or with none but `media`,
-  refuses with a message rather than opening a job over nothing.
+- ~~**Guests.**~~ **Settled 2026-08-25: their display name, and it already
+  works.** `participant_names` carries a guest, because `displayName()` asks
+  `guests.displayName` for a `guest_` id rather than `accounts`, and it froze
+  the name when the run was filed. So a guest is a job like anybody's — being
+  a guest is not a reason to be left out of the record of what was said — and
+  is labelled the way the recording labelled them rather than by a raw session
+  id. `transcript-routes.test.ts` pins it.
+
 - **ffmpeg next to live audio.** Rendering N stems is the mix's cost again, on a
   box that is now also the SFU. Run the jobs one at a time and never during a
   mix. AGENTS.md § *Known rough edges* is the same worry from the deploy side,
