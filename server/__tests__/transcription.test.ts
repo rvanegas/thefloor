@@ -1,5 +1,6 @@
 import {
   ASSEMBLYAI_MODELS,
+  type Utterance,
   AssemblyAiTranscription,
   intoLines,
   LINE_GAP_MS,
@@ -11,10 +12,11 @@ import {
  * The provider, tested without a network or a key.
  *
  * What is worth asserting here is the small set of things that are decisions
- * rather than plumbing: that we never ask for diarisation, that the model is
- * pinned by name rather than defaulted, that a failed job comes back as a value
- * instead of a throw, and that words become readable lines. The rest is the
- * provider's business.
+ * rather than plumbing: that labels are asked for on every stem, that the
+ * model is pinned by name rather than defaulted, that a failed job comes back
+ * as a value instead of a throw, and — the one that has already been wrong in
+ * production — that lines are made from words rather than from the provider's
+ * speaker turns. The rest is the provider's business.
  */
 
 /** A `fetch` that answers from a script and records what it was asked. */
@@ -144,21 +146,69 @@ describe('Polling', () => {
     expect(first.confidence).toBeCloseTo(0.85);
   });
 
-  it('prefers the provider’s own grouping if it ever sends one', async () => {
+  it('makes lines from words even when the provider sent turns', async () => {
+    // The regression. An AssemblyAI utterance is a contiguous *speaker turn*,
+    // not a sentence, so a file where diarisation hears one voice comes back
+    // as one utterance however long it is. The first real transcript was a
+    // single line of 6,341 characters spanning seventy minutes — unreadable,
+    // and untappable, since seeking to it lands where the turn began rather
+    // than at the words being pointed at.
     const { fetch } = stubFetch([
       {
         body: {
           status: 'completed',
-          utterances: [{ start: 10, end: 20, text: 'grouped', confidence: 0.7 }],
-          words: [{ start: 10, end: 20, text: 'grouped', confidence: 0.7 }],
+          utterances: [
+            { start: 0, end: 600_000, text: 'one turn, ten minutes', speaker: 'A' },
+          ],
+          words: [
+            { start: 0, end: 400, text: 'one', confidence: 0.9 },
+            { start: 400, end: 900, text: 'turn', confidence: 0.9 },
+            // A pause wider than LINE_GAP_MS, so a second line.
+            { start: 5_000, end: 5_400, text: 'ten', confidence: 0.9 },
+            { start: 5_400, end: 5_900, text: 'minutes', confidence: 0.9 },
+          ],
         },
       },
     ]);
 
-    const answered = await provider(fetch).poll('job-x');
-    expect(answered).toMatchObject({
-      utterances: [{ text: 'grouped', startMs: 10, endMs: 20 }],
-    });
+    const answered = (await provider(fetch).poll('job-x')) as {
+      utterances: Utterance[];
+    };
+
+    expect(answered.utterances.map((u) => u.text)).toEqual([
+      'one turn',
+      'ten minutes',
+    ]);
+    // And each line's start is its own, which is what makes a tap land.
+    expect(answered.utterances[1].startMs).toBe(5_000);
+    // The turn's label survives, since it is the only evidence that a stem
+    // holds a voice that is not its owner's.
+    expect(answered.utterances.every((u) => u.speaker === 'A')).toBe(true);
+  });
+
+  it('keeps a word\u2019s own label over the turn it falls in', async () => {
+    const { fetch } = stubFetch([
+      {
+        body: {
+          status: 'completed',
+          utterances: [{ start: 0, end: 10_000, text: 'all of it', speaker: 'A' }],
+          words: [
+            { start: 0, end: 400, text: 'mine', speaker: 'A' },
+            { start: 500, end: 900, text: 'theirs', speaker: 'B' },
+          ],
+        },
+      },
+    ]);
+
+    const answered = (await provider(fetch).poll('job-x')) as {
+      utterances: Utterance[];
+    };
+    // Two lines despite a 100ms gap: a change of voice breaks a line whatever
+    // the timing says, and the words are believed over the turn covering them.
+    expect(answered.utterances.map((u) => [u.speaker, u.text])).toEqual([
+      ['A', 'mine'],
+      ['B', 'theirs'],
+    ]);
   });
 
   it('deletes by id, which is the promise the privacy page makes', async () => {

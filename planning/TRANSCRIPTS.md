@@ -442,6 +442,21 @@ it.
     runtime. Their coding guide calls it the most common mistake, and it is why
     `transcription.ts` opens by telling you to fetch
     `https://www.assemblyai.com/docs/llms.txt` before touching it.
+  - **Lines are made from words, never from the provider's `utterances`** —
+    corrected 2026-08-25 after the first real transcript, and this document
+    said the opposite twice on the way there. An utterance is a contiguous
+    *speaker turn*, so a stem where diarisation hears one voice is **one
+    utterance however long the file is**: the first run produced a single line
+    of 6,341 characters spanning seventy minutes. Unreadable, unseekable — its
+    `startMs` is where the turn began — and it collapses search, since a result
+    is a line and that line was the whole conversation. `intoLines` breaks on a
+    700ms pause, a 60-word cap and any change of voice; the turns are read only
+    for the speaker labels they carry.
+
+    **It cannot be repaired after the fact**, which is why the fix is at
+    ingest: re-grouping stored lines means splitting text with no timings for
+    the pieces, and the timings exist only per word — which we do not store and
+    the provider has been told to forget.
   - **`utterances` does not come back with diarisation off** — the provider
     groups turns only when it has been asked to tell speakers apart, which we
     never do. So words come back and the *lines are ours to make*: `intoLines`

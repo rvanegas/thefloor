@@ -323,26 +323,27 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
     }
     if (body.status !== 'completed') return { state: 'pending' };
 
-    // `utterances` comes back only when the provider was asked to tell
-    // speakers apart, which we now do for every stem — so this is the ordinary
-    // path and `intoLines` is the fallback for a response that carries words
-    // and no grouping. The provider's own turns are preferred wherever they
-    // exist: they are where the speaker labels live, and a reconstruction of a
-    // grouping we were given is work done twice and worse.
+    // **Lines are made here, from words, always.**
+    //
+    // This preferred the provider's `utterances` for a few hours on the
+    // reasoning that a reconstruction of a grouping we were given is work done
+    // twice and worse. That was wrong, because their grouping answers a
+    // different question. An utterance is a contiguous *speaker turn*, not a
+    // sentence — so a file where diarisation hears one voice is one utterance,
+    // however long the file is. The first real transcript produced a single
+    // line of 6,341 characters spanning seventy minutes, which cannot be read
+    // and cannot be tapped: its `startMs` is where the turn began, so seeking
+    // to it lands an hour before the words being pointed at.
+    //
+    // `intoLines` is what a line is for — a pause, a length cap, and a change
+    // of voice. The turns are still read, but only for the speaker labels they
+    // carry; see `withSpeakers`.
+    const words = body.words ?? [];
     return {
       state: 'ready',
       languageCode: body.language_code ?? null,
       billedMs: billedMs(body),
-      utterances: body.utterances?.length
-        ? body.utterances.map((part) => ({
-            startMs: part.start ?? 0,
-            endMs: part.end ?? part.start ?? 0,
-            text: (part.text ?? '').trim(),
-            confidence:
-              typeof part.confidence === 'number' ? part.confidence : null,
-            speaker: part.speaker ?? null,
-          }))
-        : intoLines(body.words ?? []),
+      utterances: intoLines(withSpeakers(words, body.utterances ?? [])),
     };
   }
 
@@ -395,6 +396,47 @@ function billedMs(body: {
     return Math.round(body.audio_duration * 1000);
   }
   return null;
+}
+
+/** One word as the provider reports it. */
+interface ProviderWord {
+  start?: number;
+  end?: number;
+  text?: string;
+  confidence?: number;
+  speaker?: string;
+}
+
+/**
+ * Puts a speaker label on every word that lacks one, from the turn it falls in.
+ *
+ * Words carry `speaker` when diarisation is on, and this is a belt for the
+ * case where they do not: the labels are the only evidence this system has
+ * that a stem holds more than one voice — the first real transcript found the
+ * other party bleeding into three stems out of four that way — and losing them
+ * by grouping from words alone would be a poor trade for readable lines.
+ *
+ * A pointer walk rather than a search per word: both lists are in time order,
+ * which is what makes this cheap enough to do unconditionally.
+ */
+function withSpeakers(
+  words: ProviderWord[],
+  turns: Array<{ start?: number; end?: number; speaker?: string }>
+): ProviderWord[] {
+  if (turns.length === 0 || words.every((word) => word.speaker !== undefined)) {
+    return words;
+  }
+  let turn = 0;
+  return words.map((word) => {
+    if (word.speaker !== undefined) return word;
+    const at = word.start ?? 0;
+    while (turn < turns.length - 1 && (turns[turn].end ?? 0) < at) turn += 1;
+    const found = turns[turn];
+    const inside = at >= (found.start ?? 0) && at <= (found.end ?? 0);
+    return inside && found.speaker !== undefined
+      ? { ...word, speaker: found.speaker }
+      : word;
+  });
 }
 
 /**
