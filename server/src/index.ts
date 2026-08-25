@@ -5,6 +5,10 @@ import { LiveKitMediaServer, type MediaServer } from './media';
 import { ApnsPusher, ConsolePusher, type Pusher } from './push';
 import { deployed, MIN_SUPPORTED_BUILD } from './release';
 import { S3RecordingStore } from './storage';
+import {
+  AssemblyAiTranscription,
+  type TranscriptionProvider,
+} from './transcription';
 
 // Node's own .env loader — no dependency. Resolved against the working
 // directory, which npm scripts set to this package. A missing file is not an
@@ -160,6 +164,23 @@ const kofi =
     ? { url: kofiUrl, verificationToken: kofiVerificationToken }
     : undefined;
 
+/**
+ * Transcription, which is optional and is off by default — including on the
+ * box, deliberately, until the phases after this one exist to use it.
+ *
+ * Setting this key is not a private act: it is what makes the privacy policy
+ * disclose a processor and name it, because the page is conditional on exactly
+ * this configuration. So it should be set the day transcription can actually be
+ * asked for, and not before — a page naming a company the server never contacts
+ * is as wrong as one that stays silent while it does.
+ *
+ * It is also the only credential here that spends money per use.
+ */
+const assemblyAiKey = process.env.ASSEMBLYAI_API_KEY;
+const transcription: TranscriptionProvider | undefined = assemblyAiKey
+  ? new AssemblyAiTranscription({ apiKey: assemblyAiKey })
+  : undefined;
+
 const app = buildApp({
   dbPath,
   review,
@@ -175,6 +196,7 @@ const app = buildApp({
   mediaUrl: liveKitUrl,
   store,
   pusher,
+  transcription,
   logger: true,
 });
 app.channels.start();
@@ -194,6 +216,10 @@ app.fastify
         // find out whether one is open.
         review: review ? review.identifier : 'none',
         donations: kofiVerificationToken ? 'ko-fi' : 'not configured',
+        // Worth a line for the same reason `review` is: it changes what a
+        // public page claims, and reading .env is not how anybody should have
+        // to find out which.
+        transcription: transcription ? transcription.name : 'not configured',
         // The first line in the journal after a restart is where somebody
         // looks when a deploy is in doubt, and until now it could not say
         // which deploy it was.

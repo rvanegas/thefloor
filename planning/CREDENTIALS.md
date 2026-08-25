@@ -1,6 +1,6 @@
 # Credentials
 
-The seven credentials this project holds, where each one lives, what it can do
+The eight credentials this project holds, where each one lives, what it can do
 and what losing it costs. Split out of AGENTS.md on 2026-08-15, verbatim, when
 that file reached its 650-line limit again — the same seam as RELEASING.md and
 for the same reason: it is loaded into every session before anybody types
@@ -17,7 +17,7 @@ The `rtc.use_external_ip` trap stayed with the infrastructure inventory under
 
 ---
 
-## The seven
+## The eight
 
 Deliberately separate, so no single leak is worse than it has to be:
 
@@ -145,6 +145,33 @@ Deliberately separate, so no single leak is worse than it has to be:
   It lives at `~/.config/thefloor/kofi-verification-token.txt` on the
   development machine, mode 600 — outside the synced tree, on the same reasoning
   as the `.p8` keys.
+
+- **AssemblyAI** — `ASSEMBLYAI_API_KEY`, from
+  [assemblyai.com/dashboard/api-keys](https://www.assemblyai.com/dashboard/api-keys).
+  The eighth, added 2026-08-24 with the first phase of TRANSCRIPTS.md.
+
+  **It is the only credential here that spends money per use**, which makes it
+  the only one whose leak has a running cost rather than a one-off one: $0.15
+  per audio-hour per speaker, on an account with a balance and no per-key cap.
+  Somebody holding it can spend that balance and can read back any transcript
+  we have not yet deleted — which, if the deletion sweep is doing its job, is
+  only the ones in flight.
+
+  **Setting it is a public act, and that is deliberate.** The `/privacy` page's
+  transcription section is conditional on this key being present: with it, the
+  page names AssemblyAI as a processor, says what leaves and what is deleted;
+  without it, the page says nothing about any of it, because there is nothing
+  to say. So do not set it to "have it ready" — set it the day transcription
+  can actually be asked for. A page naming a company the server never contacts
+  is as wrong as one that stays silent while it does.
+
+  For the same reason it is marked `# env-push: optional` in
+  `server/.env.example`: absent is the correct state on the box until then, and
+  a warning that fires every push is a warning nobody reads.
+
+  Rotating it is cheap and non-destructive, like the Ko-fi token: generate
+  another in their dashboard, replace the line, restart. Nothing already stored
+  depends on it — the transcripts are here, not there.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it

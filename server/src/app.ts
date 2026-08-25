@@ -27,6 +27,7 @@ import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { escapeHtml } from './html';
 import { privacyPage } from './privacy';
+import type { TranscriptionProvider } from './transcription';
 import {
   BUILD_HEADER,
   claimedBuild,
@@ -120,6 +121,18 @@ export interface BuildOptions {
    * which is honest — a link that opens nothing is worse than a sentence.
    */
   updateUrl?: string;
+  /**
+   * Turns recorded audio into text. Without one there is no transcription, and
+   * the privacy policy says nothing about any of it — which is the whole of
+   * what this option does today.
+   *
+   * Optional in the way `media` and `store` are, and for the same reason: every
+   * other rule here is enforced without it, and the suite runs with no network
+   * and no key. It is also the switch: this is the first thing the application
+   * does that spends money per tap and sends audio to a third party, so an
+   * absent credential has to mean absent feature rather than a broken one.
+   */
+  transcription?: TranscriptionProvider;
 }
 
 export interface App {
@@ -906,7 +919,12 @@ export function buildApp(options: BuildOptions = {}): App {
    */
   fastify.get('/privacy', async (_request, reply) => {
     reply.type('text/html; charset=utf-8');
-    return privacyPage(options.contactEmail);
+    return privacyPage({
+      contactEmail: options.contactEmail,
+      // Named on the page only where the server can actually reach it. See
+      // PolicyOptions.transcription.
+      transcription: options.transcription?.name,
+    });
   });
 
   /**

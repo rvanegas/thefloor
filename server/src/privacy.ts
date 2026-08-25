@@ -21,6 +21,19 @@ import { escapeHtml, page } from './html';
 export const PRIVACY_UPDATED = '19 August 2026';
 
 /**
+ * When the transcription disclosure was added — which is a different date from
+ * the one above, because it is a different page to a different reader.
+ *
+ * The whole of the transcription section is conditional on the server having a
+ * provider configured, so a deployment without one says nothing about it and
+ * has not changed. Stamping it with today's date regardless would tell every
+ * reader to re-read a page that is word for word the one they saw. The later
+ * of the two is shown, so the date always describes the version in front of
+ * whoever is reading it.
+ */
+const TRANSCRIPTION_ADDED = '24 August 2026';
+
+/**
  * How long a deleted channel or recording survives the mark before the sweep
  * removes it. Mirrors DELETED_RETENTION_MS in core/constants.ts — stated in the
  * policy because "deleted" meaning "in a week" is exactly the sort of thing a
@@ -48,15 +61,67 @@ const RETENTION_DAYS = 7;
  */
 const USAGE_RETENTION_DAYS = 30;
 
-export function privacyPage(contactEmail?: string): string {
+export interface PolicyOptions {
+  contactEmail?: string;
+  /**
+   * The name of the transcription provider, when this server has one — and
+   * nothing when it does not, which withdraws the whole section below.
+   *
+   * Conditional because the claim is only true where the credential is. A page
+   * that named a processor a server cannot reach would be describing something
+   * that cannot happen to the reader, which is a worse failing on this page
+   * than on any other: everything else here is written as claims checkable
+   * against the source, and this one is checkable against the configuration.
+   */
+  transcription?: string;
+}
+
+export function privacyPage(options: PolicyOptions = {}): string {
+  const { contactEmail, transcription } = options;
   const contact = contactEmail
     ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>`
     : 'the support address on the app’s App Store listing';
+  const provider = transcription ? escapeHtml(transcription) : null;
+
+  // Nothing at all when no provider is configured, which is what makes the
+  // rest of the page unchanged for a deployment that cannot transcribe.
+  //
+  // Four claims, each of which the implementation has to keep true: it happens
+  // only when asked, what leaves is only the recording, the provider does not
+  // keep it, and what a silenced person said does not leave at all. The last is
+  // the one worth stating out loud — the stems in storage are ungated, and it
+  // is the render that removes what the floor removed, so a transcript built
+  // from the wrong bytes would be a permanent searchable text of the remark the
+  // recording deliberately does not contain.
+  const transcriptionSection = provider
+    ? `
+<h2>Transcripts</h2>
+<p>A recording can be turned into text. It never happens on its own: somebody in
+the channel asks for it, once per recording, and their name is shown beside the
+result — because asking sends everybody’s audio, not just theirs.</p>
+
+<p>The audio is sent to ${provider}, in the United States, which returns the
+words in it and nothing else. It is sent the recording as you would hear it: the
+parts a silenced person spoke while they did not hold the floor are removed
+before anything leaves, exactly as they are removed from what the recording
+plays. ${provider} is not asked to tell voices apart, and is told nothing about
+who is speaking, what the channel is, or who is in it — The Floor already knows
+whose microphone each part came from.</p>
+
+<p>The audio and the transcript are deleted from ${provider} as soon as the text
+has been stored here. The text is then kept with the recording it came from, is
+visible to exactly the people who can play that recording, and is deleted when
+the recording is — immediately for everyone, and about ${RETENTION_DAYS} days
+later underneath, like everything else here.</p>
+`
+    : '';
 
   return page({
     title: 'Privacy — The Floor',
     heading: 'Privacy',
-    standfirst: `The Floor · last updated ${PRIVACY_UPDATED}`,
+    standfirst: `The Floor · last updated ${
+      provider ? TRANSCRIPTION_ADDED : PRIVACY_UPDATED
+    }`,
     body: `
 <p>The Floor is a small application for talking with people you know. This
 page says what it stores, why, and for how long. It is short because the
@@ -99,9 +164,13 @@ application collects little.</p>
 <p>Ordinary conversation passes through the server as it happens and is not
 written anywhere. Only a recording somebody deliberately started is stored.</p>
 
+${transcriptionSection}
 <h2>What is not collected</h2>
-<p>There is no advertising, no third-party analytics, and no service anywhere
-that receives your activity. Nothing about you is sold or shared for anyone
+<p>There is no advertising, no third-party analytics${
+      provider
+        ? `, and no service anywhere that receives your activity — ${provider}, above, is sent audio you asked to have transcribed and nothing else: not who you talked to, not when you were connected, not what you did in the application`
+        : ', and no service anywhere\nthat receives your activity'
+    }. Nothing about you is sold or shared for anyone
 else’s purposes, and nothing is used to profile you or to decide what you are
 shown. Your address book is never read — the contacts in The Floor are people
 who have accepted a request inside it.</p>
@@ -142,9 +211,15 @@ hands rather than something about you.</p>
 
 <h2>Who else can see any of it</h2>
 <p>Amazon Web Services stores the recordings and sends the sign-in emails. Apple
-delivers notifications. Ko-fi handles donations. None of them are given
-anything beyond what their job requires, and none of them receive your
-conversations — the recording storage key used by the media server can only add
+delivers notifications. Ko-fi handles donations.${
+      provider ? ` ${provider} transcribes a recording when somebody asks it to.` : ''
+    } None of them are given
+anything beyond what their job requires${
+      provider
+        ? `, none of them but ${provider} receive your conversations, and that
+one receives only the recording it was asked to transcribe`
+        : ', and none of them receive your\nconversations'
+    } — the recording storage key used by the media server can only add
 files, not read them back.</p>
 
 <h2>Security</h2>

@@ -1,5 +1,7 @@
 import { USAGE_RETENTION_MS } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
+import { PRIVACY_UPDATED } from '../src/privacy';
+import { MemoryTranscription } from '../src/transcription';
 
 /**
  * The privacy policy is a page rather than a feature, so what is worth testing
@@ -85,6 +87,63 @@ describe('The privacy policy', () => {
     const page = (await fetchPolicy()).body;
     expect(page).not.toContain('mailto:');
     expect(page).toContain('App Store listing');
+  });
+
+  describe('transcription', () => {
+    // The section is conditional on the server having a provider, because the
+    // claim is only true where the credential is. Both halves are asserted:
+    // silence without one is as much a requirement as disclosure with one.
+    it('says nothing about a processor when there is none', async () => {
+      app = buildApp({ dbPath: ':memory:' });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+
+      expect(page).not.toContain('AssemblyAI');
+      expect(page).not.toContain('Transcripts');
+      // And the sentence transcription narrows is intact in the meantime.
+      expect(page).toContain('none of them receive your conversations');
+    });
+
+    it('names the processor, and narrows the claims it makes false', async () => {
+      app = buildApp({
+        dbPath: ':memory:',
+        transcription: new MemoryTranscription(),
+      });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      const provider = new MemoryTranscription().name;
+
+      expect(page).toContain(provider);
+      // The four claims the implementation has to keep true.
+      expect(page).toContain('somebody in the channel asks for it');
+      expect(page).toContain('the words in it and nothing else');
+      expect(page).toContain(
+        'the parts a silenced person spoke while they did not hold the floor are removed'
+      );
+      expect(page).toContain(`deleted from ${provider} as soon as the text`);
+
+      // The two sentences that were false the moment audio left. Neither may
+      // survive unqualified — this is the assertion that makes a later reader
+      // rewrite them rather than quietly outlive them, the way `no analytics`
+      // was outlived by the usage meter.
+      expect(page).not.toContain(
+        'no service anywhere that receives your activity.'
+      );
+      expect(page).not.toContain('none of them receive your conversations');
+    });
+
+    it('dates itself by the version in front of the reader', async () => {
+      // A page nobody's configuration changed should not tell them to re-read
+      // it, so the date moves with the section rather than with the file.
+      app = buildApp({ dbPath: ':memory:' });
+      expect((await fetchPolicy()).body).toContain(PRIVACY_UPDATED);
+      app.channels.stop();
+      await app.fastify.close();
+
+      app = buildApp({
+        dbPath: ':memory:',
+        transcription: new MemoryTranscription(),
+      });
+      expect((await fetchPolicy()).body).not.toContain(PRIVACY_UPDATED);
+    });
   });
 
   it('escapes the address rather than trusting it', async () => {

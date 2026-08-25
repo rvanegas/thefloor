@@ -2,7 +2,8 @@
 
 **Temporary.** This is the design for TASKS.md § *Transcripts*, and it is
 deleted when the work ships — whatever survives goes to DECISIONS.md, the way
-WATCHPARTY.md and USAGE.md went. Nothing here is built yet.
+WATCHPARTY.md and USAGE.md went. **Phase 1 of § *Order of work* is built;
+nothing else is**, and that section is where the state of it is kept.
 
 The request: AssemblyAI, batch rather than streaming, multi-channel,
 multi-language, speaker identification, triggered by hand on a recording,
@@ -117,12 +118,17 @@ The concrete calls, verified against the current docs:
 - `POST https://api.assemblyai.com/v2/upload` with the bytes and
   `Authorization: <key>`, returning `{ upload_url }`. Ogg/Opus is a supported
   input format, so the rendered stem goes as-is with no second encode.
-- `POST /v2/transcript` with `{ audio_url, language_detection: true,
-  punctuate: true, format_text: true }`. `speech_models` defaults to the
-  current model pair; pin it once and record which, so a provider-side model
-  change is a decision rather than a surprise in the diff of a re-run.
-- `GET /v2/transcript/:id` until `status` is `completed` or `error`. Words and
-  utterances carry `start`/`end` in milliseconds.
+- `POST /v2/transcript` with `{ audio_url, speech_models, speaker_labels:
+  false, language_detection: true, punctuate: true, format_text: true }`.
+  `speech_models` is an ordered fallback array and defaults to an older pair
+  than the current one, so it is pinned by name — a provider-side model change
+  is then a decision rather than a surprise in the diff of a re-run. The
+  singular `speech_model` is deprecated and is a different shape on their
+  realtime API; do not reach for it.
+- `GET /v2/transcript/:id` until `status` is `completed` or `error`. Words
+  carry `start`/`end` in milliseconds. **`utterances` does not**, because it is
+  only populated when speakers were being told apart — so lines are grouped
+  here, by `intoLines`.
 - `DELETE /v2/transcript/:id`, which also destroys the uploaded audio.
 
 **Upload rather than a presigned S3 URL**, though the docs support both. The
@@ -358,23 +364,95 @@ the jump is simply not offered, with the existing `playDisabledReason` wording.
 
 ## Order of work
 
-Each step lands and deploys on its own; nothing here needs a flag day.
+Six phases. Each one lands and deploys on its own and none needs a flag day —
+which holds because the credential is the switch: every phase before the last
+is inert on a box with no `ASSEMBLYAI_API_KEY`, and phases 1 to 4 are inert on
+a box *with* one until the app has a button.
 
-1. **Privacy page, credential, config, provider interface.** No user-visible
-   change. Ships the sentence the feature needs to be true.
-2. **`buildStemGraph` refactor** in `export.ts`, with a test asserting that one
-   identity's gating is identical to the gating that identity gets inside the
-   mix. Nothing calls it yet.
-3. **Schema, job runner, polling, boot recovery**, behind the absent key. Tested
-   entirely against the memory provider: pending → ready, one stem failing while
-   the others land, restart mid-job, deletion reaching the provider.
-4. **Routes and the wire field.**
-5. **App: trigger, transcript view, per-recording search, seek, export.**
-6. **Channel-wide search**, plus FTS5 if the box has it.
+**Phase 1 — the credential, the config, the provider interface, the
+disclosure. Done 2026-08-24.** No user-visible change and nothing calls any of
+it.
+
+  - `server/src/transcription.ts` — `TranscriptionProvider`, `Utterance`,
+    `AssemblyAiTranscription`, `MemoryTranscription`, `intoLines`.
+  - `BuildOptions.transcription`, read by `index.ts` from
+    `ASSEMBLYAI_API_KEY`, reported on the startup line beside `review` and
+    `donations`.
+  - `/privacy` gains a transcription section, **conditional on a provider
+    being configured**, and narrows the two sentences transcription makes
+    false.
+  - `server/.env.example`, CREDENTIALS.md (now eight), AGENTS.md.
+
+  Three things came out differently from what this document said before it was
+  built, and they are worth reading before phase 3:
+
+  - **The disclosure is conditional, not unconditional.** The design said phase
+    1 "ships the sentence the feature needs to be true", which would have put a
+    named third-party processor on a public page months before any audio could
+    reach it — a page describing something that cannot happen to the reader,
+    which on a page written as checkable claims is the same failing as silence
+    while it does. So the section is gated on the same configuration the
+    feature is, and the page carries its own second date, shown only to a
+    reader whose server has a provider. Setting the key on the box is therefore
+    the act that publishes the disclosure, which CREDENTIALS.md says out loud.
+  - **`speech_model` is deprecated; it is `speech_models`, an ordered fallback
+    array.** `['universal-3-5-pro', 'universal-2']`, pinned. The singular form
+    this document implied still type-checks and reads fine and fails at
+    runtime. Their coding guide calls it the most common mistake, and it is why
+    `transcription.ts` opens by telling you to fetch
+    `https://www.assemblyai.com/docs/llms.txt` before touching it.
+  - **`utterances` does not come back with diarisation off** — the provider
+    groups turns only when it has been asked to tell speakers apart, which we
+    never do. So words come back and the *lines are ours to make*: `intoLines`
+    breaks on a pause of `LINE_GAP_MS` (700ms) and at `LINE_MAX_WORDS`. This is
+    better than it sounds. The grouping is now a render-time decision on data
+    we hold, revisable without re-spending anything with the provider, which is
+    exactly the argument this document already makes about the confidence
+    floor. **Phase 3's schema should therefore store what `intoLines` produced
+    and not pretend it came from the provider.**
+
+  Also settled by the model choice: `universal-3-5-pro` code-switches natively
+  across 18 languages and falls back to `universal-2` for the rest, so §
+  *Multi-language*'s first limit — one label per file, and the weaker half of
+  the transcript for anybody who switches — is not a limit on this model. The
+  second, that a nearly-silent stem detects badly, still stands.
+
+**Phase 2 — `buildStemGraph`.** Lift the per-identity half of
+`buildFilterGraph` in `export.ts`, with a test asserting that one identity's
+gating is identical to the gating that identity gets inside the mix. Nothing
+calls it yet. It is deliberately its own phase: it is the one change that can
+break existing recordings, and it should land where a regression has nothing
+else in the diff to hide behind.
+
+**Phase 3 — schema, job runner, polling, boot recovery**, behind the absent
+key. Tested entirely against `MemoryTranscription`: pending → ready, one stem
+failing while the others land, restart mid-job, deletion reaching the provider.
+Settle FTS5 and the `forget` question below first.
+
+**Phase 4 — routes and the wire field.** Additive and optional, so an older
+build ignores them. This is the last phase that is inert with the key set —
+after it, the server can spend money, and nothing can ask it to yet.
+
+**Phase 5 — the app**: trigger, transcript view, per-recording search, seek,
+export. **The key goes on the box in the same deploy this ships**, which is
+also the moment `/privacy` starts naming AssemblyAI and the App Store
+data-collection answers have to have been changed. Not before.
+
+**Phase 6 — channel-wide search**, plus FTS5 if the box has it.
 
 ## Open questions
 
-- **FTS5 on Node 22.** Settle it before step 3 writes a schema that assumes it.
+- **FTS5 on Node 22.** Settle it before phase 3 writes a schema that assumes
+  it.
+- **Does `DELETE /v2/transcript/:id` do what we promise?** The privacy page
+  says the audio and the text are deleted from the provider as soon as the text
+  is stored here, and `forget()` is that promise in code. Their own coding
+  guide documents upload, submit and poll and **does not mention deletion at
+  all** — so confirm the endpoint, and confirm it destroys the *upload* and not
+  merely the transcript row, against `llms.txt` and then against a real job.
+  Phase 5 is when the sentence goes public; this has to be settled before
+  then, and if it turns out to be weaker than the claim, the claim moves rather
+  than the code.
 - **Guests.** Their stems are identities too. `participant_names` should carry
   them, but check — a transcript of a guest labelled with a raw session id is a
   bug that only appears with a guest in the room.

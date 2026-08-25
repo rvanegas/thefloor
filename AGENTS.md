@@ -118,7 +118,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 640 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 642 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -443,13 +443,15 @@ second box would need if the media ever splits off this one.
 
 ### Credentials
 
-Seven, deliberately separate, so no single leak is worse than it has to be: the
+Eight, deliberately separate, so no single leak is worse than it has to be: the
 self-issued **LiveKit** key that mints join tokens for any room,
 **`thefloor-egress`** (PutObject only), **`thefloor-server`** (SES plus
 recordings `GetObject`, and the configuration-set trap that scopes an SES policy
 wrongly everywhere else), the **APNs `.p8`**, the **App Store Connect key** and
-its Admin-role requirement, and the **Ko-fi verification token**. Where each
-lives, what it can do and what losing it costs are in planning/CREDENTIALS.md.
+its Admin-role requirement, the **Ko-fi verification token**, and the
+**AssemblyAI key** — the only one that spends money per use, and the only one
+whose presence changes what `/privacy` claims. Where each lives, what it can do
+and what losing it costs are in planning/CREDENTIALS.md.
 
 **Read that before touching any credential, `bin/provision`,
 `bin/provision-livekit`, `bin/env-pull`/`bin/env-push`, or `server/.env`.** Moved there on 2026-08-15 when this
