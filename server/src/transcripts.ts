@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
 import { MEDIA_IDENTITY } from './channels';
-import type { Db, RecordingRow } from './db';
+import { hasSearchIndex, type Db, type RecordingRow } from './db';
 import { encodeStem, type ExportRequest } from './export';
 import type { RecordingStore } from './storage';
 import type { TranscriptionProvider } from './transcription';
@@ -79,6 +79,11 @@ export interface TranscriptView {
   failure?: string;
   /** Which speakers produced nothing, and why. Empty when all of them did. */
   missing: Array<{ identity: string; failure: string | null }>;
+}
+
+/** One matching line, and which recording it was said in. */
+export interface TranscriptHit extends TranscriptLine {
+  recordingId: string;
 }
 
 export interface TranscriptLine {
@@ -424,7 +429,82 @@ export class Transcripts {
     }));
   }
 
-  // --- the work ---  // --- the work -------------------------------------------------------------
+  /**
+   * Every line in one channel's transcripts matching what somebody typed.
+   *
+   * **This is the feature the denormalised `channel_id` on a line exists for**
+   * — one index scan rather than a join through `recordings` on every
+   * keystroke.
+   *
+   * Searched as a phrase rather than as an expression. FTS5's query language
+   * would otherwise read an apostrophe, a stray quote or the word `AND` as
+   * syntax and answer with an error where a person expected results; quoting
+   * the whole thing makes every input a search for those words in that order,
+   * which is what a search box means anyway.
+   *
+   * Ordered by recording and then by time, so the caller can group without
+   * sorting, and capped: a common word across a year of conversation is not a
+   * result set anybody scrolls.
+   */
+  search(channelId: string, query: string, limit = 200): TranscriptHit[] {
+    const needle = query.trim();
+    if (!needle) return [];
+
+    const rows = hasSearchIndex(this.db)
+      ? (this.db
+          .prepare(
+            `SELECT l.recording_id, l.identity, l.speaker, l.start_ms, l.end_ms,
+                    l.text, l.confidence
+             FROM transcript_fts f
+             JOIN transcript_lines l ON l.rowid = f.rowid
+             JOIN transcripts t ON t.recording_id = l.recording_id
+             JOIN recordings r ON r.id = l.recording_id
+             WHERE f.text MATCH ? AND l.channel_id = ?
+               AND t.deleted_at IS NULL AND r.deleted_at IS NULL
+             ORDER BY l.recording_id, l.start_ms
+             LIMIT ?`
+          )
+          .all(`"${needle.replace(/"/g, '""')}"`, channelId, limit) as unknown)
+      : // No index on this build. A scan over one channel's lines, which at
+        // this scale is fine — and is what the design said the first version
+        // should be if there were any doubt.
+        (this.db
+          .prepare(
+            `SELECT l.recording_id, l.identity, l.speaker, l.start_ms, l.end_ms,
+                    l.text, l.confidence
+             FROM transcript_lines l
+             JOIN transcripts t ON t.recording_id = l.recording_id
+             JOIN recordings r ON r.id = l.recording_id
+             WHERE l.channel_id = ? AND t.deleted_at IS NULL
+               AND r.deleted_at IS NULL
+               AND lower(l.text) LIKE '%' || lower(?) || '%'
+             ORDER BY l.recording_id, l.start_ms
+             LIMIT ?`
+          )
+          .all(channelId, needle, limit) as unknown);
+
+    return (
+      rows as Array<{
+        recording_id: string;
+        identity: string;
+        speaker: string | null;
+        start_ms: number;
+        end_ms: number;
+        text: string;
+        confidence: number | null;
+      }>
+    ).map((row) => ({
+      recordingId: row.recording_id,
+      identity: row.identity,
+      speaker: row.speaker,
+      startMs: row.start_ms,
+      endMs: row.end_ms,
+      text: row.text,
+      confidence: row.confidence,
+    }));
+  }
+
+  // --- the work -------------------------------------------------------------
 
   /**
    * Drops the transcript of any recording that has been deleted.

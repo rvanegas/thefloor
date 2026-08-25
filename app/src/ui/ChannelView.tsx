@@ -66,6 +66,7 @@ import {
   Empty,
   Field,
   RecordingRow,
+  TranscriptSearch,
   Screen,
   SectionLabel,
 } from './components';
@@ -1596,6 +1597,17 @@ export function ChannelView({
           recorded into one list belonging to nothing.
         */}
         <SectionLabel>Recordings</SectionLabel>
+        {/*
+          Above the list, because the question it answers — which conversation
+          was that in — is one the list itself cannot answer. Only shown once
+          something in this channel has been transcribed.
+        */}
+        {recordings.some((r) => r.transcript?.state === 'ready') ? (
+          <TranscriptSearch
+            channelId={channelId}
+            onOpen={(recordingId) => setTranscriptFor(recordingId)}
+          />
+        ) : null}
         {recordings.length === 0 ? (
           <Empty>Nothing recorded here yet.</Empty>
         ) : (

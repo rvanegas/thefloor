@@ -631,7 +631,53 @@ have to have been changed already.
   and `PRIVACY_UPDATED` moved to 25 August 2026, because the page has now
   genuinely changed for every reader rather than for one configuration.
 
-**Phase 6 — channel-wide search**, plus FTS5 if the box has it.
+**Phase 6 — channel-wide search. Done 2026-08-25.** FTS5, since the box has
+it, with a scan as the fallback.
+
+  - **`transcript_fts`**, external-content over `transcript_lines`, kept level
+    by two triggers. No update trigger: a line is written once and never
+    edited.
+  - **`PRAGMA recursive_triggers = ON`, and it is load-bearing.** A foreign key
+    cascade performs its DELETEs *without firing triggers* unless that is set —
+    so the sweep that removes a recording would take its lines and leave the
+    index holding every word of them. A deleted conversation that is still
+    findable by searching for it is a worse failure than a missing index.
+    `transcript-routes.test.ts` deletes a recordings row outright and asserts
+    the search goes quiet, which is the test that pins it.
+  - **Optional, on purpose.** FTS5 is a compile-time option and `node:sqlite`'s
+    flags are not something to assume across a Node version. Creating the table
+    is wrapped; `hasSearchIndex` reports the answer and the query takes a
+    `LIKE` scan over one channel's lines otherwise, which at this scale is
+    fine. The index is an optimisation, not the feature.
+  - **Searched as a phrase**, not as an expression. FTS5's query language would
+    otherwise read an apostrophe, a stray quote or the word `AND` as syntax and
+    answer with an error where a person expected results.
+  - **`ChannelRegistry.isMemberOf`**, which had to be its own thing:
+    `recordingsInChannel` answers the same question implicitly and returns
+    nothing both for a channel that is not yours and for one of yours with
+    nothing recorded in it — the two answers a route most needs to tell apart.
+    It reads the database rather than the live registry, since membership is a
+    fact about the channel rather than about who is currently in it.
+  - **`TranscriptSearch`** above the recordings list, debounced at 300ms
+    because a keystroke is not a question, and shown only once something in the
+    channel has been transcribed. A hit names the conversation it came from,
+    which is the one thing the per-recording filter cannot do and the whole
+    reason this is a separate control.
+
+---
+
+**Every phase of this design has shipped.** What has *not* happened is a single
+transcript against the real API: the whole thing is green against
+`MemoryTranscription` and real ffmpeg, and nothing has ever been submitted to
+AssemblyAI. That run is where `audio_duration` versus `audio_duration_ms` gets
+settled, where it becomes clear whether `utterances` really come back grouped,
+and where rendering N stems next to live audio is heard for the first time. A
+local server with the key set does it without touching the box or publishing
+the disclosure.
+
+This file is deleted when the work ships, and what survives moves to
+DECISIONS.md — but not before that run, since half of what is written here is a
+prediction about a service nobody has called yet.
 
 ## Open questions
 
@@ -661,6 +707,31 @@ have to have been changed already.
   box that is now also the SFU. Run the jobs one at a time and never during a
   mix. AGENTS.md § *Known rough edges* is the same worry from the deploy side,
   and the answer if it bites is the same $7 box.
-- **A confidence floor for bleed**, and whether it is a stored threshold or a
-  render-time one. Prefer render-time: the lines are cheap to keep and a
-  threshold baked into the data cannot be revised.
+- **Does bleed actually happen, and is a second speaker label evidence of it?**
+  Decided 2026-08-25: **nothing filters**, and the question is narrower than
+  this document first put it.
+
+  It was framed as a choice between designs — a stored threshold or a
+  render-time one — and that framing was wrong. Every line already carries its
+  confidence and its within-stem speaker label, so a threshold, a label rule,
+  and showing everything are the same storage with different display
+  predicates. Nothing about the schema depends on which is chosen, and the
+  choice therefore costs nothing to defer: a rule added next year applies to
+  transcripts already made.
+
+  So the renderer applies no rule. What has to be observed before one is worth
+  writing is whether bleed appears at all — this is a headphones-first app and
+  the floor exists so one person talks at a time, so it may be near zero — and
+  whether a second speaker label on a member's stem is reliable evidence of it,
+  since diarisation also splits one speaker on a cough or a change of mic
+  distance.
+
+  A confidence threshold is the one option to resist. It cuts the wrong things:
+  a hesitant word in a clear sentence scores low, while a *clearly recorded*
+  bleed of somebody talking two feet away scores high.
+
+  The option that would actually identify bleed rather than proxy for it is
+  **cross-stem comparison** — bleed is by construction a copy of something
+  already in another stem at the same moment, and the floor says which of the
+  two to keep. It is also the only one that is real work rather than a
+  predicate, and it should wait until there is something to test it against.

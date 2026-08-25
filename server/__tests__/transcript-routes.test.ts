@@ -81,13 +81,16 @@ function fileRecording(initiator: string, invitee: string, names: Record<string,
   app.db
     .prepare(
       `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id,
-         participants, participant_names, started_at, duration_ms, s3_key,
-         segment_keys, stems, floor_timeline, ended_at, mix_state)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, 'ready')`
+         participants, participant_names, name, started_at, duration_ms,
+         s3_key, segment_keys, stems, floor_timeline, ended_at, mix_state)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'ready')`
     )
     .run(
       RECORDING, CHANNEL, initiator, invitee,
       JSON.stringify([initiator, invitee]), JSON.stringify(names),
+      // Decided when the run stopped, the same for everybody in it — which is
+      // what a search result should name it by.
+      'Book club',
       clock, 5_000, '', '[]',
       JSON.stringify({ [initiator]: ['a.ogg'], [invitee]: ['b.ogg'] }),
       '[]', clock + 5_000
@@ -398,6 +401,88 @@ describe('deleting one', () => {
 
     expect(again.statusCode).toBe(200);
     expect(provider.submitted).toHaveLength(4);
+  }, 60_000);
+});
+
+describe('searching a channel', () => {
+  const search = (token: string, q: string) =>
+    app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${CHANNEL}/transcripts/search?q=${encodeURIComponent(q)}`,
+      headers: auth(token),
+    });
+
+  beforeEach(async () => {
+    const { alice, bob } = await room();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await complete({
+      [alice.account.id]: 'the part about the badgers',
+      [bob.account.id]: 'and then the owls arrived',
+    });
+  });
+
+  it('finds a line and says which recording and who said it', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const answered = await search(alice.token, 'owls');
+
+    expect(answered.statusCode).toBe(200);
+    expect(answered.json().hits).toEqual([
+      expect.objectContaining({
+        text: 'and then the owls arrived',
+        recordingId: RECORDING,
+        recordingName: 'Book club',
+        displayName: 'Bob',
+      }),
+    ]);
+  }, 60_000);
+
+  it('finds nothing for a word nobody said', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    expect((await search(alice.token, 'penguins')).json().hits).toEqual([]);
+  }, 60_000);
+
+  it('answers nothing rather than everything for an empty query', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    expect((await search(alice.token, '   ')).json().hits).toEqual([]);
+  }, 60_000);
+
+  it('survives punctuation that would be query syntax', async () => {
+    // Searched as a phrase, so an apostrophe or a bare AND is text rather than
+    // an expression the index refuses to parse.
+    const alice = await signIn('alice@example.com', 'Alice');
+    for (const q of ['"', "owls' ", 'AND', 'badgers OR owls', '*']) {
+      const answered = await search(alice.token, q);
+      expect(answered.statusCode).toBe(200);
+    }
+  }, 60_000);
+
+  it('is a 404 to somebody who is not in the channel', async () => {
+    const carol = await signIn('carol@example.com', 'Carol');
+    expect((await search(carol.token, 'owls')).statusCode).toBe(404);
+  }, 60_000);
+
+  it('stops finding a transcript somebody deleted', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    expect((await search(alice.token, 'owls')).json().hits).toHaveLength(1);
+
+    await ask(alice.token, 'DELETE');
+
+    expect((await search(alice.token, 'owls')).json().hits).toEqual([]);
+  }, 60_000);
+
+  it('stops finding a recording the sweep has removed', async () => {
+    // The trap this whole index has: a foreign key cascade does not fire
+    // triggers unless recursive_triggers is on, so without that pragma the
+    // rows would go and every word of them would stay findable. A deleted
+    // conversation that can still be searched for is worse than no index.
+    const alice = await signIn('alice@example.com', 'Alice');
+    app.db.prepare('DELETE FROM recordings WHERE id = ?').run(RECORDING);
+
+    expect((await search(alice.token, 'owls')).json().hits).toEqual([]);
+    expect(
+      app.db.prepare('SELECT COUNT(*) AS n FROM transcript_lines').get()
+    ).toMatchObject({ n: 0 });
   }, 60_000);
 });
 

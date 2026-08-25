@@ -883,9 +883,63 @@ export function openDb(path: string): Db {
   // path; they are turned on immediately afterwards.
   renameLegacyTables(db);
   db.exec('PRAGMA foreign_keys = ON');
+  // **Load-bearing for transcript search, and off by default.** A foreign key
+  // cascade performs its DELETEs without firing triggers unless this is on —
+  // so the sweep that removes a recording would take its transcript lines and
+  // leave the search index holding every word of them. A deleted conversation
+  // that is still findable by searching for it is a worse failure than a
+  // missing index.
+  db.exec('PRAGMA recursive_triggers = ON');
   db.exec(SCHEMA);
+  addSearchIndex(db);
   migrate(db);
   return db;
+}
+
+/**
+ * The full-text index over transcript lines, if this build of SQLite has one.
+ *
+ * External-content: the rows live in `transcript_lines` and this holds only
+ * the inverted index, kept level by the two triggers below. Lines are written
+ * once and never edited, so there is no update trigger and nothing that could
+ * want one.
+ *
+ * **Optional on purpose.** FTS5 is a compile-time option, and `node:sqlite`'s
+ * flags are not something to assume across a Node version — it is present on
+ * the box (checked, v22.23.2) and on this laptop, and a machine without it
+ * should still run the server rather than fail at boot with a syntax error in
+ * a virtual table. Search falls back to a scan there, which at this scale is
+ * fine: the index is an optimisation, not the feature.
+ */
+function addSearchIndex(db: Db): void {
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS transcript_fts USING fts5(
+        text, content='transcript_lines', content_rowid='rowid'
+      );
+      CREATE TRIGGER IF NOT EXISTS transcript_lines_ai
+        AFTER INSERT ON transcript_lines BEGIN
+        INSERT INTO transcript_fts(rowid, text) VALUES (new.rowid, new.text);
+      END;
+      CREATE TRIGGER IF NOT EXISTS transcript_lines_ad
+        AFTER DELETE ON transcript_lines BEGIN
+        INSERT INTO transcript_fts(transcript_fts, rowid, text)
+          VALUES ('delete', old.rowid, old.text);
+      END;
+    `);
+  } catch {
+    // No FTS5 here. hasSearchIndex reports it and the query takes the other
+    // path; nothing else in the server changes.
+  }
+}
+
+/** Whether this database got the index above. */
+export function hasSearchIndex(db: Db): boolean {
+  return !!db
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'transcript_fts'"
+    )
+    .get();
 }
 
 /** Whether a table of this name exists. */

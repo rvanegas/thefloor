@@ -1949,6 +1949,60 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * Every line in this channel's transcripts matching a query.
+   *
+   * Membership of the channel, read the same way every other channel route
+   * reads it. Results carry the recording each line came from and the name of
+   * whoever said it, so the caller can group without a second request per hit.
+   *
+   * Deliberately not paginated. It is capped instead, and a cap is the honest
+   * shape here: nobody pages through a common word across a year of
+   * conversation, they type something more specific.
+   */
+  fastify.get('/channels/:id/transcripts/search', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const q = (request.query as { q?: string } | undefined)?.q ?? '';
+
+    // The same answer an absent channel gets, for the same reason the
+    // recording routes give: which channels exist is something only their
+    // members learn.
+    if (!channels.isMemberOf(id, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+
+    const hits = transcripts.search(id, q);
+    // One lookup per recording rather than per line: a busy query returns
+    // dozens of hits from a handful of conversations.
+    const rows = new Map<string, RecordingRow | undefined>();
+    const rowFor = (recordingId: string) => {
+      if (!rows.has(recordingId)) {
+        rows.set(
+          recordingId,
+          db.prepare('SELECT * FROM recordings WHERE id = ?').get(recordingId) as
+            | unknown as RecordingRow
+            | undefined
+        );
+      }
+      return rows.get(recordingId);
+    };
+
+    return {
+      hits: hits.map((hit) => {
+        const row = rowFor(hit.recordingId);
+        return {
+          ...hit,
+          recordingName: row ? toRecordingView(row, account.id).name : null,
+          displayName: row
+            ? (nameFrom(row, hit.identity)?.displayName ?? null)
+            : null,
+        };
+      }),
+    };
+  });
+
+  /**
    * The reach test the two transcript reads share.
    *
    * Absent, deleted, not-yours and not-transcribed are one 404, for the reason

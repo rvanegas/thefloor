@@ -494,6 +494,32 @@ export const api = {
     }>(`/recordings/${recordingId}/transcript`, { token }),
 
   /**
+   * Every line in this channel's transcripts matching a query.
+   *
+   * Across every recording in the channel rather than one, which is the
+   * difference between this and the filter on the transcript screen — and the
+   * reason it is a request rather than a local `filter`: the text of a year of
+   * conversation is not something a phone holds.
+   */
+  searchTranscripts: (token: string, channelId: string, q: string) =>
+    request<{
+      hits: Array<{
+        recordingId: string;
+        recordingName: string | null;
+        identity: string;
+        displayName: string | null;
+        speaker: string | null;
+        startMs: number;
+        endMs: number;
+        text: string;
+        confidence: number | null;
+      }>;
+    }>(
+      `/channels/${channelId}/transcripts/search?q=${encodeURIComponent(q)}`,
+      { token }
+    ),
+
+  /**
    * Removes a transcript and leaves the recording.
    *
    * Nothing is refunded — asking again costs again, which is why the caller

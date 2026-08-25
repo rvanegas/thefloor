@@ -6,7 +6,7 @@ import renderer, {
 } from 'react-test-renderer';
 import { Alert } from 'react-native';
 import type { RecordingView } from '../../../../core/protocol';
-import { RecordingRow, Screen } from '../components';
+import { RecordingRow, Screen, TranscriptSearch } from '../components';
 import { TranscriptView } from '../TranscriptView';
 
 /**
@@ -54,7 +54,24 @@ jest.mock('../../api/http', () => ({
     startTranscript: (...args: unknown[]) => mockStart(...(args as [])),
     deleteTranscript: (...args: unknown[]) => mockDelete(...(args as [])),
     transcript: (...args: unknown[]) => mockGet(...(args as [])),
+    searchTranscripts: (...args: unknown[]) => mockSearch(...(args as [])),
   },
+}));
+
+const mockSearch = jest.fn(async () => ({
+  hits: [
+    {
+      recordingId: 'rec_1',
+      recordingName: 'Book club',
+      identity: 'acct_them',
+      displayName: 'Dana Chu',
+      speaker: 'A',
+      startMs: 9_000,
+      endMs: 10_000,
+      text: 'and then the owls',
+      confidence: 0.9,
+    },
+  ],
 }));
 
 const mockExport = jest.fn(async () => {});
@@ -238,6 +255,95 @@ describe('the button on a recording', () => {
     expect(findButton(tree, 'Transcribe')!.props.accessibilityState).toEqual({
       disabled: true,
     });
+    act(() => tree.unmount());
+  });
+});
+
+describe('searching a whole channel', () => {
+  const show = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <Screen>
+          <TranscriptSearch channelId="sess_1" onOpen={opened} />
+        </Screen>
+      );
+    });
+    return tree;
+  };
+
+  const opened = jest.fn();
+
+  /** Types, then lets the debounce elapse. */
+  const type = async (tree: ReactTestRenderer, text: string) => {
+    const field = tree.root.findAll((n) => n.props?.onChangeText)[0];
+    act(() => field.props.onChangeText(text));
+    await act(async () => {
+      jest.advanceTimersByTime(400);
+    });
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    opened.mockClear();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('asks nothing until somebody stops typing', async () => {
+    // A keystroke is not a question. Without this, searching for one word runs
+    // a query per letter on the way to it.
+    const tree = await show();
+    const field = tree.root.findAll((n) => n.props?.onChangeText)[0];
+
+    act(() => field.props.onChangeText('o'));
+    act(() => field.props.onChangeText('ow'));
+    act(() => field.props.onChangeText('owl'));
+    expect(mockSearch).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(400);
+    });
+    expect(mockSearch).toHaveBeenCalledTimes(1);
+    expect(mockSearch).toHaveBeenCalledWith('token', 'sess_1', 'owl');
+    act(() => tree.unmount());
+  });
+
+  it('asks nothing at all for an empty query', async () => {
+    const tree = await show();
+    await type(tree, '   ');
+    expect(mockSearch).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('says which conversation each hit came from', async () => {
+    // The one thing a per-recording filter cannot do, which is the whole
+    // reason this exists separately from the field on the transcript screen.
+    const tree = await show();
+    await type(tree, 'owls');
+
+    const text = textOf(tree);
+    expect(text).toContain('and then the owls');
+    expect(text).toContain('Book club');
+    expect(text).toContain('Dana Chu');
+    act(() => tree.unmount());
+  });
+
+  it('opens the recording a hit was said in', async () => {
+    const tree = await show();
+    await type(tree, 'owls');
+
+    act(() => findButton(tree, 'and then the owls')!.props.onPress());
+    expect(opened).toHaveBeenCalledWith('rec_1');
+    act(() => tree.unmount());
+  });
+
+  it('says so when nothing matches', async () => {
+    mockSearch.mockResolvedValueOnce({ hits: [] });
+    const tree = await show();
+    await type(tree, 'penguins');
+    expect(textOf(tree)).toContain('Nothing matches');
     act(() => tree.unmount());
   });
 });

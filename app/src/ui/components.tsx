@@ -720,6 +720,99 @@ function PlayButton({
  * download, and a shared flag would show every row as busy.
  */
 /**
+ * Searching every transcript in one channel.
+ *
+ * Above the recordings list rather than inside a recording, because the
+ * question it answers is "which conversation was that in" — the one thing a
+ * per-recording filter cannot do. A request rather than a local filter for the
+ * obvious reason: the text of a year of conversation is not something a phone
+ * holds.
+ *
+ * Debounced, because a keystroke is not a question. Nothing is asked until
+ * somebody stops typing, which is also what keeps a common word from running
+ * a query per letter on the way to a specific one.
+ *
+ * Withheld entirely when the channel holds no transcript, so the field appears
+ * once there is something to find and not before.
+ */
+export function TranscriptSearch({
+  channelId,
+  onOpen,
+}: {
+  channelId: string;
+  /** Opens the recording a hit came from. */
+  onOpen: (recordingId: string) => void;
+}) {
+  const app = useApp();
+  const [query, setQuery] = React.useState('');
+  const [hits, setHits] = React.useState<Hit[] | null>(null);
+  const [searching, setSearching] = React.useState(false);
+
+  React.useEffect(() => {
+    const needle = query.trim();
+    if (!app.token || !needle) {
+      setHits(null);
+      return;
+    }
+    setSearching(true);
+    const token = app.token;
+    const timer = setTimeout(() => {
+      api
+        .searchTranscripts(token, channelId, needle)
+        .then((body) => setHits(body.hits))
+        .catch(() => setHits([]))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      setSearching(false);
+    };
+  }, [app.token, channelId, query]);
+
+  return (
+    <View style={recordingStyles.search}>
+      <Field
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search what was said"
+        autoCapitalize="none"
+      />
+      {searching ? <Text style={type.muted}>Searching…</Text> : null}
+      {hits !== null && hits.length === 0 && !searching ? (
+        <Text style={type.muted}>Nothing matches.</Text>
+      ) : null}
+      {hits?.map((hit, n) => (
+        <Pressable
+          key={`${hit.recordingId}-${hit.startMs}-${n}`}
+          accessibilityRole="button"
+          accessibilityLabel={`${hit.recordingName ?? 'A recording'}, ${
+            hit.displayName ?? 'someone'
+          } at ${formatDuration(hit.startMs)}: ${hit.text}`}
+          onPress={() => onOpen(hit.recordingId)}
+          style={({ pressed }) => (pressed ? recordingStyles.pressed : undefined)}
+        >
+          <Card style={recordingStyles.hit}>
+            <Text style={type.muted} numberOfLines={1}>
+              {hit.recordingName ?? 'A recording'} ·{' '}
+              {hit.displayName ?? 'Someone'} · {formatDuration(hit.startMs)}
+            </Text>
+            <Text style={type.body}>{hit.text}</Text>
+          </Card>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+interface Hit {
+  recordingId: string;
+  recordingName: string | null;
+  displayName: string | null;
+  startMs: number;
+  text: string;
+}
+
+/**
  * Starts a transcript, or opens the one there is.
  *
  * Four labels for four states, and the one that matters is the first: asking
@@ -839,6 +932,8 @@ export function ExportButton({
 }
 
 const recordingStyles = StyleSheet.create({
+  search: { gap: spacing(1) },
+  hit: { gap: spacing(0.5) },
   // A column now, because the actions open *below* the name rather than
   // sitting beside it.
   row: { gap: spacing(1.5) },

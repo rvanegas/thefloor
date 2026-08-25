@@ -1645,6 +1645,31 @@ export class ChannelRegistry {
       .all(userId) as unknown as RecordingRow[];
   }
 
+  /**
+   * Whether this person belongs to this channel.
+   *
+   * `recordingsInChannel` below answers the same question implicitly and
+   * cannot be used for it: it returns nothing both for a channel that is not
+   * yours and for one of yours with nothing recorded in it, which are the two
+   * answers a caller most needs to tell apart.
+   */
+  isMemberOf(channelId: string, userId: string): boolean {
+    // The database rather than the live registry, which holds only channels
+    // this process has in memory. Membership is a fact about the channel, not
+    // about whether anybody is currently in it — and `recordingsFor` asks the
+    // same question the same way, which is what keeps what may be searched and
+    // what may be listed from coming apart.
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM channels c
+         WHERE c.id = ? AND c.deleted_at IS NULL
+           AND EXISTS (
+             SELECT 1 FROM json_each(c.participants) WHERE json_each.value = ?
+           )`
+      )
+      .get(channelId, userId);
+  }
+
   /** The same rule, for one channel: its recordings, or nothing if not yours. */
   recordingsInChannel(channelId: string, userId: string): RecordingRow[] {
     const channel = this.channels.get(channelId);
