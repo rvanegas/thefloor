@@ -438,6 +438,93 @@ describe('the transcript screen', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * A recording where the played-media stem came back holding two voices,
+   * which is the ordinary case for it: what somebody plays into a room may be
+   * an interview, and the provider labels the two apart.
+   */
+  const played = (identity: string, speaker: string, startMs: number, text: string) => ({
+    identity,
+    displayName: `Played audio (${speaker})`,
+    speaker,
+    startMs,
+    endMs: startMs + 1_000,
+    text,
+    confidence: 0.9,
+  });
+
+  const withTwoVoices = () =>
+    mockGet.mockResolvedValueOnce({
+      state: 'ready' as const,
+      requestedBy: { id: ME, displayName: 'Me' },
+      missing: [],
+      lines: [
+        played('media', 'A', 1_000, 'welcome to the programme'),
+        played('media', 'B', 2_000, 'thank you for having me'),
+        played('media', 'B', 3_000, 'it is a subject I care about'),
+      ],
+    } as never);
+
+  it('names a run once and puts its sentences underneath', async () => {
+    // Otherwise one person saying two sentences reads as two speakers — which
+    // is what 176 consecutive lines of one voice looked like.
+    withTwoVoices();
+    const tree = await show(recordingWith('ready'));
+    const text = textOf(tree);
+
+    expect(text).toContain('thank you for having me');
+    expect(text).toContain('it is a subject I care about');
+    expect(text.split('Played audio (B)')).toHaveLength(2);
+    act(() => tree.unmount());
+  });
+
+  it('separates the voices the provider heard inside one stem', async () => {
+    withTwoVoices();
+    const tree = await show(recordingWith('ready'));
+    const text = textOf(tree);
+
+    expect(text).toContain('Played audio (A)');
+    expect(text).toContain('Played audio (B)');
+    // And says what the letter means. It is a count of voices, never an
+    // identification, and a bare letter would invite the other reading.
+    expect(text).toContain('more than one voice was heard on that microphone');
+    act(() => tree.unmount());
+  });
+
+  it('says nothing about voices when every stem held one', async () => {
+    const tree = await show(recordingWith('ready'));
+    expect(textOf(tree)).not.toContain('more than one voice');
+    act(() => tree.unmount());
+  });
+
+  it('jumps to the sentence that was tapped, not to the top of its entry', async () => {
+    // The precision grouping would otherwise cost: a run can be a minute
+    // long, and somebody tapping the third paragraph means that paragraph.
+    withTwoVoices();
+    const seek = jest.fn();
+    const tree = await show(recordingWith('ready'), seek);
+
+    act(() => findButton(tree, 'it is a subject I care about')!.props.onPress());
+
+    expect(seek).toHaveBeenCalledWith(3_000);
+    act(() => tree.unmount());
+  });
+
+  it('leaves search results ungrouped, since matches are not a conversation', async () => {
+    // Two matching paragraphs minutes apart under one heading would read as
+    // having been said together.
+    withTwoVoices();
+    const tree = await show(recordingWith('ready'));
+    const field = tree.root.findAll((n) => n.props?.onChangeText)[0];
+
+    act(() => field.props.onChangeText('subject'));
+
+    const text = textOf(tree);
+    expect(text).toContain('it is a subject I care about');
+    expect(text).not.toContain('thank you for having me');
+    act(() => tree.unmount());
+  });
+
   it('says who is missing rather than presenting a partial as whole', async () => {
     const tree = await show(recordingWith('ready', { missing: 1 }));
     expect(textOf(tree)).toContain(

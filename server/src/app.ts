@@ -38,6 +38,7 @@ import {
   Transcripts,
   type TranscriptView,
 } from './transcripts';
+import { multiVoiceStems, voiceName } from '../../core/transcript';
 import {
   BUILD_HEADER,
   claimedBuild,
@@ -1914,13 +1915,23 @@ export function buildApp(options: BuildOptions = {}): App {
     const found = await readableTranscript(request, reply);
     if (!found) return;
 
+    const lines = transcripts.linesFor(found.row.id);
+    // Which stems held more than one voice is a fact about the transcript, not
+    // about a line, so it is settled once here and read per line.
+    const manyVoices = multiVoiceStems(lines);
+
     return {
       ...found.view,
       requestedBy: nameFrom(found.row, found.view.requestedBy),
-      lines: transcripts.linesFor(found.row.id).map((line) => ({
-        ...line,
-        displayName: nameFrom(found.row, line.identity)?.displayName ?? null,
-      })),
+      lines: lines.map((line) => {
+        const name = nameFrom(found.row, line.identity)?.displayName ?? null;
+        return {
+          ...line,
+          displayName: name
+            ? voiceName(name, line.speaker, manyVoices.has(line.identity))
+            : null,
+        };
+      }),
     };
   });
 
@@ -2030,14 +2041,25 @@ export function buildApp(options: BuildOptions = {}): App {
       return rows.get(recordingId);
     };
 
+    // Counted from the database rather than from the hits: see
+    // `stemsWithManyVoices`. A result set is not a transcript.
+    const manyVoices = transcripts.stemsWithManyVoices([
+      ...new Set(hits.map((hit) => hit.recordingId)),
+    ]);
+
     return {
       hits: hits.map((hit) => {
         const row = rowFor(hit.recordingId);
+        const name = row ? (nameFrom(row, hit.identity)?.displayName ?? null) : null;
         return {
           ...hit,
           recordingName: row ? toRecordingView(row, account.id).name : null,
-          displayName: row
-            ? (nameFrom(row, hit.identity)?.displayName ?? null)
+          displayName: name
+            ? voiceName(
+                name,
+                hit.speaker,
+                manyVoices.has(`${hit.recordingId}\u0000${hit.identity}`)
+              )
             : null,
         };
       }),

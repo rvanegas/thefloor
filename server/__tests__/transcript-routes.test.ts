@@ -122,6 +122,37 @@ async function room() {
   return { alice, bob };
 }
 
+/** The same, but the second stem is what somebody played rather than Bob. */
+async function roomWithMedia() {
+  const alice = await signIn('alice@example.com', 'Alice');
+  const bob = await signIn('bob@example.com', 'Bob');
+  app.db
+    .prepare(
+      `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
+       VALUES (?,?,?,?,?)`
+    )
+    .run(
+      CHANNEL, alice.account.id, bob.account.id, clock,
+      JSON.stringify([alice.account.id, bob.account.id])
+    );
+  app.db
+    .prepare(
+      `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id,
+         participants, participant_names, name, started_at, duration_ms,
+         s3_key, segment_keys, stems, floor_timeline, ended_at, mix_state)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'ready')`
+    )
+    .run(
+      RECORDING, CHANNEL, alice.account.id, bob.account.id,
+      JSON.stringify([alice.account.id, bob.account.id]),
+      JSON.stringify({ [alice.account.id]: 'Alice' }),
+      'Book club', clock, 5_000, '', '[]',
+      JSON.stringify({ [alice.account.id]: ['a.ogg'], media: ['b.ogg'] }),
+      '[]', clock + 5_000
+    );
+  return { alice, bob };
+}
+
 const ask = (token: string, method: 'POST' | 'DELETE' = 'POST') =>
   app.fastify.inject({
     method,
@@ -151,6 +182,32 @@ async function complete(text: Record<string, string>) {
     );
   }
   // Past every job's backoff, so the next tick actually polls.
+  clock += 120_000;
+  await app.transcripts.tick();
+}
+
+/**
+ * Answers every open job with utterances of its own, so a stem can come back
+ * carrying more than one voice — which is the case `complete` cannot make and
+ * the one the played-media stem is actually in.
+ */
+async function completeWith(
+  utterances: Record<string, Array<{ text: string; speaker: string | null; startMs: number }>>
+) {
+  const identities = Object.keys(utterances);
+  for (const [n, job] of provider.submitted.entries()) {
+    provider.ready(
+      job.id,
+      utterances[identities[n]].map((u) => ({
+        startMs: u.startMs,
+        endMs: u.startMs + 900,
+        text: u.text,
+        confidence: 0.9,
+        speaker: u.speaker,
+      })),
+      'en'
+    );
+  }
   clock += 120_000;
   await app.transcripts.tick();
 }
@@ -357,32 +414,7 @@ describe('what was played into the room', () => {
     // Without a name of its own it falls through to "Someone", which reads as
     // a participant nobody can identify — the confusion excluding this stem
     // was once meant to avoid, arrived at from the other side.
-    const alice = await signIn('alice@example.com', 'Alice');
-    const bob = await signIn('bob@example.com', 'Bob');
-    app.db
-      .prepare(
-        `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
-         VALUES (?,?,?,?,?)`
-      )
-      .run(
-        CHANNEL, alice.account.id, bob.account.id, clock,
-        JSON.stringify([alice.account.id, bob.account.id])
-      );
-    app.db
-      .prepare(
-        `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id,
-           participants, participant_names, name, started_at, duration_ms,
-           s3_key, segment_keys, stems, floor_timeline, ended_at, mix_state)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'ready')`
-      )
-      .run(
-        RECORDING, CHANNEL, alice.account.id, bob.account.id,
-        JSON.stringify([alice.account.id, bob.account.id]),
-        JSON.stringify({ [alice.account.id]: 'Alice' }),
-        'Book club', clock, 5_000, '', '[]',
-        JSON.stringify({ [alice.account.id]: ['a.ogg'], media: ['b.ogg'] }),
-        '[]', clock + 5_000
-      );
+    const { alice } = await roomWithMedia();
 
     await ask(alice.token);
     await app.transcripts.settled();
@@ -404,6 +436,119 @@ describe('what was played into the room', () => {
       `/recordings/${RECORDING}/transcript/export`
     );
     expect(file.body).toContain('Played audio: and the second movement begins');
+  }, 60_000);
+
+  it('tells its voices apart when the provider heard more than one', async () => {
+    // The ordinary case for this stem: what somebody plays into a room may be
+    // an interview. `speaker_labels` separates them; the letter is what makes
+    // the separation visible, and without it 200 lines of two people read as
+    // one speaker called "Played audio".
+    const { alice } = await roomWithMedia();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await completeWith({
+      [alice.account.id]: [{ text: 'listen to this bit', speaker: 'A', startMs: 0 }],
+      media: [
+        { text: 'welcome to the programme', speaker: 'A', startMs: 1_000 },
+        { text: 'thank you for having me', speaker: 'B', startMs: 2_000 },
+      ],
+    });
+
+    const body = (await read(alice.token)).json();
+    const named = Object.fromEntries(
+      body.lines.map((l: { text: string; displayName: string }) => [l.text, l.displayName])
+    );
+
+    expect(named['welcome to the programme']).toBe('Played audio (A)');
+    expect(named['thank you for having me']).toBe('Played audio (B)');
+    // And the stem that held one voice keeps its plain name. A letter beside
+    // a named participant who was alone on their microphone answers a
+    // question nobody asked.
+    expect(named['listen to this bit']).toBe('Alice');
+  }, 60_000);
+
+  it('carries the letter into a search result too', async () => {
+    // Counted from the database rather than from the hits: the matching lines
+    // are not the transcript, and a stem whose second voice never said the
+    // word would otherwise come back looking single-voiced.
+    const { alice } = await roomWithMedia();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await completeWith({
+      [alice.account.id]: [{ text: 'listen to this bit', speaker: 'A', startMs: 0 }],
+      media: [
+        { text: 'welcome to the programme', speaker: 'A', startMs: 1_000 },
+        { text: 'a distinctive remark', speaker: 'B', startMs: 2_000 },
+      ],
+    });
+
+    const found = await read(
+      alice.token,
+      `/channels/${CHANNEL}/transcripts/search?q=distinctive`
+    );
+    expect(found.json().hits).toHaveLength(1);
+    expect(found.json().hits[0].displayName).toBe('Played audio (B)');
+  }, 60_000);
+});
+
+describe('a transcript to read as prose', () => {
+  it('makes one entry of a run, with the sentences as paragraphs', async () => {
+    // A label per utterance turns one person saying three sentences into
+    // three speakers. Grouped, the label alternates and so means something
+    // every time it appears.
+    const { alice } = await roomWithMedia();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await completeWith({
+      [alice.account.id]: [{ text: 'here it is', speaker: 'A', startMs: 0 }],
+      media: [
+        { text: 'first sentence', speaker: 'B', startMs: 10_000 },
+        { text: 'second sentence', speaker: 'B', startMs: 11_000 },
+        { text: 'and a reply', speaker: 'A', startMs: 12_000 },
+      ],
+    });
+
+    const file = await read(
+      alice.token,
+      `/recordings/${RECORDING}/transcript/export`
+    );
+
+    expect(file.body).toBe(
+      [
+        '[00:00:00] Alice: here it is',
+        '',
+        '[00:00:10] Played audio (B): first sentence',
+        '',
+        'second sentence',
+        '',
+        '[00:00:12] Played audio (A): and a reply',
+        '',
+      ].join('\n')
+    );
+  }, 60_000);
+
+  it('leaves subtitles one cue per utterance, however they were grouped', async () => {
+    // A cue is on screen for exactly as long as it says. A grouped one would
+    // hold a minute of text under a single subtitle.
+    const { alice } = await roomWithMedia();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await completeWith({
+      [alice.account.id]: [{ text: 'here it is', speaker: 'A', startMs: 0 }],
+      media: [
+        { text: 'first sentence', speaker: 'B', startMs: 10_000 },
+        { text: 'second sentence', speaker: 'B', startMs: 11_000 },
+        { text: 'and a reply', speaker: 'A', startMs: 12_000 },
+      ],
+    });
+
+    const file = await read(
+      alice.token,
+      `/recordings/${RECORDING}/transcript/export?format=vtt`
+    );
+
+    expect(file.body).toContain('<v Played audio (B)>first sentence');
+    expect(file.body).toContain('<v Played audio (B)>second sentence');
   }, 60_000);
 });
 

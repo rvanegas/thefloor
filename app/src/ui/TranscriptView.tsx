@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RecordingView } from '../../../core/protocol';
+import { intoBlocks, multiVoiceStems } from '../../../core/transcript';
 import { exportTranscript } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
@@ -73,6 +74,28 @@ export function TranscriptView({
     return lines.filter((line) => line.text.toLowerCase().includes(needle));
   }, [lines, query]);
 
+  /**
+   * Runs of one voice, as entries — but only when the whole transcript is on
+   * screen. A search result is a set of lines that matched, and grouping those
+   * would put two paragraphs minutes apart under one heading as though they
+   * had been said together. Filtered, each match stands alone.
+   */
+  const searching = query.trim() !== '';
+  const entries = React.useMemo(
+    () => (searching ? matches.map((line) => [line]) : intoBlocks(matches).map((b) => b.lines)),
+    [matches, searching]
+  );
+
+  /**
+   * Whether any stem came back with more than one voice, which is when the
+   * letters beside the names need explaining. Nearly always false: a stem is
+   * one microphone, and the exception is played media or somebody bleeding in.
+   */
+  const manyVoices = React.useMemo(
+    () => (lines ? multiVoiceStems(lines).size > 0 : false),
+    [lines]
+  );
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -121,6 +144,20 @@ export function TranscriptView({
             </Text>
           ) : null}
 
+          {/*
+            Said only when there is something to explain. A letter beside a
+            name means the service heard two voices in audio this app had
+            taken for one — played media, usually, or somebody else audible on
+            a member's handset. It is not an identification and must not read
+            as one.
+          */}
+          {manyVoices ? (
+            <Text style={type.muted}>
+              A letter beside a name means more than one voice was heard on
+              that microphone. Who the others were is not known.
+            </Text>
+          ) : null}
+
           <Field
             value={query}
             onChangeText={setQuery}
@@ -143,10 +180,10 @@ export function TranscriptView({
             </Empty>
           ) : (
             <View style={styles.lines}>
-              {matches.map((line, n) => (
-                <TranscriptLine
-                  key={`${line.startMs}-${line.identity}-${n}`}
-                  line={line}
+              {entries.map((entry, n) => (
+                <TranscriptEntry
+                  key={`${entry[0].startMs}-${entry[0].identity}-${n}`}
+                  lines={entry}
                   onSeek={onSeek}
                 />
               ))}
@@ -247,32 +284,64 @@ interface Line {
   confidence: number | null;
 }
 
-function TranscriptLine({
-  line,
+/**
+ * One voice's uninterrupted run, as one card.
+ *
+ * The name is printed once and the utterances beneath it are paragraphs, which
+ * is what makes the labels alternate: the next card is always somebody else,
+ * so a name on screen is always news. The provider deals in utterances and a
+ * card each would turn one person's four sentences into four speakers.
+ *
+ * **Each paragraph keeps its own tap**, rather than the card seeking to the
+ * run's start. That is the precision the grouping would otherwise cost —
+ * somebody who reads a sentence three paragraphs down and taps it means that
+ * sentence, and a run can be a minute long.
+ */
+function TranscriptEntry({
+  lines,
   onSeek,
 }: {
-  line: Line;
+  lines: Line[];
   onSeek?: (positionMs: number) => void;
 }) {
-  const body = (
+  const [head] = lines;
+  const name = head.displayName ?? 'Someone';
+
+  return (
     <Card style={styles.line}>
       <View style={styles.lineHead}>
         <Text style={styles.speaker} numberOfLines={1}>
-          {line.displayName ?? 'Someone'}
+          {name}
         </Text>
-        <Text style={type.muted}>{formatDuration(line.startMs)}</Text>
+        <Text style={type.muted}>{formatDuration(head.startMs)}</Text>
       </View>
-      <Text style={type.body}>{line.text}</Text>
+      {lines.map((line, n) => (
+        <Paragraph
+          key={`${line.startMs}-${n}`}
+          line={line}
+          name={name}
+          onSeek={onSeek}
+        />
+      ))}
     </Card>
   );
+}
 
+function Paragraph({
+  line,
+  name,
+  onSeek,
+}: {
+  line: Line;
+  name: string;
+  onSeek?: (positionMs: number) => void;
+}) {
+  const body = <Text style={type.body}>{line.text}</Text>;
   if (!onSeek) return body;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Jump to ${formatDuration(line.startMs)}, ${
-        line.displayName ?? 'someone'
-      }: ${line.text}`}
+      accessibilityLabel={`Jump to ${formatDuration(line.startMs)}, ${name}: ${line.text}`}
       onPress={() => onSeek(line.startMs)}
       style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >

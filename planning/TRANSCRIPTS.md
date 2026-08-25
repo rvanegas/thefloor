@@ -52,13 +52,31 @@ That has three consequences that run through everything below:
   grouped, since the provider groups its own turns when it labels speakers —
   so `intoLines` becomes the fallback rather than the main path.
 
-  **What to do with a stem that comes back with more than one voice is
-  deliberately unmade.** Storing a label is not showing it, and a "Speaker B"
-  under a named participant is the two-answers problem again. The lines carry
-  their labels; a later declaration may collapse a stem's apparent voices back
-  into one. That decision waits on some experience of what this provider
-  actually returns, rather than being guessed at now — which is why phase 3
-  stores the label and renders nothing from it.
+  **A stem that comes back with more than one voice is labelled, decided
+  2026-08-25 on the evidence of the first real transcript.** The letter is
+  shown — `Played audio (A)` against `Played audio (B)` — and only for a stem
+  the provider gave more than one label to, so the single-voiced stems that are
+  nearly all of them keep their plain names. `core/transcript.ts` holds both
+  halves of the rule; the letter is passed through rather than named, because
+  the system knows there were two voices and knows nothing about who the second
+  one was. The screen says so in a line beside the transcript.
+
+  What decided it: the recording that raised this was a podcast interview
+  played into the room, 210 lines of two people that read as one speaker called
+  "Played audio". Also decided that day, and the same change: **consecutive
+  lines from one voice are one entry with paragraphs**, which took that
+  transcript from 1,032 entries to 425 and is what makes the labels alternate —
+  a name on screen is then always news.
+
+  **What the same evidence did *not* settle is the member stems**, and the
+  design was wrong about them. It expected a second label there to be positive
+  evidence of bleed. Three of the four member stems came back with two, and the
+  minority voice is backchannel — "Yeah.", "Mm-hmm.", "Really?" — which is the
+  provider failing to attribute short utterances rather than a second person in
+  the room. So the letters on a member's stem are mostly noise, and they
+  fragment that person's runs. Restricting the letter to the media stem, which
+  is the only stem with no declared owner, is the obvious next move and is
+  deliberately not taken yet: two transcripts is not a sample.
 - **One job per stem, not one multichannel job.** AssemblyAI's `multichannel`
   bills per channel, so a single N-channel file costs exactly what N separate
   jobs cost — the parameter buys convenience, not money. Separate jobs buy

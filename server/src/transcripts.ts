@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
+import {
+  intoBlocks,
+  multiVoiceStems,
+  voiceName,
+  type TranscriptLine,
+} from '../../core/transcript';
 import { MEDIA_IDENTITY } from './channels';
 import { hasSearchIndex, type Db, type RecordingRow } from './db';
 import { encodeStem, type ExportRequest } from './export';
@@ -86,15 +92,11 @@ export interface TranscriptHit extends TranscriptLine {
   recordingId: string;
 }
 
-export interface TranscriptLine {
-  identity: string;
-  /** Which voice within that stem, when the provider labelled one. */
-  speaker: string | null;
-  startMs: number;
-  endMs: number;
-  text: string;
-  confidence: number | null;
-}
+/**
+ * Re-exported rather than declared, because the app reads these rows too and
+ * the naming and grouping rules that go with them live in `core/`.
+ */
+export type { TranscriptLine };
 
 interface JobRow {
   id: string;
@@ -504,6 +506,35 @@ export class Transcripts {
     }));
   }
 
+  /**
+   * Which stems, across these recordings, came back carrying more than one
+   * voice — keyed `<recording id>\u0000<identity>`.
+   *
+   * The same question `core`'s `multiVoiceStems` answers, asked of the
+   * database instead of a line array. Search needs it and cannot use the pure
+   * one: a search result is the handful of lines that matched, and counting
+   * voices in those would call a two-voice stem single-voiced whenever only
+   * one of them happened to say the word. One indexed group-by over the
+   * recordings a result set touched, rather than loading their transcripts.
+   */
+  stemsWithManyVoices(recordingIds: readonly string[]): Set<string> {
+    if (!recordingIds.length) return new Set();
+    const holes = recordingIds.map(() => '?').join(', ');
+    const rows = this.db
+      .prepare(
+        `SELECT recording_id, identity, COUNT(DISTINCT speaker) AS voices
+         FROM transcript_lines
+         WHERE recording_id IN (${holes}) AND speaker IS NOT NULL
+         GROUP BY recording_id, identity
+         HAVING voices > 1`
+      )
+      .all(...recordingIds) as unknown as Array<{
+      recording_id: string;
+      identity: string;
+    }>;
+    return new Set(rows.map((row) => `${row.recording_id}\u0000${row.identity}`));
+  }
+
   // --- the work -------------------------------------------------------------
 
   /**
@@ -880,6 +911,27 @@ export function speakerName(
 }
 
 /**
+ * Names every line in a transcript, including the voice inside its stem when
+ * there turned out to be more than one.
+ *
+ * Takes the whole set because that is what the question needs: whether to
+ * print a letter beside a name is a fact about the stem across the transcript,
+ * not about the line in hand. See `core/transcript.ts`.
+ */
+export function lineNamer(
+  lines: readonly TranscriptLine[],
+  names: Record<string, string>
+): (line: TranscriptLine) => string {
+  const many = multiVoiceStems(lines);
+  return (line) =>
+    voiceName(
+      speakerName(line.identity, names),
+      line.speaker,
+      many.has(line.identity)
+    );
+}
+
+/**
  * Renders a transcript for download.
  *
  * Three formats because they are read by three different things. `txt` is for
@@ -887,8 +939,14 @@ export function speakerName(
  * pastes into a message. `vtt` is what a media player wants and what pairs
  * with the exported audio — same timeline, since the stems were rendered with
  * their delays in place. `json` is for anybody who wants to do something else
- * with it, and is the only one that carries confidence and the within-stem
+ * with it, and is the only one that carries confidence and the raw within-stem
  * speaker label.
+ *
+ * **Only `txt` groups.** Consecutive utterances from one voice are one entry
+ * with paragraphs, because that is how a person reads prose. A WebVTT cue is a
+ * different unit — it is on screen for exactly as long as it says, and a
+ * grouped cue would hold a minute of text under one subtitle; and `json` is
+ * the format somebody groups differently, so it hands over the rows.
  *
  * `names` is `participant_names`, frozen when the run was filed. A transcript
  * that relabels itself when somebody renames themselves is worse than one with
@@ -899,12 +957,12 @@ export function formatTranscript(
   names: Record<string, string>,
   format: 'txt' | 'vtt' | 'json'
 ): { body: string; contentType: string; extension: string } {
-  const who = (identity: string) => speakerName(identity, names);
+  const who = lineNamer(lines, names);
 
   if (format === 'json') {
     return {
       body: JSON.stringify(
-        lines.map((line) => ({ ...line, displayName: who(line.identity) })),
+        lines.map((line) => ({ ...line, displayName: who(line) })),
         null,
         2
       ),
@@ -917,7 +975,7 @@ export function formatTranscript(
     const cues = lines.map(
       (line, n) =>
         `${n + 1}\n${timecode(line.startMs)} --> ${timecode(line.endMs)}\n` +
-        `<v ${who(line.identity)}>${line.text}`
+        `<v ${who(line)}>${line.text}`
     );
     return {
       body: `WEBVTT\n\n${cues.join('\n\n')}\n`,
@@ -926,9 +984,16 @@ export function formatTranscript(
     };
   }
 
-  const body = lines
-    .map((line) => `[${clock(line.startMs)}] ${who(line.identity)}: ${line.text}`)
-    .join('\n');
+  // One entry per run of a voice, its paragraphs blank-line separated — so
+  // every blank line is a paragraph break and only the `[time] Name:` prefix
+  // starts a new speaker, which is the convention printed transcripts use.
+  const body = intoBlocks(lines)
+    .map((block) => {
+      const [first, ...rest] = block.lines;
+      const head = `[${clock(block.startMs)}] ${who(first)}: ${first.text}`;
+      return [head, ...rest.map((line) => line.text)].join('\n\n');
+    })
+    .join('\n\n');
   return { body: `${body}\n`, contentType: 'text/plain', extension: 'txt' };
 }
 
