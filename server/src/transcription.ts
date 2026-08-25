@@ -6,13 +6,17 @@
  * spreading through the codebase. The suite already runs with no media server
  * and no bucket, and transcription must not be the thing that breaks that.
  *
- * What is *not* here, deliberately, is speaker identification. A recording is
- * stored as one isolated stem per participant — `recordings.stems` — because
- * the floor is applied at encode time and a mix cannot be un-mixed. So we
- * already know whose voice is whose, by construction, from the identity the
- * egress job was opened for. Diarisation would guess at something we hold
- * exactly, and would disagree with the names on the screen while doing it. The
- * provider is asked one question only: what words are in this audio. See
+ * What is *not* here, deliberately, is speaker identification *between
+ * participants*. A recording is stored as one isolated stem per participant —
+ * `recordings.stems` — because the floor is applied at encode time and a mix
+ * cannot be un-mixed. So we already know whose voice is whose, by
+ * construction, from the identity the egress job was opened for, and nothing
+ * here ever asks the provider to tell Alice from Bob: they were never in the
+ * same file.
+ *
+ * Diarisation *within* one stem is a different question, and is asked of every
+ * one of them — see `TranscriptionOptions.diarize`. How many voices are inside
+ * a single stem is a thing this system genuinely does not know. See
  * planning/TRANSCRIPTS.md.
  *
  * Nothing calls any of this yet. It is the first phase of that design: the
@@ -60,6 +64,24 @@ export interface Utterance {
    * what is stored cannot.
    */
   confidence: number | null;
+  /**
+   * Which voice inside this stem said it — `A`, `B`, … — or null if the
+   * provider did not label it.
+   *
+   * Almost always a single value across a whole stem, since a stem is one
+   * person's microphone. It is kept for the times it is not, and there are two
+   * of those: the `media` stem, which is whatever somebody played into the
+   * room and has no owner at all; and a stem carrying a second voice that
+   * should not be there — two people sharing a handset, or the other party
+   * bleeding in on a speakerphone.
+   *
+   * **Storing it is not the same as showing it.** A "Speaker B" under a named
+   * participant is two answers on one screen, which is the thing this design
+   * refuses. What to do with a stem that comes back with more than one voice
+   * is a render-time decision, deliberately unmade until there is some
+   * experience of what this provider actually returns.
+   */
+  speaker: string | null;
 }
 
 /** What one poll found. `pending` covers both queued and processing. */
@@ -72,6 +94,30 @@ export type TranscriptionState =
       utterances: Utterance[];
     }
   | { state: 'failed'; error: string };
+
+export interface TranscriptionOptions {
+  languageDetection: boolean;
+  /**
+   * Whether to ask which voice said what, *within* this one file.
+   *
+   * On for every stem, which reads like a contradiction of this file's header
+   * and is not. The header says we never ask whose voice this is, because the
+   * stems already know — that is a claim about *attribution between
+   * participants*, and it still holds: nothing here ever asks the provider to
+   * tell Alice from Bob, because they were never in the same file.
+   *
+   * This asks something else. How many voices are inside one stem is a thing
+   * we do not know and cannot declare in advance — a played track, a shared
+   * handset, a speakerphone. Asking uniformly turns that from a declaration
+   * somebody has to remember to make into an observation the response carries,
+   * and a stem that comes back with one voice, which is nearly all of them,
+   * simply confirms what was already assumed.
+   *
+   * It also has a useful side effect: `utterances` comes back grouped, which
+   * is what `intoLines` exists to reconstruct when it does not.
+   */
+  diarize: boolean;
+}
 
 export interface TranscriptionProvider {
   /**
@@ -90,7 +136,7 @@ export interface TranscriptionProvider {
    * there is everybody at once. Uploading also gives `forget` its teeth, since
    * one deletion then removes the audio and the text together.
    */
-  submit(audio: Buffer, options: { languageDetection: boolean }): Promise<string>;
+  submit(audio: Buffer, options: TranscriptionOptions): Promise<string>;
 
   /**
    * One poll. Never throws for a job that is merely unfinished; a job the
@@ -149,10 +195,9 @@ export const ASSEMBLYAI_MODELS = ['universal-3-5-pro', 'universal-2'];
 /**
  * How long a gap between words starts a new line, in milliseconds.
  *
- * We ask for no diarisation, and the provider returns grouped `utterances` only
- * when it has been asked to tell speakers apart — so with one speaker per stem,
- * which is the whole design, what comes back is words. Lines are therefore ours
- * to make, and this is the seam: a pause long enough to read as one.
+ * The provider groups its own turns when it labels speakers, which it now does
+ * for every stem — so this is the fallback for a response that comes back as
+ * bare words, and the seam it uses is a pause long enough to read as one.
  *
  * Chosen rather than derived, and deliberately at render distance from the
  * data — the words' own timings are what is stored, so a different number can
@@ -197,10 +242,7 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
     this.fetch = options.fetch ?? globalThis.fetch;
   }
 
-  async submit(
-    audio: Buffer,
-    options: { languageDetection: boolean }
-  ): Promise<string> {
+  async submit(audio: Buffer, options: TranscriptionOptions): Promise<string> {
     // Ogg/Opus is accepted as-is, which is what the rendered stem already is —
     // no second encode between the filter graph and the wire.
     const uploaded = await this.call('/upload', {
@@ -215,8 +257,9 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
       body: JSON.stringify({
         audio_url: url,
         speech_models: ASSEMBLYAI_MODELS,
-        // Off, always. We know who is speaking; see the header.
-        speaker_labels: false,
+        // Within one stem only — see TranscriptionOptions.diarize. This never
+        // tells one participant from another; they are never in the same file.
+        speaker_labels: options.diarize,
         language_detection: options.languageDetection,
         punctuate: true,
         format_text: true,
@@ -239,12 +282,14 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
         end?: number;
         text?: string;
         confidence?: number;
+        speaker?: string;
       }>;
       words?: Array<{
         start?: number;
         end?: number;
         text?: string;
         confidence?: number;
+        speaker?: string;
       }>;
     };
 
@@ -254,10 +299,11 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
     if (body.status !== 'completed') return { state: 'pending' };
 
     // `utterances` comes back only when the provider was asked to tell
-    // speakers apart, and it never is here — so words are the ordinary case
-    // rather than a fallback, and the grouping is ours. It is read first all
-    // the same: if a future request ever does produce utterances, taking the
-    // provider's own grouping over a reconstruction of it is right.
+    // speakers apart, which we now do for every stem — so this is the ordinary
+    // path and `intoLines` is the fallback for a response that carries words
+    // and no grouping. The provider's own turns are preferred wherever they
+    // exist: they are where the speaker labels live, and a reconstruction of a
+    // grouping we were given is work done twice and worse.
     return {
       state: 'ready',
       languageCode: body.language_code ?? null,
@@ -268,6 +314,7 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
             text: (part.text ?? '').trim(),
             confidence:
               typeof part.confidence === 'number' ? part.confidence : null,
+            speaker: part.speaker ?? null,
           }))
         : intoLines(body.words ?? []),
     };
@@ -310,9 +357,9 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
 /**
  * Groups timed words into readable lines, breaking on a pause.
  *
- * Exported because it is the half of a transcript's shape that is ours rather
- * than the provider's, and it is worth testing directly: everything above it is
- * a network call and everything below it is prose on a screen.
+ * Exported because it is the half of a transcript's shape that can be ours
+ * rather than the provider's, and it is worth testing directly: everything
+ * above it is a network call and everything below it is prose on a screen.
  *
  * A line's confidence is the mean of its words'. The mean rather than the
  * minimum, which was the other candidate: one hesitant word inside a clear
@@ -322,7 +369,13 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
  * nothing the mean misses.
  */
 export function intoLines(
-  words: Array<{ start?: number; end?: number; text?: string; confidence?: number }>
+  words: Array<{
+    start?: number;
+    end?: number;
+    text?: string;
+    confidence?: number;
+    speaker?: string;
+  }>
 ): Utterance[] {
   const lines: Utterance[] = [];
   let current: Utterance | null = null;
@@ -346,11 +399,19 @@ export function intoLines(
     const startMs = word.start ?? 0;
     const endMs = word.end ?? startMs;
 
-    if (current && (startMs - current.endMs > LINE_GAP_MS || count >= LINE_MAX_WORDS)) {
+    // A change of voice ends a line whatever the timing says: two speakers in
+    // one line is the one join that cannot be undone later.
+    const speaker = word.speaker ?? null;
+    if (
+      current &&
+      (startMs - current.endMs > LINE_GAP_MS ||
+        count >= LINE_MAX_WORDS ||
+        speaker !== current.speaker)
+    ) {
       close();
     }
     if (!current) {
-      current = { startMs, endMs, text, confidence: null };
+      current = { startMs, endMs, text, confidence: null, speaker };
     } else {
       current.text = `${current.text} ${text}`;
       current.endMs = Math.max(current.endMs, endMs);
@@ -367,11 +428,9 @@ export class MemoryTranscription implements TranscriptionProvider {
   readonly name = 'A Memory Of AssemblyAI';
 
   /** Every job started, in order, newest last. */
-  readonly submitted: Array<{
-    id: string;
-    audio: Buffer;
-    languageDetection: boolean;
-  }> = [];
+  readonly submitted: Array<
+    { id: string; audio: Buffer } & TranscriptionOptions
+  > = [];
   /** Every id forgotten, in order. Deletion is a promise, so it is observable. */
   readonly forgotten: string[] = [];
 
@@ -395,17 +454,10 @@ export class MemoryTranscription implements TranscriptionProvider {
     this.failSubmit = reason;
   }
 
-  async submit(
-    audio: Buffer,
-    options: { languageDetection: boolean }
-  ): Promise<string> {
+  async submit(audio: Buffer, options: TranscriptionOptions): Promise<string> {
     if (this.failSubmit) throw new Error(this.failSubmit);
     const id = `job-${this.next++}`;
-    this.submitted.push({
-      id,
-      audio,
-      languageDetection: options.languageDetection,
-    });
+    this.submitted.push({ id, audio, ...options });
     return id;
   }
 

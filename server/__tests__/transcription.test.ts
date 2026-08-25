@@ -54,6 +54,7 @@ describe('Submitting audio', () => {
 
     const id = await provider(fetch).submit(Buffer.from('opus'), {
       languageDetection: true,
+      diarize: true,
     });
 
     expect(id).toBe('job-x');
@@ -67,10 +68,12 @@ describe('Submitting audio', () => {
 
     const started = JSON.parse(String(calls[1].body));
     expect(started.audio_url).toBe('https://cdn.example.test/u/1');
-    // The two decisions in this request. Diarisation is off because the stems
-    // already know whose voice is whose, and the models are named because the
-    // provider's own default is an older pair.
-    expect(started.speaker_labels).toBe(false);
+    // The two decisions in this request. Labels are asked for on every stem —
+    // not to tell participants apart, which the stems already answer, but
+    // because how many voices are inside one stem is not something this system
+    // can declare in advance. The models are named because the provider's own
+    // default is an older pair.
+    expect(started.speaker_labels).toBe(true);
     expect(started.speech_models).toEqual(ASSEMBLYAI_MODELS);
     expect(started.speech_model).toBeUndefined();
     expect(started.language_detection).toBe(true);
@@ -82,7 +85,7 @@ describe('Submitting audio', () => {
     ]);
 
     const failed = await provider(fetch)
-      .submit(Buffer.from('opus'), { languageDetection: true })
+      .submit(Buffer.from('opus'), { languageDetection: true, diarize: true })
       .catch((error: unknown) => error as TranscriptionError);
 
     expect(failed).toBeInstanceOf(TranscriptionError);
@@ -191,6 +194,25 @@ describe('Making lines out of words', () => {
     expect(intoLines([word(0, 0, '   ')])).toEqual([]);
   });
 
+  it('breaks on a change of voice, whatever the timing says', () => {
+    // Two speakers in one line is the one join that cannot be undone later,
+    // and it is the case this exists for: a stem carrying a second voice is
+    // either played media or somebody who should not be on this microphone.
+    const lines = intoLines([
+      { start: 0, end: 100, text: 'mine', speaker: 'A' },
+      { start: 110, end: 200, text: 'yours', speaker: 'B' },
+      { start: 210, end: 300, text: 'again', speaker: 'B' },
+    ]);
+    expect(lines.map((l) => [l.speaker, l.text])).toEqual([
+      ['A', 'mine'],
+      ['B', 'yours again'],
+    ]);
+  });
+
+  it('carries no speaker when the provider labelled none', () => {
+    expect(intoLines([word(0, 10, 'a')])[0].speaker).toBeNull();
+  });
+
   it('says nothing about confidence when the provider did not', () => {
     const lines = intoLines([{ start: 0, end: 10, text: 'a' }]);
     expect(lines[0].confidence).toBeNull();
@@ -200,11 +222,16 @@ describe('Making lines out of words', () => {
 describe('The memory double', () => {
   it('is a whole lifecycle without a network', async () => {
     const memory = new MemoryTranscription();
-    const id = await memory.submit(Buffer.from('opus'), { languageDetection: true });
+    const id = await memory.submit(Buffer.from('opus'), {
+      languageDetection: true,
+      diarize: true,
+    });
 
     expect(await memory.poll(id)).toEqual({ state: 'pending' });
 
-    memory.ready(id, [{ startMs: 0, endMs: 500, text: 'hello', confidence: 0.99 }]);
+    memory.ready(id, [
+      { startMs: 0, endMs: 500, text: 'hello', confidence: 0.99, speaker: 'A' },
+    ]);
     expect(await memory.poll(id)).toMatchObject({ state: 'ready' });
 
     await memory.forget(id);
@@ -214,7 +241,10 @@ describe('The memory double', () => {
 
   it('can fail a submission and a job independently', async () => {
     const memory = new MemoryTranscription();
-    const id = await memory.submit(Buffer.from('a'), { languageDetection: false });
+    const id = await memory.submit(Buffer.from('a'), {
+      languageDetection: false,
+      diarize: true,
+    });
     memory.fails(id, 'audio_too_short');
     expect(await memory.poll(id)).toEqual({
       state: 'failed',
@@ -223,7 +253,7 @@ describe('The memory double', () => {
 
     memory.refuseSubmissions('no balance');
     await expect(
-      memory.submit(Buffer.from('b'), { languageDetection: false })
+      memory.submit(Buffer.from('b'), { languageDetection: false, diarize: true })
     ).rejects.toThrow('no balance');
   });
 });

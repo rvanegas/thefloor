@@ -29,10 +29,36 @@ thing it is merely decent at and which we can answer exactly.
 
 That has three consequences that run through everything below:
 
-- **`speaker_labels` is off.** Diarization on a mix would be strictly worse
-  information than we already hold, and it would be *disagreeable* information:
-  a channel screen that names four participants beside a transcript that says
-  "Speaker A" is a screen with two answers on it.
+- **No speaker identification between participants.** Diarization on a mix
+  would be strictly worse information than we already hold, and it would be
+  *disagreeable* information: a channel screen that names four participants
+  beside a transcript that says "Speaker A" is a screen with two answers on it.
+
+  **But `speaker_labels` is on, for every stem** — decided 2026-08-24, against
+  what this document first said. It is a different question asked of a
+  different file. How many voices are inside *one* stem is a thing this system
+  does not know and cannot declare in advance: the `media` stem is whatever
+  somebody played into the room and may be an interview; a member's stem may
+  carry a second person sharing the handset, or the other party bleeding in on
+  a speakerphone. Asking uniformly turns that from a declaration somebody has
+  to remember to make — by convention or by putting a question to a user —
+  into an observation the response carries. On the stems where it is redundant,
+  which is nearly all of them, it confirms what was already assumed.
+
+  Two things fall out of it. A second label on a member's stem is **positive
+  evidence of bleed**, which is better than the confidence floor this document
+  plans for that job: a threshold guesses, a second speaker label is the
+  provider saying there was a second voice. And `utterances` comes back
+  grouped, since the provider groups its own turns when it labels speakers —
+  so `intoLines` becomes the fallback rather than the main path.
+
+  **What to do with a stem that comes back with more than one voice is
+  deliberately unmade.** Storing a label is not showing it, and a "Speaker B"
+  under a named participant is the two-answers problem again. The lines carry
+  their labels; a later declaration may collapse a stem's apparent voices back
+  into one. That decision waits on some experience of what this provider
+  actually returns, rather than being guessed at now — which is why phase 3
+  stores the label and renders nothing from it.
 - **One job per stem, not one multichannel job.** AssemblyAI's `multichannel`
   bills per channel, so a single N-channel file costs exactly what N separate
   jobs cost — the parameter buys convenience, not money. Separate jobs buy
