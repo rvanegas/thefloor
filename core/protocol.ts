@@ -362,18 +362,58 @@ export interface RecordingView {
      */
     provider: string;
     /**
-     * Whether *this* viewer may start one, and remove it.
+     * Whether *this* viewer may start one, for *this* recording.
      *
      * On the wire rather than inferred, because the answer is the server's:
-     * a deployment may limit transcribing to one account — it is the first
-     * thing here that costs money per tap, and the first whose cost somebody
-     * else can incur on your behalf. Reading and searching are never limited,
-     * so this says nothing about what may be seen.
+     * everybody gets one free transcript and some accounts are marked for
+     * more — it is the first thing here that costs money per tap, and the
+     * first whose cost somebody else can incur on your behalf. Reading and
+     * searching are never limited, so this says nothing about what may be
+     * seen.
+     *
+     * Per recording rather than per account, since a free use can also be
+     * refused for being too much audio.
      *
      * Optional: a server that predates it sends nothing, which reads as
      * permitted — the behaviour such a server had.
      */
     mayRequest?: boolean;
+    /**
+     * Why not, when `mayRequest` is false — a sentence to show in place of the
+     * button.
+     *
+     * Composed by the server because only the server knows the cap and what
+     * this recording would take of it. It is here at all because the refusal
+     * is now *temporary and personal* — "you have had yours" — where the rule
+     * it replaced was "not you, ever, on this server", which was worth no
+     * words and was said by withholding the button in silence.
+     */
+    requestLimit?: string;
+    /**
+     * Whether starting one would spend this viewer's single free use.
+     *
+     * The confirmation says so and offers to cancel, because it is a thing
+     * that can only be done once and the app should not let somebody find
+     * that out afterwards. False for an account marked unlimited, whose taps
+     * spend nothing they will miss.
+     *
+     * Optional, and absent reads as false: a server that predates this says
+     * nothing, and an app that predates it shows the confirmation it always
+     * showed.
+     */
+    spendsFreeUse?: boolean;
+    /**
+     * Whether this viewer may remove this transcript, or say who its voices
+     * were — which is whoever asked for it, plus any unlimited account.
+     *
+     * Separate from `mayRequest` since 2026-08-25, when they stopped being
+     * the same question: everybody may ask for one now, so "may shape the one
+     * that exists" is no longer answered by "may make one".
+     *
+     * Optional: absent reads as permitted, the behaviour a server that
+     * predates it had.
+     */
+    mayRemove?: boolean;
     /**
      * Who asked for it. Shown, always — asking sends everybody's audio to a
      * third party, so it is never anonymous.

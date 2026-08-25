@@ -77,6 +77,15 @@ export interface TranscriptsOptions {
    * happens in that channel.
    */
   onChanged?: (channelId: string) => void;
+  /**
+   * Told when a transcript settles with nothing to show for itself.
+   *
+   * It exists for the free-use allowance: a failure has to give the credit
+   * back, because the account spent it on a transcript that never arrived.
+   * Not called for a partial success — one speaker missing out of four is a
+   * transcript, and it cost what it cost.
+   */
+  onFailed?: (recordingId: string) => void;
 }
 
 /** What one recording's transcript looks like from the outside. */
@@ -119,6 +128,7 @@ export class Transcripts {
   private readonly now: () => number;
   private readonly onError: (error: unknown, context: string) => void;
   private readonly onChanged: (channelId: string) => void;
+  private readonly onFailed: (recordingId: string) => void;
 
   /**
    * When each job may next be polled, by job id. In memory only: after a
@@ -148,6 +158,7 @@ export class Transcripts {
     this.now = options.now ?? Date.now;
     this.onError = options.onError ?? (() => {});
     this.onChanged = options.onChanged ?? (() => {});
+    this.onFailed = options.onFailed ?? (() => {});
   }
 
   /**
@@ -160,6 +171,28 @@ export class Transcripts {
    */
   available(): boolean {
     return !!this.provider && !!this.store;
+  }
+
+  /**
+   * What transcribing this recording would be billed, in channel-milliseconds,
+   * or nothing when there is nothing here to transcribe.
+   *
+   * The same expression `request` writes into `billed_ms` — the recording's
+   * length times the number of stems, an upper bound because a stem is
+   * rendered from the start and so is never longer than the recording. It is
+   * public so the free-use allowance can be checked *before* the money is
+   * spent; asking afterwards would be a bill with a rule beside it.
+   *
+   * **Keep the two in step.** If one of them learns to be cleverer about what
+   * a stem costs and the other does not, a recording refused by the cap is one
+   * whose billed figure disagrees with the reason it was refused.
+   */
+  costEstimateMs(recordingId: string): number | undefined {
+    const recording = this.recording(recordingId);
+    if (!recording) return undefined;
+    const identities = this.speakersOf(recording);
+    if (identities.length === 0) return undefined;
+    return recording.duration_ms * identities.length;
   }
 
   /**
@@ -864,6 +897,9 @@ export class Transcripts {
         jobs[0].failure ?? 'The transcript could not be made.',
         recordingId
       );
+    // After the write, so whatever this does sees the settled state rather
+    // than a row still reading 'pending'.
+    this.onFailed(recordingId);
   }
 
   /**

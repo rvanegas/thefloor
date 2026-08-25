@@ -312,25 +312,72 @@ why this design does not sneak in an automatic one.
 - **One transcript per recording.** Re-running is only offered after a failure,
   and it replaces. Nothing gives a user a button that spends money twice for the
   same answer.
-- **`TRANSCRIBE_IDENTIFIER` narrows it to one account**, added 2026-08-25 and
-  set on the box while the cost of this is still being learned. Reading and
-  searching are never restricted — a transcript is a shared artefact of a
-  shared conversation, and everybody who can play the recording can read every
-  word of it. What is restricted is the act that spends, and deleting with it,
-  since deleting spends nothing and destroys something only that account can
-  make again.
+- **One free transcript per account**, decided 2026-08-25, replacing the
+  `TRANSCRIBE_IDENTIFIER` rule that had lasted a day. That one made
+  transcription a feature exactly one person had; this one makes it a feature
+  everybody has met and nobody can run up a bill with. Reading and searching
+  are still never restricted — a transcript is a shared artefact of a shared
+  conversation, and everybody who can play the recording can read every word.
+
+  **The spend is recorded on the account, not counted from `transcripts`.**
+  `requested_by` is right there and would be the obvious ledger, and it is the
+  wrong one: those rows are swept — `sweepDeleted` takes a transcript deleted
+  on its own once `TRANSCRIPT_DELETED_RETENTION_MS` passes, and a swept
+  recording takes its transcript with it — so a derived count hands the credit
+  back weeks later and "delete it and wait" is the way round the limit. So
+  `accounts.free_transcript_id` holds the recording it went on, with
+  `free_transcript_at` beside it.
+
+  The id rather than a boolean, because the credit moves in both directions:
+
+  - **Spent when the transcript is asked for**, not when it lands, so one in
+    flight holds it. Otherwise five taps inside the time one takes to come
+    back are five free transcripts.
+  - **Returned only when that same transcript fails**, since it produced
+    nothing. `Transcripts.onFailed` is the hook, and it fires on the settle
+    that writes `state = 'failed'`, never on a partial success — one speaker
+    missing out of four is a transcript and it cost what it cost.
+  - **Never returned by deleting.** That is the loop the whole arrangement
+    closes.
+
+  **`transcripts_unlimited` on the account lifts it**, set by hand with
+  `bin/db --write`, like `debug` and `leaderboard` and unlike either of those
+  in that it licenses spending. `TRANSCRIBE_IDENTIFIER` is still read as one
+  more unlimited address, deprecated: it is a bootstrap so that opening the
+  feature up does not silently demote the person a deployed `.env` names.
+
+  **`FREE_TRANSCRIPT_MINUTES` caps the free one by size**, because one use
+  caps the count and not the bill — the provider charges per audio-hour per
+  stem, so a three-hour four-way is twenty times a twenty-minute pair. The
+  unit is the one `billed_ms` already records, a recording's length times its
+  number of stems, and the estimate is `Transcripts.costEstimateMs`, which is
+  deliberately the same expression `request` writes. Unset, a free transcript
+  may be any length.
 
   It refuses with **403 rather than 404**: the caller can see the recording and
   can play it, so telling them it does not exist is a lie they could disprove
-  by scrolling. The restriction is checked *before* the reach test all the
-  same, so somebody outside the channel still learns nothing.
+  by scrolling. The rule is checked *before* the reach test all the same, so
+  somebody outside the channel still learns nothing.
 
-  `RecordingView.transcript.mayRequest` carries the answer, and the button is
-  withheld entirely rather than disabled — everywhere else here a disabled
-  control means "not now" and has a sentence beside it; this is "not you, ever,
-  on this server", which is not worth putting on every row.
+  **The refusal now has words, and that is what changed on the client.**
+  `mayRequest` was "not you, ever, on this server" and was said by withholding
+  the button; it is now "you have had yours" or "this one is too long", which
+  are temporary and personal and are worth a sentence. So the wire carries
+  `requestLimit` beside it — composed on the server, which is the only end
+  that knows the cap — and the button is disabled with the sentence under it,
+  which is what a disabled control means everywhere else on that card. An old
+  server sends no sentence, and the app still withholds the button entirely.
 
-  Unset, the rule below is what applies.
+  **And the confirmation says it is the only one**, on `spendsFreeUse`: the
+  title asks about the free use rather than about the recording, the body says
+  deleting will not give it back, and Cancel is the way out. A thing that can
+  be done exactly once should not be discovered afterwards.
+
+  **Removing and naming split off `mayRequest` at the same time**, onto
+  `mayRemove`. They used to be the same question because only one account
+  could do any of it. They are not the same question now: somebody who spent
+  their free use is still the person who made the transcript on screen, and
+  shaping what they made is theirs — while starting a new one is not.
 
 - **The rule for who may trigger it is the `manageable` rule, not the export
   rule.** Export is a read by one person of their own conversation. This sends
@@ -341,9 +388,11 @@ why this design does not sneak in an automatic one.
 - **Metered.** `billed_ms` per transcript, and a `usage_bytes` entry of the same
   kind the mix already writes, so `bin/usage` can answer "what did transcription
   cost last month" without anybody guessing.
-- **A cap is worth having and is not worth having first.** If it turns out to
-  need one, `TRANSCRIPT_MONTHLY_MINUTES` in the env, refused with a message
-  naming the reset date. Do not build it speculatively.
+- **A monthly cap is worth having and is still not worth having first.** The
+  per-account free use above is a cap on *who* spends and how often, not on
+  what this server spends in total. If that turns out to need one,
+  `TRANSCRIPT_MONTHLY_MINUTES` in the env, refused with a message naming the
+  reset date. Do not build it speculatively.
 
 Absent an API key the whole thing is off: the route answers 503 and the wire
 field says the feature is unavailable, so the button never appears. Exactly what
@@ -756,6 +805,28 @@ it, with a scan as the fallback.
     channel has been transcribed. A hit names the conversation it came from,
     which is the one thing the per-recording filter cannot do and the whole
     reason this is a separate control.
+
+**Phase 7 — one free transcript each. Built 2026-08-25**, a day after
+`TRANSCRIBE_IDENTIFIER` narrowed the feature to a single account. Not in the
+plan as written: the argument for it is in § *Who may ask for one, and what it
+costs* above, which is where the rules live. What it touches —
+
+  - `accounts.transcripts_unlimited`, `free_transcript_id`,
+    `free_transcript_at`, and `Accounts.transcriptAllowance` /
+    `spendFreeTranscript` / `refundFreeTranscript` over them.
+  - `TranscriptsOptions.onFailed`, so a transcript that produced nothing gives
+    the credit back, and `Transcripts.costEstimateMs`, so the cap can be
+    checked before the money is spent rather than after.
+  - `transcribeGate` and `mayRemoveTranscript` in `app.ts`, replacing
+    `mayTranscribe`; `requestLimit`, `spendsFreeUse` and `mayRemove` on the
+    wire beside `mayRequest`.
+  - `FREE_TRANSCRIPT_MINUTES`, and `TRANSCRIBE_IDENTIFIER` re-read as a
+    deprecated bootstrap rather than removed.
+
+  **`bin/usage` still says nothing about transcription**, which mattered less
+  when one account could spend and matters more now that everybody can.
+  `billed_ms` and the `usage_bytes` entries are being written; nothing reads
+  them.
 
 ---
 

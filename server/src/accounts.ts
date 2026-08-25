@@ -164,6 +164,65 @@ export class Accounts {
   }
 
   /**
+   * Where this account stands with transcription's one free use.
+   *
+   * `unlimited` is the hand-set mark; `spentOn` is the recording whose
+   * transcript took the free use, null while it is unspent. Two facts rather
+   * than one boolean because the refusal has to say *which* rule refused: "not
+   * this server" and "you have had yours" are different sentences, and the
+   * second one is temporary in a way the first is not.
+   */
+  transcriptAllowance(id: string): { unlimited: boolean; spentOn: string | null } {
+    const row = this.byId(id);
+    return {
+      unlimited: row?.transcripts_unlimited === 1,
+      spentOn: row?.free_transcript_id ?? null,
+    };
+  }
+
+  /**
+   * Records that this account's free transcript has gone on this recording.
+   *
+   * Written when the transcript is asked for rather than when it lands, so a
+   * pending one holds the credit — otherwise five taps in the time one takes
+   * to come back are five free transcripts. `refundFreeTranscript` is the
+   * other half, for when the thing never arrives.
+   *
+   * Idempotent in the only way that matters: the guard is `IS NULL`, so a
+   * second call cannot move an already-spent credit onto a different
+   * recording, and an unlimited account that somehow reaches here does not
+   * quietly acquire a spent one.
+   *
+   * Takes the clock rather than reading one, for the reason `start` does.
+   */
+  spendFreeTranscript(id: string, recordingId: string, at: number): void {
+    this.db
+      .prepare(
+        `UPDATE accounts SET free_transcript_id = ?, free_transcript_at = ?
+         WHERE id = ? AND free_transcript_id IS NULL`
+      )
+      .run(recordingId, at, id);
+  }
+
+  /**
+   * Gives the free use back, because this transcript produced nothing.
+   *
+   * Keyed on the recording rather than the account, so the caller does not
+   * have to remember who paid — the row does. **Only a failure calls this.**
+   * Deleting a transcript does not: it destroyed something that was made, and
+   * making it again costs what it cost the first time, which is exactly the
+   * loop this limit exists to close.
+   */
+  refundFreeTranscript(recordingId: string): void {
+    this.db
+      .prepare(
+        `UPDATE accounts SET free_transcript_id = NULL, free_transcript_at = NULL
+         WHERE free_transcript_id = ?`
+      )
+      .run(recordingId);
+  }
+
+  /**
    * Writes a person's own profile.
    *
    * Both fields are optional and absent means unchanged, so the client can

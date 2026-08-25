@@ -48,16 +48,28 @@ async function tone(name: string): Promise<Buffer> {
   return readFile(path);
 }
 
-function build(withProvider = true, transcribeIdentifier?: string) {
+function build(
+  withProvider = true,
+  transcribeUnlimitedIdentifier?: string,
+  freeTranscriptMinutes?: number
+) {
   store = new MemoryRecordingStore();
   app = buildApp({
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
     store,
     transcription: withProvider ? provider : undefined,
-    transcribeIdentifier,
+    transcribeUnlimitedIdentifier,
+    freeTranscriptMinutes,
     now: () => clock,
   });
+}
+
+/** Lifts the free-use limit for one account, the way `bin/db --write` does. */
+function markUnlimited(id: string) {
+  app.db
+    .prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?')
+    .run(id);
 }
 
 const signIn = async (identifier: string, displayName: string) => {
@@ -276,89 +288,91 @@ describe('asking for one', () => {
   });
 });
 
-describe('when only one account may spend', () => {
-  // Reading and searching are never restricted: a transcript is a shared
-  // artefact of a shared conversation. What is restricted is the act that
-  // costs money, and deleting with it — deleting spends nothing but destroys
-  // something only that account can make again.
+describe('the one free transcript', () => {
+  // Everybody may transcribe, once. The limit is on the act that spends, never
+  // on reading or searching — a transcript is a shared artefact of a shared
+  // conversation, and everybody who can play the recording reads every word.
   beforeEach(async () => {
-    build(true, 'alice@example.com');
+    build();
     store.put('a.ogg', await tone('a.ogg'));
     store.put('b.ogg', await tone('b.ogg'));
   });
 
-  it('lets the named account start one', async () => {
-    const { alice } = await room();
-    expect((await ask(alice.token)).statusCode).toBe(200);
-  }, 60_000);
-
-  it('matches the address the way signing in does', async () => {
-    // Configured in one case and signed in with another is exactly the kind of
-    // thing that fails silently once, on the one account nobody can debug.
-    build(true, '  ALICE@Example.COM ');
-    store.put('a.ogg', await tone('a.ogg'));
-    store.put('b.ogg', await tone('b.ogg'));
-    const { alice } = await room();
-    expect((await ask(alice.token)).statusCode).toBe(200);
-  }, 60_000);
-
-  it('refuses anybody else, and says so rather than hiding the recording', async () => {
+  it('lets anybody in the channel have one', async () => {
     const { bob } = await room();
-    const answered = await ask(bob.token);
+    expect((await ask(bob.token)).statusCode).toBe(200);
+  }, 60_000);
 
-    // 403 rather than 404: Bob can see this recording and can play it. What
-    // he cannot do is spend on it, and being told the recording does not
-    // exist would be a lie he could disprove by scrolling.
-    expect(answered.statusCode).toBe(403);
-    expect(answered.json().error).toMatch(/limited to one account/i);
-    expect(provider.submitted).toHaveLength(0);
+  it('refuses the second, and deleting the first does not give it back', async () => {
+    // The whole point of recording the spend on the account: transcript rows
+    // are swept, so a count taken from them would hand the credit back — and
+    // delete-and-ask-again would be an unlimited supply.
+    const { bob } = await room();
+    expect((await ask(bob.token)).statusCode).toBe(200);
+    await app.transcripts.settled();
+    expect((await ask(bob.token, 'DELETE')).statusCode).toBe(200);
+
+    const refused = await ask(bob.token);
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().error).toMatch(/one free transcript/i);
+  }, 60_000);
+
+  it('gives it back when the transcript fails, having produced nothing', async () => {
+    const { bob } = await room();
+    expect((await ask(bob.token)).statusCode).toBe(200);
+    await app.transcripts.settled();
+    for (const job of provider.submitted) provider.fails(job.id, 'no.');
+    clock += 120_000;
+    await app.transcripts.tick();
+    await app.transcripts.settled();
+
+    // Asking again replaces the failed one, which is the retry — and it is
+    // allowed, because the first attempt left nothing behind to keep.
+    expect((await ask(bob.token)).statusCode).toBe(200);
+  }, 60_000);
+
+  it('does not spend it on a request that was refused anyway', async () => {
+    // Bob passes the spending rule — his use is unspent — and is then refused
+    // by `request`, because Alice already had this one transcribed. Nothing
+    // was submitted and nothing was charged, so his credit must still be
+    // there: a 409 that quietly costs somebody their one free transcript is
+    // the worst version of this feature.
+    const { alice, bob } = await room();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    expect((await ask(bob.token)).statusCode).toBe(409);
+
+    const account = app.db
+      .prepare('SELECT free_transcript_id FROM accounts WHERE id = ?')
+      .get(bob.account.id) as { free_transcript_id: string | null };
+    expect(account.free_transcript_id).toBeNull();
+  }, 60_000);
+
+  it('holds the credit while one is still being made', async () => {
+    // Written when the transcript is asked for rather than when it lands, or
+    // five taps in the time one takes to come back are five free transcripts.
+    const { bob } = await room();
+    await ask(bob.token);
+    const account = app.db
+      .prepare('SELECT free_transcript_id FROM accounts WHERE id = ?')
+      .get(bob.account.id) as { free_transcript_id: string | null };
+    expect(account.free_transcript_id).toBe(RECORDING);
   }, 60_000);
 
   it('still tells a stranger nothing', async () => {
-    // The restriction is checked first, so this asserts the order: somebody
-    // outside the channel must not learn the recording exists by being told
-    // about a spending rule.
+    // The spending rule is checked before the reach test, so this asserts the
+    // order: somebody outside the channel must not learn that the recording
+    // exists by being told about a limit that only applies to it.
     await room();
     const carol = await signIn('carol@example.com', 'Carol');
+    app.db
+      .prepare('UPDATE accounts SET free_transcript_id = ? WHERE id = ?')
+      .run('rec_somewhere_else', carol.account.id);
     expect((await ask(carol.token)).statusCode).toBe(403);
   }, 60_000);
 
-  it('refuses everybody else the delete too', async () => {
-    const { alice, bob } = await room();
-    await ask(alice.token);
-    await app.transcripts.settled();
-
-    expect((await ask(bob.token, 'DELETE')).statusCode).toBe(403);
-    expect((await ask(alice.token, 'DELETE')).statusCode).toBe(200);
-  }, 60_000);
-
-  it('lets everybody read and search it', async () => {
-    const { alice, bob } = await room();
-    await ask(alice.token);
-    await app.transcripts.settled();
-    await complete({
-      [alice.account.id]: 'the part about the badgers',
-      [bob.account.id]: 'and then the owls arrived',
-    });
-
-    const read = await app.fastify.inject({
-      method: 'GET',
-      url: `/recordings/${RECORDING}/transcript`,
-      headers: auth(bob.token),
-    });
-    expect(read.statusCode).toBe(200);
-    expect(read.json().lines).toHaveLength(2);
-
-    const found = await app.fastify.inject({
-      method: 'GET',
-      url: `/channels/${CHANNEL}/transcripts/search?q=owls`,
-      headers: auth(bob.token),
-    });
-    expect(found.json().hits).toHaveLength(1);
-  }, 60_000);
-
-  it('tells the app who may, so nobody is shown a button that refuses', async () => {
-    const { alice, bob } = await room();
+  it('tells the app it is the free one, so the confirmation can say so', async () => {
+    const { alice } = await room();
     const listed = async (token: string) => {
       const answered = await app.fastify.inject({
         method: 'GET',
@@ -372,10 +386,145 @@ describe('when only one account may spend', () => {
 
     expect((await listed(alice.token)).transcript).toMatchObject({
       mayRequest: true,
+      spendsFreeUse: true,
     });
-    expect((await listed(bob.token)).transcript).toMatchObject({
-      mayRequest: false,
+
+    markUnlimited(alice.account.id);
+    const unlimited = (await listed(alice.token)).transcript;
+    expect(unlimited.mayRequest).toBe(true);
+    // Nothing to warn about: an unlimited account is not spending a thing it
+    // has only one of.
+    expect(unlimited.spendsFreeUse).toBeUndefined();
+  }, 60_000);
+
+  it('sends the reason with the refusal, since the button now has words', async () => {
+    const { bob } = await room();
+    await ask(bob.token);
+    await app.transcripts.settled();
+    await ask(bob.token, 'DELETE');
+
+    const answered = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(bob.token),
     });
+    const row = (answered.json().recordings ?? []).find(
+      (r: { id: string }) => r.id === RECORDING
+    );
+    expect(row.transcript.mayRequest).toBe(false);
+    expect(row.transcript.requestLimit).toMatch(/one free transcript/i);
+  }, 60_000);
+});
+
+describe('an account marked unlimited', () => {
+  beforeEach(async () => {
+    build();
+    store.put('a.ogg', await tone('a.ogg'));
+    store.put('b.ogg', await tone('b.ogg'));
+  });
+
+  it('is not held to one', async () => {
+    const { alice } = await room();
+    markUnlimited(alice.account.id);
+    expect((await ask(alice.token)).statusCode).toBe(200);
+    await app.transcripts.settled();
+    expect((await ask(alice.token, 'DELETE')).statusCode).toBe(200);
+    expect((await ask(alice.token)).statusCode).toBe(200);
+  }, 60_000);
+
+  it('spends nothing, so the mark can be given after the fact', async () => {
+    // Somebody who used their free transcript this morning and was marked
+    // this afternoon is not still refused for the row they spent.
+    const { bob } = await room();
+    await ask(bob.token);
+    await app.transcripts.settled();
+    await ask(bob.token, 'DELETE');
+    expect((await ask(bob.token)).statusCode).toBe(403);
+
+    markUnlimited(bob.account.id);
+    expect((await ask(bob.token)).statusCode).toBe(200);
+  }, 60_000);
+});
+
+describe('the address named in the environment', () => {
+  // A bootstrap for the account that used to be the only one allowed to
+  // transcribe, and deprecated: the durable mark is the column above. It is
+  // still honoured so that opening the feature up does not silently demote
+  // whoever is named in a deployed .env to one free use.
+  beforeEach(async () => {
+    build(true, 'alice@example.com');
+    store.put('a.ogg', await tone('a.ogg'));
+    store.put('b.ogg', await tone('b.ogg'));
+  });
+
+  it('transcribes without limit', async () => {
+    const { alice } = await room();
+    expect((await ask(alice.token)).statusCode).toBe(200);
+    await app.transcripts.settled();
+    expect((await ask(alice.token, 'DELETE')).statusCode).toBe(200);
+    expect((await ask(alice.token)).statusCode).toBe(200);
+  }, 60_000);
+
+  it('does not stop everybody else having their one', async () => {
+    // The old meaning of this variable, and the thing that changed: it named
+    // the only account that could transcribe at all.
+    const { bob } = await room();
+    expect((await ask(bob.token)).statusCode).toBe(200);
+  }, 60_000);
+
+  it('matches the address the way signing in does', async () => {
+    // Configured in one case and signed in with another is exactly the kind of
+    // thing that fails silently once, on the one account nobody can debug.
+    build(true, '  ALICE@Example.COM ');
+    store.put('a.ogg', await tone('a.ogg'));
+    store.put('b.ogg', await tone('b.ogg'));
+    const { alice } = await room();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await ask(alice.token, 'DELETE');
+    expect((await ask(alice.token)).statusCode).toBe(200);
+  }, 60_000);
+});
+
+describe('when a free transcript is capped by length', () => {
+  // One free use caps the count and not the bill: the provider charges per
+  // audio-hour per stem, so a three-hour four-way is twenty times a
+  // twenty-minute pair. The cap is in those same units.
+  beforeEach(async () => {
+    // The recording is five seconds long with two stems — ten seconds of
+    // audio, which rounds up to one transcription minute, so a cap of one
+    // lets it through and anything longer does not.
+    build(true, undefined, 1);
+    store.put('a.ogg', await tone('a.ogg'));
+    store.put('b.ogg', await tone('b.ogg'));
+  });
+
+  it('allows one inside the cap', async () => {
+    const { bob } = await room();
+    expect((await ask(bob.token)).statusCode).toBe(200);
+  }, 60_000);
+
+  it('refuses one over it, and says how far over', async () => {
+    const { bob } = await room();
+    // Ninety minutes across two stems: three hours of transcription.
+    app.db
+      .prepare('UPDATE recordings SET duration_ms = ? WHERE id = ?')
+      .run(90 * 60_000, RECORDING);
+
+    const refused = await ask(bob.token);
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().error).toMatch(/up to 1 transcription minutes/i);
+    expect(refused.json().error).toMatch(/comes to 180/);
+    expect(provider.submitted).toHaveLength(0);
+  }, 60_000);
+
+  it('does not apply to an unlimited account', async () => {
+    const { alice } = await room();
+    markUnlimited(alice.account.id);
+    app.db
+      .prepare('UPDATE recordings SET duration_ms = ? WHERE id = ?')
+      .run(90 * 60_000, RECORDING);
+    expect((await ask(alice.token)).statusCode).toBe(200);
   }, 60_000);
 });
 
@@ -729,17 +878,18 @@ describe('saying who the voices were', () => {
   }, 60_000);
 });
 
-describe('when only one account may name the voices', () => {
+describe('naming the voices', () => {
   // The same pair of rules as deleting, for the same reason: this shapes a
-  // shared artefact that only one account can make again. Reading it is not
-  // restricted, so everybody in the channel sees the result.
+  // shared artefact that costs money to make again, so it belongs to whoever
+  // asked for it. Reading is not restricted, so everybody in the channel sees
+  // the result.
   beforeEach(async () => {
-    build(true, 'alice@example.com');
+    build();
     store.put('a.ogg', await tone('a.ogg'));
     store.put('b.ogg', await tone('b.ogg'));
   });
 
-  it('refuses anybody else, and says why rather than hiding the recording', async () => {
+  it('refuses somebody who did not ask for it, without hiding the recording', async () => {
     const { alice, bob } = await roomWithMedia();
     await ask(alice.token);
     await app.transcripts.settled();
@@ -756,6 +906,11 @@ describe('when only one account may name the voices', () => {
 
     // And Bob still reads the transcript, names and all.
     expect((await read(bob.token)).statusCode).toBe(200);
+
+    // Alice asked for it, so it is hers to shape — including after her free
+    // use is gone, which is a different question from making a new one.
+    const named = await declare(alice.token, { [key('media', 'A')]: { name: 'Host' } });
+    expect(named.statusCode).toBe(200);
   }, 60_000);
 });
 
@@ -884,7 +1039,10 @@ describe('deleting one', () => {
     });
     provider.forgotten.length = 0;
 
-    const answered = await ask(bob.token, 'DELETE');
+    // Bob was in the room and can read every word, but he did not ask for
+    // this one and cannot make another — so unmaking it is not his.
+    expect((await ask(bob.token, 'DELETE')).statusCode).toBe(403);
+    const answered = await ask(alice.token, 'DELETE');
 
     expect(answered.statusCode).toBe(200);
     expect((await read(alice.token)).statusCode).toBe(404);
@@ -902,7 +1060,11 @@ describe('deleting one', () => {
   });
 
   it('may be asked for again afterwards, and costs again', async () => {
+    // An unlimited account, since this is about what deleting leaves behind
+    // rather than about the free use — which deleting does not return, and
+    // which has its own tests above.
     const { alice } = await room();
+    markUnlimited(alice.account.id);
     await ask(alice.token);
     await app.transcripts.settled();
     await ask(alice.token, 'DELETE');
@@ -1021,8 +1183,10 @@ describe('what the recordings list carries', () => {
       state: 'none',
       provider: provider.name,
       requestedBy: null,
-      // Nothing is restricting spending on this server, so everybody may.
+      // Everybody may, and for Alice this would be the one free use — which
+      // the confirmation says out loud, so it travels on the same field.
       mayRequest: true,
+      spendsFreeUse: true,
     });
   });
 

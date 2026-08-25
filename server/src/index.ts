@@ -182,15 +182,40 @@ const transcription: TranscriptionProvider | undefined = assemblyAiKey
   : undefined;
 
 /**
- * The one address allowed to start a transcript, when there is to be one.
+ * An address that transcribes without limit — a bootstrap for the account
+ * that used to be the only one allowed to, and deprecated.
  *
- * Unset, anybody in a channel who holds the room may — which is what the
- * design argues for, transcribing being a change to a shared thing. Set, it is
- * one person's decision and one person's bill: this is the first thing here
- * that costs money per tap and the first whose cost somebody else can incur on
- * your behalf. Reading and searching are never restricted either way.
+ * The variable's meaning changed on 2026-08-25 when transcription opened up:
+ * it named the *only* address that could transcribe, and it now names one
+ * more that is not held to the free use everybody else gets. It is still read
+ * so that opening the feature up does not silently demote the person named in
+ * a deployed .env. The durable mark is a column:
+ *
+ *     bin/db --write "update accounts set transcripts_unlimited = 1 \
+ *       where identifier = 'someone@example.com'"
+ *
+ * Set that, then unset this. Reading and searching were never restricted
+ * either way.
  */
-const transcribeIdentifier = process.env.TRANSCRIBE_IDENTIFIER;
+const transcribeUnlimitedIdentifier = process.env.TRANSCRIBE_IDENTIFIER;
+
+/**
+ * How much audio one free transcript may cover, in transcription minutes — a
+ * recording's length times the number of people recorded in it, which is what
+ * the provider bills for.
+ *
+ * Unset, a free transcript may be of any length, which caps the count and not
+ * the bill: one use of a twenty-minute pair is about ten cents and one use of
+ * a three-hour four-way is about two dollars.
+ */
+const freeTranscriptMinutes = process.env.FREE_TRANSCRIPT_MINUTES
+  ? Number(process.env.FREE_TRANSCRIPT_MINUTES)
+  : undefined;
+if (freeTranscriptMinutes !== undefined && !(freeTranscriptMinutes > 0)) {
+  // Refused rather than ignored: a typo here reads as "no cap", which is the
+  // opposite of what somebody setting it meant, and nothing later would say so.
+  throw new Error('FREE_TRANSCRIPT_MINUTES must be a positive number.');
+}
 
 const app = buildApp({
   dbPath,
@@ -208,7 +233,8 @@ const app = buildApp({
   store,
   pusher,
   transcription,
-  transcribeIdentifier,
+  transcribeUnlimitedIdentifier,
+  freeTranscriptMinutes,
   logger: true,
 });
 app.channels.start();
@@ -235,9 +261,12 @@ app.fastify
         // public page claims, and reading .env is not how anybody should have
         // to find out which.
         transcription: transcription ? transcription.name : 'not configured',
-        // Worth a line for the same reason `review` is: it decides who may
-        // spend money, and reading .env is not how anybody should find out.
-        transcribedBy: transcribeIdentifier ?? 'anybody in the channel',
+        // Worth a line for the same reason `review` is: these decide what
+        // anybody may spend, and reading .env is not how anybody should find
+        // out. Everybody gets one free transcript; the account marks that
+        // lift that are in the database and are not visible from here.
+        transcribeUnlimited: transcribeUnlimitedIdentifier ?? 'marked accounts only',
+        freeTranscriptMinutes: freeTranscriptMinutes ?? 'any length',
         // The first line in the journal after a restart is where somebody
         // looks when a deploy is in doubt, and until now it could not say
         // which deploy it was.

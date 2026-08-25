@@ -852,10 +852,12 @@ function TranscriptButton({
   const [busy, setBusy] = React.useState(false);
   const transcript = recording.transcript;
   if (!transcript || !onOpen) return null;
-  // A server may limit starting one to a single account. Reading is never
-  // limited, so the row still opens a transcript that exists — what goes is
-  // the button that would spend, rather than the whole feature.
+  // Everybody gets one free transcript, so a refusal here is usually "you have
+  // had yours" or "this one is too long for a free use" — temporary, personal,
+  // and worth a sentence. Reading is never limited, so the row still opens a
+  // transcript that exists; what goes is the ability to spend.
   const mayRequest = transcript.mayRequest !== false;
+  const limit = transcript.requestLimit;
 
   if (transcript.state === 'pending') {
     // Not disabled-with-a-reason: there is nothing to do and nothing to wait
@@ -871,11 +873,20 @@ function TranscriptButton({
     );
   }
 
-  // Nothing rather than a disabled button: everywhere else here a disabled
-  // control says "not now" and has a sentence beside it saying why. This is
-  // "not you, ever, on this server", which is not a state worth putting on
-  // every recording in the list.
-  if (!mayRequest) return null;
+  // A disabled button with the reason beside it, which is what a disabled
+  // control means everywhere else on this card. Without a sentence there is
+  // nothing at all — an old server that limited transcribing to one account
+  // sends no reason, and "not you, ever, on this server" was never worth
+  // putting on every recording in the list.
+  if (!mayRequest) {
+    if (!limit) return null;
+    return (
+      <>
+        <Button label="Transcribe" disabled onPress={() => {}} />
+        <Text style={type.muted}>{limit}</Text>
+      </>
+    );
+  }
 
   return (
     <Button
@@ -885,15 +896,26 @@ function TranscriptButton({
       // not all have landed, and waiting a moment beats a job that fails.
       disabled={busy || !manageable || !!recording.mixing}
       onPress={() => {
+        // Two confirmations, because there are two different stakes. The
+        // ordinary one is about where the audio goes; the other is about
+        // something that can be done exactly once, which somebody should not
+        // discover afterwards — so the title asks about the free use rather
+        // than about the recording, and Cancel is the way out of both.
+        const spends = transcript.spendsFreeUse === true;
         Alert.alert(
-          'Transcribe this recording?',
+          spends ? 'Use your one free transcript?' : 'Transcribe this recording?',
           `The audio is sent to ${transcript.provider} to be turned into text, ` +
             'and everybody in the channel will see the result. It costs a little, ' +
-            'and it can only be done once per recording.',
+            'and it can only be done once per recording.' +
+            (spends
+              ? '\n\nThis is the one free transcript your account gets. Once ' +
+                'it is used no other recording can be transcribed, and ' +
+                'deleting this transcript does not give it back.'
+              : ''),
           [
             { text: 'Cancel', style: 'cancel' },
             {
-              text: 'Transcribe',
+              text: spends ? 'Use it' : 'Transcribe',
               onPress: async () => {
                 if (!app.token) return;
                 setBusy(true);

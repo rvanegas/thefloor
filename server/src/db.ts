@@ -63,6 +63,34 @@ export interface AccountRow {
    * which is the one thing this service otherwise promises not to publish.
    */
   leaderboard: number | null;
+  /**
+   * Whether this account may transcribe without limit: 1 for yes, null or 0
+   * for no. Set by hand — `bin/db --write` — like `debug` and `leaderboard`,
+   * and unlike either of those it is the only flag here that licenses
+   * spending. Everybody else gets the one free transcript the two columns
+   * below record.
+   */
+  transcripts_unlimited: number | null;
+  /**
+   * The recording whose transcript spent this account's one free use, or null
+   * while it is unspent.
+   *
+   * **On the account rather than counted from `transcripts`**, and that is the
+   * whole point of it: transcript rows are swept — a transcript deleted on its
+   * own goes `TRANSCRIPT_DELETED_RETENTION_MS` later, and a swept recording
+   * takes its transcript with it — so a count derived from `requested_by`
+   * hands the credit back weeks after it was spent, and "delete it and wait"
+   * becomes the way round the limit.
+   *
+   * Written when the transcript is *asked for*, so one in flight holds the
+   * credit and nobody can start five at once. Cleared only if that same
+   * transcript fails, which is why it holds the id and not a boolean: a
+   * failure returns the use because it produced nothing, and a success that
+   * was later deleted does not, because it produced something.
+   */
+  free_transcript_id: string | null;
+  /** When that free use was spent. Null exactly when the id above is. */
+  free_transcript_at: number | null;
 }
 
 export interface ContactRow {
@@ -292,7 +320,15 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- Lets this account see the invitation standings. Null for everyone until
   -- somebody sets it by hand; see the row type above for why there is no
   -- screen that does.
-  leaderboard INTEGER
+  leaderboard INTEGER,
+  -- Lets this account transcribe without limit. Null for everyone until
+  -- somebody sets it by hand; the only flag here that licenses spending.
+  transcripts_unlimited INTEGER,
+  -- The recording whose transcript spent this account's one free use, and
+  -- when. Null while unspent. Kept here rather than counted from the
+  -- transcripts table, whose rows are swept; see the row type above.
+  free_transcript_id TEXT,
+  free_transcript_at INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -1137,6 +1173,22 @@ function migrate(db: Db): void {
   // application that lists people who have not agreed to be listed to you.
   if (!accountColumns.some((c) => c.name === 'leaderboard')) {
     db.exec('ALTER TABLE accounts ADD COLUMN leaderboard INTEGER');
+  }
+  // Null for everyone, including the account that held TRANSCRIBE_IDENTIFIER
+  // before this existed. Marking that one is a deliberate act with a command
+  // behind it, not something a migration should infer from an env var it
+  // cannot see.
+  if (!accountColumns.some((c) => c.name === 'transcripts_unlimited')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN transcripts_unlimited INTEGER');
+  }
+  // Null for every existing account, which means every transcript made before
+  // this column existed was free and nobody's allowance is retroactively
+  // spent. That is the generous reading and it is the right one: the limit is
+  // a rule about what happens next, and charging somebody for a tap that had
+  // no limit on it when they made it would be a rule applied backwards.
+  if (!accountColumns.some((c) => c.name === 'free_transcript_id')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_id TEXT');
+    db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_at INTEGER');
   }
   // The index is created *here* rather than in SCHEMA, and that is not tidiness.
   // SCHEMA runs before this function, and `CREATE TABLE IF NOT EXISTS accounts`

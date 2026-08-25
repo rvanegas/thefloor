@@ -156,27 +156,38 @@ export interface BuildOptions {
    */
   transcription?: TranscriptionProvider;
   /**
-   * The one address allowed to *start* a transcript, when there is to be one.
+   * An address that may transcribe without limit, on top of whatever accounts
+   * carry the `transcripts_unlimited` mark.
    *
-   * Reading and searching are unaffected: a transcript is a shared artefact of
-   * a shared conversation, and everybody who can play the recording can read
-   * every word of it. This restricts only the act that spends money.
+   * **A bootstrap, and deprecated.** Until 2026-08-25 this was
+   * `transcribeIdentifier` and meant the opposite of what it means now: the
+   * *only* address allowed to start a transcript, everybody else refused.
+   * Transcription is open to everybody since, one free use each, and the mark
+   * that lifts the limit lives on the account — `bin/db --write "update
+   * accounts set transcripts_unlimited = 1 where identifier = '…'"`.
    *
-   * Unset, the rule is the one the design argues for — anybody in the channel
-   * who holds the room, since transcribing changes what everybody's screen
-   * says. Set, it is one person's decision and one person's bill. It exists
-   * because this is the first thing here that costs per tap and the first
-   * whose cost somebody else can incur on your behalf.
+   * It is still read so that a server whose `.env` names an address does not
+   * silently demote that person to one free use on the deploy that opens the
+   * feature up. Set the column, then unset the variable; nothing else should
+   * be added to it.
    *
-   * An address rather than an account id, so it can be written in `.env` by
-   * somebody who knows who they mean. Matched the way sign-in matches:
-   * trimmed, case-insensitively.
-   *
-   * **Deleting is restricted with it**, deliberately. Deleting spends nothing,
-   * but it destroys something only this account can make again — and making it
-   * again costs what it cost the first time.
+   * Matched the way sign-in matches: trimmed, case-insensitively.
    */
-  transcribeIdentifier?: string;
+  transcribeUnlimitedIdentifier?: string;
+  /**
+   * How much audio one free transcript may cover, in transcription minutes —
+   * a recording's length times the number of stems, which is the unit the
+   * provider bills in and the unit `billed_ms` already records.
+   *
+   * Unset, a free transcript may be of any length. Set, it is the second
+   * thing that can refuse one, and it refuses with the number in the sentence
+   * so nobody has to guess how far over they were.
+   *
+   * It exists because "one free use" caps the count and not the bill: one use
+   * of a twenty-minute pair costs about ten cents and one use of a three-hour
+   * four-way costs about two dollars. Unlimited accounts ignore it.
+   */
+  freeTranscriptMinutes?: number;
 }
 
 export interface App {
@@ -398,6 +409,11 @@ export function buildApp(options: BuildOptions = {}): App {
     // A transcript landing is not an action anybody took, so nothing else
     // pushes a snapshot on its behalf — the same reason a finished mix emits.
     onChanged: (channelId) => channels.announce(channelId),
+    // A transcript that produced nothing gives the free use back. Keyed on
+    // the recording, so this does not have to remember who paid — the account
+    // row holds that, which is also what makes it survive the sweep that
+    // eventually removes the transcript.
+    onFailed: (recordingId) => accounts.refundFreeTranscript(recordingId),
   });
 
   // Channels outlive the process that was holding them, so the first thing a
@@ -1882,11 +1898,8 @@ export function buildApp(options: BuildOptions = {}): App {
     // Before the reach test, on purpose. A member who may see the recording
     // and may not spend on it should be told that, rather than told the
     // recording does not exist.
-    if (!mayTranscribe(account.id)) {
-      return reply
-        .code(403)
-        .send({ error: 'Transcribing is limited to one account on this server.' });
-    }
+    const gate = transcribeGate(account.id, id);
+    if (!gate.ok) return reply.code(403).send({ error: gate.message });
     const allowed = channels.mayManageRecording(id, account.id);
     if (!allowed.ok) {
       return reply
@@ -1896,6 +1909,12 @@ export function buildApp(options: BuildOptions = {}): App {
 
     try {
       await transcripts.request(id, account.id);
+      // After the request rather than before it: everything `request` refuses
+      // — no speech, already transcribed, deleted underneath — spends nothing
+      // and must not spend the free use either. A no-op for an unlimited
+      // account, and for one whose credit is already gone, which cannot reach
+      // here anyway.
+      accounts.spendFreeTranscript(account.id, id, now());
     } catch (error) {
       // Everything this throws is an answer the caller should relay rather
       // than retry: already transcribed, nothing to transcribe, deleted
@@ -1988,19 +2007,21 @@ export function buildApp(options: BuildOptions = {}): App {
    * route that deletes.
    *
    * The same two guards as deleting, in the same order and for the same
-   * reasons: `mayTranscribe` is about who may shape a thing only they can make
-   * again, and `mayManageRecording` is about reach. Reading and searching are
-   * never limited, so everybody in the channel sees the result.
+   * reasons: `mayRemoveTranscript` is about who may shape a thing only they
+   * can make again, and `mayManageRecording` is about reach. Reading and
+   * searching are never limited, so everybody in the channel sees the
+   * result.
    */
   fastify.put('/recordings/:id/transcript/voices', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
     const { id } = request.params as { id: string };
 
-    if (!mayTranscribe(account.id)) {
-      return reply
-        .code(403)
-        .send({ error: 'Transcribing is limited to one account on this server.' });
+    if (!mayRemoveTranscript(account.id, id)) {
+      return reply.code(403).send({
+        error:
+          'Only whoever asked for this transcript may change or remove it.',
+      });
     }
     const allowed = channels.mayManageRecording(id, account.id);
     if (!allowed.ok) {
@@ -2064,12 +2085,15 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
     const { id } = request.params as { id: string };
 
-    // The same account that may make one may unmake it. Deleting spends
-    // nothing and destroys something only that account can make again.
-    if (!mayTranscribe(account.id)) {
-      return reply
-        .code(403)
-        .send({ error: 'Transcribing is limited to one account on this server.' });
+    // Whoever asked for this one may unmake it, and so may an unlimited
+    // account. Deleting spends nothing and destroys something that costs what
+    // it cost to make again — and it does not return the free use, so this is
+    // not a way round the limit.
+    if (!mayRemoveTranscript(account.id, id)) {
+      return reply.code(403).send({
+        error:
+          'Only whoever asked for this transcript may change or remove it.',
+      });
     }
     const allowed = channels.mayManageRecording(id, account.id);
     if (!allowed.ok) {
@@ -2293,7 +2317,18 @@ export function buildApp(options: BuildOptions = {}): App {
     viewerId: string
   ): Pick<RecordingView, 'transcript'> {
     if (!transcripts.available()) return {};
-    const mayRequest = mayTranscribe(viewerId);
+    const gate = transcribeGate(viewerId, row.id);
+    const mayRequest = gate.ok;
+    // The sentence travels with the refusal rather than being composed in the
+    // app, because the app cannot know the cap or how much of it this
+    // recording would take. Absent when the answer is yes, so nothing has to
+    // remember to clear it.
+    const requestLimit = gate.ok ? {} : { requestLimit: gate.message };
+    // Only when the tap would actually cost this person their one use — an
+    // unlimited account is not warned about spending something it does not
+    // have, and neither is anybody being refused.
+    const spendsFreeUse =
+      gate.ok && !transcribesFreely(viewerId) ? { spendsFreeUse: true } : {};
     const view = transcripts.viewFor(row.id);
     // `'none'` rather than nothing: this server can transcribe this recording
     // and nobody has asked. Absent is reserved for a server that cannot, which
@@ -2305,6 +2340,8 @@ export function buildApp(options: BuildOptions = {}): App {
           provider: options.transcription?.name ?? '',
           requestedBy: null,
           mayRequest,
+          ...requestLimit,
+          ...spendsFreeUse,
         },
       };
     }
@@ -2313,6 +2350,9 @@ export function buildApp(options: BuildOptions = {}): App {
         state: view.state,
         provider: options.transcription?.name ?? '',
         mayRequest,
+        ...requestLimit,
+        ...spendsFreeUse,
+        mayRemove: mayRemoveTranscript(viewerId, row.id),
         // Frozen names first, exactly as `others` does: a transcript that
         // relabels itself when somebody renames themselves is worse than one
         // with an old name in it.
@@ -2324,22 +2364,89 @@ export function buildApp(options: BuildOptions = {}): App {
   }
 
   /**
-   * Whether this account may start or remove a transcript.
+   * Whether this account's transcribing is unmetered.
    *
-   * Two rules in order, and they refuse for different reasons: the
-   * `transcribeIdentifier` restriction is about who is allowed to spend, and
-   * `mayManageRecording` is about reach and about not changing a shared thing
-   * from outside a conversation in progress. This is only the first.
+   * Resolved on each call rather than at boot: the account named in the
+   * environment may not exist when this server starts, and an address
+   * configured before its owner has signed in should start working when they
+   * do rather than after a restart. One indexed lookup, on a path that is
+   * already a database read.
    */
-  function mayTranscribe(userId: string): boolean {
-    const only = options.transcribeIdentifier;
-    if (!only) return true;
-    // Resolved on each call rather than at boot: the account may not exist
-    // when this server starts, and an address configured before its owner has
-    // signed in should start working when they do rather than after a
-    // restart. One indexed lookup, on a path that is already a database read.
+  function transcribesFreely(userId: string): boolean {
+    if (accounts.transcriptAllowance(userId).unlimited) return true;
+    const only = options.transcribeUnlimitedIdentifier;
+    if (!only) return false;
     const allowed = accounts.byIdentifier(only);
     return !!allowed && allowed.id === userId;
+  }
+
+  /**
+   * Whether this account may start a transcript for this recording, and what
+   * to say when it may not.
+   *
+   * Three rules, and they refuse for different reasons and at different
+   * distances: this one is about the money, `mayManageRecording` is about
+   * reach and about not changing a shared thing from outside a conversation
+   * in progress. This is only the first.
+   *
+   * The refusals here are both *temporary and personal* — "you have had
+   * yours", "this one is too long for a free use" — which is why they come
+   * with a sentence. The rule they replaced was "not you, ever, on this
+   * server", which was worth no words at all and is why the button used to be
+   * withheld in silence.
+   */
+  function transcribeGate(
+    userId: string,
+    recordingId: string
+  ): { ok: true } | { ok: false; message: string } {
+    if (transcribesFreely(userId)) return { ok: true };
+    const { spentOn } = accounts.transcriptAllowance(userId);
+    if (spentOn) {
+      return {
+        ok: false,
+        message:
+          'You have used your one free transcript. Reading and searching ' +
+          'the transcripts in your channels is not limited.',
+      };
+    }
+    const cap = options.freeTranscriptMinutes;
+    if (cap === undefined) return { ok: true };
+    const estimate = transcripts.costEstimateMs(recordingId);
+    // Nothing to transcribe, or no such recording. Not this rule's refusal to
+    // make: `request` says so precisely, and saying "too long" about a
+    // recording with no speech in it would be a wrong answer confidently
+    // given.
+    if (estimate === undefined) return { ok: true };
+    const minutes = Math.ceil(estimate / 60_000);
+    if (minutes <= cap) return { ok: true };
+    return {
+      ok: false,
+      message:
+        `A free transcript covers up to ${cap} transcription minutes — a ` +
+        `recording's length times the number of people recorded in it. This ` +
+        `one comes to ${minutes}.`,
+    };
+  }
+
+  /**
+   * Whether this account may remove a transcript, or say who its voices were.
+   *
+   * Deleting spends nothing and destroys something that costs what it cost to
+   * make again — so it is not for anybody who happens to be in the channel.
+   * It is for whoever asked for this one, who is unmaking their own act, and
+   * for an unlimited account, who can always make it again. **A deletion does
+   * not return the free use**, which is the whole reason this is not simply
+   * `mayManageRecording`: if it did, delete-and-ask-again would be an
+   * unlimited supply of free transcripts.
+   */
+  function mayRemoveTranscript(userId: string, recordingId: string): boolean {
+    if (transcribesFreely(userId)) return true;
+    const view = transcripts.viewFor(recordingId);
+    // Nothing to protect, and the answer the caller is owed is the 404 that
+    // comes later — being told "not yours" about a transcript that does not
+    // exist is a refusal that invents the thing it is refusing.
+    if (!view) return true;
+    return view.requestedBy === userId;
   }
 
   function nameFrom(row: RecordingRow, id: string): PublicAccount | null {

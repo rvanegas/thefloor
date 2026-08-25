@@ -89,11 +89,17 @@ export function TranscriptView({
    * Whether this viewer may say who the voices were.
    *
    * The same pair of rules as deleting the transcript, because it is the same
-   * kind of act: `mayRequest` is the server saying who may shape a thing only
-   * they can make again, and `manageable` is about changing something shared.
-   * Everybody else reads the result — naming is not a private annotation.
+   * kind of act: `mayRemove` is the server saying who may shape a thing only
+   * they can make again — whoever asked for this one — and `manageable` is
+   * about changing something shared. Everybody else reads the result; naming
+   * is not a private annotation.
+   *
+   * Not `mayRequest`, which since transcription opened up answers a different
+   * question: whether this viewer could start a *new* one, which somebody who
+   * has spent their free use cannot, while still being the person who made
+   * the transcript on screen.
    */
-  const mayName = manageable && recording.transcript?.mayRequest !== false;
+  const mayName = manageable && recording.transcript?.mayRemove !== false;
 
   const matches = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -129,7 +135,7 @@ export function TranscriptView({
    * that the sentence explaining why has something to point at.
    */
   const deletable =
-    !!state && state !== 'none' && recording.transcript?.mayRequest !== false;
+    !!state && state !== 'none' && recording.transcript?.mayRemove !== false;
 
   /*
     Pinned rather than scrolled: this is the header slot, so it stays where it

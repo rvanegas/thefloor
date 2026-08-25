@@ -239,12 +239,60 @@ describe('the button on a recording', () => {
     act(() => tree.unmount());
   });
 
-  it('is withheld entirely from somebody who may not spend', () => {
-    // Nothing rather than a disabled button: everywhere else a disabled
-    // control means "not now" and carries a sentence saying why. This is
-    // "not you, ever, on this server".
+  it('is withheld entirely when the server gives no reason', () => {
+    // Nothing rather than a disabled button. A server old enough to limit
+    // transcribing to one account sends no sentence, and "not you, ever, on
+    // this server" is not worth a control on every recording.
     const tree = open(recordingWith('none', { mayRequest: false }));
     expect(findButton(tree, 'Transcribe')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('is disabled with the reason beside it when there is one', () => {
+    // Which is what a disabled control means everywhere else on this card:
+    // "not now", with a sentence. Having used your one free transcript is a
+    // fact about you rather than about this recording, and saying it is much
+    // better than a button that has quietly gone.
+    const tree = open(
+      recordingWith('none', {
+        mayRequest: false,
+        requestLimit: 'You have used your one free transcript.',
+      })
+    );
+    expect(findButton(tree, 'Transcribe')!.props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('You have used your one free transcript.');
+    act(() => tree.unmount());
+  });
+
+  it('says the free use is being spent, and offers to cancel', async () => {
+    // The thing that can only be done once should not be discovered
+    // afterwards. Cancel is the first button, as it is on every Alert here.
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const tree = open(recordingWith('none', { spendsFreeUse: true }));
+    act(() => findButton(tree, 'Transcribe')!.props.onPress());
+
+    const [title, body, buttons] = alert.mock.calls[0] as [
+      string,
+      string,
+      Array<{ text: string; style?: string }>,
+    ];
+    expect(title).toMatch(/one free transcript/i);
+    expect(body).toMatch(/deleting this transcript does not give it back/i);
+    expect(buttons[0]).toMatchObject({ text: 'Cancel', style: 'cancel' });
+    expect(buttons[1].text).toBe('Use it');
+    alert.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('does not mention a free use to an account that has no limit', () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const tree = open(recordingWith('none'));
+    act(() => findButton(tree, 'Transcribe')!.props.onPress());
+
+    const [title, body] = alert.mock.calls[0] as [string, string];
+    expect(title).toBe('Transcribe this recording?');
+    expect(body).not.toMatch(/free/i);
+    alert.mockRestore();
     act(() => tree.unmount());
   });
 
@@ -585,11 +633,13 @@ describe('the transcript screen', () => {
     return tree;
   };
 
-  it('offers no naming to somebody who may not spend', async () => {
-    // The same pair of rules as deleting: naming shapes a shared artefact that
-    // only one account can make again.
+  it('offers no naming to somebody who did not ask for it', async () => {
+    // The same pair of rules as deleting: naming shapes a shared artefact
+    // that costs money to make again. Not `mayRequest`, which answers a
+    // different question — whether a *new* one could be started, which the
+    // person who made this one may well no longer be able to do.
     withVoices();
-    const tree = await show(recordingWith('ready', { mayRequest: false }));
+    const tree = await show(recordingWith('ready', { mayRemove: false }));
     expect(findButton(tree, 'Name the voices')).toBeUndefined();
     act(() => tree.unmount());
   });
