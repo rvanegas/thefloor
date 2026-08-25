@@ -507,7 +507,13 @@ is not a double.
   - **Deletion twice, and a third time by the database.** `forget()` when the
     text lands; a sweep on every tick that catches any recording marked
     deleted, in the week before its row is removed; and `ON DELETE CASCADE` on
-    all three tables as the backstop. **That cascade is not tidiness** — with
+    all three tables as the backstop. **A transcript deleted on its own is
+    itself a mark**, swept at `TRANSCRIPT_DELETED_RETENTION_MS` — thirty days
+    rather than a recording's seven, because deleting a recording by mistake is
+    obvious where deleting a transcript leaves everything else in place and can
+    go unnoticed. The provider is told at once either way: nothing about the
+    grace period depends on their copy, since the text that a recovery by hand
+    would read is here. **That cascade is not tidiness** — with
     foreign keys on, a transcript row pointing at a recording would refuse the
     sweep's `DELETE` outright, which is a recording nobody can finish deleting
     because it was once transcribed. There is a test that does exactly that.
@@ -636,21 +642,13 @@ have to have been changed already.
   lines are an ordinary table with an index on `(recording_id, start_ms)` and
   one on `channel_id`, and an external-content fts5 table over them is
   additive.
-- ~~**Does `DELETE /v2/transcript/:id` do what we promise?**~~ **Settled
-  2026-08-24, and the claim moved rather than the code.** Their DELETE **marks
-  for deletion and sweeps about thirty days later** — the same shape as this
-  application's own deletion, and not the erasure "deleted" would have implied.
-  The page had been drafted as "deleted from AssemblyAI as soon as the text has
-  been stored here", which would have been false on a page whose whole premise
-  is checkable claims. It now says the request goes the moment the text lands
-  and the copy is gone within about thirty days, `PROVIDER_RETENTION_DAYS` says
-  so beside the seven-day one it mirrors, and `privacy.test.ts` asserts the
-  number so it cannot drift back.
+- **What `DELETE /v2/transcript/:id` does at their end** is in BACKLOG.md, as
+  *What AssemblyAI does with the audio after we ask it to delete it*, and it
+  gates the deploy that sets the key. Briefly, on 2026-08-25, this document and
+  `/privacy` both said their DELETE marks and sweeps at thirty days — that came
+  from a sentence about *this* application's sweep, misread as being about
+  theirs, and there is no source for it. The page now says only that we ask.
 
-  Still worth one confirmation before phase 5 publishes: that the thirty days
-  covers the **uploaded audio** and not merely the transcript row. The two are
-  deleted by the same call, which is the argument for uploading rather than
-  presigning, but it is the audio that the sentence is really about.
 - **Guests.** Their stems are identities too. `participant_names` should carry
   them, but check — a transcript of a guest labelled with a raw session id is a
   bug that only appears with a guest in the room.

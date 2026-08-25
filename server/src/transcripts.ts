@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
 import { MEDIA_IDENTITY } from './channels';
 import type { Db, RecordingRow } from './db';
 import { encodeStem, type ExportRequest } from './export';
@@ -187,12 +188,18 @@ export class Transcripts {
     }
 
     const existing = this.db
-      .prepare('SELECT state FROM transcripts WHERE recording_id = ?')
-      .get(recordingId) as { state: string } | undefined;
+      .prepare(
+        'SELECT state, deleted_at FROM transcripts WHERE recording_id = ?'
+      )
+      .get(recordingId) as
+      | { state: string; deleted_at: number | null }
+      | undefined;
     if (existing) {
-      // A failed one may be replaced — that is the retry — and anything else
-      // is a second charge for an answer already held or already coming.
-      if (existing.state !== 'failed') {
+      // A failed one may be replaced — that is the retry — and so may a
+      // deleted one, which is somebody asking again for what they threw away.
+      // Anything else is a second charge for an answer already held or
+      // already coming.
+      if (existing.state !== 'failed' && existing.deleted_at === null) {
         throw new Error('This recording already has a transcript.');
       }
       this.clear(recordingId);
@@ -238,6 +245,12 @@ export class Transcripts {
    * of transcription being switched on and unused.
    */
   async tick(): Promise<void> {
+    // Sweeping first, and outside `pump`, because neither sweep needs a
+    // provider: a credential withdrawn tomorrow must not leave marked
+    // transcripts sitting in the database forever, and the rows of a deleted
+    // recording should go whether or not this server can still transcribe.
+    this.sweepDeleted();
+    this.sweepOrphans();
     this.pump();
     await this.settled();
   }
@@ -250,9 +263,11 @@ export class Transcripts {
    * a wall clock is a race. `index.ts` starts it; nothing else should.
    */
   start(everyMs = TICK_MS): void {
-    if (this.timer || !this.available()) return;
+    if (this.timer) return;
     this.restore();
     this.timer = setInterval(() => {
+      this.sweepDeleted();
+      this.sweepOrphans();
       this.pump();
     }, everyMs);
     // Nothing here should hold the process open: an open job is on the row,
@@ -298,19 +313,48 @@ export class Transcripts {
    * tracking, and this is the sweep that catches it.
    */
   deleteFor(recordingId: string): void {
-    const jobs = this.jobsOf(recordingId);
-    for (const job of jobs) {
+    // The provider is told now rather than in thirty days' time. Nothing about
+    // the grace period depends on their copy — the text is here, which is what
+    // a recovery by hand would read — and leaving a conversation with a third
+    // party for a month after somebody asked for it to go is the opposite of
+    // what the tap meant.
+    for (const job of this.jobsOf(recordingId)) {
       if (job.provider_id) this.forget(job.provider_id);
     }
-    // Before the rows go, since afterwards there is nothing to read the
-    // channel off — and a recording swept out from under one has none either.
+
     const channelId = this.recording(recordingId)?.channel_id;
-    this.clear(recordingId);
+    this.db
+      .prepare(
+        `UPDATE transcripts SET deleted_at = ?
+         WHERE recording_id = ? AND deleted_at IS NULL`
+      )
+      .run(this.now(), recordingId);
     if (channelId) this.onChanged(channelId);
   }
 
   /**
-   * Where one recording's transcript stands, or nothing if it has none.
+   * Removes what the mark above left behind, once its window has passed.
+   *
+   * The recordings sweep's shape, and for the recordings sweep's reason: a
+   * deletion nobody can undo from inside the app should still be undoable by
+   * somebody with the database, for long enough that the mistake is noticed.
+   * See TRANSCRIPT_DELETED_RETENTION_MS for why that window is longer here
+   * than for a recording.
+   */
+  private sweepDeleted(): void {
+    const cutoff = this.now() - TRANSCRIPT_DELETED_RETENTION_MS;
+    const due = this.db
+      .prepare(
+        'SELECT recording_id FROM transcripts WHERE deleted_at IS NOT NULL AND deleted_at <= ?'
+      )
+      .all(cutoff) as unknown as Array<{ recording_id: string }>;
+    for (const row of due) this.clear(row.recording_id);
+  }
+
+  /**
+   * Where one recording's transcript stands, or nothing if it has none — which
+   * includes one somebody has deleted, since a marked transcript is
+   * unreachable from the moment the mark is set.
    *
    * `missing` is the honest half. A transcript is ready when *any* speaker
    * produced text, so a screen that only said "ready" would quietly present a
@@ -320,7 +364,7 @@ export class Transcripts {
     const row = this.db
       .prepare(
         `SELECT state, requested_by, requested_at, failure
-         FROM transcripts WHERE recording_id = ?`
+         FROM transcripts WHERE recording_id = ? AND deleted_at IS NULL`
       )
       .get(recordingId) as
       | {
@@ -355,9 +399,12 @@ export class Transcripts {
     return (
       this.db
         .prepare(
-          `SELECT identity, speaker, start_ms, end_ms, text, confidence
-           FROM transcript_lines WHERE recording_id = ?
-           ORDER BY start_ms, identity`
+          `SELECT l.identity, l.speaker, l.start_ms, l.end_ms, l.text,
+                  l.confidence
+           FROM transcript_lines l
+           JOIN transcripts t ON t.recording_id = l.recording_id
+           WHERE l.recording_id = ? AND t.deleted_at IS NULL
+           ORDER BY l.start_ms, l.identity`
         )
         .all(recordingId) as unknown as Array<{
         identity: string;
@@ -377,7 +424,7 @@ export class Transcripts {
     }));
   }
 
-  // --- the work -------------------------------------------------------------
+  // --- the work ---  // --- the work -------------------------------------------------------------
 
   /**
    * Drops the transcript of any recording that has been deleted.
@@ -389,7 +436,7 @@ export class Transcripts {
    * to drop whatever it still holds. The cascade is the backstop. This is the
    * part that keeps the promise.
    */
-  private sweep(): void {
+  private sweepOrphans(): void {
     const gone = this.db
       .prepare(
         `SELECT t.recording_id FROM transcripts t
@@ -397,7 +444,16 @@ export class Transcripts {
          WHERE r.id IS NULL OR r.deleted_at IS NOT NULL`
       )
       .all() as unknown as Array<{ recording_id: string }>;
-    for (const row of gone) this.deleteFor(row.recording_id);
+    for (const row of gone) {
+      for (const job of this.jobsOf(row.recording_id)) {
+        if (job.provider_id) this.forget(job.provider_id);
+      }
+      // Cleared outright rather than marked. The recording is on its own way
+      // out and the cascade will take these rows with it; a grace period here
+      // would only protect a transcript of a conversation that is going
+      // anyway, for three weeks longer than the conversation gets.
+      this.clear(row.recording_id);
+    }
   }
 
   /** Queues a pass onto the single chain. Never throws at the caller. */
@@ -409,13 +465,12 @@ export class Transcripts {
   }
 
   private async advance(): Promise<void> {
-    this.sweep();
-
     const open = this.db
       .prepare(
         `SELECT j.* FROM transcript_jobs j
          JOIN transcripts t ON t.recording_id = j.recording_id
-         WHERE j.state = 'pending' AND t.state = 'pending'`
+         WHERE j.state = 'pending' AND t.state = 'pending'
+           AND t.deleted_at IS NULL`
       )
       .all() as unknown as JobRow[];
 

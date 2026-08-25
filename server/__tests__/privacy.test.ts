@@ -1,4 +1,7 @@
-import { USAGE_RETENTION_MS } from '../../core/constants';
+import {
+  TRANSCRIPT_DELETED_RETENTION_MS,
+  USAGE_RETENTION_MS,
+} from '../../core/constants';
 import { buildApp, type App } from '../src/app';
 import { PRIVACY_UPDATED } from '../src/privacy';
 import { MemoryTranscription } from '../src/transcription';
@@ -57,6 +60,11 @@ describe('The privacy policy', () => {
     // this is what fails if the constant moves and the prose does not.
     const usageDays = USAGE_RETENTION_MS / (24 * 60 * 60 * 1000);
     expect(page).toContain(`kept for ${usageDays} days`);
+    // And the transcript window, which is a different promise about a
+    // different thing and is longer for a reason the page gives.
+    const transcriptDays =
+      TRANSCRIPT_DELETED_RETENTION_MS / (24 * 60 * 60 * 1000);
+    expect(page).toContain(`the text is removed about ${transcriptDays} days later`);
     // Live conversation is not stored; only a deliberate recording is.
     expect(page).toContain('is not written anywhere');
     expect(page).toContain('Ko-fi');
@@ -129,10 +137,13 @@ describe('The privacy policy', () => {
       expect(page).toContain(
         `${provider} is asked to delete the audio and its own copy`
       );
-      // Their DELETE marks rather than erases, so the page says so. This is
-      // the assertion that stops it drifting back to promising an erasure
-      // nothing performs.
-      expect(page).toContain('removed within about 30 days');
+      // **No window on the provider's behalf.** The page said "removed within
+      // about 30 days" for a few hours, on no source at all — nothing in their
+      // documentation describes deletion, and a number nobody can point at is
+      // exactly what this page exists not to publish. It says what we do,
+      // which is ask. See BACKLOG.md.
+      expect(page).toContain('theirs to say rather than ours');
+      expect(page).not.toMatch(/removed within about \d+ days/);
 
       // The two sentences that were false the moment audio left. Neither may
       // survive unqualified — this is the assertion that makes a later reader

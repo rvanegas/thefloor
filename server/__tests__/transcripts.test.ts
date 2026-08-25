@@ -369,7 +369,7 @@ describe('surviving a restart', () => {
 });
 
 describe('deleting', () => {
-  it('takes the text with it and asks the provider to forget the rest', async () => {
+  it('marks it, tells the provider now, and sweeps it later', async () => {
     makeRecording({ [ALICE]: ['a.ogg'] });
     await transcripts.request(RECORDING, ALICE);
     await transcripts.settled();
@@ -381,12 +381,62 @@ describe('deleting', () => {
 
     transcripts.deleteFor(RECORDING);
 
+    // Unreachable at once — every read is through viewFor and linesFor.
+    expect(transcripts.viewFor(RECORDING)).toBeUndefined();
+    expect(transcripts.linesFor(RECORDING)).toEqual([]);
+    // And still there underneath, which is the whole of the recovery story.
+    expect(transcript()).toMatchObject({ deleted_at: clock });
+    expect(lines()).toHaveLength(1);
+    // The provider is told now rather than in a month: nothing about the grace
+    // period depends on their copy, and leaving a conversation with a third
+    // party after somebody asked for it to go is the opposite of the tap.
+    expect(provider.forgotten).toEqual([submitted]);
+
+    // A day short of the window, and it is still recoverable by hand.
+    clock += 29 * 24 * 60 * 60 * 1000;
+    await transcripts.tick();
+    expect(lines()).toHaveLength(1);
+
+    clock += 2 * 24 * 60 * 60 * 1000;
+    await transcripts.tick();
     expect(transcript()).toBeUndefined();
     expect(lines()).toEqual([]);
     expect(jobs()).toEqual([]);
-    // Belt and braces: forget() ran when the text landed, and runs again here,
-    // because the first one can fail and nobody would notice.
-    expect(provider.forgotten).toEqual([submitted]);
+  }, 60_000);
+
+  it('leaves the recording alone, and lets somebody ask again', async () => {
+    makeRecording({ [ALICE]: ['a.ogg'] });
+    await transcripts.request(RECORDING, ALICE);
+    await transcripts.settled();
+    transcripts.deleteFor(RECORDING);
+
+    expect(
+      db.prepare('SELECT deleted_at FROM recordings WHERE id = ?').get(RECORDING)
+    ).toMatchObject({ deleted_at: null });
+
+    // Asking again is somebody wanting back what they threw away, and it
+    // replaces the marked row rather than being refused by it.
+    await transcripts.request(RECORDING, BOB);
+    await transcripts.settled();
+    expect(transcripts.viewFor(RECORDING)).toMatchObject({
+      state: 'pending',
+      requestedBy: BOB,
+    });
+  }, 60_000);
+
+  it('stops working the jobs of a transcript somebody deleted', async () => {
+    // Otherwise a deletion during the minutes the provider is working comes
+    // back as text, written into rows nobody can see.
+    makeRecording({ [ALICE]: ['a.ogg'] });
+    await transcripts.request(RECORDING, ALICE);
+    await transcripts.settled();
+    transcripts.deleteFor(RECORDING);
+
+    provider.ready(provider.submitted[0].id, [line('arrived too late')]);
+    clock += 120_000;
+    await transcripts.tick();
+
+    expect(lines()).toEqual([]);
   }, 60_000);
 
   it('drops a transcript whose recording went while it was in flight', async () => {

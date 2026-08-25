@@ -763,6 +763,13 @@ CREATE TABLE IF NOT EXISTS transcripts (
   -- null and never quietly under-reports: bin/usage would rather over-report a
   -- bill than under-report one.
   billed_ms    INTEGER,
+  -- When somebody deleted this transcript on its own, leaving the recording.
+  --
+  -- A mark rather than a removal, the way a deleted recording is: swept
+  -- TRANSCRIPT_DELETED_RETENTION_MS later, and unreachable from the moment it
+  -- is set. A transcript deleted with its *recording* never gets one of these
+  -- — it goes when the recording's own sweep takes the row.
+  deleted_at   INTEGER,
   -- Whether every job in the sum was measured rather than estimated. What it
   -- is for is reading a usage report honestly — a month of estimates and a
   -- month of measurements are not the same number and should not add up as

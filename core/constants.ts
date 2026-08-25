@@ -213,6 +213,27 @@ export const DELETED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const USAGE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
+ * How long a transcript deleted *on its own* survives the tap, before the
+ * sweep removes its rows.
+ *
+ * Thirty days rather than the week a deleted recording gets, and the longer
+ * window is the point: a recording deleted by mistake is unmistakable — the
+ * conversation is gone from every list — where a transcript deleted by mistake
+ * leaves the recording exactly where it was, so the mistake can go unnoticed
+ * for far longer. Nothing is recoverable from inside the app either way; what
+ * the window buys is that it is still recoverable *by hand*.
+ *
+ * This applies only to a transcript deleted by itself. One whose recording is
+ * deleted goes with the recording, on DELETED_RETENTION_MS — it belongs to the
+ * conversation rather than the other way round, and a transcript outliving the
+ * audio it describes by three weeks is not a thing anybody asked for.
+ *
+ * **The privacy page states this number**, so changing it is a change to a
+ * published promise and PRIVACY_UPDATED moves with it.
+ */
+export const TRANSCRIPT_DELETED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
  * How often each side proves it is still there, and how long silence is
  * tolerated before the connection is treated as dead.
  *
