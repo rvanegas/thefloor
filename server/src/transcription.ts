@@ -92,6 +92,16 @@ export type TranscriptionState =
       /** What detection decided, per speaker, or null if it did not. */
       languageCode: string | null;
       utterances: Utterance[];
+      /**
+       * How much audio the provider says it processed, in milliseconds, or
+       * null if it did not say.
+       *
+       * This is the number they bill on, which is why it is worth having over
+       * a local measurement of the same file: rounding, minimum durations and
+       * anything free are theirs to apply, and a figure taken from their own
+       * response cannot drift from their invoice for a reason we invented.
+       */
+      billedMs: number | null;
     }
   | { state: 'failed'; error: string };
 
@@ -146,15 +156,16 @@ export interface TranscriptionProvider {
   poll(id: string): Promise<TranscriptionState>;
 
   /**
-   * Removes the transcript *and the uploaded audio* from the provider.
+   * Asks the provider to drop the transcript *and the uploaded audio*.
    *
    * Called when the text lands here, and again when the recording is swept, on
    * purpose: the first can fail and nobody would notice.
    *
-   * The privacy page promises this, so it is the one call in this file whose
-   * behaviour has to be confirmed against the live API before the page is
-   * allowed to say so — their coding guide documents upload, submit and poll
-   * and does not mention deletion at all. See TRANSCRIPTS.md § *Open questions*.
+   * **This marks rather than erases.** AssemblyAI's DELETE schedules the
+   * removal and sweeps about thirty days later — the same shape as this
+   * application's own deletion, and not what "deleted" would have implied if
+   * nobody had checked. `/privacy` says so in those terms; do not let it drift
+   * back to promising an erasure this call does not perform.
    */
   forget(id: string): Promise<void>;
 }
@@ -277,6 +288,13 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
       status?: string;
       error?: string;
       language_code?: string | null;
+      // Their coding guide documents `audio_duration_ms` on the sync API and
+      // says nothing about the async transcript object, which is the one we
+      // use. Both spellings are read rather than guessing which: the cost of
+      // being wrong is a null and an estimate, and the cost of insisting is a
+      // bill nobody can check. Confirm against llms.txt and delete the loser.
+      audio_duration?: number;
+      audio_duration_ms?: number;
       utterances?: Array<{
         start?: number;
         end?: number;
@@ -307,6 +325,7 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
     return {
       state: 'ready',
       languageCode: body.language_code ?? null,
+      billedMs: billedMs(body),
       utterances: body.utterances?.length
         ? body.utterances.map((part) => ({
             startMs: part.start ?? 0,
@@ -352,6 +371,23 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
     }
     return answered.json();
   }
+}
+
+/** Whichever spelling of the processed duration the response carried. */
+function billedMs(body: {
+  audio_duration?: number;
+  audio_duration_ms?: number;
+}): number | null {
+  if (typeof body.audio_duration_ms === 'number') {
+    return Math.round(body.audio_duration_ms);
+  }
+  // Seconds in this one, which is the trap: read as milliseconds it under-
+  // reports a bill by a factor of a thousand, and a usage report that says a
+  // month cost four seconds is one nobody questions until the invoice.
+  if (typeof body.audio_duration === 'number') {
+    return Math.round(body.audio_duration * 1000);
+  }
+  return null;
 }
 
 /**
@@ -440,8 +476,13 @@ export class MemoryTranscription implements TranscriptionProvider {
   private next = 1;
 
   /** Make the job with this id come back ready, on the next poll. */
-  ready(id: string, utterances: Utterance[], languageCode: string | null = 'en') {
-    this.answers.set(id, { state: 'ready', languageCode, utterances });
+  ready(
+    id: string,
+    utterances: Utterance[],
+    languageCode: string | null = 'en',
+    billedMs: number | null = 1_000
+  ) {
+    this.answers.set(id, { state: 'ready', languageCode, utterances, billedMs });
   }
 
   /** Make the job with this id come back failed, on the next poll. */

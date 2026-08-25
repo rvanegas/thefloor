@@ -752,12 +752,22 @@ CREATE TABLE IF NOT EXISTS transcripts (
   -- Which service produced it. Stored rather than assumed, so a transcript
   -- outlives the configuration that made it.
   provider     TEXT NOT NULL,
-  -- Channel-milliseconds submitted, summed across the jobs: what this cost, in
-  -- the unit the provider bills in. An upper bound rather than a measurement —
-  -- a stem is rendered from the start of the recording, so it is at most the
-  -- recording's length, and bin/usage would rather over-report a bill than
-  -- under-report one.
-  billed_ms    INTEGER
+  -- Channel-milliseconds this transcript cost, summed across its jobs, in the
+  -- unit the provider bills in.
+  --
+  -- Written as an upper bound when the transcript is asked for — the
+  -- recording's length times the number of stems, since a stem is rendered
+  -- from the start of the recording and so is never longer than it — and
+  -- replaced by the sum of the jobs' own measurements as they land. A job that
+  -- could not be measured keeps its share of the estimate, so this is never
+  -- null and never quietly under-reports: bin/usage would rather over-report a
+  -- bill than under-report one.
+  billed_ms    INTEGER,
+  -- Whether every job in the sum was measured rather than estimated. What it
+  -- is for is reading a usage report honestly — a month of estimates and a
+  -- month of measurements are not the same number and should not add up as
+  -- though they were.
+  billed_exact INTEGER NOT NULL DEFAULT 0
 );
 
 -- One per speaker, because one stem is one job. Diarisation is asked for
@@ -782,7 +792,15 @@ CREATE TABLE IF NOT EXISTS transcript_jobs (
   -- What language detection decided, per speaker — which is a thing per-stem
   -- jobs can answer and one multichannel job could not.
   language     TEXT,
-  failure      TEXT
+  failure      TEXT,
+  -- How much audio this job actually cost, in milliseconds.
+  --
+  -- Measured rather than assumed, from two sources in order of authority: what
+  -- the provider says it processed, which is what they bill on, and failing
+  -- that ffprobe over the file we sent, which is exact about our side of it.
+  -- Null when neither could answer, and the transcript's total falls back to
+  -- an estimate for that job and says so.
+  billed_ms    INTEGER
 );
 CREATE INDEX IF NOT EXISTS transcript_jobs_recording
   ON transcript_jobs(recording_id);

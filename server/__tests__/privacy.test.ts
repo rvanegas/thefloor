@@ -118,7 +118,13 @@ describe('The privacy policy', () => {
       expect(page).toContain(
         'the parts a silenced person spoke while they did not hold the floor are removed'
       );
-      expect(page).toContain(`deleted from ${provider} as soon as the text`);
+      expect(page).toContain(
+        `${provider} is asked to delete the audio and its own copy`
+      );
+      // Their DELETE marks rather than erases, so the page says so. This is
+      // the assertion that stops it drifting back to promising an erasure
+      // nothing performs.
+      expect(page).toContain('removed within about 30 days');
 
       // The two sentences that were false the moment audio left. Neither may
       // survive unqualified — this is the assertion that makes a later reader

@@ -188,6 +188,19 @@ export interface EncodeResult {
   contentType: string;
 }
 
+export interface StemResult extends EncodeResult {
+  /**
+   * How long the rendered audio runs, in milliseconds, or null if it could not
+   * be measured.
+   *
+   * Only the stem path measures this, because only the stem path is billed for
+   * by the second. Nullable rather than falling back to a guess: a caller that
+   * gets a number can record what it sent, and one that gets null knows it is
+   * estimating instead of being quietly handed an estimate.
+   */
+  durationMs: number | null;
+}
+
 /**
  * Fetches the stems, applies the floor, and mixes them into one file.
  *
@@ -265,7 +278,7 @@ export async function encodeStem(
   identity: string,
   fetchObject: FetchObject,
   ffmpegPath = process.env.FFMPEG_PATH ?? 'ffmpeg'
-): Promise<EncodeResult> {
+): Promise<StemResult> {
   const files = stemKeysFor(request, identity);
   if (files.length === 0) {
     throw new Error(`This recording has no audio for ${identity}.`);
@@ -306,10 +319,58 @@ export async function encodeStem(
       dir
     );
 
-    return { data: await readFile(output), contentType: RECORDING_CONTENT_TYPE };
+    return {
+      data: await readFile(output),
+      contentType: RECORDING_CONTENT_TYPE,
+      durationMs: await duration(output, ffmpegPath),
+    };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * How long an encoded file runs, by asking ffprobe.
+ *
+ * Never throws: this is a measurement taken beside the work rather than part
+ * of it, and a recording that cannot be measured is still a recording. The
+ * caller decides what an unmeasured one means.
+ *
+ * ffprobe rather than reading it off the encode, because ffmpeg reports
+ * duration on stderr in a format that has changed between versions, and
+ * because ffprobe ships with every ffmpeg this could be pointed at.
+ */
+async function duration(
+  path: string,
+  ffmpegPath: string
+): Promise<number | null> {
+  const probe = ffmpegPath.replace(/ffmpeg([^/\\]*)$/, 'ffprobe$1');
+  try {
+    const seconds = await capture(probe, [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      path,
+    ]);
+    const value = Number(seconds.trim());
+    return Number.isFinite(value) && value > 0 ? Math.round(value * 1000) : null;
+  } catch {
+    return null;
+  }
+}
+
+function capture(command: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args);
+    let out = '';
+    child.stdout.on('data', (chunk) => {
+      out += String(chunk);
+    });
+    child.on('error', reject);
+    child.on('close', (code) =>
+      code === 0 ? resolve(out) : reject(new Error(`${command} exited ${code}`))
+    );
+  });
 }
 
 function run(command: string, args: string[], cwd: string): Promise<void> {

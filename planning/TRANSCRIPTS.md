@@ -512,13 +512,29 @@ is not a double.
     sweep's `DELETE` outright, which is a recording nobody can finish deleting
     because it was once transcribed. There is a test that does exactly that.
 
-  Two things phase 3 did *not* do, deliberately. `billed_ms` is the ceiling —
-  the recording's length times the number of stems — rather than a
-  measurement, since each stem is rendered from the start of the recording and
-  is therefore no longer than it; `bin/usage` would rather over-report a bill
-  than under-report one. And there is no `model` column: `poll()` does not
-  report which of the pinned pair actually ran, and a column that cannot be
-  filled honestly is worse than none.
+  **`billed_ms` is measured, from two sources in order of authority.** What
+  the provider says it processed, which is the number they bill on and so
+  cannot drift from an invoice for a reason we invented; and failing that,
+  `ffprobe` over the file we sent, taken by `encodeStem` on the way out, which
+  is exact about our side of it and survives the job then failing. A job
+  neither could measure keeps its share of the original estimate rather than
+  counting as zero — a transcript that looks free because the one thing that
+  went wrong was the measuring is worse than one that admits it is estimating —
+  and `billed_exact` on the transcript says which kind of number it is, so a
+  usage report does not add a month of estimates to a month of measurements as
+  though they were the same.
+
+  One caution carried in the code: their coding guide documents
+  `audio_duration_ms` on the *sync* API and says nothing about the async
+  transcript object, which is the one we use. Both spellings are read, one in
+  seconds and one in milliseconds, because insisting on the wrong one
+  under-reports a bill by a factor of a thousand and a usage report saying a
+  month cost four seconds is one nobody questions until the invoice. Confirm
+  against `llms.txt` and delete the loser.
+
+  One thing phase 3 did *not* do, deliberately: there is no `model` column.
+  `poll()` does not report which of the pinned pair actually ran, and a column
+  that cannot be filled honestly is worse than none.
 
 **Phase 4 — routes and the wire field.** Additive and optional, so an older
 build ignores them. This is the last phase that is inert with the key set —
@@ -573,15 +589,21 @@ data-collection answers have to have been changed. Not before.
   lines are an ordinary table with an index on `(recording_id, start_ms)` and
   one on `channel_id`, and an external-content fts5 table over them is
   additive.
-- **Does `DELETE /v2/transcript/:id` do what we promise?** The privacy page
-  says the audio and the text are deleted from the provider as soon as the text
-  is stored here, and `forget()` is that promise in code. Their own coding
-  guide documents upload, submit and poll and **does not mention deletion at
-  all** — so confirm the endpoint, and confirm it destroys the *upload* and not
-  merely the transcript row, against `llms.txt` and then against a real job.
-  Phase 5 is when the sentence goes public; this has to be settled before
-  then, and if it turns out to be weaker than the claim, the claim moves rather
-  than the code.
+- ~~**Does `DELETE /v2/transcript/:id` do what we promise?**~~ **Settled
+  2026-08-24, and the claim moved rather than the code.** Their DELETE **marks
+  for deletion and sweeps about thirty days later** — the same shape as this
+  application's own deletion, and not the erasure "deleted" would have implied.
+  The page had been drafted as "deleted from AssemblyAI as soon as the text has
+  been stored here", which would have been false on a page whose whole premise
+  is checkable claims. It now says the request goes the moment the text lands
+  and the copy is gone within about thirty days, `PROVIDER_RETENTION_DAYS` says
+  so beside the seven-day one it mirrors, and `privacy.test.ts` asserts the
+  number so it cannot drift back.
+
+  Still worth one confirmation before phase 5 publishes: that the thirty days
+  covers the **uploaded audio** and not merely the transcript row. The two are
+  deleted by the same call, which is the argument for uploading rather than
+  presigning, but it is the audio that the sentence is really about.
 - **Guests.** Their stems are identities too. `participant_names` should carry
   them, but check — a transcript of a guest labelled with a raw session id is a
   bug that only appears with a guest in the room.

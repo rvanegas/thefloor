@@ -48,6 +48,23 @@ const TRANSCRIPTION_ADDED = '24 August 2026';
 const RETENTION_DAYS = 7;
 
 /**
+ * How long the transcription provider keeps what it was sent, after being told
+ * to delete it.
+ *
+ * **Their DELETE is a mark, not an erasure** — the same shape as ours above,
+ * and it was worth finding out rather than assuming, because the sentence this
+ * page wanted to write was "deleted as soon as the text is stored here" and
+ * that would have been false. What is true is that the request goes the moment
+ * the text lands and the copy is gone within a month.
+ *
+ * Stated here rather than left vague because a reader deciding whether to tap
+ * Transcribe is entitled to the real number, and because a page that says
+ * "deleted" while a copy sits somewhere for a month is the exact failure this
+ * page exists to avoid.
+ */
+const PROVIDER_RETENTION_DAYS = 30;
+
+/**
  * How long the operational record of minutes and bytes is kept. Mirrors
  * USAGE_RETENTION_MS in core/constants.ts.
  *
@@ -124,11 +141,13 @@ plays. ${provider} is not asked to tell voices apart, and is told nothing about
 who is speaking, what the channel is, or who is in it — The Floor already knows
 whose microphone each part came from.</p>
 
-<p>The audio and the transcript are deleted from ${provider} as soon as the text
-has been stored here. The text is then kept with the recording it came from, is
-visible to exactly the people who can play that recording, and is deleted when
-the recording is — immediately for everyone, and about ${RETENTION_DAYS} days
-later underneath, like everything else here.</p>
+<p>${provider} is asked to delete the audio and its own copy of the transcript
+as soon as the text has been stored here. Their deletion works the same way
+ours does: it is marked immediately and removed within about
+${PROVIDER_RETENTION_DAYS} days. The text kept here stays with the recording it
+came from, is visible to exactly the people who can play that recording, and is
+deleted when the recording is — immediately for everyone, and about
+${RETENTION_DAYS} days later underneath, like everything else.</p>
 `
     : '';
 

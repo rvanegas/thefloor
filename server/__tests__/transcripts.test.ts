@@ -207,6 +207,40 @@ describe('collecting the text', () => {
     clock += 120_000;
   };
 
+  it('records what the provider says it processed, not an estimate', async () => {
+    const [first, second] = provider.submitted;
+    // 90 and 30 seconds: nothing like the 4-second stems or the 4-second
+    // recording, so an estimate could not produce this number by accident.
+    provider.ready(first.id, [line('a')], 'en', 90_000);
+    provider.ready(second.id, [line('b')], 'en', 30_000);
+    later();
+
+    await transcripts.tick();
+
+    expect(transcript()).toMatchObject({
+      billed_ms: 120_000,
+      billed_exact: 1,
+    });
+  });
+
+  it('keeps an unmeasured job on its share of the estimate', async () => {
+    // A transcript that looks free because the one thing that went wrong was
+    // the measuring is worse than one that says it is still estimating.
+    const [first, second] = provider.submitted;
+    provider.ready(first.id, [line('a')], 'en', 90_000);
+    provider.fails(second.id, 'nope');
+    later();
+
+    await transcripts.tick();
+
+    // The stem was rendered and measured on the way out even though the job
+    // then failed, so this is still a real number — 4 seconds of tone.
+    const [alice, bob] = jobs();
+    expect(alice.billed_ms).toBe(90_000);
+    expect(bob.billed_ms).toBeGreaterThan(3_000);
+    expect(transcript()).toMatchObject({ billed_exact: 1 });
+  });
+
   it('stores the lines and finishes once every job has landed', async () => {
     const [first, second] = provider.submitted;
     provider.ready(first.id, [line('hello there')], 'en');

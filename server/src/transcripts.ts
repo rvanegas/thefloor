@@ -68,6 +68,7 @@ interface JobRow {
   state: string;
   language: string | null;
   failure: string | null;
+  billed_ms: number | null;
 }
 
 export class Transcripts {
@@ -338,7 +339,7 @@ export class Transcripts {
     }
 
     try {
-      const { data } = await encodeStem(
+      const { data, durationMs } = await encodeStem(
         requestFrom(recording),
         job.identity,
         async (key) => {
@@ -351,6 +352,17 @@ export class Transcripts {
           return bytes;
         }
       );
+
+      // What we sent, measured, before anybody is asked what they charged for
+      // it. If the provider reports its own figure on the way out this is
+      // replaced by that — but a job that fails, or one whose response says
+      // nothing about duration, still has a real number rather than a share of
+      // an estimate.
+      if (durationMs !== null) {
+        this.db
+          .prepare('UPDATE transcript_jobs SET billed_ms = ? WHERE id = ?')
+          .run(durationMs, job.id);
+      }
 
       const providerId = await provider.submit(data, {
         languageDetection: true,
@@ -440,9 +452,10 @@ export class Transcripts {
 
     this.db
       .prepare(
-        `UPDATE transcript_jobs SET state = 'ready', language = ? WHERE id = ?`
+        `UPDATE transcript_jobs SET state = 'ready', language = ?,
+           billed_ms = COALESCE(?, billed_ms) WHERE id = ?`
       )
-      .run(answered.languageCode, job.id);
+      .run(answered.languageCode, answered.billedMs, job.id);
     this.nextPoll.delete(job.id);
 
     // The promise the privacy page makes, kept the moment it can be: the text
@@ -455,6 +468,8 @@ export class Transcripts {
     const jobs = this.jobsOf(recordingId);
     if (jobs.length === 0) return;
     if (jobs.some((job) => job.state === 'pending')) return;
+
+    this.total(recordingId, jobs);
 
     const ready = jobs.filter((job) => job.state === 'ready');
     if (ready.length > 0) {
@@ -480,6 +495,40 @@ export class Transcripts {
         jobs[0].failure ?? 'The transcript could not be made.',
         recordingId
       );
+  }
+
+  /**
+   * Replaces the estimate with what the jobs actually cost.
+   *
+   * A job nobody could measure keeps its share of the original estimate rather
+   * than counting as zero — the alternative is a transcript that looks free
+   * because the one thing that went wrong was the measuring. `billed_exact`
+   * says which kind of number this is, so a usage report does not add a month
+   * of estimates to a month of measurements as though they were the same.
+   */
+  private total(recordingId: string, jobs: JobRow[]): void {
+    const estimate = this.db
+      .prepare('SELECT billed_ms FROM transcripts WHERE recording_id = ?')
+      .get(recordingId) as { billed_ms: number | null } | undefined;
+    const share =
+      jobs.length > 0 ? (estimate?.billed_ms ?? 0) / jobs.length : 0;
+
+    let exact = true;
+    let total = 0;
+    for (const job of jobs) {
+      if (job.billed_ms === null) {
+        exact = false;
+        total += share;
+      } else {
+        total += job.billed_ms;
+      }
+    }
+
+    this.db
+      .prepare(
+        'UPDATE transcripts SET billed_ms = ?, billed_exact = ? WHERE recording_id = ?'
+      )
+      .run(Math.round(total), exact ? 1 : 0, recordingId);
   }
 
   private failJob(job: JobRow, failure: string): void {
