@@ -147,6 +147,28 @@ export interface BuildOptions {
    * absent credential has to mean absent feature rather than a broken one.
    */
   transcription?: TranscriptionProvider;
+  /**
+   * The one address allowed to *start* a transcript, when there is to be one.
+   *
+   * Reading and searching are unaffected: a transcript is a shared artefact of
+   * a shared conversation, and everybody who can play the recording can read
+   * every word of it. This restricts only the act that spends money.
+   *
+   * Unset, the rule is the one the design argues for — anybody in the channel
+   * who holds the room, since transcribing changes what everybody's screen
+   * says. Set, it is one person's decision and one person's bill. It exists
+   * because this is the first thing here that costs per tap and the first
+   * whose cost somebody else can incur on your behalf.
+   *
+   * An address rather than an account id, so it can be written in `.env` by
+   * somebody who knows who they mean. Matched the way sign-in matches:
+   * trimmed, case-insensitively.
+   *
+   * **Deleting is restricted with it**, deliberately. Deleting spends nothing,
+   * but it destroys something only this account can make again — and making it
+   * again costs what it cost the first time.
+   */
+  transcribeIdentifier?: string;
 }
 
 export interface App {
@@ -1849,6 +1871,14 @@ export function buildApp(options: BuildOptions = {}): App {
         .code(503)
         .send({ error: 'Transcription is not configured.' });
     }
+    // Before the reach test, on purpose. A member who may see the recording
+    // and may not spend on it should be told that, rather than told the
+    // recording does not exist.
+    if (!mayTranscribe(account.id)) {
+      return reply
+        .code(403)
+        .send({ error: 'Transcribing is limited to one account on this server.' });
+    }
     const allowed = channels.mayManageRecording(id, account.id);
     if (!allowed.ok) {
       return reply
@@ -1940,6 +1970,13 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
     const { id } = request.params as { id: string };
 
+    // The same account that may make one may unmake it. Deleting spends
+    // nothing and destroys something only that account can make again.
+    if (!mayTranscribe(account.id)) {
+      return reply
+        .code(403)
+        .send({ error: 'Transcribing is limited to one account on this server.' });
+    }
     const allowed = channels.mayManageRecording(id, account.id);
     if (!allowed.ok) {
       return reply
@@ -2124,7 +2161,7 @@ export function buildApp(options: BuildOptions = {}): App {
       // answer — a failed mix, or a run that predates mixing — and those play
       // and export by encoding on demand, exactly as everything used to.
       mixing: row.mix_state === 'pending',
-      ...transcriptViewOf(row),
+      ...transcriptViewOf(row, userId),
     };
   }
 
@@ -2138,9 +2175,11 @@ export function buildApp(options: BuildOptions = {}): App {
    * from the same absence, so a server with no key never shows one.
    */
   function transcriptViewOf(
-    row: RecordingRow
+    row: RecordingRow,
+    viewerId: string
   ): Pick<RecordingView, 'transcript'> {
     if (!transcripts.available()) return {};
+    const mayRequest = mayTranscribe(viewerId);
     const view = transcripts.viewFor(row.id);
     // `'none'` rather than nothing: this server can transcribe this recording
     // and nobody has asked. Absent is reserved for a server that cannot, which
@@ -2151,6 +2190,7 @@ export function buildApp(options: BuildOptions = {}): App {
           state: 'none',
           provider: options.transcription?.name ?? '',
           requestedBy: null,
+          mayRequest,
         },
       };
     }
@@ -2158,6 +2198,7 @@ export function buildApp(options: BuildOptions = {}): App {
       transcript: {
         state: view.state,
         provider: options.transcription?.name ?? '',
+        mayRequest,
         // Frozen names first, exactly as `others` does: a transcript that
         // relabels itself when somebody renames themselves is worse than one
         // with an old name in it.
@@ -2166,6 +2207,25 @@ export function buildApp(options: BuildOptions = {}): App {
         ...(view.missing.length ? { missing: view.missing.length } : {}),
       },
     };
+  }
+
+  /**
+   * Whether this account may start or remove a transcript.
+   *
+   * Two rules in order, and they refuse for different reasons: the
+   * `transcribeIdentifier` restriction is about who is allowed to spend, and
+   * `mayManageRecording` is about reach and about not changing a shared thing
+   * from outside a conversation in progress. This is only the first.
+   */
+  function mayTranscribe(userId: string): boolean {
+    const only = options.transcribeIdentifier;
+    if (!only) return true;
+    // Resolved on each call rather than at boot: the account may not exist
+    // when this server starts, and an address configured before its owner has
+    // signed in should start working when they do rather than after a
+    // restart. One indexed lookup, on a path that is already a database read.
+    const allowed = accounts.byIdentifier(only);
+    return !!allowed && allowed.id === userId;
   }
 
   function nameFrom(row: RecordingRow, id: string): PublicAccount | null {

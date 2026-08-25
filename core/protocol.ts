@@ -362,6 +362,19 @@ export interface RecordingView {
      */
     provider: string;
     /**
+     * Whether *this* viewer may start one, and remove it.
+     *
+     * On the wire rather than inferred, because the answer is the server's:
+     * a deployment may limit transcribing to one account — it is the first
+     * thing here that costs money per tap, and the first whose cost somebody
+     * else can incur on your behalf. Reading and searching are never limited,
+     * so this says nothing about what may be seen.
+     *
+     * Optional: a server that predates it sends nothing, which reads as
+     * permitted — the behaviour such a server had.
+     */
+    mayRequest?: boolean;
+    /**
      * Who asked for it. Shown, always — asking sends everybody's audio to a
      * third party, so it is never anonymous.
      */

@@ -48,13 +48,14 @@ async function tone(name: string): Promise<Buffer> {
   return readFile(path);
 }
 
-function build(withProvider = true) {
+function build(withProvider = true, transcribeIdentifier?: string) {
   store = new MemoryRecordingStore();
   app = buildApp({
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
     store,
     transcription: withProvider ? provider : undefined,
+    transcribeIdentifier,
     now: () => clock,
   });
 }
@@ -204,6 +205,109 @@ describe('asking for one', () => {
     const answered = await ask(alice.token);
     expect(answered.statusCode).toBe(503);
   });
+});
+
+describe('when only one account may spend', () => {
+  // Reading and searching are never restricted: a transcript is a shared
+  // artefact of a shared conversation. What is restricted is the act that
+  // costs money, and deleting with it — deleting spends nothing but destroys
+  // something only that account can make again.
+  beforeEach(async () => {
+    build(true, 'alice@example.com');
+    store.put('a.ogg', await tone('a.ogg'));
+    store.put('b.ogg', await tone('b.ogg'));
+  });
+
+  it('lets the named account start one', async () => {
+    const { alice } = await room();
+    expect((await ask(alice.token)).statusCode).toBe(200);
+  }, 60_000);
+
+  it('matches the address the way signing in does', async () => {
+    // Configured in one case and signed in with another is exactly the kind of
+    // thing that fails silently once, on the one account nobody can debug.
+    build(true, '  ALICE@Example.COM ');
+    store.put('a.ogg', await tone('a.ogg'));
+    store.put('b.ogg', await tone('b.ogg'));
+    const { alice } = await room();
+    expect((await ask(alice.token)).statusCode).toBe(200);
+  }, 60_000);
+
+  it('refuses anybody else, and says so rather than hiding the recording', async () => {
+    const { bob } = await room();
+    const answered = await ask(bob.token);
+
+    // 403 rather than 404: Bob can see this recording and can play it. What
+    // he cannot do is spend on it, and being told the recording does not
+    // exist would be a lie he could disprove by scrolling.
+    expect(answered.statusCode).toBe(403);
+    expect(answered.json().error).toMatch(/limited to one account/i);
+    expect(provider.submitted).toHaveLength(0);
+  }, 60_000);
+
+  it('still tells a stranger nothing', async () => {
+    // The restriction is checked first, so this asserts the order: somebody
+    // outside the channel must not learn the recording exists by being told
+    // about a spending rule.
+    await room();
+    const carol = await signIn('carol@example.com', 'Carol');
+    expect((await ask(carol.token)).statusCode).toBe(403);
+  }, 60_000);
+
+  it('refuses everybody else the delete too', async () => {
+    const { alice, bob } = await room();
+    await ask(alice.token);
+    await app.transcripts.settled();
+
+    expect((await ask(bob.token, 'DELETE')).statusCode).toBe(403);
+    expect((await ask(alice.token, 'DELETE')).statusCode).toBe(200);
+  }, 60_000);
+
+  it('lets everybody read and search it', async () => {
+    const { alice, bob } = await room();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await complete({
+      [alice.account.id]: 'the part about the badgers',
+      [bob.account.id]: 'and then the owls arrived',
+    });
+
+    const read = await app.fastify.inject({
+      method: 'GET',
+      url: `/recordings/${RECORDING}/transcript`,
+      headers: auth(bob.token),
+    });
+    expect(read.statusCode).toBe(200);
+    expect(read.json().lines).toHaveLength(2);
+
+    const found = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${CHANNEL}/transcripts/search?q=owls`,
+      headers: auth(bob.token),
+    });
+    expect(found.json().hits).toHaveLength(1);
+  }, 60_000);
+
+  it('tells the app who may, so nobody is shown a button that refuses', async () => {
+    const { alice, bob } = await room();
+    const listed = async (token: string) => {
+      const answered = await app.fastify.inject({
+        method: 'GET',
+        url: '/home',
+        headers: auth(token),
+      });
+      return (answered.json().recordings ?? []).find(
+        (row: { id: string }) => row.id === RECORDING
+      );
+    };
+
+    expect((await listed(alice.token)).transcript).toMatchObject({
+      mayRequest: true,
+    });
+    expect((await listed(bob.token)).transcript).toMatchObject({
+      mayRequest: false,
+    });
+  }, 60_000);
 });
 
 describe('reading one', () => {
@@ -565,6 +669,8 @@ describe('what the recordings list carries', () => {
       state: 'none',
       provider: provider.name,
       requestedBy: null,
+      // Nothing is restricting spending on this server, so everybody may.
+      mayRequest: true,
     });
   });
 

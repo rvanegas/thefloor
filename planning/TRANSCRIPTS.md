@@ -269,6 +269,26 @@ why this design does not sneak in an automatic one.
 - **One transcript per recording.** Re-running is only offered after a failure,
   and it replaces. Nothing gives a user a button that spends money twice for the
   same answer.
+- **`TRANSCRIBE_IDENTIFIER` narrows it to one account**, added 2026-08-25 and
+  set on the box while the cost of this is still being learned. Reading and
+  searching are never restricted — a transcript is a shared artefact of a
+  shared conversation, and everybody who can play the recording can read every
+  word of it. What is restricted is the act that spends, and deleting with it,
+  since deleting spends nothing and destroys something only that account can
+  make again.
+
+  It refuses with **403 rather than 404**: the caller can see the recording and
+  can play it, so telling them it does not exist is a lie they could disprove
+  by scrolling. The restriction is checked *before* the reach test all the
+  same, so somebody outside the channel still learns nothing.
+
+  `RecordingView.transcript.mayRequest` carries the answer, and the button is
+  withheld entirely rather than disabled — everywhere else here a disabled
+  control means "not now" and has a sentence beside it; this is "not you, ever,
+  on this server", which is not worth putting on every row.
+
+  Unset, the rule below is what applies.
+
 - **The rule for who may trigger it is the `manageable` rule, not the export
   rule.** Export is a read by one person of their own conversation. This sends
   everybody's audio to a third party and produces a shared artefact on

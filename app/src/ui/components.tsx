@@ -837,6 +837,10 @@ function TranscriptButton({
   const [busy, setBusy] = React.useState(false);
   const transcript = recording.transcript;
   if (!transcript || !onOpen) return null;
+  // A server may limit starting one to a single account. Reading is never
+  // limited, so the row still opens a transcript that exists — what goes is
+  // the button that would spend, rather than the whole feature.
+  const mayRequest = transcript.mayRequest !== false;
 
   if (transcript.state === 'pending') {
     // Not disabled-with-a-reason: there is nothing to do and nothing to wait
@@ -851,6 +855,12 @@ function TranscriptButton({
       />
     );
   }
+
+  // Nothing rather than a disabled button: everywhere else here a disabled
+  // control says "not now" and has a sentence beside it saying why. This is
+  // "not you, ever, on this server", which is not a state worth putting on
+  // every recording in the list.
+  if (!mayRequest) return null;
 
   return (
     <Button

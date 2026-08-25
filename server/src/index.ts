@@ -181,6 +181,17 @@ const transcription: TranscriptionProvider | undefined = assemblyAiKey
   ? new AssemblyAiTranscription({ apiKey: assemblyAiKey })
   : undefined;
 
+/**
+ * The one address allowed to start a transcript, when there is to be one.
+ *
+ * Unset, anybody in a channel who holds the room may — which is what the
+ * design argues for, transcribing being a change to a shared thing. Set, it is
+ * one person's decision and one person's bill: this is the first thing here
+ * that costs money per tap and the first whose cost somebody else can incur on
+ * your behalf. Reading and searching are never restricted either way.
+ */
+const transcribeIdentifier = process.env.TRANSCRIBE_IDENTIFIER;
+
 const app = buildApp({
   dbPath,
   review,
@@ -197,6 +208,7 @@ const app = buildApp({
   store,
   pusher,
   transcription,
+  transcribeIdentifier,
   logger: true,
 });
 app.channels.start();
@@ -223,6 +235,9 @@ app.fastify
         // public page claims, and reading .env is not how anybody should have
         // to find out which.
         transcription: transcription ? transcription.name : 'not configured',
+        // Worth a line for the same reason `review` is: it decides who may
+        // spend money, and reading .env is not how anybody should find out.
+        transcribedBy: transcribeIdentifier ?? 'anybody in the channel',
         // The first line in the journal after a restart is where somebody
         // looks when a deploy is in doubt, and until now it could not say
         // which deploy it was.

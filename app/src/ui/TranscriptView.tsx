@@ -170,7 +170,7 @@ export function TranscriptView({
             }}
           />
         ) : null}
-        {state && state !== 'none' ? (
+        {state && state !== 'none' && recording.transcript?.mayRequest !== false ? (
           <Button
             label="Delete transcript"
             disabled={!manageable || busy}

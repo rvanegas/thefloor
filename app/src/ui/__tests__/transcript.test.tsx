@@ -236,6 +236,25 @@ describe('the button on a recording', () => {
     act(() => tree.unmount());
   });
 
+  it('is withheld entirely from somebody who may not spend', () => {
+    // Nothing rather than a disabled button: everywhere else a disabled
+    // control means "not now" and carries a sentence saying why. This is
+    // "not you, ever, on this server".
+    const tree = open(recordingWith('none', { mayRequest: false }));
+    expect(findButton(tree, 'Transcribe')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('still opens a transcript they may not have started', () => {
+    // Reading is never restricted. A transcript is a shared artefact of a
+    // shared conversation.
+    const opened = jest.fn();
+    const tree = open(recordingWith('ready', { mayRequest: false }), opened);
+    act(() => findButton(tree, 'Transcript')!.props.onPress());
+    expect(opened).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
   it('is withheld from somebody who is not in the room', () => {
     // The manage rule, the same one renaming and deleting use: this changes
     // what everybody's screen says.
