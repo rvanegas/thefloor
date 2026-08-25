@@ -74,10 +74,6 @@ can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
 Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel.
 
-## Availability Logic
-
-By way of indicators and notifications, users know when their contacts are available for conversartion, without having to interrupt each other with disruptive phone calls.
-
 ## Phone Calls
 
 What happens when user receives a phone call?
