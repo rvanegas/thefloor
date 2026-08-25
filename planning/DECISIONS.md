@@ -75,6 +75,25 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-08-25 — `ef0d0a2` → `d1794b7`
+
+Two commits, one of them the build 98 bump. The server's half is
+`transcript_voices` and the route that writes it: somebody who was in the room
+says who the provider's speaker labels actually were, and the transcript is
+named, collapsed and filtered from that. TRANSCRIPTS.md has the reasoning.
+
+**A new table and no migration**, which is worth saying because it looks like
+one. `CREATE TABLE IF NOT EXISTS` in SCHEMA is the whole of it: only the voices
+somebody has said something about get rows, so absence is the default naming
+and there was nothing to backfill. Confirmed present on the live database after
+the restart rather than assumed.
+
+**Deployed before the client that uses it, deliberately.** The app's naming
+screen is build 99, uploaded minutes after this. A build that predates the
+route ignores the new `voices` field on the transcript read — it is optional
+and nothing renders it — and never calls the PUT, so the two-step here is the
+ordinary one rather than a break: server first, client after.
+
 ### 2026-08-25 — `3d13362` → `ef0d0a2`
 
 Two commits, one of them the iOS build bump. The server's half is the naming
