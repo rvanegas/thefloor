@@ -3,7 +3,13 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp, type App } from '../src/app';
-import { buildFilterGraph, encodeRecording } from '../src/export';
+import {
+  buildFilterGraph,
+  buildStemGraph,
+  encodeRecording,
+  encodeStem,
+  stemKeysFor,
+} from '../src/export';
 import { MemoryMailer } from '../src/mail';
 import { MemoryRecordingStore } from '../src/storage';
 
@@ -107,6 +113,59 @@ describe('the filter graph', () => {
   });
 });
 
+describe('one speaker\u2019s branch of it', () => {
+  /**
+   * The property phase 2 of planning/TRANSCRIPTS.md exists for: what a
+   * transcript is submitted is the same audio the export would have played, so
+   * there is no arrangement of inputs under which the two can disagree about
+   * what a silenced person said.
+   *
+   * Asserted twice, on purpose — once on the string, because "identical" is a
+   * claim about the graph and a substring settles it exactly; and once on the
+   * audio below, because a filter graph that looks right and mutes nothing
+   * would pass any amount of string comparison.
+   */
+  const request = {
+    stems: { [ALICE]: ['a1.ogg', 'a2.ogg'], [BOB]: ['b1.ogg'] },
+    timeline: [
+      { identity: BOB, fromMs: 3_000, toMs: 6_000 },
+      { identity: ALICE, fromMs: 1_000, toMs: 2_000 },
+    ],
+  };
+  const index = new Map([
+    ['a1.ogg', 0],
+    ['a2.ogg', 1],
+    ['b1.ogg', 2],
+  ]);
+
+  it('is what the mix contains, verbatim', () => {
+    const mix = buildFilterGraph(request, index);
+
+    // The labels a stem uses inside the mix are the mix's to hand out, which
+    // is what the argument is for — with it, the branch is character for
+    // character what the mix was built from.
+    for (const [n, identity] of [ALICE, BOB].entries()) {
+      const stem = buildStemGraph(request, identity, index, `s${n}`);
+      expect(stem).not.toBeNull();
+      expect(mix!.filter).toContain(stem!.filter);
+    }
+  });
+
+  it('gates the speaker asked for and nobody else', () => {
+    const bob = buildStemGraph(request, BOB, index);
+    // Bob's window, and not Alice's — a branch carrying somebody else's gating
+    // would silence the wrong person in a transcript.
+    expect(bob!.filter).toContain("between(t,3.000,6.000)");
+    expect(bob!.filter).not.toContain("between(t,1.000,2.000)");
+  });
+
+  it('knows which objects it needs, and refuses a speaker with none', () => {
+    expect(stemKeysFor(request, ALICE)).toEqual(['a1.ogg', 'a2.ogg']);
+    expect(stemKeysFor(request, 'acct_nobody')).toEqual([]);
+    expect(buildStemGraph(request, 'acct_nobody', index)).toBeNull();
+  });
+});
+
 describe('the encoded recording', () => {
   let dir: string;
 
@@ -193,6 +252,66 @@ describe('the encoded recording', () => {
     expect(peaks[6]).toBeLessThan(-70); // inside the window, second segment
     expect(peaks[9]).toBeGreaterThan(-20); // after it
   }, 60_000);
+
+  it('is silent in one speaker\u2019s stem exactly where the mix is', async () => {
+    // The claim a transcript rests on, measured rather than argued: the file
+    // submitted for one person carries no more of them than the export does.
+    // A stem taken from the bucket instead would be audible throughout.
+    const store = new MemoryRecordingStore();
+    store.put('alice.ogg', await tone(dir, 'alice-solo.ogg', 10, 440));
+    store.put('bob.ogg', await tone(dir, 'bob-solo.ogg', 10, 880));
+    const request = {
+      stems: { [ALICE]: ['alice.ogg'], [BOB]: ['bob.ogg'] },
+      timeline: [{ identity: BOB, fromMs: 3_000, toMs: 7_000 }],
+    };
+    const fetch = async (key: string) => store.get(key);
+
+    const stem = await encodeStem(request, BOB, fetch);
+    const peaks = await peaksPerSecond(stem.data, dir);
+
+    expect(peaks[1]).toBeGreaterThan(-20);
+    for (const s of [4, 5, 6]) expect(peaks[s]).toBeLessThan(-70);
+    expect(peaks[8]).toBeGreaterThan(-20);
+
+    // And the speaker who was never silenced is whole in theirs, so the gating
+    // followed the identity rather than the position.
+    const alice = await encodeStem(request, ALICE, fetch);
+    for (const peak of (await peaksPerSecond(alice.data, dir)).slice(0, 9)) {
+      expect(peak).toBeGreaterThan(-20);
+    }
+  }, 60_000);
+
+  it('begins a stem where the recording does, not where the speaker did', async () => {
+    // A late joiner's leading silence is kept, which is what makes a word's
+    // time in this file a time in the recording — no offset arithmetic
+    // anywhere downstream, and a transcript line can seek shared playback.
+    const store = new MemoryRecordingStore();
+    store.put('late.ogg', await tone(dir, 'late.ogg', 4, 440));
+
+    const { data } = await encodeStem(
+      {
+        stems: { [BOB]: [{ key: 'late.ogg', startMs: 5_000 }] },
+        timeline: [],
+      },
+      BOB,
+      async (key) => store.get(key)
+    );
+
+    const peaks = await peaksPerSecond(data, dir);
+    // Silence where he was not there yet, audible once he is.
+    for (const s of [1, 3]) expect(peaks[s]).toBeLessThan(-70);
+    expect(peaks[6]).toBeGreaterThan(-20);
+  }, 60_000);
+
+  it('refuses a speaker who has no audio in the recording', async () => {
+    await expect(
+      encodeStem(
+        { stems: { [ALICE]: ['a.ogg'] }, timeline: [] },
+        BOB,
+        async () => Buffer.alloc(0)
+      )
+    ).rejects.toThrow(/no audio/i);
+  });
 
   it('refuses a recording with no stems', async () => {
     await expect(

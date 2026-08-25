@@ -417,12 +417,35 @@ it.
   the transcript for anybody who switches — is not a limit on this model. The
   second, that a nearly-silent stem detects badly, still stands.
 
-**Phase 2 — `buildStemGraph`.** Lift the per-identity half of
-`buildFilterGraph` in `export.ts`, with a test asserting that one identity's
-gating is identical to the gating that identity gets inside the mix. Nothing
-calls it yet. It is deliberately its own phase: it is the one change that can
-break existing recordings, and it should land where a regression has nothing
-else in the diff to hide behind.
+**Phase 2 — `buildStemGraph`. Done 2026-08-24.** The per-identity half of
+`buildFilterGraph` lifted out of `export.ts` and called back in a loop, so the
+mix is a mix of gated stems and nothing more. Deliberately its own phase: it is
+the one change that can break existing recordings, and it landed where a
+regression had nothing else in the diff to hide behind. Nothing calls the new
+entry points yet.
+
+  - `buildStemGraph(request, identity, inputIndex, label?)` — one speaker's
+    branch, returning the filter and its output label. The `label` argument is
+    what makes the identity assertion exact: the mix hands out `s0`, `s1`, and
+    the branch is then character for character what the mix was built from,
+    which `export.test.ts` asserts by substring.
+  - `stemKeysFor(request, identity)` — the objects one speaker needs.
+  - **`encodeStem(request, identity, fetchObject)`** — that graph, encoded on
+    its own, which is what phase 3 submits. Not in the plan as originally
+    written, and pulled forward for a reason worth keeping: `export.ts`'s
+    header says a filter graph that looks right and mutes nothing would pass
+    any amount of unit testing, so the identity claim is asserted twice — once
+    on the string, and once on real ffmpeg output measured per second. The
+    second is the one that would catch a gate that silently stopped gating, and
+    it needs the encoder to exist. Phase 3 therefore does not touch this file.
+
+  Two properties the audio tests pin down, both of which everything downstream
+  leans on. A speaker's stem is silent exactly where the mix is silent for
+  them, and whole where they were never silenced — so the gating follows the
+  identity rather than the position. And a stem **begins where the recording
+  does, not where that speaker did**: a late joiner's leading silence is
+  encoded rather than trimmed, which is what makes a time in the submitted file
+  a time in the recording.
 
 **Phase 3 — schema, job runner, polling, boot recovery**, behind the absent
 key. Tested entirely against `MemoryTranscription`: pending → ready, one stem
