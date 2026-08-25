@@ -689,11 +689,16 @@ prediction about a service nobody has called yet.
   one on `channel_id`, and an external-content fts5 table over them is
   additive.
 - **What `DELETE /v2/transcript/:id` does at their end** is in BACKLOG.md, as
-  *What AssemblyAI does with the audio after we ask it to delete it*, and it
-  gates the deploy that sets the key. Briefly, on 2026-08-25, this document and
-  `/privacy` both said their DELETE marks and sweeps at thirty days — that came
-  from a sentence about *this* application's sweep, misread as being about
-  theirs, and there is no source for it. The page now says only that we ask.
+  *What AssemblyAI does with the audio after we ask it to delete it*. Briefly,
+  on 2026-08-25, this document and `/privacy` both said their DELETE marks and
+  sweeps at thirty days — that came from a sentence about *this* application's
+  sweep, misread as being about theirs, and there is no source for it.
+
+  **`/privacy` now claims nothing about their side at all**, not even that they
+  are asked. The call is still made; the page confines itself to what this
+  server does with its own copies, which is the only kind of claim it can be
+  held to. That also takes this off the critical path for the deploy that sets
+  the key — it is worth answering, and it no longer blocks.
 
 - ~~**Guests.**~~ **Settled 2026-08-25: their display name, and it already
   works.** `participant_names` carries a guest, because `displayName()` asks

@@ -134,16 +134,15 @@ describe('The privacy policy', () => {
       expect(page).toContain(
         'the parts a silenced person spoke while they did not hold the floor are removed'
       );
-      expect(page).toContain(
-        `${provider} is asked to delete the audio and its own copy`
-      );
-      // **No window on the provider's behalf.** The page said "removed within
-      // about 30 days" for a few hours, on no source at all — nothing in their
-      // documentation describes deletion, and a number nobody can point at is
-      // exactly what this page exists not to publish. It says what we do,
-      // which is ask. See BACKLOG.md.
-      expect(page).toContain('theirs to say rather than ours');
+      // **Nothing at all about what the provider does with its copy.** The
+      // server asks it to delete, and what that achieves at their end is not
+      // established — so the page describes what this server does and stops.
+      // It briefly said "removed within about 30 days" on no source, which is
+      // why this is asserted rather than left to judgement. See BACKLOG.md.
+      expect(page).not.toContain(`${provider} is asked to delete`);
       expect(page).not.toMatch(/removed within about \d+ days/);
+      // What it does say is about copies here, which is checkable.
+      expect(page).toContain('A transcript is kept here');
 
       // The two sentences that were false the moment audio left. Neither may
       // survive unqualified — this is the assertion that makes a later reader

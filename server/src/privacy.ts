@@ -101,6 +101,14 @@ export function privacyPage(options: PolicyOptions = {}): string {
   // wrong. Text kept here outlives the provider being dropped, so a page that
   // fell silent about transcripts still on people's screens would fail worse
   // than the case the gate was built to prevent.
+  //
+  // **Nothing is claimed about what the provider does with its copy.** The
+  // server does ask it to delete — `Transcripts.forget` — but what that
+  // achieves at their end is not established, and a page written as checkable
+  // claims may only describe what this server does. It said "removed within
+  // about 30 days" for a few hours on no source at all, which is the reason
+  // the rule is written down rather than assumed. See BACKLOG.md § *What
+  // AssemblyAI does with the audio after we ask it to delete it*.
   const transcriptionSending = provider
     ? `
 <p>The audio is sent to ${provider}, in the United States, which returns the
@@ -111,10 +119,6 @@ plays. ${provider} is not asked to tell voices apart between people — The Floo
 already knows whose microphone each part came from — and is told nothing about
 who is speaking, what the channel is, or who is in it.</p>
 
-<p>${provider} is asked to delete the audio and its own copy of the transcript
-as soon as the text has been stored here, and asked again if a transcript is
-deleted later. How long they take to act on that is theirs to say rather than
-ours, so this page does not promise a number for it.</p>
 `
     : '';
 
@@ -124,8 +128,9 @@ ours, so this page does not promise a number for it.</p>
 the channel asks for it, once per recording, and their name is shown beside the
 result — because asking sends everybody\u2019s audio, not just theirs.</p>
 ${transcriptionSending}
-<p>A transcript is kept with the recording it came from, is visible to exactly
-the people who can play that recording, and is deleted when the recording is —
+<p>A transcript is kept here, with the recording it came from, is visible to
+exactly the people who can play that recording, and is deleted when the
+recording is —
 immediately for everyone, and about ${RETENTION_DAYS} days later underneath,
 like everything else.</p>
 

@@ -339,11 +339,21 @@ strictly about wording:
 **This page briefly published a number nobody had a source for.** On
 2026-08-25 `/privacy` said the copy was "removed within about 30 days", from a
 sentence in conversation that was actually about *this* application's sweep,
-not theirs. It was wrong for a few hours and the wording now says only that we
-ask, with `privacy.test.ts` asserting no window is claimed on their behalf.
-That is the honest floor and it is not the goal: a reader deciding whether to
-tap Transcribe deserves the real number, and a submission that describes a
-third-party processor is better with it.
+not theirs. It was wrong for a few hours.
+
+**The page now says nothing whatever about their side** — decided the same
+day. Not the window, and not even that they are asked, which the wording fell
+back to first: a claim about what a third party does with a copy is not
+checkable against this repository, and this page's whole premise is that every
+paragraph is. What it says instead is what this server does with its own
+copies, which is a thing it can be held to. `privacy.test.ts` asserts the
+absence, and `transcription.ts` § `forget` says not to put one back without a
+source.
+
+That is the honest floor rather than the goal. A reader deciding whether to tap
+Transcribe would be better served by the real answer, and a submission
+describing a third-party processor is better with it — which is what makes this
+worth answering rather than merely worth working around.
 
 The answer is unlikely to be in the API reference. It is a policy or DPA
 question — their privacy documentation, their terms, or their support — which

@@ -161,13 +161,18 @@ export interface TranscriptionProvider {
    * Called when the text lands here, and again when the recording is swept, on
    * purpose: the first can fail and nobody would notice.
    *
-   * **What it does at their end is not established.** Whether this erases
-   * immediately, marks for a later sweep, or covers the uploaded audio as well
-   * as the transcript row is a question nobody here has answered against their
-   * documentation — their coding guide describes upload, submit and poll and
-   * never mentions deletion. `/privacy` therefore says what we do, which is
-   * ask, and deliberately promises no window on their behalf. **Do not add one
-   * back without a source**; see BACKLOG.md.
+   * **What it does at their end is not established, and `/privacy` therefore
+   * says nothing about it at all.** Whether this erases immediately, marks for
+   * a later sweep, or covers the uploaded audio as well as the transcript row
+   * is a question nobody here has answered against their documentation — their
+   * coding guide describes upload, submit and poll and never mentions
+   * deletion. So the call is made, and the page confines itself to what this
+   * server does with its own copies, which is a thing it can be held to.
+   *
+   * **Do not put a claim about their side back on that page without a
+   * source** — not "asked to delete", not a window. It carried one for a few
+   * hours on no evidence. See BACKLOG.md § *What AssemblyAI does with the
+   * audio after we ask it to delete it*.
    */
   forget(id: string): Promise<void>;
 }
