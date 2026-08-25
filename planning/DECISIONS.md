@@ -75,6 +75,30 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-08-24 — `3c5f771` → `901bdd1`
+
+Nine commits, of which two are the server's: `displaceOtherSessions` now fires
+on `STEP_OUT` and `LEAVE_CHANNEL` as well as `ENTER`. The rest is the app's
+stale-socket work, `bin/live`, two design documents, and AGENTS.md.
+
+**A wire change that needed no two-step, which is worth saying because it looks
+like one.** `core/protocol.ts` moved, so the instinct is to reach for the alias
+dance in AGENTS.md § *Never ship a wire change to a server before the client can
+speak it*. It does not apply here: `channel.displaced` is a message every
+installed build already handles, and the change is only the set of actions that
+provoke it. An old client receiving one on a Step Out does what it does on an
+arrival — stops believing it is standing anywhere — which is the correct
+behaviour and the reason the message was widened.
+
+**The half that is not shipped is the client's.** The belief this corrects is
+re-sent by `onopen` in `app/src/api/socket.ts`, so the server telling the truth
+sooner helps every build, but the accompanying app work reaches nobody until
+build 94 is released. Deployed at the same sitting as the upload, in that order,
+which is the order that cannot be wrong.
+
+Nothing to watch on the way in: presence survives a restart, and the added
+sends are to sessions that were about to be told something anyway.
+
 ### 2026-08-24 — `29266a5` → `af41969`
 
 The playback heartbeat, plus `b167172` — another session's contact-removal work,

@@ -72,7 +72,7 @@ can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
 ## Transcripts
 
-Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel.
+Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel. See TRANSCRIPTS.md .
 
 ## Phone Calls
 
