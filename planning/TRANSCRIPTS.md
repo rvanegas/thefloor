@@ -823,10 +823,12 @@ costs* above, which is where the rules live. What it touches —
   - `FREE_TRANSCRIPT_MINUTES`, and `TRANSCRIBE_IDENTIFIER` re-read as a
     deprecated bootstrap rather than removed.
 
-  **`bin/usage` still says nothing about transcription**, which mattered less
-  when one account could spend and matters more now that everybody can.
-  `billed_ms` and the `usage_bytes` entries are being written; nothing reads
-  them.
+  - **`bin/usage transcripts`**, added the same day, because a bill nobody
+    reads is a bill nobody notices: spend by month with the failed, deleted
+    and still-estimated counts beside it, spend by the account that asked, the
+    free-use census, and where each spent use went. It is the one report in
+    that script not bounded by the thirty-day window — `transcripts` is not
+    swept on one — and the one that reads tables the server also reads.
 
 ---
 

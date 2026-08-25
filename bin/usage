@@ -1,6 +1,7 @@
 #!/bin/bash
 #
-# What this box carried, read out of the two usage tables.
+# What this box carried, read out of the two usage tables — and what it spent,
+# read out of the transcripts.
 #
 #   bin/usage                  every report, against the deployed server
 #   bin/usage minutes          one report
@@ -17,6 +18,12 @@
 # instrumentation rather than a feature. The reasoning is in
 # planning/DECISIONS.md § "The meter is two tables and a script".
 #
+# The `transcripts` report reads `transcripts` and `accounts` instead, which
+# the server very much does read. It is here rather than in bin/people or a
+# script of its own because the question it answers is this one — what did the
+# month cost — and because a second script nobody remembers is how a bill goes
+# unwatched.
+#
 # Three things bound every number below, and none of them are visible in the
 # output:
 #
@@ -30,6 +37,12 @@
 #     on their own credential and never through this process, so the largest
 #     category of bytes is missing. What `bytes` reports is what this server
 #     served, which is far less than what the bucket carried.
+#
+# The `transcripts` report is the exception to the first of those and says so
+# in its own heading: it reads the `transcripts` table, which is not swept on a
+# window — a transcript lives as long as its recording does. So it is the one
+# report here that answers "ever", or near enough, and the one whose numbers
+# are money rather than minutes.
 set -euo pipefail
 
 HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
@@ -105,6 +118,83 @@ FROM usage_bytes GROUP BY kind ORDER BY bytes DESC;
 SQL
 }
 
+usage_transcripts() {
+  cat <<'SQL'
+.print ''
+.print '── Transcription spend, by month (all of it, not the 30-day window) ─'
+.print ''
+-- $0.15 per audio-hour on the standard model, which is the figure in
+-- planning/TRANSCRIPTS.md and the one to re-check against AssemblyAI's pricing
+-- page before quoting it at anybody. `billed_ms` is channel-milliseconds —
+-- a recording's length times its number of stems — so the hours below are
+-- what the provider charges for rather than how long the conversations were.
+--
+-- Deleted transcripts are counted, deliberately: the money went whatever
+-- happened to the text afterwards.
+--
+-- `estimated` is the honest column. A transcript's billed figure starts as an
+-- upper bound written when it is asked for and is replaced per job as the
+-- measurements land; `billed_exact` says whether every job in the sum was
+-- measured. A month with estimates in it is a month whose total is a ceiling.
+SELECT strftime('%Y-%m', requested_at / 1000, 'unixepoch') AS month,
+       COUNT(*) AS transcripts,
+       SUM(state = 'failed') AS failed,
+       SUM(deleted_at IS NOT NULL) AS deleted,
+       ROUND(SUM(billed_ms) / 3600000.0, 2) AS hours,
+       ROUND(SUM(billed_ms) / 3600000.0 * 0.15, 2) AS usd,
+       SUM(billed_exact = 0) AS estimated
+FROM transcripts
+GROUP BY month
+ORDER BY month DESC;
+
+.print ''
+.print '── Who spent it ────────────────────────────────────────────────'
+.print ''
+-- By the account that asked, which is never anonymous: asking sends
+-- everybody's audio to a third party, so `requested_by` is required.
+SELECT COALESCE(a.identifier, t.requested_by) AS who,
+       COUNT(*) AS transcripts,
+       ROUND(SUM(t.billed_ms) / 3600000.0, 2) AS hours,
+       ROUND(SUM(t.billed_ms) / 3600000.0 * 0.15, 2) AS usd,
+       date(MAX(t.requested_at) / 1000, 'unixepoch') AS last_asked
+FROM transcripts t LEFT JOIN accounts a ON a.id = t.requested_by
+GROUP BY t.requested_by
+ORDER BY usd DESC;
+
+.print ''
+.print '── The free use, and who is not held to it ─────────────────────'
+.print ''
+-- Everybody gets one free transcript; `transcripts_unlimited` lifts it, set by
+-- hand with bin/db --write. This is the count that says whether the limit is
+-- doing anything: `spent` approaching `accounts` is a population that has all
+-- met the feature and cannot use it again, which is the moment to decide what
+-- the second one costs.
+--
+-- Needs the 2026-08-25 columns. Against a box that has not had that deploy
+-- yet, this one query errors with `no such column` and the rest of the report
+-- still prints.
+SELECT COUNT(*) AS accounts,
+       SUM(free_transcript_id IS NOT NULL) AS spent,
+       SUM(transcripts_unlimited = 1) AS unlimited
+FROM accounts WHERE identifier NOT LIKE 'erased:%';
+
+.print ''
+.print '── Where a free use went, newest first ─────────────────────────'
+.print ''
+-- One row per account that has spent theirs, and it outlives the transcript
+-- it was spent on: the account row is the ledger precisely because the
+-- transcripts table is swept. A NULL `on_recording` name is that — the
+-- recording is gone and the credit is still spent, which is the rule working
+-- rather than a defect.
+SELECT a.identifier AS who,
+       datetime(a.free_transcript_at / 1000, 'unixepoch') AS spent_at,
+       r.name AS on_recording
+FROM accounts a LEFT JOIN recordings r ON r.id = a.free_transcript_id
+WHERE a.free_transcript_id IS NOT NULL
+ORDER BY a.free_transcript_at DESC;
+SQL
+}
+
 usage_defects() {
   cat <<'SQL'
 .print ''
@@ -133,15 +223,16 @@ FROM usage_spans WHERE ended_at = started_at;
 SQL
 }
 
-report_names=(minutes pairs peak bytes defects)
+report_names=(minutes pairs peak bytes transcripts defects)
 
 list_reports() {
   cat <<'TXT'
-minutes   minutes per account per stream: mic, listen, playback, egress
-pairs     minutes each pair of people spent in a channel together
-peak      most egress jobs ever running at once, against the cap of ~10
-bytes     recording bytes this server served, by kind
-defects   fallback mic spans, leaked open spans, spans a restart cut short
+minutes      minutes per account per stream: mic, listen, playback, egress
+pairs        minutes each pair of people spent in a channel together
+peak         most egress jobs ever running at once, against the cap of ~10
+bytes        recording bytes this server served, by kind
+transcripts  what transcription cost, who spent it, and where the free uses went
+defects      fallback mic spans, leaked open spans, spans a restart cut short
 TXT
 }
 
@@ -183,11 +274,11 @@ opts=(-readonly -header -column -cmd '.timeout 2000')
 
 if $local_mode; then
   [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
-  echo "→ local · last 30 days"
+  echo "→ local · spans and bytes: last 30 days"
   exec sqlite3 "${opts[@]}" "$LOCAL_DB" <<<"$sql"
 fi
 
-echo "→ production · last 30 days"
+echo "→ production · spans and bytes: last 30 days"
 # Over stdin rather than interpolated into the remote shell, for the reason
 # bin/db spells out: $, backticks and backslashes are all live in that position
 # and these queries contain them.
