@@ -1683,6 +1683,10 @@ export function buildApp(options: BuildOptions = {}): App {
         dir,
         title: toRecordingView(row, account.id).name,
         durationMs,
+        // So a screen can tell that what is playing *is* this recording — the
+        // track's own id is minted per load and says nothing about it. A
+        // transcript line's offer to jump depends on the answer.
+        recordingId: id,
       });
       if (!result.ok) {
         await rm(dir, { recursive: true, force: true });
@@ -2079,10 +2083,22 @@ export function buildApp(options: BuildOptions = {}): App {
   ): Pick<RecordingView, 'transcript'> {
     if (!transcripts.available()) return {};
     const view = transcripts.viewFor(row.id);
-    if (!view) return {};
+    // `'none'` rather than nothing: this server can transcribe this recording
+    // and nobody has asked. Absent is reserved for a server that cannot, which
+    // is what withdraws the button entirely.
+    if (!view) {
+      return {
+        transcript: {
+          state: 'none',
+          provider: options.transcription?.name ?? '',
+          requestedBy: null,
+        },
+      };
+    }
     return {
       transcript: {
         state: view.state,
+        provider: options.transcription?.name ?? '',
         // Frozen names first, exactly as `others` does: a transcript that
         // relabels itself when somebody renames themselves is worse than one
         // with an old name in it.

@@ -18,26 +18,7 @@ import { escapeHtml, page } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '19 August 2026';
-
-/**
- * When the transcription disclosure was added — which is a different date from
- * the one above, because it is a different page to a different reader.
- *
- * The whole of the transcription section is conditional on the server having a
- * provider configured, so a deployment without one says nothing about it and
- * has not changed. Stamping it with today's date regardless would tell every
- * reader to re-read a page that is word for word the one they saw. The later
- * of the two is shown, so the date always describes the version in front of
- * whoever is reading it.
- *
- * **This constant is meant to be temporary**, and TRANSCRIPTS.md § *Order of
- * work* says when: the phase that ships the feature to the app splits the
- * section in two and makes the half about stored transcripts unconditional. At
- * that point the page has changed for every reader, which is what
- * `PRIVACY_UPDATED` is for — so it moves, and this one goes away.
- */
-const TRANSCRIPTION_ADDED = '24 August 2026';
+export const PRIVACY_UPDATED = '25 August 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -126,37 +107,50 @@ export function privacyPage(options: PolicyOptions = {}): string {
   // is the render that removes what the floor removed, so a transcript built
   // from the wrong bytes would be a permanent searchable text of the remark the
   // recording deliberately does not contain.
-  const transcriptionSection = provider
+  // Two claims with different conditions, split when the feature reached the
+  // app. The *sending* is gated on a provider being configured: it is only
+  // true where the credential is, and unsetting the key has to retract the
+  // sentence in the same restart that withdraws the feature — the `KOFI_URL`
+  // property, deliberately.
+  //
+  // The *storage* is not gated, and that is the half that would go quietly
+  // wrong. Text kept here outlives the provider being dropped, so a page that
+  // fell silent about transcripts still on people's screens would fail worse
+  // than the case the gate was built to prevent.
+  const transcriptionSending = provider
     ? `
-<h2>Transcripts</h2>
-<p>A recording can be turned into text. It never happens on its own: somebody in
-the channel asks for it, once per recording, and their name is shown beside the
-result — because asking sends everybody’s audio, not just theirs.</p>
-
 <p>The audio is sent to ${provider}, in the United States, which returns the
 words in it and nothing else. It is sent the recording as you would hear it: the
 parts a silenced person spoke while they did not hold the floor are removed
 before anything leaves, exactly as they are removed from what the recording
-plays. ${provider} is not asked to tell voices apart, and is told nothing about
-who is speaking, what the channel is, or who is in it — The Floor already knows
-whose microphone each part came from.</p>
+plays. ${provider} is not asked to tell voices apart between people — The Floor
+already knows whose microphone each part came from — and is told nothing about
+who is speaking, what the channel is, or who is in it.</p>
 
 <p>${provider} is asked to delete the audio and its own copy of the transcript
-as soon as the text has been stored here. Their deletion works the same way
-ours does: it is marked immediately and removed within about
-${PROVIDER_RETENTION_DAYS} days. The text kept here stays with the recording it
-came from, is visible to exactly the people who can play that recording, and is
-deleted when the recording is — immediately for everyone, and about
-${RETENTION_DAYS} days later underneath, like everything else.</p>
+as soon as the text has been stored here. Their deletion works the same way ours
+does: it is marked immediately and removed within about
+${PROVIDER_RETENTION_DAYS} days.</p>
 `
     : '';
+
+  const transcriptionSection = `
+<h2>Transcripts</h2>
+<p>A recording can be turned into text. It never happens on its own: somebody in
+the channel asks for it, once per recording, and their name is shown beside the
+result — because asking sends everybody\u2019s audio, not just theirs.</p>
+${transcriptionSending}
+<p>A transcript is kept with the recording it came from, is visible to exactly
+the people who can play that recording, and is deleted when the recording is —
+immediately for everyone, and about ${RETENTION_DAYS} days later underneath,
+like everything else. It can also be deleted on its own, leaving the
+recording.</p>
+`;
 
   return page({
     title: 'Privacy — The Floor',
     heading: 'Privacy',
-    standfirst: `The Floor · last updated ${
-      provider ? TRANSCRIPTION_ADDED : PRIVACY_UPDATED
-    }`,
+    standfirst: `The Floor · last updated ${PRIVACY_UPDATED}`,
     body: `
 <p>The Floor is a small application for talking with people you know. This
 page says what it stores, why, and for how long. It is short because the

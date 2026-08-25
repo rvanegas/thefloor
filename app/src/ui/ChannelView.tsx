@@ -57,6 +57,7 @@ import { useApp } from '../state/AppProvider';
 import { liveChannelView } from '../state/live';
 import { AudioDebugPanel } from './AudioDebugPanel';
 import { ChannelSettingsView } from './ChannelSettingsView';
+import { TranscriptView } from './TranscriptView';
 import { ProfileView } from './ProfileView';
 import { InlineMarkdown, isSafeUrl, openUrl } from './markdown';
 import {
@@ -154,6 +155,15 @@ export function ChannelView({
   // that a copy which did not happen is not announced as one.
   const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /**
+   * Which recording's transcript is open, by id rather than by row.
+   *
+   * By id so the screen follows the snapshot: a transcript that lands while it
+   * is open moves from "being transcribed" to the text without anybody tapping
+   * anything, and a recording deleted underneath closes the screen rather than
+   * leaving it showing a conversation that no longer exists.
+   */
+  const [transcriptFor, setTranscriptFor] = useState<string | null>(null);
   /** While a guest link is being minted, which is a round trip. */
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -409,6 +419,30 @@ export function ChannelView({
   const track = playback.track;
   const position = playbackPositionMs(playback, now);
   const mayControlPlayback = canControlPlayback(channel, me);
+
+  // Rendered instead of the channel, like the profile and the settings screens
+  // above — the audio connection lives above this, so reading a transcript
+  // does not hang anybody up. Looked up by id rather than held as a row, so
+  // the screen follows the snapshot rather than a copy taken when it opened.
+  const transcriptRow = recordings.find((r) => r.id === transcriptFor);
+  if (transcriptFor && transcriptRow) {
+    return (
+      <TranscriptView
+        recording={transcriptRow}
+        onBack={() => setTranscriptFor(null)}
+        manageable={iHaveTheRoom}
+        // Offered only while this recording is what is loaded and the floor is
+        // yours to drive: a line's times are positions in *this* recording, so
+        // they mean nothing against another track, and a seek moves playback
+        // for everybody in the room rather than for whoever tapped.
+        onSeek={
+          track?.recordingId === transcriptRow.id && mayControlPlayback
+            ? (positionMs) => act({ type: 'SEEK', positionMs })
+            : undefined
+        }
+      />
+    );
+  }
   // Driving what is on and putting something new on are two rules, and the
   // shared audio card needs both: an absent member may pause or clear a track
   // on an empty channel, and may not load one. `canStartWatch` is the same
@@ -1581,6 +1615,7 @@ export function ChannelView({
                     : 'step in to play'
                 }
                 manageable={iHaveTheRoom}
+                onOpenTranscript={() => setTranscriptFor(r.id)}
               />
             ))}
           </View>

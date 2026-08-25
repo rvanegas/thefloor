@@ -147,6 +147,18 @@ export interface PlaybackTrack {
   /** What to call it on screen. Taken from the uploaded file's name. */
   title: string;
   durationMs: number;
+  /**
+   * The recording this track was loaded from, when it was one rather than an
+   * uploaded file.
+   *
+   * Here so a screen can tell whether what is playing *is* a given recording,
+   * which `id` cannot answer — that is minted per load, so playing the same
+   * recording twice gives two ids and neither is the recording's. What needs
+   * the answer is a transcript line offering to jump: the times are positions
+   * in the recording, so they mean something only while that recording is the
+   * loaded track.
+   */
+  recordingId?: string;
 }
 
 /**

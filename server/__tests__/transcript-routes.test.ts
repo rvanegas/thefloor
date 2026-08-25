@@ -357,9 +357,17 @@ describe('what the recordings list carries', () => {
     );
   };
 
-  it('says nothing at all before anybody asks', async () => {
+  it('offers one before anybody asks, and names who would be sent it', async () => {
+    // 'none' rather than nothing. Absent is reserved for a server that cannot
+    // transcribe — collapsing the two leaves a server that can looking exactly
+    // like one that cannot until the first transcript exists, so the button
+    // that would start one never appears.
     const { alice } = await room();
-    expect((await listed(alice.token)).transcript).toBeUndefined();
+    expect((await listed(alice.token)).transcript).toEqual({
+      state: 'none',
+      provider: provider.name,
+      requestedBy: null,
+    });
   });
 
   it('says who asked, and that it is being made', async () => {

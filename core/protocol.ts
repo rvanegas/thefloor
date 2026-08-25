@@ -334,20 +334,38 @@ export interface RecordingView {
    */
   mixing?: boolean;
   /**
-   * Where its transcript stands, or absent when it has none and none is being
-   * made.
+   * Where its transcript stands, or absent when this server cannot transcribe
+   * at all.
    *
-   * Optional in the way `mixing` is, and for a second reason besides: a server
-   * with no transcription credential sends nothing here, ever, and that is how
-   * the app knows not to offer it. A build that predates the field ignores it
-   * and shows the card exactly as it does now.
+   * **Absent and `'none'` are different answers and the difference is what the
+   * app runs on.** Absent means no provider is configured, so there is nothing
+   * to offer and no button; `'none'` means this server could transcribe this
+   * recording and nobody has asked. Collapsing the two — which this field did
+   * for about an hour — leaves a server that *can* transcribe looking exactly
+   * like one that cannot, right up until the first transcript exists, so the
+   * button that would start one never appears.
+   *
+   * Optional in the way `mixing` is: a build that predates the field ignores
+   * it and shows the card exactly as it does now.
    */
   transcript?: {
-    state: 'pending' | 'ready' | 'failed';
+    state: 'none' | 'pending' | 'ready' | 'failed';
+    /**
+     * What to name in the confirmation before one is started.
+     *
+     * On the wire rather than compiled into the app, and named at all rather
+     * than left as "a transcription service", because the person tapping is
+     * deciding for everybody who was in the room and is owed the same name
+     * the privacy policy uses. It travels per recording, which is a few bytes
+     * repeated — the alternative is a second thing the app has to fetch and
+     * hold, to say one word.
+     */
+    provider: string;
     /**
      * Who asked for it. Shown, always — asking sends everybody's audio to a
      * third party, so it is never anonymous.
      */
+    /** Null on `'none'`, since nobody has asked yet. */
     requestedBy: PublicAccount | null;
     failure?: string;
     /**

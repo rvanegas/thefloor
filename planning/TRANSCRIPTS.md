@@ -584,43 +584,46 @@ key set: the server can now spend money and nothing can ask it to yet.
   call that never arrived; the reconciler alone is the whole job, and phase 3
   is that reconciler.
 
-**Phase 5 — the app**: trigger, transcript view, per-recording search, seek,
-export. **The key goes on the box in the same deploy this ships**, which is
-also the moment `/privacy` starts naming AssemblyAI and the App Store
-data-collection answers have to have been changed. Not before.
+**Phase 5 — the app. Done 2026-08-25.** Trigger, transcript view,
+per-recording search, seek, export — and the privacy split below. **The key
+does not go on the box until this is deployed**, which is also the moment
+`/privacy` starts naming AssemblyAI and the App Store data-collection answers
+have to have been changed already.
 
-  **And the privacy section comes apart in this phase, into two claims with
-  different conditions.** Phase 1 gated the whole section on the key being
-  configured, and that gate keeps meaning the right thing for half of it and
-  starts meaning the wrong thing for the other half the moment a transcript
-  can exist.
+  - **`TranscriptButton`** in the row's drawer beside Export and Delete, on the
+    manage rule. Four labels for four states, and the first one confirms first
+    and **names the company while doing it** — whoever taps is deciding for
+    everybody who was in the room, so the dialog says the provider, that the
+    result is shared, and that it costs.
+  - **`TranscriptView`**, rendered instead of the channel the way the profile
+    and settings screens are, so reading one does not hang anybody up. Held by
+    recording id rather than by row, so a transcript that lands while the
+    screen is open fills itself in.
+  - **Searching is private and jumping is public**, said in one sentence on the
+    screen where somebody is about to act on it. The filter is local. Tapping a
+    line sends `SEEK`, which moves shared playback for the whole room — so it
+    is offered only while this recording is the loaded track and only to
+    whoever may drive it.
+  - **`PlaybackTrack.recordingId`**, which had to exist for that: `track.id` is
+    minted per load, so playing the same recording twice gives two ids and
+    neither is the recording's. Without it a screen cannot tell whether what is
+    playing *is* the recording a line's timings belong to.
+  - **A correction to phase 4.** `RecordingView.transcript` absent was made to
+    mean both "cannot transcribe" and "not transcribed", which was wrong: with
+    a key and no transcript yet the field is *also* absent, so the button that
+    would start one never appears. `'none'` is back, as the design first had
+    it, and `provider` rides along so the confirmation can name the company
+    without the app holding server configuration.
 
-  Keep the gate on the *sending*. "Audio is sent to AssemblyAI when somebody
-  in the channel asks" is only true where the credential is, and unsetting the
-  key has to retract the sentence in the same restart it withdraws the feature
-  — which is the `KOFI_URL` property, deliberately: one line in `server/.env`
-  is the withdrawal switch if the price moves, the provider has an incident, or
-  a reviewer objects to the disclosure. That is worth more than a page whose
-  text can be read off the repository alone, and it is the reason not to
-  simply make the section unconditional once the feature is live.
-
-  **Make the *storage* unconditional.** "Transcripts are kept with the
-  recording, are visible to exactly the people who can play it, and are deleted
-  with it" is a claim about data held here, and it survives the provider being
-  dropped, because the data does. Gated on the key, that sentence disappears
-  the moment somebody unsets it — leaving a page that is silent about stored
-  text which still exists and is still on people's screens, which is a worse
-  failure than the one the gate was built to prevent. Condition it on the
-  feature having ever run, or on nothing at all; not on the credential.
-
-  Two consequences worth having in the same diff. `TRANSCRIPTION_ADDED` goes
-  away and `PRIVACY_UPDATED` moves: once a paragraph is unconditional the page
-  has genuinely changed for every reader, which is what that date is for and
-  what the second date existed to avoid claiming falsely. And
-  `privacy.test.ts`'s "says nothing about a processor when there is none" case
-  has to be rewritten rather than deleted — the assertion becomes *silent about
-  AssemblyAI, still speaking about transcripts*, which is the whole of what
-  this split is.
+  **And the privacy section came apart, as this phase said it would.** The
+  *sending* stays gated on the credential — it is only true where the key is,
+  and unsetting the key retracts the sentence in the same restart that
+  withdraws the feature, which is the `KOFI_URL` property. The *storage* is now
+  unconditional: text kept here outlives the provider being dropped, so a page
+  that fell silent about transcripts still on people's screens would fail worse
+  than the case the gate was built to prevent. `TRANSCRIPTION_ADDED` is gone
+  and `PRIVACY_UPDATED` moved to 25 August 2026, because the page has now
+  genuinely changed for every reader rather than for one configuration.
 
 **Phase 6 — channel-wide search**, plus FTS5 if the box has it.
 

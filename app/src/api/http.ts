@@ -456,4 +456,52 @@ export const api = {
       body: { name },
       token,
     }),
+
+  /**
+   * Asks for a recording to be transcribed.
+   *
+   * Returns as soon as the work has been started rather than when it finishes:
+   * the audio is rendered, uploaded and read by a third party, which is not a
+   * wait to hold a request open for. What comes back next is a channel
+   * snapshot with `transcript.state` moved, the same way a finished mix
+   * arrives.
+   *
+   * **Costs money, once per recording, and sends everybody's audio.** The
+   * caller confirms first and names the provider while doing it.
+   */
+  startTranscript: (token: string, recordingId: string) =>
+    request<{ ok: true }>(`/recordings/${recordingId}/transcript`, {
+      method: 'POST',
+      token,
+    }),
+
+  /** The text itself. Only worth asking for once the state says `ready`. */
+  transcript: (token: string, recordingId: string) =>
+    request<{
+      state: 'pending' | 'ready' | 'failed';
+      requestedBy: { id: string; displayName: string } | null;
+      failure?: string;
+      missing: Array<{ identity: string; failure: string | null }>;
+      lines: Array<{
+        identity: string;
+        displayName: string | null;
+        speaker: string | null;
+        startMs: number;
+        endMs: number;
+        text: string;
+        confidence: number | null;
+      }>;
+    }>(`/recordings/${recordingId}/transcript`, { token }),
+
+  /**
+   * Removes a transcript and leaves the recording.
+   *
+   * Nothing is refunded — asking again costs again, which is why the caller
+   * says so before it does this.
+   */
+  deleteTranscript: (token: string, recordingId: string) =>
+    request<{ ok: true }>(`/recordings/${recordingId}/transcript`, {
+      method: 'DELETE',
+      token,
+    }),
 };

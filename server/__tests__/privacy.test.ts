@@ -93,12 +93,20 @@ describe('The privacy policy', () => {
     // The section is conditional on the server having a provider, because the
     // claim is only true where the credential is. Both halves are asserted:
     // silence without one is as much a requirement as disclosure with one.
-    it('says nothing about a processor when there is none', async () => {
+    it('names no processor when there is none, and still describes the text', async () => {
+      // The split, and the half that would go quietly wrong. Text kept here
+      // outlives the provider being dropped, so a page that fell silent about
+      // transcripts still on people's screens would fail worse than the case
+      // the gate was built to prevent. Only the *sending* is conditional.
       app = buildApp({ dbPath: ':memory:' });
       const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
 
       expect(page).not.toContain('AssemblyAI');
-      expect(page).not.toContain('Transcripts');
+      expect(page).not.toContain('The audio is sent to');
+      // Still says what a transcript is and what becomes of it.
+      expect(page).toContain('Transcripts');
+      expect(page).toContain('somebody in the channel asks for it');
+      expect(page).toContain('deleted when the recording is');
       // And the sentence transcription narrows is intact in the meantime.
       expect(page).toContain('none of them receive your conversations');
     });
@@ -136,9 +144,11 @@ describe('The privacy policy', () => {
       expect(page).not.toContain('none of them receive your conversations');
     });
 
-    it('dates itself by the version in front of the reader', async () => {
-      // A page nobody's configuration changed should not tell them to re-read
-      // it, so the date moves with the section rather than with the file.
+    it('carries one date, since the page changed for every reader', async () => {
+      // It carried two while the whole section was conditional — a second date
+      // shown only to a reader whose server had a provider. The storage half
+      // is unconditional now, so the page has genuinely moved for everybody
+      // and PRIVACY_UPDATED is the only honest answer.
       app = buildApp({ dbPath: ':memory:' });
       expect((await fetchPolicy()).body).toContain(PRIVACY_UPDATED);
       app.channels.stop();
@@ -148,7 +158,7 @@ describe('The privacy policy', () => {
         dbPath: ':memory:',
         transcription: new MemoryTranscription(),
       });
-      expect((await fetchPolicy()).body).not.toContain(PRIVACY_UPDATED);
+      expect((await fetchPolicy()).body).toContain(PRIVACY_UPDATED);
     });
   });
 

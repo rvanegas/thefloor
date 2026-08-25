@@ -1147,7 +1147,14 @@ export class ChannelRegistry {
   async loadTrack(
     channelId: string,
     userId: string,
-    upload: { file: string; dir: string; title: string; durationMs: number }
+    upload: {
+      file: string;
+      dir: string;
+      title: string;
+      durationMs: number;
+      /** Set when the track is one of this channel's own recordings. */
+      recordingId?: string;
+    }
   ): Promise<{ ok: true; channel: ChannelState } | Refused> {
     const channel = this.channels.get(channelId);
     if (!channel || channel.status !== 'active') {
@@ -1194,6 +1201,7 @@ export class ChannelRegistry {
       id: newId('trk'),
       title: upload.title,
       durationMs: upload.durationMs,
+      ...(upload.recordingId ? { recordingId: upload.recordingId } : {}),
     };
     return this.apply(channelId, userId, { type: 'SET_TRACK', track } as Omit<
       ChannelAction,

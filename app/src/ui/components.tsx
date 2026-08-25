@@ -358,6 +358,7 @@ export function RecordingRow({
   playDisabled = false,
   playDisabledReason,
   manageable = true,
+  onOpenTranscript,
 }: {
   recording: RecordingView;
   /**
@@ -385,6 +386,13 @@ export function RecordingRow({
    * it.
    */
   manageable?: boolean;
+  /**
+   * Opens this recording's transcript, when there is a screen to open it on.
+   *
+   * Absent leaves the row able to *start* one and not to read it, which is not
+   * a state worth having — so the button is withheld entirely without this.
+   */
+  onOpenTranscript?: () => void;
 }) {
   /**
    * Closed until asked. A recording is a thing you mostly scan past — the list
@@ -495,6 +503,11 @@ export function RecordingRow({
               wants.current = true;
               setRenaming(true);
             }}
+          />
+          <TranscriptButton
+            recording={recording}
+            manageable={manageable}
+            onOpen={onOpenTranscript}
           />
           <DeleteButton recording={recording} disabled={!manageable} />
           {/*
@@ -706,6 +719,85 @@ function PlayButton({
  * encoded on demand, so this is a wait of seconds rather than an instant
  * download, and a shared flag would show every row as busy.
  */
+/**
+ * Starts a transcript, or opens the one there is.
+ *
+ * Four labels for four states, and the one that matters is the first: asking
+ * costs money and sends everybody's audio to a third party, so it asks first
+ * and names the company while doing it. That confirmation is not a formality —
+ * whoever taps is deciding for everybody who was in the room, and the privacy
+ * policy names the same provider in the same words.
+ *
+ * Withheld entirely when the server sends no `transcript` field, which is how
+ * a server with no credential says it cannot do this at all.
+ */
+function TranscriptButton({
+  recording,
+  manageable,
+  onOpen,
+}: {
+  recording: RecordingView;
+  manageable: boolean;
+  onOpen?: () => void;
+}) {
+  const app = useApp();
+  const [busy, setBusy] = React.useState(false);
+  const transcript = recording.transcript;
+  if (!transcript || !onOpen) return null;
+
+  if (transcript.state === 'pending') {
+    // Not disabled-with-a-reason: there is nothing to do and nothing to wait
+    // for on this screen, and the snapshot will move it when it moves.
+    return <Button label="Transcribing…" disabled onPress={() => {}} />;
+  }
+  if (transcript.state === 'ready' || transcript.state === 'failed') {
+    return (
+      <Button
+        label={transcript.state === 'failed' ? 'Transcript failed' : 'Transcript'}
+        onPress={onOpen}
+      />
+    );
+  }
+
+  return (
+    <Button
+      label={busy ? 'Starting…' : 'Transcribe'}
+      // The mix has nothing to do with it — a transcript is made from the
+      // stems — but a recording still being prepared is one whose stems may
+      // not all have landed, and waiting a moment beats a job that fails.
+      disabled={busy || !manageable || !!recording.mixing}
+      onPress={() => {
+        Alert.alert(
+          'Transcribe this recording?',
+          `The audio is sent to ${transcript.provider} to be turned into text, ` +
+            'and everybody in the channel will see the result. It costs a little, ' +
+            'and it can only be done once per recording.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Transcribe',
+              onPress: async () => {
+                if (!app.token) return;
+                setBusy(true);
+                try {
+                  await api.startTranscript(app.token, recording.id);
+                } catch (e) {
+                  Alert.alert(
+                    'Could not transcribe',
+                    e instanceof Error ? e.message : String(e)
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              },
+            },
+          ]
+        );
+      }}
+    />
+  );
+}
+
 export function ExportButton({
   recording,
   disabled = false,
