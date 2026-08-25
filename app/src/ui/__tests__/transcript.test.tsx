@@ -54,6 +54,7 @@ jest.mock('../../api/http', () => ({
     startTranscript: (...args: unknown[]) => mockStart(...(args as [])),
     deleteTranscript: (...args: unknown[]) => mockDelete(...(args as [])),
     transcript: (...args: unknown[]) => mockGet(...(args as [])),
+    declareVoices: (...args: unknown[]) => mockDeclare(...(args as [])),
     searchTranscripts: (...args: unknown[]) => mockSearch(...(args as [])),
   },
 }));
@@ -73,6 +74,8 @@ const mockSearch = jest.fn(async () => ({
     },
   ],
 }));
+
+const mockDeclare = jest.fn(async () => ({ ok: true as const }));
 
 const mockExport = jest.fn(async () => {});
 jest.mock('../../api/download', () => ({
@@ -522,6 +525,146 @@ describe('the transcript screen', () => {
     const text = textOf(tree);
     expect(text).toContain('it is a subject I care about');
     expect(text).not.toContain('thank you for having me');
+    act(() => tree.unmount());
+  });
+
+  /** The roster the server sends beside the lines. */
+  const roster = [
+    {
+      identity: 'media',
+      speaker: 'A',
+      key: 'media\u0000A',
+      displayName: 'Played audio (A)',
+      defaultName: 'Played audio (A)',
+      lines: 1,
+      sample: 'welcome to the programme',
+      declaration: {},
+    },
+    {
+      identity: 'media',
+      speaker: 'B',
+      key: 'media\u0000B',
+      displayName: 'Played audio (B)',
+      defaultName: 'Played audio (B)',
+      lines: 2,
+      sample: 'thank you for having me',
+      declaration: {},
+    },
+  ];
+
+  const withVoices = () =>
+    mockGet.mockResolvedValueOnce({
+      state: 'ready' as const,
+      requestedBy: { id: ME, displayName: 'Me' },
+      missing: [],
+      lines: [
+        played('media', 'A', 1_000, 'welcome to the programme'),
+        played('media', 'B', 2_000, 'thank you for having me'),
+      ],
+      voices: roster,
+    } as never);
+
+  /**
+   * The name field for one voice, by the default it offers as a placeholder.
+   *
+   * By placeholder rather than by position: `findAll` matches the `Field`
+   * wrapper and the `TextInput` inside it alike, so indexes count each field
+   * twice and picking the second one silently edits the first voice again.
+   */
+  const fieldFor = (tree: ReactTestRenderer, placeholder: string) =>
+    tree.root.findAll(
+      (n) => n.props?.placeholder === placeholder && !!n.props?.onChangeText
+    )[0];
+
+  /** Opens the naming screen, which is where the roster is edited. */
+  const openNaming = async () => {
+    withVoices();
+    const tree = await show(recordingWith('ready'));
+    act(() => findButton(tree, 'Name the voices')!.props.onPress());
+    return tree;
+  };
+
+  it('offers no naming to somebody who may not spend', async () => {
+    // The same pair of rules as deleting: naming shapes a shared artefact that
+    // only one account can make again.
+    withVoices();
+    const tree = await show(recordingWith('ready', { mayRequest: false }));
+    expect(findButton(tree, 'Name the voices')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('offers no naming when there is only one voice to name', async () => {
+    // A screen with a single row on it teaches people to ignore the button.
+    const tree = await show(recordingWith('ready'));
+    expect(findButton(tree, 'Name the voices')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('lists each voice with what it said and how much of it', async () => {
+    const tree = await openNaming();
+    const text = textOf(tree);
+
+    expect(text).toContain('Played audio (A)');
+    expect(text).toContain('welcome to the programme');
+    expect(text).toContain('2 lines');
+    // And says the thing that makes the screen safe to use.
+    expect(text).toContain('The transcript itself is not changed');
+    act(() => tree.unmount());
+  });
+
+  it('sends the whole declaration, so clearing one voice is expressible', async () => {
+    const tree = await openNaming();
+
+    act(() => fieldFor(tree, 'Played audio (A)').props.onChangeText('Host'));
+    act(() => fieldFor(tree, 'Played audio (B)').props.onChangeText('Douglas'));
+    await act(async () => findButton(tree, 'Save')!.props.onPress());
+
+    expect(mockDeclare).toHaveBeenCalledWith('token', 'rec_1', {
+      'media\u0000A': { name: 'Host' },
+      'media\u0000B': { name: 'Douglas' },
+    });
+    act(() => tree.unmount());
+  });
+
+  it('says a voice was never a person, without deleting what it said', async () => {
+    const tree = await openNaming();
+
+    act(() => findButton(tree, 'Remove from transcript')!.props.onPress());
+    await act(async () => findButton(tree, 'Save')!.props.onPress());
+
+    const [, , sent] = mockDeclare.mock.calls[0] as unknown as [
+      string,
+      string,
+      Record<string, unknown>,
+    ];
+    expect(sent['media\u0000A']).toEqual({ removed: true });
+    act(() => tree.unmount());
+  });
+
+  it('clears the draft without saving it, since undoing is not committing', async () => {
+    const tree = await openNaming();
+    act(() => fieldFor(tree, 'Played audio (A)').props.onChangeText('Host'));
+
+    act(() => findButton(tree, 'Clear all')!.props.onPress());
+
+    expect(mockDeclare).not.toHaveBeenCalled();
+    await act(async () => findButton(tree, 'Save')!.props.onPress());
+    expect(mockDeclare).toHaveBeenCalledWith('token', 'rec_1', {
+      'media\u0000A': {},
+      'media\u0000B': {},
+    });
+    act(() => tree.unmount());
+  });
+
+  it('asks the server again after saving rather than guessing the new names', async () => {
+    // The naming rules are the server's, so that this screen, an export and a
+    // search result cannot drift apart.
+    const tree = await openNaming();
+    const before = mockGet.mock.calls.length;
+
+    await act(async () => findButton(tree, 'Save')!.props.onPress());
+
+    expect(mockGet.mock.calls.length).toBe(before + 1);
     act(() => tree.unmount());
   });
 

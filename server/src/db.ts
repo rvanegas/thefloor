@@ -831,10 +831,11 @@ CREATE TABLE IF NOT EXISTS transcript_lines (
   channel_id   TEXT NOT NULL,
   identity     TEXT NOT NULL,
   -- Which voice within that one stem, when the provider labelled one. Almost
-  -- always a single value for a whole stem. Stored and not yet shown: a
-  -- "Speaker B" under a named participant is two answers on one screen, and
-  -- what to do about a stem carrying more than one voice waits on some
-  -- experience of what this provider returns.
+  -- always a single value for a whole stem, in which case it never reaches a
+  -- screen — a "(A)" beside a named participant who was alone on their
+  -- microphone is two answers to a question nobody asked. A stem holding more
+  -- than one is shown as "Played audio (A)" against "Played audio (B)", and
+  -- transcript_voices is where somebody says who those actually were.
   speaker      TEXT,
   start_ms     INTEGER NOT NULL,
   end_ms       INTEGER NOT NULL,
@@ -845,6 +846,39 @@ CREATE INDEX IF NOT EXISTS transcript_lines_recording
   ON transcript_lines(recording_id, start_ms);
 CREATE INDEX IF NOT EXISTS transcript_lines_channel
   ON transcript_lines(channel_id);
+
+-- What somebody said about the voices a transcript came back with.
+--
+-- **A view over the lines, never an edit of them.** The provider labels each
+-- stem's voices independently and is wrong about them often — two labels on
+-- one person's microphone is usually a failure to attribute a "Yeah.", not a
+-- second speaker in the room. So the answer is a declaration laid over the
+-- text: rename a voice, collapse two onto one name, or drop one entirely,
+-- with nothing in transcript_lines touched. Getting it wrong costs a tap to
+-- put right rather than a second run of a paid transcription, and there is
+-- exactly one way to clear a declaration, which is to delete the row.
+--
+-- **Only the voices somebody has said something about have rows.** Absence is
+-- the default naming, which is what makes clearing a delete and means no
+-- backfill was needed for the transcripts that existed before this.
+--
+-- The speaker column is '' rather than NULL for a stem the provider never
+-- labelled, so
+-- that the primary key means what it says: NULLs do not compare equal in an
+-- index, and a nullable key column would let the same voice have two rows and
+-- an upsert insert a third. See voiceKey in core/transcript.ts, which is the
+-- same decision on the other side of the wire.
+CREATE TABLE IF NOT EXISTS transcript_voices (
+  recording_id TEXT NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
+  identity     TEXT NOT NULL,
+  speaker      TEXT NOT NULL,
+  -- What to call it instead. Null when the declaration is only a removal.
+  name         TEXT,
+  removed      INTEGER NOT NULL DEFAULT 0,
+  declared_by  TEXT NOT NULL,
+  declared_at  INTEGER NOT NULL,
+  PRIMARY KEY (recording_id, identity, speaker)
+);
 
 -- How loudly one channel may interrupt one person.
 --

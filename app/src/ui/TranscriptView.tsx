@@ -1,7 +1,12 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RecordingView } from '../../../core/protocol';
-import { intoBlocks, multiVoiceStems } from '../../../core/transcript';
+import {
+  intoBlocks,
+  multiVoiceStems,
+  type VoiceDeclarations,
+  type VoiceEntry,
+} from '../../../core/transcript';
 import { exportTranscript } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
@@ -44,29 +49,51 @@ export function TranscriptView({
 }) {
   const app = useApp();
   const [lines, setLines] = React.useState<Line[] | null>(null);
+  const [voices, setVoices] = React.useState<VoiceEntry[]>([]);
+  const [naming, setNaming] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
   const state = recording.transcript?.state;
 
+  /**
+   * The transcript as the server names it now.
+   *
+   * A function rather than only an effect because declaring the voices changes
+   * every line's name at once, and the honest way to show that is to ask again
+   * — the naming rules live on the server precisely so that this screen, an
+   * export and a search result cannot drift apart.
+   */
+  const load = React.useCallback(async () => {
+    if (!app.token) return;
+    const body = await api.transcript(app.token, recording.id);
+    setLines(body.lines);
+    setVoices(body.voices ?? []);
+  }, [app.token, recording.id]);
+
   React.useEffect(() => {
     let live = true;
     if (!app.token || state !== 'ready') return;
-    api
-      .transcript(app.token, recording.id)
-      .then((body) => {
-        if (live) setLines(body.lines);
-      })
-      .catch((e: unknown) => {
-        if (live) setError(e instanceof Error ? e.message : String(e));
-      });
+    load().catch((e: unknown) => {
+      if (live) setError(e instanceof Error ? e.message : String(e));
+    });
     return () => {
       live = false;
     };
     // Refetched when the state moves to ready, which is how a screen left open
     // while the provider was working fills itself in.
-  }, [app.token, recording.id, state]);
+  }, [app.token, load, state]);
+
+  /**
+   * Whether this viewer may say who the voices were.
+   *
+   * The same pair of rules as deleting the transcript, because it is the same
+   * kind of act: `mayRequest` is the server saying who may shape a thing only
+   * they can make again, and `manageable` is about changing something shared.
+   * Everybody else reads the result — naming is not a private annotation.
+   */
+  const mayName = manageable && recording.transcript?.mayRequest !== false;
 
   const matches = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -127,7 +154,31 @@ export function TranscriptView({
         <Empty>Loading…</Empty>
       ) : null}
 
-      {state === 'ready' && lines !== null ? (
+      {state === 'ready' && lines !== null && naming ? (
+        <VoicesEditor
+          voices={voices}
+          busy={busy}
+          onCancel={() => setNaming(false)}
+          onSave={async (declarations) => {
+            if (!app.token) return;
+            setBusy(true);
+            try {
+              await api.declareVoices(app.token, recording.id, declarations);
+              await load();
+              setNaming(false);
+            } catch (e) {
+              Alert.alert(
+                'Could not save',
+                e instanceof Error ? e.message : String(e)
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      ) : null}
+
+      {state === 'ready' && lines !== null && !naming ? (
         <>
           {/*
             Said before the list rather than beside every line, and only when
@@ -193,7 +244,17 @@ export function TranscriptView({
       ) : null}
 
       <View style={styles.actions}>
-        {state === 'ready' ? (
+        {state === 'ready' && !naming && mayName && voices.length > 1 ? (
+          <Button
+            label="Name the voices"
+            // Only when there is a choice to make. One voice in the whole
+            // transcript is a conversation nobody needs to relabel, and a
+            // button that opens a screen with a single row on it is a button
+            // that teaches people to ignore it.
+            onPress={() => setNaming(true)}
+          />
+        ) : null}
+        {state === 'ready' && !naming ? (
           <Button
             label={busy ? 'Preparing…' : 'Export'}
             disabled={busy}
@@ -207,7 +268,7 @@ export function TranscriptView({
             }}
           />
         ) : null}
-        {state && state !== 'none' && recording.transcript?.mayRequest !== false ? (
+        {state && state !== 'none' && !naming && recording.transcript?.mayRequest !== false ? (
           <Button
             label="Delete transcript"
             disabled={!manageable || busy}
@@ -282,6 +343,169 @@ interface Line {
   endMs: number;
   text: string;
   confidence: number | null;
+}
+
+/**
+ * Saying who the voices in a transcript actually were.
+ *
+ * The provider labels each stem's voices independently, and what it produces
+ * is a starting point rather than an answer: two labels on one person's
+ * microphone is usually a failure to attribute a "Yeah.", and two labels on
+ * played media is an interview whose speakers it cannot name. This is where
+ * somebody who was there says which it was.
+ *
+ * Three things can be said about a voice, and they are the same three thing
+ * the transcript needs:
+ *
+ *   - **A name.** What to call it instead of `Played audio (B)`.
+ *   - **The same name as another voice**, which is how two are collapsed into
+ *     one — the runs the spurious label split rejoin by themselves, because
+ *     entries are grouped by name.
+ *   - **Removed**, for a voice that was never a person.
+ *
+ * **Nothing here edits the transcript.** Every one of these is a view laid
+ * over lines that are not touched, so it can be said differently a minute
+ * later, or cleared entirely, and no audio is sent anywhere and nothing is
+ * spent. That is why this screen can afford a Clear all button, and why the
+ * one thing it never offers is a confirmation dialogue.
+ */
+function VoicesEditor({
+  voices,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  voices: VoiceEntry[];
+  busy: boolean;
+  onSave: (declarations: VoiceDeclarations) => void;
+  onCancel: () => void;
+}) {
+  /**
+   * The draft, keyed the way the wire is.
+   *
+   * Held here and sent whole on Save rather than saved per field: the useful
+   * edit is "these two are the same person", which is two fields that only
+   * mean something together, and a screen that saved each one as it was typed
+   * would regroup the transcript underneath somebody halfway through saying
+   * it.
+   */
+  const [draft, setDraft] = React.useState<Record<string, { name: string; removed: boolean }>>(
+    () =>
+      Object.fromEntries(
+        voices.map((voice) => [
+          voice.key,
+          { name: voice.declaration.name ?? '', removed: !!voice.declaration.removed },
+        ])
+      )
+  );
+
+  const set = (key: string, change: Partial<{ name: string; removed: boolean }>) =>
+    setDraft((was) => ({ ...was, [key]: { ...was[key], ...change } }));
+
+  return (
+    <>
+      <SectionLabel>Voices</SectionLabel>
+      <Text style={type.muted}>
+        The service heard these voices. It labels each microphone on its own,
+        so the letters are its guess — name them, give two the same name to
+        make them one, or remove one that was never a person. The transcript
+        itself is not changed and this can be redone at any time.
+      </Text>
+
+      <View style={styles.lines}>
+        {voices.map((voice) => (
+          <VoiceRow
+            key={voice.key}
+            voice={voice}
+            draft={draft[voice.key] ?? { name: '', removed: false }}
+            onChange={(change) => set(voice.key, change)}
+          />
+        ))}
+      </View>
+
+      <View style={styles.actions}>
+        <Button
+          label={busy ? 'Saving…' : 'Save'}
+          variant="primary"
+          disabled={busy}
+          onPress={() =>
+            onSave(
+              Object.fromEntries(
+                Object.entries(draft).map(([key, value]) => [
+                  key,
+                  {
+                    ...(value.name.trim() ? { name: value.name.trim() } : {}),
+                    ...(value.removed ? { removed: true } : {}),
+                  },
+                ])
+              )
+            )
+          }
+        />
+        <Button
+          label="Clear all"
+          disabled={busy}
+          // Empties the draft rather than saving one: undoing an edit and
+          // committing it are two different intentions, and this screen has a
+          // Save button three lines up for the second one.
+          onPress={() =>
+            setDraft(
+              Object.fromEntries(
+                voices.map((voice) => [voice.key, { name: '', removed: false }])
+              )
+            )
+          }
+        />
+        <Button label="Cancel" variant="ghost" disabled={busy} onPress={onCancel} />
+      </View>
+    </>
+  );
+}
+
+/** One voice, with what it is called, what it said, and how much of it. */
+function VoiceRow({
+  voice,
+  draft,
+  onChange,
+}: {
+  voice: VoiceEntry;
+  draft: { name: string; removed: boolean };
+  onChange: (change: Partial<{ name: string; removed: boolean }>) => void;
+}) {
+  return (
+    <Card style={styles.line}>
+      <View style={styles.lineHead}>
+        <Text style={styles.speaker} numberOfLines={1}>
+          {voice.defaultName ?? 'Someone'}
+        </Text>
+        <Text style={type.muted}>
+          {voice.lines === 1 ? '1 line' : `${voice.lines} lines`}
+        </Text>
+      </View>
+      {/*
+        What it first said, which is how somebody tells one voice from another.
+        A letter is not recognisable and a line count is not either; a sentence
+        is, immediately.
+      */}
+      <Text style={type.muted} numberOfLines={2}>
+        {voice.sample}
+      </Text>
+      <Field
+        value={draft.name}
+        onChangeText={(name) => onChange({ name })}
+        // The default is the placeholder, so leaving it blank plainly means
+        // "as it was" and there is no separate control for going back.
+        placeholder={voice.defaultName ?? 'Name this voice'}
+        autoCapitalize="words"
+        editable={!draft.removed}
+      />
+      <Button
+        label={draft.removed ? 'Removed — bring back' : 'Remove from transcript'}
+        variant={draft.removed ? 'default' : 'ghost'}
+        onPress={() => onChange({ removed: !draft.removed })}
+      />
+    </Card>
+  );
 }
 
 /**

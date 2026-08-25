@@ -68,15 +68,40 @@ That has three consequences that run through everything below:
   transcript from 1,032 entries to 425 and is what makes the labels alternate —
   a name on screen is then always news.
 
-  **What the same evidence did *not* settle is the member stems**, and the
-  design was wrong about them. It expected a second label there to be positive
-  evidence of bleed. Three of the four member stems came back with two, and the
-  minority voice is backchannel — "Yeah.", "Mm-hmm.", "Really?" — which is the
-  provider failing to attribute short utterances rather than a second person in
-  the room. So the letters on a member's stem are mostly noise, and they
-  fragment that person's runs. Restricting the letter to the media stem, which
-  is the only stem with no declared owner, is the obvious next move and is
-  deliberately not taken yet: two transcripts is not a sample.
+  **The design was wrong about the member stems.** It expected a second label
+  there to be positive evidence of bleed. Three of the four came back with two,
+  and the minority voice is backchannel — "Yeah.", "Mm-hmm.", "Really?" — which
+  is the provider failing to attribute short utterances rather than a second
+  person in the room. So the letters on a member's stem are mostly noise, and
+  they fragment that person's runs.
+
+  **The answer is a person, not a rule**, decided 2026-08-25. The first move
+  considered was restricting the letter to the media stem, on the argument that
+  it is the only stem with no declared owner. That is a guess dressed as a
+  policy: it is right about this transcript and wrong the first time somebody
+  really does share a handset, and it would still leave the media stem's two
+  voices called (A) and (B) when what they are called is Host and Douglas.
+  Somebody who was in the room knows all of it and nothing else does.
+
+  So the letters are the **starting point** and `transcript_voices` is where
+  that person answers: rename a voice, give two of them the same name to
+  collapse a run the provider split, or drop one that was never a person.
+  Grouping keys on the resolved name rather than on the label, so collapsing
+  needs no separate merging step, and the letters are worked out after the
+  removals, so dropping a spurious voice un-letters the stem it was on.
+
+  **It is a view and it stays one.** No line is edited and no text rewritten:
+  the declaration is a separate table read at render, the whole of it is
+  replaced on every save, and an empty one puts the transcript back exactly as
+  the provider left it. Nothing is re-transcribed and nothing is spent, which
+  is what makes the screen safe enough to have a Clear all button on it and is
+  the reason it was built this way rather than as an edit to the lines.
+
+  Who may say it is the pair of rules deleting uses — `mayTranscribe` and
+  `mayManageRecording` — because it shapes a shared artefact that only one
+  account can make again. Reading and searching stay unrestricted, so everybody
+  in the channel sees the result. On the one transcript that exists, naming the
+  four voices and removing two took it from 425 entries to 374.
 - **One job per stem, not one multichannel job.** AssemblyAI's `multichannel`
   bills per channel, so a single N-channel file costs exactly what N separate
   jobs cost — the parameter buys convenience, not money. Separate jobs buy

@@ -160,6 +160,18 @@ const ask = (token: string, method: 'POST' | 'DELETE' = 'POST') =>
     headers: auth(token),
   });
 
+/** Declares who the voices were, which is the whole declaration every time. */
+const declare = (token: string, voices: Record<string, unknown>) =>
+  app.fastify.inject({
+    method: 'PUT',
+    url: `/recordings/${RECORDING}/transcript/voices`,
+    headers: auth(token),
+    payload: { voices },
+  });
+
+/** The key one voice is declared against — `voiceKey`, spelled out. */
+const key = (identity: string, speaker: string) => `${identity}\u0000${speaker}`;
+
 const read = (token: string, url = `/recordings/${RECORDING}/transcript`) =>
   app.fastify.inject({ method: 'GET', url, headers: auth(token) });
 
@@ -549,6 +561,201 @@ describe('a transcript to read as prose', () => {
 
     expect(file.body).toContain('<v Played audio (B)>first sentence');
     expect(file.body).toContain('<v Played audio (B)>second sentence');
+  }, 60_000);
+});
+
+describe('saying who the voices were', () => {
+  /** A transcript whose media stem came back holding two voices. */
+  async function interviewed() {
+    const { alice } = await roomWithMedia();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await completeWith({
+      [alice.account.id]: [
+        { text: 'so I started the recording', speaker: 'A', startMs: 0 },
+        { text: 'Mm-hmm.', speaker: 'B', startMs: 5_000 },
+      ],
+      media: [
+        { text: 'welcome to the programme', speaker: 'A', startMs: 1_000 },
+        { text: 'thank you for having me', speaker: 'B', startMs: 2_000 },
+      ],
+    });
+    return alice;
+  }
+
+  const namesIn = async (token: string) =>
+    Object.fromEntries(
+      (await read(token))
+        .json()
+        .lines.map((l: { text: string; displayName: string }) => [l.text, l.displayName])
+    );
+
+  it('lists every voice with what it said and how much of it', async () => {
+    const alice = await interviewed();
+    const body = (await read(alice.token)).json();
+
+    expect(
+      body.voices.map((v: { displayName: string; lines: number; sample: string }) => [
+        v.displayName,
+        v.lines,
+        v.sample,
+      ])
+    ).toEqual([
+      // In the order they were first heard, which is the order of the
+      // transcript rather than of the stems.
+      ['Alice (A)', 1, 'so I started the recording'],
+      ['Played audio (A)', 1, 'welcome to the programme'],
+      ['Played audio (B)', 1, 'thank you for having me'],
+      ['Alice (B)', 1, 'Mm-hmm.'],
+    ]);
+  }, 60_000);
+
+  it('names the voices inside the played stem', async () => {
+    const alice = await interviewed();
+    await declare(alice.token, {
+      [key('media', 'A')]: { name: 'Host' },
+      [key('media', 'B')]: { name: 'Douglas' },
+    });
+
+    const named = await namesIn(alice.token);
+    expect(named['welcome to the programme']).toBe('Host');
+    expect(named['thank you for having me']).toBe('Douglas');
+  }, 60_000);
+
+  it('collapses two voices onto one name, and un-letters what is left', async () => {
+    const alice = await interviewed();
+    await declare(alice.token, {
+      [key(alice.account.id, 'A')]: { name: 'Alice' },
+      [key(alice.account.id, 'B')]: { name: 'Alice' },
+    });
+
+    const named = await namesIn(alice.token);
+    expect(named['so I started the recording']).toBe('Alice');
+    expect(named['Mm-hmm.']).toBe('Alice');
+  }, 60_000);
+
+  it('drops a removed voice from the transcript and from an export', async () => {
+    const alice = await interviewed();
+    await declare(alice.token, { [key(alice.account.id, 'B')]: { removed: true } });
+
+    const named = await namesIn(alice.token);
+    expect(named['Mm-hmm.']).toBeUndefined();
+    // And the stem it left holding one voice loses its letter, since the
+    // evidence for showing one is what was just taken away.
+    expect(named['so I started the recording']).toBe('Alice');
+
+    const file = await read(alice.token, `/recordings/${RECORDING}/transcript/export`);
+    expect(file.body).not.toContain('Mm-hmm.');
+  }, 60_000);
+
+  it('keeps a removed voice on the roster, so it can be brought back', async () => {
+    const alice = await interviewed();
+    await declare(alice.token, { [key(alice.account.id, 'B')]: { removed: true } });
+
+    const body = (await read(alice.token)).json();
+    const gone = body.voices.find(
+      (v: { key: string }) => v.key === key(alice.account.id, 'B')
+    );
+    expect(gone).toBeDefined();
+    expect(gone.declaration).toEqual({ removed: true });
+    expect(gone.sample).toBe('Mm-hmm.');
+  }, 60_000);
+
+  it('is a view, so an empty declaration puts everything back', async () => {
+    // The whole point of storing this beside the lines rather than in them:
+    // getting it wrong costs a tap, never a second run of a paid job.
+    const alice = await interviewed();
+    await declare(alice.token, {
+      [key('media', 'A')]: { name: 'Host' },
+      [key(alice.account.id, 'B')]: { removed: true },
+    });
+    await declare(alice.token, {});
+
+    const named = await namesIn(alice.token);
+    expect(named['welcome to the programme']).toBe('Played audio (A)');
+    expect(named['Mm-hmm.']).toBe('Alice (B)');
+  }, 60_000);
+
+  it('does not touch the text, so the same audio is never sent twice', async () => {
+    const alice = await interviewed();
+    const before = provider.submitted.length;
+    await declare(alice.token, { [key('media', 'A')]: { name: 'Host' } });
+
+    expect(provider.submitted).toHaveLength(before);
+    const body = (await read(alice.token)).json();
+    const line = body.lines.find(
+      (l: { text: string }) => l.text === 'welcome to the programme'
+    );
+    // The label the provider gave it is still there underneath the name.
+    expect(line.speaker).toBe('A');
+  }, 60_000);
+
+  it('keeps a removed voice out of a search, not merely off the screen', async () => {
+    const alice = await interviewed();
+    await declare(alice.token, { [key(alice.account.id, 'B')]: { removed: true } });
+
+    const found = await read(
+      alice.token,
+      `/channels/${CHANNEL}/transcripts/search?q=Mm-hmm`
+    );
+    expect(found.json().hits).toEqual([]);
+  }, 60_000);
+
+  it('carries a declared name into a search result', async () => {
+    const alice = await interviewed();
+    await declare(alice.token, { [key('media', 'B')]: { name: 'Douglas' } });
+
+    const found = await read(
+      alice.token,
+      `/channels/${CHANNEL}/transcripts/search?q=having`
+    );
+    expect(found.json().hits[0].displayName).toBe('Douglas');
+  }, 60_000);
+
+  it('refuses a transcript that does not exist', async () => {
+    const { alice } = await roomWithMedia();
+    expect((await declare(alice.token, {})).statusCode).toBe(404);
+  });
+
+  it('refuses a body that is not an object of voices', async () => {
+    const alice = await interviewed();
+    const answered = await app.fastify.inject({
+      method: 'PUT',
+      url: `/recordings/${RECORDING}/transcript/voices`,
+      headers: auth(alice.token),
+      payload: { voices: 'Douglas' },
+    });
+    expect(answered.statusCode).toBe(400);
+  }, 60_000);
+});
+
+describe('when only one account may name the voices', () => {
+  // The same pair of rules as deleting, for the same reason: this shapes a
+  // shared artefact that only one account can make again. Reading it is not
+  // restricted, so everybody in the channel sees the result.
+  beforeEach(async () => {
+    build(true, 'alice@example.com');
+    store.put('a.ogg', await tone('a.ogg'));
+    store.put('b.ogg', await tone('b.ogg'));
+  });
+
+  it('refuses anybody else, and says why rather than hiding the recording', async () => {
+    const { alice, bob } = await roomWithMedia();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await completeWith({
+      [alice.account.id]: [{ text: 'here it is', speaker: 'A', startMs: 0 }],
+      media: [
+        { text: 'welcome', speaker: 'A', startMs: 1_000 },
+        { text: 'thank you', speaker: 'B', startMs: 2_000 },
+      ],
+    });
+
+    const refused = await declare(bob.token, { [key('media', 'A')]: { name: 'Host' } });
+    expect(refused.statusCode).toBe(403);
+
+    // And Bob still reads the transcript, names and all.
+    expect((await read(bob.token)).statusCode).toBe(200);
   }, 60_000);
 });
 

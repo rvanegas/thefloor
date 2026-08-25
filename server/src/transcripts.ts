@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
 import {
   intoBlocks,
-  multiVoiceStems,
-  voiceName,
+  readable,
+  voiceKey,
+  VOICE_SEPARATOR,
   type TranscriptLine,
+  type VoiceDeclarations,
 } from '../../core/transcript';
 import { MEDIA_IDENTITY } from './channels';
 import { hasSearchIndex, type Db, type RecordingRow } from './db';
@@ -463,6 +465,13 @@ export class Transcripts {
              JOIN recordings r ON r.id = l.recording_id
              WHERE f.text MATCH ? AND l.channel_id = ?
                AND t.deleted_at IS NULL AND r.deleted_at IS NULL
+               AND NOT EXISTS (
+                 SELECT 1 FROM transcript_voices v
+                 WHERE v.recording_id = l.recording_id
+                   AND v.identity = l.identity
+                   AND v.speaker = COALESCE(l.speaker, '')
+                   AND v.removed = 1
+               )
              ORDER BY l.recording_id, l.start_ms
              LIMIT ?`
           )
@@ -480,6 +489,13 @@ export class Transcripts {
              WHERE l.channel_id = ? AND t.deleted_at IS NULL
                AND r.deleted_at IS NULL
                AND lower(l.text) LIKE '%' || lower(?) || '%'
+               AND NOT EXISTS (
+                 SELECT 1 FROM transcript_voices v
+                 WHERE v.recording_id = l.recording_id
+                   AND v.identity = l.identity
+                   AND v.speaker = COALESCE(l.speaker, '')
+                   AND v.removed = 1
+               )
              ORDER BY l.recording_id, l.start_ms
              LIMIT ?`
           )
@@ -507,6 +523,77 @@ export class Transcripts {
   }
 
   /**
+   * What has been declared about one transcript's voices.
+   *
+   * Empty for a transcript nobody has said anything about, which is the
+   * default naming and is most of them.
+   */
+  voicesFor(recordingId: string): VoiceDeclarations {
+    const rows = this.db
+      .prepare(
+        `SELECT identity, speaker, name, removed FROM transcript_voices
+         WHERE recording_id = ?`
+      )
+      .all(recordingId) as unknown as Array<{
+      identity: string;
+      speaker: string;
+      name: string | null;
+      removed: number;
+    }>;
+    const out: VoiceDeclarations = {};
+    for (const row of rows) {
+      out[voiceKey(row.identity, row.speaker || null)] = {
+        ...(row.name ? { name: row.name } : {}),
+        ...(row.removed ? { removed: true } : {}),
+      };
+    }
+    return out;
+  }
+
+  /**
+   * Replaces the whole declaration for one transcript.
+   *
+   * Whole rather than per voice, because the screen that sends it holds the
+   * whole thing and because that is what makes clearing expressible: a voice
+   * absent from what arrives has nothing declared about it, and an empty
+   * object puts the transcript back exactly as the provider left it. There is
+   * no separate reset path to get wrong.
+   *
+   * A declaration that says nothing — no name, not removed — is dropped rather
+   * than stored, so "cleared" has one representation in the table instead of
+   * two.
+   */
+  declareVoices(
+    recordingId: string,
+    voices: VoiceDeclarations,
+    by: string
+  ): void {
+    this.db
+      .prepare('DELETE FROM transcript_voices WHERE recording_id = ?')
+      .run(recordingId);
+    const insert = this.db.prepare(
+      `INSERT INTO transcript_voices
+         (recording_id, identity, speaker, name, removed, declared_by, declared_at)
+       VALUES (?,?,?,?,?,?,?)`
+    );
+    for (const [key, voice] of Object.entries(voices)) {
+      const name = voice.name?.trim();
+      if (!name && !voice.removed) continue;
+      const [identity, speaker = ''] = key.split(VOICE_SEPARATOR);
+      if (!identity) continue;
+      insert.run(
+        recordingId,
+        identity,
+        speaker,
+        name ?? null,
+        voice.removed ? 1 : 0,
+        by,
+        this.now()
+      );
+    }
+  }
+
+  /**
    * Which stems, across these recordings, came back carrying more than one
    * voice — keyed `<recording id>\u0000<identity>`.
    *
@@ -522,10 +609,15 @@ export class Transcripts {
     const holes = recordingIds.map(() => '?').join(', ');
     const rows = this.db
       .prepare(
-        `SELECT recording_id, identity, COUNT(DISTINCT speaker) AS voices
-         FROM transcript_lines
-         WHERE recording_id IN (${holes}) AND speaker IS NOT NULL
-         GROUP BY recording_id, identity
+        `SELECT l.recording_id, l.identity, COUNT(DISTINCT l.speaker) AS voices
+         FROM transcript_lines l
+         WHERE l.recording_id IN (${holes}) AND l.speaker IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM transcript_voices v
+             WHERE v.recording_id = l.recording_id AND v.identity = l.identity
+               AND v.speaker = l.speaker AND v.removed = 1
+           )
+         GROUP BY l.recording_id, l.identity
          HAVING voices > 1`
       )
       .all(...recordingIds) as unknown as Array<{
@@ -911,24 +1003,19 @@ export function speakerName(
 }
 
 /**
- * Names every line in a transcript, including the voice inside its stem when
- * there turned out to be more than one.
+ * A transcript's lines as they are read: removed voices gone, every line named.
  *
- * Takes the whole set because that is what the question needs: whether to
- * print a letter beside a name is a fact about the stem across the transcript,
- * not about the line in hand. See `core/transcript.ts`.
+ * The whole set goes in because that is what the questions need — whether to
+ * print a letter is a fact about the stem across the transcript, and removing
+ * a voice changes the answer for the ones beside it. See `core/transcript.ts`,
+ * which is where the rules are and where the app reads them from too.
  */
-export function lineNamer(
+export function readableLines(
   lines: readonly TranscriptLine[],
-  names: Record<string, string>
-): (line: TranscriptLine) => string {
-  const many = multiVoiceStems(lines);
-  return (line) =>
-    voiceName(
-      speakerName(line.identity, names),
-      line.speaker,
-      many.has(line.identity)
-    );
+  names: Record<string, string>,
+  voices: VoiceDeclarations = {}
+): Array<TranscriptLine & { displayName: string | null }> {
+  return readable(lines, (identity) => speakerName(identity, names), voices);
 }
 
 /**
@@ -955,24 +1042,22 @@ export function lineNamer(
 export function formatTranscript(
   lines: TranscriptLine[],
   names: Record<string, string>,
-  format: 'txt' | 'vtt' | 'json'
+  format: 'txt' | 'vtt' | 'json',
+  voices: VoiceDeclarations = {}
 ): { body: string; contentType: string; extension: string } {
-  const who = lineNamer(lines, names);
+  const named = readableLines(lines, names, voices);
+  const who = (line: { displayName: string | null }) => line.displayName ?? 'Someone';
 
   if (format === 'json') {
     return {
-      body: JSON.stringify(
-        lines.map((line) => ({ ...line, displayName: who(line) })),
-        null,
-        2
-      ),
+      body: JSON.stringify(named, null, 2),
       contentType: 'application/json',
       extension: 'json',
     };
   }
 
   if (format === 'vtt') {
-    const cues = lines.map(
+    const cues = named.map(
       (line, n) =>
         `${n + 1}\n${timecode(line.startMs)} --> ${timecode(line.endMs)}\n` +
         `<v ${who(line)}>${line.text}`
@@ -987,7 +1072,7 @@ export function formatTranscript(
   // One entry per run of a voice, its paragraphs blank-line separated — so
   // every blank line is a paragraph break and only the `[time] Name:` prefix
   // starts a new speaker, which is the convention printed transcripts use.
-  const body = intoBlocks(lines)
+  const body = intoBlocks(named)
     .map((block) => {
       const [first, ...rest] = block.lines;
       const head = `[${clock(block.startMs)}] ${who(first)}: ${first.text}`;
