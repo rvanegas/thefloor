@@ -58,6 +58,36 @@ export interface TranscriptsOptions {
   now?: () => number;
   /** Where a failure that nobody is waiting on goes. */
   onError?: (error: unknown, context: string) => void;
+  /**
+   * Told which channel to push a fresh snapshot to when a transcript changes
+   * state.
+   *
+   * A transcript landing is not an action anybody took, so nothing else is
+   * going to send one — the same reason the mix emits when it is stored.
+   * Without this the card reads "Transcribing…" until something unrelated
+   * happens in that channel.
+   */
+  onChanged?: (channelId: string) => void;
+}
+
+/** What one recording's transcript looks like from the outside. */
+export interface TranscriptView {
+  state: 'pending' | 'ready' | 'failed';
+  requestedBy: string;
+  requestedAt: number;
+  failure?: string;
+  /** Which speakers produced nothing, and why. Empty when all of them did. */
+  missing: Array<{ identity: string; failure: string | null }>;
+}
+
+export interface TranscriptLine {
+  identity: string;
+  /** Which voice within that stem, when the provider labelled one. */
+  speaker: string | null;
+  startMs: number;
+  endMs: number;
+  text: string;
+  confidence: number | null;
 }
 
 interface JobRow {
@@ -78,6 +108,7 @@ export class Transcripts {
   private readonly store?: RecordingStore;
   private readonly now: () => number;
   private readonly onError: (error: unknown, context: string) => void;
+  private readonly onChanged: (channelId: string) => void;
 
   /**
    * When each job may next be polled, by job id. In memory only: after a
@@ -106,6 +137,7 @@ export class Transcripts {
     this.store = options.store;
     this.now = options.now ?? Date.now;
     this.onError = options.onError ?? (() => {});
+    this.onChanged = options.onChanged ?? (() => {});
   }
 
   /**
@@ -191,6 +223,10 @@ export class Transcripts {
       insert.run(randomUUID(), recordingId, identity);
     }
 
+    // Everybody in the channel, not just whoever asked: this is a change to a
+    // shared thing, and the other screens should say "Transcribing…" from the
+    // moment it starts rather than from whenever they next hear anything.
+    this.onChanged(recording.channel_id);
     this.pump();
   }
 
@@ -266,7 +302,79 @@ export class Transcripts {
     for (const job of jobs) {
       if (job.provider_id) this.forget(job.provider_id);
     }
+    // Before the rows go, since afterwards there is nothing to read the
+    // channel off — and a recording swept out from under one has none either.
+    const channelId = this.recording(recordingId)?.channel_id;
     this.clear(recordingId);
+    if (channelId) this.onChanged(channelId);
+  }
+
+  /**
+   * Where one recording's transcript stands, or nothing if it has none.
+   *
+   * `missing` is the honest half. A transcript is ready when *any* speaker
+   * produced text, so a screen that only said "ready" would quietly present a
+   * conversation with somebody missing from it as though it were complete.
+   */
+  viewFor(recordingId: string): TranscriptView | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT state, requested_by, requested_at, failure
+         FROM transcripts WHERE recording_id = ?`
+      )
+      .get(recordingId) as
+      | {
+          state: string;
+          requested_by: string;
+          requested_at: number;
+          failure: string | null;
+        }
+      | undefined;
+    if (!row) return undefined;
+
+    return {
+      state: row.state as TranscriptView['state'],
+      requestedBy: row.requested_by,
+      requestedAt: row.requested_at,
+      ...(row.failure ? { failure: row.failure } : {}),
+      missing: this.jobsOf(recordingId)
+        .filter((job) => job.state === 'failed')
+        .map((job) => ({ identity: job.identity, failure: job.failure })),
+    };
+  }
+
+  /**
+   * The text, in the order it was said.
+   *
+   * Ordered by time across every speaker rather than grouped by them, because
+   * that is the conversation. Two people talking over each other produce two
+   * lines at overlapping times, which per-stem jobs can represent honestly and
+   * a transcript of a mix could not represent at all.
+   */
+  linesFor(recordingId: string): TranscriptLine[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT identity, speaker, start_ms, end_ms, text, confidence
+           FROM transcript_lines WHERE recording_id = ?
+           ORDER BY start_ms, identity`
+        )
+        .all(recordingId) as unknown as Array<{
+        identity: string;
+        speaker: string | null;
+        start_ms: number;
+        end_ms: number;
+        text: string;
+        confidence: number | null;
+      }>
+    ).map((row) => ({
+      identity: row.identity,
+      speaker: row.speaker,
+      startMs: row.start_ms,
+      endMs: row.end_ms,
+      text: row.text,
+      confidence: row.confidence,
+    }));
   }
 
   // --- the work -------------------------------------------------------------
@@ -471,6 +579,9 @@ export class Transcripts {
 
     this.total(recordingId, jobs);
 
+    const channelId = this.recording(recordingId)?.channel_id;
+    if (channelId) this.onChanged(channelId);
+
     const ready = jobs.filter((job) => job.state === 'ready');
     if (ready.length > 0) {
       // Partly ready is ready. A transcript missing one speaker is worth far
@@ -602,6 +713,75 @@ export class Transcripts {
       (identity) => identity !== MEDIA_IDENTITY && stems[identity]?.length
     );
   }
+}
+
+/**
+ * Renders a transcript for download.
+ *
+ * Three formats because they are read by three different things. `txt` is for
+ * a person: speaker-labelled prose with a timestamp, which is what somebody
+ * pastes into a message. `vtt` is what a media player wants and what pairs
+ * with the exported audio — same timeline, since the stems were rendered with
+ * their delays in place. `json` is for anybody who wants to do something else
+ * with it, and is the only one that carries confidence and the within-stem
+ * speaker label.
+ *
+ * `names` is `participant_names`, frozen when the run was filed. A transcript
+ * that relabels itself when somebody renames themselves is worse than one with
+ * an old name in it — the whole reason that column exists.
+ */
+export function formatTranscript(
+  lines: TranscriptLine[],
+  names: Record<string, string>,
+  format: 'txt' | 'vtt' | 'json'
+): { body: string; contentType: string; extension: string } {
+  const who = (identity: string) => names[identity] ?? identity;
+
+  if (format === 'json') {
+    return {
+      body: JSON.stringify(
+        lines.map((line) => ({ ...line, displayName: who(line.identity) })),
+        null,
+        2
+      ),
+      contentType: 'application/json',
+      extension: 'json',
+    };
+  }
+
+  if (format === 'vtt') {
+    const cues = lines.map(
+      (line, n) =>
+        `${n + 1}\n${timecode(line.startMs)} --> ${timecode(line.endMs)}\n` +
+        `<v ${who(line.identity)}>${line.text}`
+    );
+    return {
+      body: `WEBVTT\n\n${cues.join('\n\n')}\n`,
+      contentType: 'text/vtt',
+      extension: 'vtt',
+    };
+  }
+
+  const body = lines
+    .map((line) => `[${clock(line.startMs)}] ${who(line.identity)}: ${line.text}`)
+    .join('\n');
+  return { body: `${body}\n`, contentType: 'text/plain', extension: 'txt' };
+}
+
+/** `HH:MM:SS.mmm`, which is what WebVTT wants and will not tolerate less of. */
+function timecode(ms: number): string {
+  const millis = String(Math.floor(ms % 1000)).padStart(3, '0');
+  return `${clock(ms)}.${millis}`;
+}
+
+function clock(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return [
+    pad(Math.floor(total / 3600)),
+    pad(Math.floor(total / 60) % 60),
+    pad(total % 60),
+  ].join(':');
 }
 
 function requestFrom(recording: RecordingRow): ExportRequest {

@@ -333,6 +333,30 @@ export interface RecordingView {
    * listed a recording that was still mixing.
    */
   mixing?: boolean;
+  /**
+   * Where its transcript stands, or absent when it has none and none is being
+   * made.
+   *
+   * Optional in the way `mixing` is, and for a second reason besides: a server
+   * with no transcription credential sends nothing here, ever, and that is how
+   * the app knows not to offer it. A build that predates the field ignores it
+   * and shows the card exactly as it does now.
+   */
+  transcript?: {
+    state: 'pending' | 'ready' | 'failed';
+    /**
+     * Who asked for it. Shown, always — asking sends everybody's audio to a
+     * third party, so it is never anonymous.
+     */
+    requestedBy: PublicAccount | null;
+    failure?: string;
+    /**
+     * How many speakers produced nothing. A transcript is ready when *any* of
+     * them did, so a screen that said only "ready" would present a
+     * conversation with somebody missing from it as though it were complete.
+     */
+    missing?: number;
+  };
 }
 
 /**

@@ -536,9 +536,53 @@ is not a double.
   `poll()` does not report which of the pinned pair actually ran, and a column
   that cannot be filled honestly is worse than none.
 
-**Phase 4 — routes and the wire field.** Additive and optional, so an older
-build ignores them. This is the last phase that is inert with the key set —
-after it, the server can spend money, and nothing can ask it to yet.
+**Phase 4 — routes and the wire field. Done 2026-08-25.** Additive and
+optional, so an older build ignores them. The last phase that is inert with the
+key set: the server can now spend money and nothing can ask it to yet.
+
+  | | |
+  | --- | --- |
+  | `POST /recordings/:id/transcript` | starts one. 503 unconfigured, 409 for a second one, 404 for absent/deleted/not-yours |
+  | `GET /recordings/:id/transcript` | the lines, names resolved |
+  | `GET /recordings/:id/transcript/export?format=txt\|vtt\|json` | the file |
+  | `DELETE /recordings/:id/transcript` | removes it, leaving the recording |
+
+  - **Two different guards, and the difference is the point.** Asking and
+    deleting go through `ChannelRegistry.mayManageRecording` — lifted out of
+    `deleteRecording` so a third caller applies the same rule rather than a
+    similar one — because they change a shared thing and send everybody's audio
+    to a third party. Reading goes through `recordingsFor`, like exporting:
+    anybody who may hear the conversation may read it.
+  - **`DELETE` was not in the design.** A transcript is the only artefact here
+    that could not otherwise be removed without deleting the conversation it
+    came from, and it is the one most worth removing, being searchable text
+    rather than audio nobody will scrub through. It refunds nothing; asking
+    again costs again.
+  - **`RecordingView.transcript` is absent in two cases that mean different
+    things** — this server cannot transcribe, and this recording has not been
+    transcribed. Deliberately indistinguishable from the app's side: the
+    button's availability comes from the same absence, so a server with no key
+    never shows one.
+  - **`missing` counts the speakers who produced nothing.** A transcript is
+    ready when *any* of them did, so a card that said only "ready" would
+    present a conversation with somebody missing from it as though it were
+    whole.
+  - **`ChannelRegistry.announce`**, and the reason it had to exist: the phone
+    does not hold the request open, so something must say when a transcript
+    lands — and a transcript landing is not an action anybody took, so no
+    dispatch pushes a snapshot on its behalf. Exactly the reason a finished mix
+    emits. Without it the card reads "Transcribing…" until something unrelated
+    happens in that channel.
+
+  On the export formats: `txt` is what somebody pastes into a message, `vtt` is
+  what a media player wants and carries the *recording's* timeline rather than
+  an offset into anybody's stem — which is what phase 2's delays bought — and
+  `json` is the only one carrying confidence and the within-stem speaker label.
+
+  **There is still no inbound route, and there should not be one.** A webhook
+  would need a public path, a shared secret, and *still* a reconciler for the
+  call that never arrived; the reconciler alone is the whole job, and phase 3
+  is that reconciler.
 
 **Phase 5 — the app**: trigger, transcript view, per-recording search, seek,
 export. **The key goes on the box in the same deploy this ships**, which is

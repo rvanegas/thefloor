@@ -1671,6 +1671,56 @@ export class ChannelRegistry {
   }
 
   /**
+   * Whether this person may make a change to one recording that everybody in
+   * its channel will see.
+   *
+   * The rule deleting and renaming already apply, lifted so that a third thing
+   * can apply the same one rather than a similar one. Transcribing is the
+   * third: it puts a shared artefact on everybody's screen and sends
+   * everybody's audio to a third party to do it, which makes it a change to
+   * the channel rather than a private read of your own conversation. Exporting
+   * is the private read, and deliberately does not come through here.
+   *
+   * Two checks, and they answer differently on purpose. `recordingsFor` is the
+   * reach test — absent, deleted and not-yours are one answer, because that a
+   * recording exists is something only the channel's members learn. Holding
+   * the room is not concealment: the caller can see the recording and can see
+   * who is in the channel, so they are told what is actually in the way.
+   */
+  mayManageRecording(
+    recordingId: string,
+    userId: string
+  ): { ok: true; row: RecordingRow } | Refused {
+    const row = this.recordingsFor(userId).find(
+      (candidate) => candidate.id === recordingId
+    );
+    if (!row) {
+      return { ok: false, error: 'No such recording.', code: 'not_found' };
+    }
+    if (!this.hasTheRoomIn(row.channel_id, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to change a recording.',
+        code: 'conflict',
+      };
+    }
+    return { ok: true, row };
+  }
+
+  /**
+   * Pushes a fresh snapshot of one channel to everybody in it.
+   *
+   * Exposed for the one caller that finishes work nobody is waiting on:
+   * a transcript landing is not an action anybody took, so no dispatch is
+   * going to push a snapshot on its behalf — exactly the reason `mix` emits
+   * when it stores a mix. Without it the card says "Transcribing…" until
+   * something unrelated happens in that channel.
+   */
+  announce(channelId: string): void {
+    this.emit([channelId]);
+  }
+
+  /**
    * Deletes one recording, on the same terms as deleting the channel deletes
    * all of them: marked now, swept a week later, and gone from every list in
    * the meantime.

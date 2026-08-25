@@ -1,7 +1,11 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
-import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import Fastify, {
+  type FastifyInstance,
+  type FastifyReply,
+  type FastifyRequest,
+} from 'fastify';
 import websocket from '@fastify/websocket';
 import type {
   HomeView,
@@ -28,7 +32,11 @@ import { probeDurationMs, UnreadableAudioError } from './playback';
 import { escapeHtml } from './html';
 import { privacyPage } from './privacy';
 import type { TranscriptionProvider } from './transcription';
-import { Transcripts } from './transcripts';
+import {
+  formatTranscript,
+  Transcripts,
+  type TranscriptView,
+} from './transcripts';
 import {
   BUILD_HEADER,
   claimedBuild,
@@ -352,6 +360,9 @@ export function buildApp(options: BuildOptions = {}): App {
     now,
     onError: (error, context) =>
       fastify.log.error({ err: error, context }, 'transcription failed'),
+    // A transcript landing is not an action anybody took, so nothing else
+    // pushes a snapshot on its behalf — the same reason a finished mix emits.
+    onChanged: (channelId) => channels.announce(channelId),
   });
 
   // Channels outlive the process that was holding them, so the first thing a
@@ -1805,6 +1816,160 @@ export function buildApp(options: BuildOptions = {}): App {
     }
   });
 
+  /**
+   * Asks for one recording to be transcribed.
+   *
+   * **The `manageable` rule, not the export rule.** Exporting is a private
+   * read of your own conversation; this sends everybody's audio to a third
+   * party and puts a shared artefact on everybody's screen, which makes it a
+   * change to the channel like renaming or deleting one. So it goes through
+   * `mayManageRecording`, and `requestedBy` is carried on the wire so it is
+   * never anonymous.
+   *
+   * Returns immediately. Nothing here holds the request open across a render,
+   * an upload and however long the provider takes — the state arrives on the
+   * channel snapshot the way a finished mix does.
+   */
+  fastify.post('/recordings/:id/transcript', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    if (!transcripts.available()) {
+      return reply
+        .code(503)
+        .send({ error: 'Transcription is not configured.' });
+    }
+    const allowed = channels.mayManageRecording(id, account.id);
+    if (!allowed.ok) {
+      return reply
+        .code(allowed.code === 'conflict' ? 409 : 404)
+        .send({ error: allowed.error });
+    }
+
+    try {
+      await transcripts.request(id, account.id);
+    } catch (error) {
+      // Everything this throws is an answer the caller should relay rather
+      // than retry: already transcribed, nothing to transcribe, deleted
+      // underneath. 409 rather than 500 — the request was understood and
+      // refused, which is a different thing from this server breaking.
+      return reply.code(409).send({
+        error: error instanceof Error ? error.message : 'Could not transcribe.',
+      });
+    }
+    return { ok: true };
+  });
+
+  /**
+   * One recording's transcript: where it stands, and the text if there is any.
+   *
+   * A read, so the reach test is the export's rather than the manage rule —
+   * anybody who may hear the conversation may read it. The lines come back in
+   * the order they were said across every speaker, which is the conversation;
+   * two people talking over each other are two lines at overlapping times,
+   * which per-stem jobs can represent honestly and a transcript of a mix could
+   * not represent at all.
+   */
+  fastify.get('/recordings/:id/transcript', async (request, reply) => {
+    const found = await readableTranscript(request, reply);
+    if (!found) return;
+
+    return {
+      ...found.view,
+      requestedBy: nameFrom(found.row, found.view.requestedBy),
+      lines: transcripts.linesFor(found.row.id).map((line) => ({
+        ...line,
+        displayName: nameFrom(found.row, line.identity)?.displayName ?? null,
+      })),
+    };
+  });
+
+  /** The transcript as a file: prose to read, subtitles to play, or the data. */
+  fastify.get('/recordings/:id/transcript/export', async (request, reply) => {
+    const found = await readableTranscript(request, reply);
+    if (!found) return;
+
+    const asked = (request.query as { format?: string } | undefined)?.format;
+    if (asked && asked !== 'txt' && asked !== 'vtt' && asked !== 'json') {
+      return reply.code(400).send({ error: 'Unknown format.' });
+    }
+    const format = (asked ?? 'txt') as 'txt' | 'vtt' | 'json';
+
+    const names: Record<string, string> = found.row.participant_names
+      ? JSON.parse(found.row.participant_names)
+      : {};
+    const file = formatTranscript(
+      transcripts.linesFor(found.row.id),
+      names,
+      format
+    );
+    return reply
+      .header('content-type', `${file.contentType}; charset=utf-8`)
+      .header(
+        'content-disposition',
+        `attachment; filename="${found.row.id}.${file.extension}"`
+      )
+      .send(file.body);
+  });
+
+  /**
+   * Removes a transcript, leaving the recording alone.
+   *
+   * Not in the original design, and worth having: a transcript is the only
+   * artefact here that could not otherwise be removed without deleting the
+   * conversation it came from — and it is the one somebody is most likely to
+   * want gone, being searchable text of what was said rather than audio
+   * nobody will scrub through. The same guard as asking for one, since
+   * unmaking a shared thing is the same size of act as making it.
+   *
+   * It does not refund anything. Asking again costs again, which is the honest
+   * arrangement and is why the app should say so before it deletes.
+   */
+  fastify.delete('/recordings/:id/transcript', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    const allowed = channels.mayManageRecording(id, account.id);
+    if (!allowed.ok) {
+      return reply
+        .code(allowed.code === 'conflict' ? 409 : 404)
+        .send({ error: allowed.error });
+    }
+    if (!transcripts.viewFor(id)) {
+      return reply.code(404).send({ error: 'No such transcript.' });
+    }
+    transcripts.deleteFor(id);
+    return { ok: true };
+  });
+
+  /**
+   * The reach test the two transcript reads share.
+   *
+   * Absent, deleted, not-yours and not-transcribed are one 404, for the reason
+   * the export gives: that a recording exists is something only the channel's
+   * members learn, and the same goes for whether it has been transcribed.
+   */
+  async function readableTranscript(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<{ row: RecordingRow; view: TranscriptView } | null> {
+    const account = await requireAccount(request, reply);
+    if (!account) return null;
+    const { id } = request.params as { id: string };
+
+    const row = channels
+      .recordingsFor(account.id)
+      .find((candidate) => candidate.id === id);
+    const view = row ? transcripts.viewFor(id) : undefined;
+    if (!row || !view) {
+      reply.code(404).send({ error: 'No such transcript.' });
+      return null;
+    }
+    return { row, view };
+  }
+
   // `commit` and `minBuild` are here rather than behind auth because the
   // question they answer — what is actually running on the box — is one you
   // want answerable by curl, from a machine that is not this one, at the
@@ -1896,7 +2061,45 @@ export function buildApp(options: BuildOptions = {}): App {
       // answer — a failed mix, or a run that predates mixing — and those play
       // and export by encoding on demand, exactly as everything used to.
       mixing: row.mix_state === 'pending',
+      ...transcriptViewOf(row),
     };
+  }
+
+  /**
+   * A recording's transcript, as the wire carries it, or nothing at all.
+   *
+   * Nothing at all in two cases that mean different things and look the same
+   * from the app's side, which is intended: this server cannot transcribe, or
+   * this recording has not been transcribed. Either way there is nothing to
+   * show and the app offers what it offers — the button's availability comes
+   * from the same absence, so a server with no key never shows one.
+   */
+  function transcriptViewOf(
+    row: RecordingRow
+  ): Pick<RecordingView, 'transcript'> {
+    if (!transcripts.available()) return {};
+    const view = transcripts.viewFor(row.id);
+    if (!view) return {};
+    return {
+      transcript: {
+        state: view.state,
+        // Frozen names first, exactly as `others` does: a transcript that
+        // relabels itself when somebody renames themselves is worse than one
+        // with an old name in it.
+        requestedBy: nameFrom(row, view.requestedBy),
+        ...(view.failure ? { failure: view.failure } : {}),
+        ...(view.missing.length ? { missing: view.missing.length } : {}),
+      },
+    };
+  }
+
+  function nameFrom(row: RecordingRow, id: string): PublicAccount | null {
+    const frozen: Record<string, string> = row.participant_names
+      ? JSON.parse(row.participant_names)
+      : {};
+    return frozen[id]
+      ? { id, displayName: frozen[id] }
+      : (accounts.public(id) ?? null);
   }
 
   /** A channel's own recordings, for whoever belongs to it. */
