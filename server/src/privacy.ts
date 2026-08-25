@@ -30,6 +30,12 @@ export const PRIVACY_UPDATED = '19 August 2026';
  * reader to re-read a page that is word for word the one they saw. The later
  * of the two is shown, so the date always describes the version in front of
  * whoever is reading it.
+ *
+ * **This constant is meant to be temporary**, and TRANSCRIPTS.md § *Order of
+ * work* says when: the phase that ships the feature to the app splits the
+ * section in two and makes the half about stored transcripts unconditional. At
+ * that point the page has changed for every reader, which is what
+ * `PRIVACY_UPDATED` is for — so it moves, and this one goes away.
  */
 const TRANSCRIPTION_ADDED = '24 August 2026';
 
@@ -72,6 +78,16 @@ export interface PolicyOptions {
    * that cannot happen to the reader, which is a worse failing on this page
    * than on any other: everything else here is written as claims checkable
    * against the source, and this one is checkable against the configuration.
+   *
+   * It is also the withdrawal switch, on `KOFI_URL`'s pattern: unsetting the
+   * key retracts the disclosure in the same restart that turns off the
+   * feature, without a deploy.
+   *
+   * **Do not extend this gate to cover stored transcripts.** It is right for
+   * what *leaves* and wrong for what is *kept* — text held here outlives the
+   * provider being dropped, and a page that falls silent about it while it is
+   * still on people's screens fails worse than the case this gate prevents.
+   * TRANSCRIPTS.md § *Order of work*, phase 5, specifies that split.
    */
   transcription?: string;
 }

@@ -438,6 +438,39 @@ export. **The key goes on the box in the same deploy this ships**, which is
 also the moment `/privacy` starts naming AssemblyAI and the App Store
 data-collection answers have to have been changed. Not before.
 
+  **And the privacy section comes apart in this phase, into two claims with
+  different conditions.** Phase 1 gated the whole section on the key being
+  configured, and that gate keeps meaning the right thing for half of it and
+  starts meaning the wrong thing for the other half the moment a transcript
+  can exist.
+
+  Keep the gate on the *sending*. "Audio is sent to AssemblyAI when somebody
+  in the channel asks" is only true where the credential is, and unsetting the
+  key has to retract the sentence in the same restart it withdraws the feature
+  — which is the `KOFI_URL` property, deliberately: one line in `server/.env`
+  is the withdrawal switch if the price moves, the provider has an incident, or
+  a reviewer objects to the disclosure. That is worth more than a page whose
+  text can be read off the repository alone, and it is the reason not to
+  simply make the section unconditional once the feature is live.
+
+  **Make the *storage* unconditional.** "Transcripts are kept with the
+  recording, are visible to exactly the people who can play it, and are deleted
+  with it" is a claim about data held here, and it survives the provider being
+  dropped, because the data does. Gated on the key, that sentence disappears
+  the moment somebody unsets it — leaving a page that is silent about stored
+  text which still exists and is still on people's screens, which is a worse
+  failure than the one the gate was built to prevent. Condition it on the
+  feature having ever run, or on nothing at all; not on the credential.
+
+  Two consequences worth having in the same diff. `TRANSCRIPTION_ADDED` goes
+  away and `PRIVACY_UPDATED` moves: once a paragraph is unconditional the page
+  has genuinely changed for every reader, which is what that date is for and
+  what the second date existed to avoid claiming falsely. And
+  `privacy.test.ts`'s "says nothing about a processor when there is none" case
+  has to be rewritten rather than deleted — the assertion becomes *silent about
+  AssemblyAI, still speaking about transcripts*, which is the whole of what
+  this split is.
+
 **Phase 6 — channel-wide search**, plus FTS5 if the box has it.
 
 ## Open questions
