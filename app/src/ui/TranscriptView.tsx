@@ -131,112 +131,117 @@ export function TranscriptView({
   const deletable =
     !!state && state !== 'none' && recording.transcript?.mayRequest !== false;
 
-  return (
-    <Screen>
-      {/*
-        Everything you can do to this transcript is up here, above what it
-        says, rather than below it. A transcript is as long as the
-        conversation was, so a footer is a scroll away from the moment somebody
-        decides to export it — and the two acts that are not reading (naming
-        the voices, deleting the lot) were reachable only by passing the whole
-        thing. The screen reads top-down: what this is, what you may do to it,
-        then the words.
-      */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerMain}>
-            <Text style={type.heading}>Transcript</Text>
-            <Text style={type.muted} numberOfLines={2}>
-              {recording.name}
-            </Text>
-          </View>
-          <Button label="Back" variant="ghost" onPress={onBack} />
-        </View>
-
-        {!naming && (state === 'ready' || deletable) ? (
-          // Wraps rather than shrinks: the labels say what they do, and three
-          // of them plus a long recording name will not fit on one line on a
-          // small handset. A second row of buttons is still the header.
-          <View style={styles.headerActions}>
-            {state === 'ready' && !naming && mayName && voices.length > 1 ? (
-              <Button
-                label="Name the voices"
-                variant="ghost"
-                // Only when there is a choice to make. One voice in the whole
-                // transcript is a conversation nobody needs to relabel, and a
-                // button that opens a screen with a single row on it is a
-                // button that teaches people to ignore it.
-                onPress={() => setNaming(true)}
-              />
-            ) : null}
-            {state === 'ready' && !naming ? (
-              <Button
-                label={busy ? 'Preparing…' : 'Export'}
-                variant="ghost"
-                disabled={busy}
-                onPress={() => {
-                  Alert.alert('Export transcript', 'Which format?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Text', onPress: () => download('txt') },
-                    { text: 'Subtitles', onPress: () => download('vtt') },
-                    { text: 'Data', onPress: () => download('json') },
-                  ]);
-                }}
-              />
-            ) : null}
-            {deletable && !naming ? (
-              <Button
-                label="Delete transcript"
-                variant="ghost"
-                disabled={!manageable || busy}
-                onPress={() => {
-                  Alert.alert(
-                    'Delete this transcript?',
-                    // Says the cost out loud. Nothing is refunded, and the app
-                    // should not let somebody find that out by asking again.
-                    'The recording is kept. Transcribing it again costs the same as the first time.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Delete',
-                        style: 'destructive',
-                        onPress: async () => {
-                          if (!app.token) return;
-                          setBusy(true);
-                          try {
-                            await api.deleteTranscript(app.token, recording.id);
-                            onBack();
-                          } catch (e) {
-                            Alert.alert(
-                              'Could not delete',
-                              e instanceof Error ? e.message : String(e)
-                            );
-                          } finally {
-                            setBusy(false);
-                          }
-                        },
-                      },
-                    ]
-                  );
-                }}
-              />
-            ) : null}
-          </View>
-        ) : null}
-
-        {/*
-          Said only where there is a greyed-out Delete to explain. It used to
-          be said whenever the viewer could not manage the recording, including
-          on transcripts that offer no deleting at all, where it answered a
-          question nobody had asked.
-        */}
-        {deletable && !naming && !manageable ? (
-          <Text style={type.muted}>
-            Step in to delete this. It leaves everybody's screen at once.
+  /*
+    Pinned rather than scrolled: this is the header slot, so it stays where it
+    is while the transcript moves under it. Everything you can do to this
+    transcript is up here, above what it says, rather than below it — a
+    transcript is as long as the conversation was, and both a footer and a
+    header that scrolls away put the moment somebody decides to export it a
+    scroll from the control that does it. The screen reads top-down: what this
+    is, what you may do to it, then the words, and the first two stay put.
+  */
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
+        <View style={styles.headerMain}>
+          <Text style={type.heading}>Transcript</Text>
+          <Text style={type.muted} numberOfLines={2}>
+            {recording.name}
           </Text>
-        ) : null}
+        </View>
+        <Button label="Back" variant="ghost" onPress={onBack} />
       </View>
 
+      {!naming && (state === 'ready' || deletable) ? (
+        // Stacked rather than laid across: the labels are sentences, not
+        // icons, and three of them will not sit on one line on a small
+        // handset — wrapping them left a ragged two-and-one arrangement
+        // whose second row read as a different group. One under another is
+        // what the rest of the app does with a column of actions, and it
+        // gives each the full width its label was written for.
+        <View style={styles.headerActions}>
+          {state === 'ready' && !naming && mayName && voices.length > 1 ? (
+            <Button
+              label="Name the voices"
+              variant="ghost"
+              // Only when there is a choice to make. One voice in the whole
+              // transcript is a conversation nobody needs to relabel, and a
+              // button that opens a screen with a single row on it is a
+              // button that teaches people to ignore it.
+              onPress={() => setNaming(true)}
+            />
+          ) : null}
+          {state === 'ready' && !naming ? (
+            <Button
+              label={busy ? 'Preparing…' : 'Export'}
+              variant="ghost"
+              disabled={busy}
+              onPress={() => {
+                Alert.alert('Export transcript', 'Which format?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Text', onPress: () => download('txt') },
+                  { text: 'Subtitles', onPress: () => download('vtt') },
+                  { text: 'Data', onPress: () => download('json') },
+                ]);
+              }}
+            />
+          ) : null}
+          {deletable && !naming ? (
+            <Button
+              label="Delete transcript"
+              variant="ghost"
+              disabled={!manageable || busy}
+              onPress={() => {
+                Alert.alert(
+                  'Delete this transcript?',
+                  // Says the cost out loud. Nothing is refunded, and the app
+                  // should not let somebody find that out by asking again.
+                  'The recording is kept. Transcribing it again costs the same as the first time.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: async () => {
+                        if (!app.token) return;
+                        setBusy(true);
+                        try {
+                          await api.deleteTranscript(app.token, recording.id);
+                          onBack();
+                        } catch (e) {
+                          Alert.alert(
+                            'Could not delete',
+                            e instanceof Error ? e.message : String(e)
+                          );
+                        } finally {
+                          setBusy(false);
+                        }
+                      },
+                    },
+                  ]
+                );
+              }}
+            />
+          ) : null}
+        </View>
+      ) : null}
+
+      {/*
+        Said only where there is a greyed-out Delete to explain. It used to
+        be said whenever the viewer could not manage the recording, including
+        on transcripts that offer no deleting at all, where it answered a
+        question nobody had asked.
+      */}
+      {deletable && !naming && !manageable ? (
+        <Text style={type.muted}>
+          Step in to delete this. It leaves everybody's screen at once.
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  return (
+    <Screen header={header} contentStyle={styles.container}>
       {state === 'pending' ? (
         <Empty>
           Being transcribed. This takes a few minutes; you can leave this
@@ -449,17 +454,13 @@ function VoicesEditor({
         itself is not changed and this can be redone at any time.
       </Text>
 
-      <View style={styles.lines}>
-        {voices.map((voice) => (
-          <VoiceRow
-            key={voice.key}
-            voice={voice}
-            draft={draft[voice.key] ?? { name: '', removed: false }}
-            onChange={(change) => set(voice.key, change)}
-          />
-        ))}
-      </View>
-
+      {/*
+        Above the rows, for the reason the transcript's own actions are above
+        its lines: a voice list is as long as the conversation had voices, and
+        Save at the foot of it is a scroll away from the moment somebody has
+        decided. The order is the same one the screen reads in — what this is,
+        what you may do to it, then the thing itself.
+      */}
       <View style={styles.actions}>
         <Button
           label={busy ? 'Saving…' : 'Save'}
@@ -483,8 +484,8 @@ function VoicesEditor({
           label="Clear all"
           disabled={busy}
           // Empties the draft rather than saving one: undoing an edit and
-          // committing it are two different intentions, and this screen has a
-          // Save button three lines up for the second one.
+          // committing it are two different intentions, and the Save button
+          // beside it is for the second one.
           onPress={() =>
             setDraft(
               Object.fromEntries(
@@ -494,6 +495,17 @@ function VoicesEditor({
           }
         />
         <Button label="Cancel" variant="ghost" disabled={busy} onPress={onCancel} />
+      </View>
+
+      <View style={styles.lines}>
+        {voices.map((voice) => (
+          <VoiceRow
+            key={voice.key}
+            voice={voice}
+            draft={draft[voice.key] ?? { name: '', removed: false }}
+            onChange={(change) => set(voice.key, change)}
+          />
+        ))}
       </View>
     </>
   );
@@ -612,7 +624,34 @@ function Paragraph({
 }
 
 const styles = StyleSheet.create({
-  header: { gap: spacing(1), marginBottom: spacing(1) },
+  /**
+   * The same padded, gapped body every other screen has. This one had none:
+   * its lines ran to both edges of the handset while the profile and the
+   * settings screens beside it sat inside a margin, which read as a different
+   * app rather than a longer one.
+   *
+   * The horizontal padding is repeated in `header` rather than shared, the
+   * two being on opposite sides of the scroll boundary now — the header is
+   * the `Screen`'s pinned slot and takes no part in this content.
+   */
+  container: {
+    paddingHorizontal: spacing(2),
+    paddingTop: spacing(1.5),
+    paddingBottom: spacing(4),
+    gap: spacing(1),
+  },
+  header: {
+    gap: spacing(1),
+    padding: spacing(2),
+    paddingBottom: spacing(1.5),
+    /**
+     * The one thing a pinned header needs that a scrolling one does not: an
+     * edge. Without it the words slide up to the Delete button and stop, with
+     * nothing saying which of the two is the thing that moved.
+     */
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -620,12 +659,7 @@ const styles = StyleSheet.create({
     gap: spacing(1),
   },
   headerMain: { flex: 1, gap: 2 },
-  headerActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: spacing(0.5),
-  },
+  headerActions: { gap: spacing(1) },
   lines: { gap: spacing(1) },
   line: { gap: spacing(0.5) },
   lineHead: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing(1) },

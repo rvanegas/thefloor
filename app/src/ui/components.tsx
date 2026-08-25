@@ -182,9 +182,23 @@ export function Field({
 export function Screen({
   children,
   contentStyle,
+  header,
 }: {
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
+  /**
+   * What stays put while the children scroll under it.
+   *
+   * A sibling above the ScrollView rather than an overlay on it, so it takes
+   * its own height out of the viewport and nothing is ever hidden beneath it
+   * — there is no inset to keep in step with a header whose height changes as
+   * buttons appear and disappear. Omitted by every screen whose whole content
+   * is meant to scroll, which is most of them.
+   *
+   * It sits inside the KeyboardAvoidingView, so a pinned header rises with the
+   * keyboard rather than being pushed off the top of it.
+   */
+  header?: React.ReactNode;
 }) {
   const scroll = React.useRef<ScrollView>(null);
   /**
@@ -232,6 +246,7 @@ export function Screen({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <RevealContext.Provider value={reveal}>
+        {header}
         {/* `collapsable={false}` keeps this view in the native tree, without
             which it cannot be measured. */}
         <View ref={frame} collapsable={false} style={styles.screen}>
