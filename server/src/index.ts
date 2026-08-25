@@ -200,6 +200,9 @@ const app = buildApp({
   logger: true,
 });
 app.channels.start();
+// Resumes any job the last process left open and polls whatever is running.
+// A no-op without a key, which is what it is until phase 5 of TRANSCRIPTS.md.
+app.transcripts.start();
 
 app.fastify
   .listen({ port, host })

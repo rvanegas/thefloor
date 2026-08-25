@@ -28,6 +28,7 @@ import { probeDurationMs, UnreadableAudioError } from './playback';
 import { escapeHtml } from './html';
 import { privacyPage } from './privacy';
 import type { TranscriptionProvider } from './transcription';
+import { Transcripts } from './transcripts';
 import {
   BUILD_HEADER,
   claimedBuild,
@@ -142,6 +143,7 @@ export interface App {
   channels: ChannelRegistry;
   devices: Devices;
   donations: Donations;
+  transcripts: Transcripts;
 }
 
 /**
@@ -338,6 +340,19 @@ export function buildApp(options: BuildOptions = {}): App {
     options.store,
     options.mixWaitMs
   );
+
+  // Reads the stems through the same gate the export does, and spends money,
+  // so it is given the provider only when one is configured — with none, it
+  // reports itself unavailable and every path into it is closed.
+  const transcripts = new Transcripts({
+    db,
+    usage: channels.usage,
+    provider: options.transcription,
+    store: options.store,
+    now,
+    onError: (error, context) =>
+      fastify.log.error({ err: error, context }, 'transcription failed'),
+  });
 
   // Channels outlive the process that was holding them, so the first thing a
   // new one does is pick them up again — along with squaring the books on
@@ -1949,7 +1964,7 @@ export function buildApp(options: BuildOptions = {}): App {
     });
   });
 
-  return { fastify, db, accounts, channels, devices, donations };
+  return { fastify, db, accounts, channels, devices, donations, transcripts };
 }
 
 /**

@@ -720,6 +720,107 @@ CREATE TABLE IF NOT EXISTS usage_bytes (
 );
 CREATE INDEX IF NOT EXISTS usage_bytes_at ON usage_bytes(at);
 
+-- What a recording says, once somebody has paid to find out.
+--
+-- Three tables, all hanging off one recording and dying with it: a recording
+-- that has been swept must not leave text of the conversation behind, which is
+-- the whole of why these carry recording_id rather than standing alone.
+--
+-- One transcript per recording, which the primary key enforces rather than a
+-- rule somebody remembers. This is the first thing in the application that
+-- costs money per tap, and a second row for the same recording would be a
+-- second charge for an answer we already hold.
+CREATE TABLE IF NOT EXISTS transcripts (
+  -- ON DELETE CASCADE on all three of these tables, and it is load-bearing
+  -- rather than tidy: the sweep really does DELETE a recordings row a week
+  -- after it was marked, and with foreign keys on, a row pointing at it would
+  -- refuse that delete outright — a recording nobody could finish deleting
+  -- because it had once been transcribed. The cascade is the backstop, not the
+  -- plan: Transcripts sweeps a recording marked deleted while the row is still
+  -- there, so the provider is asked to forget its copy first.
+  recording_id TEXT PRIMARY KEY REFERENCES recordings(id) ON DELETE CASCADE,
+  -- 'pending' | 'ready' | 'failed'. Ready once every job has settled and at
+  -- least one produced something; failed when none did.
+  state        TEXT NOT NULL,
+  -- Who asked, shown beside the result. Never anonymous: asking sends
+  -- everybody's audio to a third party, so it is a thing one member did to a
+  -- channel rather than a private read of their own recording.
+  requested_by TEXT NOT NULL,
+  requested_at INTEGER NOT NULL,
+  completed_at INTEGER,
+  failure      TEXT,
+  -- Which service produced it. Stored rather than assumed, so a transcript
+  -- outlives the configuration that made it.
+  provider     TEXT NOT NULL,
+  -- Channel-milliseconds submitted, summed across the jobs: what this cost, in
+  -- the unit the provider bills in. An upper bound rather than a measurement —
+  -- a stem is rendered from the start of the recording, so it is at most the
+  -- recording's length, and bin/usage would rather over-report a bill than
+  -- under-report one.
+  billed_ms    INTEGER
+);
+
+-- One per speaker, because one stem is one job. Diarisation is asked for
+-- inside each of them and never across them: the stems already know whose
+-- microphone they were, and two participants are never in the same file.
+--
+-- Separate jobs are what make a partial failure partial. One stem the provider
+-- could not read leaves the rest of the transcript standing, and is the row
+-- that says so.
+CREATE TABLE IF NOT EXISTS transcript_jobs (
+  id           TEXT PRIMARY KEY,
+  recording_id TEXT NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
+  -- Whose stem. Never 'media': see MEDIA_IDENTITY.
+  identity     TEXT NOT NULL,
+  -- The provider's id for the job, null until it has been submitted. **This
+  -- column is what makes a restart survivable**: a process that dies between
+  -- submitting and storing the text comes back, finds the id, and resumes
+  -- polling rather than paying to transcribe the same audio again.
+  provider_id  TEXT,
+  -- 'pending' | 'ready' | 'failed'
+  state        TEXT NOT NULL,
+  -- What language detection decided, per speaker — which is a thing per-stem
+  -- jobs can answer and one multichannel job could not.
+  language     TEXT,
+  failure      TEXT
+);
+CREATE INDEX IF NOT EXISTS transcript_jobs_recording
+  ON transcript_jobs(recording_id);
+
+-- The text itself, one row per readable line.
+--
+-- Lines rather than words: a line is what a person can read, tap and be taken
+-- to. Word timings are what line boundaries are made of and are not otherwise
+-- useful to anything on screen, so they are not kept.
+--
+-- **start_ms and end_ms are positions in the recording**, not offsets into a
+-- stem, because each stem is rendered with its delays in place. That is what
+-- lets a tapped line seek shared playback without arithmetic anywhere.
+CREATE TABLE IF NOT EXISTS transcript_lines (
+  id           TEXT PRIMARY KEY,
+  recording_id TEXT NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
+  -- Denormalised so a channel-wide search is one index scan rather than a join
+  -- through recordings on every keystroke. Exactly one writer and no update
+  -- path — a recording does not change channel — which is the only kind of
+  -- denormalisation worth having.
+  channel_id   TEXT NOT NULL,
+  identity     TEXT NOT NULL,
+  -- Which voice within that one stem, when the provider labelled one. Almost
+  -- always a single value for a whole stem. Stored and not yet shown: a
+  -- "Speaker B" under a named participant is two answers on one screen, and
+  -- what to do about a stem carrying more than one voice waits on some
+  -- experience of what this provider returns.
+  speaker      TEXT,
+  start_ms     INTEGER NOT NULL,
+  end_ms       INTEGER NOT NULL,
+  text         TEXT NOT NULL,
+  confidence   REAL
+);
+CREATE INDEX IF NOT EXISTS transcript_lines_recording
+  ON transcript_lines(recording_id, start_ms);
+CREATE INDEX IF NOT EXISTS transcript_lines_channel
+  ON transcript_lines(channel_id);
+
 -- How loudly one channel may interrupt one person.
 --
 -- **Only the people who have changed it have a row.** Absence means

@@ -473,10 +473,52 @@ entry points yet.
   encoded rather than trimmed, which is what makes a time in the submitted file
   a time in the recording.
 
-**Phase 3 — schema, job runner, polling, boot recovery**, behind the absent
-key. Tested entirely against `MemoryTranscription`: pending → ready, one stem
-failing while the others land, restart mid-job, deletion reaching the provider.
-Settle FTS5 and the `forget` question below first.
+**Phase 3 — schema, job runner, polling, boot recovery. Done 2026-08-24.**
+`server/src/transcripts.ts`, three tables in `db.ts`, and `Transcripts` on the
+app, started from `index.ts`. Inert without a key: `available()` is false and
+every path in refuses. Tested entirely against `MemoryTranscription` — pending
+→ ready, one stem failing while the others land, restart mid-job, deletion
+reaching the provider — with real ffmpeg rendering the stems, because that half
+is not a double.
+
+  - **`request(recordingId, requestedBy)`**, not `start`: `start`/`stop` are
+    the timer's, as on the channel registry, and two meanings of the word on
+    one class is how somebody wires an interval to a recording id. It does not
+    decide *who* may ask; that is phase 4's, and it is the `manageable` rule.
+  - **One job per speaker, `media` excluded**, so a recording containing a song
+    does not become a transcript of the lyrics attributed to a participant who
+    does not exist. A recording whose only stem is played media refuses with a
+    message rather than opening jobs over nothing.
+  - **The provider's id is written before anything waits on it.** That single
+    line is what makes a restart cost a poll rather than a second upload of
+    audio already paid for, and `restore()` is the other half: a job with an id
+    resumes polling, one without is submitted.
+  - **Partly ready is ready.** One stem the provider could not read leaves the
+    rest of the transcript standing, and the job row says which speaker is
+    missing and why. Failed only when no speaker produced anything — and a
+    failed transcript is the one that may be asked for again, which is the
+    retry.
+  - **Per-job backoff**, 5s doubling to 60s, in memory rather than on the row:
+    after a restart every open job is simply due, which costs one early poll
+    and saves a column that would have to be kept honest.
+  - **Jobs run one at a time**, on a single promise chain. Rendering a stem is
+    ffmpeg on the box that is also the SFU. Nothing holds a request open, so
+    slow is not a problem anybody is waiting on.
+  - **Deletion twice, and a third time by the database.** `forget()` when the
+    text lands; a sweep on every tick that catches any recording marked
+    deleted, in the week before its row is removed; and `ON DELETE CASCADE` on
+    all three tables as the backstop. **That cascade is not tidiness** — with
+    foreign keys on, a transcript row pointing at a recording would refuse the
+    sweep's `DELETE` outright, which is a recording nobody can finish deleting
+    because it was once transcribed. There is a test that does exactly that.
+
+  Two things phase 3 did *not* do, deliberately. `billed_ms` is the ceiling —
+  the recording's length times the number of stems — rather than a
+  measurement, since each stem is rendered from the start of the recording and
+  is therefore no longer than it; `bin/usage` would rather over-report a bill
+  than under-report one. And there is no `model` column: `poll()` does not
+  report which of the pinned pair actually ran, and a column that cannot be
+  filled honestly is worse than none.
 
 **Phase 4 — routes and the wire field.** Additive and optional, so an older
 build ignores them. This is the last phase that is inert with the key set —
@@ -524,8 +566,13 @@ data-collection answers have to have been changed. Not before.
 
 ## Open questions
 
-- **FTS5 on Node 22.** Settle it before phase 3 writes a schema that assumes
-  it.
+- ~~**FTS5 on Node 22.**~~ **Settled 2026-08-24: the box has it.** Checked
+  against production directly — `node:sqlite` on Node v22.23.2 there creates an
+  fts5 virtual table without complaint. So phase 6 may have the index rather
+  than the `LIKE` fallback. Phase 3's schema assumes nothing either way: the
+  lines are an ordinary table with an index on `(recording_id, start_ms)` and
+  one on `channel_id`, and an external-content fts5 table over them is
+  additive.
 - **Does `DELETE /v2/transcript/:id` do what we promise?** The privacy page
   says the audio and the text are deleted from the provider as soon as the text
   is stored here, and `forget()` is that promise in code. Their own coding
@@ -538,9 +585,10 @@ data-collection answers have to have been changed. Not before.
 - **Guests.** Their stems are identities too. `participant_names` should carry
   them, but check — a transcript of a guest labelled with a raw session id is a
   bug that only appears with a guest in the room.
-- **Legacy rows.** `mix_state = 'unmixed'` recordings still have stems and are
-  transcribable; rows with no stems at all must refuse with a clear message
-  rather than starting a job over nothing.
+- ~~**Legacy rows.**~~ **Settled in phase 3.** Nothing reads `mix_state`, so an
+  `'unmixed'` recording transcribes exactly as any other does — the stems are
+  what matter and it has them. A row with no stems, or with none but `media`,
+  refuses with a message rather than opening a job over nothing.
 - **ffmpeg next to live audio.** Rendering N stems is the mix's cost again, on a
   box that is now also the SFU. Run the jobs one at a time and never during a
   mix. AGENTS.md § *Known rough edges* is the same worry from the deploy side,
