@@ -17,9 +17,10 @@ import { setAllowHapticsDuringRecording } from '../../modules/audio-route';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
 import {
-  initialPlayoutWatch,
-  onPlayoutSample,
+  initialPlayoutWatches,
+  onPlayoutReadings,
   PLAYOUT_POLL_MS,
+  type PlayoutReading,
 } from './playout';
 import { nameOf, policyFor, sessionFor } from './session';
 import {
@@ -976,22 +977,34 @@ export function useSessionAudio(
    * Log-only. It counts and dates a fault that until now was caught by ear,
    * inside a ring, by somebody who happened to be listening.
    *
-   * Runs only while connected with something subscribed, and stops while the
-   * app is in the background, where the engine stops on purpose and a frozen
-   * count would be a finding about nothing.
+   * Runs while connected, and stops while the app is in the background, where
+   * the engine stops on purpose and a frozen count would be a finding about
+   * nothing. A poll with nothing subscribed reads no tracks and therefore says
+   * nothing, which is the same restraint stated once rather than twice.
+   *
+   * **It does not depend on `othersAudible`, and that is deliberate as of
+   * 2026-08-25.** It used to, as a gate on there being anything to measure —
+   * and since the watch lived inside the effect, every arrival and departure
+   * silently restarted the clock. The cost was not the missed freeze but the
+   * missed *recovery*: `reported` went back to false, so a track that resumed
+   * after somebody joined logged nothing, and the absence of a `playout
+   * resumed` line was then read as the freeze having persisted. The one
+   * instrument that survives a force-quit was deleting its own most
+   * interesting observation whenever the room changed shape.
    */
   useEffect(() => {
-    if (state.status !== 'connected' || state.othersAudible === 0) return;
-    let watch = initialPlayoutWatch(Date.now());
+    if (state.status !== 'connected') return;
+    let watches = initialPlayoutWatches();
     let cancelled = false;
 
     const poll = async () => {
       const room = roomRef.current;
       if (!room || cancelled || AppState.currentState !== 'active') return;
-      // Summed across whatever is subscribed, which is one track in every case
-      // this app creates and would be several in a fuller room. What matters is
-      // that *something* is being rendered, not which.
-      let total: number | null = null;
+      // One reading per subscribed track, each clocked separately. Summing them
+      // hid the fault this exists to catch: the shared-playback track can
+      // render nothing while a person's track next to it keeps the total
+      // moving. See `audio/playout.ts`.
+      const readings: PlayoutReading[] = [];
       for (const participant of room.remoteParticipants.values()) {
         for (const publication of participant.audioTrackPublications.values()) {
           const track = publication.audioTrack;
@@ -1002,13 +1015,17 @@ export function useSessionAudio(
           if (!track || !('getReceiverStats' in track)) continue;
           const stats = await track.getReceiverStats().catch(() => undefined);
           const samples = stats?.totalSamplesDuration;
-          if (typeof samples === 'number') total = (total ?? 0) + samples;
+          readings.push({
+            key: publication.trackSid,
+            label: participant.identity,
+            samples: typeof samples === 'number' ? samples : null,
+          });
         }
       }
       if (cancelled) return;
-      const { next, event } = onPlayoutSample(watch, total, Date.now());
-      watch = next;
-      if (event) recordEvent(event);
+      const { next, events } = onPlayoutReadings(watches, readings, Date.now());
+      watches = next;
+      for (const event of events) recordEvent(event);
     };
 
     const timer = setInterval(() => void poll(), PLAYOUT_POLL_MS);
@@ -1016,7 +1033,7 @@ export function useSessionAudio(
       cancelled = true;
       clearInterval(timer);
     };
-  }, [state.status, state.othersAudible]);
+  }, [state.status]);
 
   /**
    * Attached on the way out rather than held in state, so a rebuild is not

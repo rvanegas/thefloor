@@ -1,5 +1,7 @@
 import {
   initialPlayoutWatch,
+  initialPlayoutWatches,
+  onPlayoutReadings,
   onPlayoutSample,
   PLAYOUT_FREEZE_MS,
 } from '../playout';
@@ -97,4 +99,149 @@ it('lets an unreadable poll neither advance nor freeze anything', () => {
   // last time the count actually moved, not from the gap in measurement.
   const after = onPlayoutSample(missing.next, 100, t0 + PLAYOUT_FREEZE_MS);
   expect(after.event).toContain('playout frozen');
+});
+
+/**
+ * Per-track clocking, which is the correction of 2026-08-25.
+ *
+ * The summed version could not see a frozen track beside a healthy one, and the
+ * fault has only ever been reported when alone — so the instrument agreed with
+ * the symptom by construction, and "it does not happen when somebody else is in
+ * the channel" was in part a statement about the detector rather than about the
+ * audio.
+ */
+describe('one clock per track', () => {
+  const media = { key: 'TR_media', label: 'media:chan_x' };
+  const person = { key: 'TR_person', label: 'acct_y' };
+
+  /** Both tracks read once, which is where the rules start for each of them. */
+  function started(at = t0) {
+    return onPlayoutReadings(
+      initialPlayoutWatches(),
+      [
+        { ...media, samples: 100 },
+        { ...person, samples: 100 },
+      ],
+      at
+    ).next;
+  }
+
+  it('reports a frozen track beside one that is advancing', () => {
+    const { events } = onPlayoutReadings(
+      started(),
+      [
+        { ...media, samples: 100 },
+        { ...person, samples: 500 },
+      ],
+      t0 + PLAYOUT_FREEZE_MS
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toContain('frozen');
+    expect(events[0]).toContain('media:chan_x');
+  });
+
+  it('names the track in the recovery too, so the pair can be read together', () => {
+    const frozen = onPlayoutReadings(
+      started(),
+      [{ ...media, samples: 100 }],
+      t0 + PLAYOUT_FREEZE_MS
+    );
+    expect(frozen.events[0]).toContain('frozen');
+
+    const back = onPlayoutReadings(
+      frozen.next,
+      [{ ...media, samples: 101 }],
+      t0 + 12_000
+    );
+    expect(back.events).toEqual(['playout resumed after 12s — media:chan_x']);
+  });
+
+  /**
+   * The observation this used to delete. A person arriving or leaving restarted
+   * the single watch, clearing `reported`, so a track that resumed logged
+   * nothing — and the missing `playout resumed` line was then read as the
+   * freeze having persisted.
+   */
+  it('keeps a frozen track reported across another track arriving', () => {
+    const frozen = onPlayoutReadings(
+      started(),
+      [{ ...media, samples: 100 }],
+      t0 + PLAYOUT_FREEZE_MS
+    );
+
+    const joined = onPlayoutReadings(
+      frozen.next,
+      [
+        { ...media, samples: 100 },
+        { ...person, samples: 900 },
+      ],
+      t0 + 10_000
+    );
+    expect(joined.events).toEqual([]);
+
+    const back = onPlayoutReadings(
+      joined.next,
+      [
+        { ...media, samples: 101 },
+        { ...person, samples: 901 },
+      ],
+      t0 + 14_000
+    );
+    expect(back.events).toEqual(['playout resumed after 14s — media:chan_x']);
+  });
+
+  /**
+   * Keyed by sid rather than by identity, because the count belongs to the
+   * receiver: a republished track starts again at zero, and under identity
+   * keying that restart reads as a count which failed to advance — a freeze
+   * reported for a track that is in fact healthy and new.
+   */
+  it('starts a fresh clock for a republished track rather than reading a freeze', () => {
+    const running = onPlayoutReadings(
+      started(),
+      [{ ...media, samples: 5_000 }],
+      t0 + 2_000
+    );
+
+    const republished = onPlayoutReadings(
+      running.next,
+      [{ key: 'TR_media2', label: 'media:chan_x', samples: 0 }],
+      t0 + PLAYOUT_FREEZE_MS + 2_000
+    );
+
+    expect(republished.events).toEqual([]);
+    expect(republished.next.TR_media).toBeUndefined();
+    expect(republished.next.TR_media2.samples).toBe(0);
+  });
+
+  it('says nothing at all when nothing is subscribed', () => {
+    const { next, events } = onPlayoutReadings(started(), [], t0 + 60_000);
+
+    expect(events).toEqual([]);
+    expect(next).toEqual({});
+  });
+
+  /**
+   * A track that is present but unreadable is not a track that has gone: it
+   * keeps its clock, so a gap in measurement neither reports a freeze nor
+   * excuses one. Dropping is keyed on absence from the readings, which is the
+   * distinction the single-watch version made with `null` and this one has to
+   * make twice.
+   */
+  it('holds the clock of a present track it could not read', () => {
+    const unreadable = onPlayoutReadings(
+      started(),
+      [{ ...media, samples: null }],
+      t0 + 60_000
+    );
+    expect(unreadable.events).toEqual([]);
+
+    const after = onPlayoutReadings(
+      unreadable.next,
+      [{ ...media, samples: 100 }],
+      t0 + PLAYOUT_FREEZE_MS
+    );
+    expect(after.events[0]).toContain('frozen');
+  });
 });

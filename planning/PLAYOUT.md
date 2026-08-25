@@ -38,11 +38,42 @@ Each of these is measured, not reasoned. Several cost a build to establish.
    `core/micNeeded.ts` is what makes "alone" and "the session is playback" the
    same statement, so the company is not the variable — the session is.
 
-4. **A connection either renders from its first sample or never renders at
-   all.** There is no observed case of audio running for a while and then
-   stopping on its own. The one case that sounded like it — a fraction of a
-   second after a rebuild — is a start that died immediately, not a run that
-   ended.
+   **Weakened 2026-08-25, and by the instrument rather than by the audio.**
+   Until that day the freeze detector summed `totalSamplesDuration` across every
+   subscribed track, so a person's track kept the total moving while the
+   shared-playback track beside it rendered nothing. The confinement to the
+   playout-only session was therefore something the detector could not have
+   contradicted: it was blind to the fault for exactly as long as anybody else
+   was in the channel. It reads per track now. The half of this that still
+   stands on its own is the part established by ear.
+
+4. ~~**A connection either renders from its first sample or never renders at
+   all.**~~ **Withdrawn 2026-08-25** by build 94's log. At 18:41:35 a frozen
+   playout *recovered* — `playout resumed after 10s` — with no rebuild, no new
+   track and no new subscription, 2.7 seconds after the local microphone opened
+   and the session went from `playback`/`spokenAudio` to
+   `playAndRecord`/`videoChat`. The subscribed count was 1 throughout, so the
+   samples that resumed were the shared-playback track's own. **So the fault is
+   reversible in place**, which nothing before this had shown, and the thing
+   that reversed it was a session write rather than anything to do with the
+   connection.
+
+   What the reversal does *not* settle is which half of that write did it. The
+   category flip also tore the ADM engine down and restarted it — `engine
+   stop` / `engine start play=T rec=T` in the two seconds before the resume —
+   and a category write inside `playback` cycles the engine just as well, as
+   18:33:11 shows. So *restart the engine under a live subscription* and *be in
+   `playAndRecord`* are both still standing, and they are cheap to tell apart:
+   rewrite the session without leaving `playback` — `IDLE` ↔ `LISTENING`, which
+   differ only in `mixWithOthers` — and see whether the track resumes.
+
+   **`playAndRecord`-when-alone is a diagnostic and never a fix.** On a
+   Bluetooth headset it is the A2DP→HFP switch, which the same day's log prices
+   at `sr=44100` down to `sr=16000`, mono, with `videoChat`'s echo canceller on
+   the music — for the one feature where somebody is listening to music rather
+   than to a voice. It would also delete the stereo bloom that STATES.md
+   § *Audio Session Configuration* makes carry the meaning *nobody's microphone
+   is open*.
 
 5. **Rebuilding the room is not a reliable recovery.** It worked once, on build
    91, and has not worked since. Re-activating the audio session
@@ -74,6 +105,25 @@ It accounts for every otherwise-stubborn fact:
 | stepping out and back in fails | same |
 | rebuilding the room fails | same — it is the immediate-subscribe case by construction |
 | the one rebuild that worked | luck, not mechanism |
+
+**Build 94 gave it its first controlled test, and it passed.** Two connections
+to the same channel fifty seconds apart, on 2026-08-25, differing in the
+variable and in nothing else:
+
+    00:19:45  room connected, 0 audio already published
+    00:19:56  engine start / sub + media:chan_uM63…   → 36s, no freeze
+    00:20:35  room connected, 1 audio already published
+    00:20:35  sub + media:chan_uM63… (42ms later)
+    00:20:43  playout frozen 6s
+
+The server says why `N` was 0 the first time: the track was `POST`ed at
+00:19:52, seven seconds *after* that connect. So the pair is the two arms of
+the hypothesis, produced by hand, and they came out the way it predicts.
+
+**It is still not sufficient, and the counter-example is fact 4's withdrawal
+above** — a freeze that ended without the connection changing at all. Whatever
+the connect-time ordering does, there is a second variable that can undo it in
+place, and the ordering hypothesis has nothing to say about that one.
 
 **Timing is a proxy and must not be mistaken for the variable.** Build 93 logs
 the variable itself: `room connected, N audio already published`, counted at the
@@ -162,8 +212,8 @@ route's own comment says why. Batched every thirty seconds and on backgrounding.
 | `room connected, N audio already published` | **the hypothesis's variable** (build 93) |
 | `sub +` / `sub -` | a subscription arrived or went, with the running count |
 | `engine start` / `engine stop` | WebRTC's own delegate, playout and recording flags |
-| `playout frozen Ns` | subscribed and rendering nothing — the fault itself |
-| `playout resumed after Ns` | it recovered without a rebuild |
+| `playout frozen Ns — <identity> subscribed, rendering nothing` | the fault itself, naming **which** track (build 95) |
+| `playout resumed after Ns — <identity>` | that track recovered without a rebuild (build 95) |
 | `room disconnected (reason)` | why a rebuild happened (build 93) |
 | `foreground rebuild (was …)` | the other way one happens (build 93) |
 | `reconnect in Nms (attempt k)` | the backoff |
@@ -175,6 +225,28 @@ route's own comment says why. Batched every thirty seconds and on backgrounding.
 ADM and therefore cannot itself be the fault. It does **not** trigger a rebuild:
 a rebuild is the failing case, so acting on the detector would have the app
 answer the fault by re-entering it.
+
+**It clocks each track separately, since build 95, and the two bugs that
+correction fixed are both worth recognising rather than just fixed.** The first
+was the sum: one count across every subscribed track, on the reasoning that
+what matters is whether *something* is rendering rather than which. A person's
+track advancing hid the shared-playback track standing still, so the detector
+could not see the fault whenever anybody else was present — which is precisely
+the condition the fault was believed not to occur in. **An instrument that
+cannot observe the case it is being used to rule out will agree with whatever
+it was built to confirm.**
+
+The second was quieter and is the same shape as everything else in this file.
+The watch lived inside a `useEffect` keyed on `state.othersAudible`, so every
+arrival and departure rebuilt it and cleared `reported` — and `playout resumed`
+only fires for a watch that has reported a freeze. The recoveries were
+therefore being deleted by the very events most likely to cause one. It cost a
+wrong reading the day it was found: 20:03:41's freeze had no resume line after
+the session flipped to `CALL`, which looks like *it did not recover* and is in
+fact *somebody joined two seconds earlier and reset the clock*. Both watches now
+live across the whole connection and are keyed by track sid — by sid rather than
+by identity because the count belongs to the receiver, and a republished track
+starts again at zero, which under identity keying reads as a freeze.
 
 **The server side**, to confirm it is not at fault:
 
@@ -192,16 +264,29 @@ data.
 
 ## What to do next
 
-1. **Read a failure's `room connected, N …` line.** `N > 0` on every freeze and
-   `N = 0` on every clean render confirms the hypothesis. Mixed, and it is
-   wrong and the next suspect is whatever else separates those connections.
-2. **If confirmed**, try `autoSubscribe: false` at connect with an explicit
-   subscribe after activation. That is a real behaviour change and wants its own
-   build with nothing else in it.
-3. **Do not wire the freeze detector to `reconnect()`** on the strength of
+1. **Measure again on build 95, now that the detector reads per track.** Every
+   reading taken while somebody else was present was taken through the sum and
+   is worth nothing; the whole with-company half of this investigation is
+   unmeasured rather than clean. The first question the new log can answer that
+   the old one could not is whether the shared-playback track freezes in a
+   `CALL` session too, unheard because a voice is arriving over the top of it.
+2. **Tell the two candidate mechanisms apart, by ear, before writing either
+   fix.** Frozen and alone, rewrite the session without leaving `playback`
+   (`IDLE` ↔ `LISTENING`, which differ only in `mixWithOthers`). If the track
+   resumes, the operative thing is the engine restarting under a live
+   subscription, and the fix costs no sound quality. If only `playAndRecord`
+   revives it, the category is the variable and `autoSubscribe: false` is the
+   way, because it avoids the freeze rather than paying HFP to escape it.
+3. **Then** try `autoSubscribe: false` at connect with an explicit subscribe
+   after activation. Still a real behaviour change, still wants its own build
+   with nothing else in it.
+4. **Do not wire the freeze detector to `reconnect()`** on the strength of
    anything currently known.
-4. **The bisection in `probe.ts` is still unrun**, and knowing which reader is
-   destructive is what would let the panel read the other eight safely.
+5. **The bisection in `probe.ts` is still unrun.** It was *started* on build 94
+   at 18:18 — all nine readers fired and returned — but in a `CALL` session,
+   which is the one condition where the fault does not show and, before build
+   95, could not have been seen if it did. That run establishes nothing. Run it
+   alone.
 
 **And the standing rule this subsystem keeps re-teaching:** measure before
 writing code. `engineState.ts`'s own header records three mechanisms reasoned
