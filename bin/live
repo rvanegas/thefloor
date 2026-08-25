@@ -1,0 +1,136 @@
+#!/bin/bash
+#
+# What is happening right now: every channel with somebody in it, who has a
+# microphone open, and for how long.
+#
+#   bin/live                   against the deployed server
+#   bin/live --local           the development database on this machine
+#
+# Read-only, always, for the same reason bin/usage is: nothing here is a thing
+# you would edit by hand, and everything it reads is written by a poll.
+#
+# **The live conversation is not in the database, and this is the seam to
+# understand before trusting a number below.** A channel is a place rather than
+# a conversation — `channels.ended_at IS NULL` means nobody has left for good,
+# not that anybody is here — and the durable state blob deliberately omits
+# `present`, `floor` and `selfMuted`, all of which describe the process rather
+# than the channel. See channels.ts § `durableOf`. So the only evidence outside
+# the server's memory that a conversation is in progress is an *open*
+# `usage_spans` row, and that is what every query here is built on.
+#
+# It holds up better than it sounds, because of one thing: `closeStrays` runs
+# at boot and closes every span the dead process left open. An open row cannot
+# be a leftover from a restart, so it means a live conversation, subject to the
+# three bounds below.
+#
+# What this can and cannot tell you:
+#
+#   * **`mic` is an open microphone, not somebody speaking, and not the
+#     floor.** The poll asks LiveKit which participants publish an audio track;
+#     `MediaPlane.audioTracks` does not filter muted ones, so a self-muted
+#     person and a person silenced by somebody else's floor claim both still
+#     count here. Nothing in this system measures audio level, so "how long
+#     they have been speaking" is answerable only as "how long their microphone
+#     has been open".
+#   * **The floor is not recorded anywhere durable.** It dies with the process
+#     — a restart drops it — and the only floor history on disk is
+#     `recordings.floor_timeline`, written per recording run and only while one
+#     is running. If turn-taking is what you want counted, that is a change to
+#     the meter rather than a query somebody has not written yet.
+#   * **Every edge is good to within fifteen seconds**, the poll interval
+#     (USAGE_POLL_INTERVAL_MS), so a channel that emptied moments ago is still
+#     listed and a microphone opened and closed inside one window never
+#     appears. `since` is when the poll first *saw* the microphone open, as a
+#     UTC datetime rather than the epoch milliseconds it is stored as.
+#
+# `for` columns are minutes, counted to now, which is why two runs a minute
+# apart disagree — that is the report working rather than drifting. Somebody
+# with no account row is a guest, shown as the `guest_…` identity the media
+# plane knows them by.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_DB="$ROOT/server/thefloor.db"
+
+local_mode=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the
+    # header gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+  esac
+done
+
+# `live_for` is measured from the earliest span still open, which is when this
+# conversation started rather than when the channel was made — a place used
+# every day reports minutes, not weeks.
+read -r -d '' SQL <<'SQLEOF' || true
+.print ''
+.print '-- Live channels -----------------------------------------------'
+.print ''
+SELECT s.channel_id AS channel,
+       COALESCE(NULLIF(c.name, ''), '(unnamed)') AS name,
+       COUNT(DISTINCT s.account_id) AS people,
+       SUM(s.kind = 'mic') AS mics,
+       ROUND((unixepoch() * 1000 - MIN(s.started_at)) / 60000.0, 1) AS live_for
+FROM usage_spans s
+LEFT JOIN channels c ON c.id = s.channel_id
+WHERE s.ended_at IS NULL AND s.kind IN ('mic', 'listen')
+GROUP BY s.channel_id
+ORDER BY live_for DESC;
+
+.print ''
+.print '-- Microphones open --------------------------------------------'
+.print ''
+-- Oldest first within a channel, so whoever has held a microphone open
+-- longest reads at the top of their group.
+SELECT s.channel_id AS channel,
+       COALESCE(a.display_name, s.account_id) AS who,
+       ROUND((unixepoch() * 1000 - s.started_at) / 60000.0, 1) AS mic_for,
+       datetime(s.started_at / 1000, 'unixepoch') AS since
+FROM usage_spans s
+LEFT JOIN accounts a ON a.id = s.account_id
+WHERE s.ended_at IS NULL AND s.kind = 'mic'
+ORDER BY s.channel_id, s.started_at;
+
+.print ''
+.print '-- Present with the microphone closed --------------------------'
+.print ''
+-- Anyone the poll credits with a downlink and no uplink. That is the ordinary
+-- state of a listener, and also of somebody alone in a channel, somebody whose
+-- permission was refused, and somebody whose microphone has not opened yet.
+-- The meter cannot tell those apart and neither can this.
+SELECT s.channel_id AS channel,
+       COALESCE(a.display_name, s.account_id) AS who,
+       ROUND((unixepoch() * 1000 - s.started_at) / 60000.0, 1) AS here_for
+FROM usage_spans s
+LEFT JOIN accounts a ON a.id = s.account_id
+WHERE s.ended_at IS NULL AND s.kind = 'listen'
+  AND NOT EXISTS (
+    SELECT 1 FROM usage_spans m
+    WHERE m.ended_at IS NULL AND m.kind = 'mic'
+      AND m.channel_id = s.channel_id AND m.account_id = s.account_id
+  )
+ORDER BY s.channel_id, s.started_at;
+SQLEOF
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  exec sqlite3 -readonly -header -column -cmd '.timeout 2000' "$LOCAL_DB" <<<"$SQL"
+fi
+
+# Over stdin rather than in the command line, for the reason bin/db records:
+# interpolated into a remote shell the query is expanded before sqlite3 ever
+# sees it, and escaping cannot close that class off.
+exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+  "sqlite3 -readonly -header -column '$REMOTE_DB'" <<<"$SQL"
