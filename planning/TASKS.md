@@ -128,6 +128,10 @@ Being in same channel is permission to ask each other to be contacts, without ne
 
 If watch party is started and a there is a second session with the same account, let the second app become the player.
 
+## Switching Voice Between Sessions
+
+Something like Facetime functionality.
+
 ## Publishable Recordings
 
 A channel may declare itself public. If public, then it has a page at thefloor.rvanegas.co where anyone can listen to selected recordings. Settings would include image. Name and description would show on the page. Contacts remain private, though they may be explicitly described in the description.
@@ -162,8 +166,6 @@ left:
   it. IAP is the only option that works outside the United States storefront;
   Stripe is the only one that can attribute a donation exactly, via
   `client_reference_id`. Both are a larger build than what shipped.
-
-
 
 ## A Leaderboard Of One's Contacts
 
