@@ -112,6 +112,10 @@ Improve look and feel
 
 adding names to 'bin/usage', and simplifying
 
+## Grow UI for iPad
+
+Target iPad specifically.
+
 ## HF only
 
 hands-free only media player. this should simplify matters.
