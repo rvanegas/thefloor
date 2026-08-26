@@ -135,7 +135,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   `timingSafeEqual`, never logged, and — since 2026-08-14 — **stripped from the
   payload before the payload is stored**, because the first implementation kept
   the request body verbatim and put the secret on every row. See
-  DECISIONS.md.
+  decisions/DECISIONS.md.
 
   Rotating it is cheap and non-destructive: regenerate on Ko-fi, replace the
   line in `server/.env`, restart. Nothing already recorded depends on it, which

@@ -2,8 +2,8 @@
 
 Testers on build 17 heard themselves. This is what was wrong, how it was found,
 and what was changed. The standing rationale for the code lives in
-DECISIONS.md, under "The microphone stays closed while you are alone in a
-channel"; this file is the incident.
+decisions/DECISIONS.md, under "The microphone stays closed while you are alone
+in a channel"; this file is the incident.
 
 ---
 
@@ -164,7 +164,7 @@ apps keep playing.
 > playing, which is the whole point of that change. It did not leave because it
 > was ever implicated in the echo; it was not, and the reasoning above is why
 > that suspicion was dropped. It is still on `IDLE`, so an empty channel still
-> leaves other apps alone. See `DECISIONS.md`.
+> leaves other apps alone. See `decisions/DECISIONS.md`.
 
 ---
 

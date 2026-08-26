@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs';
  * the right to delete a shim now ends sessions on phones. Read `oldestBuild`
  * and `silentBuilds` on `/healthz` before moving it, and note that every build
  * before 37 is silent — raising the floor past those expires installs nobody
- * can see. See planning/DECISIONS.md.
+ * can see. See planning/decisions/DECISIONS.md.
  *
  * Raising it is the release decision that costs something. Build numbers rise
  * on upload; this rises only when the builds below it are gone from every
@@ -78,7 +78,7 @@ export const MIN_SUPPORTED_BUILD = 51;
  *
  * Additive and optional, which is the safe half of the two-step: a build that
  * predates it sends nothing and is answered exactly as before. Shipped in
- * build 37. See planning/BACKLOG.md for the shape and planning/DECISIONS.md
+ * build 37. See planning/BACKLOG.md for the shape and planning/decisions/DECISIONS.md
  * for why the floor above needed a source other than judgement.
  */
 export const BUILD_HEADER = 'x-thefloor-build';

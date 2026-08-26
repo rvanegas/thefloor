@@ -513,7 +513,7 @@ export type ChannelAction =
    * until the invitee arrived and then moving everybody to the unnamed channel
    * for the wider set. That left every recording behind on a channel nobody was
    * looking at any more, which people reported as their recordings having
-   * disappeared. See planning/DECISIONS.md.
+   * disappeared. See planning/decisions/DECISIONS.md.
    */
   | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
   /**

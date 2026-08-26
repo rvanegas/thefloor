@@ -17,7 +17,7 @@
 # shipping the working tree makes a deploy carry whatever is in the checkout at
 # the time — so unrelated work in progress rides along, and the person running
 # it is usually deploying for a different reason and has no idea it is there.
-# That has happened: planning/DECISIONS.md records the box sitting on `cc0e8a9`
+# That has happened: planning/decisions/DECISIONS.md records the box sitting on `cc0e8a9`
 # for a day from an accidental run, and it is worse now that several sessions
 # share one checkout and one of them may be holding a half-finished schema
 # migration.

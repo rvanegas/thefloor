@@ -149,7 +149,8 @@ First evaluate relevant differences and establish dev simulator on mac.
 ## Payments Upgrade
 
 Voluntary donations shipped on 2026-08-14 — a Ko-fi link, external, unlocking
-nothing. See DECISIONS.md for why it is not in-app purchase. What is left:
+nothing. See decisions/DECISIONS.md for why it is not in-app purchase. What is
+left:
 
 - **`bin/import-donations`**, reconciling a Ko-fi CSV export into the
   `donations` table. Ko-fi has no read API, so a delivery missed while the

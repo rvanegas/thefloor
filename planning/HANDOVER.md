@@ -1,7 +1,7 @@
 # Carrying a live channel across a restart
 
 A design for work not yet done, specified 2026-08-18. Nothing here is built —
-when it is, what survives moves to DECISIONS.md and this file goes.
+when it is, what survives moves to decisions/DECISIONS.md and this file goes.
 
 Two stages that are worth having separately. **Stage 1 hands a conversation
 from a dying process to its successor through a file on disk.** **Stage 2 runs

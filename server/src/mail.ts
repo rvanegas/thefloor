@@ -78,7 +78,7 @@ export const MAX_IDENTIFIER_LENGTH = 254;
  * apply again the day there is an SMS transport — at which point `Mailer` grows
  * a sibling, `requestContact`'s validation becomes `isPlausibleIdentifier`
  * again, and this comment goes. Deleting them now would only mean writing the
- * same two regexes back. See planning/DECISIONS.md.
+ * same two regexes back. See planning/decisions/DECISIONS.md.
  */
 
 /** Loose on purpose, the way isEmailAddress is: shape rather than reachability. */

@@ -9,7 +9,7 @@
 # expected way to recover.
 #
 # A sibling of bin/provision rather than part of it, for the reason
-# planning/DECISIONS.md gives: this is exactly the script a second box would
+# planning/decisions/DECISIONS.md gives: this is exactly the script a second box would
 # need if the split ever happens, and keeping it separate is what makes that a
 # matter of running it somewhere else rather than untangling it from the app's
 # setup.

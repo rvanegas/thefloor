@@ -505,7 +505,7 @@ export function useSessionAudio(
     // stays lit and a Bluetooth headset stays in the mono hands-free profile.
     // Both true, and the second is the whole bug — stopping the track is what
     // hands the headset back to A2DP, so every self-mute and unmute cost a
-    // profile handover and a tone. See planning/DECISIONS.md.
+    // profile handover and a tone. See planning/decisions/DECISIONS.md.
     const room = new Room({ publishDefaults: { stopMicTrackOnMute: false } });
     roomRef.current = room;
 

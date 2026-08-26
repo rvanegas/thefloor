@@ -2,19 +2,19 @@
 
 Everything known and not done: work deliberately deferred, defects found and
 left, behaviour nobody has tested. Every entry here is outstanding — if it has
-shipped, it has moved to DECISIONS.md, and if it is about how to operate the
-thing, it is in AGENTS.md.
+shipped, it has moved to decisions/DECISIONS.md, and if it is about how to
+operate the thing, it is in AGENTS.md.
 
 Ordered roughly by size: the substantial pieces first, then individual defects.
 
 The neighbours worth knowing about. **TASKS.md** is the roadmap: features,
 audits and open questions, at a paragraph each, which is a different question
-from work that is specified and pending. One of them large enough to need a design gets a
-file of its own, and that file is where it lives while it is being designed and
-built, until it ships and whatever survives moves to DECISIONS.md.
-**DECISIONS.md** holds what was built and why, including the choices that were
-considered and declined — several of which read like missing features until you
-find the reasoning.
+from work that is specified and pending. One of them large enough to need a
+design gets a file of its own, and that file is where it lives while it is
+being designed and built, until it ships and whatever survives moves to
+decisions/DECISIONS.md. **decisions/DECISIONS.md** holds what was built and
+why, including the choices that were considered and declined — several of which
+read like missing features until you find the reasoning.
 
 ---
 
@@ -23,15 +23,15 @@ find the reasoning.
 **Partly done as of 2026-08-23**, and the heading here used to read "Nobody has
 watched anything", which stopped being true the first time somebody did. The
 verdict was *mostly works*, and the one thing it found is recorded in
-DECISIONS.md § *A watch party leaks into the channel through the microphone*
-— not a defect but a property of the design, now said in the interface rather
-than fixed, because no code can fix it.
+decisions/DECISIONS.md § *A watch party leaks into the channel through the
+microphone* — not a defect but a property of the design, now said in the
+interface rather than fixed, because no code can fix it.
 
 What the first pass did **not** cover, and what is still outstanding: steps 2
 through 6 below, and in particular step 1's ten minutes. Drift over time is the
 thing `WATCH_DRIFT_MS` was chosen to buy and the only one a clock and a pair of
-eyes can check. The reasoning for the feature is DECISIONS.md § *The Floor
-carries no video, and that is the whole watch party*. Two phones in one
+eyes can check. The reasoning for the feature is decisions/DECISIONS.md § *The
+Floor carries no video, and that is the whole watch party*. Two phones in one
 channel, a desktop browser open on each:
 
 1. Paste a link, Start, Play. Both browsers should be within a second or two of
@@ -143,8 +143,8 @@ follows is what is actually outstanding.
 
 **Status:** not started, and a gap opened deliberately on 2026-08-24 rather
 than one that was always there. Several sessions per account became ordinary
-that day — see DECISIONS.md § *Several sessions, one voice* — and what replaced
-the old "signing in elsewhere ends everything else" rule is
+that day — see decisions/DECISIONS.md § *Several sessions, one voice* — and
+what replaced the old "signing in elsewhere ends everything else" rule is
 `/auth/sign-out-others`, which ends every session but the caller's.
 
 That is the right first move and it is blunt. Somebody who wants to sign out
@@ -180,7 +180,7 @@ the obstacle it was.
 ## Why one phone could not hold a socket is diagnosed, not observed
 
 **Status:** the consequences are fixed; the cause is inferred. See
-DECISIONS.md § *A tap that waits ten seconds, and the socket that was
+decisions/DECISIONS.md § *A tap that waits ten seconds, and the socket that was
 nobody's*.
 
 On 2026-08-24 the box showed one session opening `/ws` 448 times in six hours
@@ -211,8 +211,8 @@ ten seconds, so an action either just makes it or is dropped without a word.
 
 **Status:** not started. This is what survives the 2026-08 backgrounding
 investigation, which is otherwise closed — see
-DECISIONS-2026-08-07-to-2026-08-13.md for what that settled and how to
-instrument a phone if it ever needs doing again.
+decisions/DECISIONS-2026-08-07-to-2026-08-13.md for what that settled and how
+to instrument a phone if it ever needs doing again.
 
 Presence is derived from the app's websocket; participation is what happens in
 the LiveKit room. These can disagree for a long time in either direction, and
@@ -243,7 +243,7 @@ against iOS's rules:
 
 - **Background audio** was chased for two days through `UIBackgroundModes`,
   AVAudioSession ownership and CallKit (see
-  DECISIONS-2026-08-07-to-2026-08-13.md). Android's
+  decisions/DECISIONS-2026-08-07-to-2026-08-13.md). Android's
   foreground-service model is different in every particular, and the work does
   not transfer.
 - **The audio channel** is started explicitly through
@@ -273,8 +273,8 @@ first one baked in.
 ## Notifications do not ring — they are alerts
 
 **Status:** the alert shipped 2026-08-10 (see
-DECISIONS-2026-08-07-to-2026-08-13.md). This is what was deliberately left out
-of it.
+decisions/DECISIONS-2026-08-07-to-2026-08-13.md). This is what was deliberately
+left out of it.
 
 A notification arrives, sits on the lock screen, and opens the app into the
 channel when tapped. What it does not do is behave like an incoming call:
@@ -286,9 +286,8 @@ UI, and nothing wakes the app before the tap.
 - **PushKit** to wake a closed app, which in turn requires **CallKit** — Apple
   requires a PushKit VoIP push to report an incoming call, and will terminate
   an app that takes one without doing so. Note CallKit was ruled out for
-  background *audio* (see DECISIONS-2026-08-07-to-2026-08-13.md); this is the
-  other thing it is for, and
-  here it would be the right tool.
+  background *audio* (see decisions/DECISIONS-2026-08-07-to-2026-08-13.md);
+  this is the other thing it is for, and here it would be the right tool.
 - `voip` in `UIBackgroundModes`, removed before the first TestFlight build
   because it did nothing, becomes load bearing again.
 - A second delivery path in `push.ts`: a VoIP push is a different `apns-push-type`
@@ -467,7 +466,7 @@ Delivery sits behind the `Mailer` interface in `server/src/mail.ts`.
    shape and then narrowed back to `isEmailAddress` on 2026-08-15 for exactly
    this reason. `isPhoneNumber` and `isPlausibleIdentifier` are still in
    `mail.ts`, unreachable, waiting for this — see
-   DECISIONS-2026-08-13-to-2026-08-15.md.
+   decisions/DECISIONS-2026-08-13-to-2026-08-15.md.
 3. Phone number normalisation to E.164. Absent today, and it matters:
    `+1 555 000 0001` and `+15550000001` would otherwise be different accounts,
    and contact search is an exact string match.
@@ -579,8 +578,8 @@ talk — while an empty channel still leaves it alone, which is the half that is
 certainly right. **The fallback is written down and deliberately not adopted
 yet**: bracket that one edge with `stopAudioSession()` then
 `startAudioSession()`, which costs a brief gap in playout and is safe there
-because the microphone is closed. See `DECISIONS.md`, "The audio session has
-three states".
+because the microphone is closed. See `decisions/DECISIONS.md`, "The audio
+session has three states".
 
 Also unconfirmed on hardware, and cheap to check at the same time: that a
 Bluetooth route survives the microphone opening and closing, which is the
@@ -609,9 +608,9 @@ podcast running.
 
 **The open half of TASKS § *Stepping Back In*, which is why that entry has gone
 from TASKS and this is here instead.** The server half shipped on 2026-08-24 —
-DECISIONS.md § *A channel that cannot be heard, and nothing that could tell* —
-and the bisection it existed to run came back within the hour, against build
-87, pointing at the phone.
+decisions/DECISIONS.md § *A channel that cannot be heard, and nothing that
+could tell* — and the bisection it existed to run came back within the hour,
+against build 87, pointing at the phone.
 
 **What the reading says**, taken from the panel with the audio dead and the
 transport still running:
@@ -1161,7 +1160,7 @@ Two gaps, and one tool closes both:
   address lands with `account_id` and `matched_by` null. This is the *expected*
   case rather than a failure — deliberately, since the alternative was guessing
   from who last opened the app, which credits the wrong person undetectably
-  (see DECISIONS-2026-08-13-to-2026-08-15.md).
+  (see decisions/DECISIONS-2026-08-13-to-2026-08-15.md).
 - **Deliveries missed entirely.** Rare enough not to engineer against on its
   own: the window is the few seconds of a deploy's restart, which at any
   plausible rate of donations and deploys is a fraction of a percent. It was
@@ -1189,7 +1188,7 @@ privileged surface in a server that has none, for a job done a few times a year.
 
 ## Inviting a stranger now sends mail, and nothing bounds how much
 
-Built 2026-08-15 — see DECISIONS-2026-08-13-to-2026-08-15.md.
+Built 2026-08-15 — see decisions/DECISIONS-2026-08-13-to-2026-08-15.md.
 `POST /contacts/request` sends an email to
 any address that has no account, and two things about it are outstanding.
 
@@ -1215,8 +1214,8 @@ any address that has no account, and two things about it are outstanding.
 ## The second demo account has no credential left
 
 **Status:** not started, and not urgent until that account has to be signed in
-as or torn down. Found 2026-08-24; see DECISIONS.md § *The demo account's
-tokens keep dying*.
+as or torn down. Found 2026-08-24; see decisions/DECISIONS.md § *The demo
+account's tokens keep dying*.
 
 Every token in `~/.config/thefloor/demo-account.txt` was found revoked. For
 `appreview@` that costs nothing — a fresh one is a `request-code` and a
@@ -1388,7 +1387,7 @@ No assertions exist for these. Ordered by how likely they are to be wrong.
    does not say, so it was decided: every departure clears it, in `stepOut`
    itself rather than case by case, and `connectivity.test.ts` now asserts both
    that and the half that did not change — a mute survives a reconnection
-   inside the grace period. DECISIONS.md § *Every departure clears the
-   self-mute, and the microphone is not the reason why*.
+   inside the grace period. decisions/DECISIONS.md § *Every departure clears
+   the self-mute, and the microphone is not the reason why*.
 7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
    reducer returns early on non-active channels — but untested.

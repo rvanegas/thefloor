@@ -7,11 +7,12 @@ Everything that is not this file lives in **`planning/`**. This one stays at the
 root because it is the one a fresh reader is pointed at; the rest are documents
 you go looking for, and a root directory that lists them all buries the code.
 
-Three of them answer a standing question each. **`planning/BACKLOG.md`** is what
-is known and not done. **`planning/DECISIONS.md`** is what was built and why,
-including what was deliberately not built. **`planning/TASKS.md`** is the
-roadmap, at a paragraph each — features, but also audits, open questions and
-things to go and find out, which is why it is not called FEATURES.
+Three of them answer a standing question each. **`planning/BACKLOG.md`** is
+what is known and not done. **`planning/decisions/DECISIONS.md`** is what was
+built and why, including what was deliberately not built.
+**`planning/TASKS.md`** is the roadmap, at a paragraph each — features, but
+also audits, open questions and things to go and find out, which is why it is
+not called FEATURES.
 
 **Any verb followed by a quoted string that matches a `##` heading in
 `planning/TASKS.md` is a reference to that entry, and is not itself a
@@ -29,17 +30,17 @@ else, it is a coincidence; read it as context tells you to, and say which way
 you read it. Items in `BACKLOG.md` are named explicitly instead, until this
 convention is extended to cover them.
 
-`DECISIONS` is **more than one file**. `planning/DECISIONS.md` is always the
-live volume and the only one new decisions are appended to; closed volumes are
-`planning/DECISIONS-<first date>-to-<last date>.md`. The first,
-`planning/DECISIONS-2026-08-07-to-2026-08-13.md`, runs from the beginning to the
-day the media server came off LiveKit Cloud; the second ends at the first App
-Review submission, which is the seam between a project with no installed
-population and one with. **The later ones are cut where the line count fell,
-not at a seam**, and say so. The live volume's header carries the index and the
-rule for closing it. **Grep across the set** — `planning/DECISIONS*.md` —
-rather than the live one alone, or you will search only the last few days of
-the project's reasoning.
+`DECISIONS` is **more than one file**. `planning/decisions/DECISIONS.md` is
+always the live volume and the only one new decisions are appended to; closed
+volumes are `planning/decisions/DECISIONS-<first date>-to-<last date>.md`. The
+first, `planning/decisions/DECISIONS-2026-08-07-to-2026-08-13.md`, runs from
+the beginning to the day the media server came off LiveKit Cloud; the second
+ends at the first App Review submission, which is the seam between a project
+with no installed population and one with. **The later ones are cut where the
+line count fell, not at a seam**, and say so. The live volume's header carries
+the index and the rule for closing it. **Grep across the set** —
+`planning/decisions/DECISIONS*.md` — rather than the live one alone, or you
+will search only the last few days of the project's reasoning.
 
 **`planning/RELEASING.md`** answers a fourth, and is different in kind from the
 rest: it is not deferred work or history but standing guidance that was in this
@@ -59,15 +60,16 @@ a list that goes stale, and every one this file has kept has been wrong within
 a fortnight — pointing at a design that had shipped, or at a file that had been
 deleted. `ls planning/` is the current list, and each file's first line says
 which kind it is. Two kinds recur: a **design for unbuilt work**, deleted when
-the work ships with whatever survives moving to `DECISIONS.md`; and a
+the work ships with whatever survives moving to `decisions/DECISIONS.md`; and a
 **submission's own text**, written by `bin/set-review-notes` and gone when that
 version is approved.
 
 **Go and look for a shipped design's reasoning rather than assuming the task
 says it.** What a design decided is not always what the task that asked for it
-appears to ask for — `DECISIONS.md` § *The Floor carries no video* is the one
-that caught somebody out — and the queries a design carried usually leave as a
-script in `bin/`, which is then the only thing that reads that data at all.
+appears to ask for — `decisions/DECISIONS.md` § *The Floor carries no video* is
+the one that caught somebody out — and the queries a design carried usually
+leave as a script in `bin/`, which is then the only thing that reads that data
+at all.
 
 **`planning/APPREVIEWSCRIPT.md` is standing**, on a narrow premise: Apple does
 not require a demo video, and 1.2.0 went without one. What the file is for is
@@ -106,8 +108,10 @@ rebuilding or re-hosting the server, and before trusting `bin/provision`,
 the live one.
 
 References between documents inside `planning/` are by bare filename, since
-they are siblings. References from code and from this file carry the
-`planning/` prefix.
+they are siblings — inside `planning/decisions/` too, whose volumes name each
+other and the rest of the collection bare. From outside, a volume carries
+`decisions/` and a submission's text `submissions/`; code and this file carry
+the `planning/` prefix.
 
 ## Keeping this file small, which is a standing job
 
@@ -118,7 +122,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 642 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 648 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -134,11 +138,12 @@ When it passes 650, **do not shave the traps.** Almost all of the excess will be
 one of these:
 
 - **Deploy narrative.** None of it belongs here. A deploy is written up in
-  `planning/DECISIONS.md` under `## The deploy history`, newest first, and what
-  is running right now is `bin/health` rather than any sentence. This file kept
-  the most recent deploy until 2026-08-23 and was wrong twice for it.
-- **Reasoning about unshipped work.** Belongs in `planning/DECISIONS.md`, or in
-  its own `planning/` design document if it is still being decided.
+  `planning/decisions/DECISIONS.md` under `## The deploy history`, newest
+  first, and what is running right now is `bin/health` rather than any sentence.
+  This file kept the most recent deploy until 2026-08-23 and was wrong twice.
+- **Reasoning about unshipped work.** Belongs in
+  `planning/decisions/DECISIONS.md`, or in its own `planning/` design document
+  if it is still being decided.
 - **The story behind a rule.** Keep the rule and the cost of breaking it; move
   the account of the afternoon it cost, leaving a pointer.
 
@@ -237,8 +242,8 @@ record.
 ## Branches, tags, and what is actually in people's hands
 
 Adopted 2026-08-15, once there was a submitted build to be wrong about. The
-reasoning is in planning/DECISIONS-2026-08-13-to-2026-08-15.md; these are the
-rules.
+reasoning is in planning/decisions/DECISIONS-2026-08-13-to-2026-08-15.md; these
+are the rules.
 
 - **`master` is trunk and is the only thing deployed.** Work on short-lived
   branches, merge back. There is no develop branch and no release branches.
@@ -377,11 +382,11 @@ before believing anything here about the state of production.
 
 What each deploy *was* — which build kept working across which restart, what
 was verified against production, and what shipped before the client that needed
-it — is in planning/DECISIONS.md under `## The deploy history`, newest first.
-Look there before assuming a behaviour is new, and add an entry there when you
-deploy. This file used to carry the latest one and hand it over as the next
-landed; it went stale twice and is not coming back. See DECISIONS.md § *The
-most recent deploy is not documentation*.
+it — is in planning/decisions/DECISIONS.md under `## The deploy history`,
+newest first. Look there before assuming a behaviour is new, and add an entry
+there when you deploy. This file used to carry the latest one and hand it over
+as the next landed; it went stale twice and is not coming back. See
+decisions/DECISIONS.md § *The most recent deploy is not documentation*.
 
 The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
@@ -599,7 +604,8 @@ Two more things that fail quietly and are worth checking before anything else:
   `reconcileSilence` compares what was stated against what the room is actually
   carrying, once a tick, and restates the difference. **The transition is for
   latency and the reconciliation is for truth** — do not collapse one into the
-  other. planning/DECISIONS-2026-08-13-to-2026-08-15.md carries the logs.
+  other. planning/decisions/DECISIONS-2026-08-13-to-2026-08-15.md carries the
+  logs.
 
 
   The same change retired what used to be the loudest thing in the log by a wide

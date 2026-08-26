@@ -47,7 +47,7 @@ raised `MIN_SUPPORTED_BUILD` would strand. A phone at Apple running whatever
 was last under review is not that, and Sam — which has never reported a build
 number at all — would otherwise hold `silentBuilds` at 1 for the life of the
 app, which is the condition under which that whole reading is not to be
-trusted. DECISIONS.md § *The build census counts users*.
+trusted. decisions/DECISIONS.md § *The build census counts users*.
 
 ---
 

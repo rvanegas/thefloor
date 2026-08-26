@@ -2,17 +2,17 @@
 
 A design for work not yet done. TASKS.md names it in a line; this is what that
 line turns out to mean, and why. Nothing here is built — when it is, what was
-decided moves to DECISIONS.md and this file goes.
+decided moves to decisions/DECISIONS.md and this file goes.
 
 ## Context
 
 The standings shipped gated on an `accounts.leaderboard` column, set by hand
 with `bin/db --write` and held by nobody by default. **That gate is not a
 feature.** It is the only answer anybody had to the objection that killed the
-web version of this screen, recorded in DECISIONS.md § *The standings are in
-the app, behind a column set by hand*: a list of real people's names is exactly
-what `/privacy` and `/support` promise in writing does not exist here, and a
-board of the whole population is a directory whether or not it asks for a
+web version of this screen, recorded in decisions/DECISIONS.md § *The standings
+are in the app, behind a column set by hand*: a list of real people's names is
+exactly what `/privacy` and `/support` promise in writing does not exist here,
+and a board of the whole population is a directory whether or not it asks for a
 credential first. So the screen could only be shown to somebody trusted by
 hand, and `LeaderboardView`'s own header calls it *the only screen in this
 application that shows you people who have not agreed to be shown to you*.

@@ -399,7 +399,7 @@ export function registerWebsocket(deps: {
   // any more — inviting somebody into an unnamed channel widens it in place —
   // so nothing can produce one. The message stays in `ServerMessage` and the
   // client keeps its handler; removing an inert path from installed builds is
-  // worth nothing and costs a release. See planning/DECISIONS.md.
+  // worth nothing and costs a release. See planning/decisions/DECISIONS.md.
 
   // Any channel change can alter its participants' Home (an invite appears, a
   // rejoinable channel changes its order or its count), so both views refresh
@@ -425,7 +425,7 @@ export function registerWebsocket(deps: {
   // before this runs, and deleting empties it altogether — so the person
   // whose Home certainly changed was the one person guaranteed not to be told,
   // and their card sat there until something unrelated happened to push Home.
-  // The broadcast this replaced was hiding it. See planning/DECISIONS.md.
+  // The broadcast this replaced was hiding it. See planning/decisions/DECISIONS.md.
   channels.onChange((changedIds, departed) => {
     for (const channelId of changedIds) {
       for (const connection of connections) {

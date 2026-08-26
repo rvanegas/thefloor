@@ -140,7 +140,7 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   Three layers, generated from `the-floor-icon.svg` and
   `the-floor-icon-mono.svg`; there is no `android/` and `bin/upload-ios` is
   the only release path. Why each layer is what it is — and why the monochrome
-  silhouette gets its own master file — is in planning/DECISIONS.md.
+  silhouette gets its own master file — is in planning/decisions/DECISIONS.md.
 
 - **The splash is still the Expo default.**
 
@@ -596,10 +596,10 @@ Build 36 was submitted 2026-08-14 and rejected 2026-08-15 under **Guideline 2.1
 pack a first submission is expected to carry. Fifteen builds separate 36 from
 51, and only the first of those was about the rejection: making the screen
 recording Apple asked for meant walking the app as a stranger would, and that
-walk found eight defects. What each of them was is in DECISIONS.md; the three
-files that carried the submission itself — the reply, the shooting script and
-the build-by-build account — were deleted on approval, having had everything
-recurring moved into this one first.
+walk found eight defects. What each of them was is in decisions/DECISIONS.md;
+the three files that carried the submission itself — the reply, the shooting
+script and the build-by-build account — were deleted on approval, having had
+everything recurring moved into this one first.
 
 **51 was released rather than 52 deliberately**, though 52 was already in
 TestFlight and master was some 2,800 lines of `app/` and `core/` ahead of it.

@@ -117,7 +117,7 @@ interface AppState {
    * back to "Loading channel…" and, worse, the audio hung up, because the
    * connection follows the channel the snapshot says you are present in and
    * that snapshot was now about somewhere else. Two people idly moving between
-   * two channels is enough to produce it. See planning/DECISIONS.md.
+   * two channels is enough to produce it. See planning/decisions/DECISIONS.md.
    */
   channelViews: Record<string, ChannelView>;
   /**

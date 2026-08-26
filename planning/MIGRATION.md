@@ -12,12 +12,12 @@ exists should not have to rediscover any of it. It is not a checklist to
 resume. Anyone restarting this work should re-derive the current numbers first:
 everything below was measured on one afternoon with audio down.
 
-**The direction has since reversed, and that is the first thing to know.** Later
-the same day the media plane moved off LiveKit Cloud and onto this box — see
-`DECISIONS.md`. The sentence this migration rested on, *a micro fits because
-LiveKit carries the media*, is no longer true of anything. Any future move is a move **upward**, and the sizing
-section below is marked accordingly: the measurements stand as history, the
-conclusion does not.
+**The direction has since reversed, and that is the first thing to know.**
+Later the same day the media plane moved off LiveKit Cloud and onto this box —
+see `decisions/DECISIONS.md`. The sentence this migration rested on, *a micro
+fits because LiveKit carries the media*, is no longer true of anything. Any
+future move is a move **upward**, and the sizing section below is marked
+accordingly: the measurements stand as history, the conclusion does not.
 
 What did not change is everything that made the attempt expensive — the traps,
 the cutover ordering, the backup discipline. Those are the reusable part, and
@@ -139,11 +139,11 @@ Two failure modes are worth telling apart:
   `medium_3_0` at $24 is the move, and it is an ordinary rebuild — the cutover
   below, plus `bin/provision-livekit`.
 - *A deploy audibly interrupting a live call, or an OOM taking a conversation
-  and a recording in flight with it.* Then the answer is a **second $7 box** for
-  the media plane, not a larger single one. `DECISIONS.md` argues this at length
-  and it is the reason `bin/provision-livekit` is a separate script: splitting
-  is a new box, an A record for `livekit.rvanegas.co`, and `LIVEKIT_URL` in
-  `server/.env`. No code, no migration, no wire change.
+  and a recording in flight with it.* Then the answer is a **second $7 box**
+  for the media plane, not a larger single one. `decisions/DECISIONS.md` argues
+  this at length and it is the reason `bin/provision-livekit` is a separate
+  script: splitting is a new box, an A record for `livekit.rvanegas.co`, and
+  `LIVEKIT_URL` in `server/.env`. No code, no migration, no wire change.
 
 The second is the more likely signal, and it is cheaper than the first.
 

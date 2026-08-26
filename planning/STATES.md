@@ -54,8 +54,9 @@ somebody who is not there. **Note what did not change: nothing is cleared
 during the grace period**, so a connection that flaps and returns inside
 `DISCONNECT_GRACE_MS` keeps the mute, because nobody has left. The exposure
 traded away is bounded by `microphoneNeeded`, which keeps the device shut until
-somebody else is present. See DECISIONS-2026-08-20-to-2026-08-21.md § *Every
-departure clears the self-mute, and the microphone is not the reason why*.
+somebody else is present. See decisions/DECISIONS-2026-08-20-to-2026-08-21.md §
+*Every departure clears the self-mute, and the microphone is not the reason
+why*.
 
 **Not the only reason a microphone is quiet, and the newest one is deliberately
 kept apart from it.** `Party-Muted` below withholds the whole room for a watch
@@ -91,11 +92,12 @@ a mute nor mute anybody else.
 **Where the sources disagree.** None of the three is derived from the others,
 and they can differ for a window:
 
-- The server's statement is made against a **track id**, and tracks are replaced
-  under it. A phone whose connection flaps rejoins publishing a new track, which
-  the old statement does not name and which is subscribed to by default. The
-  transition is for latency and `reconcileSilence` is for truth; do not collapse
-  one into the other. See AGENTS.md and DECISIONS-2026-08-13-to-2026-08-15.md.
+- The server's statement is made against a **track id**, and tracks are
+  replaced under it. A phone whose connection flaps rejoins publishing a new
+  track, which the old statement does not name and which is subscribed to by
+  default. The transition is for latency and `reconcileSilence` is for truth;
+  do not collapse one into the other. See AGENTS.md and
+  decisions/DECISIONS-2026-08-13-to-2026-08-15.md.
 - The app's `mutedByServer` is an observation of an event, so it lags.
 - The word on screen is "silenced", which appears in neither layer.
 
@@ -274,18 +276,18 @@ things that this file keeps apart:
   **Since 2026-08-24 it governs *driving* what the channel attends to but not
   *putting something on*.** `canControlPlayback` and `canControlWatch` are
   occupation plus the floor and are the same function; `canLoadTrack` and
-  `canStartWatch` add presence on top, through `mayPutSomethingOn`. The seam
-  is that driving is tidying — an absent member stopping a film somebody left
-  running on an empty channel is clearing up after a room that has gone home
-  — while starting leaves something behind for whoever steps in next, chosen
-  by somebody who is not there. `canOpenWatchScreen` is a third combination,
+  `canStartWatch` add presence on top, through `mayPutSomethingOn`. The seam is
+  that driving is tidying — an absent member stopping a film somebody left
+  running on an empty channel is clearing up after a room that has gone home —
+  while starting leaves something behind for whoever steps in next, chosen by
+  somebody who is not there. `canOpenWatchScreen` is a third combination,
   occupation without the floor, because a follower page changes nothing.
-  DECISIONS.md § *Starting is for whoever is in the room; driving is for
-  whoever the room belongs to*. `present` counts members
-  only, so a guest never holds a room — though `settleEmpty` means a guest
-  cannot be in an empty one either, and `canManageGuest` therefore gets no
-  behaviour from the empty half. The reasoning is DECISIONS.md § *Nobody
-  reaches into a conversation they are not in*.
+  decisions/DECISIONS.md § *Starting is for whoever is in the room; driving is
+  for whoever the room belongs to*. `present` counts members only, so a guest
+  never holds a room — though `settleEmpty` means a guest cannot be in an empty
+  one either, and `canManageGuest` therefore gets no behaviour from the empty
+  half. The reasoning is decisions/DECISIONS.md § *Nobody reaches into a
+  conversation they are not in*.
 
 `lastActiveAt` says nothing about a channel that is occupied now — there is no
 write between an entry and an exit, so an hour of conversation moves it not at
@@ -513,7 +515,7 @@ and nothing was audible at the boundary — which is the echo path the option wa
 removed for. With the option gone the speaker is no longer eligible while
 capturing, so crossing the boundary *evicts* it to the phone's own loudspeaker,
 which is not subtle. **Verified on a device 2026-08-21**, as the first of the
-three checks in DECISIONS.md § *No output that cannot also capture*.
+three checks in decisions/DECISIONS.md § *No output that cannot also capture*.
 
 **The silent version of this misled the author on 2026-08-20**, before the
 fix — alone on a Bluetooth speaker, a second person arrived, the audio stayed
@@ -535,8 +537,8 @@ the point rather than a loss: self-muting no longer releases the device, so
 there is no handover to hear. What survives is the crossing that carries the
 meaning — somebody arriving, the last person leaving — which is arguably what
 this section should have claimed from the start.
-DECISIONS-2026-08-20-to-2026-08-21.md § *Muting and letting go are two
-different closes*.
+decisions/DECISIONS-2026-08-20-to-2026-08-21.md § *Muting and letting go are
+two different closes*.
 
 **So do not pin `CALL` on, and do not debounce the transitions that are left.**
 Both read as obvious cleanups. Both delete the cue.

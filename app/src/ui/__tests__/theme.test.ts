@@ -7,7 +7,7 @@ import { colors, palettes } from '../theme';
  * What the colours *look like* cannot be tested here — `DynamicColorIOS`
  * returns an opaque value that UIKit resolves at draw time, below anything
  * JavaScript can observe. That is checked on a phone with the appearance
- * toggled, per planning/DECISIONS*.md. What can be checked is that the two
+ * toggled, per planning/decisions/DECISIONS*.md. What can be checked is that the two
  * palettes describe the same set of tokens.
  */
 describe('the light and dark palettes', () => {

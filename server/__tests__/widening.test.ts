@@ -14,7 +14,7 @@ import { MemoryMediaServer } from '../src/media';
  * The move worked and was invisible, which was the problem. Recordings stayed
  * with the channel they were made in — correctly, they being a record of what
  * was said there — but the conversation was now somewhere else, so people
- * reported that their recordings had disappeared. See planning/DECISIONS.md.
+ * reported that their recordings had disappeared. See planning/decisions/DECISIONS.md.
  *
  * What the move bought was one unnamed channel per set of people. That is now
  * given up: widening can leave two with the same roster, indistinguishable on

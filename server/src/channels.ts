@@ -80,7 +80,7 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
  *
  * It is a sampling rate, so it is also the accuracy: every mic and listen span
  * has edges good to within one interval, and a microphone opened and closed
- * inside one window is not recorded at all. See planning/DECISIONS.md § *The
+ * inside one window is not recorded at all. See planning/decisions/DECISIONS.md § *The
  * meter is two tables and a script*.
  */
 export const USAGE_POLL_INTERVAL_MS = 15_000;

@@ -3,7 +3,7 @@
  *
  * **No server sends `channel.moved` any more.** Being asked into an unnamed
  * channel widens it in place rather than moving everybody to the channel for
- * the wider set — see planning/DECISIONS.md — so this exercises a path that
+ * the wider set — see planning/decisions/DECISIONS.md — so this exercises a path that
  * nothing now reaches.
  *
  * It stays because the handler stays, and the handler stays because removing
