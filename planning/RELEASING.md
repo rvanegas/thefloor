@@ -271,10 +271,16 @@ there and goes on being true survives them.
 3. **`bin/upload-ios`.** One command: refuses a dirty tree, bumps and commits
    the build number, prebuilds, archives, uploads, tags.
 4. **`bin/set-review-notes`**, which fills the demo code into
-   `planning/review-notes-<version>.txt` and sends it. The notes come from a
-   file in the tree so they are reviewed like anything else; the code is not in
-   that file, and the script refuses one where the placeholder has been filled
-   in by hand. Before this existed the notes were pasted, and on 2026-08-23 the
+   `planning/submissions/review-notes-<version>.txt` and sends it. The notes
+   come from a file in the tree so they are reviewed like anything else; the
+   code is not in that file, and the script refuses one where the placeholder
+   has been filled in by hand. **A submission's two texts live in `planning/submissions/`** —
+   the notes and the `whats-new-<version>.txt` that `bin/submit-ios
+   --whats-new` sends — because they are the only files in `planning/` that are
+   payload rather than prose: they carry no first line saying what they are,
+   since every character of them is read by a reviewer or shipped on the
+   listing. A directory keeps that distinction visible and keeps `ls planning/`
+   readable between submissions. Before this existed the notes were pasted, and on 2026-08-23 the
    paste that landed was `planning/recent-changes.txt` — an internal changelog,
    naming build numbers and a debug-flag diagnostics panel, carrying neither
    the warning to test account deletion last nor the Guideline 1.2 account of

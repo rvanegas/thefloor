@@ -1,0 +1,72 @@
+1. SCREEN RECORDING AND DEVICES
+None attached; one of an earlier release would misrepresent this. Section 3
+walks it in order; we will record any part on request. No purchases, no
+tracking, no ATT prompt. Tested on iPhone 12 Pro Max, 13 mini, 16e, 16 Pro and
+16 Pro Max, iOS 18.5 and 26.6, physical and portrait only; iPad in iPhone
+compatibility mode only.
+
+2. WHAT IT DOES
+Voice conversation between people who already know each other. A channel holds
+up to six and persists between conversations; anyone present may claim "the
+floor", withholding every other microphone for a minute. New: watch parties
+(6), transcripts (4), profiles, one account on several devices.
+
+3. GETTING IN AND REACHING FEATURES
+No passwords; a six-digit code is normally emailed. This account has a fixed
+one: appreview@rvanegas.co / SIX-DIGIT CODE GOES HERE BEFORE SUBMITTING
+
+You do not need a second person. The account holds one contact, Sam Rivera, and
+three channels; "Weekly Convo" with her holds a recording called "Short
+Sample".
+
+Open "Weekly Convo" > Step in (microphone prompt). Record/Stop - nothing asks
+for a name; Rename, Play, Export, Transcribe and Delete are on the recording's
+row. "Play something together" plays a file from the phone into the room, and
+"Watch something together" takes a YouTube link - section 6. "Shared clipboard"
+holds one text item and "Share a guest link" is at the foot of that screen; the
+channel's Settings revokes links and holds Notifications. On Home, Contacts and
+Settings are the top buttons and "Start a channel" the last row; a contact's
+profile lists the channels you share. Settings holds Appearance, Sign out other
+devices, Privacy policy and Delete account.
+
+NOT BUGS: "Claim the floor" is unavailable while alone, there being no room to
+ask for quiet; a just-stopped recording greys Play and Export while its mix is
+being made.
+
+4. EXTERNAL SERVICES
+LiveKit (open-source, self-hosted by us) for audio and recordings; S3 to store
+them; Amazon SES for sign-in codes; APNs; Ko-fi for donations; AssemblyAI, sent
+only a recording somebody asked to have transcribed. No third-party sign-in,
+payment processor or advertising. Transcribing is never automatic - a button on
+one recording, behind a confirmation - and free once per account, then disabled
+with the reason under it.
+
+5. REGIONAL DIFFERENCES
+The Support screen's Ko-fi link appears only in the US storefront, per
+3.1.1(a). Voluntary, unlocks nothing; the app is free everywhere.
+
+6. THIRD-PARTY MATERIAL, AND WHAT A WATCH PARTY IS
+All content is user-created; a member may play their own audio file into a
+channel, and any member can delete any recording. A watch party carries no
+video: this app never fetches, decodes, stores or shows a frame, it shares a
+position and a clock. The phone is the remote; "Watch on another screen" mints
+a link to a web page opened on a laptop or tablet, where YouTube's own IFrame
+player plays it unmodified, unobscured and with its own controls. Nothing is
+extracted, and a party running refuses to record.
+
+GUIDELINE 1.2: no discovery and no directory - nothing can be browsed and
+nobody found. The one field taking an email address does not search: it sends a
+request there and returns nothing, disclosing not even whether an account
+exists. Contacts require acceptance on both sides, only an accepted contact can
+be added to a channel, and an address appears on a profile only if that person
+chose to show it.
+
+Guest links are the one way someone without an account takes part. They are an
+invitation, not an open door: opening one joins nothing, the visitor types a
+name and knocks, and a member must admit them. Any member present can withdraw
+a guest's microphone or remove them, revoking their link; links are also
+revoked from Settings, and every guest goes when the last member steps out.
+Recording is never automatic and its indicator shows to all, guests included.
+
+PLEASE TEST ACCOUNT DELETION LAST - it is immediate and removes this account's
+contacts, leaving a working but empty app.

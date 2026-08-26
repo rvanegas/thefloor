@@ -2,7 +2,7 @@
 //
 // Writes App Review Information notes, with the demo code filled in at send.
 //
-//   bin/set-review-notes                 planning/review-notes-<version>.txt
+//   bin/set-review-notes                 planning/submissions/review-notes-<version>.txt
 //   bin/set-review-notes FILE            some other file
 //   bin/set-review-notes --dry-run       say what it would do and write nothing
 //   bin/set-review-notes --show          print what Apple holds now, stop
@@ -69,7 +69,7 @@ const version = appJson.expo.version;
 const bundleId = appJson.expo.ios.bundleIdentifier;
 const file = opts.file
   ? path.resolve(opts.file)
-  : path.join(ROOT, `planning/review-notes-${version}.txt`);
+  : path.join(ROOT, `planning/submissions/review-notes-${version}.txt`);
 
 // -------------------------------------------------------------------- auth
 
