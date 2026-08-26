@@ -74,6 +74,10 @@ can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
 Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel. See TRANSCRIPTS.md .
 
+## Notification UI
+
+Show user name and channel. Tapping takes you to channel.
+
 ## App Store Data Collection Answers
 
 The privacy questionnaire in App Store Connect was answered for an application
@@ -96,9 +100,31 @@ This is not a code task and nothing in the repository settles it. RELEASING.md
 is where the answer belongs once it exists, beside the rest of what a
 submission needs.
 
+## Lock Screen
+
+explore options in case screen locks during a call. lock screen, control center, etc.
+
+## SMS Authentication
+
+Not just email.
+
 ## Phone Calls
 
 What happens when user receives a phone call?
+
+## UI Restyling
+
+Improve look and feel
+
+## Odds and Ends
+
+first declined notification perm, then accept?
+
+adding names to 'bin/usage', and simplifying
+
+HF only
+
+Add as contact from guest view
 
 ## App as Watch Party Player
 
@@ -138,7 +164,5 @@ nothing. See DECISIONS.md for why it is not in-app purchase. What is left:
   Stripe is the only one that can attribute a donation exactly, via
   `client_reference_id`. Both are a larger build than what shipped.
 
-## Channel Admins
 
-Channels, by default, have no admins or owner. In channel settings, a user can declare himself owner, and then give admin status to others. Certain functions are now available only to admins, and owner who is an admin implicitly.
 
