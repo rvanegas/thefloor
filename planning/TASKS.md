@@ -70,10 +70,6 @@ written from `RoomEvent.TrackMuted` and read by nothing, and since the floor
 withholds subscriptions rather than muting the publication, it is not clear it
 can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
-## Transcripts
-
-Implement integration with Assembly.ai. Use multi-channel transcripts, searchability, batch transcription (not streaming), multi-language, diarization or speak-identification. Transcript triggered manually on recordings, result attached to recording and exportable. Search available during playback, and also across set of recording in channel. See TRANSCRIPTS.md .
-
 ## Notification UI
 
 Show user name and channel. Tapping takes you to channel.
@@ -116,17 +112,17 @@ What happens when user receives a phone call?
 
 Improve look and feel
 
-## Notification Perms
-
-If a user does not accept notifications, what happens when in iPhone settings notifications are enabled? Would the app still not send notifications?
-
 ## Odds and Ends
 
 adding names to 'bin/usage', and simplifying
 
-HF only
+## HF only
 
-Add as contact from guest view
+hands-free only media player. this should simplify matters.
+
+## Add as Contact From Guest View
+
+Being in same channel is permission to ask each other to be contacts, without need for email to identify.
 
 ## App as Watch Party Player
 
