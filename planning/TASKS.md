@@ -116,9 +116,11 @@ What happens when user receives a phone call?
 
 Improve look and feel
 
-## Odds and Ends
+## Notification Perms
 
-first declined notification perm, then accept?
+If a user does not accept notifications, what happens when in iPhone settings notifications are enabled? Would the app still not send notifications?
+
+## Odds and Ends
 
 adding names to 'bin/usage', and simplifying
 
