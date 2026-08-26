@@ -29,6 +29,7 @@ import { Realtime, type ConnectionStatus } from '../api/socket';
 import {
   onNotificationTap,
   registerForPush,
+  registerIfGranted,
   sweepArrivals,
   sweepChannel,
 } from '../push';
@@ -579,6 +580,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, [state.token]);
+
+  /**
+   * Looks again on every foreground, for permission that arrived late.
+   *
+   * The effect above runs when `state.token` changes — sign-in, and the
+   * restore at a cold launch. Nothing else re-runs it, and **iOS does not
+   * terminate the app when notification permission changes** the way it does
+   * for the microphone. So somebody who refused the prompt, went to Settings
+   * and turned notifications on comes back to a suspended process that never
+   * asks again: the phone has permission, the server has no address, and it
+   * stays that way until a cold launch that may be days off.
+   *
+   * Foreground is not a compromise, it is the only signal there is — iOS
+   * offers no callback for an authorisation change and no way to detect a
+   * return from Settings in particular. It is also the right one, since
+   * flipping the switch and coming back *is* a foreground transition, made by
+   * hand, immediately.
+   *
+   * A fourth listener rather than a branch inside one of the three below, on
+   * the reasoning the sweep already gives for standing apart from the socket
+   * resume: watching the same transition is not having anything to do with
+   * each other.
+   *
+   * The `deviceToken.current` guard is what makes this free, and it stops the
+   * effect dead once an address is in hand. What it gives up is the other
+   * direction — permission *withdrawn* while the app runs is not noticed, and
+   * the server goes on sending to a phone that drops everything. That costs
+   * sends into the void and nothing else: APNs answers 200 rather than 410 for
+   * a live token whose app is silenced, so no data goes stale and nothing is
+   * pruned wrongly. Worth revisiting the day anything on screen claims
+   * notifications are on.
+   */
+  useEffect(() => {
+    const token = state.token;
+    if (!token) return;
+    const check = () => {
+      if (deviceToken.current) return;
+      void registerIfGranted(token).then((registered) => {
+        if (registered) deviceToken.current = registered;
+      });
+    };
+    const subscription = NativeAppState.addEventListener('change', (next) => {
+      if (next === 'active') check();
+    });
+    return () => subscription.remove();
   }, [state.token]);
 
   // A tap on a notification, from either direction it can arrive. Mounted once

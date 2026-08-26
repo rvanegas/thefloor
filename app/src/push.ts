@@ -173,6 +173,30 @@ Notifications.setNotificationHandler({
   }),
 });
 
+/** The simulator mints no token, and the browser has no APNs at all. */
+function mayHoldToken(): boolean {
+  return Platform.OS !== 'web' && Device.isDevice;
+}
+
+/**
+ * Fetches this install's address and hands it to the server.
+ *
+ * Shared by the two ways of arriving here, which differ only in how they
+ * satisfied themselves that permission exists. Factored so they cannot drift:
+ * registering is one thing done for one reason, and a second copy of it is a
+ * second place to forget the platform argument or the `String` coercion.
+ *
+ * Throws what it is given. Both callers sit inside a `try` that turns any
+ * failure into "not registered", which is the only thing either can do about
+ * it.
+ */
+async function claim(authToken: string): Promise<string> {
+  const { data } = await Notifications.getDevicePushTokenAsync();
+  const deviceToken = String(data);
+  await api.registerDevice(authToken, deviceToken, Platform.OS as 'ios');
+  return deviceToken;
+}
+
 /**
  * Tells the server where this install can be reached.
  *
@@ -188,8 +212,7 @@ Notifications.setNotificationHandler({
 export async function registerForPush(
   authToken: string
 ): Promise<string | null> {
-  // The simulator mints no token, and the browser has no APNs at all.
-  if (Platform.OS === 'web' || !Device.isDevice) return null;
+  if (!mayHoldToken()) return null;
 
   try {
     const existing = await Notifications.getPermissionsAsync();
@@ -204,10 +227,48 @@ export async function registerForPush(
         : false;
     if (!granted) return null;
 
-    const { data } = await Notifications.getDevicePushTokenAsync();
-    const deviceToken = String(data);
-    await api.registerDevice(authToken, deviceToken, Platform.OS as 'ios');
-    return deviceToken;
+    return await claim(authToken);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Registers, but only if permission is already in hand, and never asks for it.
+ *
+ * The recovery half of `registerForPush`, and the reason it exists is that iOS
+ * **does not terminate the app for a notification-permission change** the way
+ * it does for the microphone or the address book. So somebody who refused the
+ * prompt and later turned notifications on in Settings comes back to a process
+ * that was merely suspended: nothing re-runs sign-in, no token is ever
+ * fetched, and the phone holds permission while the server holds no address
+ * for it. Until the next cold launch, which on iOS can be days away.
+ *
+ * There is no *asking* again to be done — iOS shows its dialog once ever, and
+ * `requestPermissionsAsync` returns the stored refusal for good afterwards. So
+ * this is `registerForPush` with the prompting branch removed, and the removal
+ * is what makes it safe on every foreground: the one thing it must never do is
+ * put a dialog in front of somebody who has just switched back to the app.
+ *
+ * Cheap enough to run on every foreground. `getPermissionsAsync` reads
+ * `UNUserNotificationCenter` locally, so the case where nothing has changed
+ * costs no request and no dialog.
+ *
+ * Resolves to the token registered, or null when permission is absent or this
+ * device can hold no token. Never throws, for `registerForPush`'s reason.
+ */
+export async function registerIfGranted(
+  authToken: string
+): Promise<string | null> {
+  if (!mayHoldToken()) return null;
+
+  try {
+    // `granted` and not `canAskAgain`: the latter is recomputed from the
+    // current status on every call rather than remembering that we asked, so
+    // it says nothing about whether a token can be had.
+    if (!(await Notifications.getPermissionsAsync()).granted) return null;
+
+    return await claim(authToken);
   } catch {
     return null;
   }

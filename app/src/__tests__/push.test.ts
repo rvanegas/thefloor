@@ -1,6 +1,28 @@
 import * as Notifications from 'expo-notifications';
 
-import { sweepArrivals, sweepChannel } from '../push';
+import { api } from '../api/http';
+import { registerIfGranted, sweepArrivals, sweepChannel } from '../push';
+
+jest.mock('../api/http', () => ({
+  api: { registerDevice: jest.fn(async () => ({})) },
+}));
+
+/**
+ * Whether this is a phone, which the suite has to move between tests: the
+ * global mock is a simulator, and a simulator holds no push token at all.
+ *
+ * Read through a getter rather than assigned on the namespace, because Babel's
+ * interop copies plain values into a fresh module object — writing to what
+ * `import * as Device` yields would change a copy that the code under test
+ * never reads. A getter survives the copy, since the interop preserves
+ * descriptors that have one.
+ */
+const mockDevice = { isDevice: true };
+jest.mock('expo-device', () => ({
+  get isDevice() {
+    return mockDevice.isDevice;
+  },
+}));
 
 /**
  * What the app does with a notification that arrives while somebody is looking
@@ -145,5 +167,79 @@ describe('clearing notifications that have stopped being true', () => {
 
     await expect(sweepArrivals()).resolves.toBeUndefined();
     expect(dismissed()).toEqual([]);
+  });
+});
+
+
+/**
+ * Permission that arrives after the app has already decided it has none.
+ *
+ * The case is somebody who refused the prompt, went to iOS Settings and turned
+ * notifications on. iOS does not restart the app for that, so the only thing
+ * that can notice is a foreground check — and the one thing it must not do is
+ * ask again, which iOS would refuse anyway and which would put a dialog in
+ * front of somebody who has just switched back.
+ */
+describe('registering for push without asking', () => {
+  const permissions = Notifications.getPermissionsAsync as jest.Mock;
+  const request = Notifications.requestPermissionsAsync as jest.Mock;
+  const deviceToken = Notifications.getDevicePushTokenAsync as jest.Mock;
+  const registerDevice = api.registerDevice as jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // The suite is a simulator by default, which mints no token at all.
+    mockDevice.isDevice = true;
+    deviceToken.mockResolvedValue({ type: 'ios', data: 'apns-token' });
+  });
+
+  it('registers the address once permission has been granted', async () => {
+    permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+
+    await expect(registerIfGranted('auth')).resolves.toBe('apns-token');
+    expect(registerDevice).toHaveBeenCalledWith('auth', 'apns-token', 'ios');
+  });
+
+  /**
+   * The whole point of the function. A refusal is permanent on iOS and asking
+   * again returns it unchanged, so a prompt here would be pure interruption.
+   */
+  it('never asks, and so cannot interrupt a foreground', async () => {
+    permissions.mockResolvedValue({ granted: false, canAskAgain: true });
+
+    await expect(registerIfGranted('auth')).resolves.toBeNull();
+    expect(request).not.toHaveBeenCalled();
+    expect(registerDevice).not.toHaveBeenCalled();
+  });
+
+  /**
+   * `canAskAgain` is recomputed from the current status rather than
+   * remembering that anybody asked, so it says nothing about whether a token
+   * can be had. Only `granted` does.
+   */
+  it('reads granted rather than canAskAgain', async () => {
+    permissions.mockResolvedValue({ granted: true, canAskAgain: true });
+
+    await expect(registerIfGranted('auth')).resolves.toBe('apns-token');
+  });
+
+  it('mints nothing on a simulator, which holds no token', async () => {
+    mockDevice.isDevice = false;
+    permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+
+    await expect(registerIfGranted('auth')).resolves.toBeNull();
+    expect(permissions).not.toHaveBeenCalled();
+  });
+
+  /**
+   * This runs on every foreground. A server that is down, or a token call that
+   * throws, must cost a missed registration and never an error in front of
+   * somebody who has just opened the app.
+   */
+  it('stays quiet when the server refuses the address', async () => {
+    permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+    registerDevice.mockRejectedValueOnce(new Error('offline'));
+
+    await expect(registerIfGranted('auth')).resolves.toBeNull();
   });
 });
