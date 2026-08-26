@@ -2474,6 +2474,10 @@ export function buildApp(options: BuildOptions = {}): App {
   }
 
   function homeFor(userId: string): HomeView {
+    // One walk for every contact, above the map rather than inside it: asking
+    // per row would cross the channel map once per contact for an answer that
+    // falls out of a single pass.
+    const lastInChannel = channels.lastInChannelFor(userId);
     return {
       invites: channels.invitesFor(userId),
       rejoinable: channels.rejoinableFor(userId),
@@ -2497,6 +2501,19 @@ export function buildApp(options: BuildOptions = {}): App {
           entry.status === 'outgoing'
             ? undefined
             : reachability.inApp(entry.account.id),
+        // Where they were rather than whether they were about — the question
+        // `lastSeenAt` is asked to imply and answers badly, since it moves on
+        // every socket message.
+        //
+        // Withheld from an outgoing request exactly as the two above are, and
+        // asked of `status` rather than left to the lookup: an outgoing row
+        // carries an empty account id and would miss the map by accident, and a
+        // rule that holds by accident is one a later refactor removes without
+        // noticing.
+        lastInChannelAt:
+          entry.status === 'outgoing'
+            ? undefined
+            : (lastInChannel.get(entry.account.id) ?? null),
       })),
       // Still sent, though the app now shows recordings on the channel they
       // were made in. Build 20 and earlier render this list on Home and would

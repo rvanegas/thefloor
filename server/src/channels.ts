@@ -26,6 +26,7 @@ import {
   isPresent,
   isWithheld,
   lastPresenceAt,
+  lastPresenceByOthers,
   otherParticipants,
   reduce,
 } from '../../core/channel';
@@ -1313,6 +1314,48 @@ export class ChannelRegistry {
   }
 
   /**
+   * When each of the people you share a live channel with was last in one of
+   * them — one walk, answering for everybody at once.
+   *
+   * The fold `sharedChannelsFor` does per channel, collapsed across all of them
+   * and inverted: that one is asked about a named person and returns a row per
+   * room, this one is asked about a reader and returns a row per person. Home
+   * needs the second shape, because it is drawing a list of people and not a
+   * list of rooms, and asking the first once per contact would walk the channel
+   * map once per contact.
+   *
+   * **Membership decides which channels are looked in, and the reader's own
+   * membership at that.** Every moment in the returned map happened in a room
+   * the reader belongs to, which is what makes it releasable at all — see
+   * `ContactView.lastInChannelAt`.
+   *
+   * The reader's own id is never a key. It would be their own presence reported
+   * back to them, which is the thing the caller is trying to take out.
+   *
+   * **Only resident channels can be seen from here**, which is what a missing
+   * key means. This map holds active channels; one that has ended, or that
+   * either of you has left, contributes nothing and takes its history with it.
+   * That is a narrower claim than "they have never been in a channel with you",
+   * and the caller must not widen it.
+   *
+   * Minute-resolution for anything that has been through a restart, `quantise`
+   * having floored it on the way to disk.
+   */
+  lastInChannelFor(viewerId: string): Map<string, number> {
+    const latest = new Map<string, number>();
+    for (const channel of this.channels.values()) {
+      if (channel.status !== 'active') continue;
+      if (!isParticipant(channel, viewerId)) continue;
+      for (const [id, at] of Object.entries(channel.lastPresentAt)) {
+        if (id === viewerId || at === undefined) continue;
+        const known = latest.get(id);
+        if (known === undefined || at > known) latest.set(id, at);
+      }
+    }
+    return latest;
+  }
+
+  /**
    * Takes somebody out of every live channel, as though they had walked out of
    * each one themselves, and reports who else was in them.
    *
@@ -1580,6 +1623,10 @@ export class ChannelRegistry {
         createdAt: channel.createdAt,
         lastActiveAt: channel.lastActiveAt,
         lastPresenceAt: lastPresenceAt(channel),
+        // The same measure with the reader taken out of it, so a channel they
+        // sat in alone does not read as the freshest thing on Home. Sent
+        // always; whether it is drawn is a setting on the phone.
+        lastPresenceByOthers: lastPresenceByOthers(channel, userId),
         everUsed: channel.everPresent.length > 0,
       });
     }

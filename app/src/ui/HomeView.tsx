@@ -12,7 +12,7 @@ import type {
   RejoinableView,
 } from '../../../core/protocol';
 import { describeChannel } from '../../../core/naming';
-import { describeQuiet, sentence } from './availability';
+import { describeOthers, describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Screen, SectionLabel } from './components';
@@ -302,6 +302,7 @@ export function HomeView({
                 now={now}
                 onPress={() => openChannel(card.channelId)}
                 stepsIn={app.tapToStepIn}
+                showOthers={app.showOthers}
                 onDismiss={
                   card.kind === 'invite'
                     ? () => app.dismissInvite(card.channelId)
@@ -324,6 +325,7 @@ export function HomeView({
                 now={now}
                 onPress={() => openChannel(card.channelId)}
                 stepsIn={app.tapToStepIn}
+                showOthers={app.showOthers}
                 onDismiss={() => app.dismissInvite(card.channelId)}
               />
             ))}
@@ -364,6 +366,7 @@ export function HomeView({
             now={now}
             onPress={() => openChannel(card.channelId)}
             stepsIn={app.tapToStepIn}
+            showOthers={app.showOthers}
           />
         ))}
         <StartChannelRow onPress={startAlone} />
@@ -467,6 +470,13 @@ type Card = {
   presentCount: number | undefined;
   /** The most recent moment anybody was in it. */
   lastPresenceAt: number | undefined;
+  /**
+   * The most recent moment anybody *else* was in it. Null for
+   * nobody-else-ever, undefined from a server that predates the field — and
+   * the two are not the same row: one is answered in words, the other by
+   * leaving the qualifier off.
+   */
+  lastPresenceByOthers: number | null | undefined;
   /** False only for a channel nobody has ever been in. */
   everUsed: boolean;
   /** Who asked you in, for an invitation. */
@@ -488,6 +498,11 @@ function inviteCard(invite: InviteView): Card {
     named: invite.name != null,
     presentCount: invite.presentCount,
     lastPresenceAt: invite.lastPresenceAt,
+    // An invitation is a channel you have never been in — that is the test
+    // that put it in this list — so the stamp above is already about other
+    // people, and a qualifier saying so again would be the same sentence
+    // twice. The server sends no such field for an invitation either.
+    lastPresenceByOthers: undefined,
     // Somebody has been in it: that is what makes it an invitation rather than
     // the standing channel a pair of contacts share.
     everUsed: true,
@@ -508,6 +523,11 @@ function memberCard(channel: RejoinableView): Card {
     // stamp, and is the same answer for every channel nobody is in — which are
     // the only ones an idleness line is drawn for.
     lastPresenceAt: channel.lastPresenceAt ?? channel.lastActiveAt,
+    // No fallback to `lastActiveAt`, unlike the line above, and that is the
+    // point rather than an oversight: it moves on anybody's entry or exit
+    // including yours, so standing in for a missing stamp with it would put
+    // the reader back into the one number that exists to leave them out.
+    lastPresenceByOthers: channel.lastPresenceByOthers,
     everUsed: channel.everUsed ?? true,
   };
 }
@@ -560,6 +580,7 @@ function ChannelCard({
   onPress,
   onDismiss,
   stepsIn,
+  showOthers,
 }: {
   card: Card;
   now: number;
@@ -573,11 +594,24 @@ function ChannelCard({
    * behaviour here; the row calls back either way.
    */
   stepsIn: boolean;
+  /**
+   * Whether the row also says when anybody but you was last in it — the other
+   * Home setting, passed down the same way and for the same reason. Off by
+   * default, and off is the line every build before this one drew.
+   */
+  showOthers: boolean;
 }) {
   const live = isLive(card);
   // Null only for an invitation from a server that predates the stamp, which
   // is a line that goes away rather than a line that says nothing.
   const quiet = describeQuiet(card, now);
+  /**
+   * The qualifier on that, when it has been asked for and has anything to add.
+   * Not drawn for an occupied channel: the row says how many are present, and
+   * a present member's stamp is refreshed by the heartbeat, so the clause
+   * would read "3 present · others a few seconds ago" and mean nothing.
+   */
+  const others = showOthers && !live ? describeOthers(card, now, quiet) : null;
   /**
    * An invitation outlives the moment it was sent. What it must not do is go
    * on claiming that moment is still happening — the banner used to say
@@ -598,7 +632,7 @@ function ChannelCard({
         : // An empty channel used to be sixty seconds from destruction, and
           // saying so was a reason to hurry back. Channels are permanent now:
           // nobody being in one is a resting state, not a countdown.
-          quiet && sentence(quiet);
+          quiet && sentence(quiet) + (others ? ` · ${others}` : '');
 
   return (
     // The whole row, rather than a button on the end of it. There is only one

@@ -217,6 +217,27 @@ clock is an inference that ages badly, where this is an observation. Read
 (availability is withheld from anyone who is not one) and absent from a server
 that predates the field. A client cannot tell those apart and does not need to.
 
+A **third** source arrived on 2026-08-26 and is not either of the two above:
+`ContactView.lastInChannelAt`. It is neither app-open nor a socket but presence
+in a room the reader themselves belongs to, folded across every live channel the
+two share (`Channels.lastInChannelFor`) and recomputed per snapshot. Read order
+on a contact row is `inApp`, then `lastSeenAt`, then this — a fact, then an
+inference about the app, then an inference about a room. It is **null for four
+different reasons a client cannot tell apart** and must not: no shared channel,
+a shared channel nobody has been in, a shared channel that has since ended or
+been left, and an outgoing request, which is withheld exactly as the other two
+are. So the client draws nothing rather than "never". Absent, as against null,
+means a server that predates the field.
+
+**Only live channels can be seen from it.** The server holds active channels in
+memory and nothing else, so the number means "last in a channel you *still*
+share" — a narrower claim than "last in a channel with you", and one no caller
+may widen.
+
+Whether the row says it at all is `showOthers`, a phone preference in
+SecureStore, off by default. The server sends the field either way and is never
+told the answer.
+
 The open question about what a restart does to `last_seen_at` is not settled
 here; it has its own TASKS.md entry, "What a Restart Does to Last-Seen".
 
@@ -292,6 +313,19 @@ things that this file keeps apart:
 `lastActiveAt` says nothing about a channel that is occupied now — there is no
 write between an entry and an exit, so an hour of conversation moves it not at
 all. Anyone ordering on it must ask about occupancy separately.
+
+And since 2026-08-26 there are **two** measures of a channel's recency, which
+must not be confused. `lastPresenceAt` (`core/channel.ts`) is the maximum across
+the per-person stamps *and* `lastActiveAt`, is always a number, and is what Home
+orders on. `lastPresenceByOthers` is the same fold with the reader removed —
+which means it **cannot include `lastActiveAt`**, that stamp being unattributed
+and moving on the reader's own comings and goings. It is therefore **null-capable**
+(a channel nobody else has been in is an ordinary state, not a gap) and
+**minute-coarse after a restart**, having given up the correction
+`lastPresenceAt` carries for `quantise`'s flooring. Neither displaces the other:
+the row leads with the room's own number and this qualifies it, and the order is
+unchanged by it. decisions/DECISIONS.md § *A room's recency counts you, and that
+is the wrong number twice*.
 
 ---
 

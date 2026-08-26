@@ -277,3 +277,185 @@ describe('removing a contact', () => {
     expect((await remove(alice, mallory.account.id)).statusCode).toBe(400);
   });
 });
+
+/**
+ * What a contact row measures, which used to be app-open and is now also
+ * where they have been.
+ *
+ * `lastSeenAt` moves on every socket message, so somebody who launched the app
+ * and read nothing looked exactly like somebody who had spent an hour talking.
+ * `lastInChannelAt` is the other question, and it is scoped: only channels the
+ * reader themselves belongs to are looked in, which is what makes it something
+ * the reader is entitled to know.
+ */
+describe('when a contact was last in one of your channels', () => {
+  const contactsOf = async (user: User) => {
+    const home = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(user.token),
+    });
+    return (home.json() as {
+      contacts: Array<{
+        account: { id: string; displayName: string };
+        status: string;
+        lastInChannelAt?: number | null;
+      }>;
+    }).contacts;
+  };
+
+  it('carries the moment they were last in a channel you share', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'ENTER' });
+    const entered = clock;
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'STEP_OUT' });
+
+    const [contact] = await contactsOf(alice);
+    expect(contact.account.id).toBe(bob.account.id);
+    // The exit, not the entry: `stepOut` re-stamps because a departure they
+    // chose is a moment they were still there.
+    expect(contact.lastInChannelAt).toBe(clock);
+    expect(contact.lastInChannelAt).toBeGreaterThan(entered);
+  });
+
+  it('is null when the channel you share has been entered by nobody', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+
+    const [contact] = await contactsOf(alice);
+    // Null rather than absent, and rather than the moment the standing channel
+    // was made — which is not a visit, and is exactly the lie `everUsed` exists
+    // to stop the channel row telling.
+    expect(contact.lastInChannelAt).toBeNull();
+  });
+
+  it('does not report presence in a channel you are not in', async () => {
+    // The scoping rule, which is the privacy claim. Bob and Cara talk; Alice
+    // is Bob's contact and is not in that room, and must learn nothing from it.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const cara = await signIn('cara@example.com', 'Cara');
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(bob, cara, 'cara@example.com');
+
+    const theirs = app.channels.create(bob.account.id, [cara.account.id]);
+    expect(theirs.ok).toBe(true);
+    const theirId = theirs.ok ? theirs.channel.id : '';
+    clock += 60_000;
+    app.channels.dispatch(theirId, bob.account.id, { type: 'ENTER' });
+    // Bob really is somewhere, which is what stops this passing for the wrong
+    // reason: the assertion below is about scoping, not about an empty app.
+    // `create` already put him in it, so the stamp is the moment it was made
+    // rather than the moment of the redundant ENTER above.
+    expect(
+      app.channels.get(theirId)!.lastPresentAt[bob.account.id]
+    ).toBeGreaterThan(0);
+    expect(app.channels.get(theirId)!.present).toContain(bob.account.id);
+
+    const [contact] = await contactsOf(alice);
+    expect(contact.account.id).toBe(bob.account.id);
+    expect(contact.lastInChannelAt).toBeNull();
+  });
+
+  it('does not report the reader’s own presence back to them', async () => {
+    // Alice sits in the shared channel alone. That is her own visit, and it
+    // says nothing whatever about Bob.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+
+    const [contact] = await contactsOf(alice);
+    expect(contact.lastInChannelAt).toBeNull();
+  });
+
+  it('is withheld from an outgoing request, as the name and the time are', async () => {
+    // That row is an address rather than a person, and whether anybody has
+    // been anywhere behind it is precisely what must not be revealed. Absent,
+    // not null: the same shape `inApp` takes.
+    const alice = await signIn('alice@example.com', 'Alice');
+    await signIn('bob@example.com', 'Bob');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: 'bob@example.com' },
+    });
+
+    const [contact] = await contactsOf(alice);
+    expect(contact.status).toBe('outgoing');
+    expect(contact.lastInChannelAt).toBeUndefined();
+  });
+});
+
+/**
+ * The other half of the same complaint, on the channel rather than the person.
+ */
+describe('when anybody else was last in a channel', () => {
+  it('a channel row carries it and an invitation does not', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'ENTER' });
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'STEP_OUT' });
+    const left = clock;
+    // And Alice sits in it alone afterwards, which must not move the number.
+    clock += 3_600_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+
+    const [view] = app.channels
+      .rejoinableFor(alice.account.id)
+      .filter((entry) => entry.channelId === id);
+    expect(view.lastPresenceAt).toBe(clock);
+    expect(view.lastPresenceByOthers).toBe(left);
+
+    // An invitation is a channel you have never been in, so its own
+    // `lastPresenceAt` is already about other people and there is no second
+    // number to send.
+    const cara = await signIn('cara@example.com', 'Cara');
+    await befriend(alice, cara, 'cara@example.com');
+    const made = app.channels.create(alice.account.id, [cara.account.id]);
+    expect(made.ok).toBe(true);
+    const madeId = made.ok ? made.channel.id : '';
+    app.channels.dispatch(madeId, alice.account.id, { type: 'ENTER' });
+    const [invite] = app.channels
+      .invitesFor(cara.account.id)
+      .filter((entry) => entry.channelId === madeId);
+    expect(invite).toBeDefined();
+    expect(
+      (invite as unknown as Record<string, unknown>).lastPresenceByOthers
+    ).toBeUndefined();
+  });
+
+  it('is null for a channel only you have ever been in', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+
+    const [view] = app.channels
+      .rejoinableFor(alice.account.id)
+      .filter((entry) => entry.channelId === id);
+    // The room has a number and nobody else does — the asymmetry the client
+    // draws as "nobody else yet" beside the room's own interval.
+    expect(view.lastPresenceAt).toBe(clock);
+    expect(view.lastPresenceByOthers).toBeNull();
+  });
+});

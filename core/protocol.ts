@@ -218,6 +218,41 @@ export interface ContactView {
    * anybody is behind it is precisely what must not be revealed.
    */
   inApp?: boolean;
+  /**
+   * The most recent moment they were in one of the channels the two of you
+   * share — which is the fact `lastSeenAt` was standing in for and is not.
+   *
+   * `lastSeenAt` is app-open: it is stamped by every socket message, so
+   * somebody who launches the app on a bus and reads nothing reads as freshly
+   * seen. This is the other question, and it is the one a contact list is
+   * usually being scanned for — not whether they have the app, but whether they
+   * have been anywhere you would have run into them.
+   *
+   * **Scoped to channels you both still belong to**, and the scope is the point
+   * rather than an implementation detail: an unscoped version would say that
+   * somebody spent an hour in a room this afternoon, which is activity in a
+   * conversation the reader is not part of and has no business learning about.
+   * Every moment reported here is one the reader could have had by sitting in
+   * their own channel — the same argument `ProfileView.sharedChannels` makes
+   * for being given to non-contacts.
+   *
+   * Null is not "never in a channel". It is "no channel the two of you
+   * currently share carries a record of them in it", which also covers a
+   * channel since left, deleted, or ended — the server holds only active ones
+   * in memory and cannot see the rest. A client therefore draws nothing rather
+   * than "never", the treatment `lastSeenAt` gets and for the same reason: the
+   * ways of not knowing are not worth telling apart on a row.
+   *
+   * Withheld for an outgoing request, exactly as `lastSeenAt` and `inApp` are,
+   * and for the same reason.
+   *
+   * Optional for the wire's sake as well as nullable: a server that predates
+   * the field sends no such key, which is what an installed build meets between
+   * its release and the deploy that follows. Sent whatever the reader's client
+   * has chosen to draw — whether it appears is a phone setting, and the server
+   * is deliberately not told the answer.
+   */
+  lastInChannelAt?: number | null;
 }
 
 export interface InviteView {
@@ -251,6 +286,12 @@ export interface InviteView {
    *
    * Optional for the wire's sake: a server that predates it sends no such key,
    * and a client meeting that shows no idleness rather than inventing one.
+   *
+   * No `lastPresenceByOthers` beside it, unlike a channel row, and that is not
+   * an omission. An invitation is a channel you have never been in — that is
+   * the whole test `invitesFor` applies — so every stamp in it is already
+   * somebody else's, and the two numbers would differ only by the restart
+   * correction this one has and that one gives up.
    */
   lastPresenceAt?: number;
 }
@@ -281,6 +322,28 @@ export interface RejoinableView {
    * shown for.
    */
   lastPresenceAt?: number;
+  /**
+   * The most recent moment anybody *else* was in the channel — see
+   * `lastPresenceByOthers` in core/channel.ts. Sent alongside `lastPresenceAt`
+   * rather than instead of it: the room's own idleness is still what the row
+   * leads with and what it is ordered on, and this is the qualifier on it.
+   *
+   * Three answers, and the client draws a different thing for each. A number is
+   * a moment. **Null means nobody else has ever been in it** — a channel a pair
+   * get for becoming contacts, or one only you have opened — which is a fact
+   * and gets words. **Absent means the server predates the field**, which is
+   * not a fact about anybody and gets nothing: the client draws the unqualified
+   * line it drew before, which is exactly right rather than merely tolerable.
+   *
+   * Minute-resolution once it has been through the database, and without the
+   * `lastActiveAt` correction `lastPresenceAt` carries for that — core's
+   * comment argues why it cannot have it.
+   *
+   * Sent whatever the reader's client has chosen to draw. Whether the qualifier
+   * appears is a phone setting, and the server is deliberately not told the
+   * answer — see `showOthers` in the app's provider.
+   */
+  lastPresenceByOthers?: number | null;
   /**
    * Whether anybody has ever been in it — false only for a channel nobody has
    * set foot in, which since contacts came to guarantee a one-to-one channel

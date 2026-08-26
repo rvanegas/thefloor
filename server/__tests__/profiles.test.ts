@@ -609,4 +609,32 @@ describe('the channels on somebody’s profile', () => {
     expect(profile).not.toHaveProperty('lastSeenAt');
     expect(profile.sharedChannels).toHaveLength(1);
   });
+
+  it('does not carry the collapsed answer a contact row gets', async () => {
+    // `ContactView.lastInChannelAt` is the maximum of these entries, and Home
+    // needs it because a row is one line about one person. A profile has room
+    // for the array and the array says strictly more — which room, and whether
+    // they are in it now. Two statements of one fact that can disagree is
+    // worse than one, so this asserts the absence rather than leaving a later
+    // session to add it "for symmetry".
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const made = app.channels.create(alice.account.id, [bob.account.id]);
+    expect(made.ok).toBe(true);
+    if (made.ok) {
+      app.channels.dispatch(made.channel.id, bob.account.id, { type: 'ENTER' });
+    }
+
+    const profile = (await read(alice, bob.account.id)).json() as Record<
+      string,
+      unknown
+    > &
+      Shared;
+    expect(profile).not.toHaveProperty('lastInChannelAt');
+    // And the array that answers instead is there and is populated, so this
+    // is a statement about where the fact lives rather than about it missing.
+    expect(profile.sharedChannels).toHaveLength(1);
+    expect(profile.sharedChannels![0].lastPresentAt).not.toBeNull();
+  });
 });
