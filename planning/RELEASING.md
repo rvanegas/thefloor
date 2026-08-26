@@ -363,28 +363,10 @@ is the kind that goes stale between a decision and a submission.
 - **`aps-environment` is `production` in the exported IPA** — the check at the
   top of this file, run against the build being submitted rather than any
   earlier one.
-- **App Privacy still describes what the app collects.** It is **app-level, not
-  version-level**, so it is not part of the version record and is the thing left
-  behind when the app starts collecting something new. That happened: the usage
-  meter shipped 2026-08-19 and was declared on 2026-08-20, a day in which the
-  published label was wrong. As of then it declares Contact Info (name, email),
-  User Content (audio, other) and Identifiers (user id, device id) — all *App
-  Functionality*, linked to identity — plus **Usage Data → Product Interaction
-  for *Analytics***, which is the meter.
-
-  **There is no API for it.** `appPrivacyDetails`, `appDataUsages` and
-  `dataUsages` all 404, and `appInfos` carries only categories and age rating —
-  so this cannot be read by a script or gated in `bin/upload-ios`, and is
-  checked by opening the page. Changes need publishing, not just saving.
-
-  **None of it is *tracking*** as Apple defines it — no third-party data, no ad
-  measurement, no data broker. So `NSPrivacyTracking` stays `0` in
-  `app/ios/TheFloor/PrivacyInfo.xcprivacy`, and no ATT prompt or
-  `NSUserTrackingUsageDescription` belongs anywhere near this app. Adding either
-  because the word "privacy" came up is its own review risk. `PrivacyInfo`'s
-  empty `NSPrivacyCollectedDataTypes` is deliberate and stays: that manifest
-  describes collection by app and SDK *code*, and the meter is derived
-  server-side from sessions rather than sent as client telemetry.
+- **App Privacy still describes what the app collects**, which is the whole of
+  the next section — the answers, the ones deliberately left No, and the
+  manifest that does not agree with them. It is app-level rather than
+  version-level, so nothing about a submission forces the look; take it.
 - **`supportsTablet: false`,** so App Review does not open a phone layout on an
   iPad and file what it finds.
 - **The review account holds demo data and nothing real**, since its code is
@@ -399,6 +381,112 @@ is the kind that goes stale between a decision and a submission.
   demo account takes its contacts with it, and what signs back in is a fresh
   account that cannot create a channel — so the rest of the review happens
   against an app that appears to do nothing. DEMO-ACCOUNT.md has the repair.
+
+## The App Privacy answers, one data type at a time
+
+Answered against `/privacy` on 2026-08-26, which is the method as much as the
+date: that page is written as claims checkable against this source tree, so it
+is the inventory and the questionnaire is the summary of it. **If the two ever
+disagree the page is right and the questionnaire is stale**, because a change
+to what is stored has to walk past `server/src/privacy.ts` and does not have to
+walk past App Store Connect. Re-answer here, not from memory of what was ticked
+last time.
+
+It is **app-level, not version-level**, so nothing about a submission forces a
+look at it — which is exactly how it goes wrong. The usage meter shipped
+2026-08-19 and was declared 2026-08-20, a day the published label was untrue.
+
+Every line below is **linked to the user's identity** and **not used for
+tracking**. Nothing here is Third-Party Advertising, Developer's Marketing or
+Product Personalization; the only purposes that appear are App Functionality
+and, once, Analytics.
+
+| Data type | Purpose | What it is, in this codebase |
+| --- | --- | --- |
+| Contact Info → Email Address | App Functionality | `accounts.identifier` is the sign-in address; `pending_invites.identifier` is an address one person typed for another; `donations.email` is what Ko-fi reports |
+| Contact Info → Name | App Functionality | `accounts.display_name`, `guest_sessions.display_name`, `donations.from_name` |
+| User Content → Audio Data | App Functionality | recordings in S3, and the stems sent to the transcription provider when somebody asks |
+| User Content → Other User Content | App Functionality | `accounts.bio`, channel names and descriptions, `transcript_lines`, `donations.message` |
+| Identifiers → User ID | App Functionality | `accounts.id`, and every row that references it |
+| Identifiers → Device ID | App Functionality | the APNs token in `device_tokens`. Apple's category for a push token, even though it names an installation rather than a person |
+| Usage Data → Product Interaction | **Analytics and App Functionality** | two different things under one heading — the meter (`usage_spans`, `usage_bytes`, 30 days, never shown to anyone) is Analytics; `accounts.last_seen_at`, which contacts are shown so they can tell whether it is a reasonable moment to talk, is App Functionality |
+| Purchases → Purchase History | App Functionality | the `donations` row: amount, currency, whether recurring, attributed to an account and shown back under Support |
+
+Three of those are **changes from what is published**, which as of 2026-08-20
+was Contact Info, User Content, Identifiers and Usage Data → Product
+Interaction for Analytics alone:
+
+- **Usage Data gains App Functionality** beside Analytics. The meter was
+  declared and last-connected was not, and they are the same category.
+- **Purchases → Purchase History is new**, and is the one judgement call here.
+  The reading against it is that the payment happens on Ko-fi's site, outside
+  the app, and the record arrives by webhook rather than from a device — so it
+  is arguably not collected *from this app* at all. Declared anyway, because
+  the flow starts at a button in the app, the row is attributed to the account
+  and shown back to that account, and the two errors are not symmetric: an
+  undeclared category found by review is a rejection, an over-declared one is a
+  line on a label nobody disputes.
+- **Nothing is added for transcripts**, which is the answer the task expected to
+  be harder. Audio and text were already declared as User Content, and the
+  questionnaire asks what types are collected rather than who processes them —
+  a provider acting on our behalf does not create a new type. What it *would*
+  change is tracking, and does not: no third-party data, no ad measurement, no
+  broker. What remains open is what the provider does with its copy after
+  `Transcripts.forget`, which is BACKLOG.md's question and not this label's.
+
+### The ones deliberately answered No
+
+Each of these has a reason that is not "we did not think about it", and each
+will look wrong to somebody who has not:
+
+- **Contacts.** Never. The address book is not read, and no permission for it is
+  requested. In-app contacts are people who accepted a request inside the
+  application; an email typed into an invite is Contact Info, not the phone's
+  contact store. Declaring this would imply a capability the app does not have.
+- **Location, coarse or precise.** `app/src/api/region.ts` sends the device's
+  locale and IANA time zone with the donations request, and `server/src/region.ts`
+  reads them to decide whether the donate link may be shown — Guideline
+  3.1.1(a). It is used in the request and stored nowhere; what persists is at
+  most a hand-set boolean, `accounts.donations_allowed`. A time zone is not
+  location data, and transient use is not collection.
+- **Financial Info → Payment Info.** The card never reaches this server. Ko-fi
+  holds it under their own policy, which `/privacy` says out loud.
+- **Diagnostics, all three.** There is no crash or performance SDK in
+  `app/package.json`, and Apple's own crash reporting is not developer
+  collection. Server logs are not collected from the app.
+- **Browsing History, Search History, Health, Sensitive Info, Advertising
+  Data, Other Data.** Nothing produces any of them.
+
+**When SMS sign-in lands, Contact Info → Phone Number is the answer that
+changes**, and it changes app-level rather than in that version's record.
+
+### The privacy manifest is a separate file and does not agree
+
+`app/ios/TheFloor/PrivacyInfo.xcprivacy` declares `NSPrivacyTracking` false —
+correct, and the reason no ATT prompt and no `NSUserTrackingUsageDescription`
+belongs anywhere near this app — and an **empty `NSPrivacyCollectedDataTypes`**.
+
+That emptiness was justified on the meter: the manifest describes collection by
+app and SDK *code*, and the meter is derived server-side from sessions rather
+than sent as telemetry. True of the meter, and **not true of the rest of the
+table** — the client posts an email address and a display name and publishes
+live audio, which is app code transmitting collected data. So the justification
+on file covers one row and is being read as covering eight.
+
+Left empty for now rather than quietly changed, because the recorded reasoning
+says the opposite and that is a decision to make rather than a typo to fix. The
+argument for populating it: the collected-data section of a manifest is
+informational, feeds Xcode's privacy report, and over-declaring costs nothing.
+The argument for leaving it: Apple requires the manifest for required-reason
+APIs and listed SDKs, neither of which is this, and an empty array has passed
+every upload so far. **Nothing about this is a submission blocker either way.**
+
+### There is no API for any of it
+
+`appPrivacyDetails`, `appDataUsages` and `dataUsages` all 404, and `appInfos`
+carries only categories and age rating. So this cannot be read by a script or
+gated in `bin/upload-ios`: it is checked by opening the page, and changes need
+**publishing**, not just saving.
 
 ## App Store Connect, and what it will not tell you
 
