@@ -12,6 +12,6 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["jest", "node"]
   },
-  "include": ["src/**/*.ts", "__tests__/**/*.ts", "../core/*.ts"],
+  "include": ["src/**/*.ts", "__tests__/**/*.ts", "__stubs__/**/*.ts", "../core/*.ts"],
   "exclude": ["node_modules"]
 }
