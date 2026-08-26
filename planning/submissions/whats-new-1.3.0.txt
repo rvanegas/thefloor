@@ -6,6 +6,6 @@ Tap a contact and you get their profile: every channel you share, when they were
 
 You can be signed in on more than one device now. Your voice is in one place at a time, and stepping into a channel on the phone steps you out of it on the tablet. Notifications no longer buzz the device you are already talking on. Settings has "Sign out other devices" for the one you left behind.
 
-Turning notifications on from iOS Settings is noticed as soon as you come back to the app, rather than at the next launch.
+If you declined the notifications prompt and later changed your mind, that now works. Turn them on in iOS Settings and the app notices as soon as you come back to it, rather than at the next launch — which could be days away, so notifications had a way of staying off long after you had switched them on.
 
 Removing a contact is a quiet row at the foot of their card rather than a red button in the middle of it.

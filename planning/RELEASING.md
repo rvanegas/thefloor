@@ -520,6 +520,17 @@ it, and the fix is `bin/set-review-notes` rather than withdrawing anything.
 Worth knowing before somebody withdraws a submission to correct a typo, which
 costs the place in the queue.
 
+**So can "What's New", and `bin/submit-ios` refuses it anyway.** A PATCH to
+`appStoreVersionLocalizations` was accepted on 2026-08-26 against 1.3.0 at
+`READY_FOR_REVIEW`, with the reviewSubmission left at the same state and still
+unsubmitted. The script's guard is narrower than the sentence it prints: what
+`READY_FOR_REVIEW` forbids is **taking a different build**, and
+`1.3.0 is READY_FOR_REVIEW, which is not editable` reads as though it forbids
+the listing text too. It does not, and the two failures are nothing alike — a
+build swap needs the version removed from the submission, a wording change
+needs one call. Until the script grows a way to send the text alone, that call
+is the way; it is the same PATCH the script makes, at the same endpoint.
+
 **A version holding a build cannot take a different one, and the state that
 says so is easy to misread.** Once `bin/submit-ios` has run, the version sits
 at `READY_FOR_REVIEW` with a build attached and a reviewSubmission open — and
