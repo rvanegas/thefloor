@@ -40,6 +40,14 @@ beforeEach(() => {
     store,
     now: () => clock,
     roomCloseGraceMs: 0,
+    // Nothing here uploads a stem, because the media server is a double — so
+    // the mix that starts when a channel ends waits for objects that will
+    // never appear. Left at its default that wait is ten minutes of polling
+    // every two seconds (`OBJECT_WAIT_MS` in storage.ts), by a timer that
+    // outlives the test that caused it and keeps the whole worker alive: the
+    // suite passed in a second and the process then had to be killed. Every
+    // other suite that ends a recording sets this, and this one did not.
+    mixWaitMs: 0,
   });
 });
 
