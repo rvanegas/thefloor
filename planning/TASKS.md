@@ -70,10 +70,6 @@ written from `RoomEvent.TrackMuted` and read by nothing, and since the floor
 withholds subscriptions rather than muting the publication, it is not clear it
 can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
-## Notification UI
-
-Show user name and channel. Tapping takes you to channel.
-
 ## App Store Data Collection Answers
 
 The privacy questionnaire in App Store Connect was answered for an application

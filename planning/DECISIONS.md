@@ -1208,3 +1208,46 @@ bypass flip DEMO-ACCOUNT.md describes — point `REVIEW_IDENTIFIER` at
 a restart drops presence and any call in flight. Left undone deliberately: it
 is not needed until that account has to be signed in as or torn down, and it is
 not a thing to do to a live box on the way past.
+
+## "Notification UI" was already shipped, and the 1:1 repeat stays — 2026-08-26
+
+TASKS § *Notification UI* asked for two things — *Show user name and channel.
+Tapping takes you to channel.* — and a session sent to implement it found both
+already there. Written down because the next reader of that entry will start
+the same search, and because the one case that genuinely does not satisfy the
+sentence was looked at and deliberately left alone.
+
+**Both halves shipped between 2026-08-10 and 2026-08-22.** Every push carries a
+person and a place: `invited` titles with the inviter, `arrived` and `pinged`
+title with `nameFor(channel, recipient)`, which is `channel.name` when there is
+one and the recipient's own roster view when there is not. The tap is
+`channelId` in the payload → `channelOf` → `pendingChannelId` → `App.tsx`,
+which watches the channel and shows it, and it works from a cold launch as well
+as from a running app because `getLastNotificationResponseAsync` is read
+alongside the listener. `server/__tests__/push.test.ts` pins the wording of all
+three; 60 tests.
+
+**The invitation names no channel, and that is correct rather than missing.**
+`create` passes `null` for the name, so it reads *Invited you to a channel.* An
+invitation is always into a channel that did not exist a moment ago — naming is
+something somebody does later, if at all — so there is no name to give and the
+roster fallback would be describing a room nobody has been in yet.
+
+**The case that does fail the sentence is the 1:1 standing channel, and it is
+staying.** Every pair of contacts has one, it is never named, and the roster
+from the recipient's side is exactly one person — the person who just arrived.
+So it renders `Alice` / *Alice stepped in.*, and a ping renders `Alice` /
+*Alice: come back*: the same name twice, with nothing on the notification that
+reads as a channel. Three ways out were considered — dropping the repeat from
+the body (*Alice* / *Stepped in.*), putting both in the title separated by a
+dot, and leaving it — and leaving it won. **The redundancy is not an
+ambiguity.** A 1:1 channel's only identity *is* the other person, so the
+notification names the conversation exactly, twice; the reader knows precisely
+where the tap lands. The alternatives each buy tidier prose with a second
+sentence form to keep true — and `Stepped in.` with no subject is worse on a
+lock screen where the app name sits above the title and the eye lands on the
+body first.
+
+So the entry is closed as shipped rather than as work. If it comes back, it is
+the 1:1 repeat that is being complained about, and the argument above is the
+one to overturn.
