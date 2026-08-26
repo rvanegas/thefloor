@@ -168,49 +168,13 @@ nothing. See DECISIONS.md for why it is not in-app purchase. What is left:
 
 
 
-
 ## A Leaderboard Of One's Contacts
 
-The standings ship gated on an `accounts.leaderboard` column set by hand with
-`bin/db --write`, and the gate is not a feature — it is the only answer anybody
-had to the objection that killed the web version. A list of real people's names
-is exactly what `/privacy` and `/support` promise in writing does not exist
-here, so the board could only be shown to somebody trusted by hand.
-**Show a reader only their own contacts and the objection goes away**: every
-name on the screen is a name they were already entitled to, from a person who
-said yes to them. Nothing new is disclosed, so the column has nothing left to
-protect and the screen could be open to everybody — which is the point of the
-idea, not a side effect of it. Whether the column then goes or stays as an
-operator's view of the whole graph is the first thing to decide.
-
-Three questions the build has to answer, and the second is the one with teeth.
-
-**Who is on it.** Accepted contacts, plus the reader — a board you are not on
-is a ranking of other people. `ContactStatus` already distinguishes `accepted`
-from the two pending directions and only the first should count; a leaderboard
-is not a place to learn that somebody has an outgoing request open.
-
-**What the number means.** `invited` today is the closure count over the whole
-graph — everybody who arrived through you, at any depth. Filtering the *rows*
-to contacts leaves the *numbers* describing people the reader cannot see, which
-is a smaller disclosure than a name but is still one, and it is the version
-that makes the board interesting. The alternative, counting only arrivals the
-reader is also entitled to see, is honest about its scope and will read as
-wrong to anybody who knows their own real count and finds a smaller one on a
-friend's screen. Pick one deliberately and write down which.
-
-**Whether it is still a ranking.** The current query drops accounts with a
-count of nought by construction, on the grounds that a list of every account
-reading zero is not a ranking. Against a contact list of a dozen that rule can
-empty the screen. A board of two rows wants either a different empty state or
-a different premise — the contacts view may be closer to a column on a contact
-list than to a leaderboard, and if that is what it turns out to be, it should
-be built there instead.
-
-The query is `accounts.leaderboard()` in `server/src/accounts.ts`, one
-recursive CTE; the route is `GET /leaderboard` in `app.ts`, refusing with a 404
-rather than a 403 to match the profile route. Both would need the reader's
-contact set, which the route already has an account for. DECISIONS.md
-§ *The standings are in the app, behind a column set by hand* is the reasoning
-this would be revising, including the web page that was built and deleted the
-same day.
+The standings ship gated on an `accounts.leaderboard` column set by hand, and
+the gate is not a feature — it is the only answer anybody had to the objection
+that a board of the whole population is the directory `/privacy` promises does
+not exist here. Show a reader only their own accepted contacts and every name
+on the screen is one they were already entitled to, so the column has nothing
+left to protect and the screen can be open to everybody. That is the change:
+the filtering is the mechanism, and removing the gate is the point. Plan is
+here: LEADERBOARD.md
