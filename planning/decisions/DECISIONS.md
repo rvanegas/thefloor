@@ -75,6 +75,38 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-08-27 — `c7537d7` → `92fc306`
+
+Four commits: the sweep's `terminate`, the floor released on `DISCONNECTED`, the
+`/healthz` counters, and the DECISIONS and TASKS.md landing edits. The reasoning
+is § *Talking into a void, which had three causes and one of them was
+politeness*; this is what the deploy itself did.
+
+**No two-step was needed and there is no wire change to sequence.** The three
+new `/healthz` fields are additive and read by `bin/health` alone; nothing on a
+phone asks for them. The floor change is a rule inside `core/`, which both ends
+import from the same source — so the server and every installed build agree
+about it the moment this restarted, with no version in which they disagree. The
+client half of the early warning is build 107, uploaded minutes after this, and
+it needs nothing from this deploy: `RoomEvent.ConnectionQualityChanged` comes
+from the SFU rather than from this server, so the new roster line works against
+a server that had never been redeployed.
+
+**What installed builds see from the floor change is a claim ending sooner**,
+which is a state they already draw — a released floor is a released floor,
+whether it was released by a tap, an expiry or a drop. Nothing was added to the
+snapshot for them to fail to understand.
+
+The counters start at zero here and reset on every restart, which is the whole
+of what makes them worth reading off a box that has been up a while.
+`DISCONNECT_GRACE_MS` was deliberately not changed by any of this; these exist
+so the next argument about it can be had with data.
+
+`bin/health` confirmed `92fc306` against this checkout, `oldestBuild` 56 and no
+silent builds, so `MIN_SUPPORTED_BUILD` is untouched at 51 and nothing was
+expired by this. The new line reads `drops 0 (recovered 0, expired 0)`, as a
+just-restarted box should.
+
 ### 2026-08-26 — `a4491cf` → `c7537d7`
 
 Four commits: the revert of `bab713e`, the two that replaced it, and the
