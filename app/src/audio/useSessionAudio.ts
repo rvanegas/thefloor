@@ -172,7 +172,7 @@ export interface SessionAudio {
 /**
  * The inputs to the session decision and the decision itself, together.
  *
- * The three inputs are carried rather than dropped because "the session is
+ * The four inputs are carried rather than dropped because "the session is
  * `CALL`" and "the session is `CALL` *because somebody else is talking while
  * you are muted*" are different readings, and only the second one tells
  * anybody whether it is right.
@@ -181,7 +181,7 @@ export interface AudioIntent {
   /** What the hook was told. */
   selfMuted: boolean;
   micNeeded: boolean;
-  anyMicOpen: boolean;
+  hasAudio: boolean;
   othersAudible: number;
   /** What it decided. */
   intent: MicIntent;
@@ -269,16 +269,14 @@ async function applyConfiguration(
  */
 function trace(
   config: AppleAudioConfiguration,
-  anyMicOpen: boolean,
-  othersAudible: number
+  hasAudio: boolean
 ): void {
   if (!__DEV__) return;
   // eslint-disable-next-line no-console
   console.log(
     `[audio] ${nameOf(config)}`,
     JSON.stringify({
-      anyMicOpen,
-      othersAudible,
+      hasAudio,
       category: config.audioCategory,
       options: config.audioCategoryOptions,
       mode: config.audioMode,
@@ -297,9 +295,9 @@ function trace(
  * Cheap enough to call on every edge: natively it is a single atomic property
  * assignment, and it touches neither the session nor the engine.
  */
-function pushPolicy(anyMicOpen: boolean, othersAudible: number): void {
+function pushPolicy(hasAudio: boolean): void {
   if (Platform.OS !== 'ios') return;
-  setupIOSAudioManagement(true, policyFor(anyMicOpen, othersAudible));
+  setupIOSAudioManagement(true, policyFor(hasAudio));
 }
 
 /**
@@ -410,16 +408,14 @@ async function releaseMicrophone(room: Room): Promise<void> {
  * speaker is released at all, but the session is configured here regardless.
  * Depending on a transition we do not control is what broke this once.
  *
- * The audible count is what decides between the two closed states, and is
- * therefore what decides whether another app's music is interrupted. It is
- * ignored while any microphone is open, a call being exclusive regardless.
+ * One input since 2026-08-27, and the audible count is no longer among them:
+ * what decides whether another app's music is interrupted is whether this app
+ * has any audio at all, which is a question about the channel rather than
+ * about what has finished subscribing. See `channelHasAudio`.
  */
-async function applyFor(
-  anyMicOpen: boolean,
-  othersAudible: number
-): Promise<void> {
-  const config = sessionFor(anyMicOpen, othersAudible);
-  trace(config, anyMicOpen, othersAudible);
+async function applyFor(hasAudio: boolean): Promise<void> {
+  const config = sessionFor(hasAudio);
+  trace(config, hasAudio);
   await applyConfiguration(config);
 }
 
@@ -437,15 +433,14 @@ async function applyFor(
  * @param micNeeded whether anything is listening: somebody else present, or a
  *                  recording running. Told rather than worked out here — this
  *                  hook has never decided anything about who may speak.
- * @param anyMicOpen whether **anybody** present is capturing, this user
- *                  included. Distinct from `micNeeded && !selfMuted`, which is
- *                  only about us: this decides the session's configuration,
- *                  where that decides whether we publish. They part company in
- *                  exactly one case — self-muted while somebody else is still
- *                  talking — and that case is the whole point, since keeping
- *                  the session a call across it is what stops a Bluetooth
- *                  route being lost to a profile handover nobody needed. See
- *                  `anyMicrophoneOpen` in core/micNeeded.ts.
+ * @param hasAudio  whether this app has any audio at all in this channel:
+ *                  somebody else in the room, a recording running, or shared
+ *                  playback loaded. This decides the session's configuration,
+ *                  where `micNeeded` decides whether we publish, and the two
+ *                  are different questions rather than the same one twice —
+ *                  a guest without the microphone, and anybody self-muted,
+ *                  are audio without being capture. See `channelHasAudio` in
+ *                  core/micNeeded.ts, which is where the whole argument is.
  */
 export function useSessionAudio(
   mediaRoom: string | null,
@@ -453,7 +448,7 @@ export function useSessionAudio(
   token: string | null,
   selfMuted: boolean,
   micNeeded: boolean,
-  anyMicOpen: boolean
+  hasAudio: boolean
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -501,8 +496,8 @@ export function useSessionAudio(
   channelIdRef.current = channelId;
 
   /** Same again: somebody else muting must not tear the room down. */
-  const anyMicOpenRef = useRef(anyMicOpen);
-  anyMicOpenRef.current = anyMicOpen;
+  const hasAudioRef = useRef(hasAudio);
+  hasAudioRef.current = hasAudio;
 
   /**
    * What was last asked of the session, so that the effect below can tell an
@@ -778,32 +773,34 @@ export function useSessionAudio(
 
         const intent = intentFor(micNeededRef.current, selfMutedRef.current);
 
-        // Playout-only until there is something to capture for, and a call
-        // when there is. Applied before the session is taken, so it is never
-        // briefly the wrong one.
+        // Mixing until this app has audio of its own, and a call once it has.
+        // Applied before the session is taken, so it is never briefly the
+        // wrong one.
         //
-        // Nothing is subscribed yet, so the audible count is zero by
-        // construction rather than by assumption: a session taken here is
-        // mixing, and the effect below makes it exclusive when the first track
-        // arrives. Which is the right way round — interrupting somebody's
-        // music a moment before there is anything to hear would be a worse
-        // failure than a moment after.
-        const anyOpen = anyMicOpenRef.current;
-        pushPolicy(anyOpen, 0);
-        await applyFor(anyOpen, 0);
-        appliedRef.current = { intent, config: sessionFor(anyOpen, 0) };
+        // **Read off the channel rather than off the room, which is the point
+        // of the 2026-08-27 rule and matters most here.** Nothing is
+        // subscribed yet, so a rule keyed on the audible count would take a
+        // mixing session at this line and rewrite it the instant the first
+        // track arrived — which is the instant the engine starts, and the
+        // collision build 90 was written to remove. `hasAudio` is already true
+        // for a channel with somebody in it, so the configuration this
+        // connection needs is the one it is given, before anything is active.
+        const anyAudio = hasAudioRef.current;
+        pushPolicy(anyAudio);
+        await applyFor(anyAudio);
+        appliedRef.current = { intent, config: sessionFor(anyAudio) };
         update({
           asked: {
             selfMuted: selfMutedRef.current,
             micNeeded: micNeededRef.current,
-            anyMicOpen: anyOpen,
+            hasAudio: anyAudio,
             othersAudible: 0,
             intent,
-            session: sessionFor(anyOpen, 0),
-            playout: policyFor(anyOpen, 0).playout,
+            session: sessionFor(anyAudio),
+            playout: policyFor(anyAudio).playout,
           },
         });
-        recordEvent(`connect ${intent} ${nameOf(sessionFor(anyOpen, 0))}`);
+        recordEvent(`connect ${intent} ${nameOf(sessionFor(anyAudio))}`);
 
         // Started explicitly, despite registerGlobals() also installing
         // automatic management. Leaving it to the automatic path alone meant
@@ -882,7 +879,7 @@ export function useSessionAudio(
       // disconnecting while somebody was still talking would arm the observer
       // to take `playAndRecord` — exclusive, and mono on a Bluetooth route —
       // at some later transition with no channel to justify it.
-      pushPolicy(false, 0);
+      pushPolicy(false);
     };
   }, [mediaRoom, token, generation]);
 
@@ -926,19 +923,20 @@ export function useSessionAudio(
    * session keeps.
    *
    * The two halves are driven by different questions, which is the thing to
-   * hold on to here: **ours** decides whether we publish, **anybody's** decides
-   * what the session is configured as. They agree except when we are self-muted
-   * with somebody else still talking, and keeping the session a call across
-   * that is what stops a Bluetooth profile handover nobody needed.
+   * hold on to here: **the microphone** asks whether anything is listening for
+   * us, and **the session** asks whether this app has any audio at all. They
+   * part company for a guest without the microphone, for anybody self-muted,
+   * and for shared playback with nobody in the room — every one of which is
+   * audio without being capture.
    */
   useEffect(() => {
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
     const intent = intentFor(micNeeded, selfMuted);
-    // Ours decides whether we publish; anyone's decides what the session is.
-    // Only the second may move the audio category, which is the boundary a
-    // Bluetooth profile handover sits on.
-    const config = sessionFor(anyMicOpen, state.othersAudible);
+    // `micNeeded` decides whether we publish; `hasAudio` decides what the
+    // session is. Only the second may move the audio category, which is the
+    // boundary a Bluetooth profile handover sits on.
+    const config = sessionFor(hasAudio);
 
     // Identity comparison, which holds because `sessionFor` returns the module
     // constants themselves. Without this, a track arriving while the
@@ -947,8 +945,9 @@ export function useSessionAudio(
     const applied = appliedRef.current;
     if (applied && applied.intent === intent && applied.config === config) {
       // **The configuration has not moved, but what explains it may have.**
-      // Since build 90 both closed states return the same object, so a track
-      // arriving no longer writes the session — and `asked` used to be
+      // A track arriving does not write the session — since build 90 because
+      // both closed states were the same object, and since 2026-08-27 because
+      // the subscribed count is not an input at all — and `asked` used to be
       // refreshed only when it did. The panel reads `audible` off `asked`, so
       // it froze at the connect value of zero and went on reporting *nothing
       // subscribed* through a subscription that had plainly happened. A
@@ -963,11 +962,11 @@ export function useSessionAudio(
               asked: {
                 selfMuted,
                 micNeeded,
-                anyMicOpen,
+                hasAudio,
                 othersAudible: s.othersAudible,
                 intent,
                 session: config,
-                playout: policyFor(anyMicOpen, s.othersAudible).playout,
+                playout: policyFor(hasAudio).playout,
               },
             }
       );
@@ -983,22 +982,21 @@ export function useSessionAudio(
       asked: {
         selfMuted,
         micNeeded,
-        anyMicOpen,
+        hasAudio,
         othersAudible: s.othersAudible,
         intent,
         session: config,
-        playout: policyFor(anyMicOpen, s.othersAudible).playout,
+        playout: policyFor(hasAudio).playout,
       },
     }));
     recordEvent(`${intent} ${nameOf(config)}`);
 
     // Before either branch, and before the `await` in them, because the
     // transition the observer reads this for is the one `setMicrophoneEnabled`
-    // is about to cause. This is the whole of the self-mute fix: with somebody
-    // else still talking the engine drops to playout-only and the observer
-    // applies its playout value, which is now `CALL` rather than `IDLE` — so
-    // the category does not move and the Bluetooth route is not handed over.
-    pushPolicy(anyMicOpen, state.othersAudible);
+    // is about to cause. With somebody else in the room the playout value is
+    // `CALL`, so the engine dropping to playout-only on a self-mute moves
+    // nothing: the category holds and the Bluetooth route is not handed over.
+    pushPolicy(hasAudio);
 
     // Order matters and is opposite in the two directions: the session must
     // already be a call before capture starts, and must stay one until capture
@@ -1006,12 +1004,12 @@ export function useSessionAudio(
     // exactly what silences the echo canceller.
     //
     // `muted` is the case that has neither ordering problem, because it moves
-    // nothing: the device stays as it was and `sessionFor` is unchanged while
-    // somebody else's microphone is open, so the configuration write below is
-    // a no-op and the route never moves. That is the whole of the fix, and it
-    // is why this branch does not re-state the configuration at all.
+    // nothing: the device stays as it was, and `hasAudio` cannot change on a
+    // self-mute — being muted requires somebody else in the room, which is
+    // itself audio. That is why this branch does not re-state the
+    // configuration at all.
     (intent === 'capturing'
-      ? applyFor(anyMicOpen, state.othersAudible).then(() =>
+      ? applyFor(hasAudio).then(() =>
           room.localParticipant.setMicrophoneEnabled(true)
         )
       : intent === 'muted'
@@ -1019,16 +1017,16 @@ export function useSessionAudio(
         : releaseMicrophone(room)
             // Re-stated rather than assumed, and note this no longer implies
             // `playback`: letting *our* device go hands the session back only
-            // if nobody else's is open. When it does change, this is also
-            // where the choice between the two closed states is made — and so
-            // where somebody's music is either interrupted or let back in.
-            .then(() => applyFor(anyMicOpen, state.othersAudible))
+            // if this app has nothing left to play either. That is the edge
+            // where somebody's music is let back in — the last person leaving
+            // a channel, or a shared track coming to rest.
+            .then(() => applyFor(hasAudio))
     ).catch(() => {});
     const transmitting = intent === 'capturing';
     setState((s) =>
       s.micOpen === transmitting ? s : { ...s, micOpen: transmitting }
     );
-  }, [selfMuted, micNeeded, anyMicOpen, state.status, state.othersAudible]);
+  }, [selfMuted, micNeeded, hasAudio, state.status, state.othersAudible]);
 
   /**
    * Watches whether this device is rendering what it is subscribed to.

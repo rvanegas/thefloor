@@ -369,12 +369,15 @@ function appRows(asked: AudioIntent | null): DiagnosticRow[] {
   return [
     { label: 'intent', value: asked.intent },
     {
-      // The three inputs the decision was made from, echoed back by the hook
-      // that made it rather than recomputed here. A second computation of the
-      // same rule would agree with the first right up until the moment it
-      // mattered.
-      label: 'self/needed/any',
-      value: `${flag(asked.selfMuted)} ${flag(asked.micNeeded)} ${flag(asked.anyMicOpen)}`,
+      // What the hook was told, echoed back by it rather than recomputed here.
+      // A second computation of the same rule would agree with the first right
+      // up until the moment it mattered.
+      //
+      // Only the third decides the session, since 2026-08-27. The first two
+      // are here because they decide the *microphone*, and a session that
+      // looks wrong is usually a microphone question answered oddly.
+      label: 'self/needed/audio',
+      value: `${flag(asked.selfMuted)} ${flag(asked.micNeeded)} ${flag(asked.hasAudio)}`,
     },
     { label: 'audible', value: String(asked.othersAudible) },
   ];

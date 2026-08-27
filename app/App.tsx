@@ -16,7 +16,7 @@ import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
-import { anyMicrophoneOpen, microphoneNeeded } from '../core/micNeeded';
+import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
 
@@ -81,13 +81,13 @@ function Root() {
     !!live && (microphoneNeeded(live, me) || app.recordingAsked === live.id);
 
   // What the *session* is configured from, where `micNeeded` decides only
-  // whether we publish. The two differ in exactly one case — self-muted while
-  // somebody else is still talking — and keeping the session a call across it
-  // is what stops a Bluetooth route being lost to a profile handover nobody
-  // needed. Same round-trip caveat as above, and the same answer: a recording
-  // asked for and not yet confirmed already opens a microphone here.
-  const anyMicOpen =
-    !!live && (anyMicrophoneOpen(live) || app.recordingAsked === live.id);
+  // whether we publish. The two ask different questions — whether this app has
+  // any audio, against whether anything is listening for us — and part company
+  // for a guest without the microphone, for anybody self-muted, and for shared
+  // playback with nobody in the room. Same round-trip caveat as above, and the
+  // same answer: a recording asked for and not yet confirmed is audio here too.
+  const hasAudio =
+    !!live && (channelHasAudio(live, me) || app.recordingAsked === live.id);
 
   const audio = useSessionAudio(
     // Keyed on the audio rather than on the channel, which are no longer the
@@ -99,7 +99,7 @@ function Root() {
     token,
     !!live?.selfMuted[me],
     micNeeded,
-    anyMicOpen
+    hasAudio
   );
 
   /**

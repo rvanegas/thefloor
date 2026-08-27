@@ -1838,3 +1838,117 @@ that prove wrong, the restore is still the smaller of the two fixes — a field
 on `FloorState` recording that the release was caused by a disconnect, so that
 nothing else can be resurrected by it — and it is not a reason to lengthen the
 budget, which is what would otherwise be reached for.
+
+## Hands-free only, because fidelity had exactly one real claimant — 2026-08-27
+
+From TASKS.md § *HF only*, which read in full: *hands-free only media player.
+this should simplify matters.*
+
+**The rule.** `sessionFor` took two inputs and chose between three
+configurations. It now takes one and chooses between two:
+
+    CALL when this app has any audio at all, IDLE when it has none.
+
+`channelHasAudio(channel, me)` in `core/micNeeded.ts` computes the boolean —
+a withholding watch party is `false`, anybody else in the room is `true`, a
+recording is `true`, a loaded playback track is `true`.
+
+**What the old rule believed.** `anyMicrophoneOpen` asked *is anybody
+capturing*, and took the high-fidelity `playback` session whenever nobody was.
+Underneath that was a premise nobody had stated: that a channel with no open
+microphone has somebody in it who wants the stereo route. Three candidates for
+who that was, and two of them do not survive being said out loud.
+
+**Voices are already degraded by the codec.** Whatever the Bluetooth link is
+doing, what arrives has been through WebRTC. The mono profile is not the
+binding constraint on how a conversation sounds, so protecting a channel's
+voices from HFP protects nothing.
+
+**Shared playback is not trying to be a media player**, and this is the one
+that had actually been designed for. `LISTENING` existed so that a shared track
+was exclusive; `IDLE` for the closed states meant a track played to somebody
+alone came out in stereo. But a file played into a channel is a thing two
+people listen to *together*, and its quality should not depend on whether one
+of them is talking over it. A rule that makes playback sound better while
+nobody speaks and worse the moment somebody does is a rule that punishes the
+conversation the feature exists to support.
+
+**Another app is the one that survives**, and it is the whole of what `IDLE` is
+for now. Somebody sitting in a channel with nothing happening, listening to
+music or a podcast or watching something, should cost that app nothing —
+neither the route nor the audio focus. That was always the strongest of the
+three; it is now the only one.
+
+**What moved.** Two rows of the decision table in STATES.md.
+
+- **Everybody present muted** was `IDLE` and is `CALL`. A muted room is not a
+  silenced room: it is a live room that happens to be quiet, and every mute is
+  unilateral and instant — `canSetSelfMute` refuses only the muting. Handing
+  the route back there hands it back on a state anybody can leave in the time
+  it takes to start a sentence, and the profile handover then lands on that
+  sentence's first syllable.
+- **Alone with a track** was `IDLE` and is `CALL`, from the moment the track is
+  *loaded* rather than when it is heard. `setTrack` leaves the status `paused`,
+  so the session is already a call before anything is published — the category
+  write no longer lands at the instant the track arrives and the engine starts.
+  That collision is what build 90 was about.
+
+Nothing else moved. Alone with nothing running is still `IDLE`, and so is a
+watch party while the video plays.
+
+**The watch party looks like an exception and is not**, which is the part of
+this that reads as a carve-out and should not. The Floor carries no video: each
+person's own player follows a transport clock, and `partyWithholds` withholds
+every voice for as long as the film runs. So this app has nothing to play and
+nothing to capture, and the other app that wants the route is the player
+itself. The film's fidelity was never ours to protect — it is protected by the
+same rule that protects a podcast. It is the only answer that is arranged
+rather than falling out: the withhold is asked ahead of the occupants, who are
+present throughout.
+
+**What this deletes.** `anyMicrophoneOpen`, `LISTENING`,
+`EXCLUSIVE_WHEN_AUDIBLE`, the `othersAudible` argument to `sessionFor`,
+`policyFor`, `applyFor`, `pushPolicy` and `trace`, and the `anyMicOpen`
+parameter threaded through `useSessionAudio`. The subscribed-track count is
+still measured and still reported by the panel; it decides nothing.
+
+**Three consequences worth naming separately.**
+
+*The audio session stopped being a channel-topology question.* From 2026-08-18
+one person's self-mute was an input to everybody's session — the largest single
+claim STATES.md had to make. `channelHasAudio` does not consult `selfMuted`.
+The 2026-08-19 route loss that `anyMicrophoneOpen` was written for stays fixed
+by a shorter argument: somebody else is in the room, so there is audio, so the
+category never moves.
+
+*Disagreement 11 closes by construction.* `session.ts` hands the observer
+`recording: CALL` unconditionally, which used to rest on *our capturing implies
+`anyMicOpen`* — an implication self-mute falsified, and the leading suspect in
+TASKS.md § *The Foreground Interruption*. The engine can only be recording
+where `microphoneNeeded` was true, and every case that makes it true makes
+`channelHasAudio` true. **This is not a confirmed fix for that entry and must
+not be recorded as one.** It removes one of three candidates, leaving
+activation itself and WebRTC's defaults. The entry's own instruction — measure
+at the foreground before touching code — is still outstanding, and its recipe
+has changed shape: everybody-muted is now `CALL` by design, so the surviving
+half to run is *alone in a channel*.
+
+*`LISTENING`'s feature comes back for free.* Shared playback interrupting
+another app's audio was designed, shipped, never confirmed on a device, and
+switched off in build 90. It now falls out of `CALL` being exclusive, with no
+configuration of its own and no write landing at the subscription.
+
+**What it costs, and it is a real cost rather than a rounding.** A channel with
+people in it holds the hands-free profile for as long as it lasts. A Bluetooth
+route stays mono and other apps stay interrupted through every silence, not
+only through the talking. Anybody who sits in a channel for hours pays for it
+in battery and in stereo. That is the trade, made deliberately: the state being
+protected — a live room that happens to be quiet — is not one anybody sits in
+on purpose, and the alternative was a profile handover timed to the first
+syllable of whoever breaks the silence.
+
+**Not verified on a device.** The suite is green, the typecheck is clean, and
+none of that is evidence about a Bluetooth profile. The walk is
+HF-ONLY-WALK.md, and it exists because this subsystem has a documented history
+of being reasoned from source, shipped, and written up as fixed before anybody
+listened — STATES.md disagreement 5 is the entry that says so about itself.

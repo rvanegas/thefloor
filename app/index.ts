@@ -33,12 +33,12 @@ registerGlobals();
 // Whichever writes last wins, and both write the same process-wide object.
 //
 // This is the *starting* policy only, and it is nobody-here-yet by
-// construction: not connected, nothing audible, no microphone open. Once there
+// construction: not connected, so this app has no audio of its own. Once there
 // is a connection, `useSessionAudio` re-pushes `policyFor` at every edge, which
 // is what keeps the observer's answer equal to ours rather than merely close to
 // it. It is written as a call rather than a constant so the two can never drift
 // apart in maintenance. See src/audio/session.ts.
-setupIOSAudioManagement(true, policyFor(false, 0));
+setupIOSAudioManagement(true, policyFor(false));
 
 // How the engine *mutes* is a third writer of this session, and it is set here
 // for the same reason the policy above is: it is process-wide, it is read at a

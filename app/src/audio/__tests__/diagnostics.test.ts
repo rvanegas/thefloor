@@ -32,7 +32,7 @@ import type { AudioIntent } from '../useSessionAudio';
 const ASKED_CALL: AudioIntent = {
   selfMuted: false,
   micNeeded: true,
-  anyMicOpen: true,
+  hasAudio: true,
   othersAudible: 1,
   intent: 'capturing',
   session: CALL,

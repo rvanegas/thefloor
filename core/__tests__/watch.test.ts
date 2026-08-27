@@ -1,6 +1,6 @@
 import { DISCONNECT_GRACE_MS, FLOOR_CLAIM_MS } from '../constants';
 import { parseYouTubeUrl, watchPositionMs } from '../watch';
-import { anyMicrophoneOpen, microphoneNeeded } from '../micNeeded';
+import { channelHasAudio, microphoneNeeded } from '../micNeeded';
 import {
   canControlPlayback,
   canControlWatch,
@@ -423,8 +423,12 @@ describe('muting the room', () => {
     expect(microphoneNeeded(s, A)).toBe(false);
     expect(microphoneNeeded(s, B)).toBe(false);
     // Which takes every audio session out of its call configuration for the
-    // length of the film, and falls out rather than being arranged.
-    expect(anyMicrophoneOpen(s)).toBe(false);
+    // length of the film. It survived the 2026-08-27 rule change and is the
+    // one place the answer is still arranged rather than falling out: the
+    // withhold is asked first, ahead of the occupants who are present
+    // throughout. The Floor carries no video, so the film is coming out of
+    // another app, and that app is the claimant this configuration exists for.
+    expect(channelHasAudio(s, A)).toBe(false);
   });
 
   it('holds only while the video plays', () => {

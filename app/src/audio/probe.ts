@@ -112,9 +112,13 @@ export function runProbe(probe: Probe, record: (text: string) => void): void {
  * back and reinstalled to keep testing. A harness that costs a reinstall per
  * iteration is a harness nobody completes.
  *
- * It is also the BACKLOG fallback for the `IDLE` → `LISTENING` edge, made
- * pressable: if this reliably restores sound, the recovery in
- * `useSessionAudio` is the fix and the mechanism matters less than it looks.
+ * It is also the BACKLOG fallback for the edge where a session already active
+ * has to become exclusive, made pressable: if this reliably restores sound,
+ * the recovery in `useSessionAudio` is the fix and the mechanism matters less
+ * than it looks. That edge is rarer since 2026-08-27 — `channelHasAudio` is
+ * true from the moment a track is loaded rather than from the moment one is
+ * heard — but it is not gone: the first person arriving in a channel somebody
+ * was sitting alone in still crosses it.
  */
 export async function restartAudioSession(
   record: (text: string) => void

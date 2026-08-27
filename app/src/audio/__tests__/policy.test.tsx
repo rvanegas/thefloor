@@ -126,11 +126,11 @@ const lastPolicy = () => setup.mock.calls[setup.mock.calls.length - 1][1];
 function Probe({
   selfMuted,
   micNeeded = true,
-  anyMicOpen = true,
+  hasAudio = true,
 }: {
   selfMuted: boolean;
   micNeeded?: boolean;
-  anyMicOpen?: boolean;
+  hasAudio?: boolean;
 }) {
   useSessionAudio(
     'room-1',
@@ -138,7 +138,7 @@ function Probe({
     'auth-token',
     selfMuted,
     micNeeded,
-    anyMicOpen
+    hasAudio
   );
   return null;
 }
@@ -213,7 +213,7 @@ describe('a self-mute', () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(
-        <Probe selfMuted micNeeded={false} anyMicOpen={false} />
+        <Probe selfMuted micNeeded={false} hasAudio={false} />
       );
     });
     await settle();
@@ -221,7 +221,7 @@ describe('a self-mute', () => {
     expect(local.published).toBeNull();
 
     await act(async () => {
-      tree.update(<Probe selfMuted micNeeded anyMicOpen />);
+      tree.update(<Probe selfMuted micNeeded hasAudio />);
     });
     await settle();
 
@@ -246,7 +246,7 @@ describe('releasing the microphone', () => {
 
     await act(async () => {
       tree.update(
-        <Probe selfMuted={false} micNeeded={false} anyMicOpen={false} />
+        <Probe selfMuted={false} micNeeded={false} hasAudio={false} />
       );
     });
     await settle();
@@ -280,7 +280,7 @@ describe('releasing the microphone', () => {
 
     await act(async () => {
       tree.update(
-        <Probe selfMuted micNeeded={false} anyMicOpen={false} />
+        <Probe selfMuted micNeeded={false} hasAudio={false} />
       );
     });
     await settle();
@@ -298,7 +298,7 @@ describe('releasing the microphone', () => {
 
     await act(async () => {
       tree.update(
-        <Probe selfMuted={false} micNeeded={false} anyMicOpen={false} />
+        <Probe selfMuted={false} micNeeded={false} hasAudio={false} />
       );
     });
     await settle();

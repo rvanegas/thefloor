@@ -4,8 +4,16 @@ import type {
 } from '@livekit/react-native';
 
 /**
- * The three states the iOS audio session is ever in, and the single place they
+ * The two states the iOS audio session is ever in, and the single place they
  * are written down.
+ *
+ * **There were three until 2026-08-27.** `LISTENING` was `IDLE` without
+ * `mixWithOthers`, so that shared playback interrupted another app's audio
+ * instead of mixing with it, and it was switched off in build 90 on suspicion
+ * of racing the engine's own start. It is gone rather than switched off,
+ * because the rule it belonged to is gone: anything this app has audio for is
+ * now `CALL`, which is exclusive already. The feature it existed for arrives
+ * as a consequence instead of as a third configuration.
  *
  * Three different writers can configure this session: this app, the SDK's
  * native policy observer on every audio-engine transition, and WebRTC itself
@@ -30,40 +38,25 @@ import type {
  */
 
 /**
- * What the session asks of the system when there is nothing to hear and
- * nothing to capture: connected to a channel, alone, silent.
+ * What the session asks of the system when this app has no audio at all:
+ * connected to a channel, alone, nothing running — or watching a party whose
+ * film is playing out of somebody else's player.
  *
  * `playback` rather than `playAndRecord` is the whole point: taking the session
  * as a call drags a Bluetooth speaker from A2DP down to HFP — mono, roughly
  * 16 kHz — and makes every other app's audio unusable for as long as you are in
  * the channel.
  *
- * **`mixWithOthers` is here and in neither of the others**, which is the whole
- * of what "other apps keep playing while nothing is happening" means. Being in
- * an empty channel should cost the speakers nothing — `core/micNeeded.ts` makes the
+ * **`mixWithOthers` is here and not in `CALL`**, and since 2026-08-27 that is
+ * the entire remaining purpose of this configuration: the only claimant on the
+ * audio system worth handing it back to is **another app**. Being in an empty
+ * channel should cost the speakers nothing — `core/micNeeded.ts` makes the
  * same argument about the microphone, and this is that argument applied to the
  * other end of the session.
  */
 export const IDLE: AppleAudioConfiguration = {
   audioCategory: 'playback',
   audioCategoryOptions: ['mixWithOthers'],
-  audioMode: 'spokenAudio',
-};
-
-/**
- * What the session asks of the system when something is audible but we are not
- * capturing: somebody else is publishing, or a recording is being played into
- * the room, and our own microphone is closed.
- *
- * `IDLE` without `mixWithOthers`, and that single difference is the feature:
- * an exclusive session interrupts whatever else is playing, which is what
- * "pause the podcast when somebody starts talking" is made of. The category
- * stays `playback` — there is nothing to capture, so none of the costs that
- * `playAndRecord` carries are worth paying to be exclusive.
- */
-export const LISTENING: AppleAudioConfiguration = {
-  audioCategory: 'playback',
-  audioCategoryOptions: [],
   audioMode: 'spokenAudio',
 };
 
@@ -118,12 +111,14 @@ export const LISTENING: AppleAudioConfiguration = {
  * Dropping it means a capturing session offers only routes that can *do* both
  * halves: an HFP headset via `allowBluetooth`, AirPlay, or — when neither is
  * there — the built-in speaker and microphone, which `defaultToSpeaker` picks
- * over the earpiece. A2DP is not lost, it is scoped: `IDLE` and `LISTENING`
- * are `playback`, where a Bluetooth device is an eligible output with no
- * option needed at all, so the stereo route is exactly as available as before
- * whenever nobody is capturing. **The audible mono/stereo transition that
- * STATES.md calls a feature is unchanged**, because it was never about this
- * option — it is about the category, which has not moved.
+ * over the earpiece. A2DP is not lost, it is scoped: `IDLE` is `playback`,
+ * where a Bluetooth device is an eligible output with no option needed at all,
+ * so the stereo route is exactly as available as before whenever this app has
+ * no audio of its own. **The audible mono/stereo transition is unchanged by
+ * this option**, because it was never about it — it is about the category.
+ * What did move the transition is the 2026-08-27 rule: it now fires when the
+ * room stops being empty rather than when somebody's microphone opens, so it
+ * says *there is somebody here* rather than *somebody could be heard*.
  *
  * **This is the option build 19 removed, and it is being removed again for a
  * different reason and with a different expectation.** Build 19 dropped it and
@@ -145,80 +140,23 @@ export const CALL: AppleAudioConfiguration = {
 };
 
 /**
- * Which of the three the session should be in.
+ * Which of the two the session should be in.
  *
  * A function with a test rather than a condition inline, on the same reasoning
  * as `microphoneNeeded`: this is the rule that decides whether somebody else's
  * music stops, and it is short enough to look obviously right while being
- * wrong in either direction.
+ * wrong in either direction. It is one boolean now, and the boolean is the
+ * whole design — see `channelHasAudio` in core/micNeeded.ts, which computes it.
  *
- * @param anyMicOpen    whether **anybody present** is capturing, not merely
- *                      whether we are. Wins outright — `playAndRecord` is
- *                      needed whoever else is audible.
- *
- *                      Channel-wide rather than local because the boundary it
- *                      guards is a Bluetooth profile handover, and crossing it
- *                      costs a stereo route that can be lost in the crossing.
- *                      Self-muting while the other party was still talking
- *                      used to cross it, and dropped a tester's headphones to
- *                      the phone speaker until they unmuted. Nobody wants
- *                      stereo mid-conversation; the two situations that do want
- *                      it — another app's audio, and the channel's own playback
- *                      — are both "nobody is talking", which is exactly this
- *                      test. `anyMicrophoneOpen` in core/micNeeded.ts carries the
- *                      whole argument.
- * @param othersAudible how many remote tracks we can hear. Track
- *                      subscriptions rather than who is *speaking*: speech is
- *                      smoothed live signal and following it would reconfigure
- *                      the session at every pause in a sentence.
+ * @param hasAudio whether **this app** has any audio at all: somebody else in
+ *                 the room, a recording running, or shared playback loaded.
+ *                 Not whether anybody is capturing, and not whether anything
+ *                 is currently coming out of the speaker. The question is
+ *                 which app should own the audio system, and the only claimant
+ *                 worth handing it back to is another app.
  */
-/**
- * Whether the two closed states are still two — **off since build 90, as an
- * experiment that is also a candidate fix.**
- *
- * Turning it off collapses `IDLE` and `LISTENING` into one configuration, so
- * the only category write left while connected is the one at the microphone
- * boundary. That boundary is `CALL`, and `CALL` demonstrably works.
- *
- * **What it is testing.** Shared audio played to somebody alone in a channel
- * could not be heard: the pump produced frames, LiveKit carried them into a
- * room the phone was active in, and nothing came out. Build 89's log put the
- * category write and the engine's own start within a millisecond of each other,
- * and the ordering decided the outcome — write first and nothing was ever
- * heard, engine first and a fraction of a second was heard before it stopped.
- * They interfere. This removes the write from the closed case entirely, so
- * there is nothing left to race the engine's start.
- *
- * **What it costs, and it is a real feature rather than an internal.**
- * `LISTENING` exists so that shared playback *interrupts* another app's audio
- * instead of mixing with it — DECISIONS.md § *Pause other apps when there is
- * actually something to hear*. With this off, a podcast plays on underneath a
- * shared track. That is worse than the product on paper and better than the
- * product that exists, where the shared track cannot be heard at all. The
- * feature was never confirmed working on a device in any case; BACKLOG.md has
- * carried it as unheard since it shipped.
- *
- * **`IDLE` is the survivor rather than `LISTENING`, and that is the point of
- * the change rather than a preference between them.** `IDLE` is what the
- * connect path applies before `startAudioSession`, so keeping it means the
- * session is configured once, before anything is active, and never written
- * again until a microphone opens. Keeping `LISTENING` instead would leave a
- * write landing at the moment a track subscribes, which is the moment the
- * engine starts — exactly the collision being removed.
- *
- * **Delete this rather than leave it, either way.** If the audio holds, the
- * distinction was not worth what it cost and `LISTENING` should go with it. If
- * the audio still dies, the write is exonerated, this comes back on, and the
- * next suspect is the engine start itself.
- */
-const EXCLUSIVE_WHEN_AUDIBLE = false;
-
-export function sessionFor(
-  anyMicOpen: boolean,
-  othersAudible: number
-): AppleAudioConfiguration {
-  if (anyMicOpen) return CALL;
-  return EXCLUSIVE_WHEN_AUDIBLE && othersAudible > 0 ? LISTENING : IDLE;
+export function sessionFor(hasAudio: boolean): AppleAudioConfiguration {
+  return hasAudio ? CALL : IDLE;
 }
 
 /**
@@ -231,9 +169,17 @@ export function sessionFor(
  * is what makes the two writers say the same thing, which is the invariant
  * `__tests__/session.test.ts` pins.
  *
- * `recording` is `CALL` unconditionally and that is not a special case: the
- * observer reads it only while *this* device is capturing, and our capturing
- * implies `anyMicOpen`, so `sessionFor` would return `CALL` anyway.
+ * **`recording: CALL` is unconditional, and as of 2026-08-27 that is true by
+ * construction rather than by argument.** It used to rest on *the observer
+ * reads it only while this device is capturing, and our capturing implies
+ * `anyMicOpen`* — an implication self-mute falsified, since `intentFor`
+ * returns `muted` and holds the device open while `anyMicrophoneOpen` excluded
+ * the self-muted. That was STATES.md disagreement 11 and the leading suspect
+ * in "The Foreground Interruption". The engine can only be recording when
+ * `microphoneNeeded` was true, which means somebody else is in the room or a
+ * recording is running, and `channelHasAudio` returns true for both. There is
+ * no input left on which the observer would apply `CALL` over an `IDLE` we
+ * asked for.
  *
  * **Push it before the transition, never after.** The observer reads whatever
  * is stored when the engine moves, so a policy pushed after
@@ -251,15 +197,12 @@ export function sessionFor(
  * the SDK's caution about switching mid-call is about switching *paths*
  * (the deprecated JS callback against this native one), not about a policy.
  */
-export function policyFor(
-  anyMicOpen: boolean,
-  othersAudible: number
-): IOSAudioSessionPolicy {
-  return { recording: CALL, playout: sessionFor(anyMicOpen, othersAudible) };
+export function policyFor(hasAudio: boolean): IOSAudioSessionPolicy {
+  return { recording: CALL, playout: sessionFor(hasAudio) };
 }
 
 /**
- * Which of the three this is, for a log line.
+ * Which of the two this is, for a log line.
  *
  * Identity comparison, which holds because every configuration this app applies
  * comes from `sessionFor` and is therefore one of the constants themselves —
@@ -267,7 +210,6 @@ export function policyFor(
  */
 export function nameOf(config: AppleAudioConfiguration): string {
   if (config === CALL) return 'CALL';
-  if (config === LISTENING) return 'LISTENING';
   if (config === IDLE) return 'IDLE';
   return 'unknown';
 }
