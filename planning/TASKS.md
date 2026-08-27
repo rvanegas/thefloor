@@ -94,8 +94,37 @@ submission needs.
 
 ## Websocket Lost
 
-What is the timeline within a channel when websocket is lost?
-Also, what happens when user receives a phone call?
+**The websocket half is answered and acted on — 2026-08-27.** The timeline,
+what was wrong with it and what was changed are in
+`decisions/DECISIONS.md` § *Talking into a void, which had three causes and one
+of them was politeness*; the states themselves are in STATES.md §
+*Claimed Floor* and § *Audio Connected*. Worst case from a phone going quiet to
+the room being told is now ~17s rather than ~47s, a claim is released as soon as
+a drop is noticed rather than a minute later, and the roster warns from the
+media plane before the websocket can know anything.
+
+**What is left is the phone call**, which is the half this entry asks about
+that nothing has measured. There is no `AVAudioSession.interruptionNotification`
+observer anywhere in the app — only a route-change one, in
+`AudioRouteModule.swift` — and no CallKit integration, so an incoming call is an
+ordinary interruption handled entirely by `RTCAudioSession` inside the WebRTC
+layer. Answering it backgrounds the app, which suspends it despite the `audio`
+background mode because the interruption means it is no longer playing anything,
+and the whole websocket timeline above then runs. The one recorded sighting is a
+*Telegram* VoIP call on 2026-08-18 that left the room dead until a force-quit
+(STATES.md § *Audio Connected*); the specific hole it found was fixed, and a
+real cellular call has still never been tried. Measure before writing code, the
+same order § *The Foreground Interruption* asks for and for the same reasons.
+
+**And the grace period is now measurable rather than argued.** `/healthz`
+carries `drops`, `dropsRecovered` and `dropsExpired`, printed by `bin/health`.
+`DISCONNECT_GRACE_MS` was deliberately left at a minute — read those counts off
+a box that has been up a while before proposing a change to it, and read the
+constant's own comment for what it is load-bearing for beyond a dot on a roster.
+
+## Review S3
+
+What's there? How many files? What kind? What is the lifecycle?
 
 ## Lock Screen
 
