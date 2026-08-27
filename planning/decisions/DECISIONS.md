@@ -75,6 +75,35 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-08-26 — `a4491cf` → `c7537d7`
+
+Four commits: the revert of `bab713e`, the two that replaced it, and the
+working tree's pending TASKS.md edits folded into the landing. The server's half
+is two fields on `RejoinableView` — `lastPresenceByOthers`, the room's recency
+with the reader taken out, and `steppedInAt`, when that reader last stepped in —
+plus the `lastEntry` map behind the second and `PRESENCE_LIFETIME_MS` moving to
+`core/constants.ts` so both ends read one window.
+
+**Both fields are additive and optional, so no two-step was needed.** An
+installed build receives two keys it has never heard of and ignores them; the
+client that reads them is build 106, uploaded minutes after this. The order is
+still the ordinary one and still matters — the app falls back to
+`lastPresenceAt` when `lastPresenceByOthers` is absent, so a phone that updates
+before this deploy lands would draw the old line and the old order rather than
+anything wrong, and would start drawing the new ones the moment the server
+answered with them.
+
+**Nothing was migrated and nothing needed to be.** `lastEntry` is in memory by
+design — five minutes wide, and a restart drops presence anyway — so this deploy
+started it empty, which reads as "nobody has stepped in recently" on every row
+until somebody does. That is the honest state after a restart rather than a gap:
+the restart path already pre-suppresses arrival announcements for the same
+window, so there was nothing to preserve.
+
+`bin/health` confirmed `c7537d7` against this checkout, `oldestBuild` 56 and no
+silent builds, so `MIN_SUPPORTED_BUILD` is untouched at 51 and nothing was
+expired by this.
+
 ### 2026-08-25 — `ef0d0a2` → `d1794b7`
 
 Two commits, one of them the build 98 bump. The server's half is
