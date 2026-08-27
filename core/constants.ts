@@ -267,3 +267,21 @@ export const HEARTBEAT_TIMEOUT_MS = 12_000;
  * not shown anywhere in a channel.
  */
 export const MAX_CLIP_LENGTH = 8_000;
+
+/**
+ * How long a presence announcement stays worth delivering.
+ *
+ * "Somebody is here now" is false within minutes, and Apple will hold an
+ * undeliverable push for as long as it is allowed to. Five minutes is roughly
+ * how long it stays true that walking over to your phone would let you join
+ * the conversation being announced.
+ *
+ * **Shared with the client since 2026-08-26**, which is why it lives here
+ * rather than in the server's `push.ts` where it was written. Home marks a
+ * channel you have just called into, and the mark has to fade on the phone's
+ * own clock rather than wait for the next snapshot — so both ends need the
+ * window, and the announcement's own life is the honest one to use: the mark
+ * reports a push, and stops when the push it reports has stopped being worth
+ * delivering. Two constants that had to agree would be worse than the move.
+ */
+export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;

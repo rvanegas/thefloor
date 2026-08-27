@@ -3,6 +3,7 @@ import {
   idleMs,
   isWaiting,
   lastPresenceAt,
+  lastPresenceByOthers,
   reduce,
 } from '../channel';
 import { DISCONNECT_GRACE_MS, WAITING_WINDOW_MS } from '../constants';
@@ -254,3 +255,115 @@ describe('waiting, which is an absence nobody chose', () => {
     expect(s.waiting).not.toContain(B);
   });
 });
+
+/**
+ * And the same question again with the reader taken out of it, which is what
+ * **every** channel row on Home now says and what the list is ordered by. The
+ * two above cannot answer it: `idleMs` is about one named person, and
+ * `lastPresenceAt` is about the room, which includes the person reading it.
+ */
+describe('how long it is since anybody else was in a channel', () => {
+  it('is null when only the reader has ever been present', () => {
+    // Asserted beside the room's own number, because the asymmetry is the
+    // point: the channel has a moment to report and nobody else does.
+    const s = reduce(
+      createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }),
+      { type: 'STILL_HERE', userId: A },
+      T0 + 60_000
+    );
+    expect(lastPresenceAt(s)).toBe(T0 + 60_000);
+    expect(lastPresenceByOthers(s, A)).toBeNull();
+  });
+
+  it('is null for a channel nobody has ever been in', () => {
+    // The standing channel a pair get for becoming contacts. Neither of them
+    // is owed a number, and the room's own falls back to when it was made.
+    const s = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    expect(lastPresenceAt(s)).toBe(T0);
+    expect(lastPresenceByOthers(s, A)).toBeNull();
+    expect(lastPresenceByOthers(s, B)).toBeNull();
+  });
+
+  it('ignores the reader\'s own heartbeat', () => {
+    // The complaint this exists for: an hour sat in the channel alone must not
+    // make it read as the freshest thing on Home.
+    let s = reduce(pair(), { type: 'STEP_OUT', userId: B }, T0);
+    s = reduce(s, { type: 'STILL_HERE', userId: A }, T0 + 3_600_000);
+    expect(lastPresenceAt(s)).toBe(T0 + 3_600_000);
+    expect(lastPresenceByOthers(s, A)).toBe(T0);
+  });
+
+  it('answers with the freshest of several others', () => {
+    const C = 'usr_c';
+    let s = createChannel({
+      id: 's1',
+      initiator: A,
+      invitees: [B, C],
+      now: T0,
+    });
+    s = reduce(s, { type: 'ENTER', userId: B }, T0);
+    s = reduce(s, { type: 'ENTER', userId: C }, T0);
+    s = reduce(s, { type: 'STEP_OUT', userId: B }, T0 + 10_000);
+    s = reduce(s, { type: 'STEP_OUT', userId: C }, T0 + 20_000);
+    // And unchanged by the reader's own stamp being the largest of the three.
+    s = reduce(s, { type: 'STILL_HERE', userId: A }, T0 + 30_000);
+    expect(lastPresenceByOthers(s, A)).toBe(T0 + 20_000);
+  });
+
+  it('does not fall back to the last entry or exit', () => {
+    // The correction `lastPresenceAt` gets and this one gives up, asserted so
+    // that nobody later "fixes" it by folding `lastActiveAt` back in: that
+    // stamp is unattributed, and admitting it would put the reader's own
+    // comings and goings into the one number meant to leave them out.
+    //
+    // The bound is the other half of the assertion. What is lost is the
+    // minute the server's `quantise` floors to, and no more — which is inside
+    // the sixty seconds the app already reads as no gap at all.
+    const s = reduce(pair(), { type: 'STEP_OUT', userId: B }, T0 + 90_000);
+    const quantised: typeof s = { ...s, lastPresentAt: { [B]: T0 + 60_000 } };
+    expect(lastPresenceAt(quantised)).toBe(T0 + 90_000);
+    expect(lastPresenceByOthers(quantised, A)).toBe(T0 + 60_000);
+    expect(
+      lastPresenceAt(quantised) - lastPresenceByOthers(quantised, A)!
+    ).toBeLessThan(60_000);
+  });
+
+  it('does not count a guest as somebody else', () => {
+    // A guest moves `lastActiveAt` and never `lastPresentAt`, so a channel a
+    // guest link has been through still reads as one no other member has been
+    // in — which is true, members being what a channel list is about. Both
+    // halves are asserted, since a guest who never arrived would give the same
+    // answer for the wrong reason.
+    let s = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    s = reduce(
+      s,
+      {
+        type: 'GUEST_ENTERED',
+        guest: {
+          id: 'gst_1',
+          name: 'Dana',
+          admittedAt: T0 + 1_000,
+          maySpeak: false,
+          request: 'none',
+        },
+      },
+      T0 + 1_000
+    );
+    s = reduce(s, { type: 'GUEST_GONE', guestId: 'gst_1' }, T0 + 60_000);
+    expect(s.lastActiveAt).toBe(T0 + 60_000);
+    expect(lastPresenceAt(s)).toBe(T0 + 60_000);
+    expect(lastPresenceByOthers(s, A)).toBeNull();
+  });
+
+  it('is not moved by a connection giving up', () => {
+    // `DISCONNECT_EXPIRED` does not re-stamp, so what the reader sees is the
+    // last moment the other person was genuinely heard from rather than the
+    // moment the grace timer fired.
+    const heard = T0 + 30_000;
+    let s = reduce(pair(), { type: 'STILL_HERE', userId: B }, heard);
+    s = reduce(s, { type: 'DISCONNECTED', userId: B }, heard);
+    s = reduce(s, { type: 'TICK' }, heard + DISCONNECT_GRACE_MS + 1);
+    expect(lastPresenceByOthers(s, A)).toBe(heard);
+  });
+});
+

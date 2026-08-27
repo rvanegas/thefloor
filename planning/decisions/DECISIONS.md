@@ -1251,3 +1251,205 @@ body first.
 So the entry is closed as shipped rather than as work. If it comes back, it is
 the 1:1 repeat that is being complained about, and the argument above is the
 one to overturn.
+
+## Home counts other people, and marks your own call separately — 2026-08-26
+
+Home ordered and labelled channels by `lastPresenceAt`, the maximum across every
+`lastPresentAt` stamp *and* `lastActiveAt` — so it includes the reader. A
+channel you stepped into alone this morning read, and sorted, as fresher than
+one two other people spent an hour in yesterday. The fresher of the two is the
+one where nothing happened.
+
+What makes this worse than a mis-ranking is `stepOutOfOthers`: **presence is
+exclusive**, so entering a channel removes you from every other one. Somebody
+going down the list announcing themselves — step in, wait, step into the next —
+was rewriting the top of their own list with their own footsteps, one row at a
+time, and had no way to tell those rows from rooms somebody else had been in.
+
+### Three tries, and the first two are worth recording
+
+**`bab713e` shipped two numbers behind a setting, and was reverted.** The room's
+own number and a second with the reader removed, joined with ` · ` on the same
+line, gated on `thefloor.showOthers`, plus the mirror of it on Contacts. The
+arithmetic was right and the packaging was not: two intervals on one row of a
+list that is *scanned* rather than read is a question posed to the reader rather
+than a fact given to them, and a setting to turn the second one on is a setting
+nobody knows the meaning of until after they have tried it. The sorts were left
+untouched, which meant the room you were alone in still sat at the top and now
+explained why — an explanation being no substitute for not doing it.
+
+**`lastTogetherAt` was built, tested green, and discarded before it landed.** The
+idea: measure the last moment *two or more* people were in the room, guests
+counted, on the reasoning that without two people there is no conversation. It
+is the obvious idea, which is why it is written down here rather than left out —
+the next person will have it again.
+
+It is holed. **A member who steps in alone and leaves before anyone joins
+registers nothing**, so the channel is buried. That is not an edge case: it is
+somebody coming to find you, it is the single most actionable thing Home can
+report, and it is the same gesture the reader makes themselves. It is also
+exactly what the push already announces — `announceActive` fires on
+`before.present.length === 0 && after.present.length > 0`, so a lone arrival in
+an empty room notifies every absent member, and a *second* person joining an
+occupied one notifies nobody. A channel list ordered by simultaneity would have
+had Home contradicting the notification that brought the reader to it.
+
+### One measure: `lastPresenceByOthers`
+
+Three kinds of event move a channel's recency, and only two are worth surfacing:
+
+| | event | surface it? |
+| --- | --- | --- |
+| **a** | somebody *else* here alone | **yes** — a bid, aimed at you, the thing you missed |
+| **b** | two or more here together | **yes** — a conversation happened |
+| **c** | *you* here alone | **no** — your own echo; you already know |
+
+`lastPresenceAt` counts all three. `lastTogetherAt` counts only **b**. The last
+moment anybody other than the reader was in the room counts **a** and **b** and
+excludes **c**, which is the whole specification, and it is the function
+`bab713e` wrote.
+
+**It strictly dominates `lastTogetherAt`**, which is the argument that settled
+it: any moment with two people in the room contains at least one person who is
+not you, so `lastPresenceByOthers >= lastTogetherAt` always. It buries nothing
+the other surfaces and surfaces the case the other buries. There is no scenario
+where simultaneity is the better key.
+
+Two more properties, both of which fell out rather than being designed for:
+
+- **It answers "which of these are fresh only because of me?" by construction.**
+  Those rows do not rise, there being nothing of the reader in the number. That
+  is what the `showOthers` toggle was reaching for and could not reach, having
+  kept the reader inside one of its two numbers — the comparison it offered was
+  between a number that counted you and a number that did not, which is a
+  subtraction performed by the reader.
+- **It is the channel screen's own fact, one zoom out.** `ParticipantCard`
+  renders each member's `idleMs` as `Stepped out 3 hours ago`; this is the
+  maximum of exactly those, minus the reader's own row. So "what accounts for
+  this?" is answered by opening the channel, which is where that question was
+  always going to be asked. `lastTogetherAt` could not do that — simultaneity is
+  a different *kind* of fact, and nothing in the roster explains where its
+  number came from.
+
+**`lastActiveAt` cannot be in the fold, and that costs something real.** It is
+unattributed — it moves on anybody's entry or exit, including yours — so
+admitting it would put the reader's comings and goings back into the one number
+meant to leave them out. `lastPresenceAt` takes the maximum across both kinds
+partly *because* the persisted per-person stamps are floored to the minute by
+`quantise`, and an exit recorded in `lastActiveAt` can be the fresher evidence of
+the very same departure. This gives that correction up, so after a restart it can
+read up to a minute early. The test asserts the *bound* rather than a value, so
+nobody later "fixes" it by folding `lastActiveAt` back in.
+
+**Guests are out, permanently.** They move `lastActiveAt` and never
+`lastPresentAt` — `STILL_HERE` is guarded on `isPresent`, which reads
+`state.present`, so even a guest's heartbeat cannot stamp one. Making them count
+would mean giving a volatile population durable per-identity stamps, a guest id
+outliving the session it names, to move a number on a list about the people you
+have accounts with. Home's recency is a claim about **members**. This was left
+implicit in `bab713e` and is settled here so it is not re-opened as an oversight:
+a guest's visit is visible inside the channel and nowhere on Home, on purpose.
+
+### Three tiers, because the number is null-capable and the old one was not
+
+`byIdleness` gained a middle tier, which is the "fourth tier" problem the
+reverted TASKS entry raised and could not answer without deciding this:
+
+1. others have been here → most recent first
+2. **null but `everUsed`** — a room only the reader has opened. It cannot stay at
+   the top on the strength of a solitary visit, which is the complaint; and it
+   must not drop in among the never-opened, because somebody *went* there,
+   possibly to wait. Ordered among its own kind by `lastPresenceAt`, the only
+   number it has.
+3. `!everUsed` → bottom, by name, unchanged.
+
+**The row says the same number the list is ordered by**, which is the other half
+of the reason for changing the sort rather than only the label. A list ordered by
+one fact and annotated with another puts the disagreement in front of the reader
+and makes both halves look wrong. `bab713e` left them split and made a TASKS
+entry of it; this closes it.
+
+Against a server that predates the field every row takes the `lastPresenceAt`
+fallback, which restores the old order and the old line **exactly** rather than
+collapsing the list into tier 2 and shuffling it by name. Absent and null are
+different answers and both are drawn differently — null is a fact about the room
+and gets words, absent is a fact about the server and gets the old behaviour.
+
+### And one mark, which is not a measure
+
+Removing yourself from the number stops the false freshness. It does not tell you
+that you called — and it *cannot*, a number that has forgotten you being unable
+to report you. Those are two jobs and only one of them is a measure. This is the
+part all three attempts kept collapsing into the recency number and the part that
+had to stop being collapsed.
+
+`announcedAt` is **the receipt for a push**: the server records, per channel, the
+last arrival announcement it sent and who it was about, and `rejoinableFor`
+answers with the moment when that somebody was this reader. Not derived from
+`present` and not derived from any stamp — it has to outlive the visit it
+reports, since the visit is what `stepOutOfOthers` erases the instant the reader
+knocks on the next door.
+
+- **A moment on the wire, not a flag**, so the mark expires against the phone's
+  own clock instead of waiting for a snapshot that may never come. That needs
+  both ends to read one window, so `PRESENCE_LIFETIME_MS` moved from
+  `server/src/push.ts` to `core/constants.ts`. Five minutes, unchanged, and it is
+  the honest number twice over: the mark reports a push and stops when that push
+  has stopped being worth delivering.
+- **Cleared by supersession, with no machinery for clearing it.** Step out, and
+  when somebody else later walks into the empty room `announceActive` fires for
+  them and overwrites the entry. The mark goes at exactly the moment their
+  arrival makes the row's own interval fresh, so a mark saying "you called" can
+  never sit beside a number saying somebody answered.
+- **Set on both announce paths.** A first-ever entry sends `invited` rather than
+  `arrived` — a different push with a month's lifetime — but from the caller's
+  side it is the same act, and which push carried it is not a distinction they
+  can see or act on. The mark keeps its own five minutes either way, because the
+  claim it makes is "you just stepped in".
+- **In memory**, like `lastAnnouncedAt` beside it. It is five minutes wide, a
+  restart drops presence anyway, and the restart path already pre-suppresses
+  announcements for that same window — so a deploy losing it costs a mark that
+  was about to expire.
+- **It orders nothing**, deliberately and with a test. Sorting on it would put
+  the reader's own echo back at the top of the list, undoing with the second
+  signal precisely what the first one was for.
+
+**Drawn as `↗` rather than words or a bullet.** Not a bullet because
+`ParticipantCard` already spends a hollow/filled dot on who is speaking, and Home
+must not borrow a glyph that means something else two screens over. Not words
+because the muted line is carrying the interval and this is a different kind of
+thing — a note to yourself about your own last action, not another fact about the
+room. It sits at the row's right edge, which is where the invite `✕` lives, so it
+is styled emphatically *not* as a control: no `Pressable`, no hit slop, muted
+rather than accent. It cannot collide with the `✕` itself — stepping in is what
+sets `announcedAt` and also what stops a channel being an invitation, so a row
+can carry a mark or a dismiss and never both.
+
+The cost of a glyph is that it reads as nothing, and there is exactly one place
+to pay it: `accessibilityLabel` gains "You called."
+
+### What was deliberately not built
+
+**Contacts is untouched.** `bab713e` gave a contact row the mirror of this —
+`lastInChannelAt`, when they were last in a channel you share — and it is gone
+with the revert and not coming back here. It needed `lastInChannelFor` walking
+the resident channel map, it carried a scope limitation nobody could see from the
+wire (only channels you *still* share), and the complaint that started all of
+this was about the channel list.
+
+**No setting.** One number and one mark, always drawn. A setting exists to defer
+a decision, and this entry is the decision.
+
+**The invitation gets neither field.** `invitesFor` skips any channel the viewer
+appears in `everPresent` for, so an invitation is by construction a channel they
+have never entered: its own `lastPresenceAt` is already about other people, and
+there is no visit of theirs for a mark to remember. Both absences are asserted so
+that a later session does not add them for symmetry.
+
+**The profile screen keeps the room's own number.** It draws `describeQuiet` too,
+and passes no `lastPresenceByOthers`, taking the fallback branch. That is not an
+omission: a profile card already carries `sharedChannels`, the same question
+asked per person and answered with more detail, and this line is the one drawn
+when that array is missing — whose job is to describe the *room*. Excluding the
+reader from a card about somebody else answers nobody's question. Asserted, since
+somebody tidying will one day notice Home passes a field there that this does not.

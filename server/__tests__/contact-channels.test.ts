@@ -277,3 +277,188 @@ describe('removing a contact', () => {
     expect((await remove(alice, mallory.account.id)).statusCode).toBe(400);
   });
 });
+
+describe('when anybody else was last in a channel', () => {
+  it('a channel row carries it and an invitation does not', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'ENTER' });
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'STEP_OUT' });
+    const left = clock;
+    // And Alice sits in it alone afterwards, which must not move the number.
+    clock += 3_600_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+
+    const [view] = app.channels
+      .rejoinableFor(alice.account.id)
+      .filter((entry) => entry.channelId === id);
+    expect(view.lastPresenceAt).toBe(clock);
+    expect(view.lastPresenceByOthers).toBe(left);
+
+    // An invitation is a channel you have never been in, so its own
+    // `lastPresenceAt` is already about other people and there is no second
+    // number to send.
+    const cara = await signIn('cara@example.com', 'Cara');
+    await befriend(alice, cara, 'cara@example.com');
+    const made = app.channels.create(alice.account.id, [cara.account.id]);
+    expect(made.ok).toBe(true);
+    const madeId = made.ok ? made.channel.id : '';
+    app.channels.dispatch(madeId, alice.account.id, { type: 'ENTER' });
+    const [invite] = app.channels
+      .invitesFor(cara.account.id)
+      .filter((entry) => entry.channelId === madeId);
+    expect(invite).toBeDefined();
+    expect(
+      (invite as unknown as Record<string, unknown>).lastPresenceByOthers
+    ).toBeUndefined();
+  });
+
+  it('is null for a channel only you have ever been in', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+
+    const [view] = app.channels
+      .rejoinableFor(alice.account.id)
+      .filter((entry) => entry.channelId === id);
+    // The room has a number and nobody else does — the asymmetry the client
+    // draws as "nobody else yet" beside the room's own interval.
+    expect(view.lastPresenceAt).toBe(clock);
+    expect(view.lastPresenceByOthers).toBeNull();
+  });
+});
+
+/**
+ * The other half of what a channel row carries, and the half that is not a
+ * measure at all.
+ *
+ * `lastPresenceByOthers` above leaves the reader out on purpose, so nothing in
+ * it can ever report the reader's own visit — which is right for ordering and
+ * useless for the question "have I already called here?". Presence is exclusive
+ * (`stepOutOfOthers`), so somebody knocking on three doors in turn is removed
+ * from the first two by the act of trying the third, and without this there is
+ * nothing left on any of those rows that remembers they came.
+ */
+describe('whether you have just called into a channel', () => {
+  it('marks the channel for whoever arrived, and nobody else', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    // Bob goes first and leaves, which is only to put him in `everPresent` —
+    // a channel he has never entered is an *invitation* to him rather than a
+    // row, and `invitesFor` sends neither of these fields.
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'ENTER' });
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'STEP_OUT' });
+
+    // Well past ANNOUNCE_INTERVAL_MS, so Alice's arrival is announced on its
+    // own account rather than suppressed as a flapping connection.
+    clock += 10 * 60_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+    const called = clock;
+
+    const mine = app.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === id)!;
+    expect(mine.announcedAt).toBe(called);
+
+    // Bob was the one *told*. He needs no mark: he did not call, and Alice's
+    // arrival is already in the number his row reads.
+    const theirs = app.channels
+      .rejoinableFor(bob.account.id)
+      .find((entry) => entry.channelId === id)!;
+    expect(theirs.announcedAt).toBeNull();
+    expect(theirs.lastPresenceByOthers).toBe(called);
+  });
+
+  it('outlives the visit it reports', async () => {
+    // The whole of its use. Stepping out — or, in the flow this is for,
+    // stepping into the next channel — leaves the room with no trace of the
+    // reader in any measure, this one included.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+    const called = clock;
+    clock += 30_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'STEP_OUT' });
+
+    const view = app.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === id)!;
+    expect(view.presentCount).toBe(0);
+    // Nobody else has been here, so the row's own number has nothing to say.
+    expect(view.lastPresenceByOthers).toBeNull();
+    // And this is the only thing that remembers she came.
+    expect(view.announcedAt).toBe(called);
+  });
+
+  it('is superseded when somebody else walks into the empty room', async () => {
+    // How a mark is cleared, with no machinery for clearing it: the next
+    // announcement overwrites the last. It goes at exactly the moment their
+    // arrival makes the row's own number fresh, so the two can never both be
+    // showing — a mark saying "you called" beside an interval saying somebody
+    // answered would be reporting a wait that is over.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+    clock += 30_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'STEP_OUT' });
+
+    // Past ANNOUNCE_INTERVAL_MS, so Bob's arrival is announced rather than
+    // suppressed as a flapping connection would be.
+    clock += 10 * 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'ENTER' });
+    const answered = clock;
+
+    const view = app.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === id)!;
+    expect(view.announcedAt).toBeNull();
+    expect(view.lastPresenceByOthers).toBe(answered);
+  });
+
+  it('marks a first-ever entry too, whichever push carried it', async () => {
+    // The opener of a channel nobody has been in gets `invited` rather than
+    // `arrived` — a different notification with a different lifetime. From
+    // their side it is the same act: they stepped in and the other was told,
+    // and which push carried it is not a distinction they can see.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    const before = app.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === id)!;
+    expect(before.everUsed).toBe(false);
+    expect(before.announcedAt).toBeNull();
+
+    clock += 60_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+
+    const after = app.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === id)!;
+    expect(after.announcedAt).toBe(clock);
+  });
+});

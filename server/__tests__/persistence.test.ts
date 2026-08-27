@@ -181,6 +181,34 @@ describe('a channel across a restart', () => {
     await shutdown(second);
   });
 
+  it('reports what other people did at minute resolution, and never fresher', async () => {
+    // `lastPresenceByOthers` is a fold over the same stamps, so it inherits
+    // the flooring — and unlike `lastPresenceAt` it has no `lastActiveAt` term
+    // to correct with, since that stamp is unattributed. What is asserted is
+    // the bound rather than a value: never later than the truth, and never
+    // more than the minute `quantise` rounds off.
+    const first = boot();
+    const { alice, bob, channelId } = await pair(first);
+    first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    const left = (clock += 90_000);
+    first.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+
+    const before = first.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === channelId)!;
+    expect(before.lastPresenceByOthers).toBe(left);
+    await shutdown(first);
+
+    const second = boot();
+    const after = second.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === channelId)!;
+    expect(after.lastPresenceByOthers).toBe(asStored(left));
+    expect(after.lastPresenceByOthers).toBeLessThanOrEqual(left);
+    expect(left - after.lastPresenceByOthers!).toBeLessThan(60_000);
+    await shutdown(second);
+  });
+
   it('carries the last evidence of somebody who was present at the restart', async () => {
     // The restart is not a departure and nothing pretends it is — but it is
     // the end of the evidence, and the honest report is when that evidence

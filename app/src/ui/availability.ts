@@ -38,9 +38,31 @@ export function describeAvailability(
 }
 
 /**
- * How long since anybody was in a channel, in words — "5 minutes ago", "a few
- * seconds ago" — lower case so it can be the second half of a sentence about
- * an invitation.
+ * How long since anybody *but the reader* was in a channel, in words — "5
+ * minutes ago", "a few seconds ago" — lower case so it can be the second half
+ * of a sentence about an invitation.
+ *
+ * **The reader is left out, since 2026-08-26**, and that is the whole of what
+ * changed. This used to read `lastPresenceAt`, the last moment anybody at all
+ * was here — which counts you. Presence is exclusive, so stepping into a
+ * channel to announce yourself and then stepping into the next one left the
+ * first reading as the freshest thing on the screen, above a room two other
+ * people had spent an hour in yesterday. The one where nothing happened sorted
+ * first. What a reader scanning this list wants is what they missed, and they
+ * did not miss themselves.
+ *
+ * It also makes the list answer "which of these are fresh only because of me?"
+ * without a second number to compare against, which is what an earlier attempt
+ * needed a setting for: those rows simply do not rise. What is *not* answered
+ * that way is the opposite question — whether you have already called here —
+ * because a number that has forgotten you cannot report you. That is
+ * `announcedAt` and a mark on the row, deliberately a different kind of thing.
+ *
+ * Not the same fact as the row being live, which is `presentCount > 0`: that is
+ * *now* and a threshold of one, this is a *moment* and excludes one particular
+ * person. They never draw at once — a row with anybody in it shows its count
+ * instead of an interval — so this is only ever read about an empty room, which
+ * is what makes the two impossible to contradict.
  *
  * The bare interval, with no "last here" in front of it. The line sits under a
  * channel's name in a list where every row says the same kind of thing, so the
@@ -59,10 +81,19 @@ export function describeAvailability(
  * under a minute the answer is "here", which is a different fact rather than a
  * smaller number.
  *
- * Null is not-knowing, and is the one thing that must not be given a number: a
- * server that predates the stamp sends no key, and only an invitation can
- * reach here that way — a channel row falls back to `lastActiveAt`, which is
- * the same answer for every channel nobody is in. The caller drops the line.
+ * Three answers where there used to be two, because the new number is
+ * null-capable and the old one was not. A moment is a moment. **Null is nobody
+ * else, ever** — a channel a pair get for becoming contacts, or one only the
+ * reader has opened — which is a fact and gets words rather than the room's own
+ * number, that substitution being the exact thing this exists to stop.
+ * **Undefined is a server that predates the field**, which is not a fact about
+ * anybody: there the old number under its old meaning is far better than
+ * telling somebody a channel they talk in every day has never held anyone but
+ * them. That fallback is also what keeps the order identical against such a
+ * server.
+ *
+ * Null-from-`lastPresenceAt` remains what it was — not-knowing, which only an
+ * invitation can reach, and the caller drops the line.
  *
  * Shared by Home and the profile screen rather than written twice, for the
  * reason `describeAvailability` is: they are the same sentence about the same
@@ -70,10 +101,18 @@ export function describeAvailability(
  * channel was empty, which Home's row would have called five minutes ago.
  */
 export function describeQuiet(
-  channel: { everUsed?: boolean; lastPresenceAt?: number },
+  channel: {
+    everUsed?: boolean;
+    lastPresenceByOthers?: number | null;
+    lastPresenceAt?: number;
+  },
   now: number
 ): string | null {
   if (channel.everUsed === false) return 'not used yet';
+  if (channel.lastPresenceByOthers === null) return 'nobody else yet';
+  if (channel.lastPresenceByOthers !== undefined) {
+    return ago(now - channel.lastPresenceByOthers);
+  }
   if (channel.lastPresenceAt === undefined) return null;
   return ago(now - channel.lastPresenceAt);
 }

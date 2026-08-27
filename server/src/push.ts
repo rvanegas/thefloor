@@ -1,20 +1,19 @@
 import { connect, constants, type ClientHttp2Session } from 'node:http2';
 import { createPrivateKey, sign, type KeyObject } from 'node:crypto';
 
+import { PRESENCE_LIFETIME_MS } from '../../core/constants';
 import type {
   NotificationAlert,
   NotificationKind,
 } from '../../core/notifications';
 
 /**
- * How long a presence announcement stays worth delivering.
- *
- * "Somebody is here now" is false within minutes, and Apple will hold an
- * undeliverable push for as long as it is allowed to. Five minutes is roughly
- * how long it stays true that walking over to your phone would let you join
- * the conversation being announced.
+ * Re-exported rather than defined here, where it was written until 2026-08-26.
+ * The app needs it too — Home's "you called" mark fades on this window — and a
+ * constant both ends must agree on belongs in `core`. Every existing importer
+ * of it from this module keeps working.
  */
-export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;
+export { PRESENCE_LIFETIME_MS } from '../../core/constants';
 
 /**
  * How long a change to who belongs to a channel stays worth delivering.

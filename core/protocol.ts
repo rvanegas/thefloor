@@ -268,7 +268,14 @@ export interface RejoinableView {
   lastActiveAt: number;
   /**
    * The most recent moment anybody was in the channel — see `lastPresenceAt`
-   * in core/channel.ts. What Home measures idleness from, and orders on.
+   * in core/channel.ts.
+   *
+   * **No longer what Home draws or orders on**, since 2026-08-26: this one
+   * counts the reader, and `lastPresenceByOthers` below replaced it for both.
+   * It is still carried, and still load-bearing twice — it is the fallback a
+   * client uses against a server too old to send the other, and it is what
+   * orders the tier of channels only the reader has ever been in, those having
+   * no other number at all.
    *
    * Not `lastActiveAt`, which moves only on an entry or an exit and so freezes
    * for the whole of a conversation. This one is kept fresh by the heartbeat,
@@ -281,6 +288,63 @@ export interface RejoinableView {
    * shown for.
    */
   lastPresenceAt?: number;
+  /**
+   * The most recent moment anybody *other than this reader* was in the channel
+   * — see `lastPresenceByOthers` in core/channel.ts. **This is what Home draws
+   * its time from and what Home orders on**, and `lastPresenceAt` beside it is
+   * kept for the older-server fallback and for the middle tier of the sort.
+   *
+   * It replaced the room's own number on 2026-08-26 because that one counts the
+   * reader: a channel you stepped into alone this morning to announce yourself
+   * read, and sorted, as fresher than one two other people spent an hour in
+   * yesterday — and the fresher of those is the one where nothing happened.
+   * Taking yourself out is also what makes the list answer "which of these is
+   * only me?" without a second number to compare against: a room that is fresh
+   * only because of you does not rise at all.
+   *
+   * Three answers, and the client draws a different thing for each. A number is
+   * a moment. **Null means nobody else has ever been in it** — a channel a pair
+   * get for becoming contacts, or one only you have opened — which is a fact
+   * and gets words, "nobody else yet", and its own tier in the sort. **Absent
+   * means the server predates the field**, which is not a fact about anybody:
+   * the client falls back to `lastPresenceAt` under its old meaning, restoring
+   * the old line and the old order exactly, rather than telling somebody that a
+   * channel they talk in every day has never held anyone but them.
+   *
+   * Minute-resolution once it has been through the database, and without the
+   * `lastActiveAt` correction `lastPresenceAt` carries for that — core's
+   * comment argues why it cannot have it.
+   */
+  lastPresenceByOthers?: number | null;
+  /**
+   * When the server last announced **this reader's own arrival** in this
+   * channel — the receipt for the push that went out when they stepped in — or
+   * null when the last announcement was about somebody else, or there has been
+   * none.
+   *
+   * The second half of what Home needs, and the half no measure can supply.
+   * `lastPresenceByOthers` above leaves the reader out on purpose, and presence
+   * is exclusive — stepping into the next channel steps you out of the last —
+   * so somebody who knocks on three doors in turn leaves no trace of it on any
+   * of them. This is the trace. It is not derived from presence and must not
+   * be: it outlives the visit it reports, which is the whole of its use.
+   *
+   * **A moment rather than a flag**, so the client expires it against its own
+   * clock rather than waiting for a snapshot that may never come. The mark is
+   * drawn while `now - announcedAt < PRESENCE_LIFETIME_MS`, that being how long
+   * the announcement it reports stays worth delivering; the constant is in
+   * core/constants.ts so both ends read one number.
+   *
+   * Absent means a server that predates the field and draws nothing — the same
+   * as null. The distinction is kept because it costs nothing and the two are
+   * different facts.
+   *
+   * It orders nothing, deliberately. This is a fact about the reader's own last
+   * action rather than about the room, and sorting on it would put their own
+   * echo back at the top of the list — which is exactly what
+   * `lastPresenceByOthers` exists to take out.
+   */
+  announcedAt?: number | null;
   /**
    * Whether anybody has ever been in it — false only for a channel nobody has
    * set foot in, which since contacts came to guarantee a one-to-one channel

@@ -293,6 +293,45 @@ things that this file keeps apart:
 write between an entry and an exit, so an hour of conversation moves it not at
 all. Anyone ordering on it must ask about occupancy separately.
 
+### How recent a channel is, which has one answer and a second thing beside it
+
+Since 2026-08-26 there are **two measures of a room's recency and they are not
+interchangeable.** `lastPresenceAt` (`core/channel.ts`) is the maximum across the
+per-person stamps *and* `lastActiveAt`, is always a number, and **includes the
+reader**. `lastPresenceByOthers` is the same fold with the reader's key removed.
+
+**Home reads the second, for both the line it draws and the order it draws it
+in.** The first counts you, and presence is exclusive — `stepOutOfOthers` takes
+you out of every other channel when you enter one — so somebody announcing
+themselves down a list was rewriting the top of that list with their own
+footsteps. `lastPresenceAt` is still carried and still does two jobs alone: it is
+the fallback against a server too old to send the other, and it orders the tier
+of channels nobody but the reader has ever been in.
+
+Three things follow, and each has bitten somebody in an earlier draft:
+
+- **It cannot include `lastActiveAt`**, that stamp being unattributed — it moves
+  on anybody's entry or exit including yours. So it is **minute-coarse after a
+  restart**, having given up the correction `lastPresenceAt` carries for
+  `quantise`'s flooring. The test asserts that bound rather than a value.
+- **It is null-capable**, where `lastPresenceAt` never is, and null is an
+  ordinary state rather than a gap: a channel a pair get for becoming contacts,
+  or one only the reader has opened. It gets words — "nobody else yet" — and its
+  own tier in the sort, never the room's own number.
+- **Guests are not in it, and that is settled** rather than incidental. They move
+  `lastActiveAt` and never `lastPresentAt`, `STILL_HERE` being guarded on
+  `isPresent`. Home's recency is a claim about members.
+
+Beside it, and **not a measure at all**, is `announcedAt`: the moment the server
+last announced *this reader's own* arrival in this channel. It is the receipt for
+a push, held in memory on `ChannelRegistry`, five minutes wide
+(`PRESENCE_LIFETIME_MS`, in `core/constants.ts` so both ends read it). It is
+**deliberately not derived from presence** — it has to outlive the visit it
+reports, that visit being what stepping into the next channel erases. It is
+cleared by the next announcement overwriting it, draws `↗` on the row, and orders
+nothing. decisions/DECISIONS.md § *Home counts other people, and marks your own
+call separately*.
+
 ---
 
 ## Mic Open

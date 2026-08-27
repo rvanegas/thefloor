@@ -11,6 +11,7 @@ import type {
   InviteView,
   RejoinableView,
 } from '../../../core/protocol';
+import { PRESENCE_LIFETIME_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
@@ -465,8 +466,25 @@ type Card = {
    * emptiness nothing reported.
    */
   presentCount: number | undefined;
-  /** The most recent moment anybody was in it. */
+  /**
+   * The most recent moment anybody was in it, the reader included. No longer
+   * what the row says or what the list is ordered by — kept for two jobs it
+   * still does alone: standing in for `lastPresenceByOthers` against a server
+   * too old to send it, and ordering the tier of channels nobody but the reader
+   * has ever been in, which have no other number.
+   */
   lastPresenceAt: number | undefined;
+  /**
+   * The most recent moment anybody *else* was in it. What the row says and what
+   * the list is ordered by. Null is nobody else ever; undefined is a server
+   * that predates the field, and `describeQuiet` tells the two apart.
+   */
+  lastPresenceByOthers: number | null | undefined;
+  /**
+   * When the reader last announced themselves here, or null. Draws the mark,
+   * orders nothing — see `RejoinableView.announcedAt`.
+   */
+  announcedAt: number | null | undefined;
   /** False only for a channel nobody has ever been in. */
   everUsed: boolean;
   /** Who asked you in, for an invitation. */
@@ -488,6 +506,13 @@ function inviteCard(invite: InviteView): Card {
     named: invite.name != null,
     presentCount: invite.presentCount,
     lastPresenceAt: invite.lastPresenceAt,
+    // Neither, and neither is an omission. An invitation is a channel the
+    // reader has never entered — that is the whole test `invitesFor` applies —
+    // so its own stamp is already about other people, and there is no visit of
+    // theirs for a mark to remember. `describeQuiet` takes the undefined branch
+    // and draws exactly the line it drew before.
+    lastPresenceByOthers: undefined,
+    announcedAt: undefined,
     // Somebody has been in it: that is what makes it an invitation rather than
     // the standing channel a pair of contacts share.
     everUsed: true,
@@ -508,6 +533,14 @@ function memberCard(channel: RejoinableView): Card {
     // stamp, and is the same answer for every channel nobody is in — which are
     // the only ones an idleness line is drawn for.
     lastPresenceAt: channel.lastPresenceAt ?? channel.lastActiveAt,
+    // No `lastActiveAt` fallback here, unlike the line above, and the asymmetry
+    // is the point. That one wants any answer about the room; this one wants an
+    // answer with the reader taken out, and `lastActiveAt` moves on *anybody's*
+    // entry or exit including theirs — so falling back to it would let the
+    // solitary morning back in through the side door. Undefined stays
+    // undefined, and `describeQuiet` uses the old number under its old meaning.
+    lastPresenceByOthers: channel.lastPresenceByOthers,
+    announcedAt: channel.announcedAt,
     everUsed: channel.everUsed ?? true,
   };
 }
@@ -516,27 +549,57 @@ const isLive = (card: Card) =>
   card.presentCount === undefined || card.presentCount > 0;
 
 /**
- * Least idle first, and the channels nobody has ever been in last.
+ * Whoever else was here most recently, first — then the rooms only the reader
+ * has been in, then the ones nobody has been in at all.
  *
- * One sort, replacing one that grouped named channels above unnamed ones and
- * asked about occupancy separately. Both of those were working around
- * `lastActiveAt`, which moves on an entry and an exit and at no point between:
- * a channel two people had been talking in for an hour carried the moment the
- * second of them arrived, and sank below one somebody had walked out of five
- * minutes ago. `lastPresenceAt` is kept fresh by the heartbeat, so recency
- * means the same thing for an occupied channel as for an empty one and the
- * sort no longer needs help.
+ * **Three tiers, not two**, since 2026-08-26, and the middle one is new because
+ * the number this reads is. It used to be `lastPresenceAt`, the last moment
+ * anybody at all was here, which counts the reader: presence is exclusive, so
+ * stepping into a channel to announce yourself and then stepping into the next
+ * left the first sitting at the top of the list, above a room two other people
+ * had spent an hour in yesterday. It ordered on visits, and what somebody
+ * scanning this list wants is what they missed.
  *
- * The never-used ones are pinned to the bottom because their stamp is the
- * moment they were created, which is not a visit. A contact you have not
- * spoken to yet would otherwise arrive at the top of the list as the freshest
- * thing on it. Among themselves they go by name, there being nothing else true
- * to order them by.
+ * The row's own line says the same number, which is the other half of the
+ * reason. A list ordered by one fact and annotated with another puts the
+ * disagreement in front of the reader and makes both look wrong.
+ *
+ * That leaves a channel the reader alone has opened with nothing to sort on,
+ * which is the middle tier. It cannot stay at the top on the strength of a
+ * solitary visit — that is the whole complaint — and it must not drop in among
+ * the never-opened either: somebody *went* there, possibly to wait for you, and
+ * that is worth more than a channel neither of you has touched. Among its own
+ * kind it goes by `lastPresenceAt`, the only number it has.
+ *
+ * The never-used stay pinned at the bottom, for the reason they always were:
+ * their stamp is the moment they were created, which is not a visit, and a
+ * contact you have not spoken to yet would otherwise arrive as the freshest
+ * thing on the list. Among themselves they go by name, there being nothing else
+ * true to order them by.
+ *
+ * **`announcedAt` is not read here.** The mark says the reader called, and
+ * sorting on it would put their own echo back at the top — undoing, with the
+ * second signal, exactly what the first one was for.
+ *
+ * Against a server that predates the field every row takes the `lastPresenceAt`
+ * fallback, which restores the old order exactly rather than collapsing the
+ * whole list into the middle tier and shuffling it by name.
  */
+function seenOfOthers(card: Card): number | null {
+  if (card.lastPresenceByOthers !== undefined) return card.lastPresenceByOthers;
+  return card.lastPresenceAt ?? null;
+}
+
 function byIdleness(a: Card, b: Card): number {
   if (a.everUsed !== b.everUsed) return a.everUsed ? -1 : 1;
   if (!a.everUsed) return a.title.localeCompare(b.title);
-  return (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0);
+  const at = seenOfOthers(a);
+  const bt = seenOfOthers(b);
+  if (at === null || bt === null) {
+    if (at !== bt) return at === null ? 1 : -1;
+    return (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0);
+  }
+  return bt - at;
 }
 
 
@@ -579,6 +642,24 @@ function ChannelCard({
   // is a line that goes away rather than a line that says nothing.
   const quiet = describeQuiet(card, now);
   /**
+   * Whether the reader has just called here — stepped in, so the others were
+   * told — and it is still recent enough to be worth remembering.
+   *
+   * Drawn only on a row nobody is in, the same rule the interval follows, and
+   * for the same reason: a row with people in it is showing its count, and a
+   * channel the reader is *still* standing in does not need to be told they
+   * arrived. What this is for is the room they have already left, which under a
+   * recency measure that leaves them out carries no other trace of the visit.
+   *
+   * Expired against the phone's own clock rather than the snapshot's, which is
+   * why the wire carries a moment instead of a flag: nothing has to happen in
+   * the channel for the mark to go.
+   */
+  const called =
+    !live &&
+    card.announcedAt != null &&
+    now - card.announcedAt < PRESENCE_LIFETIME_MS;
+  /**
    * An invitation outlives the moment it was sent. What it must not do is go
    * on claiming that moment is still happening — the banner used to say
    * somebody "is waiting in a channel" whatever the truth of it, so an
@@ -607,9 +688,12 @@ function ChannelCard({
     // which has always worked this way.
     <Pressable
       accessibilityRole="button"
+      // The mark is a glyph, and a glyph reads as nothing. This is the only
+      // place that cost can be paid, so it is paid here rather than left to a
+      // screen reader to guess at an arrow.
       accessibilityLabel={`${card.title}. ${line ? `${line}. ` : ''}${
-        !stepsIn ? 'Open.' : card.kind === 'invite' ? 'Join.' : 'Step in.'
-      }`}
+        called ? 'You called. ' : ''
+      }${!stepsIn ? 'Open.' : card.kind === 'invite' ? 'Join.' : 'Step in.'}`}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
     >
@@ -632,6 +716,22 @@ function ChannelCard({
           </Text>
           {line ? <Text style={type.muted}>{line}</Text> : null}
         </View>
+        {/*
+          Not a control, and it has to not *look* like one: this sits at the row
+          edge where the dismiss button lives, and an arrow is the glyph most
+          likely to be read as something you could press. No `Pressable`, no
+          hit slop, and `type.muted` rather than the accent — the live bar is
+          the one thing on this screen meant to shout, and this is a memory aid.
+
+          It cannot collide with the ✕ beside it. Stepping in is what sets
+          `announcedAt`, and stepping in is also what stops a channel being an
+          invitation, so a row can carry a mark or a dismiss and never both.
+        */}
+        {called ? (
+          <Text style={styles.called} accessibilityElementsHidden>
+            ↗
+          </Text>
+        ) : null}
         {onDismiss ? (
           <Pressable
             onPress={onDismiss}
@@ -855,4 +955,8 @@ const styles = StyleSheet.create({
    */
   inviteQuiet: { borderColor: colors.border, borderWidth: 1 },
   dismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
+  // Muted and a size down from the dismiss glyph beside it, which is a control
+  // where this is a note to yourself. Same horizontal padding so the two sit in
+  // the same column on rows that have one or the other.
+  called: { color: colors.textMuted, fontSize: 14, paddingHorizontal: 4 },
 });
