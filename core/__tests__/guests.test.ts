@@ -10,7 +10,11 @@ import {
 } from '../channel';
 import { FLOOR_CLAIM_DELAY_STEP_MS } from '../constants';
 import { inRoom, isGuest, roomOccupants } from '../guests';
-import { channelHasAudio, microphoneNeeded } from '../micNeeded';
+import {
+  anyMicrophoneOpen,
+  channelHasAudio,
+  microphoneNeeded,
+} from '../micNeeded';
 import type { ChannelAction, ChannelState, Guest } from '../types';
 
 /**
@@ -225,7 +229,10 @@ describe('the microphone', () => {
   it('stays shut for a guest nobody has granted it to', () => {
     const state = withGuest();
     expect(microphoneNeeded(state, DANA)).toBe(false);
-    expect(channelHasAudio(state, ALICE)).toBe(true); // Dana is here regardless
+    // Both rules agree here, by different routes: Alice's microphone is open,
+    // and Dana is in the room whether hers is or not.
+    expect(anyMicrophoneOpen(state)).toBe(true);
+    expect(channelHasAudio(state, ALICE)).toBe(true);
 
     const granted = act(state, {
       type: 'SET_GUEST_SPEECH',
@@ -236,11 +243,23 @@ describe('the microphone', () => {
     expect(microphoneNeeded(granted, DANA)).toBe(true);
   });
 
+  it('counts a speaking guest when the audio session is decided', () => {
+    // The default rule. Everybody muted but the guest: the session is still a
+    // call, because somebody in this room is capturing. Muting the guest too
+    // hands the route back.
+    let state = withGuest({ maySpeak: true });
+    state = act(state, { type: 'SET_SELF_MUTE', userId: ALICE, muted: true });
+    expect(anyMicrophoneOpen(state)).toBe(true);
+
+    state = act(state, { type: 'SET_SELF_MUTE', userId: DANA, muted: true });
+    expect(anyMicrophoneOpen(state)).toBe(false);
+  });
+
   it('counts a guest as audio however muted the room gets', () => {
-    // A guest in the room is somebody who can be heard, and since 2026-08-27
-    // that is the whole question — mutes are not consulted, so muting every
-    // person here in turn moves nothing. Under `anyMicrophoneOpen` the second
-    // mute handed the route back, which is exactly the row that changed.
+    // And the same sequence under `steadyHeadset`, where a guest in the room
+    // is somebody who can be heard and mutes are not consulted at all. The
+    // second mute is where the two rules part: this is the row the setting is
+    // about, seen through a guest rather than a member.
     let state = withGuest({ maySpeak: true });
     state = act(state, { type: 'SET_SELF_MUTE', userId: ALICE, muted: true });
     expect(channelHasAudio(state, ALICE)).toBe(true);

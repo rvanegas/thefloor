@@ -1,10 +1,21 @@
 # The hands-free-only walk
 
-**Temporary.** This is the device check for the 2026-08-27 audio session rule
-on branch `worktree-hf-only`. Delete it when the branch merges and the walk has
-been done; what it establishes belongs in decisions/DECISIONS.md § *Hands-free
-only, because fidelity had exactly one real claimant*, which is already
-written and already says the walk is outstanding.
+**Temporary.** This is the device check for the second audio-session rule added
+on 2026-08-27, which lives behind the **Headphones → Keep the connection
+steady** setting. Delete it once the walk has been done; what it establishes
+belongs in decisions/DECISIONS.md § *Hands-free only, because fidelity had
+exactly one real claimant*, which is already written and already says the walk
+is outstanding.
+
+**Turn the setting on before step 1.** Settings → Headphones → *Keep the
+connection steady* → On. Off is the default and is what every build before this
+one did, so a phone that has never been in Settings is walking the old rule and
+every step below will disagree with it. The setting is persisted per phone, so
+it survives a relaunch and has to be turned off deliberately.
+
+**Because it is a setting, this walk is no longer a merge gate.** The default
+is unchanged, so nothing here has to pass before the work lands — what the walk
+decides is what to recommend, and whether the setting deserves to stay.
 
 It exists because this subsystem has a documented habit of being reasoned from
 source, shipped, and written up as fixed before anybody listened — STATES.md
@@ -185,6 +196,38 @@ crosses it.
     asked *first* in `channelHasAudio` does not strand the session in `IDLE`
     when the thing it was withholding for has gone.*
 
+## H. The comparison, which is what the setting is actually for
+
+Nothing above compares the two rules; every step assumes one of them. These do,
+and they are the reason a setting beats a branch — one phone, one headset, one
+sitting, both answers. Run them last, when your ear is calibrated.
+
+28. **In a channel with somebody else, both of you self-muted, flip the setting
+    off and then on again.** Off, the route blooms to stereo and the other app
+    comes back; on, it drops to mono and the other app stops. — *The row the
+    whole thing is about, heard in both directions under your own thumb. If
+    this does nothing, the setting is not reaching `App.tsx` and every other
+    step in this walk is measuring the same rule twice.*
+29. **From that state, with the setting off, have the other person unmute and
+    speak immediately. Then turn it on and repeat.** — *The direct comparison:
+    the first word crosses a profile handover in one case and not the other.
+    Whether that is audible enough to be worth the mono link is the judgement
+    this whole change waits on, and it cannot be reasoned to.*
+30. **Run TASKS.md § "The Foreground Interruption" twice — off, then on.**
+    Everybody present self-muted, background the app, start another app's
+    audio, foreground this one. — *STATES.md disagreement 11 predicts the
+    interruption under the default and not under the setting. If it follows the
+    setting, that disagreement was the cause and the entry can close. If it
+    happens under both, activation and WebRTC's defaults are what is left.
+    **The everybody-muted step means different things in the two runs** —
+    under the setting the interruption is intended behaviour — so read the
+    **alone in a channel** variant as the honest one, since it means the same
+    thing under both.*
+31. **Sit in a channel for an afternoon with the setting on.** Battery, and
+    whether a mono link for hours is something you stop noticing or something
+    you resent. — *Not a step so much as the thing the other thirty cannot
+    tell you, and the reason not to decide this on one sitting.*
+
 ---
 
 ## What would falsify this
@@ -208,7 +251,13 @@ crosses it.
 
 ## What this walk cannot tell you
 
-Battery, and how a channel held for hours on a mono link feels to somebody who
-did not choose it. That is the cost this change accepts on purpose, and it is
-not measurable in an afternoon — it wants a day of ordinary use, which is the
-other reason not to merge this on a green suite alone.
+Whether the trade is worth it for anybody but you. Step 31 is one person's
+afternoon on one headset, and the reason this shipped as a setting rather than
+a decision is precisely that the answer is not expected to be the same for
+everybody. A walk that comes out clean argues for recommending it, not for
+making it the default — and a walk that comes out badly on your hardware is not
+by itself an argument for removing an option somebody else may want.
+
+What *would* argue for removing it: nobody turning it on, or it turning out to
+have a failure mode rather than a cost. Those are the two things worth watching
+for after this is in people's hands, and neither is visible from here.

@@ -16,7 +16,11 @@ import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
-import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
+import {
+  anyMicrophoneOpen,
+  channelHasAudio,
+  microphoneNeeded,
+} from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
 
@@ -81,13 +85,23 @@ function Root() {
     !!live && (microphoneNeeded(live, me) || app.recordingAsked === live.id);
 
   // What the *session* is configured from, where `micNeeded` decides only
-  // whether we publish. The two ask different questions — whether this app has
-  // any audio, against whether anything is listening for us — and part company
-  // for a guest without the microphone, for anybody self-muted, and for shared
-  // playback with nobody in the room. Same round-trip caveat as above, and the
-  // same answer: a recording asked for and not yet confirmed is audio here too.
+  // whether we publish.
+  //
+  // **The one place the two audio-session rules are chosen between, and the
+  // only place either is called.** Off — the default, and what has shipped
+  // since 2026-08-18 — asks whether anybody present is capturing, so a room
+  // that goes quiet hands the Bluetooth route back to full quality. On holds
+  // the hands-free link for as long as this app has any audio at all, so the
+  // link does not move under the first word somebody says. core/micNeeded.ts
+  // carries the whole argument and says why this is a setting rather than a
+  // decision.
+  //
+  // Same round-trip caveat as `micNeeded` above, and the same answer either
+  // way: a recording asked for and not yet confirmed is audio here too.
   const hasAudio =
-    !!live && (channelHasAudio(live, me) || app.recordingAsked === live.id);
+    !!live &&
+    ((app.steadyHeadset ? channelHasAudio(live, me) : anyMicrophoneOpen(live)) ||
+      app.recordingAsked === live.id);
 
   const audio = useSessionAudio(
     // Keyed on the audio rather than on the channel, which are no longer the

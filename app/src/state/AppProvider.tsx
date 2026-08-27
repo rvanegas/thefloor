@@ -52,6 +52,17 @@ const TOKEN_KEY = 'thefloor.token';
  */
 const TAP_TO_STEP_IN_KEY = 'thefloor.tapToStepIn';
 
+/**
+ * Which of the two audio-session rules this phone uses, stored as the
+ * non-default so that a missing key reads as off.
+ *
+ * Off is what has shipped since 2026-08-18 and what somebody who has never
+ * opened Settings keeps, on the same reasoning as the key above: an unverified
+ * change to the audio session is not a thing to switch on underneath people.
+ * See `channelHasAudio` in core/micNeeded.ts for what the two rules are.
+ */
+const STEADY_HEADSET_KEY = 'thefloor.steadyHeadset';
+
 /** SecureStore has no web implementation; the browser is only used for checks. */
 const storage = {
   async get(key: string): Promise<string | null> {
@@ -337,6 +348,22 @@ interface AppValue extends AppState {
    */
   tapToStepIn: boolean;
   setTapToStepIn: (value: boolean) => void;
+  /**
+   * Whether this phone holds the hands-free link for as long as it is in a
+   * channel, instead of handing it back whenever the room goes quiet.
+   *
+   * **A phone setting rather than an account one**, like the two above, and
+   * here the reason is not a preference about lists but the hardware itself:
+   * what this trades is a property of the headset in your ears. The same
+   * person with AirPods on a walk and a Bluetooth speaker on a desk may
+   * reasonably want opposite answers, and the phone is where the headset is.
+   *
+   * The two rules it picks between are `anyMicrophoneOpen` and
+   * `channelHasAudio` in core/micNeeded.ts, which is where the whole argument
+   * lives. `App.tsx` is the only place this is read.
+   */
+  steadyHeadset: boolean;
+  setSteadyHeadset: (value: boolean) => void;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -397,6 +424,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       if ((await storage.get(TAP_TO_STEP_IN_KEY)) === 'false') {
         setTapToStepInState(false);
+      }
+    })();
+  }, []);
+  /**
+   * Read the same way and for the same reason, one keychain read behind the
+   * first screen. The cost of arriving late is smaller here than for the tap:
+   * this is read at the moment a session is configured rather than at a
+   * gesture, and the effect in `useSessionAudio` follows the value if it
+   * changes underneath a live connection.
+   */
+  const [steadyHeadset, setSteadyHeadsetState] = useState(false);
+  useEffect(() => {
+    void (async () => {
+      if ((await storage.get(STEADY_HEADSET_KEY)) === 'true') {
+        setSteadyHeadsetState(true);
       }
     })();
   }, []);
@@ -856,6 +898,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void storage.set(TAP_TO_STEP_IN_KEY, value ? 'true' : 'false');
       },
 
+      steadyHeadset,
+      setSteadyHeadset: (value) => {
+        // Takes effect immediately, including mid-channel: `App.tsx` recomputes
+        // `hasAudio` from the other rule and the session effect follows. That
+        // is deliberate rather than tolerated — hearing the crossing happen
+        // under your thumb, on the headset you are wearing, is the only direct
+        // comparison of the two rules anybody has ever been able to make.
+        setSteadyHeadsetState(value);
+        void storage.set(STEADY_HEADSET_KEY, value ? 'true' : 'false');
+      },
+
       dismissInvite: (channelId) => {
         setDismissedInvites((d) =>
           d.includes(channelId) ? d : [...d, channelId]
@@ -1141,6 +1194,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pendingChannelId,
       appearance,
       tapToStepIn,
+      steadyHeadset,
       expiry,
     ]
   );

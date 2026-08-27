@@ -7,13 +7,14 @@ import type {
  * The two states the iOS audio session is ever in, and the single place they
  * are written down.
  *
- * **There were three until 2026-08-27.** `LISTENING` was `IDLE` without
- * `mixWithOthers`, so that shared playback interrupted another app's audio
- * instead of mixing with it, and it was switched off in build 90 on suspicion
- * of racing the engine's own start. It is gone rather than switched off,
- * because the rule it belonged to is gone: anything this app has audio for is
- * now `CALL`, which is exclusive already. The feature it existed for arrives
- * as a consequence instead of as a third configuration.
+ * **There were three until 2026-08-27, and the third had been unreachable
+ * since build 90.** `LISTENING` was `IDLE` without `mixWithOthers`, so that
+ * shared playback interrupted another app's audio instead of mixing with it;
+ * `EXCLUSIVE_WHEN_AUDIBLE` was set false on suspicion of it racing the
+ * engine's own start, and it never returned from `sessionFor` again. Deleting
+ * it removes no behaviour from either of the rules below — it is why both of
+ * them reduce to a single boolean, and therefore why the choice between them
+ * could become a setting rather than a branch.
  *
  * Three different writers can configure this session: this app, the SDK's
  * native policy observer on every audio-engine transition, and WebRTC itself
@@ -145,15 +146,18 @@ export const CALL: AppleAudioConfiguration = {
  * A function with a test rather than a condition inline, on the same reasoning
  * as `microphoneNeeded`: this is the rule that decides whether somebody else's
  * music stops, and it is short enough to look obviously right while being
- * wrong in either direction. It is one boolean now, and the boolean is the
- * whole design — see `channelHasAudio` in core/micNeeded.ts, which computes it.
+ * wrong in either direction. It is one boolean now, and **which boolean is a
+ * user setting** — see `channelHasAudio` and `anyMicrophoneOpen` in
+ * core/micNeeded.ts, and `App.tsx`, which is the only place either is called.
  *
- * @param hasAudio whether **this app** has any audio at all: somebody else in
- *                 the room, a recording running, or shared playback loaded.
- *                 Not whether anybody is capturing, and not whether anything
- *                 is currently coming out of the speaker. The question is
- *                 which app should own the audio system, and the only claimant
- *                 worth handing it back to is another app.
+ * @param hasAudio whether the session should be a call, computed by one of two
+ *                 rules in core/micNeeded.ts and selected by the
+ *                 `steadyHeadset` setting: `anyMicrophoneOpen` — is anybody
+ *                 present capturing — by default, or `channelHasAudio` — does
+ *                 this app have any audio at all — when it is on. This module
+ *                 deliberately does not know which; it is handed a boolean,
+ *                 and the argument about which boolean lives where it is
+ *                 computed.
  */
 export function sessionFor(hasAudio: boolean): AppleAudioConfiguration {
   return hasAudio ? CALL : IDLE;
@@ -169,17 +173,19 @@ export function sessionFor(hasAudio: boolean): AppleAudioConfiguration {
  * is what makes the two writers say the same thing, which is the invariant
  * `__tests__/session.test.ts` pins.
  *
- * **`recording: CALL` is unconditional, and as of 2026-08-27 that is true by
- * construction rather than by argument.** It used to rest on *the observer
- * reads it only while this device is capturing, and our capturing implies
- * `anyMicOpen`* — an implication self-mute falsified, since `intentFor`
- * returns `muted` and holds the device open while `anyMicrophoneOpen` excluded
- * the self-muted. That was STATES.md disagreement 11 and the leading suspect
- * in "The Foreground Interruption". The engine can only be recording when
- * `microphoneNeeded` was true, which means somebody else is in the room or a
- * recording is running, and `channelHasAudio` returns true for both. There is
- * no input left on which the observer would apply `CALL` over an `IDLE` we
- * asked for.
+ * **`recording: CALL` is unconditional, and whether that is safe now depends on
+ * a setting.** It rests on *the observer reads it only while this device is
+ * capturing, and our capturing implies the session is a call* — an implication
+ * self-mute falsifies under the default rule, since `intentFor` returns `muted`
+ * and holds the device open while `anyMicrophoneOpen` excludes the self-muted.
+ * That is STATES.md disagreement 11 and the leading suspect in "The Foreground
+ * Interruption", and **it is still open**, because the default has not changed.
+ *
+ * With `steadyHeadset` on it closes by construction: the engine can only be
+ * recording where `microphoneNeeded` was true, which means somebody else is in
+ * the room or a recording is running, and `channelHasAudio` returns true for
+ * both. So the setting is also an experiment on that disagreement, and the two
+ * halves of the walk are worth reading against each other.
  *
  * **Push it before the transition, never after.** The observer reads whatever
  * is stored when the engine moves, so a policy pushed after

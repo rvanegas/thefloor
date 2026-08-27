@@ -148,6 +148,46 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         </Text>
       </Card>
 
+      {/*
+        Second because it is the other setting that changes what the app
+        *does* rather than how it looks, and it is below the tap because far
+        fewer people will have a reason to touch it: it only means anything to
+        somebody wearing Bluetooth headphones who has noticed the switch.
+
+        Worded in what is audible rather than in what is true. The mechanism is
+        a Bluetooth profile handover between A2DP and the hands-free link, and
+        naming either would put a word in front of somebody that tells them
+        nothing about which answer they want. What they can hear is that the
+        sound changes, and that the first word after it sometimes suffers.
+      */}
+      <SectionLabel>Headphones</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>Keep the connection steady</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, 'On'],
+              [false, 'Off'],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={app.steadyHeadset === value ? 'primary' : 'default'}
+              onPress={() => app.setSteadyHeadset(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>
+          Bluetooth headphones sound better when nobody is talking, and have to
+          switch when somebody starts. On, they stay on the talking connection
+          for as long as you are in a channel — quieter sound throughout, and
+          nothing switches under the first word. Off, the sound improves
+          whenever the room goes quiet and switches back when it does not.
+        </Text>
+      </Card>
+
       <SectionLabel>Appearance</SectionLabel>
       <Card style={styles.stack}>
         <View style={styles.choices}>

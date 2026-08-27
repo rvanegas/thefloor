@@ -2,24 +2,25 @@ import { CALL, IDLE, policyFor, sessionFor } from '../session';
 
 describe('sessionFor', () => {
   /**
-   * **One input since 2026-08-27, and the input is the design.**
+   * **One input since 2026-08-27, and its narrowness is what made a setting
+   * possible.**
    *
    * It took two — whether anybody was capturing, and how much was audible —
-   * and chose between three configurations. The question underneath was *does
-   * anybody want the high-fidelity route*, and only one claimant on it turned
-   * out to be real: another app. Voices are already degraded by the codec and
-   * shared playback is not a media player, so neither is worth a category
-   * boundary. What is left is whether this app has any audio at all.
+   * and chose between three configurations. `LISTENING` had been unreachable
+   * since build 90, so the second argument decided nothing, and what was left
+   * was already a single boolean. Two rules now compute that boolean and the
+   * `steadyHeadset` setting picks between them; this module is handed the
+   * answer and does not know which asked the question.
    *
-   * `channelHasAudio` in core/micNeeded.ts is where that is computed and where
-   * the argument lives. This file is only about what the two values are and
-   * that the second writer is told the same thing.
+   * `anyMicrophoneOpen` and `channelHasAudio` in core/micNeeded.ts are the two,
+   * and the argument between them lives there. This file is only about what the
+   * two configurations are and that the second writer is told the same thing.
    */
-  it('mixes when this app has no audio of its own', () => {
+  it('mixes when the rule says there is no audio', () => {
     expect(sessionFor(false)).toBe(IDLE);
   });
 
-  it('is a call whenever it has any', () => {
+  it('is a call when it says there is', () => {
     expect(sessionFor(true)).toBe(CALL);
   });
 });
@@ -84,17 +85,22 @@ describe('policyFor', () => {
   );
 
   /**
-   * **`recording` is `CALL` unconditionally, and since 2026-08-27 that is safe
-   * by construction rather than by argument.**
+   * **`recording` is `CALL` unconditionally, and whether that is safe depends
+   * on which rule computed the argument.**
    *
-   * It used to rest on *the observer reads this only while this device is
-   * capturing, and our capturing implies `anyMicOpen`* — which self-mute
-   * falsified, `intentFor` holding the device open while `anyMicrophoneOpen`
-   * excluded the self-muted. That was STATES.md disagreement 11 and the
-   * leading suspect in "The Foreground Interruption". The engine can only be
+   * It rests on *the observer reads this only while this device is capturing,
+   * and our capturing implies the session is a call* — which self-mute
+   * falsifies under the default rule, `intentFor` holding the device open
+   * while `anyMicrophoneOpen` excludes the self-muted. That is STATES.md
+   * disagreement 11, still open, and the leading suspect in "The Foreground
+   * Interruption". Under `steadyHeadset` it closes: the engine can only be
    * recording where `microphoneNeeded` was true, and every case that makes it
    * true — somebody else in the room, a recording running — makes
    * `channelHasAudio` true as well.
+   *
+   * This file cannot tell the two apart, taking a boolean rather than a
+   * channel, which is why the assertion here is only that the value is
+   * constant. `core/__tests__/micNeeded.test.ts` is where the difference is.
    */
   it.each([[false], [true]])('records as a call (hasAudio=%s)', (hasAudio) => {
     expect(policyFor(hasAudio).recording).toBe(CALL);

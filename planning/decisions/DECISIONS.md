@@ -1844,14 +1844,45 @@ budget, which is what would otherwise be reached for.
 From TASKS.md § *HF only*, which read in full: *hands-free only media player.
 this should simplify matters.*
 
-**The rule.** `sessionFor` took two inputs and chose between three
-configurations. It now takes one and chooses between two:
+**The rule, and it is a setting rather than a replacement.** `sessionFor` took
+two inputs and chose between three configurations. It now takes one and chooses
+between two, and **two rules compete to compute that one boolean**:
 
-    CALL when this app has any audio at all, IDLE when it has none.
+    default          CALL when anybody present is capturing
+    steadyHeadset    CALL when this app has any audio at all
 
-`channelHasAudio(channel, me)` in `core/micNeeded.ts` computes the boolean —
-a withholding watch party is `false`, anybody else in the room is `true`, a
-recording is `true`, a loaded playback track is `true`.
+`anyMicrophoneOpen` is the first and is unchanged. `channelHasAudio(channel,
+me)` is the second — a withholding watch party is `false`, anybody else in the
+room is `true`, a recording is `true`, a loaded playback track is `true`.
+`App.tsx` is the only caller of either.
+
+**Why a setting.** The first draft of this replaced the rule outright, on a
+branch. Two things argued it back. A branch carrying an unverified audio change
+while `master` moves underneath it is a merge problem waiting to happen, and
+the change touches the one subsystem where a bad merge is least visible. And
+the choice turned out not to be the kind of thing a codebase should be making:
+what the two rules trade is sound quality while the room is quiet against a
+link that does not move under the first word somebody says, and which of those
+is worth more depends on the headset, the room and the person. A build flag
+would have asserted one of them is simply right.
+
+**What made it cheap** is that `LISTENING` had been unreachable since build 90
+— `EXCLUSIVE_WHEN_AUDIBLE` false meant it never returned — so each rule had
+already collapsed to a single boolean feeding the same two-state `sessionFor`.
+The setting switches a predicate, not a code path. Nothing in `session.ts`,
+`useSessionAudio.ts` or `diagnostics.ts` knows it exists.
+
+**Where it lives.** `steadyHeadset` in `AppProvider`, persisted per phone in
+SecureStore like `tapToStepIn` and appearance, defaulting off — a missing key
+reads as the shipped behaviour. A *phone* setting rather than an account one,
+and here the reason is stronger than for the other two: what it trades is a
+property of the headset in your ears, and the same person with AirPods on a
+walk and a speaker on a desk may want opposite answers. It is under a
+**Headphones** heading in Settings, worded in what is audible rather than in
+A2DP and HFP, which would tell nobody which answer they want. Flipping it
+mid-channel takes effect immediately, deliberately: hearing the crossing under
+your own thumb on your own headset is the only direct comparison of the two
+rules anybody has ever been able to make.
 
 **What the old rule believed.** `anyMicrophoneOpen` asked *is anybody
 capturing*, and took the high-fidelity `playback` session whenever nobody was.
@@ -1906,49 +1937,74 @@ same rule that protects a podcast. It is the only answer that is arranged
 rather than falling out: the withhold is asked ahead of the occupants, who are
 present throughout.
 
-**What this deletes.** `anyMicrophoneOpen`, `LISTENING`,
-`EXCLUSIVE_WHEN_AUDIBLE`, the `othersAudible` argument to `sessionFor`,
-`policyFor`, `applyFor`, `pushPolicy` and `trace`, and the `anyMicOpen`
-parameter threaded through `useSessionAudio`. The subscribed-track count is
-still measured and still reported by the panel; it decides nothing.
+**What this deletes.** `LISTENING`, `EXCLUSIVE_WHEN_AUDIBLE`, and the
+`othersAudible` argument to `sessionFor`, `policyFor`, `applyFor`, `pushPolicy`
+and `trace`. All of that was already dead or decided nothing. The
+subscribed-track count is still measured and still reported by the panel; it
+decides nothing and now says so. **`anyMicrophoneOpen` stays**, and stays the
+default.
 
-**Three consequences worth naming separately.**
+**Three consequences worth naming separately, each conditional on the
+setting.**
 
-*The audio session stopped being a channel-topology question.* From 2026-08-18
-one person's self-mute was an input to everybody's session — the largest single
-claim STATES.md had to make. `channelHasAudio` does not consult `selfMuted`.
-The 2026-08-19 route loss that `anyMicrophoneOpen` was written for stays fixed
-by a shorter argument: somebody else is in the room, so there is audio, so the
-category never moves.
+*The audio session stops being a channel-topology question — on a phone with
+the setting on.* Since 2026-08-18 one person's self-mute has been an input to
+everybody's session, the largest single claim STATES.md has to make.
+`channelHasAudio` does not consult `selfMuted`, so under it nobody's mute moves
+anybody's session. The 2026-08-19 route loss stays fixed under both rules, by
+two different arguments: the default keeps the session a call because somebody
+else is still capturing, the other because somebody else is still *there*.
 
-*Disagreement 11 closes by construction.* `session.ts` hands the observer
-`recording: CALL` unconditionally, which used to rest on *our capturing implies
-`anyMicOpen`* — an implication self-mute falsified, and the leading suspect in
-TASKS.md § *The Foreground Interruption*. The engine can only be recording
-where `microphoneNeeded` was true, and every case that makes it true makes
-`channelHasAudio` true. **This is not a confirmed fix for that entry and must
-not be recorded as one.** It removes one of three candidates, leaving
-activation itself and WebRTC's defaults. The entry's own instruction — measure
-at the foreground before touching code — is still outstanding, and its recipe
-has changed shape: everybody-muted is now `CALL` by design, so the surviving
-half to run is *alone in a channel*.
+*Disagreement 11 becomes a disagreement the default has and the alternative
+does not.* `session.ts` hands the observer `recording: CALL` unconditionally,
+resting on *our capturing implies the session is a call* — an implication
+self-mute falsifies under `anyMicrophoneOpen`, and the leading suspect in
+TASKS.md § *The Foreground Interruption*. Under `channelHasAudio` the engine
+can only be recording where `microphoneNeeded` was true, and every case that
+makes it true makes `channelHasAudio` true.
 
-*`LISTENING`'s feature comes back for free.* Shared playback interrupting
-another app's audio was designed, shipped, never confirmed on a device, and
-switched off in build 90. It now falls out of `CALL` being exclusive, with no
-configuration of its own and no write landing at the subscription.
+**Which turns the setting into an instrument on that entry rather than a fix
+for it, and this is the part worth keeping.** Its instruction is to measure at
+the foreground before touching code, and nobody has. Now the recipe can be run
+twice on the same phone in the same sitting, with the setting off and on: if
+the interruption follows the setting, this disagreement was the cause; if it
+survives both, activation itself and WebRTC's defaults are what is left. Note
+the everybody-muted step means different things in each case — under the
+setting the interruption there is intended — so *alone in a channel* is the
+step that means the same thing under both, and the one to trust.
 
-**What it costs, and it is a real cost rather than a rounding.** A channel with
-people in it holds the hands-free profile for as long as it lasts. A Bluetooth
-route stays mono and other apps stay interrupted through every silence, not
-only through the talking. Anybody who sits in a channel for hours pays for it
-in battery and in stereo. That is the trade, made deliberately: the state being
-protected — a live room that happens to be quiet — is not one anybody sits in
-on purpose, and the alternative was a profile handover timed to the first
-syllable of whoever breaks the silence.
+*`LISTENING`'s feature comes back for free, but only under the setting.* Shared
+playback interrupting another app's audio was designed, shipped, never
+confirmed on a device, and switched off in build 90. Under `channelHasAudio` it
+falls out of `CALL` being exclusive, with no configuration of its own and no
+write landing at the subscription. Under the default it is still absent, which
+is where build 90 left it.
+
+**What it costs, and it is a real cost rather than a rounding.** With the
+setting on, a channel with people in it holds the hands-free profile for as
+long as it lasts: a Bluetooth route stays mono and other apps stay interrupted
+through every silence, not only through the talking, and anybody who sits in a
+channel for hours pays for it in battery and in stereo. The argument for
+accepting it is that the state being protected — a live room that happens to be
+quiet — is not one anybody sits in on purpose, and the alternative is a profile
+handover timed to the first syllable of whoever breaks the silence. **That
+argument is good enough to offer and was not good enough to impose**, which is
+the whole of why this is a setting.
+
+**And the cost of it being a setting**, which is not nothing: the audible
+mono/stereo transition now means one of two things depending on a preference
+nothing on screen reports, so reading the route tells you less than it did.
+STATES.md disagreement 4 carries that.
 
 **Not verified on a device.** The suite is green, the typecheck is clean, and
 none of that is evidence about a Bluetooth profile. The walk is
 HF-ONLY-WALK.md, and it exists because this subsystem has a documented history
 of being reasoned from source, shipped, and written up as fixed before anybody
 listened — STATES.md disagreement 5 is the entry that says so about itself.
+
+**What being a setting changes about shipping it**, and it is the practical
+point: nothing here needs to be right before it lands. The default is what
+every phone already does, so a build carrying this changes nobody's audio until
+somebody opens Settings and asks for it. What the walk decides is no longer
+*whether to merge* but *what to recommend*, and — if the answer turns out to be
+one-sided — whether the setting should still be there at all in six months.

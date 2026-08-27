@@ -408,10 +408,10 @@ async function releaseMicrophone(room: Room): Promise<void> {
  * speaker is released at all, but the session is configured here regardless.
  * Depending on a transition we do not control is what broke this once.
  *
- * One input since 2026-08-27, and the audible count is no longer among them:
- * what decides whether another app's music is interrupted is whether this app
- * has any audio at all, which is a question about the channel rather than
- * about what has finished subscribing. See `channelHasAudio`.
+ * One input since 2026-08-27, and the audible count is no longer among them.
+ * Both of the rules that can compute it are questions about the channel rather
+ * than about what has finished subscribing, which is what took the write off
+ * the engine's start. See core/micNeeded.ts.
  */
 async function applyFor(hasAudio: boolean): Promise<void> {
   const config = sessionFor(hasAudio);
@@ -433,14 +433,17 @@ async function applyFor(hasAudio: boolean): Promise<void> {
  * @param micNeeded whether anything is listening: somebody else present, or a
  *                  recording running. Told rather than worked out here — this
  *                  hook has never decided anything about who may speak.
- * @param hasAudio  whether this app has any audio at all in this channel:
- *                  somebody else in the room, a recording running, or shared
- *                  playback loaded. This decides the session's configuration,
- *                  where `micNeeded` decides whether we publish, and the two
- *                  are different questions rather than the same one twice —
- *                  a guest without the microphone, and anybody self-muted,
- *                  are audio without being capture. See `channelHasAudio` in
- *                  core/micNeeded.ts, which is where the whole argument is.
+ * @param hasAudio  whether the session should be a call. Computed by one of
+ *                  two rules in core/micNeeded.ts and selected by the
+ *                  `steadyHeadset` setting — *is anybody present capturing*
+ *                  by default, or *does this app have any audio at all* when
+ *                  it is on. This hook is handed the answer and does not know
+ *                  which asked; `App.tsx` is where the choice is made.
+ *
+ *                  Distinct from `micNeeded`, which decides whether we
+ *                  publish. Under either rule the two part company — a guest
+ *                  without the microphone, and anybody self-muted, are audio
+ *                  without being capture.
  */
 export function useSessionAudio(
   mediaRoom: string | null,
@@ -924,10 +927,16 @@ export function useSessionAudio(
    *
    * The two halves are driven by different questions, which is the thing to
    * hold on to here: **the microphone** asks whether anything is listening for
-   * us, and **the session** asks whether this app has any audio at all. They
-   * part company for a guest without the microphone, for anybody self-muted,
-   * and for shared playback with nobody in the room — every one of which is
-   * audio without being capture.
+   * us, and **the session** asks whichever question the `steadyHeadset`
+   * setting selected — see the `hasAudio` parameter. Under either they part
+   * company from `micNeeded`, which is the point: a guest without the
+   * microphone, and anybody self-muted, are heard without capturing.
+   *
+   * It also means this effect re-runs when somebody changes that setting
+   * mid-channel, and rewrites the session then. That is intended — it is how
+   * the two rules get compared on one headset — and it is safe for the same
+   * reason every other edge here is: the write is ordered against the
+   * microphone below rather than left to a transition we do not control.
    */
   useEffect(() => {
     const room = roomRef.current;
