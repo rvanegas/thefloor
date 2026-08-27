@@ -31,7 +31,7 @@ import {
   reduce,
 } from '../../core/channel';
 import { initialFloorState } from '../../core/floor';
-import { roomOccupants, statedIdentities } from '../../core/guests';
+import { inRoom, roomOccupants, statedIdentities } from '../../core/guests';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { initialPlaybackState } from '../../core/playback';
 import { initialRecordingState } from '../../core/recording';
@@ -2013,6 +2013,55 @@ export class ChannelRegistry {
 
   // --- Persistence --------------------------------------------------------
 
+  /**
+   * How often a lost connection comes back inside the grace period, against
+   * how often it is never seen again.
+   *
+   * **Here because nothing measured it and the constant was being argued about
+   * from a story.** `DISCONNECT_GRACE_MS` is justified in `core/constants.ts`
+   * as the interval in which "a tunnel or a lift is survivable", which was
+   * written before this ran on anybody's phone. The commonest way to lose a
+   * socket on iOS is not a tunnel but the app being suspended, and that returns
+   * either within a second of somebody picking the phone up or not for
+   * minutes — so the minute this constant spends waiting may be defending a
+   * case that barely happens. `recovered` against `expired` is the whole of
+   * what settles it.
+   *
+   * Aggregate and in memory, like `lastAnnouncedAt` and for a stronger reason
+   * than convenience: counts rather than events, nothing per account, nothing
+   * on disk, so this answers the question without recording anything about
+   * anybody. It resets on restart, which is honest — read it off a box that
+   * has been up a while, and see `bin/health`.
+   *
+   * Derived from the state diff rather than from the two `report` calls, so
+   * every route in and out is counted once — including the grace period
+   * expiring, which is a tick rather than a report and is exactly the arm
+   * being measured.
+   */
+  private connectivity = { dropped: 0, recovered: 0, expired: 0 };
+
+  /** The counts above, for `/healthz`. */
+  connectivityCounts(): { dropped: number; recovered: number; expired: number } {
+    return { ...this.connectivity };
+  }
+
+  private countConnectivity(before: ChannelState, after: ChannelState): void {
+    for (const id of Object.keys(after.disconnectedAt)) {
+      if (!(id in before.disconnectedAt)) this.connectivity.dropped += 1;
+    }
+    for (const id of Object.keys(before.disconnectedAt)) {
+      if (id in after.disconnectedAt) continue;
+      // Which arm it left by is the question, and presence is what says: a
+      // socket that came back leaves them standing where they were, where a
+      // grace period running out takes them out of the room on its way.
+      if (inRoom(after, id)) {
+        this.connectivity.recovered += 1;
+      } else {
+        this.connectivity.expired += 1;
+      }
+    }
+  }
+
   private commit(before: ChannelState, after: ChannelState): void {
     this.channels.set(after.id, after);
     this.persistChannel(after);
@@ -2023,6 +2072,7 @@ export class ChannelRegistry {
     if (before.status === 'active' && after.status === 'ended') {
       this.markDeleted(after.id, after.endedAt ?? this.now());
     }
+    this.countConnectivity(before, after);
     this.applySilenceToMedia(before, after);
     this.applyGuestSpeech(before, after);
     this.applyRecordingToMedia(before, after);

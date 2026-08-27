@@ -193,6 +193,23 @@ being a departure somebody chose. The claim delay is derived from the ordering
 of `lastClaimedAt`, so absent means never claimed, which counts as having spoken
 longest ago: anyone who has not taken a turn may always claim immediately.
 
+**And by `DISCONNECTED`, since 2026-08-27 — the one thing a grace period does
+not protect.** Everything else the grace holds belongs to the person who
+dropped: their place in the room, their membership, their recording's stem. A
+claim is the opposite, being a lock on everybody else — they are silenced by
+it, and `satisfiesEligibilityRule` refuses a claim outright while it is held,
+so nobody can take it back. Before this the room waited out whichever of the
+two bounds came first, and both are a minute: `DISCONNECT_GRACE_MS` from the
+drop and `FLOOR_CLAIM_MS` from the claim. A room whose speaker vanished spent
+the rest of that minute unable to speak, for a turn nobody was taking.
+
+The cost is that **a returning holder rejoins the queue rather than resuming**,
+and in a pair that is one step of `FLOOR_CLAIM_DELAY_STEP_MS` before they may
+claim again, because `claimDelayMs` ranks by recency and they spoke most
+recently. Deliberate in both directions: whoever stayed keeps the room moving,
+and a flapping connection cannot take the floor, vanish, and take it again on
+the strength of having just had it.
+
 **Where the sources disagree.** They do not, and that is worth recording as a
 positive result — the app's controls are driven by the same `core/` guards the
 server enforces with, so a greyed-out button and a refused action cannot
@@ -435,6 +452,26 @@ correct. That is precisely what a tester hit on 2026-08-18: a Telegram VoIP call
 seized the audio session, the room died, the socket recovered on foreground via
 `realtime.resume()` — so the channel looked live, the roster was right, and the
 audio was dead until the app was force-quit.
+
+**A third reading, since 2026-08-27: `SessionAudio.failing`.** The SFU's own
+continuous judgement of every participant's connection, from
+`RoomEvent.ConnectionQualityChanged`, kept for those reporting
+`ConnectionQuality.Lost` — which livekit-client documents as what it reports
+*before* the timeout that would produce `ParticipantDisconnected`. It is the
+earliest warning anything here has that somebody is dropping out, and it is
+about the connection the conversation is actually travelling on.
+
+It does not replace `disconnectedAt` and is not replaced by it. That one is the
+server noticing a *control* socket went quiet, which cannot beat the heartbeat:
+up to `HEARTBEAT_TIMEOUT_MS` plus a sweep phase before any screen can say a
+word. This one says *your voice is not reaching them right now*, which is what
+somebody mid-sentence needs; the server's says *they have given up their
+place*, which is what the roster is for. Both are drawn on the roster row, and
+`failing` takes precedence because it is the one that is still actionable.
+
+`Poor` is deliberately not surfaced — ordinary on a phone, and warning on it
+would put a red line under half of every conversation. Never shown about
+yourself either: the audio status line already says that, in the first person.
 
 **Where the sources disagree.** The room had **no path from `idle` back to
 `connecting`**: the connect effect is keyed on the room name, which does not

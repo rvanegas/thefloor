@@ -2246,6 +2246,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // accounts reports no build at all, so leaving them in would hold
     // `silentBuilds` above zero for good.
     const builds = accounts.buildsSeenSince(now() - BUILD_WINDOW_MS);
+    const connectivity = channels.connectivityCounts();
     return {
       ok: true,
       audio: options.media ? 'livekit' : 'none',
@@ -2253,6 +2254,17 @@ export function buildApp(options: BuildOptions = {}): App {
       minBuild: MIN_SUPPORTED_BUILD,
       oldestBuild: builds.oldest,
       silentBuilds: builds.silent,
+      // How often a lost connection returns inside DISCONNECT_GRACE_MS against
+      // how often it never does — the ratio that says whether that minute is
+      // defending anything. Counts since this process started, aggregate and
+      // per nobody. See Channels.connectivityCounts.
+      //
+      // **Spread flat rather than sent as an object**, which is a constraint
+      // this endpoint carries rather than a style: `bin/health` reads it with
+      // sed and says so, nesting being the one thing that would break it.
+      drops: connectivity.dropped,
+      dropsRecovered: connectivity.recovered,
+      dropsExpired: connectivity.expired,
       // Only ever read by a client that has just discovered it is below the
       // floor, and null far more often than not. See BuildOptions.updateUrl.
       updateUrl: options.updateUrl ?? null,

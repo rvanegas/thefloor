@@ -106,6 +106,16 @@ printf '  %-13s %s%s\n' silentBuilds "$silent" \
   "$([ "$silent" = "0" ] || echo "  (oldestBuild is a floor on the known population only)")"
 printf '  %-13s %s\n' updateUrl "$(field updateUrl)"
 
+# What a lost connection usually turns out to be. `DISCONNECT_GRACE_MS` is a
+# minute on the grounds that a tunnel or a lift is survivable, and these three
+# say whether that is what actually happens: `recovered` is a socket back
+# inside the window, `expired` is one that never returned and cost somebody
+# their place. Counts since the process started, so they are worth reading off
+# a box that has been up a while and mean little just after a deploy.
+drops=$(field drops)
+printf '  %-13s %s (recovered %s, expired %s)\n' drops "$drops" \
+  "$(field dropsRecovered)" "$(field dropsExpired)"
+
 # The floor this checkout would deploy, against the one that is deployed.
 # Raising MIN_SUPPORTED_BUILD is the change whose blast radius is phones
 # rather than the box, so a difference here is worth naming out loud.

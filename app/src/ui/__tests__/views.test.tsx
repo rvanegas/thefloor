@@ -192,6 +192,7 @@ const AUDIO = {
   mutedByServer: false,
   othersAudible: 0,
   speaking: [] as string[],
+  failing: [] as string[],
   micOpen: true,
   // Nothing has been asked of the audio session, which is what a view test
   // renders against: the diagnostic panel is gated on `mockApp.debug` and is
@@ -1293,6 +1294,44 @@ describe('Channel', () => {
     const text = textOf(tree);
     expect(text).toContain('Present · reconnecting…');
     expect(text).not.toContain('Stepped out');
+    act(() => tree.unmount());
+  });
+
+  it('warns that the room is not reaching somebody, ahead of the server', () => {
+    // The earliest thing anybody can be told, and the reason it exists: the
+    // server has noticed nothing — `disconnectedAt` is empty — because it
+    // cannot until the heartbeat fails. The media plane already knows, and
+    // whoever is mid-sentence is the person who needs telling.
+    const channel = channelOf();
+    showChannel(channel);
+
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={{ ...AUDIO, failing: [THEM] }}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    const text = textOf(tree);
+    expect(text).toContain('Present · not receiving you');
+    expect(text).not.toContain('Present · reconnecting…');
+    act(() => tree.unmount());
+  });
+
+  it('says nothing about your own connection on your own row', () => {
+    // Your connection failing is already said once, in the first person, on
+    // the audio status line. Said again here it would be the same failure
+    // reported twice, one of them phrased as though you were watching yourself
+    // from outside.
+    const channel = channelOf();
+    showChannel(channel);
+
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={{ ...AUDIO, failing: [ME] }}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+    expect(textOf(tree)).not.toContain('not receiving you');
     act(() => tree.unmount());
   });
 

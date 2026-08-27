@@ -490,9 +490,14 @@ describe('websocket', () => {
     b.kill();
   }, 15_000);
 
-  it('keeps a dropped party in the channel, and their floor', async () => {
+  it('keeps a dropped party in the channel, and takes back their floor', async () => {
     // Losing a socket is not leaving. Only staying gone past the grace period
     // is, and that is a timer rather than an event.
+    //
+    // **The claim is the exception**, and the two halves of this assertion are
+    // the whole of the distinction: their place is held, their lock on
+    // everybody else is not. The room can speak again as soon as the transport
+    // notices, rather than waiting out a minute for a turn nobody is taking.
     const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
@@ -509,7 +514,7 @@ describe('websocket', () => {
 
     const channel = app.channels.get(channelId)!;
     expect(channel.present).toContain(bob.account.id);
-    expect(channel.floor.holder).toBe(bob.account.id);
+    expect(channel.floor.holder).toBeNull();
     expect(channel.disconnectedAt[bob.account.id]).toBeDefined();
     a.close();
   });
@@ -538,6 +543,51 @@ describe('websocket', () => {
     // the cooldown still records who held it.
     expect(channel.floor.holder).toBeNull();
     expect(channel.floor.lastClaimedAt[bob.account.id]).toBeDefined();
+    a.close();
+  });
+
+  it('counts which way each lost connection went', async () => {
+    // The measurement DISCONNECT_GRACE_MS has never had. Its justification —
+    // that a tunnel or a lift is survivable — is a claim about how often a
+    // socket comes back inside the window, and nothing counted. These two
+    // arms are that count.
+    //
+    // Read as deltas because the counters belong to the process and every
+    // test in this file shares one; the absolute figures are whatever the
+    // suite happened to do before this ran.
+    const before = app.channels.connectivityCounts();
+    const { alice, bob, channelId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
+
+    // Gone, and back inside the window: the arm the constant exists for.
+    b.close();
+    await new Promise((r) => setTimeout(r, 200));
+    const back = new Client(bob.token, baseUrl);
+    await back.open();
+    back.send({ type: 'watch.channel', channelId });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const recovered = app.channels.connectivityCounts();
+    expect(recovered.dropped - before.dropped).toBe(1);
+    expect(recovered.recovered - before.recovered).toBe(1);
+    expect(recovered.expired - before.expired).toBe(0);
+
+    // Gone, and never seen again: the arm that costs somebody their place.
+    back.close();
+    await new Promise((r) => setTimeout(r, 200));
+    clock += DISCONNECT_GRACE_MS;
+    app.channels.tick();
+
+    const expired = app.channels.connectivityCounts();
+    expect(expired.dropped - recovered.dropped).toBe(1);
+    expect(expired.recovered - recovered.recovered).toBe(0);
+    expect(expired.expired - recovered.expired).toBe(1);
     a.close();
   });
 

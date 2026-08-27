@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import {
+  ConnectionQuality,
   Room,
   RoomEvent,
   Track,
@@ -87,6 +88,36 @@ export interface SessionAudio {
    * a screen whose audio has dropped would be the one reading that matters.
    */
   speaking: string[];
+  /**
+   * Who the media plane has stopped hearing from — the earliest warning
+   * anything in this app has that somebody is dropping out.
+   *
+   * **Earlier than the websocket can be, and about the right connection.**
+   * `ChannelState.disconnectedAt` is the server noticing that a *control*
+   * socket went quiet, which is bounded below by the heartbeat: up to
+   * HEARTBEAT_TIMEOUT_MS to fail, plus a sweep phase, before anybody's screen
+   * can say a word. This is the SFU's continuous judgement about the
+   * connection the conversation is actually travelling on, pushed to every
+   * client in the room, and `ConnectionQuality.Lost` is documented as what it
+   * reports *before* the timeout that would produce `ParticipantDisconnected`.
+   *
+   * So the two are not redundant and neither replaces the other: this says
+   * "your voice is not reaching them right now", which is what somebody
+   * mid-sentence needs, and the server's says "they have given up their
+   * place", which is what the roster is for. A person can be in either state
+   * without the other — a phone whose media path is dead while its websocket
+   * is fine is exactly the case STATES.md records under *Audio Connected*.
+   *
+   * `Lost` alone, deliberately. `Poor` is ordinary on a phone and passes
+   * without anybody noticing anything; warning on it would put a red line
+   * under half of every conversation and teach people to ignore it, which is
+   * the same argument `useOfflineNotice` makes for its delay.
+   *
+   * Empty while disconnected, on the same reasoning as `speaking`: a warning
+   * about somebody else, left on a screen whose own audio has dropped, is
+   * describing the wrong failure.
+   */
+  failing: string[];
   /**
    * Whether anything you say is going out.
    *
@@ -430,6 +461,7 @@ export function useSessionAudio(
     mutedByServer: false,
     othersAudible: 0,
     speaking: [],
+    failing: [],
     micOpen: false,
     asked: null,
     // Replaced below, once `setGeneration` exists to close over. Never called
@@ -571,6 +603,16 @@ export function useSessionAudio(
     // exactly makes the indicator flicker through every pause in a sentence.
     let hold: SpeakingHold = NOBODY_SPEAKING;
     let release: ReturnType<typeof setTimeout> | undefined;
+    /**
+     * Who the SFU currently reports as `Lost`, held per connection.
+     *
+     * Not smoothed the way `hold` is, and the asymmetry is deliberate. The
+     * speaking indicator is smoothed because it follows speech, which stops
+     * and starts inside a sentence; this follows a connection, which does not
+     * flicker on that timescale — and the whole value of it is that it is
+     * early, so a hold would spend the lead time it exists to provide.
+     */
+    const failing = new Set<string>();
 
     /**
      * Publishes the hold, and arms a timer for the moment it next changes.
@@ -648,6 +690,29 @@ export function useSessionAudio(
       .on(RoomEvent.TrackUnsubscribed, onUnsubscribed)
       .on(RoomEvent.ActiveSpeakersChanged, onSpeakers)
       .on(RoomEvent.ParticipantDisconnected, onQuiet)
+      // The early warning. Held as a set on the room rather than derived from
+      // it on each event, because the event carries one participant and the
+      // screen wants all of them — and because a participant who leaves stops
+      // reporting quality rather than reporting good quality, so anything
+      // derived from the last event alone would leave a name lit for ever.
+      .on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+        const id = participant?.identity;
+        if (!id) return;
+        const lost = quality === ConnectionQuality.Lost;
+        if (lost === failing.has(id)) return;
+        if (lost) failing.add(id);
+        else failing.delete(id);
+        recordEvent(`connection ${lost ? 'lost' : 'restored'} ${id}`);
+        update({ failing: [...failing] });
+      })
+      // Somebody who has gone is no longer somebody whose connection is
+      // failing: the warning has been overtaken by the fact. Without this the
+      // last thing said about them stays true on screen for the life of the
+      // room, since a departed participant reports no further quality.
+      .on(RoomEvent.ParticipantDisconnected, (participant) => {
+        if (!failing.delete(participant.identity)) return;
+        update({ failing: [...failing] });
+      })
       // Releasing the microphone is ours and only ever reported here; the
       // remote event is for somebody else's track going away. Both mean the
       // same thing to the indicator.
@@ -671,7 +736,8 @@ export function useSessionAudio(
         // `livekit-client` retries internally and only fires this once it has
         // given up, so reaching here means the connection is not coming back
         // by itself. Ours is the last word.
-        update({ status: 'reconnecting', speaking: [] });
+        failing.clear();
+        update({ status: 'reconnecting', speaking: [], failing: [] });
         scheduleReconnect();
       });
 

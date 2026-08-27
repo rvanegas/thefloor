@@ -906,6 +906,33 @@ export function reduce(
     return {
       ...state,
       disconnectedAt: { ...state.disconnectedAt, [action.userId]: now },
+      // **A claim does not survive the claimant, and this is the one thing a
+      // grace period does not cover.** Everything else it protects belongs to
+      // the person who dropped — their place in the room, their membership,
+      // their recording's stem. A claim is the opposite: it is a lock on
+      // everybody else, who are silenced by it and, since
+      // `satisfiesEligibilityRule` refuses outright while it is held, cannot
+      // take it back. So the grace period spent waiting to see whether
+      // somebody's phone returns was spent by the rest of the room unable to
+      // speak, for a turn nobody was taking.
+      //
+      // Bounded twice before this, and neither bound was early: the grace
+      // period at DISCONNECT_GRACE_MS from the drop, and the claim's own
+      // expiry at FLOOR_CLAIM_MS from the claim. Both are a minute, so a room
+      // whose speaker vanished waited out the rest of that minute in silence.
+      // Now it waits only as long as the transport takes to notice.
+      //
+      // **The returning holder rejoins the queue rather than resuming**, and
+      // that is deliberate rather than a rough edge. `claimDelayMs` ranks by
+      // recency and they spoke most recently, so in a pair they wait one step
+      // to claim again while the other may go at once. Which is the right way
+      // round twice over: the person who was there keeps the room moving, and
+      // a connection that flaps cannot take the floor, vanish, and take it
+      // again on the strength of having just had it.
+      floor:
+        state.floor.holder === action.userId
+          ? releaseFloor(state.floor, now)
+          : state.floor,
     };
   }
 

@@ -142,6 +142,22 @@ export const MAX_PING_TEXT_LENGTH = 100;
  * deliberately generous, that being the interval in which a tunnel or a lift
  * is survivable.
  *
+ * **That justification is a claim about frequency and was never measured**,
+ * which is worth knowing before anybody argues about the number again. It was
+ * written before this ran on anybody's phone, and the commonest way to lose a
+ * socket on iOS is not a tunnel but the app being suspended — which returns
+ * either within a second of somebody picking the phone up, or not for minutes.
+ * `/healthz` has carried `dropsRecovered` against `dropsExpired` since
+ * 2026-08-27 for exactly this question; `bin/health` prints them.
+ *
+ * **And it is load-bearing well beyond somebody's dot on a roster**, which is
+ * the other half of why it should not be shortened casually. When the grace
+ * expires on the last present member, `settleEmpty` ends a solo recording,
+ * pauses playback and any watch party, and revokes every guest link
+ * irreversibly — so a lone host whose own phone blips for a minute destroys a
+ * guest's access with no undo. What it no longer holds is the floor, which is
+ * released the moment a drop is noticed: see STATES.md § *Claimed Floor*.
+ *
  * Note it is also what bounds a forgotten recording, now that nothing else
  * does: a run stops when the channel empties, and the channel empties this
  * long after the last connection dies. So an abrupt end to a conversation

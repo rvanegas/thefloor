@@ -390,6 +390,19 @@ export function ChannelView({
   const speakingHere = (id: string) =>
     audioIsThisChannel && inRoom(channel, id) && audio.speaking.includes(id);
   /**
+   * Whether the room has stopped hearing from somebody, as the media plane
+   * sees it. See `SessionAudio.failing`.
+   *
+   * **Never about you.** Your own connection failing is a thing this screen
+   * already says, once, in the audio status line — and it says it in the first
+   * person, where this line is written to be read about somebody else. Two
+   * reports of one failure, one of them phrased as though you were watching
+   * yourself from outside, is worse than either alone.
+   */
+  const failingHere = (id: string) =>
+    id !== me && audioIsThisChannel && inRoom(channel, id) &&
+    audio.failing.includes(id);
+  /**
    * Whether the channel is mine to change, as against somebody else's
    * conversation to leave alone. See `hasTheRoom` in core.
    *
@@ -673,6 +686,10 @@ export function ChannelView({
                 // reducer imagines it: the floor says who *may* speak, and
                 // this says who is.
                 speaking={speakingHere(participant.id)}
+                // The earliest thing anybody in the room can be told about
+                // somebody dropping out, and it is here rather than on the
+                // channel's own status line because it is about one person.
+                failing={failingHere(participant.id)}
                 now={now}
                 onPress={() => setViewing(participant)}
                 // The same test the profile's composer uses and the server
@@ -770,6 +787,7 @@ export function ChannelView({
               muted={!!channel.selfMuted[guest.id]}
               holdsFloor={channel.floor.holder === guest.id}
               speaking={speakingHere(guest.id)}
+              failing={failingHere(guest.id)}
               manageable={canManageGuest(channel, me, guest.id)}
               onSpeech={(maySpeak) =>
                 act({ type: 'SET_GUEST_SPEECH', guestId: guest.id, maySpeak })
@@ -1710,6 +1728,7 @@ function GuestCard({
   muted,
   holdsFloor,
   speaking,
+  failing,
   manageable,
   onSpeech,
   onEject,
@@ -1725,11 +1744,23 @@ function GuestCard({
    * to have — and the microphone one renders `primary` when a guest is asking,
    * so the loudest button on the screen was wired to nothing.
    */
+  /**
+   * The media plane has stopped hearing from them. See `SessionAudio.failing`.
+   *
+   * Said about a guest for the reason it is said about a member: what the line
+   * is for is telling whoever is talking to hold off, and a guest who has been
+   * given the microphone is somebody in this conversation. It takes precedence
+   * over every other line here, including the floor — a claim held by somebody
+   * the room cannot hear is exactly the case worth interrupting.
+   */
+  failing: boolean;
   manageable: boolean;
   onSpeech: (maySpeak: boolean) => void;
   onEject: () => void;
 }) {
-  const status = !guest.maySpeak
+  const status = failing
+    ? 'Not receiving you'
+    : !guest.maySpeak
     ? guest.request === 'asking'
       ? 'Listening · asking to speak'
       : guest.request === 'refused'
@@ -1748,7 +1779,7 @@ function GuestCard({
       <Text style={type.body}>
         <Text style={type.heading}>{guest.name}</Text> · guest
       </Text>
-      <Text style={type.muted}>{status}</Text>
+      <Text style={[type.muted, failing && styles.statusBad]}>{status}</Text>
       <View style={styles.guestActions}>
         <Button
           // The asking is what makes this urgent rather than administrative,
@@ -1812,6 +1843,7 @@ function ParticipantCard({
   participant,
   self,
   speaking,
+  failing,
   now,
   onPress,
   onPing,
@@ -1821,6 +1853,12 @@ function ParticipantCard({
   participant: { id: string; displayName: string };
   self: boolean;
   speaking: boolean;
+  /**
+   * The media plane has stopped hearing from them, which is the earliest
+   * warning the room gets that somebody is dropping out. See
+   * `SessionAudio.failing`.
+   */
+  failing: boolean;
   /** The server's clock, which is what the idle time is measured against. */
   now: number;
   onPress?: () => void;
@@ -1909,9 +1947,19 @@ function ParticipantCard({
     ? // Present but unreachable is its own state, not absence: they are still
       // in the channel and still hold whatever they hold. Saying so beats
       // making them vanish and reappear over a moment's bad signal.
-      reconnecting
-      ? 'Present · reconnecting…'
-      : 'Present'
+      //
+      // **Two sources, and the earlier one goes first.** `failing` is the
+      // media plane's own judgement, pushed by the SFU about the connection
+      // the conversation is travelling on; `reconnecting` is the server
+      // noticing a control socket went quiet, which cannot beat the heartbeat.
+      // So this line says the useful thing while somebody is still
+      // mid-sentence rather than a quarter-minute after the damage — which is
+      // the whole of what it is for. See `SessionAudio.failing`.
+      failing
+      ? 'Present · not receiving you'
+      : reconnecting
+        ? 'Present · reconnecting…'
+        : 'Present'
     : away !== null && isWaiting(channel, participant.id, now)
       ? // They did not leave; their phone did. Walking into a channel and
         // pocketing the phone suspends the process in under a second, so this
@@ -1964,7 +2012,7 @@ function ParticipantCard({
         />
       </View>
       <View style={styles.cardFoot}>
-        <Text style={[type.muted, styles.cardStatus]}>
+        <Text style={[type.muted, styles.cardStatus, failing && styles.statusBad]}>
           {status}
           {muted ? ' · muted' : ''}
           {holdsFloor ? ' · has the floor' : ''}
@@ -2133,6 +2181,16 @@ function audioTone(status: string) {
 const styles = StyleSheet.create({
   audioMuted: { ...type.muted, color: colors.textFaint },
   audioBad: { ...type.muted, color: colors.danger },
+  /**
+   * A roster line that has stopped being reassuring.
+   *
+   * The same argument `audioBad` makes one line up, applied to one person
+   * instead of the connection: somebody the room cannot hear is a conversation
+   * that has stopped working for them, and it earns a glance. It is the only
+   * thing on a roster card that is ever coloured, which is what makes a glance
+   * enough.
+   */
+  statusBad: { color: colors.danger },
   otherName: { flexShrink: 1, fontSize: 24, fontWeight: '700', color: colors.text },
   /** Italic alone; see the note on Home's `described`. */
   describedName: {
