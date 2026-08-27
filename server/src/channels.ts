@@ -501,34 +501,38 @@ export class ChannelRegistry {
    */
   private lastAnnouncedAt = new Map<string, number>();
   /**
-   * The last arrival announcement sent for each channel, and who it was about.
+   * Who last stepped into each channel, and when.
    *
-   * A receipt for a push, which is what makes it different from everything else
-   * on this class. It is not derived from `present` and not derived from any
-   * stamp: it records that the server told people somebody had walked in, and
-   * it keeps standing after that somebody has walked out again.
+   * **The act, not the notification.** An earlier draft of this recorded the
+   * arrival *announcement* instead, which was a proxy for stepping in and a
+   * leaky one: a push is suppressed inside `ANNOUNCE_INTERVAL_MS`, and none is
+   * sent at all when nobody is absent to send it to or when the room was
+   * already occupied. Stepping in is what the person did, and it is what they
+   * want reported back to them; whether it happened to ring anybody's phone is
+   * a different fact with its own map two fields up.
    *
-   * **That outliving is the whole point.** Presence is exclusive —
-   * `stepOutOfOthers` removes you from every other channel when you enter one —
-   * so somebody knocking on three doors in turn is removed from the first two
-   * by the act of trying the third. And Home's recency measure now leaves the
-   * reader out on purpose, so those two rooms carry no trace of the visit
-   * either. Without this there is nothing on the screen that remembers you
-   * called, which is the one thing the person who called needs to know.
+   * It is not derived from `present`, and not from `lastPresentAt` either —
+   * that stamp is refreshed by the heartbeat and re-stamped on the way out, so
+   * it answers "when were you last here" where this answers "when did you
+   * arrive". The difference is the whole use: **this has to outlive the
+   * visit.** Presence is exclusive — `stepOutOfOthers` removes you from every
+   * other channel when you enter one — so somebody knocking on three doors in
+   * turn is removed from the first two by the act of trying the third. And
+   * Home's recency measure now leaves the reader out on purpose, so those two
+   * rooms carry no trace of the visit either. Without this there is nothing on
+   * the screen that remembers they came.
    *
-   * Keyed by channel and holding **one** entry, not one per announcer: the next
-   * announcement supersedes the last, which is how a mark is cleared. If you
-   * step out and somebody else later walks into the empty room,
-   * `announceActive` fires for them and overwrites `by` — so your mark goes at
-   * exactly the moment their arrival makes the row's own number fresh, and the
-   * two can never both be showing.
+   * Keyed by channel and holding **one** entry, not one per person: the next
+   * arrival supersedes the last, which is how a mark is cleared and is all the
+   * clearing there is. Somebody else stepping in takes the mark off your row at
+   * the moment their arrival puts their own presence into the number beside it,
+   * so a mark and an answered call can never both be showing.
    *
-   * In memory like `lastAnnouncedAt` and for the same kind of reason: it is
-   * five minutes wide, a restart drops presence anyway, and the restart path
-   * below pre-suppresses announcements for that same window — so a deploy
+   * In memory like `lastAnnouncedAt` above and for the same kind of reason: it
+   * is five minutes wide and a restart drops presence anyway, so a deploy
    * losing it costs a mark that was about to expire.
    */
-  private announced = new Map<string, { by: string; at: number }>();
+  private lastEntry = new Map<string, { by: string; at: number }>();
   /**
    * When each person was last pinged in each channel, keyed channel-and-target.
    *
@@ -1597,7 +1601,7 @@ export class ChannelRegistry {
       const others = otherParticipants(channel, userId)
         .map((id) => this.accounts.public(id))
         .filter((account): account is NonNullable<typeof account> => !!account);
-      const announced = this.announced.get(channel.id);
+      const entry = this.lastEntry.get(channel.id);
       // Deliberately not skipped when nobody else is left. A channel everyone
       // else has walked out of is still yours — it has your name for it, your
       // description, and your recordings hanging off it — and dropping it from
@@ -1615,15 +1619,15 @@ export class ChannelRegistry {
         // row now says and what the list is now ordered by. A channel they sat
         // in alone does not read as the freshest thing on Home.
         lastPresenceByOthers: lastPresenceByOthers(channel, userId),
-        // And the other half: whether the last announcement this channel sent
-        // was about *them*, which is the only thing left that remembers they
-        // called — the measure above having deliberately forgotten. Null for
-        // somebody else's announcement, which needs no mark because their
-        // arrival is already in the number.
+        // And the other half: whether the last person to step into this channel
+        // was *them*, which is the only thing left that remembers they came —
+        // the measure above having deliberately forgotten. Null when somebody
+        // else was last in, which needs no mark because their arrival is
+        // already in the number.
         //
         // The moment rather than a boolean, so the mark expires on the phone's
         // own clock instead of waiting for a snapshot that may not come.
-        announcedAt: announced?.by === userId ? announced.at : null,
+        steppedInAt: entry?.by === userId ? entry.at : null,
         everUsed: channel.everPresent.length > 0,
       });
     }
@@ -2051,10 +2055,16 @@ export class ChannelRegistry {
     // after, so that the arrival cannot be the thing that silences its own
     // audience — the arriver is never in `absent`, so the order is not
     // load-bearing, but reading it in the other order invites the question.
-    this.consume(
-      after.id,
-      after.present.filter((id) => !before.present.includes(id))
+    const steppedIn = after.present.filter(
+      (id) => !before.present.includes(id)
     );
+    this.consume(after.id, steppedIn);
+    // The mark on a Home row, recorded here because here is where somebody
+    // becomes present — every route in passes through this transition, so no
+    // route can be forgotten. Last one wins, which is what supersedes an
+    // earlier caller's mark. Members only: a guest has no Home to draw it on.
+    const last = steppedIn.at(-1);
+    if (last !== undefined) this.lastEntry.set(after.id, { by: last, at: this.now() });
     if (before.present.length > 0 && after.present.length === 0) {
       // The rule guest links are given: valid until the channel is emptied of
       // present members. Written here, on the transition, and never asked as a
@@ -2171,14 +2181,6 @@ export class ChannelRegistry {
     // the next genuine arrival, which is a different event about a room the
     // recipient now knows exists.
     //
-    // `announced` **is** stamped, which is not a contradiction: that one is not
-    // a suppression window but a receipt, and from the opener's side this is
-    // the same act as any other announcement — they stepped in and the others
-    // were told. Which of the two pushes carried it is not a distinction the
-    // person who called can see or act on. The mark's five minutes are its own
-    // and do not follow this push's month: the claim is "you just stepped in",
-    // which stops being true on the same schedule either way.
-    this.announced.set(channel.id, { by: opener, at: this.now() });
   }
 
   private announceActive(channel: ChannelState): void {
@@ -2189,7 +2191,6 @@ export class ChannelRegistry {
     const absent = channel.participants.filter(
       (id) => !channel.present.includes(id)
     );
-    let sent = false;
     // Each is titled from its own recipient's point of view, because an
     // unnamed channel is called after whoever else is in it and there is no
     // one answer to that — which is why the name is resolved per recipient
@@ -2213,13 +2214,7 @@ export class ChannelRegistry {
           channel.id
         )
       );
-      sent = true;
     }
-    // Only if somebody was actually told. Every recipient may be inside their
-    // own suppression window, in which case no push left the building and there
-    // is nothing for a mark to report — and the earlier announcement it was
-    // suppressed in favour of has already set this.
-    if (sent) this.announced.set(channel.id, { by: arrived, at: now });
   }
 
   private announceKey(channelId: string, userId: string): string {

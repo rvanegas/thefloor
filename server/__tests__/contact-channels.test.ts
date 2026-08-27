@@ -343,13 +343,13 @@ describe('when anybody else was last in a channel', () => {
  *
  * `lastPresenceByOthers` above leaves the reader out on purpose, so nothing in
  * it can ever report the reader's own visit — which is right for ordering and
- * useless for the question "have I already called here?". Presence is exclusive
- * (`stepOutOfOthers`), so somebody knocking on three doors in turn is removed
- * from the first two by the act of trying the third, and without this there is
- * nothing left on any of those rows that remembers they came.
+ * useless for the question "have I already been in here?". Presence is
+ * exclusive (`stepOutOfOthers`), so somebody knocking on three doors in turn is
+ * removed from the first two by the act of trying the third, and without this
+ * there is nothing left on any of those rows that remembers they came.
  */
-describe('whether you have just called into a channel', () => {
-  it('marks the channel for whoever arrived, and nobody else', async () => {
+describe('whether you have just stepped into a channel', () => {
+  it('marks the channel for whoever stepped in, and nobody else', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
     const bob = await signIn('bob@example.com', 'Bob');
     await befriend(alice, bob, 'bob@example.com');
@@ -363,24 +363,48 @@ describe('whether you have just called into a channel', () => {
     clock += 60_000;
     app.channels.dispatch(id, bob.account.id, { type: 'STEP_OUT' });
 
-    // Well past ANNOUNCE_INTERVAL_MS, so Alice's arrival is announced on its
-    // own account rather than suppressed as a flapping connection.
     clock += 10 * 60_000;
     app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
-    const called = clock;
+    const arrived = clock;
 
     const mine = app.channels
       .rejoinableFor(alice.account.id)
       .find((entry) => entry.channelId === id)!;
-    expect(mine.announcedAt).toBe(called);
+    expect(mine.steppedInAt).toBe(arrived);
 
-    // Bob was the one *told*. He needs no mark: he did not call, and Alice's
-    // arrival is already in the number his row reads.
+    // Bob did not step in. He needs no mark, and Alice's arrival is already in
+    // the number his row reads.
     const theirs = app.channels
       .rejoinableFor(bob.account.id)
       .find((entry) => entry.channelId === id)!;
-    expect(theirs.announcedAt).toBeNull();
-    expect(theirs.lastPresenceByOthers).toBe(called);
+    expect(theirs.steppedInAt).toBeNull();
+    expect(theirs.lastPresenceByOthers).toBe(arrived);
+  });
+
+  it('marks a step-in that rang nobody at all', async () => {
+    // **The act, not the notification**, which an earlier draft got wrong by
+    // recording the announcement instead. Here Bob is already in the room, so
+    // `announceActive` never fires — the transition is not empty-to-occupied —
+    // and there is nobody absent to tell in any case. Alice still stepped in,
+    // and her row still has to remember it once the room empties out again.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const id = pairChannel(alice, bob)!;
+
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'ENTER' });
+    clock += 60_000;
+    app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
+    const arrived = clock;
+    clock += 60_000;
+    app.channels.dispatch(id, bob.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(id, alice.account.id, { type: 'STEP_OUT' });
+
+    const mine = app.channels
+      .rejoinableFor(alice.account.id)
+      .find((entry) => entry.channelId === id)!;
+    expect(mine.steppedInAt).toBe(arrived);
   });
 
   it('outlives the visit it reports', async () => {
@@ -394,7 +418,7 @@ describe('whether you have just called into a channel', () => {
 
     clock += 60_000;
     app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
-    const called = clock;
+    const arrived = clock;
     clock += 30_000;
     app.channels.dispatch(id, alice.account.id, { type: 'STEP_OUT' });
 
@@ -404,16 +428,18 @@ describe('whether you have just called into a channel', () => {
     expect(view.presentCount).toBe(0);
     // Nobody else has been here, so the row's own number has nothing to say.
     expect(view.lastPresenceByOthers).toBeNull();
-    // And this is the only thing that remembers she came.
-    expect(view.announcedAt).toBe(called);
+    // And this is the only thing that remembers she came. Not her own
+    // `lastPresentAt` either, which the way out has just re-stamped: that says
+    // when she was last here, and this says when she arrived.
+    expect(view.steppedInAt).toBe(arrived);
+    expect(view.steppedInAt).toBeLessThan(clock);
   });
 
-  it('is superseded when somebody else walks into the empty room', async () => {
+  it('is superseded when somebody else steps in', async () => {
     // How a mark is cleared, with no machinery for clearing it: the next
-    // announcement overwrites the last. It goes at exactly the moment their
-    // arrival makes the row's own number fresh, so the two can never both be
-    // showing — a mark saying "you called" beside an interval saying somebody
-    // answered would be reporting a wait that is over.
+    // arrival overwrites the last. It goes at exactly the moment their entry
+    // puts their own presence into the number beside it, so a mark saying you
+    // stepped in can never sit next to an interval saying somebody answered.
     const alice = await signIn('alice@example.com', 'Alice');
     const bob = await signIn('bob@example.com', 'Bob');
     await befriend(alice, bob, 'bob@example.com');
@@ -424,8 +450,6 @@ describe('whether you have just called into a channel', () => {
     clock += 30_000;
     app.channels.dispatch(id, alice.account.id, { type: 'STEP_OUT' });
 
-    // Past ANNOUNCE_INTERVAL_MS, so Bob's arrival is announced rather than
-    // suppressed as a flapping connection would be.
     clock += 10 * 60_000;
     app.channels.dispatch(id, bob.account.id, { type: 'ENTER' });
     const answered = clock;
@@ -433,15 +457,15 @@ describe('whether you have just called into a channel', () => {
     const view = app.channels
       .rejoinableFor(alice.account.id)
       .find((entry) => entry.channelId === id)!;
-    expect(view.announcedAt).toBeNull();
+    expect(view.steppedInAt).toBeNull();
     expect(view.lastPresenceByOthers).toBe(answered);
   });
 
-  it('marks a first-ever entry too, whichever push carried it', async () => {
-    // The opener of a channel nobody has been in gets `invited` rather than
-    // `arrived` — a different notification with a different lifetime. From
-    // their side it is the same act: they stepped in and the other was told,
-    // and which push carried it is not a distinction they can see.
+  it('marks a first-ever entry too', async () => {
+    // The standing channel a pair get for becoming contacts, opened for the
+    // first time. The other person gets `invited` rather than `arrived` here —
+    // a different push with a different lifetime — which is exactly the sort of
+    // distinction this stopped depending on. Stepping in is stepping in.
     const alice = await signIn('alice@example.com', 'Alice');
     const bob = await signIn('bob@example.com', 'Bob');
     await befriend(alice, bob, 'bob@example.com');
@@ -451,7 +475,7 @@ describe('whether you have just called into a channel', () => {
       .rejoinableFor(alice.account.id)
       .find((entry) => entry.channelId === id)!;
     expect(before.everUsed).toBe(false);
-    expect(before.announcedAt).toBeNull();
+    expect(before.steppedInAt).toBeNull();
 
     clock += 60_000;
     app.channels.dispatch(id, alice.account.id, { type: 'ENTER' });
@@ -459,6 +483,6 @@ describe('whether you have just called into a channel', () => {
     const after = app.channels
       .rejoinableFor(alice.account.id)
       .find((entry) => entry.channelId === id)!;
-    expect(after.announcedAt).toBe(clock);
+    expect(after.steppedInAt).toBe(clock);
   });
 });

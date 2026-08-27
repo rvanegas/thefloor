@@ -278,10 +278,13 @@ export const MAX_CLIP_LENGTH = 8_000;
  *
  * **Shared with the client since 2026-08-26**, which is why it lives here
  * rather than in the server's `push.ts` where it was written. Home marks a
- * channel you have just called into, and the mark has to fade on the phone's
+ * channel you have just stepped into, and the mark has to fade on the phone's
  * own clock rather than wait for the next snapshot — so both ends need the
- * window, and the announcement's own life is the honest one to use: the mark
- * reports a push, and stops when the push it reports has stopped being worth
- * delivering. Two constants that had to agree would be worse than the move.
+ * window.
+ *
+ * The same five minutes for both, because it is the same claim seen from its
+ * two ends: the push says "somebody is here now" to them, the mark says it to
+ * you about yourself, and it stops being worth saying at the same moment
+ * either way. Two constants that had to agree would be worse than the move.
  */
 export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;

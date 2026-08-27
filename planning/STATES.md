@@ -322,15 +322,19 @@ Three things follow, and each has bitten somebody in an earlier draft:
   `lastActiveAt` and never `lastPresentAt`, `STILL_HERE` being guarded on
   `isPresent`. Home's recency is a claim about members.
 
-Beside it, and **not a measure at all**, is `announcedAt`: the moment the server
-last announced *this reader's own* arrival in this channel. It is the receipt for
-a push, held in memory on `ChannelRegistry`, five minutes wide
-(`PRESENCE_LIFETIME_MS`, in `core/constants.ts` so both ends read it). It is
-**deliberately not derived from presence** — it has to outlive the visit it
-reports, that visit being what stepping into the next channel erases. It is
-cleared by the next announcement overwriting it, draws `↗` on the row, and orders
-nothing. decisions/DECISIONS.md § *Home counts other people, and marks your own
-call separately*.
+Beside it, and **not a measure at all**, is `steppedInAt`: the moment *this
+reader* last stepped into this channel. The server holds the last entry per
+channel on `ChannelRegistry`, in memory, and the view answers with the time when
+that entry was the reader's own. Five minutes wide (`PRESENCE_LIFETIME_MS`, in
+`core/constants.ts` so both ends read it), cleared by the next arrival
+overwriting it, draws `↗` on the row, and orders nothing.
+
+**It is the act, not the notification** — an earlier draft recorded the arrival
+push instead and lost every step-in that was suppressed or had nobody to notify.
+And it is **not** the reader's `lastPresentAt`, which the heartbeat refreshes and
+every route out re-stamps: that says when you were last here, this says when you
+arrived, and only the second outlives a departure. decisions/DECISIONS.md § *Home
+counts other people, and marks your own step-in separately*.
 
 ---
 

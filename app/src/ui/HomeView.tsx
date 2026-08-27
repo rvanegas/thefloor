@@ -481,10 +481,10 @@ type Card = {
    */
   lastPresenceByOthers: number | null | undefined;
   /**
-   * When the reader last announced themselves here, or null. Draws the mark,
-   * orders nothing — see `RejoinableView.announcedAt`.
+   * When the reader last stepped in here, or null. Draws the mark, orders
+   * nothing — see `RejoinableView.steppedInAt`.
    */
-  announcedAt: number | null | undefined;
+  steppedInAt: number | null | undefined;
   /** False only for a channel nobody has ever been in. */
   everUsed: boolean;
   /** Who asked you in, for an invitation. */
@@ -512,7 +512,7 @@ function inviteCard(invite: InviteView): Card {
     // theirs for a mark to remember. `describeQuiet` takes the undefined branch
     // and draws exactly the line it drew before.
     lastPresenceByOthers: undefined,
-    announcedAt: undefined,
+    steppedInAt: undefined,
     // Somebody has been in it: that is what makes it an invitation rather than
     // the standing channel a pair of contacts share.
     everUsed: true,
@@ -540,7 +540,7 @@ function memberCard(channel: RejoinableView): Card {
     // solitary morning back in through the side door. Undefined stays
     // undefined, and `describeQuiet` uses the old number under its old meaning.
     lastPresenceByOthers: channel.lastPresenceByOthers,
-    announcedAt: channel.announcedAt,
+    steppedInAt: channel.steppedInAt,
     everUsed: channel.everUsed ?? true,
   };
 }
@@ -577,7 +577,7 @@ const isLive = (card: Card) =>
  * thing on the list. Among themselves they go by name, there being nothing else
  * true to order them by.
  *
- * **`announcedAt` is not read here.** The mark says the reader called, and
+ * **`steppedInAt` is not read here.** The mark says the reader was here, and
  * sorting on it would put their own echo back at the top — undoing, with the
  * second signal, exactly what the first one was for.
  *
@@ -642,8 +642,8 @@ function ChannelCard({
   // is a line that goes away rather than a line that says nothing.
   const quiet = describeQuiet(card, now);
   /**
-   * Whether the reader has just called here — stepped in, so the others were
-   * told — and it is still recent enough to be worth remembering.
+   * Whether the reader stepped in here recently enough to be worth being
+   * reminded of.
    *
    * Drawn only on a row nobody is in, the same rule the interval follows, and
    * for the same reason: a row with people in it is showing its count, and a
@@ -655,10 +655,10 @@ function ChannelCard({
    * why the wire carries a moment instead of a flag: nothing has to happen in
    * the channel for the mark to go.
    */
-  const called =
+  const steppedIn =
     !live &&
-    card.announcedAt != null &&
-    now - card.announcedAt < PRESENCE_LIFETIME_MS;
+    card.steppedInAt != null &&
+    now - card.steppedInAt < PRESENCE_LIFETIME_MS;
   /**
    * An invitation outlives the moment it was sent. What it must not do is go
    * on claiming that moment is still happening — the banner used to say
@@ -692,7 +692,7 @@ function ChannelCard({
       // place that cost can be paid, so it is paid here rather than left to a
       // screen reader to guess at an arrow.
       accessibilityLabel={`${card.title}. ${line ? `${line}. ` : ''}${
-        called ? 'You called. ' : ''
+        steppedIn ? 'Stepped in. ' : ''
       }${!stepsIn ? 'Open.' : card.kind === 'invite' ? 'Join.' : 'Step in.'}`}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
@@ -724,11 +724,11 @@ function ChannelCard({
           the one thing on this screen meant to shout, and this is a memory aid.
 
           It cannot collide with the ✕ beside it. Stepping in is what sets
-          `announcedAt`, and stepping in is also what stops a channel being an
+          `steppedInAt`, and stepping in is also what stops a channel being an
           invitation, so a row can carry a mark or a dismiss and never both.
         */}
-        {called ? (
-          <Text style={styles.called} accessibilityElementsHidden>
+        {steppedIn ? (
+          <Text style={styles.steppedIn} accessibilityElementsHidden>
             ↗
           </Text>
         ) : null}
@@ -958,5 +958,5 @@ const styles = StyleSheet.create({
   // Muted and a size down from the dismiss glyph beside it, which is a control
   // where this is a note to yourself. Same horizontal padding so the two sit in
   // the same column on rows that have one or the other.
-  called: { color: colors.textMuted, fontSize: 14, paddingHorizontal: 4 },
+  steppedIn: { color: colors.textMuted, fontSize: 14, paddingHorizontal: 4 },
 });

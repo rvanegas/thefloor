@@ -4490,12 +4490,12 @@ describe('how quiet a channel is, counting other people only', () => {
  * The mark, which is the other half and is not a measure.
  *
  * The number above forgets the reader on purpose, so nothing in it can report
- * that the reader themselves called. Presence being exclusive, stepping into
- * the next channel steps you out of the last — so without this a room you
+ * that the reader themselves stepped in. Presence being exclusive, stepping
+ * into the next channel steps you out of the last — so without this a room you
  * knocked on a minute ago carries no trace of it at all.
  */
-describe('the mark for a channel you have just called into', () => {
-  const called = (extra: Record<string, unknown> = {}) => {
+describe('the mark for a channel you have just stepped into', () => {
+  const steppedIn = (extra: Record<string, unknown> = {}) => {
     mockApp.home = {
       invites: [],
       rejoinable: [
@@ -4508,7 +4508,7 @@ describe('the mark for a channel you have just called into', () => {
           lastActiveAt: NOW,
           lastPresenceAt: NOW - 60_000,
           lastPresenceByOthers: NOW - 4 * 86_400_000,
-          announcedAt: NOW - 60_000,
+          steppedInAt: NOW - 60_000,
           ...extra,
         },
       ],
@@ -4531,40 +4531,40 @@ describe('the mark for a channel you have just called into', () => {
 
   it('draws the glyph, and says it in words for a screen reader', () => {
     // A glyph reads as nothing, so the label is where that cost is paid.
-    const tree = called();
+    const tree = steppedIn();
     expect(textOf(tree)).toContain('↗');
-    expect(labelOf(tree)).toContain('You called.');
+    expect(labelOf(tree)).toContain('Stepped in.');
     act(() => tree.unmount());
   });
 
   it('leaves the row’s own number alone', () => {
     // Two facts, not one. The interval still reports the others, and it is
     // four days old whatever the reader did a minute ago.
-    const tree = called();
+    const tree = steppedIn();
     expect(textOf(tree)).toContain('4 days ago');
     act(() => tree.unmount());
   });
 
-  it('goes once the announcement it reports has expired', () => {
+  it('goes once the visit it reports is old enough', () => {
     // Expired against the phone's own clock, which is why the wire carries a
     // moment rather than a flag: nothing has to happen in the channel for the
     // mark to go.
-    const tree = called({ announcedAt: NOW - 6 * 60_000 });
+    const tree = steppedIn({ steppedInAt: NOW - 6 * 60_000 });
     expect(textOf(tree)).not.toContain('↗');
-    expect(labelOf(tree)).not.toContain('You called.');
+    expect(labelOf(tree)).not.toContain('Stepped in.');
     act(() => tree.unmount());
   });
 
   it('is not drawn for somebody else’s arrival', () => {
     // Their arrival is already in the number. Null is the server saying the
-    // last announcement here was not about this reader.
-    const tree = called({ announcedAt: null });
+    // last person in here was not this reader.
+    const tree = steppedIn({ steppedInAt: null });
     expect(textOf(tree)).not.toContain('↗');
     act(() => tree.unmount());
   });
 
   it('is not drawn against a server that does not send it', () => {
-    const tree = called({ announcedAt: undefined });
+    const tree = steppedIn({ steppedInAt: undefined });
     expect(textOf(tree)).not.toContain('↗');
     act(() => tree.unmount());
   });
@@ -4572,7 +4572,7 @@ describe('the mark for a channel you have just called into', () => {
   it('is not drawn on a row somebody is in', () => {
     // A channel the reader is still standing in does not need to be told they
     // arrived, and a row with people in it is showing its count.
-    const tree = called({ presentCount: 1 });
+    const tree = steppedIn({ presentCount: 1 });
     expect(textOf(tree)).not.toContain('↗');
     act(() => tree.unmount());
   });
@@ -4585,14 +4585,14 @@ describe('the mark for a channel you have just called into', () => {
       rejoinable: [
         {
           channelId: 'chan_a',
-          name: 'Called',
+          name: 'Knocked',
           others: [{ id: 'acct_q', displayName: 'Quinn Ito' }],
           presentCount: 0,
           createdAt: NOW - 90 * 86_400_000,
           lastActiveAt: NOW,
           lastPresenceAt: NOW - 60_000,
           lastPresenceByOthers: NOW - 4 * 86_400_000,
-          announcedAt: NOW - 60_000,
+          steppedInAt: NOW - 60_000,
         },
         {
           channelId: 'chan_b',
@@ -4603,7 +4603,7 @@ describe('the mark for a channel you have just called into', () => {
           lastActiveAt: NOW,
           lastPresenceAt: NOW - 3_600_000,
           lastPresenceByOthers: NOW - 3_600_000,
-          announcedAt: null,
+          steppedInAt: null,
         },
       ],
       contacts: [],
@@ -4611,7 +4611,7 @@ describe('the mark for a channel you have just called into', () => {
     } as never;
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
-    expect(text.indexOf('Quiet')).toBeLessThan(text.indexOf('Called'));
+    expect(text.indexOf('Quiet')).toBeLessThan(text.indexOf('Knocked'));
     act(() => tree.unmount());
   });
 });

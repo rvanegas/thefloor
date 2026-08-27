@@ -9,7 +9,7 @@ import type {
 
 /**
  * Re-exported rather than defined here, where it was written until 2026-08-26.
- * The app needs it too — Home's "you called" mark fades on this window — and a
+ * The app needs it too — Home's "stepped in" mark fades on this window — and a
  * constant both ends must agree on belongs in `core`. Every existing importer
  * of it from this module keeps working.
  */

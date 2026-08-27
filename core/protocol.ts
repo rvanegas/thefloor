@@ -317,22 +317,29 @@ export interface RejoinableView {
    */
   lastPresenceByOthers?: number | null;
   /**
-   * When the server last announced **this reader's own arrival** in this
-   * channel — the receipt for the push that went out when they stepped in — or
-   * null when the last announcement was about somebody else, or there has been
-   * none.
+   * When **this reader last stepped into** this channel, or null when somebody
+   * else was the last to step in, or nobody has.
    *
    * The second half of what Home needs, and the half no measure can supply.
    * `lastPresenceByOthers` above leaves the reader out on purpose, and presence
    * is exclusive — stepping into the next channel steps you out of the last —
    * so somebody who knocks on three doors in turn leaves no trace of it on any
-   * of them. This is the trace. It is not derived from presence and must not
-   * be: it outlives the visit it reports, which is the whole of its use.
+   * of them. This is the trace.
+   *
+   * **The act, not the notification.** An earlier draft reported the arrival
+   * *push* instead: it is suppressed inside a window, and none is sent at all
+   * when nobody is absent to receive it, so a step-in that rang no phone left
+   * no mark. Whether anybody's phone lit up is a different fact and not one the
+   * person who stepped in is asking about.
+   *
+   * Nor is it `lastPresentAt` for the reader, which the heartbeat refreshes and
+   * every route out re-stamps: that answers "when were you last here" where
+   * this answers "when did you arrive". The difference is the point — this
+   * outlives the visit, which is the whole of its use.
    *
    * **A moment rather than a flag**, so the client expires it against its own
    * clock rather than waiting for a snapshot that may never come. The mark is
-   * drawn while `now - announcedAt < PRESENCE_LIFETIME_MS`, that being how long
-   * the announcement it reports stays worth delivering; the constant is in
+   * drawn while `now - steppedInAt < PRESENCE_LIFETIME_MS`; the constant is in
    * core/constants.ts so both ends read one number.
    *
    * Absent means a server that predates the field and draws nothing — the same
@@ -344,7 +351,7 @@ export interface RejoinableView {
    * echo back at the top of the list — which is exactly what
    * `lastPresenceByOthers` exists to take out.
    */
-  announcedAt?: number | null;
+  steppedInAt?: number | null;
   /**
    * Whether anybody has ever been in it — false only for a channel nobody has
    * set foot in, which since contacts came to guarantee a one-to-one channel

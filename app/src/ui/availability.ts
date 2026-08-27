@@ -56,7 +56,7 @@ export function describeAvailability(
  * needed a setting for: those rows simply do not rise. What is *not* answered
  * that way is the opposite question — whether you have already called here —
  * because a number that has forgotten you cannot report you. That is
- * `announcedAt` and a mark on the row, deliberately a different kind of thing.
+ * `steppedInAt` and a mark on the row, deliberately a different kind of thing.
  *
  * Not the same fact as the row being live, which is `presentCount > 0`: that is
  * *now* and a threshold of one, this is a *moment* and excludes one particular

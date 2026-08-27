@@ -1252,7 +1252,7 @@ So the entry is closed as shipped rather than as work. If it comes back, it is
 the 1:1 repeat that is being complained about, and the argument above is the
 one to overturn.
 
-## Home counts other people, and marks your own call separately — 2026-08-26
+## Home counts other people, and marks your own step-in separately — 2026-08-26
 
 Home ordered and labelled channels by `lastPresenceAt`, the maximum across every
 `lastPresentAt` stamp *and* `lastActiveAt` — so it includes the reader. A
@@ -1378,38 +1378,47 @@ and gets words, absent is a fact about the server and gets the old behaviour.
 ### And one mark, which is not a measure
 
 Removing yourself from the number stops the false freshness. It does not tell you
-that you called — and it *cannot*, a number that has forgotten you being unable
-to report you. Those are two jobs and only one of them is a measure. This is the
-part all three attempts kept collapsing into the recency number and the part that
-had to stop being collapsed.
+that you were there — and it *cannot*, a number that has forgotten you being
+unable to report you. Those are two jobs and only one of them is a measure. This
+is the part all three attempts kept collapsing into the recency number and the
+part that had to stop being collapsed.
 
-`announcedAt` is **the receipt for a push**: the server records, per channel, the
-last arrival announcement it sent and who it was about, and `rejoinableFor`
-answers with the moment when that somebody was this reader. Not derived from
-`present` and not derived from any stamp — it has to outlive the visit it
-reports, since the visit is what `stepOutOfOthers` erases the instant the reader
+`steppedInAt` reports **the act, not the notification**, and getting that
+distinction wrong is the fourth mistake this entry records. The first draft of it
+was a receipt for the arrival *push* — the server recording which announcement it
+last sent and about whom. That is a proxy for stepping in, and a leaky one: an
+announcement is suppressed inside `ANNOUNCE_INTERVAL_MS`, and none is sent at all
+when nobody is absent to receive it or when the room was already occupied. So a
+step-in that rang no phone left no mark, which is a rule about Apple's delivery
+semantics leaking onto a row that is meant to report what the reader did. What
+they did was step in. Whether it lit anybody's screen is a different fact, and it
+has its own map two fields away.
+
+So the server records, per channel, **who last became present and when**, at the
+one transition every route into a channel passes through — the same place
+`consume` already reads. `rejoinableFor` answers with the moment when that
+somebody was this reader.
+
+It is not derived from `present`, and pointedly not from the reader's own
+`lastPresentAt` either: that stamp is refreshed by the heartbeat and re-stamped
+by every route out, so it answers "when were you last here" where this answers
+"when did you arrive". The difference is the entire use — **it has to outlive the
+visit**, the visit being what `stepOutOfOthers` erases the instant the reader
 knocks on the next door.
 
 - **A moment on the wire, not a flag**, so the mark expires against the phone's
   own clock instead of waiting for a snapshot that may never come. That needs
   both ends to read one window, so `PRESENCE_LIFETIME_MS` moved from
-  `server/src/push.ts` to `core/constants.ts`. Five minutes, unchanged, and it is
-  the honest number twice over: the mark reports a push and stops when that push
-  has stopped being worth delivering.
-- **Cleared by supersession, with no machinery for clearing it.** Step out, and
-  when somebody else later walks into the empty room `announceActive` fires for
-  them and overwrites the entry. The mark goes at exactly the moment their
-  arrival makes the row's own interval fresh, so a mark saying "you called" can
-  never sit beside a number saying somebody answered.
-- **Set on both announce paths.** A first-ever entry sends `invited` rather than
-  `arrived` — a different push with a month's lifetime — but from the caller's
-  side it is the same act, and which push carried it is not a distinction they
-  can see or act on. The mark keeps its own five minutes either way, because the
-  claim it makes is "you just stepped in".
-- **In memory**, like `lastAnnouncedAt` beside it. It is five minutes wide, a
-  restart drops presence anyway, and the restart path already pre-suppresses
-  announcements for that same window — so a deploy losing it costs a mark that
-  was about to expire.
+  `server/src/push.ts` to `core/constants.ts`. Five minutes for both, because it
+  is the same claim seen from its two ends: the push says "somebody is here now"
+  to them, the mark says it to you about yourself, and it stops being worth
+  saying at the same moment either way.
+- **Cleared by supersession, with no machinery for clearing it.** The next
+  arrival overwrites the entry. The mark goes at exactly the moment somebody
+  else's presence enters the number beside it, so a mark saying you stepped in
+  can never sit next to an interval saying somebody answered.
+- **In memory**, like `lastAnnouncedAt` beside it: five minutes wide, and a
+  restart drops presence anyway.
 - **It orders nothing**, deliberately and with a test. Sorting on it would put
   the reader's own echo back at the top of the list, undoing with the second
   signal precisely what the first one was for.
@@ -1422,11 +1431,12 @@ thing — a note to yourself about your own last action, not another fact about 
 room. It sits at the row's right edge, which is where the invite `✕` lives, so it
 is styled emphatically *not* as a control: no `Pressable`, no hit slop, muted
 rather than accent. It cannot collide with the `✕` itself — stepping in is what
-sets `announcedAt` and also what stops a channel being an invitation, so a row
+sets `steppedInAt` and also what stops a channel being an invitation, so a row
 can carry a mark or a dismiss and never both.
 
 The cost of a glyph is that it reads as nothing, and there is exactly one place
-to pay it: `accessibilityLabel` gains "You called."
+to pay it: `accessibilityLabel` gains "Stepped in." — the same words the rest of
+this app uses for the act, rather than a second vocabulary for the same thing.
 
 ### What was deliberately not built
 
