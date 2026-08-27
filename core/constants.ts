@@ -317,14 +317,28 @@ export const HEARTBEAT_TIMEOUT_LEGACY_MS = 12_000;
  *
  * **Read it as a claim about the client, because that is what it is.** The
  * number is not a date or a threshold anybody chose for its own sake: it is
- * whichever build first carried the constant above, and it is right only
- * because this landed before that build was made. A build produced from a
- * commit older than this one would announce a number at or above it while
- * still pinging every five seconds, and would be swept while perfectly
- * healthy. There is nothing on the wire that could detect that, the build
- * number being the whole of what a client says about itself.
+ * whichever build first carried the constant above, and it is right only if
+ * this lands before that build is made. A build produced from a commit older
+ * than this one announces a number at or above the threshold while still
+ * pinging every five seconds, and is swept while perfectly healthy. There is
+ * nothing on the wire that could detect that, the build number being the whole
+ * of what a client says about itself.
+ *
+ * **That is not hypothetical and it has already happened once.** This said 108
+ * when it was written, on the reasoning that 107 was the last build in
+ * existence. Builds 108 and 109 were uploaded from other branches before it
+ * landed, both pinging every five seconds, and both would have been swept into
+ * a permanent kill-and-reconnect loop the moment the server came up. It is 110
+ * because that is the next build after the ones that exist — and it will be
+ * wrong again the same way if this does not land before 110 is cut.
+ *
+ * **So check `app/app.json` against this immediately before landing**, and if
+ * builds have appeared, move it. The durable fix is for the client to declare
+ * its cadence rather than have the server infer it from a version number, at
+ * which point this constant and its whole class of mistake go away; see
+ * decisions/DECISIONS.md § *If you are going to claim the floor*.
  */
-export const FAST_HEARTBEAT_BUILD = 108;
+export const FAST_HEARTBEAT_BUILD = 110;
 
 /**
  * The most characters a channel's clipboard may hold.

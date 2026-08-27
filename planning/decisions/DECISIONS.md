@@ -1739,9 +1739,28 @@ exceeding it, so a flat cut would have swept the entire live population into a
 permanent kill-and-reconnect loop. `heartbeatTimeoutFor` keys the budget on
 `connection.build`, which the socket already carries: the new budget for builds
 that declare the new cadence, the old one for everything else, including
-anything that declares nothing. It is deployable server-first, since the tight
-branch applies only to a build that does not exist yet, and it retires itself
-once `MIN_SUPPORTED_BUILD` passes `FAST_HEARTBEAT_BUILD`.
+anything that declares nothing. It is deployable server-first, since the tight branch applies only to a build
+that does not exist yet, and it retires itself once `MIN_SUPPORTED_BUILD`
+passes `FAST_HEARTBEAT_BUILD`.
+
+**And the threshold is the weak part of it, which was proved within the hour.**
+It was written as 108 because 107 was the newest build in existence. By the
+time this came to land, two other branches had uploaded 108 and 109 — both
+pinging every five seconds, both declaring a number at or above the threshold,
+and both therefore due to be swept into exactly the kill-and-reconnect loop the
+per-build split exists to prevent. It went in at 110 instead, which is right
+only until the next build is cut from a commit that does not carry the cadence.
+
+The mistake is structural rather than careless: **a version number is a proxy
+for a behaviour, and the server is inferring the behaviour from the proxy.**
+Nothing on the wire says how often a client intends to ping, so nothing can
+catch a build that announces a new number and behaves like an old one. The
+durable fix is for the client to declare its cadence — an optional query
+parameter beside `build`, absent meaning the legacy budget — at which point the
+server stops guessing, the constant goes, and a build cut from any commit is
+judged by what it actually does. That is not built here, because it is a wire
+change and this was already scoped; it is the first thing to reach for if this
+threshold has to move a second time.
 
 The guest page is the exception and is judged against the current budget. It is
 served by the deploy rather than installed, so it cannot be a version behind —
