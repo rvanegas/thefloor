@@ -148,43 +148,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         </Text>
       </Card>
 
-      {/*
-        Below the tap setting and above appearance, which keeps the order the
-        comment above states: what a tap does first, then what a row says, then
-        how it all looks.
-
-        One card for both lists, because it is one idea. The contact list has a
-        settings screen of its own, and half of this would have gone there — but
-        counting other people rather than counting yourself is a single thought,
-        and splitting it across two screens would make somebody find it twice
-        and reconcile the halves.
-      */}
-      <SectionLabel>Lists</SectionLabel>
-      <Card style={styles.stack}>
-        <Text style={type.heading}>Say when other people were last around</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, 'On'],
-              [false, 'Off'],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={app.showOthers === value ? 'primary' : 'default'}
-              onPress={() => app.setShowOthers(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>
-          On, a channel row also says when anybody but you was last in it, and a
-          contact says when they were last in one of your channels. Off, both
-          count your own visits as activity.
-        </Text>
-      </Card>
-
       <SectionLabel>Appearance</SectionLabel>
       <Card style={styles.stack}>
         <View style={styles.choices}>

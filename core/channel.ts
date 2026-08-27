@@ -253,55 +253,6 @@ export function lastPresenceAt(state: ChannelState): number {
 }
 
 /**
- * The most recent moment anybody *other than this reader* is known to have
- * been in this channel — the same question `lastPresenceAt` answers about the
- * room, asked with the reader taken out of it.
- *
- * It exists because a channel's own idleness cannot distinguish a place two
- * people used yesterday from one you sat in alone this morning, and the second
- * of those sorts and reads as the fresher. `ProfileView.sharedChannels` makes
- * the same argument from the other end: a maximum across everybody answers a
- * question nobody asked, once the card is about somebody in particular. Here
- * the somebody in particular is everybody-but-you.
- *
- * **`lastActiveAt` is not in this fold, and cannot be.** It is unattributed —
- * it moves on anybody's entry or exit, including yours — so admitting it would
- * put the reader's own comings and goings back into a number whose whole
- * purpose is to leave them out. The cost is real and is why this is worth
- * stating rather than merely doing: `lastPresenceAt` takes the maximum across
- * both kinds partly because the persisted per-person stamps are floored to the
- * minute (`quantise`, in the server) and an exit recorded in `lastActiveAt` can
- * be the fresher evidence of the very same departure. This function gives that
- * correction up. After a restart it can read up to a minute earlier than the
- * truth, which is inside the sixty seconds `agoOrNull` already treats as no gap
- * at all, and it self-corrects at the next heartbeat.
- *
- * **Null where `lastPresenceAt` is always a number**, and it is an ordinary
- * state rather than a gap: a channel a pair get for becoming contacts has been
- * entered by nobody, and a channel only you have opened has been entered by
- * nobody else. Both mean there is no moment to report, not that the report is
- * missing. A caller says so in words — "nobody else yet" — rather than falling
- * back to the room's number, which is the exact substitution this exists to
- * stop.
- *
- * Guests never appear here. They move `lastActiveAt` and never `lastPresentAt`
- * (see `guestGone`), so a channel visited only by a guest link reads as though
- * nobody else had been in it — which is true of members, and members are what a
- * channel list is about.
- */
-export function lastPresenceByOthers(
-  state: ChannelState,
-  userId: UserId
-): number | null {
-  let latest: number | null = null;
-  for (const [id, at] of Object.entries(state.lastPresentAt)) {
-    if (id === userId || at === undefined) continue;
-    if (latest === null || at > latest) latest = at;
-  }
-  return latest;
-}
-
-/**
  * Whether there is anyone to talk to. The generalisation of "both present":
  * the floor means nothing to someone alone in the channel.
  */

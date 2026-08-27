@@ -148,14 +148,6 @@ const mockApp = {
   setTapToStepIn: jest.fn((value: boolean) => {
     mockApp.tapToStepIn = value;
   }),
-  // Off, which is what somebody who has never opened Settings has, and what
-  // every build before the qualifiers existed drew. Every test in this file
-  // that predates them therefore runs with it off and asserts today's lines —
-  // which is the real check that the default is safe.
-  showOthers: false,
-  setShowOthers: jest.fn((value: boolean) => {
-    mockApp.showOthers = value;
-  }),
 };
 
 // The views are rendered without a native audio stack: @livekit/react-native
@@ -332,7 +324,6 @@ beforeEach(() => {
   mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
   mockApp.tapToStepIn = true;
-  mockApp.showOthers = false;
   mockApp.debug = false;
   uploads.length = 0;
   jest.clearAllMocks();
@@ -3080,150 +3071,6 @@ describe('the order of your channels', () => {
  * briefly the way to a profile and are gone with the contact list; the roster
  * inside a channel opens one, and the Contacts View will.
  */
-/**
- * The qualifier on a channel's idleness, which is off until somebody asks for
- * it.
- *
- * A room's own recency counts the reader, so a channel you sat in alone this
- * morning reads as the freshest thing on Home. This clause is what says so.
- * Everything here runs with the setting on except the last test, which is the
- * one that matters most: with it off, the row is what it has always been.
- */
-describe('when other people were last in a channel', () => {
-  const row = (
-    over: Partial<HomeViewData['rejoinable'][number]> = {}
-  ): HomeViewData['rejoinable'][number] => ({
-    channelId: 'sess_a',
-    name: 'Thursday rehearsal',
-    others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
-    presentCount: 0,
-    createdAt: NOW - 86_400_000,
-    lastActiveAt: NOW - 300_000,
-    lastPresenceAt: NOW - 300_000,
-    ...over,
-  });
-
-  const show = (over: Partial<HomeViewData['rejoinable'][number]> = {}) => {
-    mockApp.home = {
-      invites: [],
-      rejoinable: [row(over)],
-      contacts: [],
-      recordings: [],
-    };
-    return render(<HomeView {...homeNav} />);
-  };
-
-  beforeEach(() => {
-    mockApp.showOthers = true;
-  });
-
-  it('says nothing extra when the room’s number is the others’ number', () => {
-    // The common case, and the reason the clause is dropped on matching words
-    // rather than on matching numbers: a channel other people use is one where
-    // both stamps are the same moment, and repeating it would be noise on
-    // almost every row.
-    const tree = show({ lastPresenceByOthers: NOW - 300_000 });
-    expect(textOf(tree)).toContain('5 minutes ago');
-    expect(textOf(tree)).not.toContain('others');
-    act(() => tree.unmount());
-  });
-
-  it('names the others’ gap when it is older than the room’s', () => {
-    // The complaint itself: five minutes ago was you.
-    const tree = show({ lastPresenceByOthers: NOW - 2 * 86_400_000 });
-    expect(textOf(tree)).toContain('5 minutes ago');
-    expect(textOf(tree)).toContain('others 2 days ago');
-    act(() => tree.unmount());
-  });
-
-  it('says nobody else yet when only you have ever been in it', () => {
-    // Null is a fact and gets words, where absent is a gap and gets none.
-    const tree = show({ lastPresenceByOthers: null });
-    expect(textOf(tree)).toContain('5 minutes ago');
-    expect(textOf(tree)).toContain('nobody else yet');
-    act(() => tree.unmount());
-  });
-
-  it('draws the old line against a server that does not send it', () => {
-    const tree = show();
-    expect(textOf(tree)).toContain('5 minutes ago');
-    expect(textOf(tree)).not.toContain('others');
-    expect(textOf(tree)).not.toContain('nobody else yet');
-    act(() => tree.unmount());
-  });
-
-  it('says only how many are present when somebody is in it', () => {
-    // An occupied channel's other-stamp heartbeats to roughly now, so the
-    // clause would read "1 present · others a few seconds ago" and mean
-    // nothing. The count is the fact worth showing.
-    const tree = show({ presentCount: 1, lastPresenceByOthers: NOW - 300_000 });
-    expect(textOf(tree)).toContain('1 present');
-    expect(textOf(tree)).not.toContain('others');
-    act(() => tree.unmount());
-  });
-
-  it('says only that a channel nobody has used has not been used', () => {
-    // "Nobody else yet" under "Not used yet" would be the same statement
-    // twice, the second one narrower.
-    const tree = show({ everUsed: false, lastPresenceByOthers: null });
-    expect(textOf(tree)).toContain('Not used yet');
-    expect(textOf(tree)).not.toContain('nobody else yet');
-    act(() => tree.unmount());
-  });
-
-  it('reads the whole line out, qualifier and all', () => {
-    // The label is the visible line verbatim plus the verb, and must not fall
-    // behind it — somebody who cannot see the row gets the same two facts.
-    const tree = show({ lastPresenceByOthers: NOW - 2 * 86_400_000 });
-    const label = labelOf(
-      tree.root
-        .findAll((n) => n.props?.accessibilityRole === 'button')
-        .find((n) => labelOf(n).startsWith('Thursday rehearsal'))!
-    );
-    expect(label).toContain('5 minutes ago · others 2 days ago');
-    act(() => tree.unmount());
-  });
-
-  it('does not change the order channels are listed in', () => {
-    // Display only, by decision. The room you were alone in is still the
-    // freshest thing on Home — it now says why.
-    mockApp.home = {
-      invites: [],
-      rejoinable: [
-        row({
-          channelId: 'a',
-          name: 'Alone',
-          lastPresenceAt: NOW - 300_000,
-          lastPresenceByOthers: null,
-        }),
-        row({
-          channelId: 'b',
-          name: 'Busy',
-          lastPresenceAt: NOW - 900_000,
-          lastPresenceByOthers: NOW - 900_000,
-        }),
-      ],
-      contacts: [],
-      recordings: [],
-    };
-    const tree = render(<HomeView {...homeNav} />);
-    const text = textOf(tree);
-    expect(text.indexOf('Alone')).toBeLessThan(text.indexOf('Busy'));
-    act(() => tree.unmount());
-  });
-
-  it('says nothing about other people until the setting is on', () => {
-    // The default, and the whole safety of the change: every other test on
-    // this screen runs this way and expects the lines drawn before any of
-    // this existed.
-    mockApp.showOthers = false;
-    const tree = show({ lastPresenceByOthers: NOW - 2 * 86_400_000 });
-    expect(textOf(tree)).toContain('5 minutes ago');
-    expect(textOf(tree)).not.toContain('others');
-    act(() => tree.unmount());
-  });
-});
-
 describe('tapping a row', () => {
   /** The pressable whose accessibility label starts with `prefix`. */
   const pressableFor = (tree: ReactTestRenderer, prefix: string) =>
@@ -3971,78 +3818,6 @@ describe('the stepping-in setting', () => {
     expect(styleOf('Off').backgroundColor).not.toBe(
       styleOf('On').backgroundColor
     );
-    act(() => tree.unmount());
-  });
-});
-
-/**
- * Whether the two lists say what other people have done.
- *
- * Same shape as the setting above and the same division of labour: this screen
- * owes the two choices, a mark on the one in force, and reporting a change
- * upward. What the choice *says* is asserted on Home and on the contact list.
- *
- * Off is the default and is asserted here rather than assumed, because it is
- * the whole safety of the change: every other test in this file runs with it
- * off and expects the lines this app has always drawn.
- */
-describe('the setting for what other people have done', () => {
-  const openSettings = async () => {
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
-    });
-    return tree;
-  };
-
-  /**
-   * The second On/Off pair on the screen, the stepping-in card holding the
-   * first. `findButton` takes the earliest match, so this card cannot be
-   * reached by label alone.
-   *
-   * The style filter is what makes "second" mean second *button* rather than
-   * second node: a `Button` renders as three nodes carrying the role, and only
-   * the outermost is given the style function that says which is in force.
-   */
-  const listsButton = (tree: ReactTestRenderer, label: string) =>
-    tree.root
-      .findAll(
-        (n) =>
-          n.props?.accessibilityRole === 'button' &&
-          typeof n.props?.style === 'function'
-      )
-      .filter((n) => labelOf(n).includes(label))[1];
-
-  it('offers both answers and says what each means', async () => {
-    const tree = await openSettings();
-    expect(textOf(tree)).toContain('Say when other people were last around');
-    expect(listsButton(tree, 'On')).toBeDefined();
-    expect(listsButton(tree, 'Off')).toBeDefined();
-    expect(textOf(tree)).toContain('count your own visits as activity');
-    act(() => tree.unmount());
-  });
-
-  it('reports a change rather than keeping it', async () => {
-    const tree = await openSettings();
-    act(() => listsButton(tree, 'On').props.onPress());
-    expect(mockApp.setShowOthers).toHaveBeenCalledWith(true);
-    act(() => tree.unmount());
-  });
-
-  it('marks which one is in force, which is off until asked', async () => {
-    const tree = await openSettings();
-    const styleOf = (label: string) =>
-      StyleSheet.flatten(
-        listsButton(tree, label).props.style({ pressed: false })
-      ) as { backgroundColor?: unknown };
-    expect(styleOf('Off').backgroundColor).not.toBe(
-      styleOf('On').backgroundColor
-    );
-    // And it is Off that is marked, the default being the lists as they were.
-    const primary = StyleSheet.flatten(
-      findButton(tree, 'On')!.props.style({ pressed: false })
-    ) as { backgroundColor?: unknown };
-    expect(styleOf('Off').backgroundColor).toBe(primary.backgroundColor);
     act(() => tree.unmount());
   });
 });
@@ -5516,185 +5291,6 @@ describe('Contacts', () => {
   });
 });
 
-/**
- * The qualifier on a contact's availability, which is off until asked for.
- *
- * `lastSeenAt` is app-open: it moves on every socket message, so somebody who
- * launched the app on a bus and read nothing looks exactly like somebody who
- * spent an hour talking. This clause answers the other question, and it is the
- * one the list is usually being scanned for.
- */
-describe('when a contact was last in one of your channels', () => {
-  const withContacts = (
-    contacts: Array<{
-      id: string;
-      displayName: string;
-      status?: 'accepted' | 'incoming' | 'outgoing';
-      inApp?: boolean;
-      lastSeenAt?: number | null;
-      lastInChannelAt?: number | null;
-    }>
-  ) => {
-    mockApp.home = {
-      invites: [],
-      rejoinable: [],
-      recordings: [],
-      contacts: contacts.map(({ id, displayName, status, ...rest }) => ({
-        account: { id, displayName },
-        status: status ?? 'accepted',
-        ...rest,
-      })),
-    };
-  };
-
-  const open = () => {
-    let tree!: ReactTestRenderer;
-    act(() => {
-      tree = renderer.create(<ContactsView onHome={() => {}} />);
-    });
-    return tree;
-  };
-
-  beforeEach(() => {
-    mockApp.serverNow = () => NOW;
-    mockApp.showOthers = true;
-  });
-
-  it('says they are in a channel now, beside being in the app', () => {
-    // Under the minute floor the interval is dropped rather than rendered as
-    // "a few seconds ago", which would report the age of the snapshot: the
-    // stamp is refreshed by a heartbeat every few seconds.
-    withContacts([
-      { id: 'a', displayName: 'Dana Chu', inApp: true, lastInChannelAt: NOW },
-    ]);
-    const tree = open();
-    expect(textOf(tree)).toContain('In the app now · in a channel');
-    act(() => tree.unmount());
-  });
-
-  it('says both when they are about but have not been in one for days', () => {
-    // The case this exists for. "In the app now" says nothing whatever about
-    // channels, so the clause is never dropped beside it.
-    withContacts([
-      {
-        id: 'a',
-        displayName: 'Dana Chu',
-        inApp: true,
-        lastInChannelAt: NOW - 2 * 86_400_000,
-      },
-    ]);
-    const tree = open();
-    expect(textOf(tree)).toContain(
-      'In the app now · in a channel 2 days ago'
-    );
-    act(() => tree.unmount());
-  });
-
-  it('says it once when the app-open was the channel', () => {
-    // Same interval on both: they were last seen because they were in a room,
-    // and the second clause is the first one again.
-    withContacts([
-      {
-        id: 'a',
-        displayName: 'Dana Chu',
-        inApp: false,
-        lastSeenAt: NOW - 3 * 60 * 60_000,
-        lastInChannelAt: NOW - 3 * 60 * 60_000,
-      },
-    ]);
-    const tree = open();
-    expect(textOf(tree)).toContain('Last seen 3 hours ago');
-    expect(textOf(tree)).not.toContain('in a channel');
-    act(() => tree.unmount());
-  });
-
-  it('says both when they were about more recently than they were here', () => {
-    withContacts([
-      {
-        id: 'a',
-        displayName: 'Dana Chu',
-        inApp: false,
-        lastSeenAt: NOW - 3 * 60 * 60_000,
-        lastInChannelAt: NOW - 2 * 86_400_000,
-      },
-    ]);
-    const tree = open();
-    expect(textOf(tree)).toContain(
-      'Last seen 3 hours ago · in a channel 2 days ago'
-    );
-    act(() => tree.unmount());
-  });
-
-  it('capitalises it when it is the whole line', () => {
-    // No availability to lead with — the reader is not entitled to it, or the
-    // server predates it — but they do share a room, so the clause stands
-    // alone and takes a capital.
-    withContacts([
-      {
-        id: 'a',
-        displayName: 'Dana Chu',
-        lastInChannelAt: NOW - 2 * 86_400_000,
-      },
-    ]);
-    const tree = open();
-    expect(textOf(tree)).toContain('In a channel 2 days ago');
-    act(() => tree.unmount());
-  });
-
-  it('says nothing rather than never when there is no record', () => {
-    withContacts([
-      { id: 'a', displayName: 'Dana Chu', inApp: true, lastInChannelAt: null },
-    ]);
-    const tree = open();
-    expect(textOf(tree)).toContain('In the app now');
-    expect(textOf(tree)).not.toContain('in a channel');
-    expect(textOf(tree)).not.toContain('Never');
-    act(() => tree.unmount());
-  });
-
-  it('reads the whole line out', () => {
-    withContacts([
-      {
-        id: 'a',
-        displayName: 'Dana Chu',
-        inApp: true,
-        lastInChannelAt: NOW - 2 * 86_400_000,
-      },
-    ]);
-    const tree = open();
-    // Read off the label itself rather than the rendered text under it: what
-    // is being asserted is that somebody who cannot see the row is told the
-    // same two facts, in the same order.
-    const label = tree.root
-      .findAll(
-        (n) =>
-          typeof n.props?.accessibilityLabel === 'string' &&
-          n.props.accessibilityLabel.includes('Open their profile.')
-      )[0]
-      .props.accessibilityLabel.trim();
-    expect(label).toBe(
-      'Dana Chu. In the app now · in a channel 2 days ago. Open their profile.'
-    );
-    act(() => tree.unmount());
-  });
-
-  it('says nothing about channels until the setting is on', () => {
-    mockApp.showOthers = false;
-    withContacts([
-      {
-        id: 'a',
-        displayName: 'Dana Chu',
-        inApp: true,
-        lastInChannelAt: NOW - 2 * 86_400_000,
-      },
-    ]);
-    const tree = open();
-    expect(textOf(tree)).toContain('In the app now');
-    expect(textOf(tree)).not.toContain('in a channel');
-    act(() => tree.unmount());
-  });
-});
-
 describe('the order contacts are listed in', () => {
   /**
    * The names in the order the screen puts them, top to bottom.
@@ -5720,7 +5316,6 @@ describe('the order contacts are listed in', () => {
       displayName: string;
       inApp?: boolean;
       lastSeenAt?: number | null;
-      lastInChannelAt?: number | null;
     }>
   ) => {
     mockApp.serverNow = () => NOW;
@@ -5780,31 +5375,6 @@ describe('the order contacts are listed in', () => {
       { id: 'a', displayName: 'Zoe' },
       { id: 'b', displayName: 'Ada' },
     ])).toEqual(['Ada', 'Zoe']);
-  });
-
-  it('is unmoved by when anybody was last in a channel', () => {
-    // Display only, by decision — the clause explains the order rather than
-    // setting it, and it does so identically whether the setting is on or off.
-    // Ana is the fresher app-open and stays top, though Bo has been in a room
-    // with the reader far more recently.
-    const contacts = [
-      {
-        id: 'a',
-        displayName: 'Ana',
-        lastSeenAt: NOW - 60_000,
-        lastInChannelAt: NOW - 30 * 24 * 60 * 60_000,
-      },
-      {
-        id: 'b',
-        displayName: 'Bo',
-        lastSeenAt: NOW - 60 * 60_000,
-        lastInChannelAt: NOW - 120_000,
-      },
-    ];
-    mockApp.showOthers = false;
-    expect(listed(contacts)).toEqual(['Ana', 'Bo']);
-    mockApp.showOthers = true;
-    expect(listed(contacts)).toEqual(['Ana', 'Bo']);
   });
 });
 

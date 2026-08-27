@@ -51,22 +51,6 @@ const TOKEN_KEY = 'thefloor.token';
  * should keep.
  */
 const TAP_TO_STEP_IN_KEY = 'thefloor.tapToStepIn';
-/**
- * Whether the two lists say what *other people* have done, as well as what the
- * channel or the person has.
- *
- * Off by default, which is the one way this differs from every preference
- * beside it and is why it is worth a comment: `tapToStepIn` reads as "anything
- * that is not `'false'` is on" because its default is the behaviour every
- * earlier build had. Here the earlier behaviour is the qualifier being absent,
- * so the read is inverted — **only the exact string `'true'` is on** — and a
- * missing key, a key from a build that never wrote one, and a value nobody
- * recognises all give the lists somebody has been reading all along.
- *
- * One key for both screens, because it is one idea: count other people rather
- * than counting yourself. Two switches for it would be furniture.
- */
-const SHOW_OTHERS_KEY = 'thefloor.showOthers';
 
 /** SecureStore has no web implementation; the browser is only used for checks. */
 const storage = {
@@ -353,19 +337,6 @@ interface AppValue extends AppState {
    */
   tapToStepIn: boolean;
   setTapToStepIn: (value: boolean) => void;
-  /**
-   * Set, a channel row also says when anybody but you was last in it, and a
-   * contact row says when they were last in one of your channels. Unset, both
-   * say only how recently the channel or the person was active — which counts
-   * your own visits, and is what every build before this one showed.
-   *
-   * A phone setting rather than an account one, like appearance and
-   * `tapToStepIn` and for the same reason: it is about how this device's lists
-   * read under a thumb. It is also purely about drawing — the server sends the
-   * numbers either way and is never told the answer.
-   */
-  showOthers: boolean;
-  setShowOthers: (value: boolean) => void;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -426,21 +397,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       if ((await storage.get(TAP_TO_STEP_IN_KEY)) === 'false') {
         setTapToStepInState(false);
-      }
-    })();
-  }, []);
-  /**
-   * Read at the same moment as the other two, and the cold-start gap costs
-   * least here: for the first frames a qualifier that is switched on is
-   * missing, so a line of text gains a clause a moment later. Appearance spends
-   * that gap on the wrong palette and `tapToStepIn` on a channel somebody meant
-   * only to open; this one spends it on a row being briefly terser than asked.
-   */
-  const [showOthers, setShowOthersState] = useState(false);
-  useEffect(() => {
-    void (async () => {
-      if ((await storage.get(SHOW_OTHERS_KEY)) === 'true') {
-        setShowOthersState(true);
       }
     })();
   }, []);
@@ -900,12 +856,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void storage.set(TAP_TO_STEP_IN_KEY, value ? 'true' : 'false');
       },
 
-      showOthers,
-      setShowOthers: (value) => {
-        setShowOthersState(value);
-        void storage.set(SHOW_OTHERS_KEY, value ? 'true' : 'false');
-      },
-
       dismissInvite: (channelId) => {
         setDismissedInvites((d) =>
           d.includes(channelId) ? d : [...d, channelId]
@@ -1191,7 +1141,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pendingChannelId,
       appearance,
       tapToStepIn,
-      showOthers,
       expiry,
     ]
   );

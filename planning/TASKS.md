@@ -92,28 +92,6 @@ This is not a code task and nothing in the repository settles it. RELEASING.md
 is where the answer belongs once it exists, beside the rest of what a
 submission needs.
 
-## Whether Home Sorts On Other People
-
-A question, not a feature. Home orders channels by `lastPresenceAt`, which
-includes you, so a channel you sat in alone this morning is the freshest thing
-on the screen. Since 2026-08-26 the row can *say* so — `5 minutes ago · nobody
-else yet`, behind the `showOthers` setting — but the order was deliberately left
-alone, and the complaint that started it was about order as much as about the
-label. Same question for Contacts and `lastInChannelAt`.
-
-Three answers. Leave it, which is where it stands. Break ties on the others'
-number, which is nearly a no-op since millisecond stamps rarely tie. Or sort on
-the others' number and fall back to the room's when it is null — what the
-complaint literally asks for, and the one that changes what the top of Home
-means for everybody. That third one also creates a **fourth tier** the current
-comparator does not have: a channel only you have used would sort as though it
-had never been used, next to the never-used ones pinned at the bottom, and it is
-not obvious that is right.
-
-Worth answering only after the wording has been lived with, which is what the
-setting is for. decisions/DECISIONS.md § *A room's recency counts you, and that
-is the wrong number twice*.
-
 ## Lock Screen
 
 explore options in case screen locks during a call. lock screen, control center, etc.

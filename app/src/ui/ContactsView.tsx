@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ContactView as Contact } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
-import { describeAvailability, describeCompany, sentence } from './availability';
+import { describeAvailability } from './availability';
 import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
 import { ContactsSettingsView } from './ContactsSettingsView';
 import { ProfileView } from './ProfileView';
@@ -119,7 +119,6 @@ export function ContactsView({
               key={entry.account.id}
               entry={entry}
               now={now}
-              showOthers={app.showOthers}
               onPress={() =>
                 setProfile({
                   id: entry.account.id,
@@ -171,37 +170,19 @@ function ContactRow({
   entry,
   now,
   onPress,
-  showOthers,
 }: {
   entry: Contact;
   now: number;
   onPress: () => void;
-  /**
-   * Whether the row also says when they were last in one of your channels —
-   * the Home setting, which governs this list too because it is one idea. Off
-   * by default, and off is the line every build before this one drew.
-   */
-  showOthers: boolean;
 }) {
   const availability = describeAvailability(entry, now);
-  const company = showOthers ? describeCompany(entry, now, availability) : null;
-  /**
-   * Joined rather than stacked, as everywhere else two facts share a row —
-   * and capitalised only when the channel clause is the whole line, which
-   * happens when the reader is not entitled to availability but does share a
-   * room. `describeCompany` returns lower case so it can follow the dot.
-   */
-  const line =
-    availability && company
-      ? `${availability} · ${company}`
-      : (availability ?? (company && sentence(company)));
   return (
     // The whole row, as on Home: there is one thing to do with a contact from
     // here, so a target the size of the row is the honest shape for it.
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${entry.account.displayName}.${
-        line ? ` ${line}.` : ''
+        availability ? ` ${availability}.` : ''
       } Open their profile.`}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
@@ -216,13 +197,10 @@ function ContactRow({
             predates the fields, or somebody who has not connected since they
             existed. "Unknown" would be reporting on the rule rather than on the
             person. See describeAvailability.
-
-            A row can now be a channel fact with no availability fact behind
-            it — the reader shares a room with somebody whose whereabouts in
-            the app they are not entitled to — which is why this reads `line`
-            rather than either half of it.
           */}
-          {line ? <Text style={type.muted}>{line}</Text> : null}
+          {availability ? (
+            <Text style={type.muted}>{availability}</Text>
+          ) : null}
         </View>
       </Card>
     </Pressable>
