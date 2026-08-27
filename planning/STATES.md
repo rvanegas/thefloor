@@ -344,7 +344,7 @@ reader* last stepped into this channel. The server holds the last entry per
 channel on `ChannelRegistry`, in memory, and the view answers with the time when
 that entry was the reader's own. Five minutes wide (`PRESENCE_LIFETIME_MS`, in
 `core/constants.ts` so both ends read it), cleared by the next arrival
-overwriting it, draws `‥` on the row, and orders nothing.
+overwriting it, draws `↗` on the row, and orders nothing.
 
 **It is the act, not the notification** — an earlier draft recorded the arrival
 push instead and lost every step-in that was suppressed or had nobody to notify.

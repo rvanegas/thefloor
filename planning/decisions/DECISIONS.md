@@ -1484,49 +1484,50 @@ knocks on the next door.
   the reader's own echo back at the top of the list, undoing with the second
   signal precisely what the first one was for.
 
-**Drawn as `‥`, U+2025 TWO DOT LEADER — a footprint rather than a departure.**
-Not words, because the muted line is already carrying the interval and this is a
-different kind of thing: a note to yourself about your own last action, not
-another fact about the room.
+**Drawn as `↗` rather than words or a bullet.** Not a bullet because
+`ParticipantCard` already spends a hollow/filled dot on who is speaking, and Home
+must not borrow a glyph that means something else two screens over. Not words
+because the muted line is carrying the interval and this is a different kind of
+thing — a note to yourself about your own last action, not another fact about the
+room. It sits at the row's right edge, which is where the invite `✕` lives, so it
+is styled emphatically *not* as a control: no `Pressable`, no hit slop, muted
+rather than accent. It cannot collide with the `✕` itself — stepping in is what
+sets `steppedInAt` and also what stops a channel being an invitation, so a row
+can carry a mark or a dismiss and never both.
 
-It was `↗` for a day, and the arrow was the right answer to a question that had
-changed underneath it. While the mark still reported a *push*, it meant "a call
-is out, awaiting an answer", and the shortlist ran `…` (recommended), `◌`, `↗`
-and a radiating signal. Once the trigger became stepping in rather than
-announcing, the subject stopped being suspense and became residue — I was here,
-I stepped in, I moved on — and an arrow depicts *motion*, which is the wrong
-half. Two dots are two steps, in and out.
+**It was `‥`, U+2025 TWO DOT LEADER, for a day, and the reversion is the
+interesting half.** The case for the two dot leader was sound on paper. While
+the mark still reported a *push* it meant "a call is out, awaiting an answer",
+and an arrow suited that; once the trigger became stepping in, the subject
+became residue rather than suspense — I was here, I stepped in, I moved on —
+and an arrow depicts motion, which is the wrong half of it, where two dots are
+two steps. Its obscurity was the rest of the argument: `↗` is the web's "opens
+in a new window", `›` is disclosure, `⋮` is an overflow menu, `·` is the
+separator already joining the two halves of the line above, and nothing in a
+user interface uses a two dot leader, so it arrived carrying no convention to be
+misread as. Considered and rejected beside it: `◌`, whose Unicode job is
+standing in for an absent occupant, semantically perfect and a disabled radio at
+14px; `◦`, which loses to the roster collision; and 👣, colour emoji only.
 
-**Its obscurity is the argument for it.** Every other candidate arrives already
-meaning something: `↗` is the web's "opens in a new window", `›` is disclosure,
-`⋮` is an overflow menu, `✓` says resolved, a filled or hollow dot is what
-`ParticipantCard` spends on who is speaking, and `·` is the separator already
-joining the two halves of the line above it. Nothing in a user interface uses a
-two dot leader, so it carries nothing to be misread as. What it *can* be taken
-for is a typo'd ellipsis, which is the reason it is two dots and not three:
-three would promise something pending, and after the change of trigger nothing
-here is pending. Considered and rejected beside it: `◌`, whose Unicode job is
-standing in for an absent occupant and which is semantically perfect and looks
-like a disabled radio at 14px; `◦`, the afterimage of a presence dot, which
-loses to the roster collision; and 👣, which exists only as colour emoji.
-
-It sits at the row's right edge, where the invite `✕` lives, so it is styled
-emphatically *not* as a control: no `Pressable`, no hit slop, muted rather than
-accent. It cannot collide with the `✕` itself — stepping in is what sets
-`steppedInAt` and also what stops a channel being an invitation, so a row can
-carry a mark or a dismiss and never both. It is set two points *larger* than
-that `✕`, which looks backwards written down and is not: `‥` is two periods of
-ink against four strokes, so equal point sizes leave equal-nothing, and the size
-is chasing equal weight. It still lands lighter, which is the intended order.
+**None of that survived looking at it.** Two periods of ink at the edge of a row
+are too small to register as anything, which is why the two dots had been set
+two points *larger* than the `✕` beside them — the size chasing equal weight
+against four strokes. That compensation is the tell: a mark that needs to be
+grown to be seen is being asked to carry more than its shape can. In context the
+arrow is simply the one that reads, and the semantic objection to it — that it
+depicts motion — costs nothing next to a glyph nobody notices. **A denotation
+argument does not beat legibility**, and this is the entry to point at the next
+time one is winning on the page.
 
 The cost of a glyph is that it reads as nothing, and there is exactly one place
 to pay it: `accessibilityLabel` gains **"Stepped in and out."** The extra two
 words are load-bearing. The action at the end of that same label is "Step in",
 so the short form put the state and the button a syllable apart — *"Stepped in.
 Step in."* — which is a stutter that says which is which to nobody. Saying the
-whole of what happened separates them, and it is also what the glyph depicts.
-A test pins the pair rather than the phrase, so the two cannot drift back
-together.
+whole of what happened separates them. **The phrase was written for the two dot
+leader and outlived it deliberately**: the stutter it fixes is a property of the
+label, not of the mark, so reverting the glyph does not revert the words. A test
+pins the pair rather than the phrase, so the two cannot drift back together.
 
 ### What was deliberately not built
 

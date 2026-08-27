@@ -4571,7 +4571,7 @@ describe('the mark for a channel you have just stepped into', () => {
   it('draws the glyph, and says it in words for a screen reader', () => {
     // A glyph reads as nothing, so the label is where that cost is paid.
     const tree = steppedIn();
-    expect(textOf(tree)).toContain('‥');
+    expect(textOf(tree)).toContain('↗');
     expect(labelOf(tree)).toContain('Stepped in and out.');
     act(() => tree.unmount());
   });
@@ -4602,7 +4602,7 @@ describe('the mark for a channel you have just stepped into', () => {
     // moment rather than a flag: nothing has to happen in the channel for the
     // mark to go.
     const tree = steppedIn({ steppedInAt: NOW - 6 * 60_000 });
-    expect(textOf(tree)).not.toContain('‥');
+    expect(textOf(tree)).not.toContain('↗');
     expect(labelOf(tree)).not.toContain('Stepped in and out.');
     act(() => tree.unmount());
   });
@@ -4611,13 +4611,13 @@ describe('the mark for a channel you have just stepped into', () => {
     // Their arrival is already in the number. Null is the server saying the
     // last person in here was not this reader.
     const tree = steppedIn({ steppedInAt: null });
-    expect(textOf(tree)).not.toContain('‥');
+    expect(textOf(tree)).not.toContain('↗');
     act(() => tree.unmount());
   });
 
   it('is not drawn against a server that does not send it', () => {
     const tree = steppedIn({ steppedInAt: undefined });
-    expect(textOf(tree)).not.toContain('‥');
+    expect(textOf(tree)).not.toContain('↗');
     act(() => tree.unmount());
   });
 
@@ -4625,7 +4625,7 @@ describe('the mark for a channel you have just stepped into', () => {
     // A channel the reader is still standing in does not need to be told they
     // arrived, and a row with people in it is showing its count.
     const tree = steppedIn({ presentCount: 1 });
-    expect(textOf(tree)).not.toContain('‥');
+    expect(textOf(tree)).not.toContain('↗');
     act(() => tree.unmount());
   });
 
