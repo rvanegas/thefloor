@@ -690,9 +690,16 @@ function ChannelCard({
       accessibilityRole="button"
       // The mark is a glyph, and a glyph reads as nothing. This is the only
       // place that cost can be paid, so it is paid here rather than left to a
-      // screen reader to guess at an arrow.
+      // screen reader to guess at two dots.
+      //
+      // **"in and out" rather than "in"**, and the extra two words are not
+      // padding. The action at the end of this same label is "Step in", so a
+      // state called "Stepped in" put the two a syllable apart and read as
+      // gibberish — "Stepped in. Step in." Saying the whole of what happened
+      // separates them, and it happens to be what the glyph depicts: two dots,
+      // two steps.
       accessibilityLabel={`${card.title}. ${line ? `${line}. ` : ''}${
-        steppedIn ? 'Stepped in. ' : ''
+        steppedIn ? 'Stepped in and out. ' : ''
       }${!stepsIn ? 'Open.' : card.kind === 'invite' ? 'Join.' : 'Step in.'}`}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
@@ -717,11 +724,24 @@ function ChannelCard({
           {line ? <Text style={type.muted}>{line}</Text> : null}
         </View>
         {/*
+          `‥` is U+2025 TWO DOT LEADER, and the choice is a footprint rather
+          than a departure. This was `↗` for a day: an arrow depicts *leaving*,
+          which is motion, where what the mark reports is the impression left
+          behind — I was here, I stepped in, I moved on. Two dots are two steps,
+          in and out, which is what the label says in words.
+
+          Its obscurity is the point. Nothing else in a user interface uses this
+          character, so it arrives carrying no convention to be misread as —
+          where `↗` is the web's "opens in a new window", `›` is disclosure,
+          `⋮` is an overflow menu, and `·` is already the separator joining the
+          two halves of the muted line above it. The one thing it can be
+          mistaken for is a typo'd ellipsis, which is why it is not three dots:
+          three would also promise something pending, and nothing here is.
+
           Not a control, and it has to not *look* like one: this sits at the row
-          edge where the dismiss button lives, and an arrow is the glyph most
-          likely to be read as something you could press. No `Pressable`, no
-          hit slop, and `type.muted` rather than the accent — the live bar is
-          the one thing on this screen meant to shout, and this is a memory aid.
+          edge where the dismiss button lives. No `Pressable`, no hit slop, and
+          `type.muted` rather than the accent — the live bar is the one thing on
+          this screen meant to shout, and this is a memory aid.
 
           It cannot collide with the ✕ beside it. Stepping in is what sets
           `steppedInAt`, and stepping in is also what stops a channel being an
@@ -729,7 +749,7 @@ function ChannelCard({
         */}
         {steppedIn ? (
           <Text style={styles.steppedIn} accessibilityElementsHidden>
-            ↗
+            ‥
           </Text>
         ) : null}
         {onDismiss ? (
@@ -955,8 +975,12 @@ const styles = StyleSheet.create({
    */
   inviteQuiet: { borderColor: colors.border, borderWidth: 1 },
   dismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
-  // Muted and a size down from the dismiss glyph beside it, which is a control
-  // where this is a note to yourself. Same horizontal padding so the two sit in
-  // the same column on rows that have one or the other.
-  steppedIn: { color: colors.textMuted, fontSize: 14, paddingHorizontal: 4 },
+  // Larger than the dismiss glyph beside it, which reads as the wrong way round
+  // until you look at the two: `‥` is two periods' worth of ink where `✕` is
+  // four strokes, so matching their point sizes would leave this one a smudge.
+  // The size is chasing equal *weight*, and it still comes out lighter, which
+  // is right — that one is a control and this is a note to yourself. Same
+  // horizontal padding, so the two sit in one column across rows that have
+  // either.
+  steppedIn: { color: colors.textMuted, fontSize: 18, paddingHorizontal: 4 },
 });

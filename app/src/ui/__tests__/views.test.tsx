@@ -4532,8 +4532,21 @@ describe('the mark for a channel you have just stepped into', () => {
   it('draws the glyph, and says it in words for a screen reader', () => {
     // A glyph reads as nothing, so the label is where that cost is paid.
     const tree = steppedIn();
-    expect(textOf(tree)).toContain('↗');
-    expect(labelOf(tree)).toContain('Stepped in.');
+    expect(textOf(tree)).toContain('‥');
+    expect(labelOf(tree)).toContain('Stepped in and out.');
+    act(() => tree.unmount());
+  });
+
+  it('does not say the state in the same words as the action', () => {
+    // Why the label is "Stepped in and out" and not "Stepped in". The action at
+    // the end of this same label is "Step in", so the short form put a state
+    // and a button a syllable apart — "Stepped in. Step in." — which reads as a
+    // stutter and tells a screen reader user nothing about which is which. The
+    // long form is two words more and is the whole of what happened.
+    const tree = steppedIn();
+    const label = labelOf(tree);
+    expect(label).toContain('Stepped in and out. Step in.');
+    expect(label).not.toContain('Stepped in. Step in.');
     act(() => tree.unmount());
   });
 
@@ -4550,8 +4563,8 @@ describe('the mark for a channel you have just stepped into', () => {
     // moment rather than a flag: nothing has to happen in the channel for the
     // mark to go.
     const tree = steppedIn({ steppedInAt: NOW - 6 * 60_000 });
-    expect(textOf(tree)).not.toContain('↗');
-    expect(labelOf(tree)).not.toContain('Stepped in.');
+    expect(textOf(tree)).not.toContain('‥');
+    expect(labelOf(tree)).not.toContain('Stepped in and out.');
     act(() => tree.unmount());
   });
 
@@ -4559,13 +4572,13 @@ describe('the mark for a channel you have just stepped into', () => {
     // Their arrival is already in the number. Null is the server saying the
     // last person in here was not this reader.
     const tree = steppedIn({ steppedInAt: null });
-    expect(textOf(tree)).not.toContain('↗');
+    expect(textOf(tree)).not.toContain('‥');
     act(() => tree.unmount());
   });
 
   it('is not drawn against a server that does not send it', () => {
     const tree = steppedIn({ steppedInAt: undefined });
-    expect(textOf(tree)).not.toContain('↗');
+    expect(textOf(tree)).not.toContain('‥');
     act(() => tree.unmount());
   });
 
@@ -4573,7 +4586,7 @@ describe('the mark for a channel you have just stepped into', () => {
     // A channel the reader is still standing in does not need to be told they
     // arrived, and a row with people in it is showing its count.
     const tree = steppedIn({ presentCount: 1 });
-    expect(textOf(tree)).not.toContain('↗');
+    expect(textOf(tree)).not.toContain('‥');
     act(() => tree.unmount());
   });
 
