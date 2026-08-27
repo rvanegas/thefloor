@@ -41,7 +41,10 @@ That is not a stale comment on the side; it is the argument licensing the
 unconditional value. STATES.md carries it as disagreement 11.
 
 **Two other candidates survive the same evidence**, and the foreground is where
-they part. A backgrounded app loses presence in about a hundred seconds, so
+they part. A backgrounded app loses presence in about sixty seconds — it was a
+hundred until 2026-08-27, when the sweep stopped waiting out a close frame,
+the silence budget came down and the grace period began running from the last
+ping rather than from noticing — so
 depending on how long the other app played, foregrounding may be rebuilding the
 room rather than resuming one — and a rebuild calls `startAudioSession`. Either
 WebRTC re-applying its own defaults, the third writer of the process-wide

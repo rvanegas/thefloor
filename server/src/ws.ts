@@ -16,7 +16,7 @@ import type {
 import type { Accounts } from './accounts';
 import type { NotificationPreferences } from './preferences';
 import type { ChannelRegistry } from './channels';
-import { claimedBuild } from './release';
+import { claimedBuild, heartbeatTimeoutFor } from './release';
 import { sha256 } from './db';
 
 /**
@@ -300,15 +300,22 @@ export function registerWebsocket(deps: {
    * client reads to stop reconnecting, and a code has to arrive to be read.
    */
   const sweep = setInterval(() => {
-    const cutoff = now() - HEARTBEAT_TIMEOUT_MS;
+    const at = now();
     // Guests first, and for the same reason members are swept: a half-open
     // socket that nobody closes holds somebody in a room they have left, and a
     // guest in a room is somebody the members can be heard by.
+    //
+    // Judged against the current budget rather than the legacy one, alone among
+    // the connections here: the guest page ships with this deploy and reads the
+    // same interval constant, so it cannot be a version behind the way an
+    // installed app can.
     for (const guest of guestConnections) {
-      if (guest.lastSeen < cutoff) guest.socket.terminate();
+      if (guest.lastSeen < at - HEARTBEAT_TIMEOUT_MS) guest.socket.terminate();
     }
     for (const connection of connections) {
-      if (connection.lastSeen < cutoff) {
+      // Per connection, because the budget depends on how often that client
+      // promised to speak. See `heartbeatTimeoutFor`.
+      if (connection.lastSeen < at - heartbeatTimeoutFor(connection.build)) {
         connection.socket.terminate();
         continue;
       }
@@ -964,16 +971,20 @@ export function registerWebsocket(deps: {
       // it ended, which is a different number and, for the departure that
       // matters most, a wrong one.
       //
-      // A phone that freezes in a pocket goes on holding an open socket:
-      // `sweep` takes up to HEARTBEAT_TIMEOUT_MS to notice, then
-      // `socket.close()` spends `ws`'s 30-second `closeTimeout` waiting for a
-      // close frame from a process that is never going to send one. So this
-      // handler runs some forty seconds after the last thing the person
-      // actually did, and `now()` here would write those forty seconds down as
-      // evidence of presence. With `agoOrNull`'s sixty-second floor on top,
-      // Home read "In the app now" for about a hundred seconds after the last
-      // ping. Sixty is the number that was wanted, and this is the whole of
-      // what was making it a hundred.
+      // A phone that freezes in a pocket goes on holding an open socket, and
+      // this handler therefore runs a silence budget and a sweep phase after
+      // the last thing the person actually did — `now()` here would write that
+      // gap down as evidence of presence. It used to be far worse and the
+      // arithmetic is worth keeping, since it is what this line was written
+      // for: `socket.close()` spent `ws`'s 30-second `closeTimeout` waiting for
+      // a close frame from a process that was never going to send one, on top
+      // of a 12-second budget, so the handler ran some forty seconds late and
+      // `agoOrNull`'s sixty-second floor took Home to about a hundred seconds
+      // of "In the app now" after the last ping. The close became a
+      // `terminate` and the budget came down to HEARTBEAT_TIMEOUT_MS, so the
+      // gap is now a few seconds rather than forty — but it is still a gap,
+      // still in the same direction, and this is still the line that refuses
+      // to count it.
       //
       // `connection.lastSeen` is never later than the truth. It is at worst one
       // HEARTBEAT_INTERVAL_MS early, which the same floor absorbs — the error
@@ -993,7 +1004,19 @@ export function registerWebsocket(deps: {
       // a dead connection evicting a user who is demonstrably back.
       for (const channelId of connection.watchingChannels) {
         if (!hasConnection(connection.userId)) {
-          channels.report(channelId, connection.userId, 'DISCONNECTED');
+          // Stamped from the last thing actually heard rather than from now,
+          // which is the same correction `heard` above makes and for the same
+          // reason — and here it decides a timer rather than a caption. The
+          // grace period runs from this stamp, so using `now()` added the whole
+          // of the detection latency to it: somebody was stepped out a timeout
+          // later than the minute they were given. Sixty seconds now means
+          // sixty seconds since the last ping, whenever it was noticed.
+          channels.report(
+            channelId,
+            connection.userId,
+            'DISCONNECTED',
+            connection.lastSeen
+          );
         }
       }
       // The departure, on the same test the loop above uses and for the same

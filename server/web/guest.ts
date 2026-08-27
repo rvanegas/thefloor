@@ -6,6 +6,7 @@ import {
   type LocalAudioTrack,
   type RemoteTrack,
 } from 'livekit-client';
+import { HEARTBEAT_INTERVAL_MS } from '../../core/constants';
 import type {
   GuestAction,
   GuestClientMessage,
@@ -331,7 +332,12 @@ function connect(): void {
 
   socket.onopen = () => {
     attempt = 0;
-    heartbeat = setInterval(() => send({ type: 'ping' }), 5_000);
+    // The same cadence the app uses, read from the same constant rather than
+    // written again here — this page is judged by the same sweep, and a number
+    // repeated is a number that drifts. It did: this said 5_000 while the
+    // constant moved to 2_000, which would have had the sweep terminating
+    // every guest a moment after it let them in.
+    heartbeat = setInterval(() => send({ type: 'ping' }), HEARTBEAT_INTERVAL_MS);
   };
 
   socket.onmessage = (event) => {

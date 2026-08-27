@@ -1,5 +1,11 @@
 import { readFileSync } from 'node:fs';
 
+import {
+  FAST_HEARTBEAT_BUILD,
+  HEARTBEAT_TIMEOUT_LEGACY_MS,
+  HEARTBEAT_TIMEOUT_MS,
+} from '../../core/constants';
+
 /**
  * What this server is, and what it has promised to keep talking to.
  *
@@ -100,6 +106,33 @@ export function claimedBuild(
   if (!value) return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * How long this connection may be silent before it is treated as dead.
+ *
+ * **Keyed on what the client says it is, because the cadence is a property of
+ * the binary rather than of the network.** A build pinging every
+ * HEARTBEAT_INTERVAL_MS can be judged against HEARTBEAT_TIMEOUT_MS and still
+ * lose two pings first; one pinging every five seconds cannot, and judging it
+ * that way would sweep it while it was healthy. So the budget follows the
+ * declared build.
+ *
+ * A build that declares nothing gets the old budget, which is the safe
+ * direction and the same reading `claimedBuild` already takes: a client that
+ * says nothing about itself is treated as old, because every build that
+ * predates the field is. The cost of being generous to a phone that is
+ * genuinely dead is bounded by DISCONNECT_GRACE_MS either way.
+ *
+ * Guests are not asked. Their page is served by this deploy and cannot be
+ * older than it, so there is no version of it pinging at a cadence this
+ * process does not know about — see `web/guest.ts`, which reads the same
+ * constant.
+ */
+export function heartbeatTimeoutFor(build: number | null): number {
+  return build !== null && build >= FAST_HEARTBEAT_BUILD
+    ? HEARTBEAT_TIMEOUT_MS
+    : HEARTBEAT_TIMEOUT_LEGACY_MS;
 }
 
 export interface Deployed {

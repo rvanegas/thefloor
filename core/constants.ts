@@ -263,14 +263,68 @@ export const TRANSCRIPT_DELETED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
  * How often each side proves it is still there, and how long silence is
  * tolerated before the connection is treated as dead.
  *
- * Deliberately aggressive. Detection latency adds to DISCONNECT_GRACE_MS, so a
- * slow check delays every timer that depends on knowing someone has gone — a
- * user is not removed, a channel never empties, and a recording keeps billing.
- * Being wrong is cheap by comparison: a false positive shows "reconnecting…"
- * for a moment and then clears, because a disconnect no longer removes anyone.
+ * Detection latency adds to DISCONNECT_GRACE_MS, so a slow check delays every
+ * timer that depends on knowing someone has gone — a user is not removed, a
+ * channel never empties, and a recording keeps billing. Since 2026-08-27 it
+ * also delays every *screen*: the close handler is what writes
+ * `disconnectedAt` and releases the floor, so until the timeout fires nobody in
+ * the room is told anything at all.
+ *
+ * **The two numbers answer different questions, which is easy to get backwards
+ * and was.** The interval is the proof cadence; the timeout is the silence
+ * budget. The budget does not scale with the cadence — it bounds how long
+ * somebody may be quiet, and the cadence decides how many chances they get to
+ * prove otherwise inside it. So a *faster* interval at the same timeout is
+ * strictly more tolerant of packet loss, not less. 2s against 5s is two
+ * consecutive pings lost before anybody is declared dead, which is the same
+ * tolerance the old 5s against 12s gave.
+ *
+ * **Nor does a faster interval make detection faster on its own**, which is the
+ * other half of the same confusion. The timeout measures silence since the last
+ * evidence, so more frequent evidence starts the clock later: at a 5s cadence a
+ * death is noticed somewhere in 7–17s, at 2s somewhere in 10–14s, and the mean
+ * is a timeout either way. A shorter interval buys predictability. Only a
+ * shorter timeout buys speed.
+ *
+ * Being wrong is no longer quite as cheap as this comment used to claim. A
+ * false positive once showed "reconnecting…" for a moment and cleared; it now
+ * also releases the floor, and the holder rejoins the queue rather than
+ * resuming. That is a deliberate trade rather than an oversight — see
+ * decisions/DECISIONS.md § *If you are going to claim the floor, be sure you
+ * can hold it* — but it is the reason the budget is not cut further.
  */
-export const HEARTBEAT_INTERVAL_MS = 5_000;
-export const HEARTBEAT_TIMEOUT_MS = 12_000;
+export const HEARTBEAT_INTERVAL_MS = 2_000;
+export const HEARTBEAT_TIMEOUT_MS = 5_000;
+
+/**
+ * The silence budget for a client that predates the cadence above.
+ *
+ * **This is a wire contract, not a preference.** The server applies a timeout
+ * to whatever is connected to it, and an installed build goes on pinging at
+ * whatever cadence it shipped with — 5s for everything up to and including
+ * build 107. Judged against a 5s budget those phones are always a moment from
+ * exceeding it, so a flat cut would have swept the entire live population into
+ * a permanent kill-and-reconnect loop. The old budget is kept for them.
+ *
+ * It retires itself: once MIN_SUPPORTED_BUILD passes FAST_HEARTBEAT_BUILD there
+ * is no connection left that can claim it, and this and its branch can go.
+ */
+export const HEARTBEAT_TIMEOUT_LEGACY_MS = 12_000;
+
+/**
+ * The first build that pings at HEARTBEAT_INTERVAL_MS, and so the first that
+ * may be judged against HEARTBEAT_TIMEOUT_MS.
+ *
+ * **Read it as a claim about the client, because that is what it is.** The
+ * number is not a date or a threshold anybody chose for its own sake: it is
+ * whichever build first carried the constant above, and it is right only
+ * because this landed before that build was made. A build produced from a
+ * commit older than this one would announce a number at or above it while
+ * still pinging every five seconds, and would be swept while perfectly
+ * healthy. There is nothing on the wire that could detect that, the build
+ * number being the whole of what a client says about itself.
+ */
+export const FAST_HEARTBEAT_BUILD = 108;
 
 /**
  * The most characters a channel's clipboard may hold.

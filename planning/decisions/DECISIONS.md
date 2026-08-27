@@ -1705,3 +1705,81 @@ Worth knowing that this is now the second reversal in as many days of a
 decision made carefully and written up in full — the arrow, and now the verb.
 Neither entry was wrong on its own argument. Both lost to something the
 argument could not contain: what the thing is like to look at.
+
+## If you are going to claim the floor, be sure you can hold it — 2026-08-27
+
+A faster heartbeat, and the thing that was deliberately *not* built alongside
+it. Follows § *Talking into a void*, and settles two confusions that had been
+producing wrong answers about which number to change.
+
+**The interval and the timeout answer different questions.** The interval is
+the proof cadence; the timeout is the silence budget. The budget does not scale
+with the cadence — it bounds how long somebody may be quiet, and the cadence
+decides how many chances they get inside it. So a *faster* interval at the same
+timeout is strictly **more** tolerant of packet loss. 2s against 5s is two
+consecutive pings lost before anybody is declared dead, exactly what the old 5s
+against 12s gave. The reasoning that said otherwise, and briefly appeared in
+this project's own advice, confused "the timeout must exceed the interval" —
+true — with "it must scale with it", which is not.
+
+**And a faster interval does not make detection faster.** This is the one worth
+keeping, because it is counterintuitive and it was nearly acted on backwards.
+The timeout measures silence since the last *evidence*, so more frequent
+evidence starts the clock later: at a 5s cadence a death is noticed somewhere
+in 7–17s, at 2s somewhere in 10–14s, and the mean is a timeout either way. A
+shorter interval buys predictability, not speed. **Only a shorter timeout buys
+speed**, which is why the budget came down to 5s and the interval to 2s
+together rather than the interval alone.
+
+**The budget is a wire contract, and this is where the two-step was needed.**
+The server applies a timeout to whatever is connected, and an installed build
+goes on pinging at the cadence it shipped with — 5s for everything through
+build 107. Judged against a 5s budget those phones are always a moment from
+exceeding it, so a flat cut would have swept the entire live population into a
+permanent kill-and-reconnect loop. `heartbeatTimeoutFor` keys the budget on
+`connection.build`, which the socket already carries: the new budget for builds
+that declare the new cadence, the old one for everything else, including
+anything that declares nothing. It is deployable server-first, since the tight
+branch applies only to a build that does not exist yet, and it retires itself
+once `MIN_SUPPORTED_BUILD` passes `FAST_HEARTBEAT_BUILD`.
+
+The guest page is the exception and is judged against the current budget. It is
+served by the deploy rather than installed, so it cannot be a version behind —
+and it now reads `HEARTBEAT_INTERVAL_MS` instead of its own hardcoded `5_000`,
+which would otherwise have had the sweep terminating every guest a moment after
+letting them in. A number written twice is a number that drifts, and this one
+had already.
+
+**The grace period now runs from the last ping rather than from noticing.**
+`report` takes the time as an argument and the close handler passes
+`connection.lastSeen`. Stamped with `now()`, the detection latency was silently
+added to the minute somebody is given — they were stepped out a whole budget
+later than the rule says. Sixty seconds now means sixty seconds since the last
+thing anybody heard, whenever it was noticed, which also makes the total
+predictable rather than a function of how the sweep phase happened to fall. It
+is the same correction `heard` makes one line above, finally applied to the
+other stamp.
+
+**What was deliberately not built: giving the floor back on reconnect.** With
+the budget at 5s, an ordinary mobile stall — a radio state transition, a
+handover — can now cost a speaker their claim, and `claimDelayMs` sends them to
+the back of the queue rather than restoring the turn they were in the middle
+of. Restoring the floor on `CONNECTED` when nobody else had taken it would have
+made a spurious release free, and it was declined.
+
+The reasoning is that it is not spurious. A claim is a request that everybody
+else stay silent; holding it is a responsibility rather than a grant, and
+somebody whose connection cannot carry a minute of speech is somebody the room
+should be able to move on from. The person best placed to ensure a claim can be
+held — good signal, incoming calls silenced — is the claimant, and handing the
+turn back automatically would remove the only incentive to do any of it. It
+also keeps the rule simple: the floor is released by every departure, and a
+connection that failed is a departure like any other. **If you are going to
+claim the floor, be sure you can hold it.**
+
+The cost is accepted with open eyes: somebody will lose a turn to a tunnel, and
+the answer will be to claim again rather than to add a restore path. Should
+that prove wrong, the restore is still the smaller of the two fixes — a field
+on `FloorState` recording that the release was caused by a disconnect, so that
+nothing else can be resurrected by it — and it is not a reason to lengthen the
+budget, which is what would otherwise be reached for.

@@ -1255,11 +1255,25 @@ export class ChannelRegistry {
   report(
     channelId: string,
     userId: string,
-    state: 'CONNECTED' | 'DISCONNECTED'
+    state: 'CONNECTED' | 'DISCONNECTED',
+    /**
+     * When it happened, for a report that is not about the present moment.
+     *
+     * A disconnect is noticed some time after it occurred — up to a heartbeat
+     * budget plus a sweep phase — and the grace period runs from the stamp this
+     * writes. Passing the transport's `lastSeen` is what stops that detection
+     * latency being added to the minute somebody is given: sixty seconds means
+     * sixty seconds since the last thing anybody heard, not sixty seconds since
+     * the server got round to noticing.
+     *
+     * Defaults to now, which is right for `CONNECTED` — a connection is
+     * observed arriving rather than deduced from silence.
+     */
+    at: number = this.now()
   ): void {
     const channel = this.channels.get(channelId);
     if (!channel) return;
-    const next = reduce(channel, { type: state, userId }, this.now());
+    const next = reduce(channel, { type: state, userId }, at);
     if (next !== channel) {
       this.commit(channel, next);
       this.emit([channelId]);

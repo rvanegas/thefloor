@@ -2,6 +2,8 @@ import WebSocket from 'ws';
 import { buildApp, type App } from '../src/app';
 import {
   DISCONNECT_GRACE_MS,
+  FAST_HEARTBEAT_BUILD,
+  HEARTBEAT_TIMEOUT_LEGACY_MS,
   HEARTBEAT_TIMEOUT_MS,
 } from '../../core/constants';
 import { OTP_RESEND_INTERVAL_MS } from '../src/accounts';
@@ -37,8 +39,17 @@ class Client {
   private socket: WebSocket;
   readonly received: ServerMessage[] = [];
 
-  constructor(token: string, base: string) {
-    this.socket = new WebSocket(`ws://${base}/ws?token=${token}`);
+  /**
+   * @param build what this client claims to be, which decides the silence
+   *              budget the sweep judges it against. Omitted means a client
+   *              that says nothing about itself, which is every build before
+   *              37 and is treated as old — see `heartbeatTimeoutFor`.
+   */
+  constructor(token: string, base: string, build?: number) {
+    this.socket = new WebSocket(
+      `ws://${base}/ws?token=${token}` +
+        (build === undefined ? '' : `&build=${build}`)
+    );
     this.socket.on('message', (raw) => {
       this.received.push(JSON.parse(String(raw)) as ServerMessage);
     });
@@ -458,7 +469,9 @@ describe('websocket', () => {
     // auto-ends, and a recording bills against two egresses indefinitely.
     const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
-    const b = new Client(bob.token, baseUrl);
+    // Declares the fast cadence, so it is judged against the current budget
+    // rather than the one kept for builds that ping every five seconds.
+    const b = new Client(bob.token, baseUrl, FAST_HEARTBEAT_BUILD);
     await Promise.all([a.open(), b.open()]);
 
     a.send({ type: 'watch.channel', channelId });
@@ -545,6 +558,69 @@ describe('websocket', () => {
     expect(channel.floor.lastClaimedAt[bob.account.id]).toBeDefined();
     a.close();
   });
+
+  it('gives a client that predates the fast cadence the old budget', async () => {
+    // **The whole of what stops a faster heartbeat sweeping the installed
+    // population.** An old build goes on pinging every five seconds whatever
+    // this server now prefers, so judged against the current budget it would be
+    // a moment from exceeding it at all times — terminated, reconnecting, and
+    // terminated again, for as long as it was running. The budget follows what
+    // the client says it is.
+    const { alice, bob, channelId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const old = new Client(bob.token, baseUrl, FAST_HEARTBEAT_BUILD - 1);
+    await Promise.all([a.open(), old.open()]);
+
+    a.send({ type: 'watch.channel', channelId });
+    old.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await old.next('channel', (m) => m.view.channel.present.length === 2);
+
+    old.goDark();
+    // Past the current budget and well short of theirs.
+    clock += HEARTBEAT_TIMEOUT_MS + 1_000;
+    await new Promise((r) => setTimeout(r, 4_000));
+    expect(
+      app.channels.get(channelId)!.disconnectedAt[bob.account.id]
+    ).toBeUndefined();
+
+    // And past their own, which is where they are finally let go.
+    clock += HEARTBEAT_TIMEOUT_LEGACY_MS;
+    await new Promise((r) => setTimeout(r, 4_000));
+    expect(
+      app.channels.get(channelId)!.disconnectedAt[bob.account.id]
+    ).toBeDefined();
+    a.close();
+    old.kill();
+  }, 20_000);
+
+  it('runs the grace period from the last thing heard, not from noticing', async () => {
+    // Detection costs a silence budget plus a sweep phase, and the grace period
+    // runs from the stamp the close handler writes. Stamped with `now()` that
+    // latency was added to the minute somebody is given, so they were stepped
+    // out a timeout later than the rule says. The stamp is the last ping.
+    const { alice, bob, channelId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl, FAST_HEARTBEAT_BUILD);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
+    const heard = clock;
+
+    b.goDark();
+    clock += HEARTBEAT_TIMEOUT_MS + 1_000;
+    await new Promise((r) => setTimeout(r, 4_000));
+
+    const stamped = app.channels.get(channelId)!.disconnectedAt[bob.account.id];
+    expect(stamped).toBeDefined();
+    // The last message, not the moment of noticing — which is a whole budget
+    // later and is what `clock` now reads.
+    expect(stamped).toBeLessThanOrEqual(heard);
+    expect(stamped).toBeLessThan(clock);
+    a.close();
+    b.kill();
+  }, 20_000);
 
   it('counts which way each lost connection went', async () => {
     // The measurement DISCONNECT_GRACE_MS has never had. Its justification —
