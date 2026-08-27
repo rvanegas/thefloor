@@ -188,6 +188,16 @@ export const DISCONNECT_GRACE_MS = 60_000;
  * Deliberately *not* derived from DISCONNECT_GRACE_MS. That one is about
  * whether a connection is coming back; this one is about how long an intention
  * stays worth reporting, and the two have no reason to move together.
+ *
+ * **Home's step-in mark reads this too, since 2026-08-27**, and that one does
+ * have a reason to move with it. The mark says "you were in here" to the
+ * reader about themselves; this window says "they are nearby" to everybody
+ * else about the same visit. One claim with two audiences, so it expires once
+ * rather than twice — and if this number ever moves, the mark should move with
+ * it rather than be found to disagree. See `HomeView`'s `steppedIn`, which
+ * carries the one caveat: it measures from the arrival where this measures
+ * from the last thing heard, so it expires first on a long visit and can never
+ * outlive the state it is aligned with.
  */
 export const WAITING_WINDOW_MS = 15 * 60 * 1000;
 
@@ -292,15 +302,18 @@ export const MAX_CLIP_LENGTH = 8_000;
  * how long it stays true that walking over to your phone would let you join
  * the conversation being announced.
  *
- * **Shared with the client since 2026-08-26**, which is why it lives here
- * rather than in the server's `push.ts` where it was written. Home marks a
- * channel you have just stepped into, and the mark has to fade on the phone's
- * own clock rather than wait for the next snapshot — so both ends need the
- * window.
+ * **The client read this for a day and no longer does.** Home's step-in mark
+ * borrowed it on 2026-08-26 on the argument that it was one claim seen from
+ * two ends — the push saying "somebody is here now" to them, the mark saying
+ * it to you about yourself. The ends turned out to be different lengths. A
+ * push's window is bounded by what Apple will hold and by how long walking to
+ * your phone would still land you in the conversation; a mark is a note about
+ * a visit, and a visit stays worth mentioning for as long as the app goes on
+ * calling you nearby. So the mark moved to WAITING_WINDOW_MS on 2026-08-27
+ * and this went back to meaning one thing.
  *
- * The same five minutes for both, because it is the same claim seen from its
- * two ends: the push says "somebody is here now" to them, the mark says it to
- * you about yourself, and it stops being worth saying at the same moment
- * either way. Two constants that had to agree would be worse than the move.
+ * It stays in `core/` rather than moving back to the server's `push.ts` where
+ * it was written: nothing is gained by moving a number twice in two days, and
+ * `push.ts` re-exports it, so the import that reads it has not changed.
  */
 export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;

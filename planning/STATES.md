@@ -342,9 +342,19 @@ Three things follow, and each has bitten somebody in an earlier draft:
 Beside it, and **not a measure at all**, is `steppedInAt`: the moment *this
 reader* last stepped into this channel. The server holds the last entry per
 channel on `ChannelRegistry`, in memory, and the view answers with the time when
-that entry was the reader's own. Five minutes wide (`PRESENCE_LIFETIME_MS`, in
-`core/constants.ts` so both ends read it), cleared by the next arrival
+that entry was the reader's own. **Fifteen minutes wide (`WAITING_WINDOW_MS`),
+which is the same window that keeps somebody's roster card reading "Nearby"
+rather than "Stepped out"** — the mark and that line are one visit described to
+two audiences, so they expire together. It read `PRESENCE_LIFETIME_MS`, the
+push's five minutes, from 2026-08-26 to 2026-08-27. Cleared by the next arrival
 overwriting it, draws `↗` on the row, and orders nothing.
+
+The two clocks are not the same instant and the difference runs the safe way:
+this measures from the **arrival**, where `nearby` measures from the last thing
+heard from that person, so on a long visit the mark expires first and can never
+outlive the state it is aligned with. Nothing on the wire depends on the choice
+— the server sends a moment and each client decides how long it is worth
+drawing.
 
 **It is the act, not the notification** — an earlier draft recorded the arrival
 push instead and lost every step-in that was suppressed or had nobody to notify.

@@ -11,7 +11,7 @@ import type {
   InviteView,
   RejoinableView,
 } from '../../../core/protocol';
-import { PRESENCE_LIFETIME_MS } from '../../../core/constants';
+import { WAITING_WINDOW_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
@@ -654,11 +654,24 @@ function ChannelCard({
    * Expired against the phone's own clock rather than the snapshot's, which is
    * why the wire carries a moment instead of a flag: nothing has to happen in
    * the channel for the mark to go.
+   *
+   * **`WAITING_WINDOW_MS`, and not `PRESENCE_LIFETIME_MS`, since 2026-08-27.**
+   * The mark was five minutes wide because it was reading the *push*'s window
+   * — how long "somebody is here now" stays worth delivering — and the two
+   * only ever looked like one number. What the mark reports is a visit, and
+   * the length a visit stays worth mentioning is the length the app already
+   * commits to elsewhere: `WAITING_WINDOW_MS` is how long somebody's roster
+   * card goes on saying they are nearby rather than that they stepped out. So
+   * the mark now fades when the reader stops reading as nearby to everybody
+   * else, which is one claim with two audiences instead of two clocks.
+   *
+   * The two clocks are not the same instant, and the difference runs the safe
+   * way. `steppedInAt` is when the reader *arrived*, where the roster's
+   * `nearby` measures from the last thing heard from them — so on a long visit
+   * this expires first and can never outlive the state it is aligned with.
    */
   const steppedIn =
-    !live &&
-    card.steppedInAt != null &&
-    now - card.steppedInAt < PRESENCE_LIFETIME_MS;
+    !live && card.steppedInAt != null && now - card.steppedInAt < WAITING_WINDOW_MS;
   /**
    * An invitation outlives the moment it was sent. What it must not do is go
    * on claiming that moment is still happening — the banner used to say

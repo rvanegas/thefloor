@@ -169,10 +169,6 @@ These are recordings, sharing the infrastructure with the existing recordings, b
 - Recording is the same. In the room, everyone and media is heard and recorded. 
 - Constrained to 60s.
 
-## 
-
-5m -> 15m
-
 ## Publishable Recordings
 
 A channel may declare itself public. If public, then it has a page at thefloor.rvanegas.co where anyone can listen to selected recordings. Settings would include image. Name and description would show on the page. Contacts remain private, though they may be explicitly described in the description.

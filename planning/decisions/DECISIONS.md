@@ -1643,3 +1643,65 @@ looks, and the counters exist so that the next argument about it can be had
 with data. If they come back saying almost nothing returns inside the window,
 the answer is probably to split it into two constants rather than to shorten
 one.
+
+## The mark's window is the nearby window, and "Nearby" loses its verb — 2026-08-27
+
+TASKS.md's `## Mark Duration`, both halves of it, and the second reverses a
+decision five days old.
+
+**The mark now lasts fifteen minutes rather than five, by reading
+`WAITING_WINDOW_MS`.** It was written the day before against
+`PRESENCE_LIFETIME_MS`, and that constant's own comment argued the two were one
+claim seen from its two ends: the push says "somebody is here now" to them, the
+mark says it to you about yourself, and both stop being worth saying at the same
+moment. The ends turned out to be different lengths. A push's window is bounded
+by what Apple will hold undelivered and by how long walking over to your phone
+would still land you in the conversation being announced — that is a claim about
+a room, and it decays fast. The mark is a note about a **visit**, and how long a
+visit stays worth mentioning is a question this app had already answered
+somewhere else: `WAITING_WINDOW_MS` is how long the roster goes on describing
+somebody as nearby before it says they stepped out.
+
+So the alignment is not arithmetic. While the mark is on your Home screen, every
+other member's roster is calling you nearby; when it goes, they are being told
+you stepped out. **One visit, two audiences, one expiry** — and if that number
+ever moves, the mark moves with it rather than being found to disagree, which is
+why this reads the constant rather than restating fifteen minutes.
+
+**The two clocks are not the same instant, and the difference runs the safe
+way.** `steppedInAt` is when the reader *arrived*; the roster's `nearby`
+measures from the last thing heard from them. On a visit of any length the
+arrival is the earlier of the two, so the mark expires first and can never
+outlive the state it is aligned with. The alternative — the mark reading the
+reader's own `lastPresentAt` — was not built, for the reason `protocol.ts`
+already gives: that stamp answers "when were you last here", and the mark's
+whole use is to outlive the visit.
+
+Nothing on the wire moved. The server sends a moment and each client decides how
+long it is worth drawing, so an older build on the old five minutes is not wrong
+about anything, merely briefer. This is the rare UI constant that needs no
+`MIN_SUPPORTED_BUILD` thought at all.
+
+**And the roster line is "Nearby for 5 minutes" again, reversing
+DECISIONS-2026-08-21-to-2026-08-23.md § *"Been nearby for"*.** That entry was a
+correction to the same day's work: bare, *nearby for five minutes* was heard as
+how much longer the person would still be within reach — a future — where the
+number is elapsed. The perfect tense put the length behind them and cost two
+words.
+
+**The reversal is a judgement about the price, not a claim the risk was
+imagined.** The Ping button that made the misreading plausible is still sitting
+right beside the line, so the ambiguity is real. Against it: the misreading
+needs a reader who does not already know what the card is, and that reader is
+rare on a roster they opened, in a room they just walked out of, where every
+other line — "Stepped out 2 hours ago", the interval on Home — measures
+backwards too. Two words of scaffolding on every absent card, forever, to
+pre-empt a first-encounter misreading is the wrong trade on a line that has to
+stay short. The remaining-time version thrown away in that entry is still
+thrown away, and for its original reason: the window is how long *we* go on
+calling somebody reachable, not how long they will be.
+
+Worth knowing that this is now the second reversal in as many days of a
+decision made carefully and written up in full — the arrow, and now the verb.
+Neither entry was wrong on its own argument. Both lost to something the
+argument could not contain: what the thing is like to look at.

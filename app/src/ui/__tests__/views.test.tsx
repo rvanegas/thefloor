@@ -4601,10 +4601,25 @@ describe('the mark for a channel you have just stepped into', () => {
     // Expired against the phone's own clock, which is why the wire carries a
     // moment rather than a flag: nothing has to happen in the channel for the
     // mark to go.
-    const tree = steppedIn({ steppedInAt: NOW - 6 * 60_000 });
+    const tree = steppedIn({ steppedInAt: NOW - WAITING_WINDOW_MS - 1 });
     expect(textOf(tree)).not.toContain('↗');
     expect(labelOf(tree)).not.toContain('Stepped in and out.');
     act(() => tree.unmount());
+  });
+
+  it('lasts as long as the roster goes on calling that visit nearby', () => {
+    // The window is WAITING_WINDOW_MS and not the push's PRESENCE_LIFETIME_MS,
+    // which it read for a day. Pinned against the constant at both ends rather
+    // than against fifteen minutes, since what is being asserted is that the
+    // mark and the "Nearby" line expire together — one visit told to two
+    // audiences — not that either is any particular length.
+    const alive = steppedIn({ steppedInAt: NOW - WAITING_WINDOW_MS + 1000 });
+    expect(textOf(alive)).toContain('↗');
+    act(() => alive.unmount());
+    // Six minutes: gone under the old five-minute window, still drawn now.
+    const wasExpired = steppedIn({ steppedInAt: NOW - 6 * 60_000 });
+    expect(textOf(wasExpired)).toContain('↗');
+    act(() => wasExpired.unmount());
   });
 
   it('is not drawn for somebody else’s arrival', () => {
@@ -4858,7 +4873,7 @@ describe('who is in the channel, and who is talking', () => {
         onExit={() => {}}
       />
     );
-    expect(textOf(tree)).toContain('Been nearby for 5 minutes');
+    expect(textOf(tree)).toContain('Nearby for 5 minutes');
     expect(textOf(tree)).not.toContain('Waiting');
     expect(textOf(tree)).not.toContain('Stepped out');
     mockApp.serverNow = () => NOW;
