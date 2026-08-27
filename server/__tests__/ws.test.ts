@@ -82,6 +82,32 @@ class Client {
     this.socket.close();
   }
 
+  /**
+   * Stops reading, without closing — a phone frozen or out of coverage, whose
+   * TCP connection is still established and whose process will never answer
+   * anything again.
+   *
+   * Pausing the underlying socket is what makes this a *half-open* peer rather
+   * than merely a quiet one, and the distinction is the whole point: a live
+   * client that has simply stopped sending pings still answers the server's
+   * close frame at protocol level, so the sweep's `close` would complete
+   * immediately and a test using one cannot tell `close` from `terminate`. A
+   * paused socket never processes the frame and never replies, which is what
+   * makes `ws`'s 30-second `closeTimeout` bite.
+   *
+   * Reaching through to `_socket` because that is where the read side is and
+   * `ws` does not expose it; a test may know one thing the library would
+   * rather it did not.
+   */
+  goDark(): void {
+    (this.socket as unknown as { _socket: { pause(): void } })._socket.pause();
+  }
+
+  /** Ends it from this side without a handshake, for a peer that has gone dark. */
+  kill(): void {
+    this.socket.terminate();
+  }
+
   get closed(): Promise<number> {
     return new Promise((resolve) => this.socket.once('close', (code) => resolve(code)));
   }
@@ -439,8 +465,20 @@ describe('websocket', () => {
     b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
     await b.next('channel', (m) => m.view.channel.present.length === 2);
 
-    // Bob's socket stays open but says nothing further. The clock moves past
-    // the point where that is survivable.
+    // Bob's phone goes dark: the socket stays established and nothing further
+    // is either sent or read. The clock moves past the point where that is
+    // survivable.
+    //
+    // **Dark rather than merely quiet, and the assertion below rests on it.**
+    // The sweep ends such a socket with `terminate`, because `close` would
+    // send a close frame and then wait out `ws`'s 30-second `closeTimeout` for
+    // an answer from a process that is never going to send one — and the close
+    // handler is where `disconnectedAt` is written. So this test's real
+    // subject is the *latency* of that write: the wait below is well under
+    // thirty seconds, which is what makes it fail if the sweep ever goes back
+    // to closing politely. A live-but-silent client would answer the frame at
+    // protocol level and pass either way, which is what it used to do.
+    b.goDark();
     clock += HEARTBEAT_TIMEOUT_MS + 1_000;
     await new Promise((r) => setTimeout(r, 6_500));
 
@@ -449,7 +487,7 @@ describe('websocket', () => {
     // Still present: silence starts the clock, it does not remove anyone.
     expect(channel.present).toContain(bob.account.id);
     a.close();
-    b.close();
+    b.kill();
   }, 15_000);
 
   it('keeps a dropped party in the channel, and their floor', async () => {

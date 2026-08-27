@@ -271,7 +271,7 @@ export function registerWebsocket(deps: {
   };
 
   /**
-   * Closes connections that have gone quiet.
+   * Ends connections that have gone quiet.
    *
    * A TCP connection can die without either end being told — no close arrives,
    * and the socket sits half-open until the OS gives up, which is hours by
@@ -279,8 +279,25 @@ export function registerWebsocket(deps: {
    * starts, so nobody is removed, so a channel never empties, never auto-ends,
    * and a recording bills indefinitely against two egresses.
    *
-   * Closing the socket is enough; its close handler does the reporting, which
+   * Ending the socket is enough; its close handler does the reporting, which
    * keeps one path for every kind of departure.
+   *
+   * **`terminate` rather than `close`, and the difference is thirty seconds
+   * somebody spends looking at a lie.** `close` sends a close frame and then
+   * waits out `ws`'s 30-second `closeTimeout` for one back — from a peer that
+   * has, by the only test this branch applies, already stopped answering. The
+   * close handler is where `disconnectedAt` is written, so those thirty
+   * seconds land on top of the twelve this sweep already spends noticing: a
+   * phone that goes quiet rather than closing left the roster saying somebody
+   * was present and well for up to forty-seven seconds before it would admit
+   * to "Present · reconnecting…". `terminate` destroys the socket and fires
+   * `close` at once, which bounds that wait by the heartbeat alone.
+   *
+   * It is not rude to a live connection, because this branch never meets one:
+   * a socket reaching it has failed HEARTBEAT_TIMEOUT_MS of silence, and a
+   * close frame it was never going to acknowledge is a courtesy to nobody.
+   * **The refusal below still closes cleanly**, and must — 4401 is a code the
+   * client reads to stop reconnecting, and a code has to arrive to be read.
    */
   const sweep = setInterval(() => {
     const cutoff = now() - HEARTBEAT_TIMEOUT_MS;
@@ -288,11 +305,11 @@ export function registerWebsocket(deps: {
     // socket that nobody closes holds somebody in a room they have left, and a
     // guest in a room is somebody the members can be heard by.
     for (const guest of guestConnections) {
-      if (guest.lastSeen < cutoff) guest.socket.close();
+      if (guest.lastSeen < cutoff) guest.socket.terminate();
     }
     for (const connection of connections) {
       if (connection.lastSeen < cutoff) {
-        connection.socket.close();
+        connection.socket.terminate();
         continue;
       }
       // Re-checked here rather than pushed from the revocation, so there is
