@@ -43,6 +43,13 @@ are different instruments and the point is to use both:
 - **`audible`** — the subscribed track count. **It decides nothing since this
   change**, and that is deliberate; it is here to tell a lost subscription from
   a dead engine.
+- **The event log** — the ring the panel prints below the rows, and the only
+  instrument that shows *ordering*. `connect <intent> <config>` is the
+  configuration a connection was given before the session was taken;
+  `<intent> <config>` on its own is a later write; `sub + <id> (n)` is a
+  subscription; `room connected, N audio already published` is the variable the
+  playback investigation turns on. Steps 23 and 25 are read here and nowhere
+  else.
 - **The route** — mono or stereo is audible without any instrument, and on a
   mic-less speaker the boundary is a *route eviction* to the phone's own
   loudspeaker rather than a profile change.
@@ -132,6 +139,52 @@ was the mechanism is what these steps settle.
 22. **Background past a minute so presence drops, then foreground.** The room
     rebuilds. `asked` and `actual` agree afterwards.
 
+## G. The edges the first draft of this walk missed
+
+Found by reading the diff back against the walk rather than by walking it. Each
+of these is a code path this change actually moved, and none of the steps above
+crosses it.
+
+23. **Enter a channel that somebody is *already* in** — as against step 5, where
+    they arrive after you. Read the **event log**, not the panel: the first line
+    should be `connect capturing CALL`, and there should be **no second session
+    write** after it. — *This is the case the whole timing argument is for. The
+    old rule read the audible count, which is zero at connect by construction,
+    so it took `IDLE` at this line and rewrote to `CALL` when the track
+    subscribed — which is the instant the engine starts. `channelHasAudio` is
+    already true here because the room is not empty, so the configuration this
+    connection needs is the one it is given, before anything is active. A
+    `connect ... IDLE` line followed by a `capturing CALL` line means the ref
+    was read before the snapshot showed the occupants, and the collision is
+    still there.*
+24. **Leave a channel yourself while the other person is still talking.** Route
+    returns to stereo, the other app is free, and nothing is left holding the
+    session. — *The teardown stops the session and re-arms the observer with
+    `IDLE` (`pushPolicy(false)`). Leaving `CALL` behind is what the code calls
+    the live hazard: an observer armed with `playAndRecord` would take the
+    route at some later transition with no channel to justify it. Steps 6 and
+    13 both reach `IDLE` while connected; this is the only step that reaches it
+    by disconnecting.*
+25. **With a second person present, watch the panel's `audible` count move off
+    zero as their track subscribes.** — *`hasAudio` was already true before
+    they published — they were in the room — so the session does not move and
+    the effect takes its early-return path. That path refreshing `asked` is now
+    the **only** way the panel learns a subscription happened. It was added on
+    2026-08-24 after a frozen zero cost a wrong diagnosis, and this change puts
+    more weight on it, not less: a lost subscription and a dead engine are
+    still told apart here and nowhere else.*
+26. **Alone with a track loaded, have somebody arrive, then have them leave
+    again.** Both terms are true in the middle and one is true either side, so
+    **no handover should be heard at all** — the route stays mono throughout.
+    — *The two-term interaction. A crossing here means the rule is being
+    evaluated as something other than an `or`.*
+27. **Load a track while a watch party is playing.** The party ends, the track
+    is loaded paused, and the session goes `IDLE → CALL`. — *`SET_TRACK` calls
+    `stopParty` and starting a party clears the track: they are mutually
+    exclusive by construction. Worth one crossing to confirm the withhold being
+    asked *first* in `channelHasAudio` does not strand the session in `IDLE`
+    when the thing it was withholding for has gone.*
+
 ---
 
 ## What would falsify this
@@ -146,6 +199,12 @@ was the mechanism is what these steps settle.
   what cost it and step 7's trade bought nothing.
 - **Step 2 or step 16 regressing.** `IDLE` has one job left and it is not doing
   it. That is disqualifying, not a trade.
+- **Step 23 logging `connect ... IDLE`.** The write still races the engine's
+  start on the path that matters most, and the timing argument this change
+  rests on is wrong even if every audible step passes.
+- **Step 26 producing an audible crossing.** The predicate is not behaving as
+  the disjunction it is written as, which would mean something is re-deriving
+  it rather than calling it.
 
 ## What this walk cannot tell you
 
