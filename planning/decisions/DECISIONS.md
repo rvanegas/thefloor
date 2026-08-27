@@ -1521,3 +1521,92 @@ asked per person and answered with more detail, and this line is the one drawn
 when that array is missing — whose job is to describe the *room*. Excluding the
 reader from a card about somebody else answers nobody's question. Asserted, since
 somebody tidying will one day notice Home passes a field there that this does not.
+
+## Talking into a void, which had three causes and one of them was politeness — 2026-08-27
+
+Raised from the other end of TASKS.md § *Websocket Lost*, which asks what the
+timeline within a channel is when a websocket is lost. The measured answer was
+worse than anybody expected, and the largest single term in it was a courtesy
+extended to a corpse.
+
+**The timeline, for a phone that goes quiet rather than closing.** Up to
+`HEARTBEAT_TIMEOUT_MS` for the sweep to notice, plus up to
+`HEARTBEAT_INTERVAL_MS` of sweep phase — and then **thirty seconds** in which
+`socket.close()` sent a close frame and waited out `ws`'s `closeTimeout` for an
+answer from a process that was never going to send one. `disconnectedAt` is
+written in the close handler, so none of the room's screens could say anything
+until that wait was over: up to forty-seven seconds of a roster reading
+*Present*, about somebody whose phone had already gone. The sweep now
+`terminate`s, which is not rude to anything, since the only sockets reaching
+that branch have already failed the heartbeat. Worst case is ~17s and the
+refusal branch still closes cleanly, 4401 being a code the client has to
+actually receive to read.
+
+**The existing test could not tell the fix from the bug**, which is worth
+recording because it was a live client that had merely stopped sending pings.
+`ws` answers a close frame at protocol level regardless of what the application
+above it is doing, so the close completed at once and the test passed either
+way. It now pauses the underlying socket to be genuinely half-open, which makes
+the assertion one about *latency*: it fails, after 21s, against `close`.
+
+**A claim does not survive the claimant.** The grace period was holding one
+thing that does not belong to the person who dropped. Everything else it
+protects is theirs — their place, their membership, their recording's stem —
+but a claim is a lock on everybody else, who are silenced by it and, since
+`satisfiesEligibilityRule` refuses outright while `holder` is non-null, cannot
+take it back. Both bounds on it were a minute, `DISCONNECT_GRACE_MS` from the
+drop and `FLOOR_CLAIM_MS` from the claim, so a room whose speaker vanished
+spent the rest of that minute unable to speak, for a turn nobody was taking.
+`DISCONNECTED` now releases it.
+
+The cost is that a returning holder rejoins the queue rather than resuming, and
+it is worth stating because the first instinct is that it is a bug.
+`claimDelayMs` ranks by recency and they spoke most recently, so in a pair they
+wait one `FLOOR_CLAIM_DELAY_STEP_MS` while the other may go at once. Right in
+both directions: whoever stayed keeps the room moving, and a flapping
+connection cannot take the floor, vanish, and take it again on the strength of
+having just had it. If that step ever annoys, the smaller fix is to give the
+floor back on `CONNECTED` when nobody else has claimed — not to stop releasing.
+
+**The earliest warning is not the websocket's to give.** No amount of tuning
+the heartbeat beats the heartbeat, and the question somebody mid-sentence is
+asking is not *have they given up their place* but *is my voice reaching them*
+— which is about the media plane. The SFU already answers it continuously and
+already pushes it to every client: `RoomEvent.ConnectionQualityChanged`, whose
+`Lost` livekit-client documents as what it reports **before** the timeout that
+would produce `ParticipantDisconnected`. `SessionAudio.failing` keeps that set,
+and the roster draws *Present · not receiving you* from it, coloured, ahead of
+the reconnecting line and in the accessibility label.
+
+The two readings are not redundant and neither replaces the other, which is the
+same pair STATES.md § *Audio Connected* already had to keep apart: a phone whose
+media path is dead while its websocket is fine is a real state, and so is the
+reverse. `Poor` is deliberately not surfaced — it is ordinary on a phone, and a
+red line under half of every conversation teaches people to ignore red lines,
+which is the argument `useOfflineNotice` already makes for its delay. Nothing is
+said about your own connection either, that being already reported once, in the
+first person, on the audio status line.
+
+**And the constant was being argued about from a story.**
+`DISCONNECT_GRACE_MS` is justified as the interval in which a tunnel or a lift
+is survivable. That is a claim about *frequency*, it was written before this ran
+on anybody's phone, and nothing had ever counted. The commonest way to lose a
+socket on iOS is not a tunnel but the app being suspended, which returns either
+within a second of somebody picking the phone up or not for minutes — a
+distribution with little mass in the band the minute is sized for. `/healthz`
+now carries `drops`, `dropsRecovered` and `dropsExpired`, and `bin/health`
+prints them. Aggregate, in memory, per nobody, and **flat on the wire**, that
+being a constraint of the endpoint rather than a style: `bin/health` reads it
+with sed and says as much.
+
+**The number itself was left alone, deliberately**, and the reason is the half
+that was not obvious from its own comment. Beyond somebody's dot on a roster,
+the grace expiring on the *last* present member runs `settleEmpty` — which ends
+a solo recording, pauses playback and any watch party, and revokes every guest
+link irreversibly through `guests.channelEmptied`. A lone host whose own phone
+blips for a minute would destroy a guest's access with no undo. So it is
+load-bearing in a way that makes shortening it a much larger change than it
+looks, and the counters exist so that the next argument about it can be had
+with data. If they come back saying almost nothing returns inside the window,
+the answer is probably to split it into two constants rather than to shorten
+one.
