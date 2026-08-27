@@ -75,6 +75,42 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-08-27 — `92fc306` → `41be02f`
+
+Two commits: the two-second heartbeat with its per-build silence budget, and
+the threshold correction that stopped it sweeping the installed population. The
+reasoning is § *If you are going to claim the floor, be sure you can hold it*.
+
+**This is the deploy where the wire-change rule earned its keep, and it nearly
+did not.** The silence budget is a contract about cadence: judged against the
+new 5s budget, a client that pings every 5s is permanently a moment from
+exceeding it. `heartbeatTimeoutFor` keys the budget on the declared build so
+old clients keep 12s — but the threshold went in as 108 when 107 was the newest
+build in existence, and by the time it came to land, two other branches had
+uploaded 108 and 109 from commits without the cadence. Deploying that would
+have put every TestFlight install into a permanent kill-and-reconnect loop. It
+was caught by re-reading `master` at the moment of merging rather than trusting
+the read taken when the branch was cut, which is the whole reason that rule is
+written the way it is.
+
+The threshold is 110. Nothing declares 110 and nothing now can: the upload that
+followed this deploy failed on a closed train, burning the number, so the first
+build carrying the cadence is 111. The partition holds either way — everything
+at 109 and below lacks the cadence and takes the legacy budget.
+
+**Nothing on a phone changed at this deploy and nothing needed to.** Every
+installed build takes the legacy branch, which is the behaviour they already
+had, so this is inert for users until a build ≥ 110 exists. The guest page is
+the exception and moves with the deploy, as it must — it now reads
+`HEARTBEAT_INTERVAL_MS` rather than its own hardcoded `5_000`, which would
+otherwise have had the sweep terminating every guest a moment after admitting
+them.
+
+`bin/health` confirmed `41be02f`, `oldestBuild` 56 and no silent builds, so
+`MIN_SUPPORTED_BUILD` is untouched at 51. The counters read zero, which is what
+a just-restarted box should say and is the reason they are worth reading only
+off one that has been up a while.
+
 ### 2026-08-27 — `c7537d7` → `92fc306`
 
 Four commits: the sweep's `terminate`, the floor released on `DISCONNECTED`, the
