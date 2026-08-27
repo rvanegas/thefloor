@@ -92,6 +92,11 @@ This is not a code task and nothing in the repository settles it. RELEASING.md
 is where the answer belongs once it exists, beside the rest of what a
 submission needs.
 
+## Websocket Lost
+
+What is the timeline within a channel when websocket is lost?
+Also, what happens when user receives a phone call?
+
 ## Lock Screen
 
 explore options in case screen locks during a call. lock screen, control center, etc.
@@ -100,17 +105,13 @@ explore options in case screen locks during a call. lock screen, control center,
 
 Not just email.
 
-## Phone Calls
-
-What happens when user receives a phone call?
-
 ## UI Restyling
 
 Improve look and feel
 
-## Odds and Ends
+## Usage Clarity
 
-adding names to 'bin/usage', and simplifying
+Adding names to 'bin/usage', and simplifying information to the most salient.
 
 ## Grow UI for iPad
 
