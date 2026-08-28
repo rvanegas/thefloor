@@ -65,7 +65,8 @@ usage_minutes() {
 -- that person's `listen`, which counts the media participant among the things
 -- they are hearing. See channels.ts `meterRoom` and the comment above the
 -- playback spans in `commit` — the two answer different questions and neither
--- is the other's total.
+-- is the other's total. Nothing here reports it now; bin/db is where to go
+-- if the shared track's own minutes are ever the question.
 --
 -- Two things this total is not. Egress minutes are attributed to whoever
 -- *started* the recording rather than whose voice the stem carries, which is
@@ -83,21 +84,6 @@ SELECT COALESCE(a.display_name, '(gone)') AS who,
 FROM usage_spans s LEFT JOIN accounts a ON a.id = s.account_id
 WHERE s.kind IN ('mic', 'listen', 'egress')
 GROUP BY s.account_id
-ORDER BY minutes DESC;
-
-.print ''
-.print '── Minutes per person per stream ───────────────────────────────'
-.print ''
--- The same spans broken out, plus the `playback` the total leaves out. Read
--- that row as "the shared track was audible to this person", not as stream
--- time: it overlaps their `listen` rather than adding to it.
-SELECT COALESCE(a.display_name, '(gone)') AS who,
-       s.account_id, s.kind,
-       ROUND(SUM(COALESCE(s.ended_at, unixepoch() * 1000) - s.started_at)
-             / 60000.0, 1) AS minutes
-FROM usage_spans s LEFT JOIN accounts a ON a.id = s.account_id
-WHERE s.kind <> 'pair'
-GROUP BY s.account_id, s.kind
 ORDER BY minutes DESC;
 SQL
 }
@@ -258,7 +244,7 @@ report_names=(minutes pairs peak bytes transcripts defects)
 
 list_reports() {
   cat <<'TXT'
-minutes      minutes per account: mic+listen+egress totalled, then per stream
+minutes      minutes per account, mic+listen+egress totalled, by display name
 pairs        minutes each pair of people spent in a channel together
 peak         most egress jobs ever running at once, against the cap of ~10
 bytes        recording bytes this server served, by kind
