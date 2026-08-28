@@ -56,17 +56,48 @@ wanted=()
 usage_minutes() {
   cat <<'SQL'
 .print ''
+.print '── Minutes carried per person: mic + listen + egress ───────────'
+.print ''
+-- The three streams that cost this box something now that the media is on it:
+-- audio published, audio subscribed to, and stems captured. `playback` is left
+-- out because adding it would double-count: it is one span per person present
+-- while the shared track plays, and the bytes that track costs are already in
+-- that person's `listen`, which counts the media participant among the things
+-- they are hearing. See channels.ts `meterRoom` and the comment above the
+-- playback spans in `commit` — the two answer different questions and neither
+-- is the other's total.
+--
+-- Two things this total is not. Egress minutes are attributed to whoever
+-- *started* the recording rather than whose voice the stem carries, which is
+-- what the request asked for and means a three-way conversation charges all
+-- three stems here to one person. And the three kinds are summed as though
+-- they were the same unit, which they are not: a minute of egress is a minute
+-- of CPU on this box, a minute of listen is a minute of somebody else's audio
+-- being forwarded. Read it as a ranking of who this box works hardest for.
+--
+-- Open spans are counted up to now, which is why a live channel moves this.
+SELECT COALESCE(a.display_name, '(gone)') AS who,
+       s.account_id,
+       ROUND(SUM(COALESCE(s.ended_at, unixepoch() * 1000) - s.started_at)
+             / 60000.0, 1) AS minutes
+FROM usage_spans s LEFT JOIN accounts a ON a.id = s.account_id
+WHERE s.kind IN ('mic', 'listen', 'egress')
+GROUP BY s.account_id
+ORDER BY minutes DESC;
+
+.print ''
 .print '── Minutes per person per stream ───────────────────────────────'
 .print ''
--- Read `playback` as listening time rather than stream time: a shared track is
--- one publication heard by everyone, and its cost is under `listen`. Open
--- spans are counted up to now, which is why a live channel moves this.
-SELECT account_id, kind,
-       ROUND(SUM(COALESCE(ended_at, unixepoch() * 1000) - started_at)
+-- The same spans broken out, plus the `playback` the total leaves out. Read
+-- that row as "the shared track was audible to this person", not as stream
+-- time: it overlaps their `listen` rather than adding to it.
+SELECT COALESCE(a.display_name, '(gone)') AS who,
+       s.account_id, s.kind,
+       ROUND(SUM(COALESCE(s.ended_at, unixepoch() * 1000) - s.started_at)
              / 60000.0, 1) AS minutes
-FROM usage_spans
-WHERE kind <> 'pair'
-GROUP BY account_id, kind
+FROM usage_spans s LEFT JOIN accounts a ON a.id = s.account_id
+WHERE s.kind <> 'pair'
+GROUP BY s.account_id, s.kind
 ORDER BY minutes DESC;
 SQL
 }
@@ -227,7 +258,7 @@ report_names=(minutes pairs peak bytes transcripts defects)
 
 list_reports() {
   cat <<'TXT'
-minutes      minutes per account per stream: mic, listen, playback, egress
+minutes      minutes per account: mic+listen+egress totalled, then per stream
 pairs        minutes each pair of people spent in a channel together
 peak         most egress jobs ever running at once, against the cap of ~10
 bytes        recording bytes this server served, by kind
