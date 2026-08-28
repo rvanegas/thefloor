@@ -865,6 +865,7 @@ export function ChannelView({
               {app.debug ? (
                 <AudioDebugPanel
                   asked={audio.asked}
+                  steadyHeadset={app.steadyHeadset}
                   onReconnect={audio.reconnect}
                 />
               ) : null}

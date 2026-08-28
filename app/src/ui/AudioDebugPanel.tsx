@@ -47,9 +47,21 @@ import { colors, radius, spacing, type } from './theme';
  */
 export function AudioDebugPanel({
   asked,
+  steadyHeadset,
   onReconnect,
 }: {
   asked: AudioIntent | null;
+  /**
+   * Which of the two audio-session rules this phone is on, passed in rather
+   * than read here.
+   *
+   * The panel is the instrument and the setting is one of its readings, so it
+   * comes from the same place every other reading does: the caller, which holds
+   * the app state. Reading `useApp` inside a component whose whole design
+   * principle is that it takes no readings of its own would be the wrong shape
+   * even though this particular one costs nothing.
+   */
+  steadyHeadset: boolean;
   /** Tears the room down and builds a fresh one. See `SessionAudio.reconnect`. */
   onReconnect: () => void;
 }) {
@@ -127,7 +139,8 @@ export function AudioDebugPanel({
     const text = diagnosticText(
       reading ?? readingPlaceholder(asked),
       diagnosticEvents(),
-      appBuild()
+      appBuild(),
+      steadyHeadset
     );
     // `copyText` resolves false rather than throwing, and reports whether the
     // text actually landed — which is why the result is read instead of the
@@ -135,7 +148,7 @@ export function AudioDebugPanel({
     void copyText(text).then((ok) => setCopied(ok ? 'done' : 'failed'));
   };
 
-  const sections = reading ? diagnosticSections(reading) : [];
+  const sections = reading ? diagnosticSections(reading, steadyHeadset) : [];
   const alarms = sections.reduce(
     (total, section) => total + section.rows.filter((r) => r.alarm).length,
     0

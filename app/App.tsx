@@ -153,6 +153,31 @@ function Root() {
   }, [channelId]);
 
   /**
+   * Which audio-session rule is in force, in the audio log.
+   *
+   * Instrumentation only, and next to the marker above for the same reason:
+   * the log is the one instrument that shows *ordering*, and flipping this
+   * setting mid-channel is a session write with no other cause. Without a line
+   * for it the log shows a configuration changing while nothing in the channel
+   * changed, which is the shape of every bug this subsystem has had — so the
+   * instrument would be manufacturing a false alarm out of somebody's thumb.
+   *
+   * **Fires on mount as well as on change**, which is deliberate and is the
+   * more important half: HF-ONLY-WALK.md § *The comparison* asks for the same
+   * step run twice under the two rules, and two logs that do not say which
+   * rule produced them cannot be compared at all. The setting is persisted per
+   * phone, so the mount line is often the only one there will be.
+   *
+   * `App.tsx` rather than `AppProvider`, with the other instrumentation, and
+   * for the reason `core/micNeeded.ts` gives: this is the one place either
+   * rule is chosen between, and a marker written anywhere else would be
+   * claiming something it does not see.
+   */
+  useEffect(() => {
+    recordEvent(`steady headset ${app.steadyHeadset ? 'on' : 'off'}`);
+  }, [app.steadyHeadset]);
+
+  /**
    * Follow a conversation that has changed channels.
    *
    * Only when this screen is on the channel it left — a move you are not

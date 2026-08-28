@@ -201,7 +201,10 @@ export function muteModeName(mode: number): string {
  * either noticed or missed, and it is short enough to look obviously right
  * while being wrong.
  */
-export function diagnosticSections(d: AudioDiagnostic): DiagnosticSection[] {
+export function diagnosticSections(
+  d: AudioDiagnostic,
+  steadyHeadset: boolean
+): DiagnosticSection[] {
   const { asked, engine, route } = d;
 
   return [
@@ -209,7 +212,7 @@ export function diagnosticSections(d: AudioDiagnostic): DiagnosticSection[] {
     { title: 'Route', rows: routeRows(route) },
     { title: 'Engine', rows: engineRows(engine) },
     { title: 'Other apps', rows: otherAudioRows(route) },
-    { title: 'App', rows: appRows(asked) },
+    { title: 'App', rows: appRows(asked, steadyHeadset) },
   ];
 }
 
@@ -364,9 +367,18 @@ function otherAudioRows(route: RouteSnapshot | null): DiagnosticRow[] {
   ];
 }
 
-function appRows(asked: AudioIntent | null): DiagnosticRow[] {
-  if (!asked) return [{ label: 'intent', value: 'none — not connected' }];
+function appRows(
+  asked: AudioIntent | null,
+  steadyHeadset: boolean
+): DiagnosticRow[] {
+  // Stated even when there is no connection, because "which rule was in force"
+  // is a question asked of the whole dump rather than of the session — and a
+  // reading taken before anything connected is still evidence about a phone
+  // whose setting somebody wants to know.
+  const rule: DiagnosticRow = { label: 'steady headset', value: flag(steadyHeadset) };
+  if (!asked) return [rule, { label: 'intent', value: 'none — not connected' }];
   return [
+    rule,
     { label: 'intent', value: asked.intent },
     {
       // What the hook was told, echoed back by it rather than recomputed here.
@@ -376,6 +388,12 @@ function appRows(asked: AudioIntent | null): DiagnosticRow[] {
       // Only the third decides the session, since 2026-08-27. The first two
       // are here because they decide the *microphone*, and a session that
       // looks wrong is usually a microphone question answered oddly.
+      //
+      // **The third is now the answer to one of two different questions**, and
+      // which one is the `steady headset` row above. Without it this line is
+      // ambiguous in exactly the case somebody is reading it for: `F` here
+      // means *nobody present is capturing* under the default and *this app
+      // has no audio at all* under the setting, which are not the same claim.
       label: 'self/needed/audio',
       value: `${flag(asked.selfMuted)} ${flag(asked.micNeeded)} ${flag(asked.hasAudio)}`,
     },
@@ -401,18 +419,27 @@ function appRows(asked: AudioIntent | null): DiagnosticRow[] {
  * Alarms are marked `<<` rather than by colour, colour being the one thing
  * plain text cannot carry. Without that the copy would lose exactly the
  * information the panel exists to show.
+ *
+ * **And stamped with the audio-session rule, on the same line as the build**,
+ * added 2026-08-28 for the paired runs HF-ONLY-WALK.md § *The comparison* asks
+ * for. Two pastes of the same step under the two settings are otherwise
+ * byte-indistinguishable in their provenance, which makes a pair of them
+ * worthless a week later — and a pair is the whole reason the alternative rule
+ * shipped as a setting rather than as a branch. It is in the rows as well; the
+ * header is so that the first line answers it without scrolling.
  */
 export function diagnosticText(
   d: AudioDiagnostic,
   events: DiagnosticEvent[],
-  build: number | null
+  build: number | null,
+  steadyHeadset: boolean
 ): string {
   const lines: string[] = [
     `The Floor — audio diagnostics`,
-    `build ${build ?? 'unknown'} · ${new Date(d.at).toISOString()}`,
+    `build ${build ?? 'unknown'} · steady headset ${steadyHeadset ? 'on' : 'off'} · ${new Date(d.at).toISOString()}`,
   ];
 
-  for (const section of diagnosticSections(d)) {
+  for (const section of diagnosticSections(d, steadyHeadset)) {
     lines.push('', section.title);
     for (const row of section.rows) {
       // Padded so the values line up in a monospaced paste, the same reason
