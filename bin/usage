@@ -95,11 +95,22 @@ usage_pairs() {
 .print ''
 -- Closed spans only: an open pair span is a conversation still happening, and
 -- crediting it up to now would make this report move while you read it.
-SELECT account_id, peer_id,
-       ROUND(SUM(ended_at - started_at) / 60000.0, 1) AS minutes
-FROM usage_spans
-WHERE kind = 'pair' AND ended_at IS NOT NULL
-GROUP BY account_id, peer_id
+--
+-- A room of three or more is not a row here, it is C(n,2) of them: the meter
+-- opens a span per pairing rather than per room, so a three-way hour is three
+-- rows of an hour each and the column does not total to anything. Which side
+-- of the pair a name lands on carries no meaning either — `pairKey` orders
+-- them so a pair has one shape.
+SELECT COALESCE(a.display_name, '(gone)') AS who,
+       s.account_id,
+       COALESCE(p.display_name, '(gone)') AS peer,
+       s.peer_id,
+       ROUND(SUM(s.ended_at - s.started_at) / 60000.0, 1) AS minutes
+FROM usage_spans s
+LEFT JOIN accounts a ON a.id = s.account_id
+LEFT JOIN accounts p ON p.id = s.peer_id
+WHERE s.kind = 'pair' AND s.ended_at IS NOT NULL
+GROUP BY s.account_id, s.peer_id
 ORDER BY minutes DESC;
 SQL
 }
