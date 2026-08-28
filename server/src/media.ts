@@ -693,18 +693,27 @@ export class MemoryMediaServer implements MediaServer {
   }
 
   /**
-   * The roster: everyone this server has ever been told about for the room,
-   * less whoever is marked `unpublished`, each publishing one track. There is
-   * no connection here to hold, so having been named is what standing in the
-   * room amounts to — and `unpublished` is what it looks like to be out of it.
+   * The roster: everyone this server has ever been told about for the room.
+   * There is no connection here to hold, so having been named is what standing
+   * in the room amounts to.
+   *
+   * **Whoever is `unpublished` is in it with no tracks, not absent from it.**
+   * The two are different facts and the real server distinguishes them —
+   * `listParticipants` returns a guest with no publish grant, carrying an empty
+   * track list. This used to drop them, which made the fake unable to produce
+   * the one state `meterRoom`'s `publishing` filter exists for, and made the
+   * `participant` kind untestable: being connected while silent is the
+   * ordinary state this application creates on purpose.
    */
   async audioTracks(room: string) {
     const roster = new Map<string, string[]>();
     for (const key of this.known) {
       if (!key.startsWith(`${room}/`)) continue;
-      if (this.unpublished.has(key)) continue;
       const identity = key.slice(room.length + 1);
-      roster.set(identity, [this.trackId(room, identity)]);
+      roster.set(
+        identity,
+        this.unpublished.has(key) ? [] : [this.trackId(room, identity)]
+      );
     }
     return roster;
   }
@@ -767,7 +776,14 @@ export class MemoryMediaServer implements MediaServer {
     identity: string;
     file: string;
   }) {
-    const channel = new MemoryPlaybackSession(room, identity, file);
+    // The shared track joins the room, which is what the real one does and
+    // what makes it a connection the meter can see. Without this the fake had
+    // a playback nobody was standing next to, and `participant` spans could
+    // not be tested against the case they exist for.
+    this.known.add(`${room}/${identity}`);
+    const channel = new MemoryPlaybackSession(room, identity, file, () => {
+      this.known.delete(`${room}/${identity}`);
+    });
     this.playbacks.push(channel);
     return channel;
   }
@@ -803,7 +819,9 @@ export class MemoryPlaybackSession implements PlaybackSession {
   constructor(
     readonly room: string,
     readonly identity: string,
-    public file: string
+    public file: string,
+    /** Takes it back out of the room, the way closing the connection would. */
+    private onClose: () => void = () => {}
   ) {}
 
   async setFile(file: string) {
@@ -834,6 +852,7 @@ export class MemoryPlaybackSession implements PlaybackSession {
 
   async close() {
     this.closed = true;
+    this.onClose();
   }
 
   /**

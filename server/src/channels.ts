@@ -2657,6 +2657,26 @@ export class ChannelRegistry {
     );
 
     const keep = new Set<string>();
+
+    // One span per identity the room reports, which is one WebRTC connection
+    // each. The shared-track participant is counted here having been excluded
+    // above: it holds a real connection to the SFU and costs this box what a
+    // person does, and what this kind answers is load rather than attendance.
+    //
+    // So this is the one kind whose `account_id` is not always an account —
+    // `media:<channel>` is a participant without being a person, and a report
+    // joining these to `accounts` will find no row for it. Deliberate: the
+    // alternative is a number that undercounts the thing the box is sized for.
+    for (const identity of roster.keys()) {
+      const span = {
+        kind: 'participant',
+        channelId: state.id,
+        accountId: identity,
+      };
+      this.usage.openSpan({ ...span, source: 'room' });
+      keep.add(this.usage.keyOf(span));
+    }
+
     for (const identity of publishing) {
       const span = { kind: 'mic', channelId: state.id, accountId: identity };
       this.usage.openSpan({ ...span, source: 'room' });
@@ -2680,7 +2700,7 @@ export class ChannelRegistry {
     // as a statement of what is true rather than as a diff, which is what lets
     // a poll that misses a beat — or a microphone that closed while its phone
     // was unreachable — still close the span.
-    this.usage.closeOthers(['mic', 'listen'], state.id, keep);
+    this.usage.closeOthers(['mic', 'listen', 'participant'], state.id, keep);
   }
 
   private async reconcileSilence(state: ChannelState): Promise<void> {

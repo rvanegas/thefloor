@@ -237,6 +237,9 @@ export interface UsageSpanRow {
    * `'playback'` — the channel's shared track actually playing.
    * `'egress'` — one recording stem being captured.
    * `'pair'` — two people present in the same channel at the same time.
+   * `'participant'` — one WebRTC connection to the SFU, whoever holds it.
+   *   The only kind that counts the shared-track participant, and so the only
+   *   one whose `account_id` is sometimes an identity rather than an account.
    */
   kind: string;
   /** Null on a span that belongs to the channel rather than to a person. */
@@ -721,9 +724,10 @@ CREATE INDEX IF NOT EXISTS recordings_participants
 -- that nothing identifying remains.
 CREATE TABLE IF NOT EXISTS usage_spans (
   id           TEXT PRIMARY KEY,
-  -- 'mic' | 'listen' | 'playback' | 'egress' | 'pair'
+  -- 'mic' | 'listen' | 'playback' | 'egress' | 'pair' | 'participant'
   kind         TEXT NOT NULL,
-  -- Null on a channel-level span.
+  -- Null on a channel-level span, and on 'participant' it is an identity
+  -- rather than an account whenever the shared-track participant holds it.
   account_id   TEXT,
   -- The other party: on 'pair' the second person, ordered against account_id
   -- by pairKey; on 'egress' whose stem it is, where account_id is whoever

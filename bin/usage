@@ -118,17 +118,55 @@ SQL
 usage_peak() {
   cat <<'SQL'
 .print ''
-.print '── Peak simultaneous recorded participants ─────────────────────'
+.print '── Daily peaks: connections and recording jobs ─────────────────'
 .print ''
--- The one query with an operational answer attached: `track_cpu_cost: 0.15` in
--- /etc/livekit/egress.yaml caps this box at roughly ten, every stem being its
--- own egress job. If this approaches it, raising that figure is the first move.
-SELECT COALESCE(MAX(concurrent), 0) AS peak_egress_jobs FROM (
-  SELECT (SELECT COUNT(*) FROM usage_spans b
-          WHERE b.kind = 'egress'
-            AND b.started_at <= a.started_at
-            AND (b.ended_at IS NULL OR b.ended_at > a.started_at)) AS concurrent
-  FROM usage_spans a WHERE a.kind = 'egress');
+-- The two numbers that say how hard this box was pushed on a given day, now
+-- that it carries the media as well as the rules.
+--
+-- `participants` is simultaneous WebRTC connections to the SFU — one per phone
+-- in a room, plus one per channel with a track loaded, since the shared track
+-- joins as a participant and costs a connection like anybody else. `egress` is
+-- simultaneous recording jobs, one per stem.
+--
+-- The operational answer is attached to the second: `track_cpu_cost: 0.15` in
+-- /etc/livekit/egress.yaml caps this box at roughly ten, so if that column
+-- approaches it, raising that figure is the first move rather than a bigger
+-- instance. Nothing caps the first column at a figure anybody has chosen —
+-- which is the point of watching it.
+--
+-- Days are UTC, which is what the box runs on. A day with nothing on it is a
+-- row of zeroes rather than a missing row, so a gap in the table means the
+-- retention window rather than a quiet Tuesday.
+--
+-- How it is counted: concurrency can only rise when something starts, so
+-- evaluating at every start is sufficient — plus each midnight, which is what
+-- catches a day whose peak was set by connections that opened the day before
+-- and never closed. A span still open counts as open at every later instant,
+-- so a leaked span inflates every day after it; `bin/usage defects` is what
+-- says whether there is one.
+WITH RECURSIVE days(d) AS (
+  SELECT date(unixepoch() - 2592000, 'unixepoch')
+  UNION ALL
+  SELECT date(d, '+1 day') FROM days WHERE d < date(unixepoch(), 'unixepoch')
+),
+instants(d, t) AS (
+  SELECT d, unixepoch(d) * 1000 FROM days
+  UNION
+  SELECT date(started_at / 1000, 'unixepoch'), started_at
+  FROM usage_spans WHERE kind IN ('participant', 'egress')
+)
+SELECT i.d AS day,
+       MAX((SELECT COUNT(*) FROM usage_spans p
+            WHERE p.kind = 'participant'
+              AND p.started_at <= i.t
+              AND (p.ended_at IS NULL OR p.ended_at > i.t))) AS participants,
+       MAX((SELECT COUNT(*) FROM usage_spans e
+            WHERE e.kind = 'egress'
+              AND e.started_at <= i.t
+              AND (e.ended_at IS NULL OR e.ended_at > i.t))) AS egress
+FROM instants i
+GROUP BY i.d
+ORDER BY i.d DESC;
 SQL
 }
 
@@ -257,7 +295,7 @@ list_reports() {
   cat <<'TXT'
 minutes      minutes per account, mic+listen+egress totalled, by display name
 pairs        minutes each pair of people spent in a channel together
-peak         most egress jobs ever running at once, against the cap of ~10
+peak         per day: most connections and most recording jobs at once
 bytes        recording bytes this server served, by kind
 transcripts  what transcription cost, who spent it, and where the free uses went
 defects      fallback mic spans, leaked open spans, spans a restart cut short

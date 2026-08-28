@@ -212,6 +212,75 @@ describe('listening minutes', () => {
   });
 });
 
+describe('connections', () => {
+  it('are one span per identity in the room, silent or not', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    await joinRoom(channelId, alice.id);
+    await joinRoom(channelId, bob.id);
+
+    app.channels.pollUsage();
+    await settle();
+
+    expect(spans('participant').map((s) => s.account_id).sort()).toEqual(
+      [alice.id, bob.id].sort()
+    );
+  });
+
+  it('are opened for somebody alone in a room, where listening is not', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, bob.id, { type: 'STEP_OUT' });
+    await joinRoom(channelId, alice.id);
+
+    app.channels.pollUsage();
+    await settle();
+
+    // The distinction the kind exists for: she is hearing nobody and costs
+    // the box a connection anyway.
+    expect(spans('listen')).toHaveLength(0);
+    expect(spans('participant')).toHaveLength(1);
+  });
+
+  it('count the shared track, which is a connection without being a person', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    await app.channels.loadTrack(channelId, alice.id, {
+      file: '/dev/null',
+      dir: '/tmp',
+      title: 'Something',
+      durationMs: 10 * 60_000,
+    });
+    await joinRoom(channelId, alice.id);
+
+    app.channels.pollUsage();
+    await settle();
+
+    const held = spans('participant').map((s) => s.account_id);
+    expect(held).toContain(alice.id);
+    // Not an account, and deliberately stored as the identity anyway: what
+    // this kind measures is load, and the SFU cannot tell the difference.
+    expect(held).toContain(`media:${channelId}`);
+  });
+
+  it('close when the room empties, and count the time held', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    await joinRoom(channelId, alice.id);
+    app.channels.pollUsage();
+    await settle();
+
+    clock += 60_000;
+    // What her phone disconnecting from the SFU looks like from here: the
+    // roster stops naming her, and the poll states that rather than diffing it.
+    await media.removeParticipant({
+      room: app.channels.get(channelId)!.mediaRoom,
+      identity: alice.id,
+    });
+    app.channels.pollUsage();
+    await settle();
+
+    expect(spans('participant')).toHaveLength(1);
+    expect(minutesOf('participant', alice.id)).toBe(60_000);
+  });
+});
+
 describe('playback minutes', () => {
   it('count time playing, not time loaded', async () => {
     const { alice, channelId } = await channelOfTwo();

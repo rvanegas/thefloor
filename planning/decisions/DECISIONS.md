@@ -1088,3 +1088,77 @@ predicates are untouched; the setting still reaches exactly one call site in
 `App.tsx`. What changed is that the log can now say which of the two rules
 produced a line — which is instrumentation, and is the only reason a setting
 beats a branch here at all.
+
+---
+
+## The meter counts connections, and the fake could not hold one — 2026-08-28
+
+What was asked for was two daily peaks: simultaneous WebRTC connections and
+simultaneous egress jobs. Half of it was a query and half of it was a thing
+the server had never written down.
+
+**A WebRTC connection is a participant**, which is LiveKit's word for one
+client attached to a room, and the roster the meter already fetches every
+fifteen seconds is exactly the list of them — `audioTracks` is built from
+`listParticipants`. `meterRoom` was filtering that roster down to whoever had
+a track and discarding the rest, so the number was sitting there unrecorded.
+The new `'participant'` kind is one span per identity the roster names.
+
+**It counts the shared-track participant, and that was the decision.** The
+alternative was people only, which reads more naturally — "most people
+connected at once" — and understates the thing the box is actually sized for:
+`media:<channel>` holds a real peer connection to the SFU and costs the same
+as a phone. So the count deliberately exceeds the number of humans in any
+channel with a track loaded, and this is the one span kind whose `account_id`
+is sometimes an identity rather than an account. A report joining it to
+`accounts` finds no row, which is why `minutes` does not use this kind.
+
+**`egress` needed nothing**, which is the useful asymmetry: those spans have
+existed since the meter did, so the egress column is populated for the whole
+retention window the moment the query lands, while the connections column is
+empty until this deploys and then only fills forward. A meter cannot backfill,
+and the first day of any new instrumentation is a zero that means "not
+measured" rather than "nothing happened".
+
+### The peak is per day, which needs midnight as well as the starts
+
+Concurrency only rises when something starts, so evaluating the count at every
+span's start is sufficient for an all-time peak — which is what the old query
+did, and it was right. Bucketing by day breaks that: a day whose peak was set
+by connections that opened the evening before and never closed has no start of
+its own to be measured at, and would report zero. So the candidate instants are
+every start **plus each midnight**, and the day's peak is the maximum over
+both.
+
+A day with nothing on it is a row of zeroes rather than a missing row. A gap
+in the table therefore means the retention window rather than a quiet Tuesday,
+which is a distinction the old single-figure report did not have to make.
+
+Verified against a synthetic database rather than by reasoning: three
+connections opened at 23:00 and closed at 01:00 report 3 on both days, two
+non-overlapping connections on one day report 1 and not 2, and a zero-length
+span left by a restart reports 0. Against production the egress column
+reproduces the 4 the old query gave.
+
+### The fake had two gaps, and both were load-bearing here
+
+`MemoryMediaServer.audioTracks` dropped anybody marked `unpublished` from the
+roster entirely, where the real one returns them with an empty track list.
+That conflated two different facts — *in the room with nothing to say* and
+*not in the room* — and it had never mattered, because nothing depended on a
+trackless roster entry. It is precisely what this kind counts: being connected
+while silent is the ordinary state this application creates on purpose, since
+`useSessionAudio` keeps the microphone closed while somebody is alone. So the
+fake could not produce the case the feature exists for.
+
+`openPlayback` had the second gap: it never put the shared-track participant
+in the room at all, so the fake had a playback nobody was standing next to.
+Both are now fixed, and the whole suite passed unchanged either way — which
+says the gaps were latent rather than papered over, and that `meterRoom`'s
+`publishing` filter had been guarding against a state its tests could not
+reach.
+
+The lesson worth keeping is not about these two lines. **A fake that models
+two states as one passes every test until somebody measures the difference**,
+and the failure when it arrives looks like a broken feature rather than an
+inexact double.
