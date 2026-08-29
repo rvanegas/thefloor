@@ -549,10 +549,12 @@ describe('playback that has stopped being heard', () => {
 });
 
 describe('an empty channel stops making noise', () => {
-  it('pauses the pump when the last person steps out', async () => {
+  it('closes the media participant when the last person steps out', async () => {
     // The reducer pauses; this is the half that matters to anyone standing
-    // outside — the encoder has to actually stop, or the channel goes on
-    // publishing a track to a room with nobody in it.
+    // outside. Pausing is not enough and was what shipped: a paused pump goes
+    // on publishing silence to the room, so the channel kept a connection to
+    // the SFU and a frame every ten milliseconds with nobody in it, for as
+    // long as the channel existed — which for a place is indefinitely.
     const { alice, bob, channelId } = await sessionOfTwo();
     await upload(alice.token, channelId);
     app.channels.dispatch(channelId, alice.account.id, { type: 'PLAY' });
@@ -561,13 +563,45 @@ describe('an empty channel stops making noise', () => {
     const playback = media.playbackFor(channelId)!;
     app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     await settle();
-    expect(playback.commands).not.toContainEqual({ type: 'pause' });
+    // One of two leaving is not an empty room, and the participant is what
+    // keeps the other one's recording stem in step.
+    expect(playback.closed).toBe(false);
 
     clock += 5_000;
     app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
     await settle();
 
     expect(app.channels.get(channelId)!.playback.status).toBe('paused');
-    expect(playback.commands).toContainEqual({ type: 'pause' });
+    expect(playback.closed).toBe(true);
+  });
+
+  it('comes back with the same track when somebody returns', async () => {
+    // The risk in closing it: `closePlayback` deletes the uploaded file as
+    // well as the participant, which is right for a channel that has ended and
+    // would be a channel silently losing its track for one that merely
+    // emptied. Emptying releases the participant and keeps the file.
+    const { alice, bob, channelId } = await sessionOfTwo();
+    await upload(alice.token, channelId);
+    await settle();
+    const first = media.playbackFor(channelId)!;
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    await settle();
+    expect(first.closed).toBe(true);
+
+    clock += 5_000;
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    await settle();
+
+    expect(media.playbacks).toHaveLength(2);
+    // `playbackFor` is the first ever opened for the room, which is the one
+    // that just closed — the same reason the rebuild test reaches past it.
+    const second = media.playbacks[1];
+    expect(second.closed).toBe(false);
+    expect(second.file).toBe(first.file);
+    // Paused, because that is what the empty room left the transport at, and
+    // the participant catches up with the state rather than restarting it.
+    expect(app.channels.get(channelId)!.playback.status).toBe('paused');
   });
 });

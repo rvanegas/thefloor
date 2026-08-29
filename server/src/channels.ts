@@ -2961,14 +2961,38 @@ export class ChannelRegistry {
     const had = before.playback.track?.id ?? null;
     const has = after.playback.track?.id ?? null;
     const channel = this.playback.get(after.id);
+    const occupied = roomOccupants(after).length > 0;
 
-    // The first track opens the participant; it stays for the channel's life,
-    // publishing silence between tracks so the recording stem keeps its place.
+    // The first track opens the participant, and it stays as long as anybody
+    // is in the room, publishing silence between tracks so the recording stem
+    // keeps its place.
     if (has && !channel) {
-      this.openPlayback(after.id);
+      if (occupied) this.openPlayback(after.id);
       return;
     }
     if (!channel) return;
+
+    // **An empty room does not keep the media participant, and what was left
+    // behind was a leak rather than an idle handle.** It holds a real
+    // connection to the SFU and a pump producing a frame every ten
+    // milliseconds for as long as it is open, and a channel is a place rather
+    // than a conversation, so nothing was ever going to come along and end it:
+    // one channel nobody had been in for hours was still connected and still
+    // pumping. `bin/usage peak` is what found it, reading nine simultaneous
+    // connections against three real ones.
+    //
+    // Nothing is owed to the stem here, which is the only thing the
+    // participant outlived a track for: `settleEmpty` ends the run on this
+    // same transition, so there is no recording left to keep in step with.
+    //
+    // No grace of its own, deliberately. `present` already carries one — a
+    // dropped socket keeps its place for DISCONNECT_GRACE_MS — so a room that
+    // reads empty here has been empty for a minute rather than for an instant,
+    // and a second timer would only give the two something to disagree about.
+    if (!occupied) {
+      this.releasePlayback(after.id);
+      return;
+    }
 
     if (has && has !== had) {
       const file = this.trackFiles.get(after.id)?.file;
@@ -3009,8 +3033,15 @@ export class ChannelRegistry {
     // Read now rather than inside the call: which room this channel's audio is
     // in is a property of the channel, and the only thing that changes it is a
     // move, which closes playback before it happens.
-    const room = this.channels.get(channelId)?.mediaRoom;
-    if (!room) return;
+    const state = this.channels.get(channelId);
+    const room = state?.mediaRoom;
+    if (!state || !room) return;
+    // Nobody in the room to hear it, and a participant opened for nobody is
+    // one nothing later closes. The guard is here rather than at each caller
+    // because every one of them is a transition that can happen in an empty
+    // room — a stall rebuilt by the tick, a track loaded by somebody who has
+    // since stepped out.
+    if (roomOccupants(state).length === 0) return;
 
     this.openingPlayback.add(channelId);
     this.run(
@@ -3025,7 +3056,13 @@ export class ChannelRegistry {
           });
 
           const live = this.channels.get(channelId);
-          if (!live || live.status !== 'active') {
+          // Emptying while this was in flight has the same answer as emptying
+          // a moment after it: a participant nobody is there to hear.
+          if (
+            !live ||
+            live.status !== 'active' ||
+            roomOccupants(live).length === 0
+          ) {
             await channel.close();
             return;
           }
@@ -3095,13 +3132,25 @@ export class ChannelRegistry {
     this.run(() => channel.stopCapture(), `stopCapture ${channelId}`);
   }
 
-  /** Ends the media participant and removes the file it was playing. */
-  private closePlayback(channelId: string): void {
+  /**
+   * Ends the media participant, leaving the file it was playing where it is.
+   *
+   * The half of `closePlayback` a channel can come back from. The participant
+   * is what costs something; the file is what the next `openPlayback` resumes
+   * from, and it reads `trackFiles` — delete that and a channel somebody walks
+   * back into has silently lost its track.
+   */
+  private releasePlayback(channelId: string): void {
     const channel = this.playback.get(channelId);
     this.playback.delete(channelId);
     if (channel) {
       this.run(() => channel.close(), `closePlayback ${channelId}`);
     }
+  }
+
+  /** Ends the media participant and removes the file it was playing. */
+  private closePlayback(channelId: string): void {
+    this.releasePlayback(channelId);
 
     const entry = this.trackFiles.get(channelId);
     this.trackFiles.delete(channelId);

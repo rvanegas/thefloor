@@ -1162,3 +1162,81 @@ The lesson worth keeping is not about these two lines. **A fake that models
 two states as one passes every test until somebody measures the difference**,
 and the failure when it arrives looks like a broken feature rather than an
 inexact double.
+
+## The shared track outlived the room it was playing to — 2026-08-29
+
+`bin/usage peak` reported nine simultaneous connections on a day when three
+was the true figure, which is what the column was added for: a number nobody
+had chosen, watched precisely so that something wrong with it would show.
+
+Nine open `participant` spans across six channels, six of them the same
+account. One account cannot hold six SFU connections, so the first reading was
+that the meter had leaked — and half of it had. `pollUsage` short-circuits on
+`present.length === 0` and closes `mic` and `listen` there but not
+`participant`, so an emptied channel's rows freeze at whatever the last poll
+saw and stay open until the sweep. That much is bookkeeping: the phones really
+had gone, the client disconnects on effect cleanup, and LiveKit reaps a peer on
+its ICE timeout and an empty room on `empty_timeout`.
+
+**The other half was not bookkeeping, and the meter was telling the truth about
+it.** `applyPlaybackToMedia` opened the media participant on the first track
+loaded and closed it only when the channel *ended*:
+
+> The first track opens the participant; it stays for the channel's life,
+> publishing silence between tracks so the recording stem keeps its place.
+
+A channel is a place rather than a conversation, so "the channel's life" is
+unbounded. Every channel that had ever had a track loaded kept a real
+connection to the SFU and a `PlaybackPump` producing a frame every ten
+milliseconds — an allocation and an FFI capture call, a hundred times a second,
+on the box that also runs the SFU — for as long as the channel existed, with
+nobody in the room. One had been doing it for hours.
+
+The stated justification is real and does not reach the empty case, which is
+the whole of the argument for closing: `settleEmpty` ends the recording run on
+the same transition that empties the channel, so there is no stem left to keep
+in step with. It pauses the transport too, which is why the old behaviour
+looked correct from every screen — the pump stops *decoding* on pause and goes
+on publishing silence, and publishing silence is the entire cost.
+
+So: release the participant when `roomOccupants` is empty, open it only when
+somebody is there. Both halves, or the open branch re-creates what the close
+just tore down on the very next commit.
+
+**Three things this turned on that are not obvious from the diff.**
+
+`present` already carries the debounce, so the teardown has none of its own. A
+dropped socket keeps its place until `DISCONNECT_EXPIRED` fires at
+`DISCONNECT_GRACE_MS`, a minute later, so a room that reads empty here has been
+empty for a minute rather than for an instant. A second timer would have
+given the two something to disagree about, which is the shape of most of the
+bugs in this file.
+
+`closePlayback` deletes the uploaded file as well as the participant, and that
+is right for a channel that has ended and wrong for one that has merely
+emptied — `openPlayback` reads `trackFiles` and returns doing nothing when
+there is none, so reusing it here would have been a channel silently losing its
+track the moment everybody stepped out. Hence `releasePlayback`, which is the
+half a channel can come back from, with `closePlayback` delegating to it and
+keeping the deletion. The test that would have caught it is the one that walks
+back in and expects the same file.
+
+The occupancy guard belongs in `openPlayback` rather than at its callers,
+because every caller is a transition that can happen in an empty room — a stall
+rebuilt by the tick, a track loaded by somebody who has since stepped out — and
+the async body re-checks after connecting, since emptying while the open is in
+flight has the same answer as emptying a moment after it.
+
+**What is left, deliberately.** The metering side is untouched: `pollUsage`
+still leaves `participant` spans open on an empty channel, so `peak` will go on
+accumulating rows that no longer describe anything. That is a separate defect
+and a separate fix, and conflating the two is what nearly sent this session to
+patch the query instead of the leak. The rows already open stay until the
+thirty-day sweep or a hand-written `bin/db --write`.
+
+**The generalisation worth keeping**: a resource this server holds on behalf of
+a channel has to be released on the transition that ends its *purpose*, not on
+the one that ends the channel. Presence is the purpose for anything in the
+room. `closeRoom` and the egress handles were already written that way; the
+shared track was the one that was not, and it was the one nothing on any screen
+could show.

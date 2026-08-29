@@ -103,6 +103,10 @@ carries `drops`, `dropsRecovered` and `dropsExpired`, printed by `bin/health`.
 a box that has been up a while before proposing a change to it, and read the
 constant's own comment for what it is load-bearing for beyond a dot on a roster.
 
+## Web UI
+
+Shuold be able to run app in web
+
 ## Review S3
 
 What's there? How many files? What kind? What is the lifecycle?
@@ -143,9 +147,17 @@ If watch party is started and a there is a second session with the same account,
 
 Something like Facetime functionality.
 
+## API to Create Telegram or Whatsapp Group Chat
+
+Is it possible?
+
+## Invitation by Deep Link
+
+Ideally, contact is made more automatically.
+
 ## Add Voice Messages
 
-These are recordings, sharing the infrastructure with the existing recordings, but with a distinct interface. 
+These are recordings, sharing the infrastructure with the existing recordings, but with a distinct interface.
 
 - Recording is the same. In the room, everyone and media is heard and recorded. 
 - Constrained to 60s.
