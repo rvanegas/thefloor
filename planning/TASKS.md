@@ -103,6 +103,10 @@ carries `drops`, `dropsRecovered` and `dropsExpired`, printed by `bin/health`.
 a box that has been up a while before proposing a change to it, and read the
 constant's own comment for what it is load-bearing for beyond a dot on a roster.
 
+## PIP Watch Party
+
+Small video in the corner.
+
 ## Web UI
 
 Shuold be able to run app in web
@@ -114,6 +118,10 @@ What's there? How many files? What kind? What is the lifecycle?
 ## Lock Screen
 
 explore options in case screen locks during a call. lock screen, control center, etc.
+
+## IM Links
+
+Direct Support in Profile View for IM usernames.
 
 ## SMS Authentication
 
