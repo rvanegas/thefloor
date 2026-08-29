@@ -76,6 +76,24 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-08-29 — `41be02f` → `2844534`
+
+Two commits, both app-only: the Email card moved up beside Ping on a profile,
+and "Signed in as" moved off Home to Contact settings. **Nothing in `server/`
+or `core/` changed**, so this deploy carries no behaviour at all — it restamps
+`deployed.json` with a sha the box can be compared against and nothing else.
+It was asked for alongside the upload rather than needed by it.
+
+Worth writing down precisely because it is inert. A deploy with nothing in it
+still costs presence and still restarts a box that may have somebody talking
+through it — see AGENTS.md § *Known rough edges* — so the entry that says the
+box moved should also say what it bought, which here is only the sha agreeing
+with the checkout the build came from.
+
+`bin/health` confirmed `2844534`, `oldestBuild` 56 and no silent builds, so
+`MIN_SUPPORTED_BUILD` is untouched at 51. The drop counters read zero, which is
+what a just-restarted box says.
+
 ### 2026-08-27 — `92fc306` → `41be02f`
 
 Two commits: the two-second heartbeat with its per-build silence budget, and
