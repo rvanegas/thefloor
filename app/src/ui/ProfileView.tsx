@@ -314,6 +314,72 @@ export function ProfileView({
       </View>
 
       {/*
+        Somebody who belongs to this channel and is not in it. The one
+        notification in the app that a person composes and aims, so it is the
+        one place worth spending a text field on.
+
+        Words are optional. An empty ping still says somebody is asking for
+        you, which is the whole of what most pings mean, and requiring a
+        sentence would make the common case the slow one.
+
+        First on the screen, above even the availability lines. It is drawn
+        only from inside a channel they are missing from, which is a screen
+        opened to do something rather than to read something — and the one
+        thing there is to do should not be under everything there is to read.
+      */}
+      {onPing ? (
+        <>
+          <SectionLabel>Ping</SectionLabel>
+          <Card style={styles.stack}>
+            {pingSent || pingWait !== null ? (
+              // Two facts, either of which replaces the composer: they have
+              // just sent one, or somebody has. The confirmation does not wait
+              // on the countdown — a snapshot is half a second away and the
+              // words have already gone, so hanging "Sent" on the server
+              // having told us the window would leave the screen looking as
+              // though it had lost them. When the window *is* known it is said
+              // as a length rather than a moment; when it is not, the sentence
+              // this said before the countdown existed is still true.
+              <Text style={type.muted}>
+                {pingSent ? 'Sent.' : 'They have just been pinged.'}
+                {pingWait !== null
+                  ? ` You can ping them again in ${duration(pingWait)}.`
+                  : ' They will not be pinged again for a few minutes.'}
+              </Text>
+            ) : (
+              <>
+            <Field
+              value={pingText}
+              onChangeText={(v) => {
+                setPingText(v.slice(0, MAX_PING_TEXT_LENGTH));
+                // The confirmation belongs to the ping that was sent, not to
+                // the field; typing again is the start of a different one.
+                setPingSent(false);
+              }}
+              placeholder="Anything you want to say (optional)"
+              autoCapitalize="sentences"
+            />
+            <View style={styles.pingFoot}>
+              <Text style={type.muted}>
+                {pingText.length > 0
+                  ? `${MAX_PING_TEXT_LENGTH - pingText.length} left`
+                  : 'They will get a notification.'}
+              </Text>
+              <Button
+                label={pinging ? 'Sending…' : 'Send ping'}
+                variant="primary"
+                disabled={pinging}
+                onPress={() => void sendPing()}
+              />
+            </View>
+              </>
+            )}
+            {pingError ? <Text style={styles.error}>{pingError}</Text> : null}
+          </Card>
+        </>
+      ) : null}
+
+      {/*
         Where they are, which is what decides whether to try them at all. It
         lived on Home's contact rows until Home became a list of channels, and
         it is here rather than nowhere because a channel's idleness is a
@@ -483,67 +549,6 @@ export function ProfileView({
           </View>
         </>
       )}
-
-      {/*
-        Somebody who belongs to this channel and is not in it. The one
-        notification in the app that a person composes and aims, so it is the
-        one place worth spending a text field on.
-
-        Words are optional. An empty ping still says somebody is asking for
-        you, which is the whole of what most pings mean, and requiring a
-        sentence would make the common case the slow one.
-      */}
-      {onPing ? (
-        <>
-          <SectionLabel>Ping</SectionLabel>
-          <Card style={styles.stack}>
-            {pingSent || pingWait !== null ? (
-              // Two facts, either of which replaces the composer: they have
-              // just sent one, or somebody has. The confirmation does not wait
-              // on the countdown — a snapshot is half a second away and the
-              // words have already gone, so hanging "Sent" on the server
-              // having told us the window would leave the screen looking as
-              // though it had lost them. When the window *is* known it is said
-              // as a length rather than a moment; when it is not, the sentence
-              // this said before the countdown existed is still true.
-              <Text style={type.muted}>
-                {pingSent ? 'Sent.' : 'They have just been pinged.'}
-                {pingWait !== null
-                  ? ` You can ping them again in ${duration(pingWait)}.`
-                  : ' They will not be pinged again for a few minutes.'}
-              </Text>
-            ) : (
-              <>
-            <Field
-              value={pingText}
-              onChangeText={(v) => {
-                setPingText(v.slice(0, MAX_PING_TEXT_LENGTH));
-                // The confirmation belongs to the ping that was sent, not to
-                // the field; typing again is the start of a different one.
-                setPingSent(false);
-              }}
-              placeholder="Anything you want to say (optional)"
-              autoCapitalize="sentences"
-            />
-            <View style={styles.pingFoot}>
-              <Text style={type.muted}>
-                {pingText.length > 0
-                  ? `${MAX_PING_TEXT_LENGTH - pingText.length} left`
-                  : 'They will get a notification.'}
-              </Text>
-              <Button
-                label={pinging ? 'Sending…' : 'Send ping'}
-                variant="primary"
-                disabled={pinging}
-                onPress={() => void sendPing()}
-              />
-            </View>
-              </>
-            )}
-            {pingError ? <Text style={styles.error}>{pingError}</Text> : null}
-          </Card>
-        </>
-      ) : null}
 
       {/*
         Addresses, which are two separate decisions and are drawn as two.
