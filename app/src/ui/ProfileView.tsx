@@ -12,7 +12,14 @@ import { describeChannel } from '../../../core/naming';
 import { MAX_PING_TEXT_LENGTH } from '../../../core/constants';
 import { copyText } from '../clipboard';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Field, Screen, SectionLabel } from './components';
+import {
+  Button,
+  Card,
+  Field,
+  Screen,
+  SectionLabel,
+  useRevealOnKeyboard,
+} from './components';
 import { InlineMarkdown } from './markdown';
 import {
   describeAvailability,
@@ -304,6 +311,19 @@ export function ProfileView({
       ? pingableAt - app.serverNow()
       : null;
 
+  /**
+   * The ping card, brought wholly into view when the keyboard opens over it.
+   *
+   * Held while the composer is showing rather than while the field has focus:
+   * it is the only field on this screen, so any keyboard here is that one's,
+   * and the card is what has to be visible — a reveal that stopped at the
+   * field would leave "Send ping" underneath the keyboard. See
+   * `useRevealOnKeyboard`.
+   */
+  const pingCard = useRevealOnKeyboard(
+    onPing !== undefined && !pingSent && pingWait === null
+  );
+
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
@@ -328,7 +348,9 @@ export function ProfileView({
         thing there is to do should not be under everything there is to read.
       */}
       {onPing ? (
-        <>
+        // Kept in the native tree so it can be measured, and wrapping the
+        // label as well as the card so what is revealed is the whole section.
+        <View ref={pingCard} collapsable={false}>
           <SectionLabel>Ping</SectionLabel>
           <Card style={styles.stack}>
             {pingSent || pingWait !== null ? (
@@ -376,7 +398,7 @@ export function ProfileView({
             )}
             {pingError ? <Text style={styles.error}>{pingError}</Text> : null}
           </Card>
-        </>
+        </View>
       ) : null}
 
       {/*

@@ -1240,3 +1240,48 @@ the one that ends the channel. Presence is the purpose for anything in the
 room. `closeRoom` and the egress handles were already written that way; the
 shared track was the one that was not, and it was the one nothing on any screen
 could show.
+
+---
+
+## Revealing the card, which is the name this had been missing — 2026-08-29
+
+The ping composer moved to the top of the profile, under the name and above
+the availability lines, and then had to be taught the thing two other screens
+already knew: when the keyboard opens over a form, the *card* has to come into
+view, not the field.
+
+**The unit is the whole point, and it is what a keyboard-aware scroll view gets
+wrong.** Bringing the focused field in is the default behaviour everywhere, and
+it stops one control too early: the button under the field — Save, Send ping —
+stays beneath the keyboard, and that is the control the person is reaching for.
+So the answer in every case is the same, move by the least that brings the
+region's *bottom* edge inside, and the region is the card.
+
+It had been solved twice and named zero times. `Screen` is the first half: a
+`KeyboardAvoidingView` with `padding`, which gives the scroll view a real bottom
+to scroll to, plus `keyboardShouldPersistTaps="handled"` so the tap on the
+button is heard rather than swallowed by the dismissal. `offsetToReveal` in
+`reveal.ts` is the arithmetic, written for a recording row that grew twice under
+the finger. Neither is a technique on its own — the trigger that joins them was
+inlined in `RecordingRow`, an effect on `keyboardDidShow` that nobody would find
+from a third screen needing it.
+
+**So it is now `useRevealOnKeyboard`, and "revealing the card" is what to call
+it.** The hook takes whether the form that would raise a keyboard is on screen —
+a rename in progress, a composer showing — rather than whether the field has
+focus, since the keyboard's own arrival already implies that. It returns the ref
+to hang on a `collapsable={false}` View around the card. `RecordingRow` is now
+its first caller rather than its owner, and keeps its second, unrelated reveal:
+growth on layout, which has nothing to do with a keyboard.
+
+**`keyboardDidShow` rather than focus, which is the part worth writing down.**
+The keyboard arrives after the field does and is what shortens the viewport, so
+a reveal that runs at focus measures against a screen about to get smaller and
+scrolls into space the keyboard then takes back. That was found once already, on
+the rename field, and the note explaining it lived in a component nobody would
+read while writing a third form.
+
+**Not tested at the component level**, and neither was the rename it was
+extracted from: `reveal.test.ts` covers the arithmetic, which is where the
+judgements are, and the trigger would need a mocked `Keyboard` plus a mocked
+`measureInWindow` to assert a scroll that the pure function has already decided.

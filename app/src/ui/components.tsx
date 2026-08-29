@@ -288,6 +288,45 @@ export function useReveal(): (node: React.RefObject<View | null>) => void {
   return reveal ?? (() => {});
 }
 
+/**
+ * **Revealing the card**, which is the name for what this file had solved
+ * twice without one: when a keyboard opens over a form, scroll the *card* into
+ * view rather than the field.
+ *
+ * The unit is the point. A keyboard-aware scroll view brings the focused field
+ * in and stops there, which leaves the button under it — Save, Send ping —
+ * beneath the keyboard, and that is the control the person is reaching for.
+ * The two halves of the technique are `Screen` (a viewport that shrinks, with
+ * a real bottom to scroll to) and `offsetToReveal` (move by the least that
+ * brings the whole region's bottom edge inside), and this hook is the trigger
+ * that joins them.
+ *
+ * `keyboardDidShow` rather than the focus that preceded it, deliberately: the
+ * keyboard arrives after the field does and is what shortens the viewport, so
+ * a reveal measured at focus measures against a screen that is about to get
+ * smaller and reveals into space the keyboard then takes back.
+ *
+ * Pass whether the form that would raise it is on screen — a rename in
+ * progress, a composer showing — not whether the field has focus, which the
+ * keyboard's own arrival already implies. Attach the returned ref to a View
+ * around the whole card, with `collapsable={false}` so it survives into the
+ * native tree and can be measured.
+ */
+export function useRevealOnKeyboard(
+  active: boolean
+): React.RefObject<View | null> {
+  const reveal = useReveal();
+  const card = React.useRef<View>(null);
+
+  React.useEffect(() => {
+    if (!active) return;
+    const shown = Keyboard.addListener('keyboardDidShow', () => reveal(card));
+    return () => shown.remove();
+  }, [active, reveal]);
+
+  return card;
+}
+
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return <Text style={[type.label, styles.sectionLabel]}>{children}</Text>;
 }
@@ -429,22 +468,14 @@ export function RecordingRow({
   const [renaming, setRenaming] = React.useState(false);
 
   const reveal = useReveal();
-  /** Measured, not laid out — see `Screen`'s `reveal`. */
-  const row = React.useRef<View>(null);
+  /**
+   * Measured, not laid out — see `Screen`'s `reveal`. The rename field is the
+   * keyboard half, and `useRevealOnKeyboard` owns it; this ref is shared with
+   * the growth half below, which has nothing to do with a keyboard.
+   */
+  const row = useRevealOnKeyboard(renaming);
   /** Set when something has grown, cleared by the layout that follows it. */
   const wants = React.useRef(false);
-
-  /**
-   * The keyboard arrives after the field does, and shortens the viewport when
-   * it comes. A reveal that ran on the rename alone measured against the tall
-   * viewport and left everything below the field underneath the keyboard —
-   * which is the original complaint, arrived at a second way.
-   */
-  React.useEffect(() => {
-    if (!renaming) return;
-    const shown = Keyboard.addListener('keyboardDidShow', () => reveal(row));
-    return () => shown.remove();
-  }, [renaming, reveal]);
 
   return (
     <View
