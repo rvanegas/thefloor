@@ -126,7 +126,26 @@ export function ContactsSettingsView({
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading}>Contact settings</Text>
+        <View style={styles.headerMain}>
+          <Text style={type.heading}>Contact settings</Text>
+          {/*
+            Who you are signed in as, which was Home's second line until this
+            screen existed to take it. Home is a list of rooms and said it
+            under the app's own name, where it was the only sentence about the
+            account on a screen about everything else; here it is the first
+            line of the screen that is about the account, and the field that
+            changes it is directly below.
+
+            It names the saved value rather than the draft in that field, so
+            typing a new name does not change it until the write lands on
+            blur — which is the honest reading: this is who the server will
+            tell everybody you are, and until it is saved that is still the
+            old one.
+          */}
+          <Text style={type.muted}>
+            {app.me ? `Signed in as ${app.me.displayName}` : 'Signed in'}
+          </Text>
+        </View>
         {/* "Saving…" is here for the same reason it was on the Home settings
             screen while these fields lived there: this write is an awaited HTTP
             call that can fail and hold the screen open. */}
@@ -242,10 +261,11 @@ const styles = StyleSheet.create({
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: spacing(1),
   },
+  headerMain: { flex: 1 },
   loading: { marginTop: spacing(4) },
   stack: { gap: spacing(1) },
   preview: { gap: spacing(0.5) },

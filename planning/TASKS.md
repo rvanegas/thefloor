@@ -109,7 +109,7 @@ Small video in the corner.
 
 ## Web UI
 
-Shuold be able to run app in web
+Should be able to run app in web
 
 ## Review S3
 

@@ -331,6 +331,15 @@ beforeEach(() => {
 });
 
 describe('Home', () => {
+  it('no longer says who you are signed in as', () => {
+    // It is a fact about the account, and the screen about the account is
+    // Contact settings, which now carries it. Home is a list of rooms.
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    const tree = render(<HomeView {...homeNav} />);
+    expect(textOf(tree)).not.toContain('Signed in');
+    act(() => tree.unmount());
+  });
+
   it('renders the channels and the requests from a snapshot', () => {
     mockApp.home = {
       invites: [
@@ -5512,6 +5521,24 @@ describe('Contacts settings', () => {
     // Closing anyway would be the silent discard again, wearing a hat.
     expect(onBack).not.toHaveBeenCalled();
     expect(textOf(tree)).toContain('server said no');
+    act(() => tree.unmount());
+  });
+
+  it('names the account you are signed in as, which Home used to', async () => {
+    // Moved off Home, where it was the one sentence about the account on a
+    // screen about rooms. Here it is above the field that changes it.
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain('Signed in as Me');
+    act(() => tree.unmount());
+  });
+
+  it('names the saved value rather than the draft in the field', async () => {
+    // Typing is not being renamed. Until the write lands, the server still
+    // tells everybody the old name, and this line is about the server.
+    const tree = await openSettings();
+    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
+    expect(textOf(tree)).toContain('Signed in as Me');
+    expect(textOf(tree)).not.toContain('Signed in as Alice');
     act(() => tree.unmount());
   });
 

@@ -205,16 +205,15 @@ export function HomeView({
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <View style={styles.headerMain}>
-          <Text style={type.title}>The Floor</Text>
-          <Text style={type.muted}>
-            {app.me ? `Signed in as ${app.me.displayName}` : 'Signed in'}
-            {/* Same delay as the banner below, so a foreground does not flash
-                this either. Quieter, but a status line that blinks on every
-                return is still noise. */}
-            {showOffline ? ` · ${describeStatus(app.status)}` : ''}
-          </Text>
-        </View>
+        {/*
+          Who you are signed in as used to be a second line here, with the
+          connection appended to it. Both halves were in the wrong place. The
+          name is a fact about the account, and the screen about the account is
+          Contact settings, where it now sits above the field that sets it; the
+          connection was a quieter copy of the banner a few lines below, which
+          says the same thing in a sentence and is the one people read.
+        */}
+        <Text style={type.title}>The Floor</Text>
         {/*
           The two ways off this screen that are not a channel. Contacts is a
           screen rather than a section here for the reason the doc comment
@@ -603,10 +602,6 @@ function byIdleness(a: Card, b: Card): number {
 }
 
 
-function describeStatus(status: string): string {
-  return status === 'connecting' ? 'reconnecting' : 'offline';
-}
-
 /**
  * One card for both kinds of channel.
  *
@@ -867,11 +862,10 @@ const styles = StyleSheet.create({
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing(1),
   },
-  headerMain: { flex: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   liveBar: {
     flexDirection: 'row',
