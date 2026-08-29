@@ -421,8 +421,8 @@ function appRows(
  * information the panel exists to show.
  *
  * **And stamped with the audio-session rule, on the same line as the build**,
- * added 2026-08-28 for the paired runs HF-ONLY-WALK.md § *The comparison* asks
- * for. Two pastes of the same step under the two settings are otherwise
+ * added 2026-08-28 for the paired runs HF-ONLY-WALK.md § *What you need*
+ * asks for. Two pastes of the same case under the two settings are otherwise
  * byte-indistinguishable in their provenance, which makes a pair of them
  * worthless a week later — and a pair is the whole reason the alternative rule
  * shipped as a setting rather than as a branch. It is in the rows as well; the

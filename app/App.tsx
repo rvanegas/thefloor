@@ -163,8 +163,8 @@ function Root() {
    * instrument would be manufacturing a false alarm out of somebody's thumb.
    *
    * **Fires on mount as well as on change**, which is deliberate and is the
-   * more important half: HF-ONLY-WALK.md § *The comparison* asks for the same
-   * step run twice under the two rules, and two logs that do not say which
+   * more important half: HF-ONLY-WALK.md § *What you need* asks for every case
+   * to be run twice under the two rules, and two logs that do not say which
    * rule produced them cannot be compared at all. The setting is persisted per
    * phone, so the mount line is often the only one there will be.
    *
