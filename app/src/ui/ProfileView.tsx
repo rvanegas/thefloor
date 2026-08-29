@@ -402,6 +402,105 @@ export function ProfileView({
       ) : null}
 
       {/*
+        Addresses, which are two separate decisions and are drawn as two.
+
+        Theirs is above yours because it is the half you might act on — an
+        address you have been given is a thing to copy, and a thing you have
+        given is a thing you already know. Neither half implies the other:
+        somebody showing you theirs has not asked for yours, and there is no
+        control here that would let them.
+
+        Contacts only, matching the server, which refuses the same call from
+        anybody else. Somebody met in a channel an acquaintance opened can be
+        asked to be a contact — the card further down does that — and this is a
+        step past it rather than part of it.
+
+        Directly under Ping, above the bio and the shared channels, for the
+        reason Ping is at the top: both are things to do about this person, and
+        everything between them and the foot of the screen is things to read
+        about them. Reaching somebody is the errand this screen gets opened
+        for, and the two ways of doing it now sit together.
+      */}
+      {isSelf || contact?.status !== 'accepted' ? null : (
+        <>
+          <SectionLabel>Email</SectionLabel>
+          <Card style={styles.stack}>
+            {profile?.email ? (
+              <>
+                {/* Selectable, because an address on a screen is something
+                    people reach for by hand when a button is not enough — and
+                    the button is the fallback rather than the only way. */}
+                <Text style={type.body} selectable numberOfLines={1}>
+                  {profile.email}
+                </Text>
+                <Button
+                  label={
+                    copied === 'done'
+                      ? '✓ copied'
+                      : copied === 'failed'
+                        ? '✗ copy failed'
+                        : 'Copy'
+                  }
+                  variant="primary"
+                  onPress={() => {
+                    void (async () => {
+                      setCopied(
+                        (await copyText(profile.email!)) ? 'done' : 'failed'
+                      );
+                    })();
+                  }}
+                />
+              </>
+            ) : (
+              // Said rather than left blank, so the empty half of the card is
+              // an answer instead of a gap somebody reads as a bug. It is also
+              // what makes the two halves legible as independent: yours is
+              // below and may well be shown.
+              <Text style={type.muted}>
+                They are not showing you their email.
+              </Text>
+            )}
+
+            <View style={styles.rule} />
+
+            {profile?.myEmailShown ? (
+              <>
+                <Text style={type.muted}>They can see your email.</Text>
+                <Button
+                  label={showingEmail ? 'Hiding…' : 'Stop showing my email'}
+                  variant="ghost"
+                  disabled={showingEmail}
+                  onPress={() => void setEmailShown(false)}
+                />
+                {/* The one thing the button cannot do, said where it is about
+                    to be pressed. Stopping ends the standing ability to come
+                    back for the address; it does not reach into anywhere they
+                    have already written it down. */}
+                <Text style={type.muted}>
+                  They will not be able to see it again — though they may
+                  already have it written down somewhere.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Button
+                  label={showingEmail ? 'Showing…' : 'Show my email'}
+                  disabled={showingEmail}
+                  onPress={() => void setEmailShown(true)}
+                />
+                <Text style={type.muted}>
+                  Show my email to this contact.
+                </Text>
+              </>
+            )}
+            {emailError ? (
+              <Text style={styles.error}>{emailError}</Text>
+            ) : null}
+          </Card>
+        </>
+      )}
+
+      {/*
         Where they are, which is what decides whether to try them at all. It
         lived on Home's contact rows until Home became a list of channels, and
         it is here rather than nowhere because a channel's idleness is a
@@ -573,99 +672,6 @@ export function ProfileView({
       )}
 
       {/*
-        Addresses, which are two separate decisions and are drawn as two.
-
-        Theirs is above yours because it is the half you might act on — an
-        address you have been given is a thing to copy, and a thing you have
-        given is a thing you already know. Neither half implies the other:
-        somebody showing you theirs has not asked for yours, and there is no
-        control here that would let them.
-
-        Contacts only, matching the server, which refuses the same call from
-        anybody else. Somebody met in a channel an acquaintance opened can be
-        asked to be a contact — the card below does that — and this is a step
-        past it rather than part of it.
-      */}
-      {isSelf || contact?.status !== 'accepted' ? null : (
-        <>
-          <SectionLabel>Email</SectionLabel>
-          <Card style={styles.stack}>
-            {profile?.email ? (
-              <>
-                {/* Selectable, because an address on a screen is something
-                    people reach for by hand when a button is not enough — and
-                    the button is the fallback rather than the only way. */}
-                <Text style={type.body} selectable numberOfLines={1}>
-                  {profile.email}
-                </Text>
-                <Button
-                  label={
-                    copied === 'done'
-                      ? '✓ copied'
-                      : copied === 'failed'
-                        ? '✗ copy failed'
-                        : 'Copy'
-                  }
-                  variant="primary"
-                  onPress={() => {
-                    void (async () => {
-                      setCopied(
-                        (await copyText(profile.email!)) ? 'done' : 'failed'
-                      );
-                    })();
-                  }}
-                />
-              </>
-            ) : (
-              // Said rather than left blank, so the empty half of the card is
-              // an answer instead of a gap somebody reads as a bug. It is also
-              // what makes the two halves legible as independent: yours is
-              // below and may well be shown.
-              <Text style={type.muted}>
-                They are not showing you their email.
-              </Text>
-            )}
-
-            <View style={styles.rule} />
-
-            {profile?.myEmailShown ? (
-              <>
-                <Text style={type.muted}>They can see your email.</Text>
-                <Button
-                  label={showingEmail ? 'Hiding…' : 'Stop showing my email'}
-                  variant="ghost"
-                  disabled={showingEmail}
-                  onPress={() => void setEmailShown(false)}
-                />
-                {/* The one thing the button cannot do, said where it is about
-                    to be pressed. Stopping ends the standing ability to come
-                    back for the address; it does not reach into anywhere they
-                    have already written it down. */}
-                <Text style={type.muted}>
-                  They will not be able to see it again — though they may
-                  already have it written down somewhere.
-                </Text>
-              </>
-            ) : (
-              <>
-                <Button
-                  label={showingEmail ? 'Showing…' : 'Show my email'}
-                  disabled={showingEmail}
-                  onPress={() => void setEmailShown(true)}
-                />
-                <Text style={type.muted}>
-                  Show my email to this contact.
-                </Text>
-              </>
-            )}
-            {emailError ? (
-              <Text style={styles.error}>{emailError}</Text>
-            ) : null}
-          </Card>
-        </>
-      )}
-
-      {/*
         Meeting somebody in a channel an acquaintance opened is exactly when
         you want to keep them, and until there was an "Add contact" here there
         was no way to: you had their name and their id, and adding a contact
@@ -681,10 +687,10 @@ export function ProfileView({
         screen would otherwise offer, since you are not among your own
         contacts.
 
-        Last on the screen, under Email rather than over it. Three of the four
-        branches below belong to somebody who is not a contact yet, and the
-        Email card is drawn only for somebody who is — so the two never
-        compete for the position, and putting this one at the foot costs a
+        Last on the screen, below Email rather than beside it. Three of the
+        four branches below belong to somebody who is not a contact yet, and
+        the Email card is drawn only for somebody who is — so the two never
+        compete for a position, and putting this one at the foot costs a
         stranger's "Add contact" nothing while keeping "Remove contact" away
         from the top of a screen opened to read about a person.
       */}
