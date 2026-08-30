@@ -1,7 +1,25 @@
 # The web app
 
-**A design for unbuilt work.** Delete it when the work ships, moving whatever
-survives into `decisions/DECISIONS.md`. Nothing here is running.
+**A design, now mostly built and not yet deployed.** Delete it when the work
+ships, moving whatever survives into `decisions/DECISIONS.md`.
+
+**What is built**, on `worktree-web-spike` and nowhere else — nothing has been
+landed and no train has been deployed:
+
+- The three paths. `/` is `landing.ts`, `/app` and `/beta` are
+  `@fastify/static` behind a per-prefix not-found handler.
+- `bin/deploy-web --stable|--beta`, which exports from a tag in a temporary
+  worktree and rsyncs. **Never run against the box yet.**
+- The build number and the platform field, end to end, with the census
+  excluding web — verified against a live server and a migrated database, not
+  only in tests.
+- `config.web.ts`, `build.web.ts`, `upload.web.ts`, `download.web.ts`,
+  `cue.web.ts`, `useSessionAudio.web.ts`, `livekitReactNative.web.ts`, and
+  `index.web.ts`.
+
+**What is not:** the route table beyond the spike's `?channel=` seed, and any
+verification in a real browser since the extension disconnected part-way
+through — see *What is left* at the end.
 
 It answers `TASKS.md` § *Web UI* — "Should be able to run app in web" — and it
 is written after a spike rather than before one, because the whole question was
@@ -312,10 +330,32 @@ page the visitor did not want:
 - **`UpdateRequiredView`** needs a web variant: `updateUrl` is an App Store
   link and what a browser user must do is reload.
 
-## What is left to decide
+## What is left
 
-Nothing blocking. The URL model beyond `?channel=` is the one piece of real
-design left, and it is a question about route names rather than feasibility.
+**The route table.** The spike's `?channel=` seed proves a deep screen can be
+addressed and nothing more. `App.tsx` still routes with `useState` booleans and
+early returns, so Home, Settings, Contacts, Support, the leaderboard, a profile
+and a transcript have no addresses and the Back button does nothing anywhere.
+The seed also had to become an effect rather than a `useState` initialiser,
+because the sign-out effect wipes navigation state while the token is still
+being read from storage — the app has no notion of navigation that predates a
+session, and **every route will meet that same problem**, so it wants solving
+once rather than per screen.
+
+**A browser pass over the whole thing.** The Chrome extension disconnected
+part-way through the work, so everything since is verified by `curl`, by the
+test suite, and against a live server and a migrated database — but *not* by
+looking. Specifically unverified: that the tab cue marks and clears, that the
+file picker and the download anchor behave, that the landing page's redirect
+fires, and how any of it looks at desktop width. None of it is hard; none of it
+has been seen.
+
+**Two browsers hearing each other**, still — the spike could not test audio for
+want of a media server, and `useSessionAudio.web.ts` has never held a real
+room. It is the piece with the least evidence behind it.
+
+**The layout.** Measured, not fixed: at a 1600px viewport the *Claim the floor*
+button is 1534px wide. A container with a maximum and a couple of breakpoints.
 - **Whether the spike's `?channel=` seed becomes a real URL model.** It has to:
   the sign-out effect wipes navigation state while the token is still being
   read from storage, because the app has no notion of navigation that predates

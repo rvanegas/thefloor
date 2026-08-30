@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -862,7 +863,16 @@ export function ChannelView({
                 reconnect. DECISIONS.md § *How the diagnostic panel comes out, and
                 what would trigger it* says who decides and names every piece.
               */}
-              {app.debug ? (
+              {/*
+                Not on web, whatever the column says. The panel is an
+                asked-versus-actual comparison against `AVAudioSession` — the
+                category, the mode, the route, the engine's mute mode — and a
+                browser has none of those to compare. `useSessionAudio.web.ts`
+                reports `asked` as permanently null by construction, so the
+                panel would render a column of blanks and invite somebody to
+                debug the wrong layer. See planning/WEB.md § *Scope*.
+              */}
+              {app.debug && Platform.OS !== 'web' ? (
                 <AudioDebugPanel
                   asked={audio.asked}
                   steadyHeadset={app.steadyHeadset}
