@@ -252,17 +252,9 @@ Not just email.
 
 Improve look and feel
 
-## Usage Clarity
-
-Adding names to 'bin/usage', and simplifying information to the most salient.
-
 ## Grow UI for iPad
 
 Target iPad specifically.
-
-## HF only
-
-hands-free only media player. this should simplify matters.
 
 ## Add as Contact From Guest View
 
