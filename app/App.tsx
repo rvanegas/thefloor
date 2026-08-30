@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
 import { useKnockNudge } from './src/audio/useKnockNudge';
@@ -245,6 +245,38 @@ function Root() {
     setSupportOpen(false);
     setContactsOpen(false);
   }, [token]);
+
+  /**
+   * SPIKE: open the channel named by `?channel=`, so a deep screen is
+   * reachable by address.
+   *
+   * **Deliberately not a `useState` initialiser**, which is where this started
+   * and is the whole finding. The token is read asynchronously from storage,
+   * so `token` is null for the first render or two, and the effect above —
+   * which exists to close a stale channel screen when somebody signs out —
+   * cannot tell that from a sign-out and wipes the seed before the session
+   * arrives. Nothing is wrong with that effect; the app simply has no notion
+   * of navigation state that predates a session, because on a phone there is
+   * none. A real web version needs that notion throughout, not just here.
+   *
+   * Gated on `ready && token` and applied once, which is exactly what
+   * `pendingChannelId` above does for a notification tap — the same problem,
+   * already solved once for the same reason.
+   */
+  const seededRef = React.useRef(false);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || seededRef.current || !ready || !token) return;
+    let wanted: string | null = null;
+    try {
+      wanted = new URLSearchParams(globalThis.location?.search).get('channel');
+    } catch {
+      wanted = null;
+    }
+    seededRef.current = true;
+    if (!wanted) return;
+    watchChannel(wanted);
+    setChannelId(wanted);
+  }, [ready, token, watchChannel]);
 
   /**
    * Below the server's floor, and therefore not an app any more.
