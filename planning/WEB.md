@@ -9,6 +9,21 @@ how much of the existing UI survives a browser and that is not a thing to
 estimate. The spike is commit `8b8c059` on `worktree-web-spike`, which is
 throwaway; this document is its durable half.
 
+## The premise, which decides most of the rest
+
+**The web app is a secondary interface. The phone is the referential
+install.** Somebody is expected to install on a phone and reach for the browser
+as a convenience — a laptop already open, a machine that is not theirs, a
+keyboard for the clipboard.
+
+Nearly every scope decision below follows from that sentence rather than from a
+technical limit, so it is worth arguing with directly if it ever stops being
+true. It is why notifications are skipped: a secondary interface has no
+business waking anybody, and the phone is already there to do it. It is also
+why file upload is *not* optional — picking a file is the one thing a laptop
+does better than a phone, so it is among the reasons to open the browser at
+all rather than a feature ported for completeness.
+
 ## What the spike established
 
 The iOS UI ports essentially wholesale under `react-native-web`. `ChannelView`
@@ -170,13 +185,63 @@ nothing today and makes the pattern say what it meant.
 and the whole iOS audio graph bundles anyway — 765 modules rather than 582, and
 no error. `"main": "index"` fixes it.
 
+## Scope
+
+The spike inverted this question. Nearly everything arrives free, so what
+follows is a list of removals rather than a list of features.
+
+| | |
+| --- | --- |
+| **Notifications** | **Skipped.** No service worker, no VAPID, no server path beside APNs. The phone does this. |
+| **File upload and download** | **Built.** See below — this is a reason to open the browser, not a port for completeness. |
+| **Haptic cues** | **Replaced**, by a tab indicator. See below. |
+| **`AudioDebugPanel`** | **Hidden on web.** 454 lines of `AVAudioSession` route diagnostics describing a session a browser does not have. It is already gated on `hello.debug`; the web build gates it on the platform as well. |
+
+### Upload and download
+
+`upload.ts` uses `expo-document-picker` and `expo-file-system/legacy`;
+`download.ts` uses `expo-file-system` and `expo-sharing`. Both get `.web.ts`
+siblings.
+
+Upload is `<input type="file">` and the raw body the server already accepts —
+`app.ts` registers raw parsers for `/^audio\//` with `bodyLimit:
+MAX_TRACK_BYTES`, 100 MB. **Note that `fetch` reports no upload progress**; a
+100 MB file over domestic upstream is minutes of silence, so this wants
+`XMLHttpRequest`, which does, rather than the more obvious call.
+
+Download cannot be a plain link, because `GET /recordings/:id/export` needs the
+bearer token: fetch it, take the blob, `URL.createObjectURL`, click a synthetic
+`<a download>`, revoke. The whole file is in memory for the moment it takes,
+which at 100 MB is acceptable and worth knowing.
+
+### The tab indicator, which replaces the buzz
+
+`cue.ts` is imported as `./cue` by both `useKnockNudge` and `useSilencedNudge`,
+and **both already take `fire: () => void = buzz` as a parameter**. So Metro's
+platform resolution means a single `cue.web.ts` covers this and neither hook
+changes.
+
+What it does: set a marker on `document.title` and swap the favicon, then clear
+both on `visibilitychange` when the tab is looked at. No permission and no
+integration — `navigator.setAppBadge()` gives a real badge but needs an
+installed PWA and is absent in Firefox, so it is a later enhancement at most.
+`fire()` is edge-triggered and the marker is a state, so repeated fires are
+idempotent rather than a flash each.
+
+**This is weaker than what it replaces, and deliberately so.** The buzz's
+entire justification was that it reaches a *locked phone* — "most of what a
+pocket is", confirmed on a device at build 72. A browser tab has no equivalent,
+and with notifications skipped there is no delivery to a machine nobody is
+watching. A tab marker is only read by somebody who looks.
+
+That is the premise working as intended rather than a gap, and it is written
+down so that nobody later closes it by reaching for notifications — or by
+reviving the tone into the audio session, which `DECISIONS.md` § *The buzz
+reaches a locked phone, so the tone is not built* rules out and which would
+play over the very voice it was announcing.
+
 ## What is left to decide
 
-- **Scope.** Most of it arrives free, so the question is only what to *remove*:
-  push (`expo-notifications`), file upload and download
-  (`expo-document-picker`, `expo-file-system`, `expo-sharing`), haptic cues,
-  and `AudioDebugPanel`, which is almost entirely iOS route diagnostics. Each
-  needs a web equivalent, a graceful absence, or a hidden control.
 - **The two prefixes' names**, and whether stable eventually earns `/`.
 - **Whether the spike's `?channel=` seed becomes a real URL model.** It has to:
   the sign-out effect wipes navigation state while the token is still being
