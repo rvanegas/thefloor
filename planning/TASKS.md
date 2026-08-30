@@ -107,6 +107,59 @@ constant's own comment for what it is load-bearing for beyond a dot on a roster.
 
 Since there's no speaking, there must be another way.
 
+## Two Devices In One Channel
+
+OPEN, heard once and not reproduced — measure before writing any code
+
+**Observed 2026-08-29.** One account stepped into a channel on two devices at
+once, and the two appeared to compete for the audio rather than one of them
+yielding — or both were simply live. It sounded wrong. Nothing was measured and
+there is no recording of it, which is why the first job is a reproduction and
+not a fix.
+
+**The mechanism that should already prevent this exists**, and that is what
+makes the sighting worth chasing rather than shrugging at.
+`displaceOtherSessions` in `ws.ts` tells every *other* session of the account
+that it is no longer standing anywhere, and it is fired on the `ENTER` action
+rather than on a change of state precisely "because entering a channel this
+account is already present in changes nothing and is exactly the case that
+needs saying" — its own comment. The client acts on it: `AppProvider.displaced`
+reaches `App.tsx`, `live` becomes null, and `useSessionAudio` tears the room
+down.
+
+Three candidates, cheapest first.
+
+**A token is not a device.** `displaceOtherSessions` skips any connection whose
+token equals the entering one, and its docstring is honest that "a token is a
+sign-in, which is as close to 'a device' as this server knows" — the skip is
+there so a reconnecting device cannot displace itself. Two sessions sharing one
+token are therefore never displaced from each other. That has never mattered
+because iOS will not run a second copy of the app, and it is about to: two
+browser tabs on one origin share `localStorage`, and so share a token. See
+WEB.md.
+
+**The SFU may be doing the evicting while the clients fight it.** LiveKit
+admits one participant per identity, so the later joiner displaces the earlier
+at the media layer whatever this server thinks. `useSessionAudio` treats
+`RoomEvent.Disconnected` as something to recover from and rebuilds on a
+500ms-doubling backoff — so an eviction is indistinguishable from a network
+drop, the evicted device rejoins, evicts the other, and the two ping-pong.
+That would sound exactly like competing for control. `displaced` is what breaks
+the loop by setting `live` to null; a race, or a `displaced` that never
+arrives, leaves it running.
+
+**Or nothing is wrong and the oddity was something else** — the mono/stereo
+transition in STATES.md, or simply two devices in one room hearing each other.
+Ruling this out costs one listen and should come first.
+
+**The intended rule is per device rather than per account.** Device B stepping
+into any channel — including the one device A is already in — steps device A
+out. To everybody else nothing happens: the account stays present throughout.
+The server already has that half right, since `displaceOtherSessions` tells
+other sessions rather than dispatching a `STEP_OUT`, so no snapshot changes and
+no roster flickers. The work is on the client and the media plane, not in the
+reducer.
+
 ## PIP Watch Party
 
 Small video in the corner.
