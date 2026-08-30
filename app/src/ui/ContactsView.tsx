@@ -4,7 +4,6 @@ import type { ContactView as Contact } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
 import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
-import { ContactsSettingsView } from './ContactsSettingsView';
 import { ProfileView } from './ProfileView';
 import { colors, spacing, type } from './theme';
 
@@ -32,6 +31,14 @@ import { colors, spacing, type } from './theme';
  * Requests stay on Home. They are not contacts yet, they are the one thing on
  * that screen that cannot be a channel, and answering one is a thing to do
  * rather than somebody to look up.
+ *
+ * You are the first card, since 2026-08-29. The server has never put you in
+ * your own contact list and still does not — it returns the *other* id of each
+ * contacts row, which is what stops the list being about you — so the card is
+ * drawn from `app.me` and sits outside the section the rest are in. There is no
+ * Settings button any more: what it opened was your name and your bio, which is
+ * your profile with the fields showing, and that now lives behind Edit on the
+ * profile itself. See ProfileView.
  */
 export function ContactsView({
   onHome,
@@ -46,7 +53,6 @@ export function ContactsView({
   onEnterChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [profile, setProfile] = useState<{ id: string; name: string } | null>(
     null
   );
@@ -56,14 +62,16 @@ export function ContactsView({
     .filter((entry) => entry.status === 'accepted')
     .sort(byAvailability);
 
-  // Above the settings case rather than below it, so closing a profile returns
-  // to whatever was underneath — Settings when Settings opened it, this list
-  // otherwise — without either of them having to know.
   if (profile) {
     return (
       <ProfileView
         accountId={profile.id}
-        fallbackName={profile.name}
+        // Read from `app.me` for your own rather than from what the card said
+        // when it was tapped, so a name changed on the profile itself is not
+        // stale the moment it is written.
+        fallbackName={
+          profile.id === app.me?.id ? app.me.displayName : profile.name
+        }
         onBack={() => setProfile(null)}
         // Stepping into a channel the two of you share. Handed straight
         // through: what a tap does — arrive, or merely open — is the profile's
@@ -77,32 +85,47 @@ export function ContactsView({
     );
   }
 
-  if (settingsOpen) {
-    return (
-      <ContactsSettingsView
-        onBack={() => setSettingsOpen(false)}
-        onOpenProfile={() =>
-          app.me && setProfile({ id: app.me.id, name: app.me.displayName })
-        }
-      />
-    );
-  }
-
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.title}>Contacts</Text>
-        {/* The pair every screen in the app carries: the way back, and the
-            settings for this scope. Home and a channel both read this way. */}
+        {/* The way back, and nothing beside it. Every other screen carries its
+            scope's settings here too; this one's were your name and your bio,
+            which are on your own profile — the card directly below. */}
         <View style={styles.headerActions}>
           <Button label="Home" variant="ghost" onPress={onHome} />
-          <Button
-            label="Settings"
-            variant="ghost"
-            onPress={() => setSettingsOpen(true)}
-          />
         </View>
       </View>
+
+      {/*
+        You, first, and outside the section the rest are in.
+
+        Not sorted with them and not counted among them: `byAvailability` orders
+        people by how likely they are to answer, which is not a question about
+        yourself, and a list that said "Nobody yet" under a card with your name
+        on it would be answering a different question than it was asked. The
+        line reads "You" rather than where you are — the server withholds that
+        about you deliberately, you being the one person who knows.
+      */}
+      {app.me ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${app.me.displayName}. You. Open your profile.`}
+          onPress={() =>
+            app.me && setProfile({ id: app.me.id, name: app.me.displayName })
+          }
+          style={({ pressed }) => pressed && styles.rowPressed}
+        >
+          <Card style={[styles.row, styles.self]}>
+            <View style={styles.rowMain}>
+              <Text style={type.body} numberOfLines={1}>
+                {app.me.displayName}
+              </Text>
+              <Text style={type.muted}>You</Text>
+            </View>
+          </Card>
+        </Pressable>
+      ) : null}
 
       <AddContact />
 
@@ -312,6 +335,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing(1.5) },
   rowMain: { flex: 1, gap: 2 },
   rowPressed: { opacity: 0.7 },
+  /* The list's own rows take their spacing from the gap between them, and
+     this one stands alone above the add-contact card. */
+  self: { marginBottom: spacing(1.5) },
   addClosed: { marginBottom: spacing(1.5) },
   addContact: { gap: spacing(1), marginBottom: spacing(1.5) },
   addActions: {

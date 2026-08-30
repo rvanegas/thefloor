@@ -103,6 +103,10 @@ carries `drops`, `dropsRecovered` and `dropsExpired`, printed by `bin/health`.
 a box that has been up a while before proposing a change to it, and read the
 constant's own comment for what it is load-bearing for beyond a dot on a roster.
 
+## Keep Alive During Watch Party
+
+Since there's no speaking, there must be another way.
+
 ## PIP Watch Party
 
 Small video in the corner.

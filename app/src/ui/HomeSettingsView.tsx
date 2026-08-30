@@ -9,18 +9,20 @@ import type { ColorSchemePreference } from './appearance';
 /**
  * The app and the account: how it looks, what it stores, and the two ways out.
  *
- * **Your name and your bio are not here.** They were, and they moved to
- * ContactsSettingsView, behind the contact list — that is the scope they
- * belong to, a name being how a contact finds you and a bio being what a
- * contact reads. What is left is the scope Home actually owns, and it no
- * longer writes anything: appearance takes effect on the tap, signing out and
- * deleting take effect on the confirmation, and there is nothing on this
- * screen to lose by leaving it. The awaited save, the baseline ref and the
- * "Saving…" label went with the fields that needed them.
+ * **Your name and your bio are not here.** They were, and they went first to a
+ * settings screen behind the contact list and then, on 2026-08-29, into your
+ * own profile — which is what they always described, and which now shows them
+ * as fields when Edit is tapped. See ProfileView. What is left is the scope
+ * Home actually owns, and it no longer writes anything: appearance takes effect
+ * on the tap, signing out and deleting take effect on the confirmation, and
+ * there is nothing on this screen to lose by leaving it. The awaited save, the
+ * baseline ref and the "Saving…" label went with the fields that needed them.
  *
- * One of the three settings screens, one per scope, each reached from the
- * screen whose scope it is: this one from Home, ContactsSettingsView from the
- * contact list, ChannelSettingsView from a channel.
+ * One of the two settings screens, one per scope, each reached from the screen
+ * whose scope it is: this one from Home, ChannelSettingsView from a channel.
+ * There was a third, for the contact list; a scope whose whole content is one
+ * person's name and bio turned out to be that person's profile rather than a
+ * scope.
  */
 export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const app = useApp();

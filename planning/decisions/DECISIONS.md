@@ -1303,3 +1303,69 @@ read while writing a third form.
 extracted from: `reveal.test.ts` covers the arithmetic, which is where the
 judgements are, and the trigger would need a mocked `Keyboard` plus a mocked
 `measureInWindow` to assert a scroll that the pure function has already decided.
+
+## You are the first card, and the settings screen was a profile — 2026-08-29
+
+The contact list showed everybody but you, and your own profile was reached
+sideways: Contacts → **Settings** → `ContactsSettingsView` → *See your profile*.
+So the screen that is a list of people left out the one person certain to be
+there, and the read-only view of yourself sat two taps behind an editor. Both
+ends are now the other way round. You are the first card on Contacts, and the
+editor is behind **Edit** on the profile itself.
+
+**The screen was never settings, and saying so is what collapsed the design.**
+`ContactsSettingsView` held two fields, a name and a bio, which is your profile
+with the fields showing. A profile that cannot be edited is a read-only profile;
+an editor for one is that profile editing. So there is one screen with a mode,
+and the mode was already implied by the pair — which is why the first version of
+this plan, keeping both components and hanging one off the other's header, was
+answering an implementation question as though it were a design one.
+
+**It reverses a note that was right when it was written.** `ProfileView` said it
+was read-only and separate "because an editor that is sometimes read-only grows
+a conditional in every field it holds". True of a screen with eight fields, and
+very nearly free here: `isSelf` already omits the Email card, *Channels with
+them* and the Contact card, so the whole of the edit mode is two swaps — the
+name in the header, the bio card — and the facts between them stay drawn, since
+blanking `Invited 3` would make Edit look like a different screen rather than
+the same one in another mode.
+
+**The separate screen was paying for a second fetch.** The bio is not in the
+`hello` snapshot, so `ContactsSettingsView` loaded the profile on mount to know
+what to put in its fields — a profile `ProfileView` had already fetched and was
+holding. Folding them in deletes that request, and Edit is drawn disabled until
+the fetch lands, so the drafts are never seeded from nothing and a blur cannot
+write an empty bio over a real one.
+
+**A successful write is patched in rather than re-read.** `saveProfile` resolves
+to nothing and the server was handed those two exact strings; there is nothing
+else in a profile that a write to it changes, so a second GET would spend a round
+trip being told what we had just said. `app.me` is updated by `saveProfile`
+itself, which is what renames the Contacts card without anything telling it to.
+
+**"Signed in as …" moved under the name field**, and only shows while editing.
+It went from Home to that settings screen on the argument that it belonged on
+the screen about the account; under a heading that is already your name it would
+be redundant, and under a field you are typing a *new* name into it is the
+sentence it always was — this is who the server still tells everybody you are,
+whatever the draft says. The test that pins it to the saved value rather than the
+draft came across with it.
+
+**The self card is outside the section the contacts are in**, which is not
+decoration. `byAvailability` orders people by how likely they are to answer, a
+question that means nothing about yourself, and a list reading "Nobody yet"
+under a card with your name on it would be answering a question it was not
+asked. So the card sits above the *Contacts* label and the empty state still
+means no contacts. Nothing changed on the server: it returns the *other* id of
+each contacts row, so you are still not in your own contact list, and the card
+is drawn from `app.me`.
+
+**Both callers got Edit without being touched.** Editing is self-only and
+internal to the screen, so it needed no new prop — which means the channel
+roster's own card, which has opened your profile since 2026-08-22, now edits it
+too. Had it been a prop, `ChannelView` would have had to hold a second settings
+flag beside the channel's, in the file that owns the live audio.
+
+Two screens went to one, `HomeSettingsView`'s note that it is one of three
+settings screens is now one of two, and there is one fewer boolean in an app
+whose navigation is nested early returns.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,7 +9,11 @@ import {
 } from 'react-native';
 import type { ProfileView as Profile } from '../../../core/protocol';
 import { describeChannel } from '../../../core/naming';
-import { MAX_PING_TEXT_LENGTH } from '../../../core/constants';
+import {
+  MAX_BIO_LENGTH,
+  MAX_DISPLAY_NAME_LENGTH,
+  MAX_PING_TEXT_LENGTH,
+} from '../../../core/constants';
 import { copyText } from '../clipboard';
 import { useApp } from '../state/AppProvider';
 import {
@@ -38,9 +42,19 @@ import { colors, radius, spacing, type } from './theme';
  * answer to both "no such person" and "not yours to read", deliberately, so
  * that account ids cannot be walked to find out which exist.
  *
- * Read-only, and a separate component from the settings screen that edits your
- * own. An editor that is sometimes read-only grows a conditional in every
- * field it holds.
+ * Read-only, except about you. Your own carries an Edit button, and the two
+ * things a contact actually reads — your name and your bio — become fields in
+ * place. There was a separate screen for that until 2026-08-29,
+ * `ContactsSettingsView`, kept apart on the grounds that an editor which is
+ * sometimes read-only grows a conditional in every field it holds. That is a
+ * real cost on a screen with eight fields and very nearly none here: `isSelf`
+ * already leaves out the Email card, the shared channels and the Contact card,
+ * so the whole of the edit mode is two swaps — and the separate screen had to
+ * fetch this same profile a second time to know what to put in its fields.
+ *
+ * A profile that cannot be edited is a read-only profile, and an editor for one
+ * is that profile editing. So it is one screen with a mode rather than two
+ * screens, and the mode is the thing that was already implied.
  */
 export function ProfileView({
   accountId,
@@ -102,14 +116,15 @@ export function ProfileView({
 }) {
   const app = useApp();
   /**
-   * This screen showing you to yourself, reached from the settings screen so
-   * somebody can read their own bio as a contact will read it — rendered,
-   * rather than as the Markdown they typed.
+   * This screen showing you to yourself: the first card on the contact list,
+   * and your own card in a channel roster. Your bio as a contact will read it —
+   * rendered, rather than as the Markdown you typed.
    *
    * Derived here rather than passed in, because every caller would compute the
    * same comparison and one of them would eventually forget. What it changes is
-   * only what is left out: the Contact card, which would offer to add you to
-   * your own contacts. The availability line needs nothing — the server already
+   * what is left out — the Contact card, which would offer to add you to your
+   * own contacts — and what is added: Edit, this being the screen your name and
+   * bio are written on. The availability line needs nothing; the server already
    * withholds it, on the grounds that you are the one person whose whereabouts
    * you know.
    */
@@ -133,6 +148,25 @@ export function ProfileView({
    * precisely so that a copy which did not happen is not announced as one.
    */
   const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
+  /**
+   * Editing your own, which is the only kind there is to edit.
+   *
+   * The drafts are seeded from the fetched profile when Edit is tapped rather
+   * than held in step with it, so nothing arriving later can type over a
+   * sentence somebody is in the middle of.
+   */
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftBio, setDraftBio] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  /**
+   * What the server already has, so that leaving a field alone writes nothing.
+   *
+   * A ref rather than state: it is never rendered, and it has to be readable by
+   * a blur handler that fired before a re-render would have delivered it.
+   */
+  const saved = useRef({ displayName: '', bio: '' });
 
   useEffect(() => {
     if (copied === 'idle') return;
@@ -288,6 +322,97 @@ export function ProfileView({
   };
 
   /**
+   * Into edit mode, with what the server holds already in the fields.
+   *
+   * Only ever reached with a loaded profile, the button being disabled until
+   * then — so there is no case where the drafts are seeded from nothing and a
+   * blur writes an empty bio over a real one.
+   */
+  const startEditing = () => {
+    if (!profile) return;
+    saved.current = {
+      displayName: profile.account.displayName,
+      bio: profile.bio ?? '',
+    };
+    setDraftName(profile.account.displayName);
+    setDraftBio(profile.bio ?? '');
+    setSaveError(null);
+    setEditing(true);
+  };
+
+  /**
+   * Writes whatever has actually changed.
+   *
+   * There is no Save button and both fields write on blur, which is the rule
+   * the screen this replaced was built on: one button meaning "keep my work"
+   * beside a nearer, more obvious one meaning "throw it away" is a choice
+   * nobody should be asked to make.
+   *
+   * Rethrows so the way out can decline to close on a failure. A way out that
+   * left anyway would be a silent discard wearing a different hat.
+   */
+  const persist = async () => {
+    const name = draftName.trim();
+    const text = draftBio.trim();
+    // A blank name is refused rather than written: it is how everybody else
+    // finds you, and the server ignores an empty one anyway. Saying so under
+    // the field is what stands in for a disabled button.
+    const nameChanged = name !== '' && name !== saved.current.displayName;
+    const bioChanged = text !== saved.current.bio;
+    if (!nameChanged && !bioChanged) return;
+
+    const changes: { displayName?: string; bio?: string } = {};
+    if (nameChanged) changes.displayName = name;
+    if (bioChanged) changes.bio = text;
+
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await app.saveProfile(changes);
+      saved.current = {
+        displayName: changes.displayName ?? saved.current.displayName,
+        bio: changes.bio ?? saved.current.bio,
+      };
+      /*
+        Patched rather than re-read. `saveProfile` resolves to nothing, and the
+        server was handed these two strings — there is nothing else in a profile
+        that a write to it changes, so a second GET would spend a round trip
+        being told what we had just said. `app.me` is updated by `saveProfile`
+        itself, which is what renames the card this screen was opened from.
+      */
+      setProfile((held) =>
+        held
+          ? {
+              ...held,
+              account: {
+                ...held.account,
+                displayName: saved.current.displayName,
+              },
+              bio: saved.current.bio === '' ? null : saved.current.bio,
+            }
+          : held
+      );
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+      throw e;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Keeps the work and stops editing — and stays put if it could not be kept. */
+  const doneEditing = async () => {
+    try {
+      await persist();
+      setEditing(false);
+    } catch {
+      // The error is on screen, and the edit is still in the field.
+    }
+  };
+
+  const named = draftName.trim() !== '';
+
+  /**
    * `inApp` first, because it is a fact where the line below it is an
    * inference. Somebody sitting in a channel for an hour is in the app, and a
    * time subtracted from this device's clock reads as an hour idle for exactly
@@ -327,11 +452,72 @@ export function ProfileView({
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading} numberOfLines={1}>
-          {profile?.account.displayName ?? fallbackName}
-        </Text>
-        <Button label="Back" variant="ghost" onPress={onBack} />
+        <View style={styles.headerMain}>
+          {editing ? (
+            <>
+              <Field
+                value={draftName}
+                onChangeText={(v) =>
+                  setDraftName(v.slice(0, MAX_DISPLAY_NAME_LENGTH))
+                }
+                placeholder="What people should call you"
+                autoCapitalize="words"
+                onBlur={() => void persist().catch(() => {})}
+              />
+              {/*
+                Who the server will tell everybody you are, which is the saved
+                name rather than the draft directly above it: typing is not
+                being renamed, and until the write lands the old one is still
+                the true answer. It was the second line of the settings screen
+                this mode replaced, and Home's before that — where it was the
+                one sentence about the account on a screen about rooms.
+              */}
+              <Text style={type.muted}>
+                {app.me ? `Signed in as ${app.me.displayName}` : 'Signed in'}
+              </Text>
+              {!named ? (
+                <Text style={styles.error}>
+                  A name cannot be empty — it is how everyone else finds you, so
+                  this one is kept until you type another.
+                </Text>
+              ) : null}
+            </>
+          ) : (
+            <Text style={type.heading} numberOfLines={1}>
+              {profile?.account.displayName ?? fallbackName}
+            </Text>
+          )}
+        </View>
+        {editing ? (
+          // Alone, deliberately: a way out that keeps the work, standing beside
+          // a nearer one that abandons it, is exactly the choice this screen
+          // refuses to ask for. Back returns once there is nothing pending.
+          <Button
+            label={saving ? 'Saving…' : 'Done'}
+            variant="ghost"
+            disabled={saving}
+            onPress={() => void doneEditing()}
+          />
+        ) : (
+          <>
+            {/* Disabled until the fetch lands, so the fields are never seeded
+                from a profile nobody has read yet. */}
+            {isSelf ? (
+              <Button
+                label="Edit"
+                variant="ghost"
+                disabled={state !== 'ready'}
+                onPress={startEditing}
+              />
+            ) : null}
+            <Button label="Back" variant="ghost" onPress={onBack} />
+          </>
+        )}
       </View>
+
+      {/* Under the header rather than beside the field that failed: either
+          field can raise it, and both of them are up there. */}
+      {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
 
       {/*
         Somebody who belongs to this channel and is not in it. The one
@@ -547,7 +733,37 @@ export function ProfileView({
       </View>
 
       <Card style={styles.stack}>
-        {state === 'loading' ? (
+        {editing ? (
+          <>
+            <Field
+              value={draftBio}
+              onChangeText={(v) => setDraftBio(v.slice(0, MAX_BIO_LENGTH))}
+              placeholder="Anything you would like people to know…"
+              autoCapitalize="sentences"
+              multiline
+              onBlur={() => void persist().catch(() => {})}
+            />
+
+            {/* Same reasoning as a channel's description: the field shows the
+                markup, and while it is on screen the card that renders it is
+                not — so without a preview the only way to find out what it
+                becomes is to leave and come back. */}
+            {draftBio.trim() ? (
+              <View style={styles.preview}>
+                <Text style={type.label}>Preview</Text>
+                <InlineMarkdown text={draftBio} style={styles.previewText} />
+              </View>
+            ) : null}
+
+            <Text style={type.muted}>
+              **Bold**, *italic*, `code`, ~~strikethrough~~ and
+              [links](https://example.com) work. Links open in your browser.
+            </Text>
+            <Text style={styles.count}>
+              {draftBio.length} / {MAX_BIO_LENGTH}
+            </Text>
+          </>
+        ) : state === 'loading' ? (
           <ActivityIndicator color={colors.textMuted} />
         ) : profile?.bio ? (
           <InlineMarkdown text={profile.bio} style={styles.bio} />
@@ -556,7 +772,7 @@ export function ProfileView({
             {state === 'refused'
               ? 'There is no profile here to show you.'
               : isSelf
-                ? 'You have not written anything about yourself yet. The field is on the settings screen.'
+                ? 'You have not written anything about yourself yet. Edit is at the top of this screen.'
                 : 'They have not written anything about themselves yet.'}
           </Text>
         )}
@@ -759,6 +975,8 @@ const styles = StyleSheet.create({
     gap: spacing(1),
     marginBottom: spacing(1),
   },
+  /** The name — heading or field — taking whatever the buttons leave. */
+  headerMain: { flex: 1, gap: spacing(0.5) },
   stack: { gap: spacing(1) },
   channel: {
     backgroundColor: colors.surface,
@@ -770,6 +988,9 @@ const styles = StyleSheet.create({
   /** Italic when nobody has named it; see core/naming.ts. */
   channelDescribed: { ...type.body, fontStyle: 'italic' },
   bio: { ...type.muted, lineHeight: 20 },
+  preview: { gap: spacing(0.5) },
+  previewText: { color: colors.text },
+  count: { ...type.muted, textAlign: 'right' },
   /**
    * Between the two halves of the email card: theirs above, yours below.
    *
