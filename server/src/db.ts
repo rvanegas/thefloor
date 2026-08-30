@@ -91,6 +91,15 @@ export interface AccountRow {
   free_transcript_id: string | null;
   /** When that free use was spent. Null exactly when the id above is. */
   free_transcript_at: number | null;
+  /**
+   * Where this person can be reached elsewhere, canonically — see
+   * `core/im.ts`. Null until they type one, and null again the moment they
+   * clear the field: there is no history here, a handle being a way to reach
+   * somebody today rather than a record of how they once could be.
+   */
+  im_whatsapp: string | null;
+  im_telegram: string | null;
+  im_signal: string | null;
 }
 
 export interface ContactRow {
@@ -331,7 +340,16 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- when. Null while unspent. Kept here rather than counted from the
   -- transcripts table, whose rows are swept; see the row type above.
   free_transcript_id TEXT,
-  free_transcript_at INTEGER
+  free_transcript_at INTEGER,
+  -- Where this person can be reached in the messaging apps they already use,
+  -- one column each and null until they say. Stored canonically — the two
+  -- phone numbers in international form with the plus, the Telegram username
+  -- without its at — because normalisation happens on the way in; see
+  -- core/im.ts. Three columns rather than one blob, so that a handle is a
+  -- value the database can be asked about rather than a string to parse.
+  im_whatsapp  TEXT,
+  im_telegram  TEXT,
+  im_signal    TEXT
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -1136,6 +1154,14 @@ function migrate(db: Db): void {
     .all() as Array<{ name: string }>;
   if (!accountColumns.some((c) => c.name === 'bio')) {
     db.exec('ALTER TABLE accounts ADD COLUMN bio TEXT');
+  }
+  // Null for everyone, which is the only value that could be right: a handle
+  // exists here because somebody typed it, and there is nowhere else on this
+  // box one could be inferred from.
+  if (!accountColumns.some((c) => c.name === 'im_whatsapp')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN im_whatsapp TEXT');
+    db.exec('ALTER TABLE accounts ADD COLUMN im_telegram TEXT');
+    db.exec('ALTER TABLE accounts ADD COLUMN im_signal TEXT');
   }
   // Left null rather than backfilled from `created_at`: an account made a year
   // ago and used this morning would read as a year idle, which is worse than

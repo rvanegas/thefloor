@@ -4,6 +4,18 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+## Add as Contact From Guest View
+
+Being in same channel is permission to ask each other to be contacts, without need for email to identify.
+
+## UI Restyling
+
+Improve look and feel
+
+## Grow UI for iPad
+
+Target iPad specifically.
+
 ## The Foreground Interruption
 
 OPEN, reproducible, and the measurement comes before any code
@@ -224,13 +236,13 @@ Pairs with § *Review S3*, which is what would say what the stems actually cost.
 their own credential and never through this process, so the largest category of
 bytes is missing from every number it reports.
 
+## App Description
+
+Consider UNINTERRUPTED.md to rewrite description of app. The idea is to reinvent voip, letting go, finally, of the logic of pre-internet telephony, adopting the logic of group text messaging, such as in telegram and whatsapp, and respecting preferences of today's younger generation for whom phone calls are rude, but discord rooms are okay.
+
 ## PIP Watch Party
 
 Small video in the corner.
-
-## Web UI
-
-Should be able to run app in web
 
 ## Review S3
 
@@ -240,25 +252,9 @@ What's there? How many files? What kind? What is the lifecycle?
 
 explore options in case screen locks during a call. lock screen, control center, etc.
 
-## IM Links
-
-Direct Support in Profile View for IM usernames.
-
 ## SMS Authentication
 
 Not just email.
-
-## UI Restyling
-
-Improve look and feel
-
-## Grow UI for iPad
-
-Target iPad specifically.
-
-## Add as Contact From Guest View
-
-Being in same channel is permission to ask each other to be contacts, without need for email to identify.
 
 ## App as Watch Party Player
 

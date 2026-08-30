@@ -7,6 +7,12 @@ import type {
 } from '../../core/protocol';
 import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import {
+  IM_SERVICES,
+  normaliseImHandle,
+  type ImHandles,
+  type ImService,
+} from '../../core/im';
+import {
   hashesEqual,
   insertWithUniqueKey,
   newId,
@@ -15,6 +21,23 @@ import {
   type AccountRow,
   type Db,
 } from './db';
+
+/**
+ * Which column holds which service's handle.
+ *
+ * A map rather than a template on the service name, so that the string reaching
+ * the SQL below is one of three literals this file wrote — the service names
+ * are typed and come from `core/im.ts`, but a column name interpolated into a
+ * statement should be a value that was chosen here rather than one that merely
+ * arrived here.
+ */
+const IM_COLUMNS = {
+  whatsapp: 'im_whatsapp',
+  telegram: 'im_telegram',
+  signal: 'im_signal',
+} as const satisfies Record<ImService, keyof AccountRow>;
+
+const imColumn = (service: ImService) => IM_COLUMNS[service];
 
 export const OTP_TTL_MS = 10 * 60 * 1000;
 /**
@@ -235,10 +258,17 @@ export class Accounts {
    * accepted, because a person with no name at all appears as an empty space
    * in every roster. A bio is trimmed at the ends only — its interior is
    * Markdown, where a blank line is a paragraph break — and blank clears it.
+   *
+   * A messaging handle follows the same shape and is normalised on the way in,
+   * so what is stored is `core/im.ts`'s canonical form whatever a field held.
+   * Blank clears it, like a bio; **anything that is neither blank nor a handle
+   * is dropped rather than stored**, and the route is what refuses it — this
+   * is the layer that writes, and a half-written profile is worse than a
+   * refused one.
    */
   updateProfile(
     accountId: string,
-    changes: { displayName?: string; bio?: string }
+    changes: { displayName?: string; bio?: string; im?: ImHandles }
   ): AccountRow | undefined {
     const account = this.byId(accountId);
     if (!account) return undefined;
@@ -259,7 +289,36 @@ export class Accounts {
         .run(bio === '' ? null : bio, accountId);
     }
 
+    for (const service of IM_SERVICES) {
+      const given = changes.im?.[service];
+      if (given === undefined) continue;
+      // Blank is a removal and anything else has to survive normalisation;
+      // what does not is left alone here, the route having already refused it.
+      const handle = normaliseImHandle(service, given);
+      if (handle === null && given.trim() !== '') continue;
+      this.db
+        .prepare(`UPDATE accounts SET ${imColumn(service)} = ? WHERE id = ?`)
+        .run(handle, accountId);
+    }
+
     return this.byId(accountId);
+  }
+
+  /**
+   * Where somebody can be reached elsewhere, or an empty object.
+   *
+   * Read off the row rather than queried, and returned with the absent
+   * services left out entirely — a key with an empty string in it would be a
+   * handle as far as the client is concerned, and it would draw a dead link
+   * for it.
+   */
+  imHandles(row: AccountRow): ImHandles {
+    const handles: ImHandles = {};
+    for (const service of IM_SERVICES) {
+      const stored = row[imColumn(service)];
+      if (stored) handles[service] = stored;
+    }
+    return handles;
   }
 
   /**
@@ -361,18 +420,35 @@ export class Accounts {
   /**
    * A person's profile, for anyone entitled to see it.
    *
-   * `viewerId` decides one field and nothing else: whether who invited them is
-   * a name this reader would recognise. See `invitedByFor`.
+   * `viewerId` decides two fields and nothing else: whether who invited them
+   * is a name this reader would recognise — see `invitedByFor` — and whether
+   * the reader is entitled to the messaging handles.
+   *
+   * The handles are settled here rather than in the route, unlike the email
+   * beside them on the same screen, because the test is the reader's standing
+   * and this class is what knows it. The email's test is an act by the person
+   * the address belongs to, aimed at a named reader, which is a different
+   * question and stays where the other per-reader decisions are.
    */
   profile(id: string, viewerId: string): ProfileView | null {
     const row = this.byId(id);
     if (!row) return null;
     const invitedBy = this.invitedByFor(row, viewerId);
+    // Yourself included: this is the screen they are edited on, so a profile
+    // that withheld them from their owner would be an editor with empty
+    // fields over a row that is not empty.
+    const im =
+      viewerId === id || this.areContacts(viewerId, id)
+        ? this.imHandles(row)
+        : {};
     return {
       account: { id: row.id, displayName: row.display_name },
       bio: row.bio ?? null,
       invited: this.invitedCount(row.id),
       ...(invitedBy ? { invitedBy } : {}),
+      // Absent rather than empty, which is what the client reads as "nothing
+      // to draw" — the same shape a server that predates this sends.
+      ...(Object.keys(im).length > 0 ? { im } : {}),
     };
   }
 
@@ -1340,7 +1416,8 @@ export class Accounts {
    * and channels long ended that anchor their recordings. Removing the row would
    * either break those constraints or require rewriting other people's history
    * to say somebody else started it. What is left behind is a tombstone: no
-   * address, no name, no bio, nothing anybody can sign in as and nothing that
+   * address, no name, no bio, no way to reach them anywhere else, nothing
+   * anybody can sign in as and nothing that
    * describes a human being. `public()` gives it the same shape as any other
    * account, so a stale id in an old participant list resolves to something
    * rather than to nothing, and every screen already falls back gracefully when
@@ -1420,7 +1497,8 @@ export class Accounts {
         `UPDATE accounts
             SET identifier = ?, display_name = ?, bio = NULL,
                 last_seen_at = NULL, donations_allowed = NULL,
-                debug = NULL
+                debug = NULL, im_whatsapp = NULL, im_telegram = NULL,
+                im_signal = NULL
           WHERE id = ?`
       )
       .run(erasedIdentifier(accountId), ERASED_DISPLAY_NAME, accountId);

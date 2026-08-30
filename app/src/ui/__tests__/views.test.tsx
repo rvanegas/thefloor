@@ -3685,6 +3685,138 @@ describe('showing your email to a contact', () => {
 });
 
 /**
+ * Where else somebody can be reached, which is the other half of the errand
+ * the Email card is the first half of.
+ *
+ * The screen's job is small — the rules are in `core/im.ts` and tested there —
+ * so what is asserted here is the link a tap opens, that a handle is written
+ * the way it is stored rather than the way it was typed, and that a section
+ * with nothing in it is absent rather than empty.
+ */
+describe('reaching somebody in the messaging apps they use', () => {
+  const withProfile = (extra: Partial<ProfileViewData>) =>
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: THEM, displayName: 'Dana Chu' },
+      bio: null,
+      ...extra,
+    } as ProfileViewData);
+
+  const open = async (id: string = THEM) => {
+    mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView accountId={id} fallbackName="Dana Chu" onBack={() => {}} />
+      );
+    });
+    return tree;
+  };
+
+  it('draws one row per handle, and opens the app on a tap', async () => {
+    const { Linking } = require('react-native');
+    const opened = jest
+      .spyOn(Linking, 'openURL')
+      .mockResolvedValue(undefined as never);
+
+    withProfile({
+      im: { whatsapp: '+15551234567', telegram: 'dana_chu' },
+    });
+    const tree = await open();
+
+    const text = textOf(tree);
+    expect(text).toContain('WhatsApp');
+    expect(text).toContain('+15551234567');
+    expect(text).toContain('Telegram');
+    // Nothing is drawn for the service they left blank.
+    expect(text).not.toContain('Signal');
+
+    await act(async () => findButton(tree, 'Open')!.props.onPress());
+    expect(opened).toHaveBeenCalledWith('https://wa.me/15551234567');
+
+    opened.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('leaves the section out when there is nothing in it', async () => {
+    // Which is the same screen a stranger gets, the server withholding the
+    // handles from anybody who is not a contact — and the same one an older
+    // server produces. All three mean there is no way to reach this person
+    // elsewhere from here, and none is worth a card saying so.
+    withProfile({});
+    const tree = await open();
+    expect(textOf(tree)).not.toContain('Messaging');
+    act(() => tree.unmount());
+  });
+
+  it('offers the fields on your own profile, and stores what it can read', async () => {
+    mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: ME, displayName: 'Me' },
+      bio: null,
+      im: { telegram: 'me_here' },
+    } as ProfileViewData);
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView accountId={ME} fallbackName="Me" onBack={() => {}} />
+      );
+    });
+    await act(async () => findButton(tree, 'Edit')!.props.onPress());
+
+    const field = (placeholder: string, index = 0) =>
+      tree.root.findAll(
+        (n) => typeof n.type === 'string' && n.props?.placeholder === placeholder
+      )[index];
+
+    // Seeded from what the server holds, like the name and the bio.
+    expect(field('@username').props.value).toBe('me_here');
+
+    // WhatsApp first, Signal second — the two share a hint, both being phone
+    // numbers, which is why this is by position.
+    act(() =>
+      field('+1 555 123 4567').props.onChangeText('+1 (555) 987-6543')
+    );
+    await act(async () => field('+1 555 123 4567').props.onBlur());
+
+    // Canonical on the wire, whatever was typed into the field.
+    expect(mockApp.saveProfile).toHaveBeenCalledWith({
+      im: { whatsapp: '+15559876543' },
+    });
+    act(() => tree.unmount());
+  });
+
+  it('says what a half-typed handle needs rather than sending it', async () => {
+    mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
+    mockApp.loadProfile.mockResolvedValueOnce({
+      account: { id: ME, displayName: 'Me' },
+      bio: null,
+    } as ProfileViewData);
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView accountId={ME} fallbackName="Me" onBack={() => {}} />
+      );
+    });
+    await act(async () => findButton(tree, 'Edit')!.props.onPress());
+
+    const whatsapp = tree.root.findAll(
+      (n) =>
+        typeof n.type === 'string' && n.props?.placeholder === '+1 555 123 4567'
+    )[0];
+    act(() => whatsapp.props.onChangeText('555 1234'));
+    await act(async () => whatsapp.props.onBlur());
+
+    // The server would refuse it — and refuse the name and bio it travelled
+    // with, this being one write — so it is not sent, and the field says what
+    // is missing while the typing stays where it was typed.
+    expect(mockApp.saveProfile).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain('country code');
+    expect(whatsapp.props.value).toBe('555 1234');
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * The one notification a person composes and aims, so the composer is the one
  * place in the app where a text field feeds a push.
  *

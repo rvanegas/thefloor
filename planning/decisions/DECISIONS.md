@@ -1433,3 +1433,67 @@ repaints the readout and leaves the picture on the old frame until somebody
 presses Play, which corrects it. Cosmetic, one screen disagreeing with its own
 footer, and not what was reported — filed in BACKLOG.md rather than folded in
 here.
+
+## Three handles, and typing one is the consent — 2026-08-30
+
+Profiles carry a WhatsApp number, a Telegram username and a Signal number,
+shown to contacts, opened with a tap. The work was TASKS.md § *IM Links*, which
+is one sentence; almost all of the deciding was about who sees them, and the
+answer had a very close and wrong neighbour.
+
+**The wrong neighbour is the email.** An address on a profile is released by an
+act of its owner aimed at one named reader — `POST /contacts/:id/email`, one
+decision per person — and the temptation was to copy that wholesale, since a
+WhatsApp number is a phone number and a phone number is at least as personal as
+an address. But the reason the email needs a second act is that **this server
+holds it whether or not anybody meant it to be seen**: it is the thing you sign
+in with, it arrived before you had a profile, and consent to sign in is not
+consent to be written to. A messaging handle is in the database for exactly one
+reason, which is that somebody typed it into a field on their own profile
+headed with what it is for. There is no prior purpose it could be being
+repurposed from. **Typing it is the act**, and a per-contact gate on top would
+be asking the same question twice and calling the second one privacy.
+
+What was left to decide is the audience, and that is **contacts** — the same
+line availability sits on, and the same sentence: a channel an acquaintance
+opened is grounds to ask somebody to be a contact, not grounds to be given
+their phone number. So a stranger sharing a channel gets the bio and no
+handles. Your own profile carries them too, that being where they are edited;
+`profile()` settles both cases, unlike the email beside it on the same screen,
+because the test is the reader's standing and `Accounts` is what knows it.
+
+**Normalisation is in `core/`, and it is the reason the feature is small.**
+`normaliseImHandle` takes what people actually write down — the spaces on a
+business card, the `@` everybody puts on a Telegram name, a pasted `t.me/…`
+link — and answers with one canonical shape; `imLink` turns that into a URL.
+The server normalises on the way in so a row holds one spelling of a number,
+and the app builds the link on the way out. Two copies of a phone-number rule
+is two rules, which is the argument `core/naming.ts` already made about three
+copies of a channel description.
+
+**`https` links rather than each app's own scheme.** `whatsapp://` on a phone
+without WhatsApp fails with nothing to read, where `wa.me` opens a page that
+explains itself — and the universal link is the one that also works from the
+browser build, which a custom scheme is not.
+
+**Signal is addressed by number and only by number.** Signal usernames exist
+and have links, but the link is an opaque token the app mints rather than
+anything derivable from the name, so there is nothing this could build. The
+field says so by asking for a number.
+
+**A handle that cannot be read is refused, and that is the one field on this
+screen where refusing is right.** A bio is whatever somebody typed and a name
+only has to be non-empty, but a number without its country code is a link to a
+stranger and nothing here could detect it later. The server answers 400 naming
+the service; the client does not send it at all, since `POST /me` is one write
+and a half-typed number would otherwise block saving the sentence somebody was
+writing about themselves. The field says what is missing underneath itself and
+keeps the typing.
+
+Three nullable columns rather than one blob, so a handle is a value the
+database can be asked about; null again the moment the field is cleared, there
+being no history worth keeping about a way to reach somebody that no longer
+works; and nulled by `erase`, a tombstone describing nobody including no way to
+reach them anywhere else. The privacy policy gained a bullet — two of the three
+are phone numbers, and a page that lists what is stored has to say when phone
+numbers are.

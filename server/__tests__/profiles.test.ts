@@ -262,6 +262,131 @@ describe('a bio outlives the process', () => {
   });
 });
 
+/**
+ * Where somebody can be reached in the messaging apps they already use.
+ *
+ * Two questions, and they are not the email's. A handle is here because its
+ * owner typed it into their own profile, so there is no second act to wait
+ * for; what is left is the audience, which is contacts — and what is stored,
+ * which is one canonical shape rather than whatever a field held.
+ */
+describe('the messaging handles on a profile', () => {
+  const imOn = async (viewer: User, id: string) =>
+    ((await read(viewer, id)).json() as { im?: Record<string, string> }).im;
+
+  const pair = async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    return { alice, bob };
+  };
+
+  it('stores what was typed in the one shape a link can be built from', async () => {
+    const { alice, bob } = await pair();
+    const response = await save(bob, {
+      im: {
+        whatsapp: '+1 (555) 123-4567',
+        telegram: '@bob_smith',
+        signal: '+1 555 987 6543',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(await imOn(alice, bob.account.id)).toEqual({
+      whatsapp: '+15551234567',
+      telegram: 'bob_smith',
+      signal: '+15559876543',
+    });
+  });
+
+  it('leaves out what was left out, service by service', async () => {
+    const { alice, bob } = await pair();
+    await save(bob, { im: { telegram: 'bob_smith' } });
+    // A screen saving one handle must not blank the two it did not send —
+    // the same partiality the route already has about a name and a bio.
+    await save(bob, { im: { whatsapp: '+15551234567' } });
+    await save(bob, { bio: 'Cellist.' });
+
+    expect(await imOn(alice, bob.account.id)).toEqual({
+      telegram: 'bob_smith',
+      whatsapp: '+15551234567',
+    });
+  });
+
+  it('takes a handle off the profile when the field is cleared', async () => {
+    const { alice, bob } = await pair();
+    await save(bob, { im: { telegram: 'bob_smith' } });
+    await save(bob, { im: { telegram: '  ' } });
+    // Absent rather than empty: an empty string is a handle as far as a
+    // client is concerned, and it would draw a link that goes nowhere.
+    expect(await imOn(alice, bob.account.id)).toBeUndefined();
+  });
+
+  it('refuses a handle it cannot make sense of, naming the service', async () => {
+    const { alice, bob } = await pair();
+    await save(bob, { im: { telegram: 'bob_smith' } });
+
+    const response = await save(bob, { im: { whatsapp: '5551234' } });
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { error: string }).error).toMatch(/WhatsApp/);
+    // And the write it travelled with did not half-land: a refusal is the
+    // whole request, so what was already there is untouched.
+    expect(await imOn(alice, bob.account.id)).toEqual({
+      telegram: 'bob_smith',
+    });
+  });
+
+  it('refuses fields that are not text', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    expect((await save(alice, { im: { whatsapp: 5 } })).statusCode).toBe(400);
+    expect((await save(alice, { im: 'whatsapp' })).statusCode).toBe(400);
+  });
+
+  it('is withheld from somebody who merely shares a channel', async () => {
+    // The line availability is on, and for the same reason: a channel an
+    // acquaintance opened is grounds to ask somebody to be a contact, not
+    // grounds to be given their phone number.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(alice, carol, 'carol@example.com');
+    await save(carol, { im: { telegram: 'carol_smith' } });
+    app.channels.create(alice.account.id, [bob.account.id, carol.account.id]);
+
+    expect((await read(bob, carol.account.id)).statusCode).toBe(200);
+    expect(await imOn(bob, carol.account.id)).toBeUndefined();
+    expect(await imOn(alice, carol.account.id)).toEqual({
+      telegram: 'carol_smith',
+    });
+  });
+
+  it('is on your own profile, that being where it is edited', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await save(alice, { im: { signal: '+15551234567' } });
+    expect(await imOn(alice, alice.account.id)).toEqual({
+      signal: '+15551234567',
+    });
+  });
+
+  it('goes when the account does', async () => {
+    const { alice, bob } = await pair();
+    await save(bob, { im: { telegram: 'bob_smith' } });
+    await app.fastify.inject({
+      method: 'DELETE',
+      url: '/me',
+      headers: auth(bob.token),
+    });
+    // A tombstone describes nobody, which includes describing no way to
+    // reach them anywhere else.
+    const row = app.db
+      .prepare('SELECT im_telegram FROM accounts WHERE id = ?')
+      .get(bob.account.id) as { im_telegram: string | null };
+    expect(row.im_telegram).toBeNull();
+    expect((await read(alice, bob.account.id)).statusCode).toBe(404);
+  });
+});
+
 describe('asking somebody in your channel to be a contact', () => {
   /** Alice knows bob and carol; bob and carol are strangers to each other. */
   async function strangersInAChannel() {

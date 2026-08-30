@@ -5,6 +5,7 @@ import type {
   ProfileView,
   SupportView,
 } from '../../../core/protocol';
+import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
 import type {
   VoiceDeclarations,
@@ -224,7 +225,7 @@ export const api = {
    */
   saveProfile: (
     token: string,
-    changes: { displayName?: string; bio?: string }
+    changes: { displayName?: string; bio?: string; im?: ImHandles }
   ) => request<ProfileView>('/me', { method: 'POST', body: changes, token }),
 
   /**

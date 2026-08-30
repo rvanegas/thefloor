@@ -2,12 +2,22 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import type { ProfileView as Profile } from '../../../core/protocol';
+import {
+  IM_SERVICES,
+  IM_SERVICE_HINTS,
+  IM_SERVICE_NAMES,
+  imLink,
+  normaliseImHandle,
+  type ImHandles,
+  type ImService,
+} from '../../../core/im';
 import { describeChannel } from '../../../core/naming';
 import {
   MAX_BIO_LENGTH,
@@ -33,6 +43,44 @@ import {
 } from './availability';
 import { duration } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
+
+/**
+ * What the three fields start out holding: every service, blank where there is
+ * no handle. A record with all three keys rather than the wire's partial one,
+ * because a text field's value cannot be undefined and a controlled field that
+ * becomes one is a field that stops taking typing.
+ */
+const imFields = (handles: ImHandles | undefined): Record<ImService, string> =>
+  Object.fromEntries(
+    IM_SERVICES.map((service) => [service, handles?.[service] ?? ''])
+  ) as Record<ImService, string>;
+
+/** The same thing back the other way: the wire's shape, blanks dropped. */
+const imOf = (fields: Record<ImService, string>): ImHandles =>
+  Object.fromEntries(
+    IM_SERVICES.filter((service) => fields[service] !== '').map((service) => [
+      service,
+      fields[service],
+    ])
+  );
+
+/**
+ * What is wrong with what somebody has typed, or null while there is nothing
+ * to say — which includes an empty field, that being how a handle is removed
+ * rather than a mistake.
+ *
+ * The wording names the likely fault rather than the rule. Almost every
+ * refused number is one written the way it is dialled at home, and "include
+ * the country code" is the sentence that fixes it; a message about E.164 would
+ * be accurate and would help nobody.
+ */
+function imProblem(service: ImService, typed: string): string | null {
+  if (typed.trim() === '') return null;
+  if (normaliseImHandle(service, typed)) return null;
+  return service === 'telegram'
+    ? 'A Telegram username, five characters or more — letters, digits and underscores.'
+    : 'A phone number with its country code, like +1 555 123 4567.';
+}
 
 /**
  * Somebody else's profile.
@@ -158,6 +206,19 @@ export function ProfileView({
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftBio, setDraftBio] = useState('');
+  /**
+   * The three messaging handles, as typed rather than as stored.
+   *
+   * Held as whatever is in the field, because normalisation is what happens to
+   * a handle on the way to the server: a field that rewrote `+1 555 123 4567`
+   * into `+15551234567` under somebody's cursor would be correcting them
+   * mid-sentence, and the two are the same handle anyway.
+   */
+  const [draftIm, setDraftIm] = useState<Record<ImService, string>>({
+    whatsapp: '',
+    telegram: '',
+    signal: '',
+  });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   /**
@@ -166,7 +227,16 @@ export function ProfileView({
    * A ref rather than state: it is never rendered, and it has to be readable by
    * a blur handler that fired before a re-render would have delivered it.
    */
-  const saved = useRef({ displayName: '', bio: '' });
+  const saved = useRef<{
+    displayName: string;
+    bio: string;
+    /** Canonical, since that is the shape the server answers with. */
+    im: Record<ImService, string>;
+  }>({
+    displayName: '',
+    bio: '',
+    im: { whatsapp: '', telegram: '', signal: '' },
+  });
 
   useEffect(() => {
     if (copied === 'idle') return;
@@ -304,6 +374,27 @@ export function ProfileView({
     }
   };
 
+  /**
+   * Opens the handle in the app it belongs to.
+   *
+   * The URL is a universal link, so a phone with the app installed lands in a
+   * conversation and a phone without one lands on a page saying what the app
+   * is — which is the honest answer to "reach them on Signal" from somebody
+   * who has no Signal. An OS that refuses outright is reported rather than
+   * swallowed, on `openPrivacy`'s reasoning: a dead button is worse than a
+   * message, and the address is in the message so it can still be used by
+   * hand.
+   */
+  const openIm = async (service: ImService, handle: string) => {
+    const url = imLink(service, handle);
+    if (!url) return;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(`Could not open ${IM_SERVICE_NAMES[service]}`, handle);
+    }
+  };
+
   const sendPing = async () => {
     if (!onPing) return;
     setPinging(true);
@@ -330,12 +421,15 @@ export function ProfileView({
    */
   const startEditing = () => {
     if (!profile) return;
+    const held = imFields(profile.im);
     saved.current = {
       displayName: profile.account.displayName,
       bio: profile.bio ?? '',
+      im: held,
     };
     setDraftName(profile.account.displayName);
     setDraftBio(profile.bio ?? '');
+    setDraftIm(held);
     setSaveError(null);
     setEditing(true);
   };
@@ -359,11 +453,33 @@ export function ProfileView({
     // the field is what stands in for a disabled button.
     const nameChanged = name !== '' && name !== saved.current.displayName;
     const bioChanged = text !== saved.current.bio;
-    if (!nameChanged && !bioChanged) return;
 
-    const changes: { displayName?: string; bio?: string } = {};
+    /*
+      The handles that have actually changed, compared canonically: two
+      spellings of one number are not an edit, and sending one would have the
+      server write what it already holds every time a field lost focus.
+
+      A handle that is neither blank nor readable is left out rather than sent.
+      The server would refuse it — and refuse the name and bio alongside it,
+      this being one write — so a half-typed number would block saving the
+      sentence somebody was writing about themselves. The field says what is
+      wrong underneath itself; see `imProblem`.
+    */
+    const im: ImHandles = {};
+    for (const service of IM_SERVICES) {
+      const typed = draftIm[service].trim();
+      const value = typed === '' ? '' : (normaliseImHandle(service, typed) ?? '');
+      if (typed !== '' && value === '') continue;
+      if (value !== saved.current.im[service]) im[service] = value;
+    }
+    const imChanged = Object.keys(im).length > 0;
+
+    if (!nameChanged && !bioChanged && !imChanged) return;
+
+    const changes: { displayName?: string; bio?: string; im?: ImHandles } = {};
     if (nameChanged) changes.displayName = name;
     if (bioChanged) changes.bio = text;
+    if (imChanged) changes.im = im;
 
     setSaving(true);
     setSaveError(null);
@@ -372,6 +488,7 @@ export function ProfileView({
       saved.current = {
         displayName: changes.displayName ?? saved.current.displayName,
         bio: changes.bio ?? saved.current.bio,
+        im: { ...saved.current.im, ...im },
       };
       /*
         Patched rather than re-read. `saveProfile` resolves to nothing, and the
@@ -389,6 +506,10 @@ export function ProfileView({
                 displayName: saved.current.displayName,
               },
               bio: saved.current.bio === '' ? null : saved.current.bio,
+              // Rebuilt from what was kept rather than merged, so that a
+              // handle which was cleared leaves rather than lingering as an
+              // empty string the read view would draw a dead link for.
+              im: imOf(saved.current.im),
             }
           : held
       );
@@ -687,6 +808,61 @@ export function ProfileView({
       )}
 
       {/*
+        Where else they can be reached, and the second half of the errand the
+        Email card is the first half of — so it sits directly under it, above
+        everything there is merely to read.
+
+        Drawn only when there is something in it, which is what makes it
+        absent for a stranger, for somebody who has filled none of it in, and
+        for a server that predates the field. All three mean the same thing to
+        a reader — there is no way to reach this person elsewhere from here —
+        and none of them is worth an empty card saying so.
+
+        Not shown while editing, where the same three handles are fields. A
+        card of links above the fields that write them would be the profile
+        arguing with itself.
+      */}
+      {editing || !profile?.im ? null : (
+        <>
+          <SectionLabel>Messaging</SectionLabel>
+          <Card style={styles.stack}>
+            {IM_SERVICES.filter((service) => profile.im?.[service]).map(
+              (service) => {
+                const handle = profile.im![service]!;
+                return (
+                  <View key={service} style={styles.imRow}>
+                    <View style={styles.imWho}>
+                      <Text style={type.label}>
+                        {IM_SERVICE_NAMES[service]}
+                      </Text>
+                      {/* Selectable for the same reason the address above is:
+                          the button is the fast way and not the only way. */}
+                      <Text style={type.body} selectable numberOfLines={1}>
+                        {handle}
+                      </Text>
+                    </View>
+                    <Button
+                      label="Open"
+                      variant="primary"
+                      onPress={() => void openIm(service, handle)}
+                    />
+                  </View>
+                );
+              }
+            )}
+            {isSelf ? (
+              // Your own handles are not a way to reach yourself, so the card
+              // says what it is doing on your screen: this is what a contact
+              // sees, which is the one thing worth knowing about it.
+              <Text style={type.muted}>
+                Your contacts see these on your profile.
+              </Text>
+            ) : null}
+          </Card>
+        </>
+      )}
+
+      {/*
         Where they are, which is what decides whether to try them at all. It
         lived on Home's contact rows until Home became a list of channels, and
         it is here rather than nowhere because a channel's idleness is a
@@ -777,6 +953,54 @@ export function ProfileView({
           </Text>
         )}
       </Card>
+
+      {/*
+        The three handles, as fields.
+
+        Under the bio rather than above it because the bio is the thing this
+        screen is for and these are an appendix to it — and because two of the
+        three are phone numbers, which is a keyboard nobody should meet before
+        they have been asked who they are.
+
+        Each writes on blur like the fields above, and each says underneath
+        what it will accept once what is in it cannot be read as a handle. A
+        message rather than a disabled Done, on the reasoning the name field
+        already follows: the field keeps the typing and the screen keeps
+        working, and what is unreadable is simply not written.
+      */}
+      {editing ? (
+        <>
+          <SectionLabel>Messaging</SectionLabel>
+          <Card style={styles.stack}>
+            {IM_SERVICES.map((service) => {
+              const problem = imProblem(service, draftIm[service]);
+              return (
+                <View key={service} style={styles.imField}>
+                  <Text style={type.label}>{IM_SERVICE_NAMES[service]}</Text>
+                  <Field
+                    value={draftIm[service]}
+                    onChangeText={(v) =>
+                      setDraftIm((held) => ({ ...held, [service]: v }))
+                    }
+                    placeholder={IM_SERVICE_HINTS[service]}
+                    keyboardType={
+                      service === 'telegram' ? 'default' : 'phone-pad'
+                    }
+                    onBlur={() => void persist().catch(() => {})}
+                  />
+                  {problem ? (
+                    <Text style={styles.error}>{problem}</Text>
+                  ) : null}
+                </View>
+              );
+            })}
+            <Text style={type.muted}>
+              Shown to your contacts, who can tap one to open the conversation
+              there. Leave a field empty to take it off your profile.
+            </Text>
+          </Card>
+        </>
+      ) : null}
 
       {/*
         Every channel the two of you share, and when they were last in each.
@@ -1007,6 +1231,16 @@ const styles = StyleSheet.create({
    * sits exactly where two do.
    */
   facts: { gap: 2, marginBottom: spacing(1) },
+  /** A handle and the button that opens it, on one line. */
+  imRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1),
+  },
+  /** The name and the handle, taking whatever the button leaves. */
+  imWho: { flex: 1, gap: 2 },
+  imField: { gap: spacing(0.5) },
   pingFoot: {
     flexDirection: 'row',
     alignItems: 'center',

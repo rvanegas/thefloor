@@ -1,3 +1,4 @@
+import type { ImHandles } from './im';
 import type { NotificationLevel } from './notifications';
 import type { ChannelState, Clip, UserId } from './types';
 
@@ -148,6 +149,32 @@ export interface ProfileView {
    * everywhere else.
    */
   myEmailShown?: boolean;
+  /**
+   * Where they can be reached in the messaging apps they already use, when
+   * they have said and when this reader is a contact.
+   *
+   * **Given on the strength of the reader's standing, unlike the address
+   * above, and the difference is where the consent lives.** The server holds
+   * an email whether or not its owner ever meant it to be seen — it is the
+   * thing they sign in with — so showing it has to be a separate act, aimed at
+   * one person. A messaging handle is in this database only because somebody
+   * typed it into a field on their own profile, and there is nothing else it
+   * could be for: typing it *is* the act. What is left to decide is the
+   * audience, and that is contacts — the narrowest standing there is here,
+   * mutual and accepted at both ends.
+   *
+   * So a stranger in a shared channel gets the bio and no handles, the same
+   * treatment they get for availability and for the same reason: a channel an
+   * acquaintance opened is grounds to ask somebody to be a contact, not
+   * grounds to be given their phone number.
+   *
+   * Your own profile carries it too, that being where it is edited.
+   *
+   * Absent when there are none, which is also what a non-contact and an older
+   * server get — and the client draws no section for all three, there being
+   * nothing to draw. See `core/im.ts` for the shape a handle is stored in.
+   */
+  im?: ImHandles;
 }
 
 /**

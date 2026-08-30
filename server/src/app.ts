@@ -14,6 +14,11 @@ import type {
   RecordingView,
 } from '../../core/protocol';
 import { MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
+import {
+  IM_SERVICES,
+  IM_SERVICE_NAMES,
+  normaliseImHandle,
+} from '../../core/im';
 import { describeChannel } from '../../core/naming';
 import {
   alertFor,
@@ -1279,9 +1284,13 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
 
     const body = request.body as
-      | { displayName?: unknown; bio?: unknown }
+      | { displayName?: unknown; bio?: unknown; im?: unknown }
       | undefined;
-    const changes: { displayName?: string; bio?: string } = {};
+    const changes: {
+      displayName?: string;
+      bio?: string;
+      im?: Record<string, string>;
+    } = {};
     if (body?.displayName !== undefined) {
       if (typeof body.displayName !== 'string') {
         return reply.code(400).send({ error: 'displayName must be text.' });
@@ -1298,6 +1307,46 @@ export function buildApp(options: BuildOptions = {}): App {
         return reply.code(400).send({ error: 'bio must be text.' });
       }
       changes.bio = body.bio;
+    }
+    /*
+      Where they can be reached elsewhere. Partial in the same two senses as
+      the rest of this route: an absent `im` leaves all three alone, and an
+      absent service inside it leaves that one alone — so a screen saving a
+      Telegram username cannot blank a phone number it never sent.
+
+      A handle that cannot be made sense of is refused rather than dropped,
+      and the service is named. It is the one field here somebody can get
+      *wrong* while meaning something — a bio is whatever they typed and a
+      name only has to be non-empty, but a number without its country code is
+      a link to a stranger. Silently storing nothing would leave a person
+      looking at an empty field they had just filled in.
+    */
+    if (body?.im !== undefined) {
+      if (typeof body.im !== 'object' || body.im === null) {
+        return reply.code(400).send({ error: 'im must be an object.' });
+      }
+      const given = body.im as Record<string, unknown>;
+      const im: Record<string, string> = {};
+      for (const service of IM_SERVICES) {
+        const value = given[service];
+        if (value === undefined) continue;
+        if (typeof value !== 'string') {
+          return reply
+            .code(400)
+            .send({ error: `${IM_SERVICE_NAMES[service]} must be text.` });
+        }
+        // Blank is how a handle is removed, so it is not a refusal.
+        if (value.trim() !== '' && normaliseImHandle(service, value) === null) {
+          return reply.code(400).send({
+            error:
+              service === 'telegram'
+                ? 'That does not look like a Telegram username.'
+                : `That does not look like a phone number ${IM_SERVICE_NAMES[service]} could reach — include the country code.`,
+          });
+        }
+        im[service] = value;
+      }
+      if (Object.keys(im).length > 0) changes.im = im;
     }
 
     const updated = accounts.updateProfile(account.id, changes);

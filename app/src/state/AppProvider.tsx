@@ -19,6 +19,7 @@ import type {
   ChannelView,
   SupportView,
 } from '../../../core/protocol';
+import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
 import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
@@ -301,6 +302,7 @@ interface AppValue extends AppState {
   saveProfile: (changes: {
     displayName?: string;
     bio?: string;
+    im?: ImHandles;
   }) => Promise<void>;
   startChannel: (contactIds: string[]) => Promise<string>;
   watchChannel: (channelId: string) => void;
