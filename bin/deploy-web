@@ -31,19 +31,23 @@ SSH="ssh -i $KEY -o BatchMode=yes"
 cd "$(dirname "$0")/.."
 
 train=""
-for arg in "$@"; do
-  case "$arg" in
+override=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --stable) train=stable ;;
     --beta) train=beta ;;
-    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+    --ref) shift; override=${1:-} ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
+  shift
 done
 
 if [ -z "$train" ]; then
-  echo "usage: bin/deploy-web --stable | --beta" >&2
+  echo "usage: bin/deploy-web --stable | --beta [--ref <ref>]" >&2
   echo >&2
-  echo "  --stable  cut from 'released' — what the App Store has" >&2
-  echo "  --beta    cut from the newest build/<n> tag — what TestFlight has" >&2
+  echo "  --stable      cut from 'released' — what the App Store has" >&2
+  echo "  --beta        cut from the newest build/<n> tag — what TestFlight has" >&2
+  echo "  --ref <ref>   cut from this instead, and say so" >&2
   exit 2
 fi
 
@@ -61,8 +65,31 @@ else
   PREFIX=/beta
 fi
 
+# **The bootstrapping case, and it is not an edge case.** A train is defined as
+# the source an iOS build was cut from, but the web app is newer than every
+# build tag that exists — so until a build ships containing it, `released` and
+# `build/<n>` both name trees with no web app in them at all. Exporting one
+# produces a bundle that dies at load, for reasons that read as a bundler
+# fault. `--ref` is how the first deploy of a train is made, and it is loud.
+if [ -n "$override" ]; then
+  echo "⚠ cutting $train from $override rather than its own tag" >&2
+  REF=$override
+fi
+
 if [ -z "$REF" ] || ! git rev-parse --verify --quiet "$REF^{commit}" >/dev/null; then
   echo "✗ no ref for $train — expected ${REF:-a build/<n> tag} to exist" >&2
+  echo "  pass --ref <ref> to cut from something else" >&2
+  exit 1
+fi
+
+# Refuse a ref that has no web app rather than exporting one that cannot run.
+# Without this the export either fails inside Metro or produces a bundle that
+# throws `requireNativeComponent is not a function` before any of our code
+# runs — which reads as a broken toolchain rather than the wrong revision it
+# is. One `ls-tree` turns that into a sentence.
+if ! git ls-tree -r --name-only "$REF" -- app/index.web.ts | grep -q .; then
+  echo "✗ $REF has no web app — app/index.web.ts is not in that tree" >&2
+  echo "  the web app is newer than that revision; pass --ref with one that has it" >&2
   exit 1
 fi
 
@@ -102,12 +129,23 @@ node -e "
   fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
 "
 
-# Borrowed rather than installed: `npm ci` for the app is minutes, and the
-# export needs the same dependency tree the tag pins. If a train ever fails
-# here because its lockfile differs from the checkout's, that is the signal to
-# install properly rather than to widen this.
-ln -s "$PWD/app/node_modules" "$WORK/src/app/node_modules"
-ln -s "$PWD/core/node_modules" "$WORK/src/core/node_modules"
+# Installed rather than borrowed, which costs minutes and is not negotiable.
+#
+# Symlinking the checkout's `node_modules` is the obvious shortcut and is the
+# one AGENTS.md names outright: `npm install` resolves the link and writes
+# through it, so a build here could change what master builds against, and one
+# such link reached a commit already. Metro and Expo also write caches under
+# the project, and this tree is a *different revision* — borrowing modules from
+# the working checkout would mean building the tag's source against the
+# checkout's dependencies, which is precisely the drift building from a tag
+# exists to avoid.
+#
+# `npm ci` rather than `npm install`, for the reason `bin/worktree-setup`
+# gives: it installs exactly what the lockfile pins, which is what makes this
+# build a build of the tag rather than of whatever resolved today.
+echo "→ installing dependencies for $REF (a few minutes)"
+npm ci --prefix "$WORK/src/core" --no-audit --no-fund --silent
+npm ci --prefix "$WORK/src/app" --no-audit --no-fund --silent
 
 echo "→ exporting"
 (
