@@ -63,10 +63,37 @@ try {
 export function landingPage(options: {
   /** From APP_STORE_URL. Absent on a box that has not been told. */
   appStoreUrl?: string;
+  /**
+   * Whether the stable train has been deployed — that is, whether `/app` is a
+   * page rather than a 503.
+   *
+   * **Both the link and the redirect hang off this, and the redirect is the
+   * one that matters.** The two trains ship separately and the stable one is
+   * expected to lag: it is cut from `released`, so it cannot exist until a
+   * release contains the web app. In between, this page is live and `/app` is
+   * not — and sending somebody who is merely signed in to a 503 is worse than
+   * offering them nothing, because they did not ask to go there.
+   *
+   * Checked per request rather than at boot, because `bin/deploy-web` adds the
+   * bundle without restarting anything — which is deliberate, a restart
+   * costing presence — so a value cached at startup would be wrong for exactly
+   * as long as it mattered.
+   */
+  webAppReady: boolean;
 }): string {
-  // Omitted rather than rendered dead, the same graceful absence `supportPage`
-  // makes for a contact address: a link to nowhere is worse than no link, and
-  // this is the page's main call to action.
+  // Offered only when there is something at `/app`. A link to a 503 is worse
+  // than no link — the same graceful absence `supportPage` makes for a contact
+  // address, and the App Store link below for an unset URL.
+  const browser = options.webAppReady
+    ? `<h2>Already have an account?</h2>
+<p><a href="/app">Open The Floor in this browser</a>. It needs a microphone and
+nothing else. It is a convenience rather than a replacement — the app on a
+phone is the one that can reach you when you are not looking at it, so use the
+browser as a second screen rather than as the only one.</p>`
+    : '';
+
+  // Omitted rather than rendered dead, on the same reasoning: this is the
+  // page's main call to action and a dead one is worse than none.
   const store = options.appStoreUrl
     ? `<p><strong><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a></strong></p>`
     : '';
@@ -75,7 +102,7 @@ export function landingPage(options: {
     title: 'The Floor',
     heading: 'The Floor',
     standfirst: 'Talking with people you know, one at a time',
-    body: `${REDIRECT}
+    body: `${options.webAppReady ? REDIRECT : ''}
 <p>The Floor is a small application for talking with people you know. One
 person speaks at a time, by taking the floor, and a conversation lives in a
 channel that stays there between calls — so it is somewhere you go back to
@@ -86,11 +113,7 @@ no search for strangers.</p>
 
 ${store}
 
-<h2>Already have an account?</h2>
-<p><a href="/app">Open The Floor in this browser</a>. It needs a microphone and
-nothing else. It is a convenience rather than a replacement — the app on a
-phone is the one that can reach you when you are not looking at it, so use the
-browser as a second screen rather than as the only one.</p>
+${browser}
 
 <h2>More</h2>
 <p><a href="/support">Support</a> — how it works, and how to reach a person.<br>

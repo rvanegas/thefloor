@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import Fastify, {
@@ -1065,8 +1065,21 @@ export function buildApp(options: BuildOptions = {}): App {
    * server cannot read `localStorage`, and the token is not a cookie.
    */
   fastify.get('/', async (_request, reply) => {
+    // Whether `/app` is a page rather than a 503, asked per request because
+    // `bin/deploy-web` adds the bundle without restarting anything — so a
+    // value read at boot would be wrong for exactly as long as it mattered.
+    // One `access` on a route nobody hits in a loop.
+    let webAppReady = false;
+    try {
+      await access(join(__dirname, '..', 'web', 'stable', 'index.html'));
+      webAppReady = true;
+    } catch {
+      // Not deployed yet. The page omits the link and the redirect, rather
+      // than sending somebody who is merely signed in to a 503 they did not
+      // ask for. See `landingPage`.
+    }
     reply.type('text/html; charset=utf-8');
-    return landingPage({ appStoreUrl: options.updateUrl });
+    return landingPage({ appStoreUrl: options.updateUrl, webAppReady });
   });
 
   // --- The guest page -------------------------------------------------------
