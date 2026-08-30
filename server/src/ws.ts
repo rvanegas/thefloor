@@ -219,7 +219,15 @@ export function registerWebsocket(deps: {
    * places a socket proves life do not each have to remember both.
    */
   const heard = (connection: Connection, at: number): void => {
-    accounts.markSeen(connection.userId, at, connection.build);
+    // The account's build is only ever a native one — see the same guard in
+    // app.ts, which carries the reasoning. A browser still stamps
+    // `last_seen_at`, because a person with the web app open is about, and
+    // that is what the account-level column is for.
+    accounts.markSeen(
+      connection.userId,
+      at,
+      connection.client === 'web' ? null : connection.build
+    );
     accounts.markSession(connection.token, at, connection.build, connection.client);
   };
 

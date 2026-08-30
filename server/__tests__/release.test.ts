@@ -256,6 +256,58 @@ describe('what build is calling', () => {
   });
 
   /**
+   * The account-level column, which `bin/people` prints as a person's build
+   * with an expired flag against the floor.
+   *
+   * A browser must not write it. It is whichever device spoke last, so a web
+   * call would put a number that is *not an install* over one that is — and
+   * somebody whose phone is below the floor would read as current because they
+   * once opened a browser. That is the masking failure that moved the census
+   * off this column, made worse: a second phone at least represents something
+   * installed.
+   */
+  it('does not let a browser speak for the account’s build', async () => {
+    const { id, token } = await signIn('has-a-phone@example.com', 41);
+    connect({ id, token }, 41);
+    expect(app.accounts.byId(id)?.last_build).toBe(41);
+
+    const browser = app.accounts.issueToken(id, clock);
+    await app.fastify.inject({
+      url: '/home',
+      headers: {
+        authorization: `Bearer ${browser}`,
+        [BUILD_HEADER]: '114',
+        [CLIENT_HEADER]: 'web',
+      },
+    });
+
+    // The phone's build, not the web train's.
+    expect(app.accounts.byId(id)?.last_build).toBe(41);
+  });
+
+  /**
+   * But a browser is still somebody being about, which is the other thing that
+   * column's row carries and what a contact list renders.
+   */
+  it('still stamps that the person is about', async () => {
+    const { id } = await signIn('browsing@example.com');
+    const before = app.accounts.byId(id)?.last_seen_at ?? 0;
+
+    clock += 60_000;
+    const browser = app.accounts.issueToken(id, clock);
+    await app.fastify.inject({
+      url: '/home',
+      headers: {
+        authorization: `Bearer ${browser}`,
+        [BUILD_HEADER]: '114',
+        [CLIENT_HEADER]: 'web',
+      },
+    });
+
+    expect(app.accounts.byId(id)?.last_seen_at).toBeGreaterThan(before);
+  });
+
+  /**
    * The half that protects every client already out there. A field none of
    * them can send must default to the population that exists, or adding it
    * silently reclassifies all of them at once.

@@ -483,8 +483,26 @@ export function buildApp(options: BuildOptions = {}): App {
     // Which kind of client, so the census can count native installs alone.
     // Absent means native, which is every client built before this existed.
     const client = claimedClient(request.headers[CLIENT_HEADER]);
-    if (claimed !== null && claimed !== account.last_build) {
+    // **The account's build is only ever a native one.** `accounts.last_build`
+    // is whichever device spoke last, and `bin/people` prints it as *that
+    // person's build* with an expired flag against the floor. A web client
+    // writing there would put a number that is not an install over one that
+    // is — so somebody whose phone is on 56 and below the floor would show as
+    // current because they once opened a browser, which is the masking failure
+    // that moved the census off this column in the first place, made worse:
+    // a second phone at least represents something installed.
+    //
+    // `last_seen_at` is still stamped, below and unconditionally, because that
+    // one is true of a browser — a person with the web app open *is* about,
+    // which is what a contact list renders.
+    if (
+      client === 'native' &&
+      claimed !== null &&
+      claimed !== account.last_build
+    ) {
       accounts.markSeen(account.id, now(), claimed);
+    } else if (client === 'web') {
+      accounts.markSeen(account.id, now());
     }
     // The session's own row, unguarded, which is the difference between the
     // two writes rather than an inconsistency. The guard above protects a
