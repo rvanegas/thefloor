@@ -1,0 +1,147 @@
+/**
+ * The address of a screen, and the screen at an address.
+ *
+ * **Pure, and separated from the wiring on purpose.** Nothing here touches
+ * `location`, `history` or React, so the mapping can be tested — which matters
+ * more than usual, because the half that *does* touch the browser is a few
+ * lines that no test in this repository can reach. Getting the table right in
+ * something testable leaves only the plumbing unproven.
+ *
+ * `App.tsx` routes with a channel id and four booleans, resolved in a fixed
+ * order of early returns. That order is the model: it is what decides which
+ * screen is on top when two are notionally open, and `screenOf` states it once
+ * rather than letting the URL and the renderer each have an opinion.
+ *
+ * Web only. Native has no addresses and wants none — see planning/WEB.md.
+ */
+
+export type Screen =
+  | { kind: 'home' }
+  | { kind: 'channel'; channelId: string }
+  | { kind: 'settings' }
+  | { kind: 'standings' }
+  | { kind: 'support' }
+  | { kind: 'contacts' };
+
+/** The navigation state `App.tsx` holds, as one value. */
+export interface Nav {
+  channelId: string | null;
+  settingsOpen: boolean;
+  leaderboardOpen: boolean;
+  supportOpen: boolean;
+  contactsOpen: boolean;
+}
+
+export const NOWHERE: Nav = {
+  channelId: null,
+  settingsOpen: false,
+  leaderboardOpen: false,
+  supportOpen: false,
+  contactsOpen: false,
+};
+
+/**
+ * Which screen is showing, in `App.tsx`'s own order of precedence.
+ *
+ * A channel beats everything because the early return for it comes first —
+ * and that is not arbitrary: presence is not navigation, so the channel screen
+ * is the one you are *in* while the others are things opened over Home.
+ */
+export function screenOf(nav: Nav): Screen {
+  if (nav.channelId) return { kind: 'channel', channelId: nav.channelId };
+  if (nav.settingsOpen) return { kind: 'settings' };
+  if (nav.leaderboardOpen) return { kind: 'standings' };
+  if (nav.supportOpen) return { kind: 'support' };
+  if (nav.contactsOpen) return { kind: 'contacts' };
+  return { kind: 'home' };
+}
+
+/**
+ * The state that shows a screen.
+ *
+ * Exactly one flag is ever set, which is what makes this a round trip rather
+ * than an approximation: `screenOf(navOf(s))` is `s` for every screen.
+ */
+export function navOf(screen: Screen): Nav {
+  switch (screen.kind) {
+    case 'channel':
+      return { ...NOWHERE, channelId: screen.channelId };
+    case 'settings':
+      return { ...NOWHERE, settingsOpen: true };
+    case 'standings':
+      return { ...NOWHERE, leaderboardOpen: true };
+    case 'support':
+      return { ...NOWHERE, supportOpen: true };
+    case 'contacts':
+      return { ...NOWHERE, contactsOpen: true };
+    case 'home':
+      return NOWHERE;
+  }
+}
+
+/**
+ * Where the app is mounted — `/app` or `/beta`, and `''` when a dev server
+ * serves it at the root.
+ *
+ * Inlined at export by `bin/deploy-web`, which already knows the answer
+ * because it is the same value it puts in `experiments.baseUrl`. Read from the
+ * environment rather than sniffed from `location`, because sniffing would have
+ * to know the set of prefixes and would be wrong the first time a third train
+ * existed.
+ */
+export const BASE = (process.env.EXPO_PUBLIC_BASE ?? '').replace(/\/$/, '');
+
+/** `/app/c/chan_abc`. Trailing slashes are never produced. */
+export function pathOf(screen: Screen): string {
+  switch (screen.kind) {
+    case 'channel':
+      return `${BASE}/c/${encodeURIComponent(screen.channelId)}`;
+    case 'settings':
+      return `${BASE}/settings`;
+    case 'standings':
+      return `${BASE}/standings`;
+    case 'support':
+      return `${BASE}/support`;
+    case 'contacts':
+      return `${BASE}/contacts`;
+    case 'home':
+      return BASE || '/';
+  }
+}
+
+/**
+ * The screen an address names, and **Home for anything unrecognised**.
+ *
+ * Deliberately forgiving. This runs against whatever somebody has in the
+ * address bar — a truncated paste, a link from a version with different names,
+ * a path the server's catch-all served the shell for — and none of those is
+ * worth an error screen when Home is a correct and useful answer.
+ */
+export function screenOfPath(path: string): Screen {
+  const withoutQuery = path.split(/[?#]/)[0] ?? '';
+  const rest = withoutQuery.startsWith(BASE)
+    ? withoutQuery.slice(BASE.length)
+    : withoutQuery;
+  const parts = rest.split('/').filter(Boolean);
+
+  if (parts.length === 0) return { kind: 'home' };
+  if (parts[0] === 'c' && parts[1]) {
+    return { kind: 'channel', channelId: decodeURIComponent(parts[1]) };
+  }
+  if (parts.length === 1) {
+    if (parts[0] === 'settings') return { kind: 'settings' };
+    if (parts[0] === 'standings') return { kind: 'standings' };
+    if (parts[0] === 'support') return { kind: 'support' };
+    if (parts[0] === 'contacts') return { kind: 'contacts' };
+  }
+  return { kind: 'home' };
+}
+
+/** Whether two screens are the same place, so history is not pushed twice. */
+export function sameScreen(a: Screen, b: Screen): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'channel' && b.kind === 'channel') {
+    return a.channelId === b.channelId;
+  }
+  return true;
+}

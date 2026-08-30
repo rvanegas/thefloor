@@ -16,10 +16,12 @@ landed and no train has been deployed:
 - `config.web.ts`, `build.web.ts`, `upload.web.ts`, `download.web.ts`,
   `cue.web.ts`, `useSessionAudio.web.ts`, `livekitReactNative.web.ts`, and
   `index.web.ts`.
+- The route table: `webRoute.ts`, which is pure and has 14 tests, and
+  `useRoute.web.ts`, which is the browser plumbing. A no-op native sibling
+  keeps `App.tsx` free of a platform test.
 
-**What is not:** the route table beyond the spike's `?channel=` seed, and any
-verification in a real browser since the extension disconnected part-way
-through — see *What is left* at the end.
+**What is not:** verification in a real browser, since the extension
+disconnected part-way through — see *What is left* at the end.
 
 It answers `TASKS.md` § *Web UI* — "Should be able to run app in web" — and it
 is written after a spike rather than before one, because the whole question was
@@ -332,23 +334,25 @@ page the visitor did not want:
 
 ## What is left
 
-**The route table.** The spike's `?channel=` seed proves a deep screen can be
-addressed and nothing more. `App.tsx` still routes with `useState` booleans and
-early returns, so Home, Settings, Contacts, Support, the leaderboard, a profile
-and a transcript have no addresses and the Back button does nothing anywhere.
-The seed also had to become an effect rather than a `useState` initialiser,
-because the sign-out effect wipes navigation state while the token is still
-being read from storage — the app has no notion of navigation that predates a
-session, and **every route will meet that same problem**, so it wants solving
-once rather than per screen.
+**Addresses inside a screen.** `webRoute.ts` covers the six top-level places —
+Home, a channel, Settings, the standings, Support, Contacts. It does not cover
+what those screens open over themselves: a profile, a transcript, a channel's
+own settings. `App.tsx` deliberately does not own that state — `ContactsView`
+and `ChannelView` each hold the profile they opened, so that this component
+does not have to know which screen a profile was reached from — and giving
+those addresses means either moving the state up, which that comment argues
+against, or letting a screen contribute to the URL. Worth deciding once, and
+not urgent: a person can reach all of them, they simply cannot link to them.
 
 **A browser pass over the whole thing.** The Chrome extension disconnected
 part-way through the work, so everything since is verified by `curl`, by the
 test suite, and against a live server and a migrated database — but *not* by
 looking. Specifically unverified: that the tab cue marks and clears, that the
 file picker and the download anchor behave, that the landing page's redirect
-fires, and how any of it looks at desktop width. None of it is hard; none of it
-has been seen.
+fires, that Back and Forward walk the route table, and how any of it looks at
+desktop width. None of it is hard; none of it has been seen. The routing splits
+this deliberately — the mapping is pure and tested, and only the few lines
+touching `history` and `popstate` are unproven.
 
 **Two browsers hearing each other**, still — the spike could not test audio for
 want of a media server, and `useSessionAudio.web.ts` has never held a real

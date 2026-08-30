@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
 import { useKnockNudge } from './src/audio/useKnockNudge';
@@ -23,6 +23,8 @@ import {
 } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
+import { useRoute } from './src/ui/useRoute';
+import type { Nav } from './src/ui/webRoute';
 
 /**
  * Auth when signed out, Channel when you are looking at one, Settings or
@@ -247,36 +249,45 @@ function Root() {
   }, [token]);
 
   /**
-   * SPIKE: open the channel named by `?channel=`, so a deep screen is
-   * reachable by address.
+   * The address bar, which on a phone does not exist and in a browser *is* the
+   * navigation.
    *
-   * **Deliberately not a `useState` initialiser**, which is where this started
-   * and is the whole finding. The token is read asynchronously from storage,
-   * so `token` is null for the first render or two, and the effect above —
-   * which exists to close a stale channel screen when somebody signs out —
-   * cannot tell that from a sign-out and wipes the seed before the session
-   * arrives. Nothing is wrong with that effect; the app simply has no notion
-   * of navigation state that predates a session, because on a phone there is
-   * none. A real web version needs that notion throughout, not just here.
+   * A no-op on native — `useRoute.ts` is the sibling that does nothing — so
+   * this is called unconditionally rather than behind a platform test, a hook
+   * that ran on one platform and not the other being a conditional hook.
    *
-   * Gated on `ready && token` and applied once, which is exactly what
-   * `pendingChannelId` above does for a notification tap — the same problem,
-   * already solved once for the same reason.
+   * `watchChannel` on the way in, because arriving by address skips every path
+   * that would otherwise have subscribed to the channel — the same thing the
+   * notification tap above has to do, for the same reason.
+   *
+   * Gated on `ready && token`: the effect above clears every screen while
+   * there is no token, and cannot tell a sign-out from a session still being
+   * read out of storage. Applying an address before then is watching it be
+   * wiped. See `useRoute.web.ts`.
    */
-  const seededRef = React.useRef(false);
-  useEffect(() => {
-    if (Platform.OS !== 'web' || seededRef.current || !ready || !token) return;
-    let wanted: string | null = null;
-    try {
-      wanted = new URLSearchParams(globalThis.location?.search).get('channel');
-    } catch {
-      wanted = null;
-    }
-    seededRef.current = true;
-    if (!wanted) return;
-    watchChannel(wanted);
-    setChannelId(wanted);
-  }, [ready, token, watchChannel]);
+  const applyNav = React.useCallback(
+    (next: Nav) => {
+      if (next.channelId) watchChannel(next.channelId);
+      setChannelId(next.channelId);
+      setSettingsOpen(next.settingsOpen);
+      setLeaderboardOpen(next.leaderboardOpen);
+      setSupportOpen(next.supportOpen);
+      setContactsOpen(next.contactsOpen);
+    },
+    [watchChannel]
+  );
+
+  useRoute(
+    {
+      channelId,
+      settingsOpen,
+      leaderboardOpen,
+      supportOpen,
+      contactsOpen,
+    },
+    applyNav,
+    ready && !!token
+  );
 
   /**
    * Below the server's floor, and therefore not an app any more.

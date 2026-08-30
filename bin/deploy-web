@@ -112,10 +112,18 @@ ln -s "$PWD/core/node_modules" "$WORK/src/core/node_modules"
 echo "→ exporting"
 (
   cd "$WORK/src/app"
-  # EXPO_PUBLIC_BUILD is inlined into the bundle at export and read by
-  # `api/build.web.ts`. Unset it would leave the client silent, which is the
-  # one thing WEB.md says it must not be.
+  # Both are inlined into the bundle at export.
+  #
+  # EXPO_PUBLIC_BUILD is read by `api/build.web.ts`. Leaving it unset would
+  # make the client silent, which is the one thing WEB.md says it must not be.
+  #
+  # EXPO_PUBLIC_BASE is read by `ui/webRoute.ts`, which has to build and parse
+  # addresses under whichever prefix this train is served at. It is the same
+  # value as `experiments.baseUrl` above and is passed separately rather than
+  # sniffed from `location`, because sniffing would have to know the set of
+  # prefixes and would be wrong the first time there was a third.
   EXPO_PUBLIC_BUILD="$BUILD" \
+  EXPO_PUBLIC_BASE="$PREFIX" \
     npx expo export --platform web --output-dir "$WORK/out" --clear >/dev/null
 )
 
