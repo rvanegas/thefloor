@@ -1497,3 +1497,35 @@ works; and nulled by `erase`, a tombstone describing nobody including no way to
 reach them anywhere else. The privacy policy gained a bullet — two of the three
 are phone numbers, and a page that lists what is stored has to say when phone
 numbers are.
+
+## Add contact takes the top, in the shape of the start row — 2026-08-30
+
+Two placements on Contacts, and one of them reverses a decision a day old.
+
+**The closed add-contact control is now Home's start-a-channel row.** It was a
+card wrapping a ghost `Button`, which made the one way to get a new contact
+look like a setting; `StartChannelRow` had already answered the same question
+on the other screen — an accent-filled mark, a label in the floor colour, the
+whole card as the target, packed left rather than justified. The two screens'
+one affordance for making something new should not be two shapes, and the
+numbers are copied rather than approximated so they cannot drift apart: the
+28pt circle, the hand-set `lineHeight: 21` that stops the glyph hanging low,
+the shorter `paddingVertical` a one-line card wants. The accent is on the mark
+alone there and here, for the reason that entry gives — this is available, not
+urgent.
+
+**And your own card moved under it.** *You are the first card* put it at the
+top a day earlier, which fixed the real complaint — the list of people left out
+the one person certain to be on it — and then answered a second question it had
+not been asked. Being on the screen is not the same as being first on it. Your
+own card is a way in to your own profile, which is somewhere you go
+occasionally; adding somebody is what this screen is for on the day the list is
+not enough. So the order is now the errand, then you, then the people. Nothing
+about the card itself changed: still drawn from `app.me`, still outside the
+section, still not sorted or counted among the contacts, for the reasons that
+entry sets out.
+
+The prose moved with it, which is most of the diff. Three comments asserted the
+old position in passing — "You are the first card", "the card directly below",
+"You, first" — and a file whose comments argue with its own JSX is worse than
+one with no comments at all.

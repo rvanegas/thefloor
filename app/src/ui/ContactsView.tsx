@@ -32,10 +32,14 @@ import { colors, spacing, type } from './theme';
  * that screen that cannot be a channel, and answering one is a thing to do
  * rather than somebody to look up.
  *
- * You are the first card, since 2026-08-29. The server has never put you in
- * your own contact list and still does not — it returns the *other* id of each
- * contacts row, which is what stops the list being about you — so the card is
- * drawn from `app.me` and sits outside the section the rest are in. There is no
+ * You are a card of your own, since 2026-08-29, under the add-contact row
+ * rather than above it. The server has never put you in your own contact list
+ * and still does not — it returns the *other* id of each contacts row, which
+ * is what stops the list being about you — so the card is drawn from `app.me`
+ * and sits outside the section the rest are in. Adding somebody is what this
+ * screen is for when the list is not enough, so it takes the top; your own
+ * card is a way in to your profile, which is a thing you go to occasionally
+ * and not the first thing to read. There is no
  * Settings button any more: what it opened was your name and your bio, which is
  * your profile with the fields showing, and that now lives behind Edit on the
  * profile itself. See ProfileView.
@@ -91,14 +95,17 @@ export function ContactsView({
         <Text style={type.title}>Contacts</Text>
         {/* The way back, and nothing beside it. Every other screen carries its
             scope's settings here too; this one's were your name and your bio,
-            which are on your own profile — the card directly below. */}
+            which are on your own profile — the card under the add-contact
+            row. */}
         <View style={styles.headerActions}>
           <Button label="Home" variant="ghost" onPress={onHome} />
         </View>
       </View>
 
+      <AddContact />
+
       {/*
-        You, first, and outside the section the rest are in.
+        You, and outside the section the rest are in.
 
         Not sorted with them and not counted among them: `byAvailability` orders
         people by how likely they are to answer, which is not a question about
@@ -126,8 +133,6 @@ export function ContactsView({
           </Card>
         </Pressable>
       ) : null}
-
-      <AddContact />
 
       {contacts.length > 0 ? <SectionLabel>Contacts</SectionLabel> : null}
       {contacts.length === 0 ? (
@@ -267,14 +272,25 @@ function AddContact() {
   }
 
   if (!open) {
+    // Closed, it is Home's start-a-channel row: a mark and a label in the
+    // shape of a card rather than of a button. The two screens' one
+    // affordance for making something new should not be two different
+    // shapes, and this is the same kind of thing — available rather than
+    // urgent, which is why only the mark carries the accent.
     return (
-      <Card style={styles.addClosed}>
-        <Button
-          label="Add contact"
-          variant="ghost"
-          onPress={() => setOpen(true)}
-        />
-      </Card>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add contact"
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => pressed && styles.rowPressed}
+      >
+        <Card style={styles.addRow}>
+          <View style={styles.addMark}>
+            <Text style={styles.addMarkGlyph}>+</Text>
+          </View>
+          <Text style={styles.addLabel}>Add contact</Text>
+        </Card>
+      </Pressable>
     );
   }
 
@@ -336,9 +352,37 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 2 },
   rowPressed: { opacity: 0.7 },
   /* The list's own rows take their spacing from the gap between them, and
-     this one stands alone above the add-contact card. */
+     this one stands alone between the add-contact card and the section. */
   self: { marginBottom: spacing(1.5) },
-  addClosed: { marginBottom: spacing(1.5) },
+  /**
+   * Home's `startRow`, and deliberately the same numbers: the mark and the
+   * label are one phrase and pack to the left rather than being spread apart,
+   * and the card is shorter than a contact's because it has one line where
+   * they have two.
+   */
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1.5),
+    paddingVertical: spacing(1.5),
+    marginBottom: spacing(1.5),
+  },
+  addMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.floorDim,
+  },
+  addMarkGlyph: {
+    color: colors.floor,
+    fontSize: 19,
+    // Centred by hand, as on Home: the glyph's box is taller than its ink.
+    lineHeight: 21,
+    fontWeight: '500',
+  },
+  addLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
   addContact: { gap: spacing(1), marginBottom: spacing(1.5) },
   addActions: {
     flexDirection: 'row',
