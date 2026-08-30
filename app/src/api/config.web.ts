@@ -18,21 +18,40 @@
 const configured = process.env.EXPO_PUBLIC_API_URL?.trim();
 
 /**
- * Empty when same-origin, which is deliberate: every call is then a relative
- * path, and `http.ts` concatenates it onto the endpoint. A page served from
- * `https://thefloor.rvanegas.co/app` calls `/home`, and the browser resolves
- * it against the origin without this file naming the host at all.
+ * The origin this page was served from, spelled out rather than left empty.
+ *
+ * **It was empty, and that was a bug.** Relative paths are the obvious way to
+ * say "same origin" — `fetch('/home')` resolves against the document — and the
+ * first version of this file did exactly that. But an empty `API_URL` already
+ * means something in this codebase: *no server has been configured at all*,
+ * which on a phone is a real state with its own screen. Four call sites test
+ * for it — `request` in `http.ts`, both exports in `download.ts`, the upload,
+ * and the privacy link in `HomeSettingsView` — and every one of them refuses
+ * to do anything. So the web app threw "No server configured." at the first
+ * person who typed an email address, having never made a request.
+ *
+ * Naming the origin fixes all of them at once and changes nothing else: an
+ * absolute same-origin URL and a relative path reach the same place, and this
+ * is derived from `location` so it cannot name anywhere else.
+ *
+ * The empty string survives only where there is no `location` — jest — and
+ * that is the one place the old meaning is still the right one.
  */
-export const API_URL = configured ?? '';
+function origin(): string {
+  if (configured) return configured;
+  return globalThis.location?.origin ?? '';
+}
+
+export const API_URL = origin();
 
 /**
  * The websocket, which cannot be relative — `new WebSocket('/ws')` is not a
- * valid URL, so this is the one place the origin has to be spelled out.
+ * valid URL, so this is the one place the origin has to be spelled out even
+ * when everything else could have been relative.
  *
- * Built from `location` rather than from `API_URL` when that is empty, and the
- * scheme is switched on the page's own: `wss` from `https`, `ws` from `http`.
- * A page on https may not open an insecure socket, which is a browser rule and
- * not a preference.
+ * The scheme is switched on the page's own: `wss` from `https`, `ws` from
+ * `http`. A page on https may not open an insecure socket, which is a browser
+ * rule rather than a preference.
  */
 function socketUrl(): string {
   if (configured) return configured.replace(/^http/, 'ws') + '/ws';
