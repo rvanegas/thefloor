@@ -1529,3 +1529,24 @@ The prose moved with it, which is most of the diff. Three comments asserted the
 old position in passing — "You are the first card", "the card directly below",
 "You, first" — and a file whose comments argue with its own JSX is worse than
 one with no comments at all.
+
+## Where they are, before what to do about it — 2026-08-30
+
+The facts under the name — availability, `Invited 3`, who invited them — now sit
+directly under the header, above Ping and above the Email card.
+
+They had been below both, on a rule that reads well and is wrong at the top of
+this particular screen: the things to *do* about a person go above the things to
+*read* about them, so Ping was first and Email second and everything else
+followed. That rule survives — Ping and Email are still above the bio, the
+shared channels and the Contact card, and still sit together as the two ways of
+reaching somebody. What changed is the claim that availability is something to
+read. **It is the input to the decision the composer is asking about.** Whether
+to ping somebody at all is settled by whether they are about, the line that says
+so is three words long, and a screen that asks you to compose a message before
+telling you the person is in the app has put the answer under the question.
+
+The cost is bounded by how short those lines are, which is the whole of why this
+is safe: at most three muted lines, any of which may be absent, and the group
+carries its own gap so one sits exactly where three do. Ping is still the first
+*card* on the screen and still gets `useRevealOnKeyboard`.

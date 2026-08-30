@@ -641,6 +641,54 @@ export function ProfileView({
       {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
 
       {/*
+        Where they are, which is what decides whether to try them at all. It
+        lived on Home's contact rows until Home became a list of channels, and
+        it is here rather than nowhere because a channel's idleness is a
+        different fact: a room nobody has been in for a week says nothing about
+        whether its other member is holding a phone right now.
+
+        Only a contact is told, which is exactly the audience the contact rows
+        had. The server withholds both fields from anybody else, so an absent
+        pair is a stranger, an acquaintance from a shared channel, or a server
+        that predates this — and all three get no line rather than a hedge.
+      */}
+      {/*
+        How many people are here because of them, counting onwards: the people
+        they invited, the people those people invited, and so on. It sits with
+        availability rather than in the card because it is a fact about the
+        account, where the card is prose they wrote — and the pair now sits
+        directly under the name, above everything there is to do, because
+        where somebody is is what decides whether to do any of it.
+
+        Shown at zero as well, which is deliberate. It is a count rather than a
+        badge, and a line that appears only once it is flattering turns
+        everybody's first week into a screen with something missing from it.
+        What is not shown is an *absent* count — a server too old to send one —
+        since a nought it never claimed would be a number we made up.
+      */}
+      <View style={styles.facts}>
+        {availability ? (
+          <Text style={type.muted}>{availability}</Text>
+        ) : null}
+        {profile?.invited !== undefined ? (
+          <Text style={type.muted}>{`Invited ${profile.invited}`}</Text>
+        ) : null}
+        {/*
+          Who invited them, and only ever a name you already know: the server
+          sends this when the inviter is you or one of your contacts, and sends
+          nothing otherwise. So there is no case to handle here where the name
+          would be a stranger's — absent means there is no line, whether that
+          is because nobody invited them, because you do not know who did, or
+          because the server predates the field.
+        */}
+        {profile?.invitedBy ? (
+          <Text style={type.muted} numberOfLines={1}>
+            {`Invited by ${profile.invitedBy.displayName}`}
+          </Text>
+        ) : null}
+      </View>
+
+      {/*
         Somebody who belongs to this channel and is not in it. The one
         notification in the app that a person composes and aims, so it is the
         one place worth spending a text field on.
@@ -649,10 +697,13 @@ export function ProfileView({
         you, which is the whole of what most pings mean, and requiring a
         sentence would make the common case the slow one.
 
-        First on the screen, above even the availability lines. It is drawn
-        only from inside a channel they are missing from, which is a screen
-        opened to do something rather than to read something — and the one
-        thing there is to do should not be under everything there is to read.
+        First of the things to do, and under the facts rather than above
+        them. It is drawn only from inside a channel they are missing from,
+        which is a screen opened to do something rather than to read something,
+        so it stays above the bio and everything after it — but whether to ping
+        somebody is decided by whether they are about, and the line that says
+        so is three words long. Reading it first costs nothing and answers the
+        question the composer is asking.
       */}
       {onPing ? (
         // Kept in the native tree so it can be measured, and wrapping the
@@ -723,10 +774,12 @@ export function ProfileView({
         step past it rather than part of it.
 
         Directly under Ping, above the bio and the shared channels, for the
-        reason Ping is at the top: both are things to do about this person, and
-        everything between them and the foot of the screen is things to read
-        about them. Reaching somebody is the errand this screen gets opened
-        for, and the two ways of doing it now sit together.
+        reason Ping is where it is: both are things to do about this person,
+        and everything between them and the foot of the screen is things to
+        read about them. Reaching somebody is the errand this screen gets
+        opened for, and the two ways of doing it sit together. Only the facts
+        are above them, being the two or three lines that decide which way to
+        try.
       */}
       {isSelf || contact?.status !== 'accepted' ? null : (
         <>
@@ -861,52 +914,6 @@ export function ProfileView({
           </Card>
         </>
       )}
-
-      {/*
-        Where they are, which is what decides whether to try them at all. It
-        lived on Home's contact rows until Home became a list of channels, and
-        it is here rather than nowhere because a channel's idleness is a
-        different fact: a room nobody has been in for a week says nothing about
-        whether its other member is holding a phone right now.
-
-        Only a contact is told, which is exactly the audience the contact rows
-        had. The server withholds both fields from anybody else, so an absent
-        pair is a stranger, an acquaintance from a shared channel, or a server
-        that predates this — and all three get no line rather than a hedge.
-      */}
-      {/*
-        How many people are here because of them, counting onwards: the people
-        they invited, the people those people invited, and so on. It sits with
-        availability rather than in the card because it is a fact about the
-        account, where the card is prose they wrote.
-
-        Shown at zero as well, which is deliberate. It is a count rather than a
-        badge, and a line that appears only once it is flattering turns
-        everybody's first week into a screen with something missing from it.
-        What is not shown is an *absent* count — a server too old to send one —
-        since a nought it never claimed would be a number we made up.
-      */}
-      <View style={styles.facts}>
-        {availability ? (
-          <Text style={type.muted}>{availability}</Text>
-        ) : null}
-        {profile?.invited !== undefined ? (
-          <Text style={type.muted}>{`Invited ${profile.invited}`}</Text>
-        ) : null}
-        {/*
-          Who invited them, and only ever a name you already know: the server
-          sends this when the inviter is you or one of your contacts, and sends
-          nothing otherwise. So there is no case to handle here where the name
-          would be a stranger's — absent means there is no line, whether that
-          is because nobody invited them, because you do not know who did, or
-          because the server predates the field.
-        */}
-        {profile?.invitedBy ? (
-          <Text style={type.muted} numberOfLines={1}>
-            {`Invited by ${profile.invitedBy.displayName}`}
-          </Text>
-        ) : null}
-      </View>
 
       <Card style={styles.stack}>
         {editing ? (
@@ -1225,10 +1232,10 @@ const styles = StyleSheet.create({
    */
   rule: { height: 1, backgroundColor: colors.border, marginVertical: 2 },
   /**
-   * The two lines under the name that are facts about the account rather than
-   * anything it wrote: where they are, and how many people they brought here.
-   * Either may be absent, and the gap belongs to the group so that one alone
-   * sits exactly where two do.
+   * The lines directly under the name that are facts about the account rather
+   * than anything it wrote: where they are, how many people they brought here,
+   * and who brought them. Any may be absent, and the gap belongs to the group
+   * so that one alone sits exactly where three do.
    */
   facts: { gap: 2, marginBottom: spacing(1) },
   /** A handle and the button that opens it, on one line. */
