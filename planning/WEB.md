@@ -240,9 +240,76 @@ reviving the tone into the audio session, which `DECISIONS.md` § *The buzz
 reaches a locked phone, so the tone is not built* rules out and which would
 play over the very voice it was announcing.
 
+## The three paths
+
+| | |
+| --- | --- |
+| `/` | an informational page for people who are not users |
+| `/app` | the stable web app, cut from `released` |
+| `/beta` | the beta web app, cut from its `build/<n>` tag |
+
+**Stable stays at `/app` rather than earning the root**, so that `/` can speak
+to somebody who has never heard of this. It also keeps the single-page
+catch-all — every unknown path under a prefix serving that prefix's
+`index.html` — safely inside `/app` and `/beta`, where it cannot swallow
+`/privacy`, `/healthz`, `/g/:token` or anything added later. A catch-all at the
+root would have to enumerate every API route to avoid eating it, and would be
+wrong again the next time one is added.
+
+### `/` is server-rendered, like `/privacy` and `/support`
+
+Not the Expo bundle. Shipping 405 KB to show a paragraph and three links to
+somebody who is not a user is the wrong trade, and it is the pattern already
+established: `privacy.ts` and `support.ts` build HTML with the `page()` helper
+in `html.ts`, which carries the viewport meta and a `color-scheme: light dark`
+palette. A fourth page joins them.
+
+What it holds: a short account of what The Floor is, the App Store link as the
+**primary** call to action — the premise above says the phone is the
+referential install, so a stranger should be sent there rather than into a
+browser client — the web app as the secondary route, and `/privacy` and
+`/support` for completeness.
+
+The App Store link comes from `APP_STORE_URL`, already read in `index.ts` as
+`options.updateUrl`. **It is optional and may be unset**, so the page omits the
+link rather than rendering a dead one — the same graceful absence
+`supportPage()` already makes for `contactEmail`.
+
+### Signed-in visitors go straight to `/app`
+
+An inline script in `<head>`, running before paint so there is no flash of a
+page the visitor did not want:
+
+- **`localStorage` is scoped to the origin, not the path**, so `/` reads the
+  token `/app` wrote. Same origin by construction, since Fastify serves both.
+- **Presence, not validity.** The token has a 90-day TTL and may be revoked, and
+  checking would mean a network round trip before paint. A stale token costs a
+  redirect to `/app`, which restores, takes a 401 and lands on sign-in — which
+  is where that person was going anyway.
+- **`location.replace`, not `assign`.** No history entry, so Back from `/app`
+  does not bounce into the redirect again.
+- **Wrapped in `try`/`catch`.** Safari with storage blocked throws on
+  `localStorage` access rather than returning null; the page must then simply
+  render.
+- **An escape hatch** — `/?stay` — because otherwise a signed-in person can
+  never read the informational page, including to reach `/support` from it.
+
+## Required elsewhere
+
+- **`support.ts` is stale and public.** It says "Signing in on a second device
+  signs you out on the first", which stopped being true on 2026-08-24 —
+  `accounts.ts` records several sessions per account, with
+  `/auth/sign-out-others` as the lever. It is the App Store Connect Support
+  URL, so it is on the listing, and it currently denies exactly what this work
+  is for. Fix the sentence when this ships.
+- **`RELEASING.md` § *The five verbs*** gains the three `deploy` variants.
+- **`UpdateRequiredView`** needs a web variant: `updateUrl` is an App Store
+  link and what a browser user must do is reload.
+
 ## What is left to decide
 
-- **The two prefixes' names**, and whether stable eventually earns `/`.
+Nothing blocking. The URL model beyond `?channel=` is the one piece of real
+design left, and it is a question about route names rather than feasibility.
 - **Whether the spike's `?channel=` seed becomes a real URL model.** It has to:
   the sign-out effect wipes navigation state while the token is still being
   read from storage, because the app has no notion of navigation that predates
