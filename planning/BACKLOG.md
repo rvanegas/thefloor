@@ -89,7 +89,7 @@ correct and may still read as a bug to whoever is looking at it.
 
 ---
 
-## The follower page's control logic has no test, and has now produced three defects
+## The follower page's control logic has no test, and has now produced four defects
 
 `server/src/watch-page.ts` is a template string, so nothing executes it. The
 server tests assert that certain substrings are present, which catches a
@@ -97,8 +97,8 @@ deletion and nothing else — and the part that keeps being wrong is not the
 markup but `follow()`, the twenty lines deciding what to do to the player given
 what the channel says.
 
-Three defects came out of it in a single day, all found by somebody watching a
-screen rather than by anything automated:
+Four defects have come out of it, the first three in a single day, all found by
+somebody watching a screen rather than by anything automated:
 
 1. **A swapped-in video played itself**, because `loadVideoById` plays what it
    loads and every party starts paused.
@@ -108,6 +108,11 @@ screen rather than by anything automated:
 3. **An ended video restarted for ever**, because "not playing, so play it" is
    right for every player state except ENDED, and `correct()` then seeked back
    to the end, ending it again. Every 500ms.
+4. **A rewind killed the picture and the sound**, six days later, because a
+   correction assumed the last one had landed: a seek into an unbuffered
+   stretch takes longer than the tolerance it was correcting, so the next tick
+   seeked again and cancelled the fetch. decisions/DECISIONS.md § *A rewind
+   that ate itself*.
 
 Each is a one-line fix and each was invisible to the suite. What would catch
 the next one is running the script rather than reading it: extract the
@@ -117,7 +122,11 @@ still playing, ENDED with a replay behind it, cued with no duration, a swap
 mid-play. The stubs are the work; the assertions are three lines each.
 
 Not done because each fix was small and the walk was about to happen anyway.
-Worth doing before the fourth.
+This said "worth doing before the fourth", and the fourth arrived on 2026-08-29
+without it — with the same shape as the third, which is the argument for the
+harness rather than against it. The states to drive it through now include
+BUFFERING with the transport playing, and a seek issued while one is already
+outstanding.
 
 ## Two things that ship unbounded, both from channels being permanent
 
@@ -1361,6 +1370,20 @@ commits record them.
     `saved.current` is smaller and independent. Noted 2026-08-17, from asking why
     only one of the two settings screens has a "Saving…" state.
     `app/src/ui/ChannelSettingsView.tsx`, `app/src/api/socket.ts`.
+
+10. **A rewind while the watch party is paused leaves the picture where it
+    was.** `follow()` corrects a paused transport only in the branch that has
+    just paused a playing player, so a `WATCH_SEEK` arriving while everything is
+    already at rest moves the readout and not the video: the footer says one
+    time, the frame shows another, and it stays that way until somebody presses
+    Play, at which point the correction runs and it catches up. The fix is to
+    correct on a paused transport whatever the player was doing, and the
+    ordering is the care it needs — correcting before pausing sends the player
+    somewhere it is about to be stopped at. Noted 2026-08-29 while fixing the
+    seek storm two lines away, decisions/DECISIONS.md § *A rewind that ate
+    itself*, and kept separate from it because a fix that is not what was
+    reported is a fix nobody has watched.
+    `server/src/watch-page.ts`.
 
 ---
 

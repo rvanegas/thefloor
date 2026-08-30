@@ -195,6 +195,34 @@ export function watchPage(options: {
   var reportedDuration = false;
 
   /*
+    When the last correction was asked for, and how long one is given to land.
+
+    A seek is not a moment. It is a round trip the player takes at its own
+    pace, and the transport's clock keeps running while it takes it — which is
+    what made an unguarded correction eat itself. Rewind into a stretch the
+    player no longer holds: it seeks, drops to BUFFERING, and reports the
+    position it is heading for while it fetches. The channel meanwhile counts
+    on, so a second or two later the drift is over tolerance again and the next
+    tick seeks — a little further along, into the same unfetched stretch,
+    cancelling the fetch the last one started. Twice a second, for as long as
+    anybody watches. The picture and the sound never arrive; the captions do,
+    because they are painted from the player's own clock rather than from the
+    media it is still waiting for. Subtitles running over a frozen frame is
+    exactly how this was reported.
+
+    So a correction waits for the one before it. BUFFERING is the player saying
+    it is still on its way, and the settle window covers the tick or two before
+    it says so — getPlayerState reads PLAYING for a moment after seekTo, which
+    at this cadence is long enough to fire a second seek into the first.
+
+    Longer than DRIFT_MS on purpose. A window inside the tolerance would let
+    the drift the last seek was still working off licence the next one, which
+    is the loop with an extra step in it.
+  */
+  var SEEK_SETTLE_MS = 2000;
+  var seekedAt = 0;
+
+  /*
     The same derivation core/watch.ts makes, and it has to be: the phone's
     readout and this page's correction are answers to one question, and a page
     with its own arithmetic would drift from the transport it is following.
@@ -520,7 +548,18 @@ export function watchPage(options: {
 
     if (watch.status === 'playing') {
       correct(at);
-      if (state !== YT.PlayerState.PLAYING) player.playVideo();
+      /*
+        A buffering player is already on its way to playing and needs nothing
+        said to it. Re-issuing play at every tick into a media element that is
+        mid-seek is the other half of the wedge above — the seek is what
+        stalls it, and the play is what keeps it from settling afterwards.
+      */
+      if (
+        state !== YT.PlayerState.PLAYING &&
+        state !== YT.PlayerState.BUFFERING
+      ) {
+        player.playVideo();
+      }
     } else if (state === YT.PlayerState.PLAYING) {
       player.pauseVideo();
       correct(at);
@@ -539,8 +578,16 @@ export function watchPage(options: {
   */
   function correct(at) {
     if (!player.getCurrentTime) return;
+    // Both guards are the seek storm's: see SEEK_SETTLE_MS. One correction is
+    // outstanding at a time, and a player that is still fetching is left to
+    // finish rather than sent somewhere else.
+    if (player.getPlayerState() === YT.PlayerState.BUFFERING) return;
+    if (Date.now() - seekedAt < SEEK_SETTLE_MS) return;
     var here = player.getCurrentTime() * 1000;
-    if (Math.abs(here - at) > DRIFT_MS) player.seekTo(at / 1000, true);
+    if (Math.abs(here - at) > DRIFT_MS) {
+      seekedAt = Date.now();
+      player.seekTo(at / 1000, true);
+    }
   }
 
   /*

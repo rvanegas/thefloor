@@ -1369,3 +1369,67 @@ flag beside the channel's, in the file that owns the live audio.
 Two screens went to one, `HomeSettingsView`'s note that it is one of three
 settings screens is now one of two, and there is one fewer boolean in an app
 whose navigation is nested early returns.
+
+## A rewind that ate itself — 2026-08-29
+
+Reported as: *sometimes, when I rewind, the browser player no longer plays
+audio or video, though I see the captions.* The captions are the diagnostic.
+YouTube paints them from the player's own clock, not from the media it is
+showing, so a screen with running subtitles over a frozen frame is a player
+whose transport is fine and whose fetch never completed. Nothing was wedged
+that the page could see, which is why it reads as a YouTube fault and is not
+one.
+
+**A correction is not a moment, and this page treated it as one.** `correct()`
+compared the player's position against the transport's and seeked when the gap
+passed `WATCH_DRIFT_MS`, on the tick that runs twice a second. Rewind into a
+stretch the player no longer holds and the seek starts a fetch; the player
+drops to `BUFFERING` and reports the position it is heading for, while the
+channel's clock — which is wall-clock arithmetic over `startedAt` and stops for
+nothing — keeps counting. A second and a half later the drift is over
+tolerance again, so the next tick seeks, a little further along, into the same
+unfetched stretch, cancelling the fetch the last one started. Twice a second,
+for as long as anybody watches.
+
+Whether it happened at all depended on whether the rewind landed inside what
+the player still had buffered, which is why it was *sometimes*, and why it
+never showed up in a walk: a rewind of a few seconds over a video that has been
+playing is a seek into memory and lands instantly.
+
+**This is the second time this feature has produced a loop out of an
+unconditional correction**, the first being DECISIONS-2026-08-23-to-2026-08-24.md § *The Floor carries no
+video, and that is the whole watch party* —
+`playVideo()` on an ENDED player restarting from zero, `correct()` calling that
+drift, and the end ending it again. Same shape: a correction that assumes its
+last one landed. It is worth stating as a property rather than as two fixes —
+**the transport is a clock and the player is a device, and the device is
+allowed to be busy.**
+
+So the correction now waits for the one before it. Two guards, both in
+`correct()`: a player reading `BUFFERING` is still on its way and is left to
+finish, and `SEEK_SETTLE_MS` covers the tick or two before it admits that,
+since `getPlayerState` reads `PLAYING` for a moment after `seekTo` — long
+enough at this cadence to fire a second seek into the first. The window is
+2,000ms, deliberately outside `WATCH_DRIFT_MS`'s 1,500: a settle window inside
+the tolerance would let the drift that the outstanding seek is still working
+off licence the next one, which is the same loop with an extra step in it.
+
+**And `playVideo()` no longer fires at a buffering player**, which was the
+other half. The old line re-issued play at every tick whenever the state was
+not `PLAYING`, and `BUFFERING` is not `PLAYING` — so a media element mid-seek
+was being told to play twice a second as well as being sent somewhere else.
+The seek is what stalled it; the play is what kept it from settling afterwards.
+
+Tested the way the rest of this page is, by asserting against the served
+script: the page is a string this server emits and nothing in the suite runs a
+`YT.Player`. The test names both guards and checks the settle window against
+`WATCH_DRIFT_MS` rather than against a literal, so the ordering between the two
+cannot be broken by tuning either.
+
+**Still unfixed and separate: a rewind while paused does not move the player.**
+`follow()` only corrects a paused transport in the branch that has just paused
+a playing player, so a seek arriving while everything is already at rest
+repaints the readout and leaves the picture on the old frame until somebody
+presses Play, which corrects it. Cosmetic, one screen disagreeing with its own
+footer, and not what was reported — filed in BACKLOG.md rather than folded in
+here.

@@ -7,6 +7,7 @@ import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
 import { WATCH_TOKEN_TTL_MS } from '../src/accounts';
+import { WATCH_DRIFT_MS } from '../../core/constants';
 import type { ClientMessage, ServerMessage } from '../../core/protocol';
 
 /**
@@ -263,6 +264,25 @@ describe('the link', () => {
     // screen stuck on "Finished" for ever.
     expect(page.body).toContain('at >= here - DRIFT_MS');
     expect(page.body).toContain("say('Finished')");
+  });
+
+  it('corrects one seek at a time, so a rewind cannot eat itself', async () => {
+    const { channelId } = await channelOfTwo();
+    const page = await app.fastify.inject({ method: 'GET', url: `/watch/${channelId}` });
+
+    // A seek takes time the transport's clock does not stop for, so a rewind
+    // into an unbuffered stretch would drift back over tolerance while the
+    // player was still fetching — and the next tick would seek again, killing
+    // the fetch the last one started. Twice a second, for ever: no picture and
+    // no sound, with the captions still running off the player's own clock,
+    // which is how it was reported.
+    expect(page.body).toContain('YT.PlayerState.BUFFERING');
+    expect(page.body).toContain('Date.now() - seekedAt < SEEK_SETTLE_MS');
+    // And the window has to sit outside the tolerance, or the drift the
+    // outstanding seek is still working off licences the next one.
+    expect(page.body).toMatch(/SEEK_SETTLE_MS = (\d+)/);
+    const settle = Number(/SEEK_SETTLE_MS = (\d+)/.exec(page.body)![1]);
+    expect(settle).toBeGreaterThan(WATCH_DRIFT_MS);
   });
 
   it('offers full screen without giving the player its controls back', async () => {
