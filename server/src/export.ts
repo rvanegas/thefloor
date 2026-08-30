@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { constants, setPriority, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 /**
@@ -238,6 +238,11 @@ export async function encodeRecording(
       [
         '-v',
         'error',
+        // One core, so the other stays free for the SFU. See `run` below.
+        '-threads',
+        '1',
+        '-filter_threads',
+        '1',
         ...args,
         '-filter_complex',
         graph.filter,
@@ -306,6 +311,11 @@ export async function encodeStem(
       [
         '-v',
         'error',
+        // One core, so the other stays free for the SFU. See `run` below.
+        '-threads',
+        '1',
+        '-filter_threads',
+        '1',
         ...args,
         '-filter_complex',
         graph.filter,
@@ -373,9 +383,46 @@ function capture(command: string, args: string[]): Promise<string> {
   });
 }
 
+/**
+ * Runs ffmpeg, and makes sure it yields to the conversation.
+ *
+ * **The media plane is on this box.** Since 2026-08-13 the SFU, the egress
+ * jobs and this server share two vCPUs, so a mix is not a background job on a
+ * quiet machine — it is competition for the cores that are carrying live
+ * audio. A six-person four-hour recording is twenty-four stream-hours, which
+ * is minutes of pinned CPU, and nobody is waiting on the file.
+ *
+ * **An export has no urgency and a call has nothing but.** So the mix is made
+ * to lose every contest for the processor, by two mechanisms that fail
+ * differently and are therefore both worth having:
+ *
+ * - `-threads 1` and `-filter_threads 1` at the call sites cap ffmpeg at one
+ *   core, so **one of the two is always left for the SFU** regardless of what
+ *   the scheduler decides.
+ * - `setPriority` here makes it yield *on that core* too, whenever anything
+ *   else is runnable.
+ *
+ * Niceness rather than a hard `CPUQuota`, deliberately: a quota would slow the
+ * mix even on an idle box, where nice costs nothing when nothing else wants
+ * the CPU and everything when something does. That is exactly the trade
+ * wanted — an export should be free when the box is quiet and invisible when
+ * it is not.
+ *
+ * **Best-effort by construction.** A platform that refuses to renice is one
+ * where the export still works, so the failure is swallowed: this is a
+ * courtesy to the conversation, and a courtesy that could fail an export would
+ * be the wrong way round.
+ */
 function run(command: string, args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd });
+    try {
+      if (child.pid !== undefined) {
+        setPriority(child.pid, constants.priority.PRIORITY_LOW);
+      }
+    } catch {
+      // No permission, or a platform without priorities. The mix runs anyway.
+    }
     let stderr = '';
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk);
