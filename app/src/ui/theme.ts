@@ -77,15 +77,38 @@ const light: Record<keyof typeof dark, string> = {
  * cannot drift apart without the type failing.
  *
  * The `Platform.OS` guard is real: `DynamicColorIOS` throws on Android, which
- * `app.json` still configures even though nobody builds it. Android therefore
- * gets dark mode only.
+ * `app.json` still configures even though nobody builds it.
+ *
+ * **Where no scheme can be resolved, the answer is light.** That is Android
+ * and it is jest — platforms with no trait collection and no `var()` — and it
+ * used to be dark, on no better reasoning than that dark was written first.
+ * Light is the better default for a fallback because it is what a surface with
+ * no opinion looks like everywhere else: an unstyled page, a print stylesheet,
+ * a browser that has never heard of `prefers-color-scheme`. The web stylesheet
+ * carries the same rule, with light on bare `:root` and dark arriving only by
+ * preference or by choice.
+ *
+ * **The web has its own opaque value, and it is a CSS custom property.**
+ * `var(--floor-text)` is resolved by the browser at paint time, every time,
+ * from whatever the variable currently holds — which is the same property
+ * `DynamicColorIOS` is used for here and the same reason the eight
+ * module-scope `StyleSheet.create` blocks may capture these once at import and
+ * stay correct. React-native-web passes it through untouched by design:
+ * `modules/isWebColor` returns true for anything starting `var(`, ahead of the
+ * normaliser that would otherwise turn a colour into `rgba(...)`.
+ *
+ * The variables themselves are written by `ui/cssVariables.web.ts`, generated
+ * from `palettes` below so that the CSS and this map cannot drift — there is
+ * one set of colours in this file and no second copy anywhere.
  */
 export const colors = Object.fromEntries(
   (Object.keys(dark) as (keyof typeof dark)[]).map((key) => [
     key,
     Platform.OS === 'ios'
       ? DynamicColorIOS({ light: light[key], dark: dark[key] })
-      : dark[key],
+      : Platform.OS === 'web'
+        ? `var(--floor-${key})`
+        : light[key],
   ])
 ) as Record<keyof typeof dark, ColorValue>;
 
