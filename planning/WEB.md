@@ -296,13 +296,19 @@ page the visitor did not want:
 
 ## Required elsewhere
 
-- **`support.ts` is stale and public.** It says "Signing in on a second device
-  signs you out on the first", which stopped being true on 2026-08-24 —
-  `accounts.ts` records several sessions per account, with
-  `/auth/sign-out-others` as the lever. It is the App Store Connect Support
-  URL, so it is on the listing, and it currently denies exactly what this work
-  is for. Fix the sentence when this ships.
+- ~~`support.ts` is stale and public.~~ **Done**, ahead of the rest — it was
+  wrong on the App Store listing and denied exactly what a web client is for.
+  It said "Signing in on a second device signs you out on the first", true
+  until 2026-08-24. It now says that sign-ins coexist, and separately that
+  presence does not: an account may hold several sessions and is still in at
+  most one channel, because one account has one voice. That second half is the
+  part a web user needs and the page had never said at all.
 - **`RELEASING.md` § *The five verbs*** gains the three `deploy` variants.
+- **`support.ts` § *Notifications*** is iOS-only in its wording — "check that
+  notifications are allowed for The Floor in the iOS Settings app". Once there
+  is a web client that deliberately has none, that section needs a sentence
+  saying so, or a browser user will go looking for a setting that does not
+  exist.
 - **`UpdateRequiredView`** needs a web variant: `updateUrl` is an App Store
   link and what a browser user must do is reload.
 

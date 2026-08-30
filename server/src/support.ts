@@ -43,7 +43,15 @@ expected, and if it is about a particular conversation, roughly when it was.</p>
 <p>There is no password. You give an email address, a six-digit code is sent to
 it, and typing the code signs you in. If the code does not arrive, check the
 spam folder first; codes expire after ten minutes, and asking for another is
-free. Signing in on a second device signs you out on the first.</p>
+free. Signing in somewhere new leaves your other devices signed in, so a phone
+and a browser can both stay signed in at once; <strong>Sign out other
+devices</strong>, under Settings, ends every session except the one you are
+using.</p>
+
+<p>Being <em>in</em> a channel is a different thing, and you can only be in one
+at a time across everything you are signed in on. One account has one voice, so
+stepping into a channel somewhere else steps you out of the one you were in
+here.</p>
 
 <h2>Finding people</h2>
 <p>Nobody can reach you unless you have both agreed. You send a contact request
