@@ -111,6 +111,25 @@ fi
 echo "→ building the guest page"
 npm run build:web --prefix server --silent
 
+# **The web trains are excluded from --delete, or this deletes them.**
+#
+# `bin/deploy-web` builds `server/web/stable` and `server/web/beta` from a tag
+# and rsyncs them to the box; they are gitignored and never exist in a working
+# checkout. So without these excludes they are on the destination and not on
+# the source, and `--delete` removes them — a server deploy would silently take
+# the web app off the air, and it would work the first time, since the trains
+# are not there yet. Exactly the trap the `*.p8` exclude below exists for, and
+# the reason AGENTS.md keeps the keys outside the tree.
+#
+# `server/web/dist` is deliberately not excluded: the guest bundle *is* built
+# here, a few lines above, so it exists on the source and must ship.
+#
+# `/app/` is anchored, and that is not cosmetic. An rsync pattern with no
+# leading slash matches a directory of that name at *any* depth, so a bare
+# `app/` would also have excluded anything nested called `app` — which is what
+# made `server/web/app` an unshippable name and is why the trains are called
+# `stable` and `beta` instead.
+#
 # The .env pattern is a wildcard with one exception, matching .gitignore and for
 # the same reason: a .env~ left by an editor or a .env.bak left by a careful
 # person is exactly as secret-bearing as .env itself, and an exact-match exclude
@@ -145,7 +164,8 @@ JSON
 
 echo "→ syncing"
 rsync -az --delete -e "$SSH" \
-  --exclude node_modules --exclude .git --exclude 'app/' \
+  --exclude node_modules --exclude .git --exclude '/app/' \
+  --exclude '/server/web/stable/' --exclude '/server/web/beta/' \
   --include '.env.example' --exclude '.env*' \
   --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
   --exclude '*.p8' \

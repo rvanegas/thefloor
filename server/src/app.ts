@@ -966,12 +966,18 @@ export function buildApp(options: BuildOptions = {}): App {
    * is on disk and knows nothing about which build that is.
    *
    * **The directories are `stable/` and `beta/`, not `app/`,** and that is not
-   * a preference. `bin/deploy` rsyncs with `--exclude 'app/'`, and an rsync
-   * pattern without a leading slash matches a directory of that name at *any*
-   * depth — so a bundle in `web/app/` is silently never shipped, the deploy
-   * succeeds, and the page 404s with nothing saying why. The exclude is now
-   * anchored to `/app/` as well, so this is belt and braces; do not rename it
-   * back.
+   * a preference. An rsync pattern without a leading slash matches a directory
+   * of that name at *any* depth, so while `bin/deploy` excluded a bare `app/`
+   * a bundle in `web/app/` was silently never shipped: the deploy succeeded
+   * and the page 404'd with nothing saying why. That exclude is anchored to
+   * `/app/` now, so the hazard is gone and this is belt and braces — but do
+   * not rename these back, because the belt is what was found by experiment
+   * and the braces are what a future pattern might undo again.
+   *
+   * **Both directories are also excluded from that rsync**, and that one is
+   * load-bearing rather than defensive: they are built by `bin/deploy-web`
+   * from a tag and never exist in a working checkout, so `--delete` would take
+   * them off the box on the next server deploy. See the comment there.
    */
   const TRAINS = [
     { prefix: '/app', dir: 'stable' },
