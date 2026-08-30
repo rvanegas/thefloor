@@ -16,7 +16,12 @@ import type {
 import type { Accounts } from './accounts';
 import type { NotificationPreferences } from './preferences';
 import type { ChannelRegistry } from './channels';
-import { claimedBuild, heartbeatTimeoutFor } from './release';
+import {
+  claimedClient,
+  claimedBuild,
+  heartbeatTimeoutFor,
+  type ClientKind,
+} from './release';
 import { sha256 } from './db';
 
 /**
@@ -71,6 +76,12 @@ interface Connection {
    * `Accounts.buildsSeenSince`.
    */
   build: number | null;
+  /**
+   * Which kind of client this is, defaulting to native for everything that
+   * does not say — which is every build that predates the field. Read only by
+   * the census, which counts native installs alone.
+   */
+  client: ClientKind;
 }
 
 /** Close code for a credential the server will not accept. */
@@ -209,7 +220,7 @@ export function registerWebsocket(deps: {
    */
   const heard = (connection: Connection, at: number): void => {
     accounts.markSeen(connection.userId, at, connection.build);
-    accounts.markSession(connection.token, at, connection.build);
+    accounts.markSession(connection.token, at, connection.build, connection.client);
   };
 
   /**
@@ -715,6 +726,9 @@ export function registerWebsocket(deps: {
       watchingChannels: new Set(),
       lastSeen: now(),
       build: claimedBuild(url.searchParams.get('build')),
+      // Mirrored as a query parameter for the same reason `build` is: neither
+      // React Native's WebSocket nor the browser's carries custom headers.
+      client: claimedClient(url.searchParams.get('client')),
     };
     // Asked before the add, so it answers about the sockets that were already
     // here: a second device connecting is not an arrival, and announcing one

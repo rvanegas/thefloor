@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { ClientKind } from './release';
 import type {
   LeaderboardEntry,
   ProfileView,
@@ -499,23 +500,36 @@ export class Accounts {
    * outcome rather than a failure — a session revoked from another device goes
    * on making requests until something answers 401.
    */
-  markSession(token: string, now: number, build?: number | null): void {
+  markSession(
+    token: string,
+    now: number,
+    build?: number | null,
+    client: ClientKind = 'native'
+  ): void {
+    // Stored only for web, so the column stays NULL for every native sign-in —
+    // which is what makes the census's default free rather than a backfill.
+    // See the column's comment in db.ts.
+    const kind = client === 'web' ? 'web' : null;
     if (build == null) {
       this.db
         .prepare(
-          `UPDATE tokens SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?)
+          `UPDATE tokens
+              SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?),
+                  last_client = ?
             WHERE token_hash = ?`
         )
-        .run(now, sha256(token));
+        .run(now, kind, sha256(token));
       return;
     }
     this.db
       .prepare(
         `UPDATE tokens
-            SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?), last_build = ?
+            SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?),
+                last_build = ?,
+                last_client = ?
           WHERE token_hash = ?`
       )
-      .run(now, build, sha256(token));
+      .run(now, build, kind, sha256(token));
   }
 
   /**
@@ -599,6 +613,7 @@ export class Accounts {
            FROM tokens t
            JOIN accounts a ON a.id = t.account_id
           WHERE t.last_seen_at IS NOT NULL AND t.last_seen_at >= ?
+            AND (t.last_client IS NULL OR t.last_client <> 'web')
             AND a.identifier NOT LIKE ?
             AND LOWER(a.identifier) NOT IN (${demo.map(() => '?').join(', ') || "''"})`
       )

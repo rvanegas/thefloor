@@ -10,7 +10,7 @@ import type {
   VoiceDeclarations,
   VoiceEntry,
 } from '../../../core/transcript';
-import { appBuild, BUILD_HEADER } from './build';
+import { appBuild, BUILD_HEADER, CLIENT_HEADER, CLIENT_KIND } from './build';
 import { API_URL } from './config';
 import type { HealthReport } from './expiry';
 import { deviceRegion } from './region';
@@ -75,6 +75,9 @@ async function request<T>(
         // header", and a blank value would have to be parsed into the same
         // conclusion by a second rule. See build.ts.
         ...(appBuild() === null ? {} : { [BUILD_HEADER]: String(appBuild()) }),
+        // Sent only by the web client. Native leaves it off entirely, because
+        // the server reads absence as native — see CLIENT_KIND in build.ts.
+        ...(CLIENT_KIND === null ? {} : { [CLIENT_HEADER]: CLIENT_KIND }),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });

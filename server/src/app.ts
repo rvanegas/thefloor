@@ -7,6 +7,7 @@ import Fastify, {
   type FastifyRequest,
 } from 'fastify';
 import websocket from '@fastify/websocket';
+import fastifyStatic from '@fastify/static';
 import type {
   HomeView,
   PublicAccount,
@@ -31,6 +32,7 @@ import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { escapeHtml } from './html';
+import { landingPage } from './landing';
 import { privacyPage } from './privacy';
 import type { TranscriptionProvider } from './transcription';
 import {
@@ -48,7 +50,9 @@ import {
 } from '../../core/transcript';
 import {
   BUILD_HEADER,
+  CLIENT_HEADER,
   claimedBuild,
+  claimedClient,
   deployed,
   MIN_SUPPORTED_BUILD,
 } from './release';
@@ -476,6 +480,9 @@ export function buildApp(options: BuildOptions = {}): App {
     // no HTTP calls — and this catches the rest: signing in, uploading, and
     // anybody whose socket has not reconnected since the upgrade.
     const claimed = claimedBuild(request.headers[BUILD_HEADER]);
+    // Which kind of client, so the census can count native installs alone.
+    // Absent means native, which is every client built before this existed.
+    const client = claimedClient(request.headers[CLIENT_HEADER]);
     if (claimed !== null && claimed !== account.last_build) {
       accounts.markSeen(account.id, now(), claimed);
     }
@@ -490,7 +497,8 @@ export function buildApp(options: BuildOptions = {}): App {
     accounts.markSession(
       request.headers.authorization?.slice(7) ?? '',
       now(),
-      claimed
+      claimed,
+      client
     );
     return account;
   }
@@ -927,6 +935,120 @@ export function buildApp(options: BuildOptions = {}): App {
     // nothing worth keeping — a channel it did not act on.
     homeNotifier.notify([account.id, id]);
     return { ok: true };
+  });
+
+  // --- The web app, and the page in front of it -----------------------------
+
+  /**
+   * The two web trains, and the informational page at the root.
+   *
+   * `/app` is what the App Store release is, `/beta` what TestFlight has, and
+   * they are deployed by `bin/deploy-web` rather than by `bin/deploy` — see
+   * planning/WEB.md § *Three variants of `deploy`*. The server serves whatever
+   * is on disk and knows nothing about which build that is.
+   *
+   * **The directories are `stable/` and `beta/`, not `app/`,** and that is not
+   * a preference. `bin/deploy` rsyncs with `--exclude 'app/'`, and an rsync
+   * pattern without a leading slash matches a directory of that name at *any*
+   * depth — so a bundle in `web/app/` is silently never shipped, the deploy
+   * succeeds, and the page 404s with nothing saying why. The exclude is now
+   * anchored to `/app/` as well, so this is belt and braces; do not rename it
+   * back.
+   */
+  const TRAINS = [
+    { prefix: '/app', dir: 'stable' },
+    { prefix: '/beta', dir: 'beta' },
+  ] as const;
+
+  for (const train of TRAINS) {
+    /**
+     * Every path under the prefix that is not a file on disk: the single-page
+     * app's own routes, which this server knows nothing about.
+     *
+     * Registered as the *not-found handler of this prefix's scope* rather than
+     * as a `/*` route, and that is not a stylistic choice. A `/*` route would
+     * collide with the plugin's own wildcard, forcing `wildcard: false` — and
+     * that makes the plugin enumerate the directory at registration time, so a
+     * bundle written after boot would not be routed at all. **Every web deploy
+     * would then need a server restart**, and a restart costs presence, which
+     * is far too much to pay for copying static files. This way the plugin
+     * resolves from disk per request and `bin/deploy-web` never touches the
+     * running process.
+     */
+    const shell = async (_request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const html = await readFile(
+          join(__dirname, '..', 'web', train.dir, 'index.html'),
+          'utf8'
+        );
+        reply.type('text/html; charset=utf-8');
+        reply.header('cache-control', 'no-store');
+        return html;
+      } catch {
+        // Built rather than committed, so a checkout that has not run
+        // `bin/deploy-web` has no app. Said plainly, for the same reason the
+        // guest page says it: the alternative is a blank screen and a console
+        // nobody is looking at.
+        return reply
+          .code(503)
+          .send({ error: `The web app (${train.dir}) has not been built.` });
+      }
+    };
+
+    // Encapsulated, so the not-found handler belongs to this prefix alone.
+    // Fastify allows one per scope, and the root's own 404 is left as it was.
+    void fastify.register(
+      async (scope) => {
+        void scope.register(fastifyStatic, {
+          root: join(__dirname, '..', 'web', train.dir),
+          // Relative to the scope, whose prefix is the train's.
+          prefix: '/',
+          // `sendFile` is unused, and two registrations must not decorate the
+          // same reply twice.
+          decorateReply: false,
+          // The directory index is the shell, and the shell is the handler
+          // above — the only place the no-store header is applied and the only
+          // place that can explain an absent bundle.
+          index: false,
+          setHeaders(reply, path) {
+            // **The shell must not be cached, and the assets must.** Expo
+            // emits hashed filenames, so an asset is immutable by construction
+            // and can be held for a year. `index.html` is the one file whose
+            // name never changes, and a cached copy means a returning visitor
+            // silently runs an old bundle — which would falsify the premise
+            // that the web app is always current, and that premise is what
+            // excuses it from the build census. See planning/WEB.md.
+            //
+            // `index: false` means this should never see the shell, but it is
+            // still named: a request for `/app/index.html` by hand is served
+            // as an ordinary file, and a year-long cache on it would be the
+            // same bug by a rarer door.
+            if (path.endsWith('index.html')) {
+              reply.header('cache-control', 'no-store');
+            } else {
+              reply.header(
+                'cache-control',
+                'public, max-age=31536000, immutable'
+              );
+            }
+          },
+        });
+        scope.setNotFoundHandler(shell);
+      },
+      { prefix: train.prefix }
+    );
+  }
+
+  /**
+   * The root, for somebody who is not a user yet.
+   *
+   * Unauthenticated and server-rendered. Somebody who *is* signed in is
+   * redirected to `/app` by a script on the page rather than here — this
+   * server cannot read `localStorage`, and the token is not a cookie.
+   */
+  fastify.get('/', async (_request, reply) => {
+    reply.type('text/html; charset=utf-8');
+    return landingPage({ appStoreUrl: options.updateUrl });
   });
 
   // --- The guest page -------------------------------------------------------

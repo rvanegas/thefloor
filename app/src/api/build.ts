@@ -68,3 +68,20 @@ export function appBuild(): number | null {
  * exactly the people who are using the app would be the wrong way round.
  */
 export const BUILD_HEADER = 'x-thefloor-build';
+
+/**
+ * The header naming which kind of client this is, and what this one puts in
+ * it: nothing.
+ *
+ * **Null on purpose, so native sends no such header at all.** The server reads
+ * absence as native, which it must — every build already installed predates
+ * this field and can never be taught to send it, so absence has to describe
+ * the population that already exists. Sending it from here would add a header
+ * to every call to state the default, and would still not change how a single
+ * shipped build is counted.
+ *
+ * It exists in this file only so that `http.ts` and `socket.ts` can be written
+ * once for both platforms; `build.web.ts` is the sibling that answers `'web'`.
+ */
+export const CLIENT_HEADER = 'x-thefloor-client';
+export const CLIENT_KIND: string | null = null;

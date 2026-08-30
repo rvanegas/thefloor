@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildApp, type App } from '../src/app';
 import {
   BUILD_HEADER,
+  CLIENT_HEADER,
   claimedBuild,
   deployed,
   MIN_SUPPORTED_BUILD,
@@ -224,6 +225,65 @@ describe('what build is calling', () => {
     expect((await health()).oldestBuild).toBe(41);
 
     app.accounts.revokeToken(goes.token);
+
+    expect((await health()).oldestBuild).toBe(56);
+  });
+
+  /**
+   * The census measures an *installed population*, and the web app has none —
+   * there is one live version and everybody gets it on load, so it can neither
+   * be stranded by a raised floor nor tell you anything about what has been.
+   * See planning/WEB.md § *The census counts native only*.
+   *
+   * It reports a real build rather than staying silent, which is what makes
+   * this test necessary: left in, a browser would drag `oldestBuild` down to
+   * whatever the stable train was cut from and look exactly like an old phone.
+   */
+  it('leaves the web client out of the census', async () => {
+    const phone = await signIn('two-ways@example.com', 56);
+    const browser = {
+      id: phone.id,
+      token: app.accounts.issueToken(phone.id, clock),
+    };
+    connect(phone, 56);
+    // A build well below the phone's, and below the floor — the reading that
+    // would be alarming if this were an install.
+    app.accounts.markSession(browser.token, clock, 41, 'web');
+
+    const body = await health();
+    expect(body.oldestBuild).toBe(56);
+    expect(body.silentBuilds).toBe(0);
+  });
+
+  /**
+   * The half that protects every client already out there. A field none of
+   * them can send must default to the population that exists, or adding it
+   * silently reclassifies all of them at once.
+   */
+  it('counts a session that says nothing about its client as native', async () => {
+    const old = await signIn('unsaying@example.com', 41);
+    app.accounts.markSession(old.token, clock, 41);
+
+    expect((await health()).oldestBuild).toBe(41);
+  });
+
+  /**
+   * And the same over the wire, since the header is the only way a real client
+   * says it. Absent is native; `web` is not counted.
+   */
+  it('reads the client kind from the header', async () => {
+    const { id, token } = await signIn('header-web@example.com', 56);
+    connect({ id, token }, 56);
+
+    const browser = app.accounts.issueToken(id, clock);
+    await app.fastify.inject({
+      url: '/home',
+      headers: {
+        authorization: `Bearer ${browser}`,
+        [BUILD_HEADER]: '41',
+        [CLIENT_HEADER]: 'web',
+      },
+    });
 
     expect((await health()).oldestBuild).toBe(56);
   });

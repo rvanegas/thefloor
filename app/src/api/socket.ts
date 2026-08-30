@@ -10,7 +10,7 @@ import type {
   ServerMessage,
   ChannelView,
 } from '../../../core/protocol';
-import { appBuild } from './build';
+import { appBuild, CLIENT_KIND } from './build';
 import { WS_URL } from './config';
 import { reportSignedOut } from './http';
 
@@ -172,7 +172,11 @@ export class Realtime {
     const build = appBuild();
     const socket = new WebSocket(
       `${WS_URL}?token=${encodeURIComponent(this.token)}` +
-        (build === null ? '' : `&build=${build}`)
+        (build === null ? '' : `&build=${build}`) +
+        // A query parameter for the same reason `build` is one: no WebSocket
+        // implementation this app runs on carries custom headers. Omitted by
+        // native, whose absence the server reads as native.
+        (CLIENT_KIND === null ? '' : `&client=${CLIENT_KIND}`)
     );
     this.socket = socket;
 

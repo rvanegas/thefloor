@@ -1,0 +1,140 @@
+#!/bin/bash
+#
+# Ships a web app train to the box.
+#
+#   bin/deploy-web --stable    what the App Store has, cut from `released`
+#   bin/deploy-web --beta      what TestFlight has, cut from its build/<n> tag
+#
+# **This is a third variant of `deploy`, not a sixth verb.** Deploying is still
+# deploying — it reaches everybody in a minute and is reversible — and only the
+# target differs. RELEASING.md § *The five verbs* carries the table.
+#
+# **Built from a tag rather than from the working tree**, which is the one way
+# it differs from `bin/deploy` and the reason it exists as its own script. That
+# script rsyncs the checkout on purpose, so that what is deployed is what you
+# are looking at. Here the opposite is wanted: a train is *defined* as the
+# source a particular iOS build was cut from, and "coinciding with the App
+# Store release" is only nominally true if it ships whatever happens to be
+# checked out. So the tag is exported into a temporary worktree and built
+# there, and the checkout you are sitting in is never touched or read.
+#
+# **No restart, and therefore no cost to anybody talking.** A server deploy
+# drops presence; this only copies files, and `app.ts` resolves them from disk
+# per request rather than enumerating at boot precisely so that stays true.
+# Nothing here goes near systemd.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+SSH="ssh -i $KEY -o BatchMode=yes"
+
+cd "$(dirname "$0")/.."
+
+train=""
+for arg in "$@"; do
+  case "$arg" in
+    --stable) train=stable ;;
+    --beta) train=beta ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+
+if [ -z "$train" ]; then
+  echo "usage: bin/deploy-web --stable | --beta" >&2
+  echo >&2
+  echo "  --stable  cut from 'released' — what the App Store has" >&2
+  echo "  --beta    cut from the newest build/<n> tag — what TestFlight has" >&2
+  exit 2
+fi
+
+# Which ref each train is. `released` is a lightweight ref pointing at a
+# build/<n> tag object rather than at a commit — see AGENTS.md — so it is
+# resolved with rev-parse like anything else and the peeling is git's problem.
+if [ "$train" = stable ]; then
+  REF=released
+  PREFIX=/app
+else
+  # The newest build tag by number rather than by date: tags are created in
+  # order but `--sort=-creatordate` on lightweight refs is not dependable, and
+  # the number is the thing that means something.
+  REF=$(git tag --list 'build/*' | sort -t/ -k2 -n | tail -1)
+  PREFIX=/beta
+fi
+
+if [ -z "$REF" ] || ! git rev-parse --verify --quiet "$REF^{commit}" >/dev/null; then
+  echo "✗ no ref for $train — expected ${REF:-a build/<n> tag} to exist" >&2
+  exit 1
+fi
+
+SHA=$(git rev-parse --short "$REF^{commit}")
+echo "→ $train from $REF ($SHA), serving at $PREFIX"
+
+# A worktree rather than `git archive`, because the export needs node_modules
+# and a worktree can borrow the app's by path. Removed on the way out however
+# this exits — including a failed build, which would otherwise leave a
+# registered worktree that `git worktree list` reports and `git branch -d`
+# trips over.
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/thefloor-web-XXXXXX")
+cleanup() {
+  git worktree remove --force "$WORK/src" 2>/dev/null || true
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
+
+git worktree add --detach --quiet "$WORK/src" "$REF^{commit}"
+
+# The build number the client will report, taken from the tag's own app.json.
+# **Correct by construction rather than by hand**: the stable train is cut from
+# `released`, so this is the released build, and the beta train from build/<n>,
+# so it is that one. Nothing has to be kept in step with anything.
+BUILD=$(node -e "process.stdout.write(String(require('$WORK/src/app/app.json').expo.ios.buildNumber))")
+echo "→ build $BUILD"
+
+# `experiments.baseUrl` prepends the prefix to every bundled asset link, which
+# is what lets the export be served from a subpath at all. It holds one value
+# and the two trains need different ones, so it is set here rather than
+# committed — in the temporary worktree, where it dirties nothing.
+node -e "
+  const fs = require('fs');
+  const p = '$WORK/src/app/app.json';
+  const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+  c.expo.experiments = { ...(c.expo.experiments || {}), baseUrl: '$PREFIX' };
+  fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
+"
+
+# Borrowed rather than installed: `npm ci` for the app is minutes, and the
+# export needs the same dependency tree the tag pins. If a train ever fails
+# here because its lockfile differs from the checkout's, that is the signal to
+# install properly rather than to widen this.
+ln -s "$PWD/app/node_modules" "$WORK/src/app/node_modules"
+ln -s "$PWD/core/node_modules" "$WORK/src/core/node_modules"
+
+echo "→ exporting"
+(
+  cd "$WORK/src/app"
+  # EXPO_PUBLIC_BUILD is inlined into the bundle at export and read by
+  # `api/build.web.ts`. Unset it would leave the client silent, which is the
+  # one thing WEB.md says it must not be.
+  EXPO_PUBLIC_BUILD="$BUILD" \
+    npx expo export --platform web --output-dir "$WORK/out" --clear >/dev/null
+)
+
+if [ ! -f "$WORK/out/index.html" ]; then
+  echo "✗ export produced no index.html" >&2
+  exit 1
+fi
+
+echo "→ syncing to $HOST"
+# --delete, so a file that left the export leaves the box. Scoped to this one
+# train's directory, which nothing else writes.
+rsync -az --delete -e "$SSH" \
+  "$WORK/out/" "$HOST:/home/ubuntu/thefloor/server/web/$train/"
+
+echo "→ checking"
+URL="https://thefloor.rvanegas.co$PREFIX"
+CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL")
+if [ "$CODE" != "200" ]; then
+  echo "✗ $URL answered $CODE" >&2
+  exit 1
+fi
+echo "✓ $URL is serving $train, build $BUILD, from $SHA"

@@ -1223,6 +1223,27 @@ function migrate(db: Db): void {
     }
   }
 
+  // Which kind of client this sign-in last called from, so the build census can
+  // count native installs alone.
+  //
+  // **NULL means native, and that is the whole design of this column.** Every
+  // client already installed will never send the field, because it did not
+  // exist when they were built — so the population that can be silent here is
+  // exactly the population that is native, and a default of "native" leaves
+  // every existing number untouched. Web says what it is; nothing else has to
+  // be taught anything. See planning/WEB.md § *The census counts native only*.
+  //
+  // Deliberately not inferred from `last_build` being null. Absence of a build
+  // is web-shaped today — production reports `silentBuilds: 0` — but it is not
+  // a safe rule: every native build before 37 is silent too, those installs
+  // still exist, and one of them returning would be misfiled as web and
+  // dropped from the census. That number's job is to say when a shim may be
+  // deleted, and misfiling it to zero would license a deletion that strands a
+  // phone.
+  if (!tokenColumns.some((c) => c.name === 'last_client')) {
+    db.exec('ALTER TABLE tokens ADD COLUMN last_client TEXT');
+  }
+
   const deviceColumns = db
     .prepare('PRAGMA table_info(device_tokens)')
     .all() as Array<{ name: string }>;

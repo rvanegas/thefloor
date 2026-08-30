@@ -90,6 +90,37 @@ export const MIN_SUPPORTED_BUILD = 51;
 export const BUILD_HEADER = 'x-thefloor-build';
 
 /**
+ * Which kind of client is calling, when it says.
+ *
+ * **Separate from the build number rather than inferred from it**, and the
+ * reason is worth keeping next to the parser. A web client reports a real
+ * build — the App Store build of the train it was cut from — so it is not
+ * silent, and silence keeps the one meaning it has always had: a native client
+ * from before build 37. Reading absence of a build as "web" would collapse
+ * those two, and the collapse fails in the dangerous direction, since a
+ * returning pre-37 phone would be filed as web and dropped from the census
+ * that exists to notice it.
+ */
+export const CLIENT_HEADER = 'x-thefloor-client';
+
+/** The kinds this server distinguishes. Native is every install on a device. */
+export type ClientKind = 'web' | 'native';
+
+/**
+ * **Never refuses, and anything unrecognised is native**, on the same contract
+ * as `claimedBuild` and for a stronger reason. This field is newer than every
+ * installed client, so the entire existing population omits it — a default of
+ * anything but native would reclassify all of them at once. New code can be
+ * taught to speak up; already-shipped code cannot.
+ */
+export function claimedClient(
+  raw: string | string[] | null | undefined
+): ClientKind {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value === 'web' ? 'web' : 'native';
+}
+
+/**
  * What a caller claims its build is, from a header or a query parameter.
  *
  * **Never refuses.** Anything unparseable is read as no claim at all rather
