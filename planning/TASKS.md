@@ -260,10 +260,6 @@ Not just email.
 
 If watch party is started and a there is a second session with the same account, let the second app become the player.
 
-## Switching Voice Between Sessions
-
-Something like Facetime functionality.
-
 ## API to Create Telegram or Whatsapp Group Chat
 
 Is it possible?

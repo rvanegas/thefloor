@@ -260,6 +260,33 @@ reviving the tone into the audio session, which `DECISIONS.md` § *The buzz
 reaches a locked phone, so the tone is not built* rules out and which would
 play over the very voice it was announcing.
 
+## What `react-native-web` does not implement
+
+Audited 2026-08-30, after *Sign out* and *Leave channel* turned out to be inert
+in a browser. The library's compatibility strategy is that every React Native
+export **exists**, so shared code imports and renders — but an API with no
+browser equivalent is shipped inert rather than omitted (which would fail at
+import) or throwing (which would fail at the first call). Two of those cost
+this app something:
+
+- **`Alert` is `static alert() {}`.** A no-op, and its own declaration says so:
+  `static alert(): any`, no parameters. All twenty-six call sites did nothing
+  here — confirmations never asked, so the action behind them never ran, and
+  error reports never appeared. Patched in `app/src/ui/alerts.web.ts`, installed
+  from `index.web.ts`, mapping onto `alert`/`confirm`.
+- **`Share` rejects** where `navigator.share` is missing, which is every
+  desktop browser and no iOS one — so the fault hid from a phone. The guest
+  link is the whole of how somebody without an account gets into a channel, so
+  `app/src/share.ts` falls back to the clipboard and the control says which it
+  is about to do.
+
+Two more are inert without costing anything, and are worth knowing before they
+do: **`Keyboard`** never fires a listener and `isVisible()` is always false, so
+`useRevealOnKeyboard` does nothing here — browsers scroll a focused field into
+view themselves. And **`DynamicColorIOS` does not exist at all**, so the import
+in `theme.ts` is `undefined` on web; every use is behind a `Platform.OS` guard,
+and an unguarded one would be an immediate crash rather than a quiet no-op.
+
 ## The four paths
 
 | | |

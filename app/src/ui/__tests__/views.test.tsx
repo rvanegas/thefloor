@@ -961,6 +961,79 @@ describe('Channel, with a guest in it', () => {
     act(() => tree.unmount());
     share.mockRestore();
   });
+
+  it('copies the link when there is nowhere to share it, and says where it went', async () => {
+    // `react-native-web` answers a rejected promise when the browser has no
+    // Web Share API, which turned a desktop into an error message where a
+    // guest link should have been. A clipboard is the honest fallback — but
+    // silently copying would look exactly like a tap that did nothing, so the
+    // card says where the link went.
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockRejectedValue(new Error('Share is not supported in this browser'));
+    const copied = jest
+      .spyOn(Clipboard, 'setStringAsync')
+      .mockResolvedValue(true);
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+
+    await act(async () => {
+      findButton(tree, 'Share a guest link')!.props.onPress();
+    });
+    expect(copied).toHaveBeenCalledWith('https://example.test/g/tok');
+    expect(textOf(tree)).toContain('Link copied');
+    // And not as a failure: nothing went wrong.
+    expect(textOf(tree)).not.toContain('would not copy');
+    act(() => tree.unmount());
+    share.mockRestore();
+    copied.mockRestore();
+  });
+
+  it('says so when the clipboard will not take it either', async () => {
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockRejectedValue(new Error('Share is not supported in this browser'));
+    const copied = jest
+      .spyOn(Clipboard, 'setStringAsync')
+      .mockResolvedValue(false);
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+
+    await act(async () => {
+      findButton(tree, 'Share a guest link')!.props.onPress();
+    });
+    expect(textOf(tree)).toContain('would not copy');
+    act(() => tree.unmount());
+    share.mockRestore();
+    copied.mockRestore();
+  });
+
+  it('leaves a cancelled share alone rather than copying behind somebody', async () => {
+    // The web throws AbortError when the sheet is dismissed. Falling back to
+    // the clipboard there would put a link somewhere the person had just
+    // decided not to send it.
+    const abort = new Error('cancelled');
+    abort.name = 'AbortError';
+    const share = jest.spyOn(Share, 'share').mockRejectedValue(abort);
+    const copied = jest.spyOn(Clipboard, 'setStringAsync');
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+
+    await act(async () => {
+      findButton(tree, 'Share a guest link')!.props.onPress();
+    });
+    expect(copied).not.toHaveBeenCalled();
+    expect(textOf(tree)).not.toContain('Link copied');
+    act(() => tree.unmount());
+    share.mockRestore();
+    copied.mockRestore();
+  });
 });
 
 describe('Channel', () => {

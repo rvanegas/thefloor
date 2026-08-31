@@ -3,7 +3,6 @@ import {
   Alert,
   Platform,
   Pressable,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -54,6 +53,7 @@ import type { Guest } from '../../../core/types';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { pickAndUploadTrack } from '../api/upload';
 import { copyText, pasteText } from '../clipboard';
+import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { liveChannelView } from '../state/live';
 import { AudioDebugPanel } from './AudioDebugPanel';
@@ -169,6 +169,8 @@ export function ChannelView({
   /** While a guest link is being minted, which is a round trip. */
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  /** Where a link went when there was no share sheet to hand it to. */
+  const [shareNote, setShareNote] = useState<string | null>(null);
   /**
    * The link somebody is typing into the watch card, before it is anything.
    *
@@ -188,6 +190,7 @@ export function ChannelView({
    */
   const [changing, setChanging] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
+  const [watchNote, setWatchNote] = useState<string | null>(null);
   /**
    * Which of the watch card's two copy buttons last landed, and whether it did.
    *
@@ -548,9 +551,15 @@ export function ChannelView({
   const shareWatchLink = async () => {
     setLinking(true);
     setWatchError(null);
+    setWatchNote(null);
     try {
       const url = await app.watchLink(channel.id);
-      await Share.share({ message: url });
+      const handoff = await shareLink(url);
+      if (handoff === 'copied') {
+        setWatchNote('Link copied. Open it on the other screen.');
+      } else if (handoff === 'failed') {
+        setWatchError('The link would not copy. Try again.');
+      }
     } catch (error) {
       setWatchError(
         error instanceof Error ? error.message : 'That did not work.'
@@ -1079,6 +1088,7 @@ export function ChannelView({
             </Text>
           ) : null}
           {watchError ? <Text style={styles.warning}>{watchError}</Text> : null}
+          {watchNote ? <Text style={type.muted}>{watchNote}</Text> : null}
 
           {party ? (
             <>
@@ -1701,13 +1711,29 @@ export function ChannelView({
             the channel decides. Manage the links this channel has in Settings.
           </Text>
           <Button
-            label={sharing ? 'Making a link…' : 'Share a guest link'}
+            label={
+              sharing
+                ? 'Making a link…'
+                : // What it is about to do, rather than what it would rather
+                  // do: a browser with no share sheet can keep the second
+                  // promise and not the first. See src/share.ts.
+                  canShare
+                  ? 'Share a guest link'
+                  : 'Copy a guest link'
+            }
             disabled={sharing || !canInviteGuest(channel, me)}
             onPress={async () => {
               setSharing(true);
+              setShareError(null);
+              setShareNote(null);
               try {
                 const url = await app.inviteGuest(channel.id);
-                await Share.share({ message: url });
+                const handoff = await shareLink(url);
+                if (handoff === 'copied') {
+                  setShareNote('Link copied. Paste it wherever you like.');
+                } else if (handoff === 'failed') {
+                  setShareError('The link would not copy. Try again.');
+                }
               } catch (error) {
                 setShareError(
                   error instanceof Error ? error.message : 'That did not work.'
@@ -1724,6 +1750,7 @@ export function ChannelView({
             </Text>
           )}
           {shareError ? <Text style={styles.warning}>{shareError}</Text> : null}
+          {shareNote ? <Text style={type.muted}>{shareNote}</Text> : null}
         </Card>
     </Screen>
   );
