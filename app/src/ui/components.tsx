@@ -183,6 +183,7 @@ export function Screen({
   children,
   contentStyle,
   header,
+  footer,
 }: {
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
@@ -199,6 +200,24 @@ export function Screen({
    * keyboard rather than being pushed off the top of it.
    */
   header?: React.ReactNode;
+  /**
+   * The same thing at the other end, and the same reasoning: a sibling below
+   * the ScrollView rather than an overlay on it, so it takes its own height
+   * out of the viewport and nothing is ever hidden under it. A screen with a
+   * footer therefore needs no bottom padding added to `contentStyle` to keep
+   * its last card reachable, which is the bug an overlay would have.
+   *
+   * Inside the KeyboardAvoidingView too — and at the bottom that matters more
+   * than it does at the top. A footer outside it would be covered by the
+   * keyboard exactly when somebody is typing, which on the channel screen is
+   * when they are pasting a link or naming a video and most likely to want to
+   * mute themselves.
+   *
+   * The bottom safe-area inset is not this component's business: `App.tsx`
+   * wraps everything in a `SafeAreaView` with `edges={['top', 'bottom']}`, so
+   * the home indicator is already accounted for above this.
+   */
+  footer?: React.ReactNode;
 }) {
   const scroll = React.useRef<ScrollView>(null);
   /**
@@ -270,6 +289,7 @@ export function Screen({
           {children}
         </ScrollView>
         </View>
+        {footer}
       </RevealContext.Provider>
     </KeyboardAvoidingView>
   );

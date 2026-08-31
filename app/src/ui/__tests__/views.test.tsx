@@ -2134,6 +2134,121 @@ describe('Channel', () => {
     act(() => live.unmount());
   });
 
+  /*
+    The footer, rendered on its own for two reasons. It is passed through
+    `Screen`'s `footer` slot, which is the whole of what "pinned" means and is
+    invisible to a text search — and its Step out shares a label with the card
+    further down the screen, so `findButton` over the whole tree would find
+    whichever comes first rather than the one meant.
+  */
+  const footerOf = (tree: ReactTestRenderer) => {
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    return render(screen.props.footer);
+  };
+
+  it('pins three controls under the conversation', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const footer = footerOf(tree);
+
+    // Present and unmuted with nobody else here: mute is yours to use, the
+    // floor is not (it wants two people), and stepping out always is.
+    expect(textOf(footer)).toContain('Mute');
+    expect(textOf(footer)).toContain('Claim');
+    expect(textOf(footer)).toContain('Step out');
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  /*
+    Every label says the act it would perform rather than the state it is in —
+    the icon and its colour carry the state, so a label reading "Muted" would
+    leave nothing on the control saying what a tap does.
+
+    Muted and holding the floor are asserted separately because they cannot
+    both hold: claiming the floor is holding it open to speak, so the reducer
+    clears the self-mute. Written as one case first, which is how that was
+    found — the footer was right and the fixture was impossible.
+  */
+  it('flips the mute label when you have muted yourself', () => {
+    showChannel(
+      channelOf((c) =>
+        reduce(c, { type: 'SET_SELF_MUTE', userId: ME, muted: true }, NOW)
+      )
+    );
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const footer = footerOf(tree);
+    expect(textOf(footer)).toContain('Unmute');
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('flips the floor label while you hold it', () => {
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'CLAIM_FLOOR', userId: ME }, NOW))
+    );
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const footer = footerOf(tree);
+    expect(textOf(footer)).toContain('Release');
+    // And the mute goes back to offering a mute, the claim having cleared it.
+    expect(textOf(footer)).toContain('Mute');
+    expect(textOf(footer)).not.toContain('Unmute');
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('greys what the reducer would refuse, and never the way out', () => {
+    // Outside the room. The mute is not yours — the microphone is shut and
+    // muting it changes nothing anybody can hear — and the floor wants
+    // presence. Step in is the one thing that must stay live, since it is the
+    // only control on this bar that could get you the other two.
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW))
+    );
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const footer = footerOf(tree);
+
+    expect(findButton(footer, 'Mute')!.props.accessibilityState.disabled).toBe(true);
+    expect(findButton(footer, 'Claim')!.props.accessibilityState.disabled).toBe(true);
+    const stepIn = findButton(footer, 'Step in')!;
+    expect(stepIn.props.accessibilityState.disabled).toBe(false);
+
+    act(() => stepIn.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'ENTER' });
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('acts on the same actions the cards send', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const footer = footerOf(tree);
+
+    act(() => findButton(footer, 'Mute')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_SELF_MUTE',
+      muted: true,
+    });
+
+    act(() => findButton(footer, 'Step out')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
+    // Stepping out of the footer leaves the screen exactly as the card does —
+    // the view is dropped and the caller told, not just the reducer poked.
+    expect(mockApp.leaveChannelView).toHaveBeenCalledWith('sess_1');
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
   /**
    * The one setting on this screen that is about the reader rather than about
    * the channel. It shows what they are on, and every level says in a sentence

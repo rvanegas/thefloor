@@ -1298,3 +1298,101 @@ including one the screen never contains. Written first the wrong way, and it
 would have proved nothing.
 
 1,300 lines, so no rollover.
+
+## The channel grows a footer, and the application grows icons — 2026-08-31
+
+Three controls pinned under the conversation — mute, the floor, stepping in and
+out — through a new `footer` slot on `Screen` that mirrors `header` exactly: a
+sibling below the ScrollView rather than an overlay, so it takes its own height
+out of the viewport and no card is ever hidden under it. Inside the
+`KeyboardAvoidingView`, which matters more at the bottom than at the top: a
+footer outside it is covered by the keyboard precisely when somebody is typing,
+which on this screen is when they are pasting a link and most likely to want to
+mute themselves. No bottom inset — `App.tsx` already wraps everything in a
+`SafeAreaView` with `edges={['top', 'bottom']}`.
+
+### The footer is the shortcut; the cards are still the controls
+
+All three already have cards further down, and they keep them. A card carries
+the sentence saying why a control is refused, the countdown, the warning that
+being silenced is not being unrecorded. A footer can carry none of that, and a
+greyed icon with no reason given is the one shape this codebase does not allow
+a control to have. So the card explains and the bar is quick — the arrangement
+ProfileView's Copy button already has against the selectable address above it,
+where the rule was written down as *the shortcut must not outweigh the thing it
+is a shortcut to*.
+
+**The three are labelled**, though icons were what was asked for. Two of them
+are mechanics this application invented; nobody arrives knowing what claiming
+the floor is, and a raised hand does not teach it. The label makes the icon
+legible the first time and the icon makes it findable afterwards.
+
+**All three are always present and grey rather than disappear**, which is the
+opposite of what the cards do. On a screen that scrolls, a control untrue of
+you should be absent. In a bar fixed under a thumb, items coming and going move
+the other two under a finger already travelling — and the mute you meant
+becomes the floor you did not. Position is what a footer is for, so position is
+what holds still. The same reasoning sets `flex: 1` on each: sizing to content
+would shift the middle control when *Claim* becomes *Release*.
+
+The guards are the ones the cards use — `canSetSelfMute`, `canClaimFloor`,
+presence — so a greyed icon and a refused action cannot disagree. **Stepping in
+and out is never refused**: it is the only control on the bar that can get you
+the other two.
+
+### Lucide, vendored
+
+`react-native-svg` at `15.12.1`, which is what `expo/bundledNativeModules.json`
+pins for SDK 54, and the paths for six glyphs copied into `ui/icons.tsx` from
+the published `lucide-static@1.38.0`. Lucide is ISC, which is what permits the
+copy.
+
+**Vendored rather than `lucide-react-native`** because that would be a second
+dependency on top of `react-native-svg` for six glyphs, and Metro does not
+tree-shake by default on SDK 54 — so the barrel import that reads most
+naturally is the one that risks pulling a 25MB, 9,251-file package into the
+graph. The subpath form (`lucide-react-native/icons/mic`) avoids that and was
+the real alternative; it lost on the argument that the floor icon was going to
+be bespoke either way, and importing two icons from a package while hand-rolling
+the third leaves two stroke vocabularies to keep in step.
+
+**The cost of vendoring is that a mistyped path is silent** — it draws the
+wrong shape and nothing fails. So the paths were taken from the package with
+`npm pack`, which fetches the published tarball without installing it, rather
+than written from memory; the first attempt at `mic-off` from memory was
+subtly wrong, which is the whole argument for doing it that way. Each component
+names the icon it came from, and the file says to re-fetch rather than edit the
+numbers by hand.
+
+**Stroke is 1.75 rather than Lucide's 2.** These sit under 11px labels on a
+screen whose heaviest rule is a hairline; at 22px a 2-unit stroke outweighs
+every piece of type around it and the icon stops reading as a label.
+
+**One glyph for the floor, two for the microphone**, which is deliberate. A
+struck-through microphone is the one piece of this vocabulary everybody already
+knows. Claiming the floor has no counterpart in any icon set, because the floor
+is this application's own idea — so the state is carried by the accent colour
+and by the word, which changes between *Claim* and *Release*, rather than by
+inventing a second shape nobody would read. A hand rather than a megaphone: a
+megaphone is about volume, which is the one thing holding the floor does not
+change.
+
+### It needs a rebuild
+
+`react-native-svg` has a native side, so this is the first change in a while
+that a JS reload will not show. `npx expo prebuild` and a fresh `run:ios`.
+
+### The tests
+
+The footer is asserted by rendering `Screen`'s `footer` prop on its own, for
+the reason the headers are — both arrangements flatten to one string — and for
+a second reason the headers did not have: the footer's *Step out* shares a
+label with the card's, so `findButton` over the whole tree finds whichever
+comes first rather than the one meant.
+
+One fixture was impossible and the footer was right: the first version of the
+label test made somebody muted *and* holding the floor, which the reducer never
+produces, because claiming the floor is holding it open to speak and clears the
+self-mute. Split into two cases, one of which now asserts that clearing.
+
+1,398 lines, so no rollover.

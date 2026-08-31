@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ColorValue,
 } from 'react-native';
 import {
   cooldownRemainingMs,
@@ -61,6 +62,7 @@ import { ChannelSettingsView } from './ChannelSettingsView';
 import { TranscriptView } from './TranscriptView';
 import { ProfileView } from './ProfileView';
 import { InlineMarkdown, isSafeUrl, openUrl } from './markdown';
+import { FloorIcon, MicIcon, StepIcon } from './icons';
 import {
   Button,
   Card,
@@ -725,8 +727,78 @@ export function ChannelView({
     </View>
   );
 
+  /*
+    The three things you do to a conversation while you are in it, always
+    within reach.
+
+    **These are shortcuts, not the controls.** Each of them still has its card
+    further down — with the sentence saying why it is refused, the countdown,
+    the warning about being recorded while silenced. A footer cannot carry any
+    of that, and an icon that greys with no reason given is the one shape this
+    codebase does not allow a control to have. So the card stays as the place
+    the state is explained and this is the place the act is quick, which is the
+    arrangement `ProfileView`'s Copy button already has against the selectable
+    address above it: the shortcut must not outweigh the thing it shortcuts.
+
+    **Labelled, though the request was for icons.** Two of these three are
+    mechanics this application invented — nobody arrives knowing what claiming
+    the floor is, and a raised hand does not teach it. The label is what makes
+    the icon legible the first time and the icon is what makes it findable
+    after that.
+
+    **All three are always present, greyed rather than absent**, which is the
+    opposite of what the cards do. On a screen that scrolls, a control that is
+    not true of you should not be there at all; in a bar fixed under your
+    thumb, items appearing and disappearing move the other two under a finger
+    already on its way — and the mute you meant becomes the floor you did not.
+    Position is the thing a footer is for, so position is what stays fixed.
+  */
+  const footer = (
+    <View style={styles.footer}>
+      <FooterAction
+        label={iAmSelfMuted ? 'Unmute' : 'Mute'}
+        hint={iAmSelfMuted ? 'Your microphone is muted' : 'Your microphone is open'}
+        icon={(color) => <MicIcon color={color} muted={iAmSelfMuted} />}
+        // The same guard the card's button uses. Holding the floor is holding
+        // it open to speak, and the reducer refuses the mute either way.
+        disabled={!iAmPresent || !canSetSelfMute(channel, me, !iAmSelfMuted)}
+        // Being force-muted by somebody else's claim is not the same state as
+        // muting yourself, and it is the one worth colouring: the microphone
+        // is shut and you did not shut it.
+        tone={iAmSilenced ? 'silenced' : iAmSelfMuted ? 'active' : 'idle'}
+        onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
+      />
+      <FooterAction
+        label={iHoldFloor ? 'Release' : 'Claim'}
+        hint={iHoldFloor ? 'You have the floor' : 'Claim the floor'}
+        icon={(color) => <FloorIcon color={color} />}
+        disabled={!iHoldFloor && !claimable}
+        tone={iHoldFloor ? 'active' : 'idle'}
+        onPress={() =>
+          act({ type: iHoldFloor ? 'RELEASE_FLOOR' : 'CLAIM_FLOOR' })
+        }
+      />
+      <FooterAction
+        label={iAmPresent ? 'Step out' : 'Step in'}
+        hint={iAmPresent ? 'Leave the conversation' : 'Join the conversation'}
+        icon={(color) => <StepIcon color={color} out={iAmPresent} />}
+        // Never refused. Stepping in is what a screen you are not in is for,
+        // and stepping out is the one act nothing on this screen can withhold.
+        onPress={() => {
+          if (!iAmPresent) {
+            act({ type: 'ENTER' });
+            return;
+          }
+          act({ type: 'STEP_OUT' });
+          app.leaveChannelView(channelId);
+          onExit();
+        }}
+      />
+    </View>
+  );
+
   return (
-    <Screen header={header} contentStyle={styles.container}>
+    <Screen header={header} footer={footer} contentStyle={styles.container}>
         <View style={styles.presence}>
           {channel.description ? (
             <InlineMarkdown
@@ -1862,6 +1934,68 @@ export function ChannelView({
 }
 
 /**
+ * One of the three controls in the pinned footer: an icon, a word, and the
+ * same guard its card uses.
+ *
+ * Not a `Button`. `Button` is a filled rectangle sized for a card — its
+ * variants decide colour and it has no size axis, which is why two callers
+ * already reach past it with a `style` prop. Three of them side by side would
+ * make the footer heavier than anything it sits under, and the state here is
+ * carried by the icon's colour rather than by a fill.
+ *
+ * `tone` is that colour, and it is a state rather than a variant: `active`
+ * means this is the thing currently true of you — you are muted, you hold the
+ * floor — and takes the accent; `silenced` is being muted by somebody else's
+ * claim, which is the one state on this bar you did not choose. The label
+ * takes the same colour as the icon so the two cannot disagree.
+ *
+ * `hint` is the accessibility label rather than anything drawn. "Mute" beside
+ * an icon is enough to read and not enough to hear.
+ */
+function FooterAction({
+  label,
+  hint,
+  icon,
+  disabled,
+  tone = 'idle',
+  onPress,
+}: {
+  label: string;
+  hint: string;
+  icon: (color: ColorValue) => React.ReactNode;
+  disabled?: boolean;
+  tone?: 'idle' | 'active' | 'silenced';
+  onPress: () => void;
+}) {
+  const color = disabled
+    ? colors.textFaint
+    : tone === 'silenced'
+      ? colors.silenced
+      : tone === 'active'
+        ? colors.floor
+        : colors.text;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={hint}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.footerAction,
+        pressed && !disabled && styles.footerActionPressed,
+      ]}
+    >
+      {icon(color)}
+      <Text style={[styles.footerLabel, { color }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/**
  * The heading above a run of sections, and the only two-level hierarchy in
  * this application's chrome.
  *
@@ -2520,6 +2654,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: -spacing(1),
   },
+  /**
+   * The pinned footer.
+   *
+   * A top hairline for the reason the header has a bottom one: without an
+   * edge the last card slides under the icons and stops, with nothing saying
+   * which of the two moved. `surface` rather than `bg` so the bar reads as
+   * sitting above the page — the same relationship the cards have to it.
+   *
+   * No bottom inset here. `App.tsx` wraps the whole application in a
+   * `SafeAreaView` with `edges={['top', 'bottom']}`, so the home indicator is
+   * already accounted for; adding padding for it here would double it.
+   */
+  footer: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingTop: spacing(1),
+    paddingBottom: spacing(0.75),
+    paddingHorizontal: spacing(1),
+  },
+  /**
+   * `flex: 1` on all three, so each is a third of the bar whatever its label
+   * says. The alternative — sizing to content — moves the middle control when
+   * "Claim" becomes "Release", which is a target shifting under the thumb at
+   * the exact moment somebody is reaching for it a second time.
+   *
+   * `minHeight` is the 44pt Apple asks for, which the icon and label do not
+   * reach on their own.
+   */
+  footerAction: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    minHeight: 44,
+    paddingVertical: spacing(0.25),
+  },
+  footerActionPressed: { opacity: 0.6 },
+  /**
+   * 11px, which is smaller than anything else in this application and is the
+   * one place that is right: it is a caption under a glyph that has already
+   * said it, and the pair is what gets read rather than either half.
+   */
+  footerLabel: { fontSize: 11, fontWeight: '600' },
   /**
    * The seam between the conversation and what the channel is carrying.
    *
