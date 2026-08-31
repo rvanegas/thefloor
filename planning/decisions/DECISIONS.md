@@ -1266,3 +1266,35 @@ exists. It was written first against a string the fixture never had, which would
 have passed whatever the code did.
 
 1,268 lines, so no rollover.
+
+## Contacts joins the pinned headers — 2026-08-31
+
+The third and last of the screens somebody scrolls, done the same way as Home
+and the channel: the title and the way back move into `Screen`'s `header` slot,
+the row keeps its shape and stops moving, and `header` takes `container`'s
+horizontal padding plus the hairline a pinned header needs.
+
+It has the strongest case of the three and got it last. Home has a live bar
+worth pinning and the channel is simply long, but this list is as long as the
+number of people somebody knows and **has no other way out of it** — the single
+Home button in that row is the exit. A header that scrolls away strands whoever
+is furthest down the list, which is whoever has the most contacts.
+
+**`AddContact` stays in the scroll**, which is the only judgement here. It was
+the obvious candidate to bring up with the title, being the one thing on this
+screen that is not a contact. Two reasons it does not go: opened, it is a field
+with two buttons that grows another line when it has something to report, and a
+pinned header is the one place on a screen that cannot afford something
+changing height for a reason nobody asked about — the same rule that keeps the
+channel's description out of its header and Home's offline notice out of that
+one. And it is not navigation. It is the first thing you do on this screen,
+which is what the top of a scroll is for; the header is for what you do *to*
+the screen, which here is leave it.
+
+Its test asserts on the collapsed **"Add contact"** label rather than on the
+field's placeholder. A placeholder is a prop, and `textOf` walks rendered text
+— so the negative assertion would have passed against any string at all,
+including one the screen never contains. Written first the wrong way, and it
+would have proved nothing.
+
+1,300 lines, so no rollover.

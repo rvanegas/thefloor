@@ -90,9 +90,21 @@ export function ContactsView({
     );
   }
 
-  return (
-    <Screen contentStyle={styles.container}>
-      <View style={styles.header}>
+  /*
+    Pinned, as Home's and the channel's are. This list is as long as the number
+    of people somebody knows and has no other way out of it — the one button up
+    here is the way back — so a header that scrolls away strands whoever is
+    furthest down it, which is exactly whoever has the most contacts.
+
+    `AddContact` stays in the scroll. It is a field with a button under it and
+    it grows a line when it has something to report, and a pinned header is the
+    one place on a screen that cannot afford something that changes height for
+    a reason nobody asked about. It also is not navigation: it is the first
+    thing you do on this screen, which is what the top of a scroll is for.
+  */
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
         <Text style={type.title}>Contacts</Text>
         {/* The way back, and nothing beside it. Every other screen carries its
             scope's settings here too; this one's were your own account, which
@@ -101,7 +113,11 @@ export function ContactsView({
           <Button label="Home" variant="ghost" onPress={onHome} />
         </View>
       </View>
+    </View>
+  );
 
+  return (
+    <Screen header={header} contentStyle={styles.container}>
       <AddContact />
 
       {/*
@@ -347,13 +363,35 @@ function AddContact() {
 
 const styles = StyleSheet.create({
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
+  /**
+   * The pinned header, carrying `container`'s horizontal padding itself now
+   * that it sits outside the scroll, so the title lines up with the rows
+   * under it. The hairline is what a pinned header needs and a scrolling one
+   * does not — see the note on TranscriptView's.
+   */
   header: {
+    paddingHorizontal: spacing(2.5),
+    paddingTop: spacing(1),
+    paddingBottom: spacing(1.5),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  /** What used to be `header` itself: the title and the way back. */
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing(1),
   },
-  headerActions: { flexDirection: 'row', alignItems: 'center' },
+  /**
+   * Negative trailing margin, so `Button`'s card-sized horizontal padding
+   * does not inset it further from the edge than the title is from the other
+   * one.
+   */
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: -spacing(1),
+  },
   list: { gap: spacing(1) },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing(1.5) },
   rowMain: { flex: 1, gap: 2 },

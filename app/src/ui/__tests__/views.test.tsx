@@ -6242,6 +6242,35 @@ describe('Contacts', () => {
     return tree;
   };
 
+  /*
+    Pinned, like Home's and the channel's, and asserted on `Screen`'s prop for
+    the same reason: both arrangements flatten to one string, so a text search
+    reads a header that scrolls away and one that does not as identical.
+
+    This list has no other way out of it than the one button up here, so a
+    header that scrolls strands whoever is furthest down \u2014 which is whoever
+    has the most contacts.
+  */
+  it('pins the contacts header above the list', () => {
+    withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
+    const tree = open();
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    const header = render(screen.props.header);
+
+    expect(textOf(header)).toContain('Contacts');
+    expect(findButton(header, 'Home')).toBeDefined();
+
+    // Adding somebody stayed in the scroll. Once opened it is a field that
+    // grows a line when it has something to report, and the header is the one
+    // place that cannot afford something changing height for a reason nobody
+    // asked about. Asserted on its collapsed label, which is rendered text —
+    // the placeholder would not do, being a prop that `textOf` cannot see.
+    expect(textOf(tree)).toContain('Add contact');
+    expect(textOf(header)).not.toContain('Add contact');
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
+
   it('puts you first, outside the list of everybody else', async () => {
     // The server has never put you in your own contact list \u2014 it returns the
     // other id of each contacts row \u2014 so the card is drawn from `app.me`, and
