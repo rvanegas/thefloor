@@ -90,15 +90,14 @@ const mockApp = {
   // Answers for whoever is asked about, as the server does — a mock that
   // returns one person regardless would hide a component reading the wrong id.
   // Typed as the protocol shape rather than inferred from this one answer, so
-  // a test can hand back a profile with no bio, or with the availability
-  // fields a contact's profile carries.
+  // a test can hand back the availability fields a contact's profile carries,
+  // or leave them out the way the server does for everybody else.
   loadProfile: jest.fn(
     async (accountId: string): Promise<ProfileViewData> => ({
       account: {
         id: accountId,
         displayName: accountId === ME ? 'Me' : 'Dana Chu',
       },
-      bio: 'Cellist. **Bach** mostly.',
     })
   ),
   saveProfile: jest.fn(async () => {}),
@@ -3691,7 +3690,6 @@ describe('channels you share with somebody', () => {
     ]);
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: THEM, displayName: 'Dana Chu' },
-      bio: null,
       sharedChannels: [
         {
           channelId: 'sess_busy',
@@ -3746,7 +3744,6 @@ describe('channels you share with somebody', () => {
     ]);
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: THEM, displayName: 'Dana Chu' },
-      bio: null,
     });
 
     let tree!: ReactTestRenderer;
@@ -3805,7 +3802,6 @@ describe('showing your email to a contact', () => {
   const withProfile = (extra: Partial<ProfileViewData>) =>
     mockApp.loadProfile.mockResolvedValue({
       account: { id: THEM, displayName: 'Dana Chu' },
-      bio: null,
       ...extra,
     } as ProfileViewData);
 
@@ -3943,7 +3939,6 @@ describe('reaching somebody in the messaging apps they use', () => {
   const withProfile = (extra: Partial<ProfileViewData>) =>
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: THEM, displayName: 'Dana Chu' },
-      bio: null,
       ...extra,
     } as ProfileViewData);
 
@@ -3998,7 +3993,6 @@ describe('reaching somebody in the messaging apps they use', () => {
     mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
-      bio: null,
       im: { telegram: 'me_here' },
     } as ProfileViewData);
     let tree!: ReactTestRenderer;
@@ -4014,7 +4008,7 @@ describe('reaching somebody in the messaging apps they use', () => {
         (n) => typeof n.type === 'string' && n.props?.placeholder === placeholder
       )[index];
 
-    // Seeded from what the server holds, like the name and the bio.
+    // Seeded from what the server holds, like the name.
     expect(field('@username').props.value).toBe('me_here');
 
     // WhatsApp first, Signal second — the two share a hint, both being phone
@@ -4035,7 +4029,6 @@ describe('reaching somebody in the messaging apps they use', () => {
     mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
-      bio: null,
     } as ProfileViewData);
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -4052,8 +4045,8 @@ describe('reaching somebody in the messaging apps they use', () => {
     act(() => whatsapp.props.onChangeText('555 1234'));
     await act(async () => whatsapp.props.onBlur());
 
-    // The server would refuse it — and refuse the name and bio it travelled
-    // with, this being one write — so it is not sent, and the field says what
+    // The server would refuse it — and refuse the name it travelled with,
+    // this being one write — so it is not sent, and the field says what
     // is missing while the typing stays where it was typed.
     expect(mockApp.saveProfile).not.toHaveBeenCalled();
     expect(textOf(tree)).toContain('country code');
@@ -4362,7 +4355,6 @@ describe('when somebody was last in the app', () => {
     };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: THEM, displayName: 'Dana Chu' },
-      bio: null,
       ...(lastSeenAt === undefined ? {} : { lastSeenAt }),
       ...(inApp === undefined ? {} : { inApp }),
     });
@@ -4473,7 +4465,6 @@ describe('the invited count', () => {
   async function profileShowing(invited: number | undefined) {
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: THEM, displayName: 'Dana Chu' },
-      bio: null,
       ...(invited === undefined ? {} : { invited }),
     });
     let tree!: ReactTestRenderer;
@@ -4516,7 +4507,6 @@ describe('who invited them', () => {
   ) {
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: THEM, displayName: 'Dana Chu' },
-      bio: null,
       invited: 0,
       ...(invitedBy === undefined ? {} : { invitedBy }),
     });
@@ -5457,7 +5447,8 @@ describe('who is in the channel, and who is talking', () => {
    * Your own card is a button like the rest. It used to be the one that was
    * not, because the screen behind it would have offered to add you as your
    * own contact — which ProfileView stopped doing when it learnt `isSelf`.
-   * What it is for is reading your bio as the roster around you reads it.
+   * What it is for is reading your own profile as the roster around you
+   * reads it — and editing it, which is the one thing the card leads to.
    */
   it('opens your own profile from your own card, without the contact card', async () => {
     showChannel(channelOf());
@@ -5681,7 +5672,7 @@ describe('your own profile', () => {
    * action for entering a channel, since the only channels it could list are
    * ones you share with yourself.
    */
-  async function mine(bio: string | null = null) {
+  async function mine() {
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -5690,7 +5681,6 @@ describe('your own profile', () => {
     };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
-      bio,
     });
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -5711,26 +5701,18 @@ describe('your own profile', () => {
     act(() => tree.unmount());
   });
 
-  it('says an empty bio is yours to write, and where', async () => {
-    const tree = await mine();
-    expect(textOf(tree)).toContain('You have not written anything about yourself');
-    // Where it is written is this screen now, not a settings screen elsewhere.
-    expect(textOf(tree)).toContain('Edit is at the top of this screen');
-    expect(textOf(tree)).not.toContain('They have not written');
-    act(() => tree.unmount());
-  });
-
   it('offers Edit, which nobody else\u2019s profile does', async () => {
     const tree = await mine();
     expect(findButton(tree, 'Edit')).toBeDefined();
     act(() => tree.unmount());
   });
 
-  it('shows the bio rendered, which is the point of looking', async () => {
-    const tree = await mine('**Loud** and clear');
-    const text = textOf(tree);
-    expect(text).toContain('Loud');
-    expect(text).not.toContain('**');
+  it('says nothing about a profile that arrived and is thin', async () => {
+    // A loaded profile with nothing optional on it draws no card saying so.
+    // The card that is left answers only "still fetching" and "not yours to
+    // read", which is what remains of the one the bio used to live in.
+    const tree = await mine();
+    expect(textOf(tree)).not.toContain('There is no profile here');
     act(() => tree.unmount());
   });
 
@@ -5743,7 +5725,6 @@ describe('your own profile', () => {
     };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: THEM, displayName: 'Dana Chu' },
-      bio: null,
     });
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -5752,7 +5733,7 @@ describe('your own profile', () => {
       );
     });
     expect(findButton(tree, 'Add contact')).toBeDefined();
-    // Somebody else's name and bio are theirs to write.
+    // Somebody else's profile is theirs to write.
     expect(findButton(tree, 'Edit')).toBeUndefined();
     act(() => tree.unmount());
   });
@@ -5760,8 +5741,8 @@ describe('your own profile', () => {
 
 describe('editing your own profile', () => {
   /**
-   * Your name and your bio, which are the two things a contact reads and were
-   * a settings screen of their own until 2026-08-29. They are fields on this
+   * Your name and your handles, which are what a contact reads and were a
+   * settings screen of their own until 2026-08-29. They are fields on this
    * screen now, behind Edit: a profile that cannot be edited is a read-only
    * profile, and an editor for one is that profile editing.
    *
@@ -5769,11 +5750,11 @@ describe('editing your own profile', () => {
    * which is why Edit is refused until it lands — and there is no second fetch
    * of the kind the separate screen needed.
    */
-  const openMine = async (bio: string | null = 'Cellist. **Bach** mostly.') => {
+  const openMine = async () => {
     mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
-      bio,
+      im: { telegram: 'me_here' },
     });
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -5795,14 +5776,10 @@ describe('editing your own profile', () => {
       (n) => n.props?.placeholder === 'What people should call you'
     )[0];
 
-  const bioField = (tree: ReactTestRenderer) =>
-    tree.root.findAll(
-      (n) => n.props?.placeholder === 'Anything you would like people to know\u2026'
-    )[0];
-
   it('is refused until the profile it would seed the fields from arrives', () => {
-    // Otherwise the fields open empty and a blur writes that emptiness over a
-    // bio somebody has, which is the one way this screen could destroy work.
+    // Otherwise the fields open empty and a blur writes that emptiness over
+    // handles somebody has, which is the one way this screen could destroy
+    // work.
     mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
     mockApp.loadProfile.mockReturnValueOnce(new Promise(() => {}) as never);
     const tree = render(
@@ -5819,12 +5796,12 @@ describe('editing your own profile', () => {
     expect(mockApp.loadProfile).toHaveBeenCalledTimes(1);
 
     expect(nameField(tree).props.value).toBe('Me');
-    expect(bioField(tree).props.value).toBe('Cellist. **Bach** mostly.');
-    // The markup is in the field, and rendered beside it — the card that
-    // renders it is not on screen while it is being typed.
-    const text = textOf(tree);
-    expect(text).toContain('Preview');
-    expect(text).toContain('Bach');
+    // The handles are seeded from the same fetch, canonical as the server
+    // answered with them.
+    expect(
+      tree.root.findAll((n) => n.props?.placeholder === '@username')[0].props
+        .value
+    ).toBe('me_here');
     act(() => tree.unmount());
   });
 
@@ -5835,7 +5812,8 @@ describe('editing your own profile', () => {
     act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
     await act(async () => nameField(tree).props.onBlur());
 
-    // Only what changed: the bio was never touched, so it is not sent.
+    // Only what changed: the handles were never touched, so they are not
+    // sent.
     expect(mockApp.saveProfile).toHaveBeenCalledWith({
       displayName: 'Alice Nkemdirim',
     });
@@ -5858,18 +5836,16 @@ describe('editing your own profile', () => {
     act(() => tree.unmount());
   });
 
-  it('shows the bio it just wrote, rendered', async () => {
+  it('shows the name it just wrote, with no second fetch', async () => {
     // The write is patched into the profile this screen holds rather than
     // re-read: the server was handed the string, so a second GET would spend a
     // round trip being told what we had just said.
     const tree = await edit(await openMine());
-    act(() => bioField(tree).props.onChangeText('**Loud** and clear'));
+    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
     await act(async () => findButton(tree, 'Done')!.props.onPress());
 
     expect(mockApp.loadProfile).toHaveBeenCalledTimes(1);
-    const text = textOf(tree);
-    expect(text).toContain('Loud');
-    expect(text).not.toContain('**Loud**');
+    expect(textOf(tree)).toContain('Alice Nkemdirim');
     act(() => tree.unmount());
   });
 
@@ -5895,21 +5871,13 @@ describe('editing your own profile', () => {
     act(() => tree.unmount());
   });
 
-  it('names the account you are signed in as, which Home used to', async () => {
-    // Moved off Home, where it was the one sentence about the account on a
-    // screen about rooms. Here it is under the field that changes it.
+  it('does not say whose account this is, the way in having said so', async () => {
+    // A "Signed in as ..." line rode here from the settings screen and from
+    // Home before that, where each time it was the only sentence about the
+    // account on a screen about something else. The only way in is the card
+    // under "You" on Contacts, so it was answering an answered question.
     const tree = await edit(await openMine());
-    expect(textOf(tree)).toContain('Signed in as Me');
-    act(() => tree.unmount());
-  });
-
-  it('names the saved value rather than the draft in the field', async () => {
-    // Typing is not being renamed. Until the write lands, the server still
-    // tells everybody the old name, and this line is about the server.
-    const tree = await edit(await openMine());
-    act(() => nameField(tree).props.onChangeText('Alice Nkemdirim'));
-    expect(textOf(tree)).toContain('Signed in as Me');
-    expect(textOf(tree)).not.toContain('Signed in as Alice');
+    expect(textOf(tree)).not.toContain('Signed in');
     act(() => tree.unmount());
   });
 

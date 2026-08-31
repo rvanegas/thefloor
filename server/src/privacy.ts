@@ -160,9 +160,8 @@ application collects little.</p>
   which you can do only for a contact, one person at a time, from their profile.
   You can stop showing it at any time; that removes it from their screen, and it
   cannot recover a copy they have already written down.</li>
-  <li><strong>Your display name, and a description of yourself if you write
-  one.</strong> Both are shown to people you share a channel or a contact
-  relationship with.</li>
+  <li><strong>Your display name.</strong> It is shown to people you share a
+  channel or a contact relationship with.</li>
   <li><strong>A WhatsApp, Telegram or Signal handle, if you put one on your
   profile.</strong> Two of those are phone numbers. Nothing here asks your
   phone for them and nothing is sent through them — they are stored because
@@ -219,8 +218,8 @@ is removed about ${RETENTION_DAYS} days later, so that a deletion made by
 mistake can be recovered by asking.</p>
 
 <p><strong>Your account is deleted from inside the application</strong>, under
-Settings, and it happens immediately. Your address, your name, what you wrote
-about yourself, your contacts and every sign-in are removed. You are taken out
+Settings, and it happens immediately. Your address, your name, your contacts
+and every sign-in are removed. You are taken out
 of every channel you were in: channels you shared with other people carry on
 without you, since they are those people’s conversations too, and channels you
 were the last member of are deleted with everything recorded in them. Recordings

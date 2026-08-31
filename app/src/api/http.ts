@@ -225,7 +225,7 @@ export const api = {
    */
   saveProfile: (
     token: string,
-    changes: { displayName?: string; bio?: string; im?: ImHandles }
+    changes: { displayName?: string; im?: ImHandles }
   ) => request<ProfileView>('/me', { method: 'POST', body: changes, token }),
 
   /**

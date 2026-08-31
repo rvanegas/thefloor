@@ -318,7 +318,6 @@ interface AppValue extends AppState {
   /** Writes your own; whatever is left undefined is left alone. */
   saveProfile: (changes: {
     displayName?: string;
-    bio?: string;
     im?: ImHandles;
   }) => Promise<void>;
   startChannel: (contactIds: string[]) => Promise<string>;

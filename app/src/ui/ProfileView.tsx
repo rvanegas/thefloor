@@ -20,7 +20,6 @@ import {
 } from '../../../core/im';
 import { describeChannel } from '../../../core/naming';
 import {
-  MAX_BIO_LENGTH,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_PING_TEXT_LENGTH,
 } from '../../../core/constants';
@@ -34,7 +33,6 @@ import {
   SectionLabel,
   useRevealOnKeyboard,
 } from './components';
-import { InlineMarkdown } from './markdown';
 import {
   describeAvailability,
   describePresence,
@@ -90,9 +88,9 @@ function imProblem(service: ImService, typed: string): string | null {
  * answer to both "no such person" and "not yours to read", deliberately, so
  * that account ids cannot be walked to find out which exist.
  *
- * Read-only, except about you. Your own carries an Edit button, and the two
- * things a contact actually reads — your name and your bio — become fields in
- * place. There was a separate screen for that until 2026-08-29,
+ * Read-only, except about you. Your own carries an Edit button, and what a
+ * contact reads — your name and where to reach you — becomes fields in place.
+ * There was a separate screen for that until 2026-08-29,
  * `ContactsSettingsView`, kept apart on the grounds that an editor which is
  * sometimes read-only grows a conditional in every field it holds. That is a
  * real cost on a screen with eight fields and very nearly none here: `isSelf`
@@ -103,6 +101,20 @@ function imProblem(service: ImService, typed: string): string | null {
  * A profile that cannot be edited is a read-only profile, and an editor for one
  * is that profile editing. So it is one screen with a mode rather than two
  * screens, and the mode is the thing that was already implied.
+ *
+ * **There is no bio.** It was the first thing this screen was built around and
+ * it went on 2026-08-31, field, column and all. What is left is a person's
+ * standing and how to reach them — availability, who brought them, the
+ * channels you share, an address and three handles — which is what somebody
+ * opening a profile was after. See decisions/DECISIONS.md.
+ *
+ * **Edit mode does not say whose account this is.** It carried a "Signed in
+ * as …" line under the name field, inherited from the settings screen and from
+ * Home before that, and it was removed on 2026-08-31: the only way in is the
+ * card labelled *You* on Contacts, so the screen was answering a question its
+ * own route had already answered. The line survived two moves because at each
+ * of them it was the only sentence about the account on a screen about
+ * something else; here it is on the screen about the account.
  */
 export function ProfileView({
   accountId,
@@ -165,15 +177,14 @@ export function ProfileView({
   const app = useApp();
   /**
    * This screen showing you to yourself: the first card on the contact list,
-   * and your own card in a channel roster. Your bio as a contact will read it —
-   * rendered, rather than as the Markdown you typed.
+   * and your own card in a channel roster. Your profile as a contact reads it.
    *
    * Derived here rather than passed in, because every caller would compute the
    * same comparison and one of them would eventually forget. What it changes is
    * what is left out — the Contact card, which would offer to add you to your
-   * own contacts — and what is added: Edit, this being the screen your name and
-   * bio are written on. The availability line needs nothing; the server already
-   * withholds it, on the grounds that you are the one person whose whereabouts
+   * own contacts — and what is added: Edit, this being the screen your name
+   * and handles are written on. The availability line needs nothing; the
+   * server already withholds it, on the grounds that you are the one person whose whereabouts
    * you know.
    */
   const isSelf = app.me?.id === accountId;
@@ -205,7 +216,6 @@ export function ProfileView({
    */
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
-  const [draftBio, setDraftBio] = useState('');
   /**
    * The three messaging handles, as typed rather than as stored.
    *
@@ -229,12 +239,10 @@ export function ProfileView({
    */
   const saved = useRef<{
     displayName: string;
-    bio: string;
     /** Canonical, since that is the shape the server answers with. */
     im: Record<ImService, string>;
   }>({
     displayName: '',
-    bio: '',
     im: { whatsapp: '', telegram: '', signal: '' },
   });
 
@@ -417,18 +425,16 @@ export function ProfileView({
    *
    * Only ever reached with a loaded profile, the button being disabled until
    * then — so there is no case where the drafts are seeded from nothing and a
-   * blur writes an empty bio over a real one.
+   * blur writes an empty handle over a real one.
    */
   const startEditing = () => {
     if (!profile) return;
     const held = imFields(profile.im);
     saved.current = {
       displayName: profile.account.displayName,
-      bio: profile.bio ?? '',
       im: held,
     };
     setDraftName(profile.account.displayName);
-    setDraftBio(profile.bio ?? '');
     setDraftIm(held);
     setSaveError(null);
     setEditing(true);
@@ -437,7 +443,7 @@ export function ProfileView({
   /**
    * Writes whatever has actually changed.
    *
-   * There is no Save button and both fields write on blur, which is the rule
+   * There is no Save button and every field writes on blur, which is the rule
    * the screen this replaced was built on: one button meaning "keep my work"
    * beside a nearer, more obvious one meaning "throw it away" is a choice
    * nobody should be asked to make.
@@ -447,12 +453,10 @@ export function ProfileView({
    */
   const persist = async () => {
     const name = draftName.trim();
-    const text = draftBio.trim();
     // A blank name is refused rather than written: it is how everybody else
     // finds you, and the server ignores an empty one anyway. Saying so under
     // the field is what stands in for a disabled button.
     const nameChanged = name !== '' && name !== saved.current.displayName;
-    const bioChanged = text !== saved.current.bio;
 
     /*
       The handles that have actually changed, compared canonically: two
@@ -460,10 +464,10 @@ export function ProfileView({
       server write what it already holds every time a field lost focus.
 
       A handle that is neither blank nor readable is left out rather than sent.
-      The server would refuse it — and refuse the name and bio alongside it,
-      this being one write — so a half-typed number would block saving the
-      sentence somebody was writing about themselves. The field says what is
-      wrong underneath itself; see `imProblem`.
+      The server would refuse it — and refuse the name alongside it, this being
+      one write — so a half-typed number would block saving a rename somebody
+      had just finished. The field says what is wrong underneath itself; see
+      `imProblem`.
     */
     const im: ImHandles = {};
     for (const service of IM_SERVICES) {
@@ -474,11 +478,10 @@ export function ProfileView({
     }
     const imChanged = Object.keys(im).length > 0;
 
-    if (!nameChanged && !bioChanged && !imChanged) return;
+    if (!nameChanged && !imChanged) return;
 
-    const changes: { displayName?: string; bio?: string; im?: ImHandles } = {};
+    const changes: { displayName?: string; im?: ImHandles } = {};
     if (nameChanged) changes.displayName = name;
-    if (bioChanged) changes.bio = text;
     if (imChanged) changes.im = im;
 
     setSaving(true);
@@ -487,15 +490,15 @@ export function ProfileView({
       await app.saveProfile(changes);
       saved.current = {
         displayName: changes.displayName ?? saved.current.displayName,
-        bio: changes.bio ?? saved.current.bio,
         im: { ...saved.current.im, ...im },
       };
       /*
         Patched rather than re-read. `saveProfile` resolves to nothing, and the
-        server was handed these two strings — there is nothing else in a profile
-        that a write to it changes, so a second GET would spend a round trip
-        being told what we had just said. `app.me` is updated by `saveProfile`
-        itself, which is what renames the card this screen was opened from.
+        server was handed exactly these fields — there is nothing else in a
+        profile that a write to it changes, so a second GET would spend a round
+        trip being told what we had just said. `app.me` is updated by
+        `saveProfile` itself, which is what renames the card this screen was
+        opened from.
       */
       setProfile((held) =>
         held
@@ -505,7 +508,6 @@ export function ProfileView({
                 ...held.account,
                 displayName: saved.current.displayName,
               },
-              bio: saved.current.bio === '' ? null : saved.current.bio,
               // Rebuilt from what was kept rather than merged, so that a
               // handle which was cleared leaves rather than lingering as an
               // empty string the read view would draw a dead link for.
@@ -585,17 +587,6 @@ export function ProfileView({
                 autoCapitalize="words"
                 onBlur={() => void persist().catch(() => {})}
               />
-              {/*
-                Who the server will tell everybody you are, which is the saved
-                name rather than the draft directly above it: typing is not
-                being renamed, and until the write lands the old one is still
-                the true answer. It was the second line of the settings screen
-                this mode replaced, and Home's before that — where it was the
-                one sentence about the account on a screen about rooms.
-              */}
-              <Text style={type.muted}>
-                {app.me ? `Signed in as ${app.me.displayName}` : 'Signed in'}
-              </Text>
               {!named ? (
                 <Text style={styles.error}>
                   A name cannot be empty — it is how everyone else finds you, so
@@ -700,7 +691,7 @@ export function ProfileView({
         First of the things to do, and under the facts rather than above
         them. It is drawn only from inside a channel they are missing from,
         which is a screen opened to do something rather than to read something,
-        so it stays above the bio and everything after it — but whether to ping
+        so it stays above everything after it — but whether to ping
         somebody is decided by whether they are about, and the line that says
         so is three words long. Reading it first costs nothing and answers the
         question the composer is asking.
@@ -773,7 +764,7 @@ export function ProfileView({
         asked to be a contact — the card further down does that — and this is a
         step past it rather than part of it.
 
-        Directly under Ping, above the bio and the shared channels, for the
+        Directly under Ping, above the shared channels, for the
         reason Ping is where it is: both are things to do about this person,
         and everything between them and the foot of the screen is things to
         read about them. Reaching somebody is the errand this screen gets
@@ -915,59 +906,39 @@ export function ProfileView({
         </>
       )}
 
-      <Card style={styles.stack}>
-        {editing ? (
-          <>
-            <Field
-              value={draftBio}
-              onChangeText={(v) => setDraftBio(v.slice(0, MAX_BIO_LENGTH))}
-              placeholder="Anything you would like people to know…"
-              autoCapitalize="sentences"
-              multiline
-              onBlur={() => void persist().catch(() => {})}
-            />
+      {/*
+        Whether there is anything here at all, and nothing else.
 
-            {/* Same reasoning as a channel's description: the field shows the
-                markup, and while it is on screen the card that renders it is
-                not — so without a preview the only way to find out what it
-                becomes is to leave and come back. */}
-            {draftBio.trim() ? (
-              <View style={styles.preview}>
-                <Text style={type.label}>Preview</Text>
-                <InlineMarkdown text={draftBio} style={styles.previewText} />
-              </View>
-            ) : null}
+        This card held the bio until 2026-08-31, and with it the two answers
+        that were never about the bio: the fetch is still out, or it was
+        refused. Those are what is left. A profile that arrived draws nothing
+        here — everything there is to know is in the sections around it, and a
+        card between them saying so would be the shape of the missing
+        paragraph rather than a thing to read.
 
+        A ready profile with nothing in it is not an empty screen: a name, how
+        many people they brought here and where they are is a profile, and it
+        is above this line.
+      */}
+      {state !== 'ready' ? (
+        <Card style={styles.stack}>
+          {state === 'loading' ? (
+            <ActivityIndicator color={colors.textMuted} />
+          ) : (
             <Text style={type.muted}>
-              **Bold**, *italic*, `code`, ~~strikethrough~~ and
-              [links](https://example.com) work. Links open in your browser.
+              There is no profile here to show you.
             </Text>
-            <Text style={styles.count}>
-              {draftBio.length} / {MAX_BIO_LENGTH}
-            </Text>
-          </>
-        ) : state === 'loading' ? (
-          <ActivityIndicator color={colors.textMuted} />
-        ) : profile?.bio ? (
-          <InlineMarkdown text={profile.bio} style={styles.bio} />
-        ) : (
-          <Text style={type.muted}>
-            {state === 'refused'
-              ? 'There is no profile here to show you.'
-              : isSelf
-                ? 'You have not written anything about yourself yet. Edit is at the top of this screen.'
-                : 'They have not written anything about themselves yet.'}
-          </Text>
-        )}
-      </Card>
+          )}
+        </Card>
+      ) : null}
 
       {/*
         The three handles, as fields.
 
-        Under the bio rather than above it because the bio is the thing this
-        screen is for and these are an appendix to it — and because two of the
-        three are phone numbers, which is a keyboard nobody should meet before
-        they have been asked who they are.
+        Under the name rather than above it, and last on the screen: your name
+        is what everybody else finds you by and these are an appendix to it —
+        and because two of the three are phone numbers, which is a keyboard
+        nobody should meet before they have been asked who they are.
 
         Each writes on blur like the fields above, and each says underneath
         what it will accept once what is in it cannot be read as a handle. A
@@ -1218,10 +1189,6 @@ const styles = StyleSheet.create({
   channelPressed: { backgroundColor: colors.surfaceRaised },
   /** Italic when nobody has named it; see core/naming.ts. */
   channelDescribed: { ...type.body, fontStyle: 'italic' },
-  bio: { ...type.muted, lineHeight: 20 },
-  preview: { gap: spacing(0.5) },
-  previewText: { color: colors.text },
-  count: { ...type.muted, textAlign: 'right' },
   /**
    * Between the two halves of the email card: theirs above, yours below.
    *

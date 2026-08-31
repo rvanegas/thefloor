@@ -1929,9 +1929,8 @@ function GuestCard({
  * nothing, because the profile screen would have offered to add you as your own
  * contact; that stopped being true when ProfileView learnt `isSelf`, and the
  * exception outlived its reason. What it shows you is what the roster around
- * you is looking at — your bio rendered rather than as the Markdown you typed —
- * which is a question somebody has from inside a channel and not only from
- * settings.
+ * you is looking at, and the way to change it, which is a question somebody
+ * has from inside a channel and not only from settings.
  *
  * The speaking indicator is driven by the room rather than by the reducer. The
  * floor decides who *may* speak and the server enforces it; only the media

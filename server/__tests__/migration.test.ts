@@ -331,6 +331,46 @@ it('adds the debug column to a database that predates it', () => {
   db.close();
 });
 
+it('drops the bio column from a database that has one', () => {
+  // The column was added by this same migration pass from 2026-08-23 until
+  // 2026-08-31, so every live database has one with people's prose in it. It
+  // goes rather than being left in place and ignored: nothing can show, edit
+  // or delete an unreachable field, which is the state account deletion
+  // exists to make impossible.
+  const path = join(dir, 'bio.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_RENAME);
+  seedAccounts(old);
+  old.exec('ALTER TABLE accounts ADD COLUMN bio TEXT');
+  old
+    .prepare('UPDATE accounts SET bio = ? WHERE id = ?')
+    .run('Cellist. **Bach** mostly.', 'acct_a');
+  old.close();
+
+  const db = openDb(path);
+  const columns = (
+    db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>
+  ).map((c) => c.name);
+  expect(columns).not.toContain('bio');
+  // The rest of the row is untouched, a dropped column being the only loss.
+  const row = db
+    .prepare('SELECT display_name FROM accounts WHERE id = ?')
+    .get('acct_a') as { display_name: string };
+  expect(row.display_name).toBeDefined();
+  db.close();
+
+  // And a second open finds no column to drop, which is the guard working.
+  const again = openDb(path);
+  expect(
+    (
+      again.prepare('PRAGMA table_info(accounts)').all() as Array<{
+        name: string;
+      }>
+    ).map((c) => c.name)
+  ).not.toContain('bio');
+  again.close();
+});
+
 /**
  * A database as the box held it on 2026-08-24, the moment before sessions
  * learned to say when they were last heard from and what build they are.

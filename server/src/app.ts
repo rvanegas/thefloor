@@ -1368,8 +1368,8 @@ export function buildApp(options: BuildOptions = {}): App {
    *
    * A route rather than a field on the Home snapshot: that snapshot is pushed
    * to every client on every change, and this is read by one settings screen
-   * when it opens. The same argument the protocol already makes for keeping a
-   * bio off PublicAccount.
+   * when it opens. The same argument the protocol already makes for keeping
+   * the profile fields off PublicAccount.
    *
    * The URL comes from configuration and never from the binary, which is what
    * makes withdrawing the donate call to action a restart rather than an App
@@ -1446,19 +1446,26 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * Your own profile, and the only way to change it.
    *
-   * A partial write: a field left out is left alone, so saving a bio cannot
+   * A partial write: a field left out is left alone, so saving a handle cannot
    * blank a name the client did not happen to send.
+   *
+   * **`bio` is accepted and ignored**, rather than refused. Every build up to
+   * and including 122 sends one whenever somebody edits their profile, and the
+   * field it was written into is gone as of 2026-08-31 — so a 400 here would
+   * turn every one of those saves into an error on a screen where the name
+   * beside it saved fine. Ignoring is the two-step this repository already
+   * requires in the other direction: the field can stop being tolerated once
+   * `MIN_SUPPORTED_BUILD` has passed the last build that sends it.
    */
   fastify.post('/me', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
 
     const body = request.body as
-      | { displayName?: unknown; bio?: unknown; im?: unknown }
+      | { displayName?: unknown; im?: unknown }
       | undefined;
     const changes: {
       displayName?: string;
-      bio?: string;
       im?: Record<string, string>;
     } = {};
     if (body?.displayName !== undefined) {
@@ -1472,12 +1479,6 @@ export function buildApp(options: BuildOptions = {}): App {
       }
       changes.displayName = body.displayName;
     }
-    if (body?.bio !== undefined) {
-      if (typeof body.bio !== 'string') {
-        return reply.code(400).send({ error: 'bio must be text.' });
-      }
-      changes.bio = body.bio;
-    }
     /*
       Where they can be reached elsewhere. Partial in the same two senses as
       the rest of this route: an absent `im` leaves all three alone, and an
@@ -1486,10 +1487,10 @@ export function buildApp(options: BuildOptions = {}): App {
 
       A handle that cannot be made sense of is refused rather than dropped,
       and the service is named. It is the one field here somebody can get
-      *wrong* while meaning something — a bio is whatever they typed and a
-      name only has to be non-empty, but a number without its country code is
-      a link to a stranger. Silently storing nothing would leave a person
-      looking at an empty field they had just filled in.
+      *wrong* while meaning something — a name only has to be non-empty, but a
+      number without its country code is a link to a stranger. Silently storing
+      nothing would leave a person looking at an empty field they had just
+      filled in.
     */
     if (body?.im !== undefined) {
       if (typeof body.im !== 'object' || body.im === null) {
@@ -1616,8 +1617,8 @@ export function buildApp(options: BuildOptions = {}): App {
     // line Home's contact rows used to carry, and it moved here rather than
     // being deleted — but a profile has a wider audience than a contact list
     // ever did, so the audience is narrowed back to match. Somebody reading
-    // this because an acquaintance brought them into a channel gets the bio and
-    // nothing about when its author was last about. The fields are simply
+    // this because an acquaintance brought them into a channel gets a name and
+    // nothing about when that person was last about. The fields are simply
     // absent for them, which is the same shape an older server sends and gets
     // the same treatment from the client: no line at all, rather than an empty
     // one.
@@ -1667,8 +1668,8 @@ export function buildApp(options: BuildOptions = {}): App {
    * "not a contact" about some of them.
    *
    * Nothing is pushed to the other end. A profile is fetched when somebody
-   * opens one — that is the argument the protocol makes for keeping a bio off
-   * every roster — so the address appears on their screen the next time they
+   * opens one — that is the argument the protocol makes for keeping a profile
+   * off every roster — so the address appears on their screen the next time they
    * look, which is the only moment it is of any use to them.
    */
   async function setEmailShown(
@@ -1712,8 +1713,8 @@ export function buildApp(options: BuildOptions = {}): App {
    *
    * Not on the Home snapshot, though `hello` carries the flag: that snapshot
    * is pushed to every client on every change, and this is read by one screen
-   * when it opens. The same argument the protocol already makes for keeping a
-   * bio off `PublicAccount`.
+   * when it opens. The same argument the protocol already makes for keeping
+   * the profile fields off `PublicAccount`.
    */
   fastify.get('/leaderboard', async (request, reply) => {
     const account = await requireAccount(request, reply);

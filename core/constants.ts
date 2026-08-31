@@ -111,15 +111,6 @@ export const MAX_CHANNEL_DESCRIPTION_LENGTH = 1_000;
 export const MAX_DISPLAY_NAME_LENGTH = 40;
 
 /**
- * The most characters a profile bio may hold.
- *
- * Twice a channel's description, because this is the one place a person gets
- * to say who they are and it is read on its own screen rather than squeezed
- * above a roster.
- */
-export const MAX_BIO_LENGTH = 2_000;
-
-/**
  * The most characters somebody may put in a ping.
  *
  * A ping is a notification and nothing else — there is no thread it lands in

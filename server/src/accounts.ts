@@ -5,7 +5,7 @@ import type {
   ProfileView,
   PublicAccount,
 } from '../../core/protocol';
-import { MAX_BIO_LENGTH, MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
+import { MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import {
   IM_SERVICES,
   normaliseImHandle,
@@ -249,26 +249,23 @@ export class Accounts {
   /**
    * Writes a person's own profile.
    *
-   * Both fields are optional and absent means unchanged, so the client can
-   * save one without having to send the other and without a blank field
-   * silently erasing something.
+   * Every field is optional and absent means unchanged, so the client can save
+   * one without having to send the others and without a blank field silently
+   * erasing something.
    *
-   * Normalised the same way a channel's name and description are: a display
-   * name is trimmed and capped, and a blank one is refused rather than
-   * accepted, because a person with no name at all appears as an empty space
-   * in every roster. A bio is trimmed at the ends only — its interior is
-   * Markdown, where a blank line is a paragraph break — and blank clears it.
+   * Normalised the same way a channel's name is: a display name is trimmed and
+   * capped, and a blank one is refused rather than accepted, because a person
+   * with no name at all appears as an empty space in every roster.
    *
-   * A messaging handle follows the same shape and is normalised on the way in,
-   * so what is stored is `core/im.ts`'s canonical form whatever a field held.
-   * Blank clears it, like a bio; **anything that is neither blank nor a handle
-   * is dropped rather than stored**, and the route is what refuses it — this
-   * is the layer that writes, and a half-written profile is worse than a
-   * refused one.
+   * A messaging handle is normalised on the way in, so what is stored is
+   * `core/im.ts`'s canonical form whatever a field held. Blank clears it;
+   * **anything that is neither blank nor a handle is dropped rather than
+   * stored**, and the route is what refuses it — this is the layer that
+   * writes, and a half-written profile is worse than a refused one.
    */
   updateProfile(
     accountId: string,
-    changes: { displayName?: string; bio?: string; im?: ImHandles }
+    changes: { displayName?: string; im?: ImHandles }
   ): AccountRow | undefined {
     const account = this.byId(accountId);
     if (!account) return undefined;
@@ -280,13 +277,6 @@ export class Accounts {
           .prepare('UPDATE accounts SET display_name = ? WHERE id = ?')
           .run(name, accountId);
       }
-    }
-
-    if (changes.bio !== undefined) {
-      const bio = changes.bio.trim().slice(0, MAX_BIO_LENGTH);
-      this.db
-        .prepare('UPDATE accounts SET bio = ? WHERE id = ?')
-        .run(bio === '' ? null : bio, accountId);
     }
 
     for (const service of IM_SERVICES) {
@@ -487,7 +477,6 @@ export class Accounts {
         : {};
     return {
       account: { id: row.id, displayName: row.display_name },
-      bio: row.bio ?? null,
       invited: this.invitedCount(row.id),
       ...(invitedBy ? { invitedBy } : {}),
       // Absent rather than empty, which is what the client reads as "nothing
@@ -1460,7 +1449,7 @@ export class Accounts {
    * and channels long ended that anchor their recordings. Removing the row would
    * either break those constraints or require rewriting other people's history
    * to say somebody else started it. What is left behind is a tombstone: no
-   * address, no name, no bio, no way to reach them anywhere else, nothing
+   * address, no name, no way to reach them anywhere else, nothing
    * anybody can sign in as and nothing that
    * describes a human being. `public()` gives it the same shape as any other
    * account, so a stale id in an old participant list resolves to something
@@ -1539,7 +1528,7 @@ export class Accounts {
     this.db
       .prepare(
         `UPDATE accounts
-            SET identifier = ?, display_name = ?, bio = NULL,
+            SET identifier = ?, display_name = ?,
                 last_seen_at = NULL, donations_allowed = NULL,
                 debug = NULL, im_whatsapp = NULL, im_telegram = NULL,
                 im_signal = NULL

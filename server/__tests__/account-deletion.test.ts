@@ -138,7 +138,7 @@ describe('what goes', () => {
       method: 'POST',
       url: '/me',
       headers: auth(alice.token),
-      payload: { bio: 'Some prose about myself.' },
+      payload: { im: { telegram: '@alice_here' } },
     });
     await app.fastify.inject({
       method: 'POST',
@@ -154,7 +154,7 @@ describe('what goes', () => {
     const row = app.accounts.byId(alice.account.id);
     expect(row).toBeDefined();
     expect(row!.display_name).toBe(ERASED_DISPLAY_NAME);
-    expect(row!.bio).toBeNull();
+    expect(row!.im_telegram).toBeNull();
     expect(row!.identifier).not.toContain('alice@example.com');
     expect(app.accounts.byIdentifier('alice@example.com')).toBeUndefined();
 

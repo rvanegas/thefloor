@@ -1711,3 +1711,76 @@ what they would be turning off.
 STATES.md gains **Standing** as the fifth thing under *Present-in-Channel*,
 beside membership, presence, connectivity and watching, and **disagreement 12**,
 closed.
+
+## The screen the label already introduced — 2026-08-31
+
+Editing your own profile carried a line under the name field: *Signed in as
+…*. It is gone, and Contacts now puts a **You** section label above your own
+card instead of a "You" line inside it.
+
+The line was true and had been true in three places. It was the second line of
+`ContactsSettingsView`, and Home's before that, where it was the one sentence
+about the account on a screen otherwise about rooms. Each move carried it
+because each destination had the same shortage — nothing else said whose
+account this was. **The last move ended that shortage rather than continuing
+it**: a screen about the account does not need a sentence saying it is about
+the account.
+
+What settles it is the route. There is exactly one way into edit mode, which
+is your own card on Contacts, and that card is the only one on the screen that
+is not somebody else. So the question the line answered had been answered by
+the tap that got there — and it was being answered with the *saved* name, which
+made it a second, quieter copy of the field directly above it whenever the two
+disagreed. Two views of one value, one of them behind, is a thing to explain
+rather than a thing to read.
+
+Moving "You" from the card's second line to a section label is the same
+statement said once. It also does the work the removed line used to: a heading
+names what you are looking at, so the section says whose card it is before you
+tap it, where the line said so only after. The card is now a name and nothing
+else, which is what it always was — the second line said nothing about the
+person it was under. Where you are is still absent from it, deliberately: the
+server withholds that about you, you being the one person who already knows.
+
+The `self` style went with it. It existed to space a card that stood between
+two things it belonged to neither of; a section label brings its own margin.
+
+## The bio is gone, column and all — 2026-08-31
+
+`accounts.bio` and every field, route parameter, style and test that served it
+were removed. `ProfileView` no longer has a bio field, a preview, a character
+count or a rendered paragraph; `ProfileView` the protocol type no longer has a
+`bio`; `MAX_BIO_LENGTH` is gone from `core/constants.ts`; and `openDb` drops
+the column from any database that still has one.
+
+**Dropped rather than left in place and ignored**, which is the half worth
+arguing. The cheap move is to stop reading a column and leave it — no data
+lost, reversible in an afternoon. What that leaves is Markdown people typed
+about themselves, with no second copy anywhere, on live accounts, that nothing
+in the application can show them, edit or delete. An unreachable field on a
+live row is exactly the state the account-deletion path exists to make
+impossible, and keeping one for our own convenience would be holding somebody's
+prose on the grounds that we might want it back. So the migration is one way,
+guarded on the column existing, and `migration.test.ts` covers an old database
+through two opens.
+
+**The route still accepts `bio` and quietly drops it.** Every build up to and
+including 122 sends one on every profile save, so a 400 would turn each of
+those into an error on a screen where the name beside it saved fine — the
+two-step this repository already requires in the other direction, seen from the
+removal end. It can stop being tolerated once `MIN_SUPPORTED_BUILD` passes 122.
+Nothing else on the wire needed a shim: an installed client reading a response
+with no `bio` sees `undefined` and draws the empty-bio line it already had.
+
+**What is left of the card the bio lived in is the two answers that were never
+about the bio**: the fetch is still out, or it was refused. A profile that
+arrives draws nothing there. There is no "nothing written yet" line for a thin
+profile any more, and that is right — a name, where somebody is, how many
+people they brought here and how to reach them is a profile, and a card in the
+middle of it apologising for the missing paragraph would be the shape of the
+thing that was removed.
+
+The privacy policy loses the clause about "a description of yourself", and
+RELEASING.md's App Privacy table keeps *User Content → Other User Content* on
+the strength of channel names, transcripts and donation messages — the row
+survives the bio, so no declaration changes at App Review.

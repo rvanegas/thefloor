@@ -71,32 +71,30 @@ const read = (viewer: User, id: string) =>
   });
 
 describe('writing your own profile', () => {
-  it('takes a bio, keeping the markup exactly as typed', async () => {
+  it('takes a name and answers with the whole profile', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
-    const markup = 'Cellist. **Bach** mostly — [notes](https://example.com).';
-    const response = await save(alice, { bio: markup });
+    const response = await save(alice, { displayName: 'Alice Nkemdirim' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
-      account: { id: alice.account.id, displayName: 'Alice' },
-      bio: markup,
+      account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
       invited: 0,
     });
   });
 
   it('leaves out what was left out', async () => {
-    // The point of a partial write: saving a bio must not blank the name, and
-    // saving a name must not blank the bio. A client that sends one field is
-    // editing one field.
+    // The point of a partial write: saving a handle must not blank the name,
+    // and saving a name must not blank a handle. A client that sends one field
+    // is editing one field.
     const alice = await signIn('alice@example.com', 'Alice');
-    await save(alice, { bio: 'Cellist.' });
+    await save(alice, { im: { telegram: '@alice' } });
     await save(alice, { displayName: 'Alice Nkemdirim' });
 
     const profile = (await read(alice, alice.account.id)).json();
     expect(profile).toEqual({
       account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
-      bio: 'Cellist.',
       invited: 0,
+      im: { telegram: 'alice' },
       // Nobody has any channels here. Empty rather than absent, and the
       // distinction is the client's to act on: an absent key is a server too
       // old to answer, where an empty array is the answer.
@@ -104,19 +102,21 @@ describe('writing your own profile', () => {
     });
   });
 
-  it('trims the ends of a bio but never its interior', async () => {
-    // Interior whitespace is Markdown — a blank line is a paragraph break —
-    // so collapsing it would rewrite what somebody wrote.
+  it('takes a bio from an old client and quietly drops it', async () => {
+    // Every build up to 122 sends one on every profile save. The column is
+    // gone as of 2026-08-31, and refusing the field would turn each of those
+    // saves into an error on a screen where the name beside it saved fine.
     const alice = await signIn('alice@example.com', 'Alice');
-    const response = await save(alice, { bio: '  one\n\n  two  ' });
-    expect((response.json() as { bio: string }).bio).toBe('one\n\n  two');
-  });
+    const response = await save(alice, {
+      displayName: 'Alice Nkemdirim',
+      bio: 'Cellist. **Bach** mostly.',
+    });
 
-  it('clears a bio when given nothing but whitespace', async () => {
-    const alice = await signIn('alice@example.com', 'Alice');
-    await save(alice, { bio: 'Cellist.' });
-    const cleared = await save(alice, { bio: '   \n ' });
-    expect((cleared.json() as { bio: string | null }).bio).toBeNull();
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
+      invited: 0,
+    });
   });
 
   it('refuses an empty name rather than accepting one', async () => {
@@ -130,15 +130,15 @@ describe('writing your own profile', () => {
 
   it('refuses fields that are not text', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
-    expect((await save(alice, { bio: { evil: true } })).statusCode).toBe(400);
     expect((await save(alice, { displayName: 42 })).statusCode).toBe(400);
+    expect((await save(alice, { im: 'nope' })).statusCode).toBe(400);
   });
 
   it('refuses an unauthenticated caller', async () => {
     const response = await app.fastify.inject({
       method: 'POST',
       url: '/me',
-      payload: { bio: 'hello' },
+      payload: { displayName: 'hello' },
     });
     expect(response.statusCode).toBe(401);
   });
@@ -149,11 +149,14 @@ describe('reading somebody else’s profile', () => {
     const alice = await signIn('alice@example.com', 'Alice');
     const bob = await signIn('bob@example.com', 'Bob');
     await befriend(alice, bob, 'bob@example.com');
-    await save(bob, { bio: 'Trombone.' });
+    await save(bob, { im: { telegram: '@bob' } });
 
     const response = await read(alice, bob.account.id);
     expect(response.statusCode).toBe(200);
-    expect((response.json() as { bio: string }).bio).toBe('Trombone.');
+    expect(
+      (response.json() as { account: { displayName: string } }).account
+        .displayName
+    ).toBe('Bob');
   });
 
   it('is allowed for someone sharing a channel, contact or not', async () => {
@@ -165,7 +168,7 @@ describe('reading somebody else’s profile', () => {
     const carol = await signIn('carol@example.com', 'Carol');
     await befriend(alice, bob, 'bob@example.com');
     await befriend(alice, carol, 'carol@example.com');
-    await save(carol, { bio: 'Harpsichord.' });
+    await save(carol, { displayName: 'Carol Iwu' });
 
     expect((await read(bob, carol.account.id)).statusCode).toBe(404);
 
@@ -177,7 +180,10 @@ describe('reading somebody else’s profile', () => {
 
     const response = await read(bob, carol.account.id);
     expect(response.statusCode).toBe(200);
-    expect((response.json() as { bio: string }).bio).toBe('Harpsichord.');
+    expect(
+      (response.json() as { account: { displayName: string } }).account
+        .displayName
+    ).toBe('Carol Iwu');
   });
 
   /**
@@ -216,7 +222,7 @@ describe('reading somebody else’s profile', () => {
     const profile = (await read(bob, carol.account.id)).json() as
       Record<string, unknown>;
     // Absent rather than null: an acquaintance brought into a conversation
-    // gets the bio, and the question of where its author is does not arise.
+    // gets a name, and the question of where that person is does not arise.
     expect(profile).not.toHaveProperty('inApp');
     expect(profile).not.toHaveProperty('lastSeenAt');
   });
@@ -235,7 +241,6 @@ describe('reading somebody else’s profile', () => {
     // account ids exist.
     const alice = await signIn('alice@example.com', 'Alice');
     const mallory = await signIn('mallory@example.com', 'Mallory');
-    await save(alice, { bio: 'Cellist.' });
 
     const stranger = await read(mallory, alice.account.id);
     const missing = await read(mallory, 'acct_nobody');
@@ -250,15 +255,19 @@ describe('reading somebody else’s profile', () => {
   });
 });
 
-describe('a bio outlives the process', () => {
-  it('is still there after the account is read back', async () => {
-    const alice = await signIn('alice@example.com', 'Alice');
-    await save(alice, { bio: 'Cellist.' });
-    // Straight from the row rather than through the cache the route just used.
-    const row = app.db
-      .prepare('SELECT bio FROM accounts WHERE id = ?')
-      .get(alice.account.id) as { bio: string };
-    expect(row.bio).toBe('Cellist.');
+describe('the bio column is gone', () => {
+  it('is not on the accounts table, however old the database', async () => {
+    // Dropped by the migration rather than left in place and ignored: what
+    // was in it is Markdown people typed about themselves, with no second
+    // copy anywhere, and a field nothing can show, edit or delete is the
+    // unreachable row the deletion path exists to make impossible.
+    const columns = (
+      app.db.prepare('PRAGMA table_info(accounts)').all() as Array<{
+        name: string;
+      }>
+    ).map((c) => c.name);
+    expect(columns).not.toContain('bio');
+    expect(columns).toContain('display_name');
   });
 });
 
@@ -303,9 +312,9 @@ describe('the messaging handles on a profile', () => {
     const { alice, bob } = await pair();
     await save(bob, { im: { telegram: 'bob_smith' } });
     // A screen saving one handle must not blank the two it did not send —
-    // the same partiality the route already has about a name and a bio.
+    // the same partiality the route already has about a name.
     await save(bob, { im: { whatsapp: '+15551234567' } });
-    await save(bob, { bio: 'Cellist.' });
+    await save(bob, { displayName: 'Bob Smith' });
 
     expect(await imOn(alice, bob.account.id)).toEqual({
       telegram: 'bob_smith',
@@ -487,8 +496,8 @@ describe('asking somebody in your channel to be a contact', () => {
  *
  * The one thing on a profile that is not released by the reader's standing.
  * Everything else here follows from who is asking — a contact gets
- * availability, somebody sharing a channel gets the bio — and this follows
- * from an act of the person it belongs to, aimed at one named reader.
+ * availability, somebody sharing a channel gets a name and a count — and this
+ * follows from an act of the person it belongs to, aimed at one named reader.
  */
 describe('showing your email to a contact', () => {
   const setShown = (user: User, id: string, shown: boolean) =>

@@ -27,7 +27,6 @@ const mockApp = {
   saveProfile: jest.fn(async () => {}),
   loadProfile: jest.fn(async (accountId: string) => ({
     account: { id: accountId, displayName: 'Me' },
-    bio: null as string | null,
   })),
 };
 

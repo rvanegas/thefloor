@@ -9,10 +9,10 @@ import type { ColorSchemePreference } from './appearance';
 /**
  * The app and the account: how it looks, what it stores, and the two ways out.
  *
- * **Your name and your bio are not here.** They were, and they went first to a
- * settings screen behind the contact list and then, on 2026-08-29, into your
- * own profile — which is what they always described, and which now shows them
- * as fields when Edit is tapped. See ProfileView. What is left is the scope
+ * **Your name is not here.** It was, along with a bio there no longer is, and
+ * they went first to a settings screen behind the contact list and then, on
+ * 2026-08-29, into your own profile — which is what they always described, and
+ * which now shows what is left of them as fields when Edit is tapped. See ProfileView. What is left is the scope
  * Home actually owns, and it no longer writes anything: appearance takes effect
  * on the tap, signing out and deleting take effect on the confirmation, and
  * there is nothing on this screen to lose by leaving it. The awaited save, the
@@ -21,7 +21,7 @@ import type { ColorSchemePreference } from './appearance';
  * One of the two settings screens, one per scope, each reached from the screen
  * whose scope it is: this one from Home, ChannelSettingsView from a channel.
  * There was a third, for the contact list; a scope whose whole content is one
- * person's name and bio turned out to be that person's profile rather than a
+ * person's own account turned out to be that person's profile rather than a
  * scope.
  */
 export function HomeSettingsView({ onBack }: { onBack: () => void }) {

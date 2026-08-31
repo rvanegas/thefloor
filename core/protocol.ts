@@ -18,18 +18,22 @@ export interface PublicAccount {
 }
 
 /**
- * A person's profile: what they choose to say about themselves.
+ * A person's profile: everything about somebody that is not their name.
  *
  * Separate from `PublicAccount` rather than folded into it, because
  * PublicAccount is embedded in every roster, invitation and recording row that
- * crosses the wire, and a bio on each of those would be a paragraph repeated
- * per participant per snapshot to be shown in none of them. A profile is
- * fetched when somebody asks to see one.
+ * crosses the wire, and none of the fields here belongs on any of them — they
+ * are read one person at a time, on the screen about that person, and several
+ * of them are decided by who is asking. A profile is fetched when somebody
+ * asks to see one.
+ *
+ * **There is no bio.** There was one, from the beginning until 2026-08-31, and
+ * the paragraph above was originally about it. What is left is a person's
+ * standing and how to reach them, which is what this was actually being
+ * opened for. See decisions/DECISIONS.md.
  */
 export interface ProfileView {
   account: PublicAccount;
-  /** Markdown, as typed. Null when they have not written one. */
-  bio: string | null;
   /**
    * Whether they are in the app right now, and when they last were — the same
    * two facts `ContactView` carries, with the same meanings and the same
@@ -41,8 +45,8 @@ export interface ProfileView {
    * readable by a contact, by anyone sharing a live channel, and by yourself;
    * availability is for the first of those alone, which is exactly the audience
    * that could already see it when it lived on Home's contact rows. Somebody an
-   * acquaintance brought into a conversation gets the bio and nothing about
-   * where its author is.
+   * acquaintance brought into a conversation gets a name and a count, and
+   * nothing about where that person is.
    *
    * Optional therefore twice over: absent for a non-contact, and absent from a
    * server that predates them. A client cannot tell those apart and does not
@@ -122,9 +126,9 @@ export interface ProfileView {
    *
    * **Never sent on the strength of the reader's own standing.** Every other
    * field here is decided by who is asking — a contact gets availability, a
-   * channel-sharer gets the bio. This one is decided by an act of the person it
-   * belongs to, aimed at one named reader, and being their contact is not that
-   * act. An address is how somebody reaches you outside this application for
+   * channel-sharer gets the count. This one is decided by an act of the person
+   * it belongs to, aimed at one named reader, and being their contact is not
+   * that act. An address is how somebody reaches you outside this application for
    * ever, and it is the only part of a person here that the app will not hand
    * out on a relationship alone.
    *
@@ -163,8 +167,8 @@ export interface ProfileView {
    * audience, and that is contacts — the narrowest standing there is here,
    * mutual and accepted at both ends.
    *
-   * So a stranger in a shared channel gets the bio and no handles, the same
-   * treatment they get for availability and for the same reason: a channel an
+   * So a stranger in a shared channel gets no handles, the same treatment
+   * they get for availability and for the same reason: a channel an
    * acquaintance opened is grounds to ask somebody to be a contact, not
    * grounds to be given their phone number.
    *
@@ -556,8 +560,9 @@ export interface RecordingView {
  *
  * Fetched when that screen opens rather than carried on the Home snapshot,
  * which is pushed to every client on every change — the same reasoning that
- * keeps a bio off PublicAccount. Nothing here gates anything: donations are
- * voluntary and unlock nothing, so no other view has any reason to read it.
+ * keeps the profile fields off PublicAccount. Nothing here gates anything:
+ * donations are voluntary and unlock nothing, so no other view has any reason
+ * to read it.
  */
 export interface SupportView {
   /**
@@ -704,7 +709,7 @@ export interface GuestView {
   };
   /**
    * Everybody else in the room: members by name, and any other guests. Names
-   * only — no ids that mean anything elsewhere, no bios, no profiles.
+   * only — no ids that mean anything elsewhere, no profiles.
    */
   others: Array<{ name: string; kind: 'member' | 'guest'; speaking: boolean }>;
   /**

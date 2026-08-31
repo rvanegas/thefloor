@@ -19,7 +19,7 @@ import { colors, spacing, type } from './theme';
  * It is a screen rather than a section because of what a contact row is for.
  * A row is not a channel — the channel list is Home's job, and a contact row
  * that offered one would be the overlap that took the old list apart. What a
- * row does is open the person: their bio, where they are, and the one
+ * row does is open the person: where they are, how to reach them, and the one
  * destructive thing you can do about them.
  *
  * A profile opened from here is a different matter, and is why this screen now
@@ -33,15 +33,16 @@ import { colors, spacing, type } from './theme';
  * rather than somebody to look up.
  *
  * You are a card of your own, since 2026-08-29, under the add-contact row
- * rather than above it. The server has never put you in your own contact list
- * and still does not — it returns the *other* id of each contacts row, which
- * is what stops the list being about you — so the card is drawn from `app.me`
- * and sits outside the section the rest are in. Adding somebody is what this
+ * rather than above it, and under a section label reading *You* since
+ * 2026-08-31. The server has never put you in your own contact list and still
+ * does not — it returns the *other* id of each contacts row, which is what
+ * stops the list being about you — so the card is drawn from `app.me` and sits
+ * in its own section rather than in theirs. Adding somebody is what this
  * screen is for when the list is not enough, so it takes the top; your own
  * card is a way in to your profile, which is a thing you go to occasionally
  * and not the first thing to read. There is no
- * Settings button any more: what it opened was your name and your bio, which is
- * your profile with the fields showing, and that now lives behind Edit on the
+ * Settings button any more: what it opened was your own account, which is your
+ * profile with the fields showing, and that now lives behind Edit on the
  * profile itself. See ProfileView.
  */
 export function ContactsView({
@@ -94,9 +95,8 @@ export function ContactsView({
       <View style={styles.header}>
         <Text style={type.title}>Contacts</Text>
         {/* The way back, and nothing beside it. Every other screen carries its
-            scope's settings here too; this one's were your name and your bio,
-            which are on your own profile — the card under the add-contact
-            row. */}
+            scope's settings here too; this one's were your own account, which
+            is your own profile — the card under "You". */}
         <View style={styles.headerActions}>
           <Button label="Home" variant="ghost" onPress={onHome} />
         </View>
@@ -105,33 +105,40 @@ export function ContactsView({
       <AddContact />
 
       {/*
-        You, and outside the section the rest are in.
+        You, in a section of your own rather than outside every section.
 
-        Not sorted with them and not counted among them: `byAvailability` orders
-        people by how likely they are to answer, which is not a question about
-        yourself, and a list that said "Nobody yet" under a card with your name
-        on it would be answering a different question than it was asked. The
-        line reads "You" rather than where you are — the server withholds that
-        about you deliberately, you being the one person who knows.
+        Not sorted with the rest and not counted among them: `byAvailability`
+        orders people by how likely they are to answer, which is not a question
+        about yourself, and a list that said "Nobody yet" under a card with your
+        name on it would be answering a different question than it was asked.
+
+        The word "You" is the label rather than the card's second line, since
+        2026-08-31. It says the same thing in either place — and said as a
+        heading it also names the route, which is what lets the profile behind
+        this card stop introducing itself. Where you are is still not shown:
+        the server withholds that about you deliberately, you being the one
+        person who already knows.
       */}
       {app.me ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${app.me.displayName}. You. Open your profile.`}
-          onPress={() =>
-            app.me && setProfile({ id: app.me.id, name: app.me.displayName })
-          }
-          style={({ pressed }) => pressed && styles.rowPressed}
-        >
-          <Card style={[styles.row, styles.self]}>
-            <View style={styles.rowMain}>
-              <Text style={type.body} numberOfLines={1}>
-                {app.me.displayName}
-              </Text>
-              <Text style={type.muted}>You</Text>
-            </View>
-          </Card>
-        </Pressable>
+        <>
+          <SectionLabel>You</SectionLabel>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${app.me.displayName}. You. Open your profile.`}
+            onPress={() =>
+              app.me && setProfile({ id: app.me.id, name: app.me.displayName })
+            }
+            style={({ pressed }) => pressed && styles.rowPressed}
+          >
+            <Card style={styles.row}>
+              <View style={styles.rowMain}>
+                <Text style={type.body} numberOfLines={1}>
+                  {app.me.displayName}
+                </Text>
+              </View>
+            </Card>
+          </Pressable>
+        </>
       ) : null}
 
       {contacts.length > 0 ? <SectionLabel>Contacts</SectionLabel> : null}
@@ -351,9 +358,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing(1.5) },
   rowMain: { flex: 1, gap: 2 },
   rowPressed: { opacity: 0.7 },
-  /* The list's own rows take their spacing from the gap between them, and
-     this one stands alone between the add-contact card and the section. */
-  self: { marginBottom: spacing(1.5) },
   /**
    * Home's `startRow`, and deliberately the same numbers: the mark and the
    * label are one phrase and pack to the left rather than being spread apart,

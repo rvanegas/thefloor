@@ -13,8 +13,6 @@ export interface AccountRow {
   identifier: string;
   display_name: string;
   created_at: number;
-  /** Markdown, as typed. Null until they write one. */
-  bio: string | null;
   /**
    * When this person last held a live socket — written as they connect, as
    * they speak, and as they go. Null for an account that has not connected
@@ -310,9 +308,6 @@ CREATE TABLE IF NOT EXISTS accounts (
   identifier   TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
   created_at   INTEGER NOT NULL,
-  -- What this person says about themselves, as the Markdown source they
-  -- typed. Null until they write one.
-  bio          TEXT,
   -- When they last had the app open, to the nearest heartbeat. Null until
   -- they first connect.
   last_seen_at INTEGER,
@@ -1168,8 +1163,22 @@ function migrate(db: Db): void {
   const accountColumns = db
     .prepare('PRAGMA table_info(accounts)')
     .all() as Array<{ name: string }>;
-  if (!accountColumns.some((c) => c.name === 'bio')) {
-    db.exec('ALTER TABLE accounts ADD COLUMN bio TEXT');
+  /*
+    The bio, dropped on 2026-08-31 along with the screen that showed it.
+
+    Dropped rather than left in place and ignored, which is the choice worth
+    saying out loud: what was in this column is Markdown people typed about
+    themselves, and there is no second copy of it anywhere. Keeping it would
+    mean holding a paragraph about somebody that nothing can show them, edit
+    or delete — an unreachable field on a live account, which is exactly what
+    the account-deletion path exists to make impossible. So it goes, and the
+    migration is one way.
+
+    `ALTER TABLE ... DROP COLUMN` needs SQLite 3.35, which Node 22's built-in
+    is well past. Guarded on the column being there, so it runs once.
+  */
+  if (accountColumns.some((c) => c.name === 'bio')) {
+    db.exec('ALTER TABLE accounts DROP COLUMN bio');
   }
   // Null for everyone, which is the only value that could be right: a handle
   // exists here because somebody typed it, and there is nowhere else on this

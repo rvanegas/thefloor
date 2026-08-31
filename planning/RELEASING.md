@@ -412,7 +412,7 @@ and, once, Analytics.
 | Contact Info → Email Address | App Functionality | `accounts.identifier` is the sign-in address; `pending_invites.identifier` is an address one person typed for another; `donations.email` is what Ko-fi reports |
 | Contact Info → Name | App Functionality | `accounts.display_name`, `guest_sessions.display_name`, `donations.from_name` |
 | User Content → Audio Data | App Functionality | recordings in S3, and the stems sent to the transcription provider when somebody asks |
-| User Content → Other User Content | App Functionality | `accounts.bio`, channel names and descriptions, `transcript_lines`, `donations.message` |
+| User Content → Other User Content | App Functionality | channel names and descriptions, `transcript_lines`, `donations.message`. `accounts.bio` was here until 2026-08-31, when the column was dropped |
 | Identifiers → User ID | App Functionality | `accounts.id`, and every row that references it |
 | Identifiers → Device ID | App Functionality | the APNs token in `device_tokens`. Apple's category for a push token, even though it names an installation rather than a person |
 | Usage Data → Product Interaction | **Analytics and App Functionality** | two different things under one heading — the meter (`usage_spans`, `usage_bytes`, 30 days, never shown to anyone) is Analytics; `accounts.last_seen_at`, which contacts are shown so they can tell whether it is a reasonable moment to talk, is App Functionality |
