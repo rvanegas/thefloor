@@ -45,6 +45,32 @@ for pkg in "${PACKAGES[@]}"; do
   fi
 done
 
+# `app/.env` is the other thing a fresh worktree has none of, and it is worse
+# than a missing node_modules because it does not look like a setup problem.
+# It is gitignored, so git brings no copy; nothing installs it; and the app
+# without `EXPO_PUBLIC_API_URL` builds and runs perfectly well and then draws a
+# "Not configured" screen. Somebody meeting that after a successful build reads
+# it as the branch being broken, which cost an afternoon before this was added.
+#
+# Copied from the main checkout rather than generated, since the value is the
+# deployed server and `app/.env.example` is not a thing that exists. Only when
+# this tree has none: a worktree that has been pointed at a local server keeps
+# what it was pointed at.
+#
+# **`server/.env` is deliberately not copied**, and the asymmetry is the point.
+# `app/.env` holds one public URL that ships inside the bundle anyway;
+# `server/.env` holds every secret this project has, and spreading those across
+# a directory per worktree is the opposite of what CREDENTIALS.md asks for.
+# Nothing in the suite needs it — the tests pass in a worktree without one.
+MAIN_GIT=$(git rev-parse --git-common-dir 2>/dev/null || echo '')
+if [ -n "$MAIN_GIT" ]; then
+  MAIN=$(cd "$(dirname "$MAIN_GIT")" && pwd)
+  if [ "$MAIN" != "$(pwd)" ] && [ ! -f app/.env ] && [ -f "$MAIN/app/.env" ]; then
+    cp "$MAIN/app/.env" app/.env
+    echo "→ copied app/.env from $MAIN"
+  fi
+fi
+
 echo "→ installing into $(pwd)"
 echo "  three packages, from their lockfiles; app/ is the slow one (Expo)."
 
