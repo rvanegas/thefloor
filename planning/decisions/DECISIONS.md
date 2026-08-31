@@ -1396,3 +1396,86 @@ produces, because claiming the floor is holding it open to speak and clears the
 self-mute. Split into two cases, one of which now asserts that clearing.
 
 1,398 lines, so no rollover.
+
+## The guest page stays with the server, and wants no train — 2026-08-31
+
+Asked once the web app existed: the guest page is a second web bundle rendering
+the same server's state, so should it fold into the web app, and should it get
+the stable/beta split everything else has? **No to both**, and the reasoning is
+written down here because two web bundles is a thing somebody will notice again
+and the obvious conclusion is the wrong one.
+
+**The reason that decides it is who reads it.** The guest page's audience is
+strangers arriving cold on a link. That is precisely the population that must
+always be on stable — new users should never be beta testing. So a beta guest
+bundle would have had *no legitimate audience at all*, and shipping the page
+inside `bin/deploy` alongside the server is alignment with that rather than a
+limitation of it.
+
+**And nothing in the iOS app corresponds to it.** There is no guest mode on a
+phone, so the page is not a second rendering of a screen that exists elsewhere;
+it is the only rendering of something that exists nowhere else.
+
+### The train rule points the same way
+
+`open.ts` is the one door into the web app and its second rule is *the first
+available train, which is stable where stable exists* — with the reason stated
+there already: "a first visit to the web app from a guest page is not the
+moment to put anybody on a beta bundle". A converting guest therefore lands on
+stable.
+
+That holds **structurally rather than by a check**. `thefloor.train` is written
+in one place, `ui/train.web.ts`, by the web app on boot, and read in one,
+`open.ts`. The guest page never writes it, so there is no channel by which an
+inviter's train could reach a guest: a beta member's link is just a link. The
+one edge is a browser that has itself run the beta web app, which stays on
+beta — its own history rather than the inviter's.
+
+Follow that through and a beta guest page is unreachable by the people it would
+exist for: a stranger has no `thefloor.train` and always gets stable. The fix
+that suggests itself — let a link carry a train — is exactly the leak the rule
+above forbids. Two rules colliding is usually a sign one of them is wrong; here
+it is a sign the feature is.
+
+### Three arguments that looked good and did not survive
+
+Kept because each was believed at the time, and the next person will believe
+them too.
+
+**Payload, which was the strongest and was wrong about the size.** Measured
+rather than assumed: the web app exports to **1.59 MB raw, 428 kB gzipped**;
+the guest bundle is **540 kB raw, 142 kB gzipped**. Three times, not the order
+of magnitude the argument assumed — a ~286 kB delta for a stranger's cold
+start. That is a judgement call, not a blocker, and it is not what decided
+this.
+
+**Lockstep with the server as a safety property**, which inverted on
+inspection. The worry was that moving the page onto a train lets a guest client
+lag the server it speaks to — the *never ship a wire change before the client
+can speak it* rule. But skew between client and server is the permanent
+condition this system is built for, not a hazard to design away: **the server
+is stable by construction, keeping backward compatibility against
+`MIN_SUPPORTED_BUILD` for every change**, and it has to be, because testing
+happens against the production user database and LiveKit server. There are too
+few users to justify splitting those. Co-shipping is not what keeps guests
+safe; the compatibility contract is.
+
+**Duplicated channel UI**, which was largely not there. The claim was that
+roster, floor and speaking indicators now exist twice in two codebases that
+must agree. `guest.ts` has a single `render()`, no roster and no floor card,
+and the only floor reference in the file is `' · has the floor'` appended to
+one line. The page shows a far thinner thing than the argument assumed.
+
+### What would change it
+
+A guest needing to do more than listen and ask to speak. At that point the
+thin page starts growing app-shaped UI in vanilla TypeScript, the duplication
+argument becomes true rather than assumed, and the merge starts paying for
+itself. Until then the split costs one esbuild call in `bin/deploy`.
+
+The cadence objection stays on the record as the best argument made for
+merging: this is UI, and it moves on the server's clock while the phone moves
+on App Store review's. That is real. It is outweighed here only because the
+guest page has no counterpart on the phone to drift *from*.
+
+1,481 lines, so no rollover.
