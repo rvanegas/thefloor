@@ -1234,9 +1234,20 @@ export function buildApp(options: BuildOptions = {}): App {
     }
   }
 
+  /**
+   * Where the web app is, stamped into the guest page so its one link out can
+   * be right — or absent, so the page can leave the link off entirely rather
+   * than offering a 503. Same question the acceptance asks; asked again here
+   * because a page can sit open across a `bin/deploy-web`.
+   */
+  async function withAppBase(shell: string): Promise<string> {
+    const base = await appBase();
+    return base ? shell.replace('data-app=""', `data-app="${base}"`) : shell;
+  }
+
   fastify.get('/g/:token', async (request, reply) => {
     const { token } = request.params as { token: string };
-    const shell = await guestShell(reply);
+    const shell = await withAppBase((await guestShell(reply)) ?? '');
     if (!shell) return;
     reply.type('text/html; charset=utf-8');
     // The one interpolation on the page, into an attribute, escaped — the
@@ -1262,7 +1273,7 @@ export function buildApp(options: BuildOptions = {}): App {
    */
   fastify.get('/g/c/:channelId', async (request, reply) => {
     const { channelId } = request.params as { channelId: string };
-    const shell = await guestShell(reply);
+    const shell = await withAppBase((await guestShell(reply)) ?? '');
     if (!shell) return;
     reply.type('text/html; charset=utf-8');
     return shell.replace(

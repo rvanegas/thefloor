@@ -261,6 +261,28 @@ describe('the page', () => {
     expect(page.body).toContain(`data-link="${link.token}"`);
   });
 
+  it('stamps where the app is, and stamps nothing when it is nowhere', async () => {
+    // The page's one link out. It pointed at `/app` unconditionally for a day,
+    // which on a box serving only `/beta` is a link to a 503 — and the page
+    // cannot know which trains exist, so the route tells it.
+    const { link } = await channelWithLink();
+    const nowhere = await app.fastify.inject({ method: 'GET', url: `/g/${link.token}` });
+    expect(nowhere.body).toContain('data-app=""');
+
+    const beta = join(__dirname, '..', 'web', 'beta');
+    await mkdir(beta, { recursive: true });
+    await writeFile(join(beta, 'index.html'), '<!doctype html>');
+    try {
+      const served = await app.fastify.inject({
+        method: 'GET',
+        url: `/g/${link.token}`,
+      });
+      expect(served.body).toContain('data-app="/beta"');
+    } finally {
+      await rm(beta, { recursive: true, force: true });
+    }
+  });
+
   it('answers the same page for a link that is already dead', async () => {
     // The token is checked when the socket opens, not here. A page that 404ed
     // on a revoked link would answer, to anybody who asked, which links exist.

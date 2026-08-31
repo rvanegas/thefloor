@@ -53,6 +53,17 @@ const linkToken =
 const pageChannelId = document.body.dataset.channel ?? '';
 
 /**
+ * Where the web app is on this box — `/app`, `/beta`, or nowhere.
+ *
+ * Stamped by the route rather than assumed, because the two trains ship
+ * separately and stable is expected to lag: a box quite normally serves
+ * `/beta` and answers `/app` with a 503, whose JSON body a browser offers to
+ * save as a file. Empty means there is no web app here at all, and the link
+ * out is left off rather than pointed at a refusal.
+ */
+const appBase = document.body.dataset.app ?? '';
+
+/**
  * Where a seat is kept between reloads.
  *
  * `sessionStorage` rather than `localStorage`, deliberately: a seat belongs to
@@ -549,9 +560,11 @@ function render(next: GuestView): void {
 
   $('silenced').hidden = !next.you.silenced;
 
-  // Only for a seat with an account behind it: sending anybody else to `/app`
-  // is sending them to a sign-in they did not ask for.
-  $('home-link').hidden = !next.you.accountId;
+  // Two conditions, and both are about not offering a door that opens onto
+  // nothing: a seat with no account behind it would be sent to a sign-in it
+  // did not ask for, and a box with no web app has nowhere to send anybody.
+  $('home-link').hidden = !next.you.accountId || !appBase;
+  ($('home-anchor') as HTMLAnchorElement).href = appBase;
 
   // Seeded rather than bound: retyping over somebody mid-edit is the one way
   // a field like this can be annoying, and a snapshot arrives on every change
