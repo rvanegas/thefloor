@@ -53,15 +53,17 @@ const linkToken =
 const pageChannelId = document.body.dataset.channel ?? '';
 
 /**
- * Where the web app is on this box — `/app`, `/beta`, or nowhere.
+ * Whether there is a web app on this box at all.
  *
- * Stamped by the route rather than assumed, because the two trains ship
- * separately and stable is expected to lag: a box quite normally serves
- * `/beta` and answers `/app` with a 503, whose JSON body a browser offers to
- * save as a file. Empty means there is no web app here at all, and the link
- * out is left off rather than pointed at a refusal.
+ * *Which* one is `/open`'s question and not this page's — a channel belongs to
+ * neither train, so nothing here could answer it — but whether to offer the
+ * door remains this page's. `/open` on a box with no web app is a page saying
+ * there is none, which is honest and is not a link worth drawing.
+ *
+ * Stamped by the route, and asked per request there because a page can sit
+ * open across a `bin/deploy-web`.
  */
-const appBase = document.body.dataset.app ?? '';
+const hasWebApp = !!document.body.dataset.app;
 
 /**
  * Where a seat is kept between reloads.
@@ -563,8 +565,7 @@ function render(next: GuestView): void {
   // Two conditions, and both are about not offering a door that opens onto
   // nothing: a seat with no account behind it would be sent to a sign-in it
   // did not ask for, and a box with no web app has nowhere to send anybody.
-  $('home-link').hidden = !next.you.accountId || !appBase;
-  ($('home-anchor') as HTMLAnchorElement).href = appBase;
+  $('home-link').hidden = !next.you.accountId || !hasWebApp;
 
   // Seeded rather than bound: retyping over somebody mid-edit is the one way
   // a field like this can be annoying, and a snapshot arrives on every change

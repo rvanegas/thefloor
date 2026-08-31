@@ -666,11 +666,14 @@ describe('being asked to be a contact', () => {
       askerId: alice.account.id,
     });
     expect(answer.statusCode).toBe(200);
-    // `url` is null because a checkout has no web app built — see the test
-    // below, which builds one. Null is a real answer rather than a gap: a box
-    // serving only one train is ordinary, and the page says so rather than
-    // navigating into a 503.
-    expect(answer.json()).toEqual({ ok: true, channelId, url: null });
+    // The door rather than a train. Which bundle this browser should get is
+    // one question with one place that answers it — see open.test.ts — so this
+    // route names the destination and nothing else.
+    expect(answer.json()).toEqual({
+      ok: true,
+      channelId,
+      url: `/open/c/${channelId}`,
+    });
 
     // Contacts, both ways, and the pair's own standing channel with them.
     expect(app.accounts.areContacts(alice.account.id, dana.account.id)).toBe(true);
@@ -706,32 +709,6 @@ describe('being asked to be a contact', () => {
     expect(app.channels.get(channelId)!.participants).not.toContain('dana');
     guest.close();
     member.close();
-  });
-
-  it('hands the tab an address the server has, rather than one the page guessed', async () => {
-    // What this prevents: the page pointed at `/app` unconditionally, and a box
-    // serving only `/beta` answered that with a 503 — whose JSON body a phone
-    // browser offered to save as a file, to somebody who had just tapped
-    // Accept. Which train exists is a fact about the box, so the box says.
-    const beta = join(__dirname, '..', 'web', 'beta');
-    await mkdir(beta, { recursive: true });
-    await writeFile(join(beta, 'index.html'), '<!doctype html>');
-    try {
-      const { alice, admission, channelId, guest, member } = await asked();
-      const dana = await signIn('dana@example.com', 'Dana');
-      const answer = await accept(dana.token, {
-        guestId: admission.guestId,
-        secret: admission.secret,
-        askerId: alice.account.id,
-      });
-      // Stable first, beta when stable is not there — and stable is expected
-      // to lag, being cut from `released`.
-      expect(answer.json()).toMatchObject({ url: `/beta/c/${channelId}` });
-      guest.close();
-      member.close();
-    } finally {
-      await rm(beta, { recursive: true, force: true });
-    }
   });
 
   it('does not ring the phone of somebody walking through the door', async () => {

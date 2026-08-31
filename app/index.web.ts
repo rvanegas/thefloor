@@ -12,11 +12,16 @@ import { registerRootComponent } from 'expo';
 
 import App from './App';
 import { installThemeVariables } from './src/ui/cssVariables.web';
+import { rememberTrain } from './src/ui/train.web';
 
 // Before the app registers, so the first paint already has the palette.
 // `theme.ts` resolves every colour to `var(--floor-…)` on web, and a
 // stylesheet added after mount is a flash of unstyled colour — which here
 // means an entire missing palette rather than a wrong shade.
 installThemeVariables();
+
+// Which bundle this browser actually uses, for the pages that have to send
+// somebody into the app and cannot know. See src/ui/train.web.ts.
+rememberTrain();
 
 registerRootComponent(App);

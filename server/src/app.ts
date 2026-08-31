@@ -38,6 +38,7 @@ import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { escapeHtml } from './html';
 import { landingPage } from './landing';
+import { openPage } from './open';
 import { privacyPage } from './privacy';
 import type { TranscriptionProvider } from './transcription';
 import {
@@ -968,20 +969,15 @@ export function buildApp(options: BuildOptions = {}): App {
     // possibly somebody new in a channel they are sitting in, and the other has
     // a Home with a contact and a channel on it that were not there before.
     homeNotifier.notify([account.id, body.askerId]);
-    // Where to send the tab, decided here rather than on the page: which trains
-    // exist is a fact about this box, and the page guessing at it is how
-    // somebody ended up being offered a 503 as a download. Null when there is
-    // no web app at all, which the page says out loud rather than navigating
-    // into nothing.
-    const base = await appBase();
+    // The door rather than a train. This route knew which trains existed and
+    // could have picked one — but so did three other places, and each of them
+    // getting it right separately is what produced two 503s in two days. It
+    // names the destination and `/open` decides how to get there, including
+    // what to say when there is no web app at all.
     return {
       ok: true,
       channelId: result.channelId,
-      url: base
-        ? result.channelId
-          ? `${base}/c/${encodeURIComponent(result.channelId)}`
-          : base
-        : null,
+      url: result.channelId ? `/open/c/${encodeURIComponent(result.channelId)}` : '/open',
     };
   });
 
@@ -1125,6 +1121,29 @@ export function buildApp(options: BuildOptions = {}): App {
   }
 
   /**
+   * The one door into the web app — see open.ts, which owns the rule.
+   *
+   * Two routes rather than a wildcard: what may follow is the app's home or
+   * one channel, and an open redirector that will forward any path is a
+   * different and worse thing than one that will forward two.
+   */
+  fastify.get('/open', async (_request, reply) => {
+    reply.type('text/html; charset=utf-8');
+    reply.header('cache-control', 'no-store');
+    return openPage({ available: await availableTrains() }, '');
+  });
+
+  fastify.get('/open/c/:channelId', async (request, reply) => {
+    const { channelId } = request.params as { channelId: string };
+    reply.type('text/html; charset=utf-8');
+    reply.header('cache-control', 'no-store');
+    return openPage(
+      { available: await availableTrains() },
+      `/c/${encodeURIComponent(channelId)}`
+    );
+  });
+
+  /**
    * The root, for somebody who is not a user yet.
    *
    * Unauthenticated and server-rendered. Somebody who *is* signed in is
@@ -1132,19 +1151,16 @@ export function buildApp(options: BuildOptions = {}): App {
    * server cannot read `localStorage`, and the token is not a cookie.
    */
   fastify.get('/', async (_request, reply) => {
-    // Whether `/app` is a page rather than a 503, asked per request because
-    // `bin/deploy-web` adds the bundle without restarting anything — so a
-    // value read at boot would be wrong for exactly as long as it mattered.
-    // One `access` on a route nobody hits in a loop.
-    let webAppReady = false;
-    try {
-      await access(join(__dirname, '..', 'web', 'stable', 'index.html'));
-      webAppReady = true;
-    } catch {
-      // Not deployed yet. The page omits the link and the redirect, rather
-      // than sending somebody who is merely signed in to a 503 they did not
-      // ask for. See `landingPage`.
-    }
+    // Whether there is a web app on this box at all, asked per request because
+    // `bin/deploy-web` adds a bundle without restarting anything — so a value
+    // read at boot would be wrong for exactly as long as it mattered. One
+    // `access` per train on a route nobody hits in a loop.
+    //
+    // **Any train, not stable**, since 2026-08-30: this asked about stable
+    // alone and so withheld the browser entirely from a box that was serving
+    // beta. Which train somebody goes to is `/open`'s question, not this
+    // page's; all this needs to know is whether there is one.
+    const webAppReady = (await availableTrains()).length > 0;
     reply.type('text/html; charset=utf-8');
     return landingPage({ appStoreUrl: options.updateUrl, webAppReady });
   });
@@ -1214,15 +1230,27 @@ export function buildApp(options: BuildOptions = {}): App {
    * mid-flow.
    */
   async function appBase(): Promise<string | null> {
+    return (await availableTrains())[0] ?? null;
+  }
+
+  /**
+   * Which trains this box actually serves, best first.
+   *
+   * The one fact `/open` decides from, and the reason a remembered train can
+   * be trusted without being able to strand anybody: a prefix that is no
+   * longer deployed simply is not in this list.
+   */
+  async function availableTrains(): Promise<string[]> {
+    const found: string[] = [];
     for (const train of TRAINS) {
       try {
         await access(join(__dirname, '..', 'web', train.dir, 'index.html'));
-        return train.prefix;
+        found.push(train.prefix);
       } catch {
-        // The next one, or none.
+        // Not deployed. Ordinary for stable, which is cut from `released`.
       }
     }
-    return null;
+    return found;
   }
 
   async function guestShell(reply: FastifyReply): Promise<string | undefined> {

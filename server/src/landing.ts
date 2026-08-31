@@ -31,13 +31,17 @@ import { escapeHtml, page } from './html';
  * Five things here are easy to get wrong and each is deliberate:
  *
  * - **`localStorage` is scoped to the origin, not the path**, so this reads the
- *   token `/app` wrote. That holds because this server serves both, which is
+ *   token the app wrote. That holds because this server serves both, which is
  *   the same same-origin property the whole design rests on — there is no CORS
  *   anywhere in this server.
  * - **Presence, not validity.** The token carries a ninety-day TTL and may have
  *   been revoked. Checking would mean a network round trip before paint; a
- *   stale one costs a redirect to `/app`, which restores, takes a 401 and lands
- *   on sign-in — where that person was going anyway.
+ *   stale one costs a redirect into the app, which restores, takes a 401 and
+ *   lands on sign-in — where that person was going anyway.
+ * - **`/open` rather than `/app`**, since 2026-08-30. This named a train, and a
+ *   signed-in beta tester was therefore sent to a bundle that may not be
+ *   deployed and is not the one they use. Which train is a question with one
+ *   answer and one place that knows it; see open.ts.
  * - **`replace` rather than `assign`**, so no history entry is left and Back
  *   from `/app` does not bounce straight back here.
  * - **Wrapped in `try`**, because Safari with storage blocked *throws* on
@@ -55,7 +59,7 @@ const REDIRECT = `
 <script>
 try {
   if (!location.search.includes('stay') && localStorage.getItem('thefloor.token')) {
-    location.replace('/app');
+    location.replace('/open');
   }
 } catch (e) {}
 </script>`;
@@ -64,15 +68,17 @@ export function landingPage(options: {
   /** From APP_STORE_URL. Absent on a box that has not been told. */
   appStoreUrl?: string;
   /**
-   * Whether the stable train has been deployed — that is, whether `/app` is a
-   * page rather than a 503.
+   * Whether *any* train has been deployed — that is, whether there is a web
+   * app on this box at all.
    *
    * **Both the link and the redirect hang off this, and the redirect is the
    * one that matters.** The two trains ship separately and the stable one is
    * expected to lag: it is cut from `released`, so it cannot exist until a
-   * release contains the web app. In between, this page is live and `/app` is
-   * not — and sending somebody who is merely signed in to a 503 is worse than
-   * offering them nothing, because they did not ask to go there.
+   * release contains the web app. In between this page is live and there may
+   * be nothing to send anybody to — and sending somebody who is merely signed
+   * in to a 503 is worse than offering them nothing, because they did not ask
+   * to go there. It asked about stable alone until 2026-08-30, which withheld
+   * the browser from a box that was serving beta perfectly well.
    *
    * Checked per request rather than at boot, because `bin/deploy-web` adds the
    * bundle without restarting anything — which is deliberate, a restart
@@ -81,12 +87,12 @@ export function landingPage(options: {
    */
   webAppReady: boolean;
 }): string {
-  // Offered only when there is something at `/app`. A link to a 503 is worse
+  // Offered only when there is something to open. A link to a 503 is worse
   // than no link — the same graceful absence `supportPage` makes for a contact
   // address, and the App Store link below for an unset URL.
   const browser = options.webAppReady
     ? `<h2>Already have an account?</h2>
-<p><a href="/app">Open The Floor in this browser</a>. It needs a microphone and
+<p><a href="/open">Open The Floor in this browser</a>. It needs a microphone and
 nothing else. It is a convenience rather than a replacement — the app on a
 phone is the one that can reach you when you are not looking at it, so use the
 browser as a second screen rather than as the only one.</p>`

@@ -257,10 +257,16 @@
           to a sign-in they did not ask for. Leaving this page ends the
           connection and the audio with it; the seat is held, so coming back
           resumes rather than knocks.
+
+          `/open` rather than a train, since which bundle this browser uses is
+          one question with one place that answers it — see server/src/open.ts.
+          `data-app` still decides whether to draw the link at all: `/open` on a
+          box with no web app is a page saying there is none, which is a true
+          thing to say and not a link worth offering.
         -->
         <p id="home-link" hidden>
-          <a id="home-anchor" href="">Go to The Floor</a> — this channel is on
-          your home screen while your seat lasts.
+          <a href="/open">Go to The Floor</a> — this channel is on your home
+          screen while your seat lasts.
         </p>
         <button id="leave-button">Leave</button>
       </section>

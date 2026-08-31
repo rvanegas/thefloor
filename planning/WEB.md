@@ -260,13 +260,41 @@ reviving the tone into the audio session, which `DECISIONS.md` § *The buzz
 reaches a locked phone, so the tone is not built* rules out and which would
 play over the very voice it was announcing.
 
-## The three paths
+## The four paths
 
 | | |
 | --- | --- |
 | `/` | an informational page for people who are not users |
 | `/app` | the stable web app, cut from `released` |
 | `/beta` | the beta web app, cut from its `build/<n>` tag |
+| `/open` | the one door: picks a train and forwards, `/open/c/:id` for a channel |
+
+**`/open` exists because a channel has no train**, and neither does a contact
+or a guest link. Every address that sends a browser *into* the app therefore
+has to answer a question none of them is holding the answer to, and on
+2026-08-30 four of them tried: the landing page's redirect and its link, the
+guest page's way out, and the hand-over after a guest accepts a contact
+request. Three named `/app` outright, which on a box serving only `/beta` is a
+503 whose JSON body a phone offers to save as a file — found that way twice, by
+the same person, a day apart.
+
+So they link to `/open` and the rule lives once, in `server/src/open.ts`. It
+takes the train this browser last used, from `thefloor.train` in
+`localStorage`, written by the app itself on boot — evidence rather than a
+guess, and the same origin-scoped trick `landing.ts` reads the token with. It
+intersects that against the trains actually deployed, so a remembered train
+that has been retired is a redirect rather than a refusal; falls back to stable
+and then beta for a browser with no history, stable being where somebody who
+has never used the web app should go; and when there is no web app on the box
+at all, says so in a sentence instead of forwarding into nothing.
+
+**It is a page rather than a 302**, and that is structural: the answer is in
+`localStorage`, which this server cannot read. There are deliberately **no
+cookies anywhere in this application** — the token is not one either — and this
+is the place one would have been convenient. What a cookie would buy is a
+correct plain `<a href>`; what it would cost is a header on every request, a
+line in the privacy policy, and a property the codebase has kept from the
+beginning.
 
 **Stable stays at `/app` rather than earning the root**, so that `/` can speak
 to somebody who has never heard of this. It also keeps the single-page
