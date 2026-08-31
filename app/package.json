@@ -1,6 +1,5 @@
 {
   "name": "thefloor",
-  "version": "1.0.0",
   "main": "index",
   "dependencies": {
     "@livekit/react-native": "^2.12.0",

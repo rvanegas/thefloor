@@ -1,6 +1,5 @@
 {
   "name": "@thefloor/server",
-  "version": "1.0.0",
   "private": true,
   "description": "Authoritative session server. Imports core/ so the floor rules have one implementation.",
   "main": "dist/index.js",

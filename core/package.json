@@ -1,6 +1,5 @@
 {
   "name": "@thefloor/core",
-  "version": "1.0.0",
   "private": true,
   "description": "The floor mechanic, channel lifecycle, and recording rules. Depends on nothing — the app and the server both import it, so there is one implementation of the rules rather than two.",
   "main": "channel.ts",
