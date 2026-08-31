@@ -1872,3 +1872,17 @@ by how directly each thing reaches the person: ping, the room you both already
 have, then the ways out to somewhere else. It also puts availability and where
 they have been in your rooms next to each other, which the old order had
 separated by the whole screen.
+
+Email's Copy went with them, both halves of the card. Same reasoning: the
+address above it is selectable, which is the older way of doing this and still
+the one somebody reaches for, so the button is the shortcut and should not be
+the loudest thing in the card. `imOpen` now names every button on this screen
+that sits at the end of a row of text rather than in a card of its own.
+
+**The weights have names and the sizes do not.** `Button`'s `variant` is the
+named axis — `default`, `primary`, `floor`, `danger`, `ghost` — and it decides
+colour alone. There is no size axis: a button is one height, and anything
+narrower is a caller passing `style`, which is why the same three paddings are
+now written out in `ChannelView.cardPing` and `ProfileView.imOpen`. Two copies
+is where it stays for now; a third caller is the point at which it should
+become a prop on `Button` rather than a fourth copy of the numbers.

@@ -974,7 +974,8 @@ export function ProfileView({
                       ? '✗ copy failed'
                       : 'Copy'
                 }
-                variant="primary"
+                variant="ghost"
+                style={styles.imOpen}
                 onPress={() => {
                   void (async () => {
                     setCopied(
@@ -1012,7 +1013,8 @@ export function ProfileView({
                         ? '✗ copy failed'
                         : 'Copy'
                   }
-                  variant="primary"
+                  variant="ghost"
+                  style={styles.imOpen}
                   onPress={() => {
                     void (async () => {
                       setCopied(
@@ -1105,13 +1107,17 @@ export function ProfileView({
                         {handle}
                       </Text>
                     </View>
-                    {/* The roster's Ping button, in shape and in weight:
-                        tightened because `Button` is sized for a card of its
-                        own and this one sits at the end of a row of text, and
-                        ghost because a handle is a way out of this
-                        application rather than the thing the screen is for.
-                        Three primary buttons stacked down a card made the
-                        section read as the errand. */}
+                    {/* The roster's Ping button, in shape and in weight, and
+                        so is Email's Copy: tightened because `Button` is sized
+                        for a card of its own and these sit at the end of a row
+                        of text, and ghost because a handle is a way out of
+                        this application rather than the thing the screen is
+                        for. Primary is the fill for what a screen is *for*,
+                        and a column of it made the errand look like leaving.
+                        The address and the handle beside them are selectable,
+                        which is the older way of doing this and still the
+                        one somebody reaches for — the button is the shortcut,
+                        so it should not be the loudest thing in the card. */}
                     <Button
                       label="Open"
                       variant="ghost"
@@ -1339,7 +1345,11 @@ const styles = StyleSheet.create({
   },
   /** The name and the handle, taking whatever the button leaves. */
   imWho: { flex: 1, gap: 2 },
-  /** ChannelView's `cardPing`, and deliberately the same numbers. */
+  /**
+   * ChannelView's `cardPing`, and deliberately the same numbers: every button
+   * on this screen that sits at the end of a row of text rather than in a card
+   * of its own — Messaging's Open, and Email's Copy in both halves.
+   */
   imOpen: {
     paddingVertical: spacing(0.5),
     paddingHorizontal: spacing(1),
