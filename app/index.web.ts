@@ -11,6 +11,7 @@
 import { registerRootComponent } from 'expo';
 
 import App from './App';
+import { installWebAlerts } from './src/ui/alerts.web';
 import { installThemeVariables } from './src/ui/cssVariables.web';
 import { rememberTrain } from './src/ui/train.web';
 
@@ -23,5 +24,10 @@ installThemeVariables();
 // Which bundle this browser actually uses, for the pages that have to send
 // somebody into the app and cannot know. See src/ui/train.web.ts.
 rememberTrain();
+
+// Before anything can be tapped: `react-native-web` ships `Alert` as an empty
+// function, so every confirmation in this app was inert here and every error
+// report silent. See src/ui/alerts.web.ts.
+installWebAlerts();
 
 registerRootComponent(App);
