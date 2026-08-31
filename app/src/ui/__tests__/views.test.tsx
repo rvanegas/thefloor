@@ -18,7 +18,7 @@ import type {
 } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { ChannelView, GroupHeading, uploadingLabel } from '../ChannelView';
-import { SectionLabel } from '../components';
+import { Screen, SectionLabel } from '../components';
 import type { UploadHooks } from '../../api/upload';
 import type { GuestLinkSummary } from '../../api/http';
 import { ProfileView } from '../ProfileView';
@@ -2058,6 +2058,82 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  /*
+    Pinned rather than scrolled, and asserted on the prop because nothing else
+    can see it. `Screen` renders `header` as a sibling above the ScrollView, so
+    handing it there is the whole of what "fixed" means — and both arrangements
+    flatten to the same string, so a text search reads a header that scrolls
+    away and one that does not as identical.
+  */
+  it('pins the channel header rather than scrolling it away', () => {
+    showChannel(
+      channelOf((s) =>
+        reduce(
+          s,
+          {
+            type: 'SET_DESCRIPTION',
+            userId: THEM,
+            description: 'Reading Dune on Thursdays.',
+          },
+          NOW
+        )
+      )
+    );
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    const header = render(screen.props.header);
+
+    // Where you are and the two ways out of it, which is what has to stay: on
+    // the longest screen in the application, Home used to be a flick away
+    // from wherever anybody actually was.
+    expect(textOf(header)).toContain('Dana Chu');
+    expect(findButton(header, 'Home')).toBeDefined();
+    expect(findButton(header, 'Settings')).toBeDefined();
+
+    // And the description stayed behind, in the scroll. It is prose of any
+    // length, and a pinned header is the one place on this screen that cannot
+    // afford something that grows. Asserted against a description the channel
+    // actually has, so that the absence means something.
+    expect(textOf(tree)).toContain('Reading Dune on Thursdays.');
+    expect(textOf(header)).not.toContain('Reading Dune on Thursdays.');
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
+
+  /*
+    The recording indicator joins them while a recording runs, and only then.
+    It marked the top of the scroll, so the one fact somebody needs at every
+    moment — that they are being captured — was the first thing to leave the
+    viewport.
+  */
+  it('pins the recording indicator, and only while one is running', () => {
+    showChannel(channelOf());
+    const idle = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const [idleScreen] = idle.root.findAll((node) => node.type === Screen);
+    const idleHeader = render(idleScreen.props.header);
+    expect(textOf(idleHeader)).not.toContain('Recording');
+    act(() => idleHeader.unmount());
+    act(() => idle.unmount());
+
+    showChannel(
+      channelOf((c) =>
+        reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)
+      )
+    );
+    const live = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const [liveScreen] = live.root.findAll((node) => node.type === Screen);
+    const liveHeader = render(liveScreen.props.header);
+    expect(textOf(liveHeader)).toContain('Recording');
+    act(() => liveHeader.unmount());
+    act(() => live.unmount());
+  });
+
   /**
    * The one setting on this screen that is about the reader rather than about
    * the channel. It shows what they are on, and every level says in a sentence
@@ -2824,6 +2900,40 @@ describe('Home while still in a channel', () => {
     act(() => tree.unmount());
   });
 
+  /*
+    And it is pinned, which is the half of "says so" a text search cannot see:
+    a bar that scrolls out of the viewport on the first flick gives no sign of
+    an open microphone for most of a list as long as somebody's channels.
+
+    Asserted on `Screen`'s `header` prop for the reason the channel's version
+    is — both arrangements flatten to the same string.
+  */
+  it('pins the live bar and the header above the list', () => {
+    home();
+    const tree = render(
+      <HomeView
+        {...homeNav}
+        liveChannel={{
+          channelId: 'sess_1',
+          title: 'Book club',
+          present: 2,
+          muted: false,
+        }}
+        onReturnToChannel={jest.fn()}
+      />
+    );
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    const header = render(screen.props.header);
+    const text = textOf(header);
+
+    expect(text).toContain('The Floor');
+    expect(text).toContain('Book club');
+    expect(findButton(header, 'Contacts')).toBeDefined();
+    expect(findButton(header, 'Settings')).toBeDefined();
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
+
   it('falls back to the roster when the channel has no name', () => {
     // The same fallback the channel's own header uses, computed in App.tsx —
     // a channel must not answer to one thing here and another there.
@@ -3234,13 +3344,14 @@ describe('named channels and described ones do not look alike', () => {
         onExit={() => {}}
       />
     );
-    // The header, not the roster below it: both say "Dana Chu". 28 rather
-    // than 24 since the name stopped sharing its line with Home and Settings
-    // — it has the width of the screen now, and 28 is `type.title`.
+    // The header, not the roster below it: both say "Dana Chu". 20 since the
+    // header was pinned — it rides above every screenful now, so a large
+    // title's height would be paid for on all of them rather than once at the
+    // top of the scroll.
     const [header] = tree.root.findAll(
       (n) =>
         n.props?.children === 'Dana Chu' &&
-        StyleSheet.flatten(n.props?.style)?.fontSize === 28
+        StyleSheet.flatten(n.props?.style)?.fontSize === 20
     );
     const style = StyleSheet.flatten(header.props.style) as {
       fontStyle?: string;

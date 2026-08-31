@@ -654,61 +654,80 @@ export function ChannelView({
     }
   };
 
-  return (
-    <Screen contentStyle={styles.container}>
-        {recordingLive ? (
-          <View style={styles.recordingIndicator}>
-            <View
-              style={[
-                styles.recordingDot,
-                channel.recording.status === 'paused' && styles.recordingDotPaused,
-              ]}
-            />
-            <Text style={styles.recordingLabel}>
-              {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
-            </Text>
-            <Text style={styles.recordingTime}>
-              {formatDuration(recordedMs(channel.recording, now))}
-            </Text>
-          </View>
-        ) : null}
+  /*
+    Pinned, so which channel you are in and the two ways out of it do not
+    scroll away. This screen is the longest in the application — eleven
+    sections, several of which are lists — and Home was reachable only from the
+    very top of it, which on a channel with a few recordings in it is a flick
+    away from wherever anybody actually is.
 
-        <View style={styles.presence}>
+    A header that stays has to be short, which decides the arrangement. The
+    name shared a row with these two buttons until earlier today and was moved
+    off it because it lost the width and truncated to pay for them; that
+    reasoning was about a header whose height was spent once, at the top of a
+    scroll. This one is spent on every screenful, so the name comes back onto
+    the row — at 20 rather than 28, one line rather than two. What the
+    truncation costs is smaller than it was, too: the description sits
+    immediately below in the scroll, and the full name is in Settings, which is
+    the button next to it.
+  */
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
+        {/* Muted italic when nobody has named it, for the reason set out in
+            core/naming.ts: this is a description written from your side, not
+            a name the others would recognise. */}
+        <Text
+          style={channel.name ? styles.otherName : styles.describedName}
+          numberOfLines={1}
+        >
+          {channel.name ??
+            describeChannel(others.map((other) => other.displayName))}
+        </Text>
+        <View style={styles.headerActions}>
           {/*
-            Navigation above the name rather than beside it. The two shared
-            the title's line until 2026-08-31, which cost the name the width
-            of two buttons and truncated it to pay for them — a channel called
-            after the people in it is exactly the name that runs long, and it
-            was the one thing on that row a tap could not recover. A row of
-            its own is also what the platform does with a large title, so it
-            reads as chrome rather than as content.
+            Back to Home without hanging up. The audio connection lives above
+            this screen, so this is navigation and nothing else.
           */}
-          <View style={styles.navRow}>
-            {/*
-              Back to Home without hanging up. The audio connection lives
-              above this screen, so this is navigation and nothing else.
-            */}
-            <Button label="Home" variant="ghost" onPress={onHome} />
-            <Button
-              label="Settings"
-              variant="ghost"
-              onPress={() => setSettingsOpen(true)}
-            />
-          </View>
-          {/* Muted italic when nobody has named it, for the reason set out
-              in core/naming.ts: this is a description written from your
-              side, not a name the others would recognise. */}
-          <Text
-            style={channel.name ? styles.otherName : styles.describedName}
-            // Two lines, now that it has the width to itself. A described
-            // channel names everybody in it and passes one line routinely,
-            // and the second is the difference between reading three names
-            // and reading two and an ellipsis.
-            numberOfLines={2}
-          >
-            {channel.name ??
-              describeChannel(others.map((other) => other.displayName))}
+          <Button label="Home" variant="ghost" onPress={onHome} />
+          <Button
+            label="Settings"
+            variant="ghost"
+            onPress={() => setSettingsOpen(true)}
+          />
+        </View>
+      </View>
+
+      {/*
+        The recording indicator comes into the header with them, and it is the
+        piece that gains most by being pinned. It marked the top of the scroll,
+        so the one fact on this screen somebody needs at every moment — that
+        they are being captured — was the fact that left the viewport first.
+        A second row rather than a third thing on the first, and only while a
+        recording is running, so the header is one row the rest of the time.
+      */}
+      {recordingLive ? (
+        <View style={styles.recordingIndicator}>
+          <View
+            style={[
+              styles.recordingDot,
+              channel.recording.status === 'paused' && styles.recordingDotPaused,
+            ]}
+          />
+          <Text style={styles.recordingLabel}>
+            {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
           </Text>
+          <Text style={styles.recordingTime}>
+            {formatDuration(recordedMs(channel.recording, now))}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  return (
+    <Screen header={header} contentStyle={styles.container}>
+        <View style={styles.presence}>
           {channel.description ? (
             <InlineMarkdown
               text={channel.description}
@@ -2384,14 +2403,18 @@ const styles = StyleSheet.create({
    */
   statusBad: { color: colors.danger },
   /**
-   * `flexShrink` is gone with the row it was for: the name has the width of
-   * the screen now, so there is nothing beside it to shrink against, and 28
-   * is what `type.title` uses for a screen's own name everywhere else.
+   * `flex: 1` so the name takes the slack in the header row and truncates
+   * rather than pushing Home and Settings off the edge.
+   *
+   * 20 rather than `type.title`'s 28: this rides above every screenful now,
+   * so its height is paid for on all of them, and a large title is a thing a
+   * scroll is entitled to at its top and a pinned bar is not.
    */
-  otherName: { fontSize: 28, fontWeight: '700', color: colors.text },
+  otherName: { flex: 1, fontSize: 20, fontWeight: '700', color: colors.text },
   /** Italic alone; see the note on Home's `described`. */
   describedName: {
-    fontSize: 28,
+    flex: 1,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
     fontStyle: 'italic',
@@ -2466,21 +2489,36 @@ const styles = StyleSheet.create({
     marginBottom: spacing(0.5),
   },
   /**
-   * The two ghost buttons, on their own line above the name.
+   * The pinned header, which carries the same horizontal padding as
+   * `container` so the name lines up with the cards under it.
    *
-   * `flex-end` rather than `space-between`: they are a pair and belong
-   * together at the trailing edge, which is also where a title's accessories
-   * sit on this platform. Negative horizontal margin because `Button`'s
-   * padding is sized for a card and would otherwise inset the pair further
-   * than the title beneath them, which reads as a mistake rather than as
-   * chrome.
+   * The hairline is the one thing a pinned header needs that a scrolling one
+   * does not, for the reason TranscriptView's says: without an edge the
+   * content slides up to the buttons and stops, with nothing saying which of
+   * the two moved.
    */
-  navRow: {
+  header: {
+    paddingHorizontal: spacing(2),
+    paddingTop: spacing(1),
+    paddingBottom: spacing(1),
+    gap: spacing(0.5),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginHorizontal: -spacing(1),
-    marginBottom: spacing(0.25),
+    gap: spacing(1),
+  },
+  /**
+   * Negative trailing margin: `Button`'s horizontal padding is sized for a
+   * card, and without it the pair sits further from the edge than the name is
+   * from the other one, which reads as a mistake rather than as chrome.
+   */
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: -spacing(1),
   },
   /**
    * The seam between the conversation and what the channel is carrying.
@@ -2523,7 +2561,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: spacing(1.25),
     paddingVertical: spacing(0.5),
-    marginBottom: spacing(1),
   },
   recordingDot: {
     width: 8,

@@ -1204,3 +1204,65 @@ that hazard, and splitting the two departures retired the flip the capital was
 marking.
 
 1,206 lines, so no rollover.
+
+## Home and the channel get pinned headers — 2026-08-31
+
+`Screen` has had a `header` slot since TranscriptView needed one: a sibling
+above the ScrollView rather than an overlay on it, so it takes its own height
+out of the viewport and nothing is ever hidden beneath it. Both of the two
+screens somebody actually lives in now use it. No new mechanism, and the two
+notes that slot already carried — that it sits inside the
+`KeyboardAvoidingView`, and that a pinned header needs an edge a scrolling one
+does not — apply unchanged.
+
+**What each header carries is the whole of the design question**, a pinned
+header being the one place on a screen where height is paid for on every
+screenful rather than once.
+
+**The channel.** The name, Home, Settings, and the recording indicator while
+one is running. This is the longest screen in the application — eleven
+sections, several of them lists — and Home was reachable only from the very top
+of it, which on a channel with a few recordings is a flick away from wherever
+anybody is.
+
+The name goes back onto the buttons' row, which reverses a decision made a few
+hours earlier on the same day, and the reversal is the point rather than a
+correction. That change moved the name *off* the row because it lost the width
+to two ghost buttons and truncated to pay for them — sound reasoning about a
+header whose height is spent once, at the top of a scroll. Pinning changes the
+premise: a two-row header with a 28pt title over a button row is a permanent
+tax on the viewport. So the name comes back to the row at 20 and one line. What
+truncation costs is also smaller than it was, the description sitting
+immediately below in the scroll and the full name being in Settings, which is
+the button beside it.
+
+**The recording indicator is the piece that gains most.** It marked the top of
+the scroll, so the one fact on this screen somebody needs at every moment —
+that they are being captured — was the first thing to leave the viewport. It is
+a second row inside the header and only while a recording runs, so the header
+is one row the rest of the time; `Screen`'s note says a header whose height
+changes is fine, there being no inset kept in step with it.
+
+**Home.** The title, Contacts, Settings, and the live bar. The header was
+already one row and keeps its shape; what this is really for is the bar under
+it. *An open microphone behind a screen giving no sign of it is the one way
+this could be worse than having to step out first* — and a sign that leaves the
+viewport on the first flick gives no sign for most of a list as long as
+somebody's channels.
+
+**The offline notice stays in the scroll.** It is held back before it appears
+at all and goes away by itself; pinning it would give the most transient thing
+on the screen the one position that never moves.
+
+### Testing a header that is pinned
+
+Both arrangements flatten to the same string — `textOf` walks the whole tree
+and reads a header that scrolls away and one that does not as identical — so
+the tests assert on `Screen`'s `header` prop and render that element on its own.
+That is also what makes the negative assertion meaningful: the channel's test
+gives the channel a description, checks it is in the tree and *not* in the
+header, so "the description stayed behind" is a claim about a description that
+exists. It was written first against a string the fixture never had, which would
+have passed whatever the code did.
+
+1,268 lines, so no rollover.

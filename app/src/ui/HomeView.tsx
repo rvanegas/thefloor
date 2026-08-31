@@ -219,9 +219,21 @@ export function HomeView({
     globalThis.location?.assign(`/g/c/${encodeURIComponent(channelId)}`);
   };
 
-  return (
-    <Screen contentStyle={styles.container}>
-      <View style={styles.header}>
+  /*
+    Pinned, so the two ways off this screen stay reachable and the live bar
+    stops being something you can scroll past. This list is as long as the
+    number of channels somebody has, and both of those were only ever at the
+    top of it.
+
+    The header keeps the shape it had — it was already one row — so what
+    changes is that it no longer moves. It is the live bar below it that this
+    is really for: an open microphone behind a screen giving no sign of it is
+    the failure that bar exists to prevent, and a sign that leaves the viewport
+    on the first flick is one that gives no sign for most of the screen.
+  */
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
         {/*
           Who you are signed in as used to be a second line here, with the
           connection appended to it. Both halves were in the wrong place. The
@@ -296,7 +308,17 @@ export function HomeView({
           </View>
         </Pressable>
       ) : null}
+    </View>
+  );
 
+  return (
+    <Screen header={header} contentStyle={styles.container}>
+      {/*
+        The offline notice stays in the scroll rather than joining the header.
+        It is held back for a moment before it appears at all, it goes away by
+        itself, and pinning it would give the most transient thing on the
+        screen the one position that never moves.
+      */}
       {/* Held back for a moment; see useOfflineNotice. */}
       {showOffline ? (
         <View style={styles.offline}>
@@ -929,13 +951,36 @@ function RequestRow({ entry }: { entry: ContactView }) {
 
 const styles = StyleSheet.create({
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
+  /**
+   * The pinned header. It carries `container`'s horizontal padding itself now
+   * that it sits outside the scroll, so the title lines up with the rows
+   * under it, and the hairline is what a pinned header needs and a scrolling
+   * one does not — see the note on TranscriptView's.
+   */
   header: {
+    paddingHorizontal: spacing(2.5),
+    paddingTop: spacing(1),
+    paddingBottom: spacing(1.5),
+    gap: spacing(1),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  /** What used to be `header` itself: the title and the two ways off here. */
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing(1),
   },
-  headerActions: { flexDirection: 'row', alignItems: 'center' },
+  /**
+   * Negative trailing margin, so `Button`'s card-sized horizontal padding
+   * does not inset the pair further from the edge than the title is from the
+   * other one.
+   */
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: -spacing(1),
+  },
   liveBar: {
     flexDirection: 'row',
     alignItems: 'center',
