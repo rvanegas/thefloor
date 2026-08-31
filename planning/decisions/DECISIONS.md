@@ -1637,3 +1637,77 @@ already in — steps device A out. To everybody else nothing happens: the accoun
 stays present throughout, because `displaceOtherSessions` tells other sessions
 rather than dispatching a `STEP_OUT`, so no snapshot changes and no roster
 flickers.
+
+## The roster is an account's answer, the button is a device's question — 2026-08-31
+
+The follow-on to *A token was never a device*, from the same day and the same
+sighting, and the half that had been mistaken for a symptom of the other. That
+entry closed two mechanisms by which two devices fought over one channel's
+audio. This one closes the route by which the second device got into the room
+at all — and it needed no eviction, no `displaced`, and no acting on anybody's
+part.
+
+**`ChannelState.present` names the account, and the screen read it as though it
+named the device.** It reads the same on every device that account is signed in
+on, because it is one fact about one person. `iAmPresent` in `ChannelView` asked
+it directly, and so did `live` in `App.tsx`, which is what the microphone and
+the room connection follow. So a second device that *merely opened* a channel
+its owner was already in concluded that it was standing there: it drew a Step
+Out button, and it connected the audio. The media plane admits one participant
+per identity and the identity is the account, so from there the two devices took
+the room from each other in turn — the ping-pong the earlier entry describes,
+reached without either device ever entering anything.
+
+**`displaced` could not have covered this, and the reason is worth keeping.**
+The server sends it when another *session acts* — `ENTER`, `STEP_OUT`,
+`LEAVE_CHANNEL`. A device that has just opened a screen has not acted, and
+there is nothing to tell it: the channel did not change, so no snapshot says a
+word and no message is owed. The flag was never wrong; it answers a narrower
+question than the screen was asking it.
+
+**What the screen actually needed was already in the client.** `Realtime` has
+kept `enteredChannel` from the beginning as the thing a reconnect re-enters
+from, and that is exactly "which channel this copy of the app is standing in".
+It was private and written from seven places, which was fine while its whole job
+was deciding whether to re-send `ENTER`; a state the UI follows cannot change
+silently in a private field, so every writer now goes through one setter and
+every transition is reported as `onStanding` and mirrored as
+`AppProvider.standingIn`. The button, the microphone card and the audio gate all
+read it, so they cannot disagree about which device is in the room — the same
+rule that makes a greyed-out button and a refused action agree.
+
+It **subsumes** the old `!app.displaced` clause in `App.tsx` rather than sitting
+beside it: being displaced clears the standing record, so both were the same
+fact and one of them was narrower.
+
+**`displaced` stays, and moves from the state to the copy.** It is the one
+signal that separates *another device took the room* from *this process started
+a moment ago*, which look identical from the screen and deserve different
+sentences. Where the server has told us, the screen says so; where it has not,
+it says the true and weaker thing — "in this channel, but not on this device".
+Keeping the flag for the sentence and not for the state is the honest split:
+it is evidence about a cause, not a description of the condition.
+
+**Creating a channel is entering it**, and that is the one route in that sends
+no `ENTER` — `createChannel` puts the initiator in `present` the moment the
+channel exists. Without a word from `startChannel` the creator would have been
+offered a way into their own new channel. `Realtime.standIn` is that word, and
+it buys something the create path quietly lacked: `enteredChannel` is what a
+reconnect re-asserts, so a channel created and then dropped by a blip of signal
+used to be one that nothing re-entered, and its creator was stepped out when the
+grace ran out.
+
+**One consequence is deliberate and was chosen rather than tolerated.** An app
+relaunched into a channel the account is still present in now offers Step In
+rather than resuming. The new process holds no room and nobody can hear it, so
+that is the true reading; the previous behaviour only looked like resumption
+because it was reading the account's presence and calling it this device's.
+**No model that tracks this per device can avoid it** — a server-side version
+would say the same, since a relaunch is a new process and the server would have
+no reason to call it the holder. It is written down here because it is the one
+place somebody may reasonably want the old behaviour back, and they should know
+what they would be turning off.
+
+STATES.md gains **Standing** as the fifth thing under *Present-in-Channel*,
+beside membership, presence, connectivity and watching, and **disagreement 12**,
+closed.
