@@ -95,6 +95,9 @@ describe('writing your own profile', () => {
       account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
       invited: 0,
       im: { telegram: 'alice' },
+      // Your own address, always: on your own profile this is what you sign
+      // in with rather than a disclosure somebody made to you.
+      email: 'alice@example.com',
       // Nobody has any channels here. Empty rather than absent, and the
       // distinction is the client's to act on: an absent key is a server too
       // old to answer, where an empty array is the answer.
@@ -522,6 +525,28 @@ describe('showing your email to a contact', () => {
     // Being a contact is agreement to talk, not to be written to outside this
     // application. Absent rather than null: there is nothing to draw.
     expect(await emailOn(alice, bob.account.id)).toBeUndefined();
+  });
+
+  it('is on your own profile whatever you have shown to whom', async () => {
+    // Not a disclosure and not subject to one: on your own profile this is
+    // the address you sign in with, and the question the rest of this describe
+    // is about — has its owner aimed it at this reader — does not arise when
+    // the reader is the owner.
+    const { alice, bob } = await pair();
+    expect(await emailOn(alice, alice.account.id)).toBe('alice@example.com');
+    // Still there having shown it to nobody, and still there having shown it.
+    await setShown(alice, bob.account.id, true);
+    expect(await emailOn(alice, alice.account.id)).toBe('alice@example.com');
+  });
+
+  it('offers no button to show your address to yourself', async () => {
+    // `myEmailShown` is the state of a control aimed at one named reader.
+    // There is no such reader on your own profile, so there is no such state,
+    // and the screen draws half the card rather than a dead affordance.
+    const alice = await signIn('alice@example.com', 'Alice');
+    expect((await read(alice, alice.account.id)).json()).not.toHaveProperty(
+      'myEmailShown'
+    );
   });
 
   it('reaches the one person it was shown to, and nobody else', async () => {

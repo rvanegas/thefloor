@@ -13,6 +13,17 @@ const dark = {
   text: '#F2F4F7',
   textMuted: '#98A2B3',
   textFaint: '#667085',
+  /**
+   * A field's placeholder, and nothing else.
+   *
+   * Its own token rather than `textFaint`, which also carries the 12px
+   * semibold labels above these fields and has to stay legible at that size. A
+   * placeholder is a hint about an empty field — it is read once and then
+   * replaced by what somebody types — so it may sit below the threshold real
+   * text is held to, and it should: a hint as dark as a label makes an empty
+   * form look filled in.
+   */
+  placeholder: '#5F677A',
   /** The floor: the app's one distinguishing mechanic gets the accent. */
   floor: '#7C5CFF',
   floorDim: '#3A2F6B',
@@ -49,6 +60,8 @@ const light: Record<keyof typeof dark, string> = {
   textMuted: '#5A6474',
   /** Carries 12px semibold labels, so it needs 4.5:1 rather than 3:1. */
   textFaint: '#6B7484',
+  /** ~3:1 on a white card, against `textFaint`'s 4.7:1. */
+  placeholder: '#8A93A3',
   /** Darkened until the white button text on it passes. */
   floor: '#6338E8',
   /** A tinted fill sitting under *dark* text now, so it inverts rather than dims. */

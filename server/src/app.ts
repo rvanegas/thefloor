@@ -1625,6 +1625,20 @@ export function buildApp(options: BuildOptions = {}): App {
     //
     // Your own profile is not a contact of yours and so is not exempted here.
     // Nothing is lost: you are the one person whose whereabouts you know.
+    //
+    // The address is the exception, and it is not the same field it is
+    // everywhere else on this route. Sent to a contact, `email` is a
+    // disclosure — one person's standing decision about one reader, which is
+    // why `emailShownTo` is asked rather than assumed. Sent to you about you
+    // it is a reminder of what you sign in with, and there is no decision
+    // involved: the question "has its owner aimed it at this reader" does not
+    // arise when the reader is the owner. So it is read straight off the row
+    // rather than through `emailShownTo`, which would answer null — you are
+    // not showing your address to yourself and never will be.
+    //
+    // `myEmailShown` stays absent, because there is no button: showing your
+    // address is per contact and is decided on that contact's screen.
+    if (id === account.id) return { ...profile, email: account.identifier };
     if (!contact) return profile;
     // `inApp` is composed at this point rather than in the query, for the
     // reason `homeFor` gives: whether somebody holds a socket is a fact about

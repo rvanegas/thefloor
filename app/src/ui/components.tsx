@@ -131,7 +131,7 @@ export function Field({
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor={colors.textFaint}
+      placeholderTextColor={colors.placeholder}
       keyboardType={keyboardType}
       autoFocus={autoFocus}
       autoCapitalize={autoCapitalize}

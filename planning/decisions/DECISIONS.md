@@ -1784,3 +1784,91 @@ The privacy policy loses the clause about "a description of yourself", and
 RELEASING.md's App Privacy table keeps *User Content → Other User Content* on
 the strength of channel names, transcripts and donation messages — the row
 survives the bio, so no declaration changes at App Review.
+
+## The two modes stop being the same screen — 2026-08-31
+
+Two changes to ProfileView that pull in the same direction: edit mode leaves
+out the facts, and your own address is drawn in both modes.
+
+**The facts go while editing** — availability, the invited count, who invited
+you. Until now the two modes were the identical sequence of sections with a
+line swapped for a field in two of them, which read as tidy and was hiding
+something: none of those three lines is editable, and none of them is in doubt.
+They are the server's answers about you. Sitting between the name field and the
+handle fields they make the screen longer without making it say anything, and
+they push the fields somebody opened the screen to reach further down. The name
+stays because it *is* a field there.
+
+**Your own email is drawn, in both modes, as half a card.** It was left out
+entirely — `isSelf ||` was the first term of the Email card's guard — on the
+reading that the card is about a disclosure and there is none to make to
+yourself. That is right about the bottom half and wrong about the top. The
+bottom half is a decision aimed at one named reader, and there is no reader on
+your own profile, so it stays out; the top half is an address, and this
+application signs you in by email while having nowhere in it that said which
+one. Somebody with two addresses had no way to find out which account they were
+in. So: the address, a Copy button, and one line saying that showing it to
+anybody is done per contact from that contact's screen.
+
+It is on the *edit* screen for a reason beyond symmetry. "What am I signed in
+as" is the question somebody has while looking at their own name in a field,
+and it is the question the removed "Signed in as …" line was answering badly
+earlier the same day — with a display name, which is not what anybody signs in
+with. The address is the honest version of it.
+
+**The server sends it off the row rather than through `emailShownTo`**, which
+would answer null: you are not showing your address to yourself and never will
+be. `myEmailShown` stays absent for the same reason — no reader, no control,
+no state. `email` therefore means two different things depending on whose
+profile it is on, and the protocol says so where it is declared.
+
+Deploy before the build. An installed client ignores an `email` on its own
+profile, so the server may go first and nothing notices; a new client against
+an old server draws a dash where the address goes, which is the wrong order.
+
+## The name becomes a section, and a hint stops reading as text — 2026-08-31
+
+**The name field leaves the header.** It stood where the heading it replaces
+stands, which made the top line of edit mode a text field sharing a row with a
+button — and made it the one field on the screen whose label had to be inferred
+from its placeholder, every other one sitting under a `SectionLabel` in a card.
+It is now a *Name* section, first because it is the only thing here that is not
+optional, and the header holds Done alone. `headerAlone` flips the row to
+`flex-end`, `space-between` having put a lone child at the start.
+
+The empty-name refusal moves with the field and still reads as a sentence under
+it rather than as a disabled Done — the rule this screen follows everywhere: a
+control that does nothing is worse than a line saying why.
+
+**Placeholders get a token of their own.** They were `textFaint`, which also
+carries the 12px semibold section labels and therefore has to hold 4.5:1 at
+that size — so an empty field was as dark as the label above it, and a form
+nobody had touched read as a form somebody had filled in. `colors.placeholder`
+is ~3:1 on both schemes: `#8A93A3` on a white card, `#5F677A` on a dark one,
+where "lighter" means further *toward* the surface rather than away from it.
+
+A placeholder may sit below the threshold real text is held to, and this is the
+argument for why: it is a hint about an empty field, read once and then
+replaced by what somebody types. Nothing else uses the token, and the palette
+test pins both schemes to one set of keys, so it cannot be added to one and
+forgotten in the other.
+
+**And the Messaging card's Open buttons take the roster's Ping shape** — ghost,
+with `cardPing`'s exact paddings copied into `imOpen`. They were primary, which
+is the fill reserved for the thing a screen is for; three of them stacked down
+one card made "leave for WhatsApp" read as the errand of a profile. Ghost is
+what ChannelView already uses for the one other button that sits at the end of
+a row of text rather than in a card of its own, and the tightening is the same
+reason there: `Button` is sized for a card.
+
+**"Channels with them" moves above Email.** It was last but for the Contact
+card, on the reading that the screen runs things-to-do first and things-to-read
+after, with the two ways of reaching somebody sitting together at the top. What
+that got wrong is which of these reaches somebody. A shared channel is the
+nearest way there is — inside this application, one tap, with a line under it
+saying whether anybody is in there now — where an address and a handle both
+mean leaving for another application and waiting for a reply. So the order is
+by how directly each thing reaches the person: ping, the room you both already
+have, then the ways out to somewhere else. It also puts availability and where
+they have been in your rooms next to each other, which the old order had
+separated by the whole screen.

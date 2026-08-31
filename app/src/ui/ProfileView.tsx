@@ -94,9 +94,10 @@ function imProblem(service: ImService, typed: string): string | null {
  * `ContactsSettingsView`, kept apart on the grounds that an editor which is
  * sometimes read-only grows a conditional in every field it holds. That is a
  * real cost on a screen with eight fields and very nearly none here: `isSelf`
- * already leaves out the Email card, the shared channels and the Contact card,
- * so the whole of the edit mode is two swaps — and the separate screen had to
- * fetch this same profile a second time to know what to put in its fields.
+ * already leaves out the shared channels and the Contact card and reduces the
+ * Email card to its top half, so edit mode is a swap and an omission — and the
+ * separate screen had to fetch this same profile a second time to know what to
+ * put in its fields.
  *
  * A profile that cannot be edited is a read-only profile, and an editor for one
  * is that profile editing. So it is one screen with a mode rather than two
@@ -115,6 +116,14 @@ function imProblem(service: ImService, typed: string): string | null {
  * own route had already answered. The line survived two moves because at each
  * of them it was the only sentence about the account on a screen about
  * something else; here it is on the screen about the account.
+ *
+ * **The two modes are not the same screen with fields in it.** Edit mode
+ * leaves the facts out — availability, the invited count, who invited you —
+ * because none of them is editable or in doubt, and they would sit between the
+ * name and the fields saying nothing. What it keeps that it used to leave out
+ * is the address: "what am I signed in as" is a question somebody has while
+ * looking at their own name in a field, and until 2026-08-31 nothing in this
+ * application answered it.
  */
 export function ProfileView({
   accountId,
@@ -574,32 +583,25 @@ export function ProfileView({
 
   return (
     <Screen contentStyle={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerMain}>
-          {editing ? (
-            <>
-              <Field
-                value={draftName}
-                onChangeText={(v) =>
-                  setDraftName(v.slice(0, MAX_DISPLAY_NAME_LENGTH))
-                }
-                placeholder="What people should call you"
-                autoCapitalize="words"
-                onBlur={() => void persist().catch(() => {})}
-              />
-              {!named ? (
-                <Text style={styles.error}>
-                  A name cannot be empty — it is how everyone else finds you, so
-                  this one is kept until you type another.
-                </Text>
-              ) : null}
-            </>
-          ) : (
+      {/*
+        The header, which in edit mode holds the way out and nothing else.
+
+        The name field was up here until 2026-08-31, standing where the
+        heading it replaces stands — which put a text field on the same line as
+        a button, made that line the only one on the screen where a field has
+        no label, and left the sole thing every other section has above it to
+        be inferred from the placeholder. It is a section now, like Email and
+        Messaging, and Done is alone: the header stops being two things and
+        goes back to being the one it is everywhere else.
+      */}
+      <View style={[styles.header, editing && styles.headerAlone]}>
+        {editing ? null : (
+          <View style={styles.headerMain}>
             <Text style={type.heading} numberOfLines={1}>
               {profile?.account.displayName ?? fallbackName}
             </Text>
-          )}
-        </View>
+          </View>
+        )}
         {editing ? (
           // Alone, deliberately: a way out that keeps the work, standing beside
           // a nearer one that abandons it, is exactly the choice this screen
@@ -627,9 +629,42 @@ export function ProfileView({
         )}
       </View>
 
-      {/* Under the header rather than beside the field that failed: either
-          field can raise it, and both of them are up there. */}
+      {/* Under the header rather than beside the field that failed: any field
+          can raise it, and it belongs to the write rather than to one of
+          them. */}
       {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
+
+      {/*
+        What everybody else finds you by, and the first section because it is
+        the one thing here that is not optional.
+
+        The refusal is said under the field rather than by disabling Done, on
+        the rule the rest of this screen follows: a control that does nothing
+        is worse than a sentence saying why. What is in the field stays there,
+        and what is unwritable is simply not written.
+      */}
+      {editing ? (
+        <>
+          <SectionLabel>Name</SectionLabel>
+          <Card style={styles.stack}>
+            <Field
+              value={draftName}
+              onChangeText={(v) =>
+                setDraftName(v.slice(0, MAX_DISPLAY_NAME_LENGTH))
+              }
+              placeholder="What people should call you"
+              autoCapitalize="words"
+              onBlur={() => void persist().catch(() => {})}
+            />
+            {!named ? (
+              <Text style={styles.error}>
+                A name cannot be empty — it is how everyone else finds you, so
+                this one is kept until you type another.
+              </Text>
+            ) : null}
+          </Card>
+        </>
+      ) : null}
 
       {/*
         Where they are, which is what decides whether to try them at all. It
@@ -657,27 +692,41 @@ export function ProfileView({
         What is not shown is an *absent* count — a server too old to send one —
         since a nought it never claimed would be a number we made up.
       */}
-      <View style={styles.facts}>
-        {availability ? (
-          <Text style={type.muted}>{availability}</Text>
-        ) : null}
-        {profile?.invited !== undefined ? (
-          <Text style={type.muted}>{`Invited ${profile.invited}`}</Text>
-        ) : null}
-        {/*
-          Who invited them, and only ever a name you already know: the server
-          sends this when the inviter is you or one of your contacts, and sends
-          nothing otherwise. So there is no case to handle here where the name
-          would be a stranger's — absent means there is no line, whether that
-          is because nobody invited them, because you do not know who did, or
-          because the server predates the field.
-        */}
-        {profile?.invitedBy ? (
-          <Text style={type.muted} numberOfLines={1}>
-            {`Invited by ${profile.invitedBy.displayName}`}
-          </Text>
-        ) : null}
-      </View>
+      {/*
+        Left out while editing, which is the one place the two modes order the
+        screen differently rather than swapping a line for a field.
+
+        Nothing here is editable and nothing here is in doubt: where you are,
+        how many people you brought and who brought you are the server's
+        answers about you, and none of them changes because a name field is
+        open. Edit mode is the handful of things you can change, and three
+        lines you cannot, sitting between the name and the fields, make the
+        screen longer without making it say anything. The name is the
+        exception and stays, being a field there.
+      */}
+      {editing ? null : (
+        <View style={styles.facts}>
+          {availability ? (
+            <Text style={type.muted}>{availability}</Text>
+          ) : null}
+          {profile?.invited !== undefined ? (
+            <Text style={type.muted}>{`Invited ${profile.invited}`}</Text>
+          ) : null}
+          {/*
+            Who invited them, and only ever a name you already know: the server
+            sends this when the inviter is you or one of your contacts, and
+            sends nothing otherwise. So there is no case to handle here where
+            the name would be a stranger's — absent means there is no line,
+            whether that is because nobody invited them, because you do not
+            know who did, or because the server predates the field.
+          */}
+          {profile?.invitedBy ? (
+            <Text style={type.muted} numberOfLines={1}>
+              {`Invited by ${profile.invitedBy.displayName}`}
+            </Text>
+          ) : null}
+        </View>
+      )}
 
       {/*
         Somebody who belongs to this channel and is not in it. The one
@@ -751,6 +800,131 @@ export function ProfileView({
       ) : null}
 
       {/*
+        Every channel the two of you share, and when they were last in each.
+
+        Left out for your own profile, the same way the Contact card is: it
+        would be Home's list of your own channels with your own name against
+        every line, which is a screen you already have.
+
+        Above Email rather than below Messaging, since 2026-08-31. It sat at
+        the foot on the reading that the screen goes things-to-do first and
+        things-to-read after, with the two ways of reaching somebody sitting
+        together at the top. What that got wrong is which of these is a way of
+        reaching somebody. A shared channel is the nearest one there is — it is
+        inside this application, it is one tap, and the line under each says
+        whether anybody is in there now — where an address and a handle both
+        mean leaving for another application and waiting. So the order is by
+        how directly each thing reaches the person: the room you both already
+        have, then the ways out to somewhere else.
+
+        It also puts the two facts that decide anything next to each other.
+        Where somebody is, at the top, and where they have been in your rooms,
+        immediately under it — which used to be separated by everything else
+        on the screen.
+      */}
+      {isSelf || shared.length === 0 ? null : (
+        <>
+          <SectionLabel>Channels with them</SectionLabel>
+          <View style={styles.stack}>
+            {shared.map((channel) => {
+              const title =
+                channel.name ??
+                describeChannel(channel.others.map((o) => o.displayName));
+              const where = presence.get(channel.channelId);
+              /*
+                Where they have been, and — when it is a different fact — how
+                many people are in the room. Theirs comes first and is always
+                drawn, this screen being about them; the count is appended only
+                when there is somebody to count, since a card reading "Last
+                here 2 days ago" while three people were talking in there would
+                be true and would be withholding the reason to tap it.
+
+                The second branch is the line these cards drew before a profile
+                carried anything about the person, kept for a server that sends
+                no `sharedChannels`. It describes the room: it said "Nobody
+                here right now" for any empty channel whatever its age, so the
+                room Home called five minutes ago was described here as merely
+                empty, and a contact channel neither of you has ever opened
+                claimed to have been left.
+              */
+              const line = where
+                ? [
+                    describePresence(where, app.serverNow()),
+                    channel.presentCount > 0
+                      ? `${channel.presentCount} present`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                : channel.presentCount > 0
+                  ? `${channel.presentCount} present`
+                  : sentence(
+                      describeQuiet(
+                        {
+                          everUsed: channel.everUsed,
+                          // `lastActiveAt` for a server that predates the
+                          // better stamp, as on Home: the same answer for
+                          // every channel nobody is in, which is the only
+                          // kind this line is drawn for.
+                          lastPresenceAt:
+                            channel.lastPresenceAt ?? channel.lastActiveAt,
+                        },
+                        app.serverNow()
+                      ) ?? ''
+                    );
+              const body = (
+                <>
+                  <Text
+                    style={channel.name ? type.body : styles.channelDescribed}
+                    numberOfLines={1}
+                  >
+                    {title}
+                  </Text>
+                  <Text style={type.muted}>{line}</Text>
+                </>
+              );
+              /*
+                A card rather than a button where there is nowhere to go: from
+                inside a channel this screen is something to read, and an
+                affordance that is present but refuses is worse than one that
+                is honestly absent — the rule the ping section follows, applied
+                to the tap rather than to the section, because the reading is
+                worth having on its own.
+              */
+              return onEnterChannel ? (
+                <Pressable
+                  key={channel.channelId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${title}. ${line}. Step in.`}
+                  onPress={() => {
+                    // The same tap Home's rows take, preference and all: with
+                    // "Tap a channel to step in" off, this opens the channel
+                    // without arriving in it. Two lists of the same channels
+                    // answering a tap differently would be a setting that held
+                    // in one place and not the other.
+                    if (app.tapToStepIn) {
+                      app.act(channel.channelId, { type: 'ENTER' });
+                    }
+                    onEnterChannel(channel.channelId);
+                  }}
+                  style={({ pressed }) => [
+                    styles.channel,
+                    pressed && styles.channelPressed,
+                  ]}
+                >
+                  {body}
+                </Pressable>
+              ) : (
+                <View key={channel.channelId} style={styles.channel}>
+                  {body}
+                </View>
+              );
+            })}
+          </View>
+        </>
+      )}
+
+      {/*
         Addresses, which are two separate decisions and are drawn as two.
 
         Theirs is above yours because it is the half you might act on — an
@@ -764,15 +938,61 @@ export function ProfileView({
         asked to be a contact — the card further down does that — and this is a
         step past it rather than part of it.
 
-        Directly under Ping, above the shared channels, for the
-        reason Ping is where it is: both are things to do about this person,
-        and everything between them and the foot of the screen is things to
-        read about them. Reaching somebody is the errand this screen gets
-        opened for, and the two ways of doing it sit together. Only the facts
-        are above them, being the two or three lines that decide which way to
-        try.
+        Under the shared channels, which is the order the whole screen is in:
+        by how directly each thing reaches the person. A ping and a shared room
+        are inside this application; an address and a handle are ways of
+        leaving it and waiting. So the two of those sit together down here,
+        below the ways that do not require anybody to change applications, and
+        above nothing but the request to be somebody's contact.
+
+        **Your own is drawn too, in both modes, and it is one half rather than
+        two.** It was left out entirely until 2026-08-31, on the reading that
+        the card is about a disclosure and there is none to make to yourself.
+        What that missed is that the address is also a fact you can be unsure
+        of: this application signs you in by email and there was nowhere in it
+        that said which one. So the top half stays — your address, and the
+        button to copy it — and the bottom half, which is a decision about one
+        named reader, does not. It is on the edit screen as well because "what
+        am I signed in as" is exactly the question somebody has while looking
+        at their own name in a field, and it is the one thing there that
+        answers it.
       */}
-      {isSelf || contact?.status !== 'accepted' ? null : (
+      {isSelf ? (
+        <>
+          <SectionLabel>Email</SectionLabel>
+          <Card style={styles.stack}>
+            {/* Selectable and copyable for the same reasons a contact's is. */}
+            <Text style={type.body} selectable numberOfLines={1}>
+              {profile?.email ?? '—'}
+            </Text>
+            {profile?.email ? (
+              <Button
+                label={
+                  copied === 'done'
+                    ? '✓ copied'
+                    : copied === 'failed'
+                      ? '✗ copy failed'
+                      : 'Copy'
+                }
+                variant="primary"
+                onPress={() => {
+                  void (async () => {
+                    setCopied(
+                      (await copyText(profile.email!)) ? 'done' : 'failed'
+                    );
+                  })();
+                }}
+              />
+            ) : null}
+            {/* Where the other half of this card went, said once rather than
+                drawn as a control that would have nobody to aim at. */}
+            <Text style={type.muted}>
+              How you sign in. Nobody else sees it unless you show it to them,
+              which is done one contact at a time, from their profile.
+            </Text>
+          </Card>
+        </>
+      ) : contact?.status !== 'accepted' ? null : (
         <>
           <SectionLabel>Email</SectionLabel>
           <Card style={styles.stack}>
@@ -885,9 +1105,17 @@ export function ProfileView({
                         {handle}
                       </Text>
                     </View>
+                    {/* The roster's Ping button, in shape and in weight:
+                        tightened because `Button` is sized for a card of its
+                        own and this one sits at the end of a row of text, and
+                        ghost because a handle is a way out of this
+                        application rather than the thing the screen is for.
+                        Three primary buttons stacked down a card made the
+                        section read as the errand. */}
                     <Button
                       label="Open"
-                      variant="primary"
+                      variant="ghost"
+                      style={styles.imOpen}
                       onPress={() => void openIm(service, handle)}
                     />
                   </View>
@@ -981,115 +1209,6 @@ export function ProfileView({
       ) : null}
 
       {/*
-        Every channel the two of you share, and when they were last in each.
-
-        Left out for your own profile, the same way the Contact card is: it
-        would be Home's list of your own channels with your own name against
-        every line, which is a screen you already have.
-      */}
-      {isSelf || shared.length === 0 ? null : (
-        <>
-          <SectionLabel>Channels with them</SectionLabel>
-          <View style={styles.stack}>
-            {shared.map((channel) => {
-              const title =
-                channel.name ??
-                describeChannel(channel.others.map((o) => o.displayName));
-              const where = presence.get(channel.channelId);
-              /*
-                Where they have been, and — when it is a different fact — how
-                many people are in the room. Theirs comes first and is always
-                drawn, this screen being about them; the count is appended only
-                when there is somebody to count, since a card reading "Last
-                here 2 days ago" while three people were talking in there would
-                be true and would be withholding the reason to tap it.
-
-                The second branch is the line these cards drew before a profile
-                carried anything about the person, kept for a server that sends
-                no `sharedChannels`. It describes the room: it said "Nobody
-                here right now" for any empty channel whatever its age, so the
-                room Home called five minutes ago was described here as merely
-                empty, and a contact channel neither of you has ever opened
-                claimed to have been left.
-              */
-              const line = where
-                ? [
-                    describePresence(where, app.serverNow()),
-                    channel.presentCount > 0
-                      ? `${channel.presentCount} present`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')
-                : channel.presentCount > 0
-                  ? `${channel.presentCount} present`
-                  : sentence(
-                      describeQuiet(
-                        {
-                          everUsed: channel.everUsed,
-                          // `lastActiveAt` for a server that predates the
-                          // better stamp, as on Home: the same answer for
-                          // every channel nobody is in, which is the only
-                          // kind this line is drawn for.
-                          lastPresenceAt:
-                            channel.lastPresenceAt ?? channel.lastActiveAt,
-                        },
-                        app.serverNow()
-                      ) ?? ''
-                    );
-              const body = (
-                <>
-                  <Text
-                    style={channel.name ? type.body : styles.channelDescribed}
-                    numberOfLines={1}
-                  >
-                    {title}
-                  </Text>
-                  <Text style={type.muted}>{line}</Text>
-                </>
-              );
-              /*
-                A card rather than a button where there is nowhere to go: from
-                inside a channel this screen is something to read, and an
-                affordance that is present but refuses is worse than one that
-                is honestly absent — the rule the ping section follows, applied
-                to the tap rather than to the section, because the reading is
-                worth having on its own.
-              */
-              return onEnterChannel ? (
-                <Pressable
-                  key={channel.channelId}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${title}. ${line}. Step in.`}
-                  onPress={() => {
-                    // The same tap Home's rows take, preference and all: with
-                    // "Tap a channel to step in" off, this opens the channel
-                    // without arriving in it. Two lists of the same channels
-                    // answering a tap differently would be a setting that held
-                    // in one place and not the other.
-                    if (app.tapToStepIn) {
-                      app.act(channel.channelId, { type: 'ENTER' });
-                    }
-                    onEnterChannel(channel.channelId);
-                  }}
-                  style={({ pressed }) => [
-                    styles.channel,
-                    pressed && styles.channelPressed,
-                  ]}
-                >
-                  {body}
-                </Pressable>
-              ) : (
-                <View key={channel.channelId} style={styles.channel}>
-                  {body}
-                </View>
-              );
-            })}
-          </View>
-        </>
-      )}
-
-      {/*
         Meeting somebody in a channel an acquaintance opened is exactly when
         you want to keep them, and until there was an "Add contact" here there
         was no way to: you had their name and their id, and adding a contact
@@ -1107,8 +1226,8 @@ export function ProfileView({
 
         Last on the screen, below Email rather than beside it. Three of the
         four branches below belong to somebody who is not a contact yet, and
-        the Email card is drawn only for somebody who is — so the two never
-        compete for a position, and putting this one at the foot costs a
+        the Email card is drawn for a contact or for yourself — so the two
+        never compete for a position, and putting this one at the foot costs a
         stranger's "Add contact" nothing while keeping "Remove contact" away
         from the top of a screen opened to read about a person.
       */}
@@ -1177,8 +1296,14 @@ const styles = StyleSheet.create({
     gap: spacing(1),
     marginBottom: spacing(1),
   },
-  /** The name — heading or field — taking whatever the buttons leave. */
+  /** The name, taking whatever the buttons leave. */
   headerMain: { flex: 1, gap: spacing(0.5) },
+  /**
+   * Edit mode, where Done is the only thing in the header. `space-between`
+   * puts a lone child at the start, and the way out belongs where every other
+   * screen's is.
+   */
+  headerAlone: { justifyContent: 'flex-end' },
   stack: { gap: spacing(1) },
   channel: {
     backgroundColor: colors.surface,
@@ -1214,6 +1339,12 @@ const styles = StyleSheet.create({
   },
   /** The name and the handle, taking whatever the button leaves. */
   imWho: { flex: 1, gap: 2 },
+  /** ChannelView's `cardPing`, and deliberately the same numbers. */
+  imOpen: {
+    paddingVertical: spacing(0.5),
+    paddingHorizontal: spacing(1),
+    minHeight: 0,
+  },
   imField: { gap: spacing(0.5) },
   pingFoot: {
     flexDirection: 'row',

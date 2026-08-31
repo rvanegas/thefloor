@@ -132,6 +132,12 @@ export interface ProfileView {
    * ever, and it is the only part of a person here that the app will not hand
    * out on a relationship alone.
    *
+   * **Your own is the exception and is always sent**, since 2026-08-31. On
+   * your own profile this is not a disclosure but the address you sign in
+   * with, read off your own row rather than through the showing decision —
+   * which would say no, you not being a contact of yours. `myEmailShown` is
+   * absent there for the matching reason: there is no reader to show it to.
+   *
    * Absent means it is not being shown, which is also what an older server
    * sends and what somebody who is not a contact gets. The client draws no
    * address for all three, there being nothing to draw.

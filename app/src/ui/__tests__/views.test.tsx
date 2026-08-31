@@ -5681,6 +5681,11 @@ describe('your own profile', () => {
     };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
+      // What the server sends about you: the invited count, and your own
+      // address always — but no availability and no `myEmailShown`, there
+      // being nobody to be shown to.
+      invited: 2,
+      email: 'me@example.com',
     });
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -5704,6 +5709,27 @@ describe('your own profile', () => {
   it('offers Edit, which nobody else\u2019s profile does', async () => {
     const tree = await mine();
     expect(findButton(tree, 'Edit')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('says which address you sign in with, and offers to copy it', async () => {
+    // Left out until 2026-08-31, on the reading that the card is about a
+    // disclosure and there is none to make to yourself. What that missed is
+    // that nothing in the application said which address this account is.
+    const tree = await mine();
+    expect(textOf(tree)).toContain('me@example.com');
+    expect(findButton(tree, 'Copy')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('offers no way to show your address to yourself', async () => {
+    // The bottom half of the card is a decision about one named reader, and
+    // there is no reader here. A dead control saying so would be worse than
+    // the sentence that replaces it.
+    const tree = await mine();
+    expect(findButton(tree, 'Show my email')).toBeUndefined();
+    expect(findButton(tree, 'Stop showing my email')).toBeUndefined();
+    expect(textOf(tree)).toContain('How you sign in');
     act(() => tree.unmount());
   });
 
@@ -5755,6 +5781,9 @@ describe('editing your own profile', () => {
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
       im: { telegram: 'me_here' },
+      invited: 2,
+      invitedBy: { id: 'acct_x', displayName: 'Dana Chu' },
+      email: 'me@example.com',
     });
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -5817,6 +5846,46 @@ describe('editing your own profile', () => {
     expect(mockApp.saveProfile).toHaveBeenCalledWith({
       displayName: 'Alice Nkemdirim',
     });
+    act(() => tree.unmount());
+  });
+
+  it('puts the name under a label of its own', async () => {
+    // It stood in the header until 2026-08-31, where the heading it replaces
+    // stands — a text field sharing a line with a button, and the one field on
+    // the screen whose label had to be inferred from its placeholder. Which
+    // side of the header Done sits on is layout and is not pinned here; that
+    // the section exists is the change.
+    const tree = await edit(await openMine());
+    expect(textOf(tree)).toContain('Name');
+    expect(nameField(tree)).toBeDefined();
+    // And it is gone again when the mode is, rather than becoming a heading
+    // with a label over it.
+    await act(async () => findButton(tree, 'Done')!.props.onPress());
+    expect(textOf(tree)).not.toContain('Name');
+    act(() => tree.unmount());
+  });
+
+  it('leaves the facts out, which read mode is where to read', async () => {
+    // The one place the two modes order the screen differently rather than
+    // swapping a line for a field. None of these is editable or in doubt, and
+    // three lines you cannot change between the name and the fields make the
+    // screen longer without making it say anything.
+    const tree = await openMine();
+    expect(textOf(tree)).toContain('Invited 2');
+    expect(textOf(tree)).toContain('Invited by Dana Chu');
+
+    await edit(tree);
+    expect(textOf(tree)).not.toContain('Invited 2');
+    expect(textOf(tree)).not.toContain('Invited by Dana Chu');
+    act(() => tree.unmount());
+  });
+
+  it('keeps the address, which is the question a name field raises', async () => {
+    // "What am I signed in as" is what somebody wants while looking at their
+    // own name in a field, and it is the one thing on this screen that
+    // answers it.
+    const tree = await edit(await openMine());
+    expect(textOf(tree)).toContain('me@example.com');
     act(() => tree.unmount());
   });
 
