@@ -4,10 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Add as Contact From Guest View
-
-Being in same channel is permission to ask each other to be contacts, without need for email to identify. Specifically, channel members can invite an already speaking guest to the channel. In case the guest is not already signed into an account in this web session, then he is directed to the webapp in such a way that at the conclusion of signing in, with the emailed code, there will be a contact request waiting for him already. If he is already signed in, then he is prompted to accept the contact request and if accepted his view simply becomes the channel view, as it is for other channel members.
-
 ## UI Restyling
 
 Improve look and feel
@@ -267,10 +263,6 @@ If watch party is started and a there is a second session with the same account,
 ## API to Create Telegram or Whatsapp Group Chat
 
 Is it possible?
-
-## Invitation by Deep Link
-
-Ideally, contact is made more automatically.
 
 ## Add Voice Messages
 
