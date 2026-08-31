@@ -141,8 +141,17 @@
       </div>
 
       <form id="knock-form">
-        <label for="name-field">What should they call you?</label>
-        <input id="name-field" maxlength="40" autocomplete="off" placeholder="Leave blank to stay anonymous" />
+        <!--
+          Hidden when this browser is holding a session: that name is already
+          known and better than anything anybody would type here. A stale
+          session resolves to nobody and the seat is numbered instead, which
+          the rename in the room is the answer to.
+        -->
+        <div id="knock-name">
+          <label for="name-field">What should they call you?</label>
+          <input id="name-field" maxlength="40" autocomplete="off" placeholder="Leave blank and you will be a numbered guest" />
+        </div>
+        <p class="muted" id="knock-as" hidden></p>
         <button id="knock-button" type="submit">Ask to join</button>
       </form>
       <p class="muted">
@@ -187,11 +196,51 @@
       </p>
       <button id="ask-button" hidden>Ask to speak</button>
       <button id="mute-button" hidden>Mute</button>
-      <button id="floor-button">Take the floor</button>
+
+      <!--
+        One block per member who has asked to keep this guest. Accepting is an
+        account's act, so for somebody already signed in it is one tap, and for
+        anybody else it opens the sign-in below — in this page, in this room,
+        with the conversation still audible throughout.
+      -->
+      <section id="asks" hidden>
+        <h2>Somebody wants to keep in touch</h2>
+        <ul id="ask-list"></ul>
+        <form id="sign-in" hidden>
+          <p class="muted" id="sign-in-note"></p>
+          <div id="sign-in-address">
+            <label for="email-field">Your email address</label>
+            <input id="email-field" type="email" autocomplete="email" inputmode="email" />
+          </div>
+          <div id="sign-in-code" hidden>
+            <label for="code-field">The six-digit code we emailed you</label>
+            <input id="code-field" inputmode="numeric" autocomplete="one-time-code" maxlength="6" />
+          </div>
+          <button id="sign-in-button" type="submit">Send me a code</button>
+          <button id="sign-in-cancel" type="button">Cancel</button>
+          <p id="sign-in-error" hidden></p>
+        </form>
+      </section>
 
       <section>
         <h2>Who is here</h2>
         <ul id="others"></ul>
+      </section>
+
+      <!--
+        Always available, for every seat: a name here is nobody's property and
+        there is no clash to report, so this is offered because a name is yours
+        to change rather than because somebody else has it. It changes the seat
+        alone — an account's own name is Settings' to change, in the screen
+        that owns it.
+      -->
+      <section>
+        <h2>Your name</h2>
+        <form id="rename-form">
+          <label for="rename-field">What the room calls you</label>
+          <input id="rename-field" maxlength="40" autocomplete="off" />
+          <button id="rename-button" type="submit">Change</button>
+        </form>
       </section>
 
       <section>
@@ -202,6 +251,17 @@
       </section>
 
       <section>
+        <!--
+          Shown only to a seat with an account behind it. Offering the rest of
+          the application to somebody who has no account in it would send them
+          to a sign-in they did not ask for. Leaving this page ends the
+          connection and the audio with it; the seat is held, so coming back
+          resumes rather than knocks.
+        -->
+        <p id="home-link" hidden>
+          <a href="/app">Go to The Floor</a> — this channel is on your home
+          screen while your seat lasts.
+        </p>
         <button id="leave-button">Leave</button>
       </section>
     </div>

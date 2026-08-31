@@ -8,7 +8,7 @@ import {
   createChannel,
   reduce,
 } from '../channel';
-import { FLOOR_CLAIM_DELAY_STEP_MS } from '../constants';
+import { MAX_DISPLAY_NAME_LENGTH } from '../constants';
 import { inRoom, isGuest, roomOccupants } from '../guests';
 import {
   anyMicrophoneOpen,
@@ -174,44 +174,60 @@ describe('a guest is not a participant', () => {
   });
 });
 
-describe('the floor, with a guest at it', () => {
-  it('is claimable by a guest, and silences the member who is not holding it', () => {
+describe('the floor, with a guest in the room', () => {
+  it('is not a guest’s to take, however audible they are', () => {
+    // Reversed on 2026-08-30. A claim is not permission to speak — this guest
+    // can already talk — it is a demand that everybody else be silent, and a
+    // stranger does not get to mute the people who let them in.
     const state = withGuest({ maySpeak: true });
-    expect(canClaimFloor(state, DANA, T0 + 2_000)).toBe(true);
+    expect(canClaimFloor(state, DANA, T0 + 2_000)).toBe(false);
 
-    const claimed = act(state, { type: 'CLAIM_FLOOR', userId: DANA });
-    expect(claimed.floor.holder).toBe(DANA);
-    expect(canClaimFloor(claimed, ALICE, T0 + 2_000)).toBe(false);
+    const refused = act(state, { type: 'CLAIM_FLOOR', userId: DANA });
+    expect(refused).toBe(state);
+    expect(refused.floor.holder).toBeNull();
   });
 
-  it('ranks a guest in the claim ladder like anybody else', () => {
-    // Whoever spoke longest ago waits nothing. A guest who has never claimed
-    // is in that group, and a member who just spoke waits a step.
+  it('is claimable by a member alone with a guest', () => {
+    // The count that survives being about the room: there is somebody here to
+    // be quiet, and they are exactly who the claim is for.
+    expect(canClaimFloor(withGuest({ maySpeak: true }), ALICE, T0 + 2_000)).toBe(
+      true
+    );
+    // Nobody else in the room at all, and the control goes away.
+    expect(canClaimFloor(alone(), ALICE, T0 + 2_000)).toBe(false);
+  });
+
+  it('keeps a guest out of the claim ladder', () => {
+    // The queue is members only. A guest has never claimed, so ranking them
+    // would read as having spoken longest ago and put a step in front of every
+    // member who has — a wait behind somebody who can never take the turn.
     let state = withGuest({ maySpeak: true });
     state = act(state, { type: 'CLAIM_FLOOR', userId: ALICE });
     state = act(state, { type: 'RELEASE_FLOOR', userId: ALICE }, T0 + 3_000);
 
-    expect(canClaimFloor(state, DANA, T0 + 3_000)).toBe(true);
-    expect(canClaimFloor(state, ALICE, T0 + 3_000)).toBe(false);
-    expect(
-      canClaimFloor(state, ALICE, T0 + 3_000 + FLOOR_CLAIM_DELAY_STEP_MS)
-    ).toBe(true);
+    expect(canClaimFloor(state, DANA, T0 + 3_000)).toBe(false);
+    // Alice is the only one in the queue, so she is at the front of it.
+    expect(canClaimFloor(state, ALICE, T0 + 3_000)).toBe(true);
   });
 
   it('releases a claim held by a guest who leaves', () => {
-    // The same rule a departing member gets, and for the same reason: whoever
-    // is left must not be silenced by somebody who is no longer in the room.
-    const claimed = act(withGuest({ maySpeak: true }), {
-      type: 'CLAIM_FLOOR',
-      userId: DANA,
-    });
+    // Unreachable now that a guest cannot claim, and kept deliberately: a
+    // state blob written before that change can still name a guest as the
+    // holder, and whoever is left must not be silenced by somebody who is no
+    // longer in the room. Constructed rather than claimed, since claiming is
+    // the very thing that is refused.
+    const state = withGuest({ maySpeak: true });
+    const claimed: ChannelState = {
+      ...state,
+      floor: { ...state.floor, holder: DANA, claimedAt: T0 + 2_000 },
+    };
     const gone = act(claimed, { type: 'STEP_OUT', userId: DANA });
     expect(gone.floor.holder).toBeNull();
   });
 
-  it('will not let a guest claim a room they are alone in', () => {
-    // Which cannot happen, since the last member leaving takes the guests with
-    // them — stated anyway, because the claim rule is about who can hear you.
+  it('takes the guests out with the last member', () => {
+    // Which is what makes “a guest alone in a room” unreachable rather than
+    // merely refused — the claim rule above is about who can hear you.
     const state = withGuest({ maySpeak: true });
     const empty = act(state, { type: 'STEP_OUT', userId: ALICE });
     expect(empty.guests).toEqual({});
@@ -396,5 +412,121 @@ describe('the last member out', () => {
     expect(empty.guests).toEqual({});
     expect(empty.knocks).toEqual([]);
     expect(empty.floor.holder).toBeNull();
+  });
+});
+
+describe('asking a guest to be a contact', () => {
+  it('records the ask against the member who made it', () => {
+    // Being in a channel together is permission to ask — the rule members
+    // already have between themselves, reaching the one person in the room it
+    // could not name.
+    const asked = act(withGuest(), {
+      type: 'ASK_GUEST_CONTACT',
+      userId: ALICE,
+      guestId: DANA,
+    });
+    expect(asked.guests[DANA]?.asks).toEqual({ [ALICE]: 'asking' });
+  });
+
+  it('reads a guest who has never been asked as nobody having asked', () => {
+    // The field is optional on the wire, so every reader takes the absent case.
+    expect(withGuest().guests[DANA]?.asks).toBeUndefined();
+  });
+
+  it('will not ask twice, or ask again after being told no', () => {
+    let state = act(withGuest(), {
+      type: 'ASK_GUEST_CONTACT',
+      userId: ALICE,
+      guestId: DANA,
+    });
+    expect(act(state, { type: 'ASK_GUEST_CONTACT', userId: ALICE, guestId: DANA }))
+      .toBe(state);
+
+    state = act(state, { type: 'REFUSE_CONTACT', userId: DANA, askerId: ALICE });
+    expect(state.guests[DANA]?.asks).toEqual({ [ALICE]: 'refused' });
+    // Asking again is not a way to have a refusal re-answered.
+    expect(act(state, { type: 'ASK_GUEST_CONTACT', userId: ALICE, guestId: DANA }))
+      .toBe(state);
+  });
+
+  it('refuses a member who is not in the room, and a guest asking at all', () => {
+    // `canManageGuest`, which is the same entitlement rather than a new one:
+    // Bob belongs to the channel but is not in the conversation.
+    const state = withGuest();
+    expect(act(state, { type: 'ASK_GUEST_CONTACT', userId: BOB, guestId: DANA }))
+      .toBe(state);
+    // And a guest is refused by the wall every prohibition rests on: the
+    // action is not in GUEST_ACTIONS.
+    expect(act(state, { type: 'ASK_GUEST_CONTACT', userId: DANA, guestId: DANA }))
+      .toBe(state);
+  });
+
+  it('answers one member’s ask without answering another’s', () => {
+    // Two people may each ask, and each is owed their own answer.
+    let state = withGuest();
+    state = act(state, { type: 'ASK_GUEST_CONTACT', userId: ALICE, guestId: DANA });
+    state = act(state, { type: 'ENTER', userId: BOB });
+    state = act(state, { type: 'ASK_GUEST_CONTACT', userId: BOB, guestId: DANA });
+    state = act(state, { type: 'REFUSE_CONTACT', userId: DANA, askerId: ALICE });
+
+    expect(state.guests[DANA]?.asks).toEqual({
+      [ALICE]: 'refused',
+      [BOB]: 'asking',
+    });
+  });
+
+  it('lets nobody refuse an ask that was never made, or refuse for a guest', () => {
+    const state = act(withGuest(), {
+      type: 'ASK_GUEST_CONTACT',
+      userId: ALICE,
+      guestId: DANA,
+    });
+    expect(act(state, { type: 'REFUSE_CONTACT', userId: DANA, askerId: BOB }))
+      .toBe(state);
+    // A member has no seat to refuse from.
+    expect(act(state, { type: 'REFUSE_CONTACT', userId: ALICE, askerId: ALICE }))
+      .toBe(state);
+  });
+});
+
+describe('a guest’s name', () => {
+  it('is theirs to change, at any time', () => {
+    const renamed = act(withGuest(), {
+      type: 'SET_GUEST_NAME',
+      userId: DANA,
+      name: '  Robert  ',
+    });
+    expect(renamed.guests[DANA]?.name).toBe('Robert');
+  });
+
+  it('is not clearable, and not a member’s to change', () => {
+    const state = withGuest();
+    expect(act(state, { type: 'SET_GUEST_NAME', userId: DANA, name: '   ' }))
+      .toBe(state);
+    // Nothing routes a member here — the actor comes from the connection — and
+    // there is no seat of theirs to rename either way.
+    expect(act(state, { type: 'SET_GUEST_NAME', userId: ALICE, name: 'Mine' }))
+      .toBe(state);
+  });
+
+  it('takes the same cap the door does', () => {
+    const renamed = act(withGuest(), {
+      type: 'SET_GUEST_NAME',
+      userId: DANA,
+      name: 'R'.repeat(MAX_DISPLAY_NAME_LENGTH + 10),
+    });
+    expect(renamed.guests[DANA]?.name).toHaveLength(MAX_DISPLAY_NAME_LENGTH);
+  });
+
+  it('may be one somebody else in the room already has', () => {
+    // There is no namespace here: nothing is unique, nothing is looked up by a
+    // name, and a recording is keyed on the identity rather than the label. So
+    // there is no clash to detect and none is reported.
+    const state = act(withGuest(), {
+      type: 'SET_GUEST_NAME',
+      userId: DANA,
+      name: 'Alice',
+    });
+    expect(state.guests[DANA]?.name).toBe('Alice');
   });
 });

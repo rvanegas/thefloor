@@ -400,6 +400,24 @@ export interface RejoinableView {
    * for appearing in this list at all.
    */
   everUsed?: boolean;
+  /**
+   * Whether this is a **seat** rather than a membership: a channel you are a
+   * guest of, which you may go back to for as long as the seat lives.
+   *
+   * A place you can return to is what this list means, so it belongs here
+   * rather than in a section of its own — but almost nothing else on this type
+   * transfers, and the flag is what says so. `others` carries account ids
+   * where a guest is shown names alone; `name: null` is an instruction to
+   * describe the channel by reading out its roster, which a guest has none of;
+   * and the four timestamps are the channel's history, the last of them
+   * written around a reader who is a member. So a seat's entry carries the
+   * resolved name, the present count, and its own `admittedAt` in place of
+   * the history — and the client draws the smaller card and opens the **guest
+   * page**, `/c/:id` being a screen a non-participant cannot see.
+   *
+   * Absent means a membership, which is what every entry was before this.
+   */
+  seat?: boolean;
 }
 
 export interface RecordingView {
@@ -666,18 +684,37 @@ export interface GuestView {
      * hear them, or worse, believes themselves muted when they are not.
      */
     mic: 'listening' | 'asking' | 'refused' | 'open' | 'muted';
-    /** Whether they hold the floor. */
-    holdingFloor: boolean;
-    /** Whether somebody else holds it, so they are not being heard. */
+    /**
+     * Whether a member's claim is why nobody can hear them.
+     *
+     * The floor's only remaining appearance here, the claim itself having
+     * stopped being a guest's to make on 2026-08-30 — see `canClaimFloor`.
+     * Withholding this would be the same failure the microphone's states
+     * exist to prevent: somebody talking into a room that is not listening.
+     */
     silenced: boolean;
-    /** Whether they may claim it right now. */
-    canClaimFloor: boolean;
+    /**
+     * Whether this seat has an account behind it, and which.
+     *
+     * `null` for somebody who arrived with no session. What it changes on the
+     * page is small and worth having: the rest of the app becomes reachable,
+     * and an ask below can be answered without signing in first.
+     */
+    accountId: string | null;
   };
   /**
    * Everybody else in the room: members by name, and any other guests. Names
    * only — no ids that mean anything elsewhere, no bios, no profiles.
    */
   others: Array<{ name: string; kind: 'member' | 'guest'; speaking: boolean }>;
+  /**
+   * Members who have asked to keep them, waiting on an answer.
+   *
+   * Names, as `others` carries, plus the one id an answer has to address.
+   * Refused asks are not here: they have been answered, and a page that kept
+   * showing them would be asking again on somebody else's behalf.
+   */
+  asks: Array<{ askerId: string; from: string }>;
   /**
    * Whether a recording is capturing right now, and therefore capturing them.
    *
@@ -694,10 +731,12 @@ export interface GuestView {
 /** What the guest page may ask for. The server supplies the actor. */
 export type GuestAction =
   | { type: 'STEP_OUT' }
-  | { type: 'CLAIM_FLOOR' }
-  | { type: 'RELEASE_FLOOR' }
   | { type: 'SET_SELF_MUTE'; muted: boolean }
   | { type: 'REQUEST_SPEECH' }
+  /** Says no to one member's ask, which is a different thing from silence. */
+  | { type: 'REFUSE_CONTACT'; askerId: string }
+  /** Changes what the room calls them. Always available. */
+  | { type: 'SET_GUEST_NAME'; name: string }
   | { type: 'PASTE_CLIP'; text: string }
   | { type: 'CLEAR_CLIP' };
 
@@ -710,8 +749,21 @@ export type GuestAction =
  * at runtime.
  */
 export type GuestClientMessage =
-  /** Ask to be let in, having arrived with a link. */
-  | { type: 'knock'; name: string }
+  /**
+   * Ask to be let in, having arrived with a link.
+   *
+   * `token` is whatever session the browser happened to be holding — the same
+   * `thefloor.token` the app writes, readable here because one origin serves
+   * both. Sent in the message rather than in `/gws`'s query string, where the
+   * link and the seat secret already ride: an account credential good for
+   * ninety days is a different order of thing from a seat's.
+   *
+   * **Presence, not validity**, exactly as `landing.ts` reads the same key. A
+   * stale or revoked one resolves to nobody and the seat is named the way any
+   * other unnamed one is; the rename on the room screen is what makes that a
+   * shrug rather than a dead end.
+   */
+  | { type: 'knock'; name: string; token?: string }
   | { type: 'action'; action: GuestAction }
   | { type: 'ping' };
 
@@ -732,6 +784,13 @@ export type GuestServerMessage =
   | {
       type: 'admitted';
       guestId: string;
+      /**
+       * Which channel they are now in, so the page can keep a seat that is
+       * findable by more than the link it arrived on — `/g/c/:channelId` is
+       * the address Home sends somebody back to, and a link may be gone by
+       * then while the seat is not.
+       */
+      channelId: string;
       secret: string;
       media: { url: string; token: string } | null;
     }
@@ -832,7 +891,15 @@ export type ClientAction =
   /** Grants or withdraws a guest's microphone. */
   | { type: 'SET_GUEST_SPEECH'; guestId: string; maySpeak: boolean }
   /** Removes a guest, and revokes the link they came through. */
-  | { type: 'EJECT_GUEST'; guestId: string };
+  | { type: 'EJECT_GUEST'; guestId: string }
+  /**
+   * Asks a guest to be a contact.
+   *
+   * The record of the asking and nothing else — accepting is an account's act,
+   * made at a route rather than here, since a seat is not something a contact
+   * can be a contact of.
+   */
+  | { type: 'ASK_GUEST_CONTACT'; guestId: string };
 
 export type ClientMessage =
   /** Start receiving Home snapshots. */

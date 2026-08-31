@@ -27,8 +27,26 @@ export type GuestId = string;
  */
 export interface Guest {
   id: GuestId;
-  /** What they typed at the door, or the `Anon <n>` they were given. */
+  /**
+   * Their account's display name if they were signed in when they knocked,
+   * otherwise what they typed at the door, otherwise the `Guest <n>` they were
+   * given. Renameable at any time by whoever holds the seat, which is the only
+   * thing that changes it after admission.
+   */
   name: string;
+  /**
+   * The account behind the seat, when the page had a session to offer.
+   *
+   * **A guest to the channel, not a guest to the app.** Being known confers
+   * nothing: they are still absent from `participants`, so every guard written
+   * in terms of `isParticipant` refuses them exactly as before. What it changes
+   * is what the room calls them, and — since there is somebody to become a
+   * contact of — whether the ask below can be answered in one tap.
+   *
+   * Optional on the wire, like `asks` and like `guests` itself: a client that
+   * knows about this will meet a server that does not.
+   */
+  accountId?: UserId;
   admittedAt: number;
   /**
    * Whether a member has granted them the microphone. False until one does,
@@ -49,6 +67,27 @@ export interface Guest {
    * leaves them able to ask again rather than reading as refused.
    */
   request: 'none' | 'asking' | 'refused';
+  /**
+   * Which members have asked to keep them, and what came of each ask.
+   *
+   * Being in a channel together is permission to ask somebody to be a contact
+   * — the rule `POST /contacts/:id/request` already enforces between members —
+   * and this is that rule reaching the one person in the room it could not
+   * name, a guest having no account id to address. Keyed by the asker, because
+   * two members may each ask and each is owed their own answer.
+   *
+   * `'refused'` is kept apart from absence for the same reason it is on
+   * `request` above: a question answered no is a different thing to be told
+   * than one nobody has answered.
+   *
+   * There is no `'accepted'`. Accepting takes the guest out of `guests` and
+   * puts an account into `participants`, so the card is gone rather than
+   * relabelled — and the acceptance itself is not a reducer action, needing an
+   * account, which core has never heard of.
+   *
+   * Optional for the wire's sake; read as `guest.asks ?? {}`.
+   */
+  asks?: Record<UserId, 'asking' | 'refused'>;
 }
 
 /**
@@ -684,6 +723,34 @@ export type ChannelAction =
    * `Guests.eject`, which revokes the link with them.
    */
   | { type: 'EJECT_GUEST'; userId: UserId; guestId: GuestId }
+  /**
+   * A member asks a guest to be a contact.
+   *
+   * The record of the asking, and nothing more: what an acceptance *does* —
+   * a contacts row, a channel invitation — happens at a route with an
+   * authenticated account behind it, since a contact is something an account
+   * has and a seat is not one.
+   *
+   * Guarded by `canManageGuest`, which is the same entitlement rather than a
+   * new one: being a member, in the room with them.
+   */
+  | { type: 'ASK_GUEST_CONTACT'; userId: UserId; guestId: GuestId }
+  /**
+   * A guest says no to one member's ask.
+   *
+   * Kept rather than deleted, so the member is told the difference between an
+   * answer and a silence. Says nothing about anybody else's ask.
+   */
+  | { type: 'REFUSE_CONTACT'; userId: UserId; askerId: UserId }
+  /**
+   * A guest changes what the room calls them.
+   *
+   * Always available and needing no guard beyond the seat: the actor comes
+   * from the connection, so this can only ever rename its sender. A name here
+   * is nobody's property — nothing is unique, nothing is looked up by it — so
+   * there is no clash to detect and none is reported.
+   */
+  | { type: 'SET_GUEST_NAME'; userId: UserId; name: string }
   /**
    * Transport, not intent: reported by whatever holds the connection rather
    * than performed by anyone. Neither changes presence directly — DISCONNECTED

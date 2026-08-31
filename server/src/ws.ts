@@ -101,6 +101,15 @@ interface GuestConnection {
   socket: WebSocket;
   /** The link this page arrived with, while it is still at the door. */
   linkToken: string | null;
+  /**
+   * Who is knocking, when the page offered a session and it resolved.
+   *
+   * Held here rather than on the `Knock` for the reason `linkToken` is: what
+   * the members watching the queue need is a name, and an account id in a
+   * snapshot every screen is watching is a fact about somebody who is not in
+   * the room yet. Handed to `answerKnock` at the last moment, as the link is.
+   */
+  account: { id: string; display_name: string } | null;
   /** Their knock, from when they ask until somebody answers. */
   knockId: string | null;
   /** Set on admission. Null while they are still outside. */
@@ -556,6 +565,7 @@ export function registerWebsocket(deps: {
     sendGuest(connection, {
       type: 'admitted',
       guestId,
+      channelId,
       secret,
       media: token.ok && mediaUrl ? { url: mediaUrl, token: token.token } : null,
     });
@@ -572,6 +582,7 @@ export function registerWebsocket(deps: {
     const connection: GuestConnection = {
       socket,
       linkToken,
+      account: null,
       knockId: null,
       guestId: null,
       channelId: null,
@@ -630,9 +641,19 @@ export function registerWebsocket(deps: {
 
         case 'knock': {
           if (!connection.linkToken || connection.guestId) return;
+          // **Presence, not validity**, the same reading `landing.ts` makes of
+          // this key: whatever the browser was holding is offered, and a stale
+          // or revoked one simply resolves to nobody. There is nothing to tell
+          // anybody about that — the seat is named the way any unnamed one is,
+          // and the rename on the room screen is what makes it a shrug.
+          connection.account =
+            typeof message.token === 'string' && message.token
+              ? (accounts.accountForToken(message.token, now()) ?? null)
+              : null;
           const knocked = channels.knock(
             connection.linkToken,
-            typeof message.name === 'string' ? message.name : ''
+            typeof message.name === 'string' ? message.name : '',
+            connection.account ?? undefined
           );
           if (!knocked.ok) {
             sendGuest(connection, { type: 'refused', reason: knocked.error });
@@ -913,7 +934,8 @@ export function registerWebsocket(deps: {
               connection.userId,
               answer.knockId,
               answer.accept,
-              waiting?.linkToken ?? null
+              waiting?.linkToken ?? null,
+              waiting?.account ?? undefined
             );
             if (!answered.ok) {
               send(connection, { type: 'error', message: answered.error });

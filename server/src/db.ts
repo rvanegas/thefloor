@@ -150,8 +150,15 @@ export interface GuestSessionRow {
   link_token: string | null;
   /** The reconnection secret, hashed as `tokens` and `otp_codes` are. */
   secret_hash: string;
-  /** What they typed at the door, or the `Anon <n>` they were given. */
+  /**
+   * Their account's name if they knocked with a session, otherwise what they
+   * typed at the door, otherwise the `Guest <n>` they were given. Theirs to
+   * change afterwards, and a change here is to the seat alone — the account,
+   * if there is one, is untouched.
+   */
   display_name: string;
+  /** The account behind the seat, or null for somebody with no session. */
+  account_id: string | null;
   admitted_at: number;
   admitted_by: string;
   /** 1 once a member has granted the microphone. Durable; see guests.ts. */
@@ -665,6 +672,15 @@ CREATE TABLE IF NOT EXISTS guest_sessions (
   link_token   TEXT,
   secret_hash  TEXT NOT NULL,
   display_name TEXT NOT NULL,
+  -- The account behind the seat, when the page had a session to offer at the
+  -- door. A guest to the channel and not to the app: this confers nothing —
+  -- they are still absent from the participants list, which is the whole
+  -- security model — and only says who the room is talking to.
+  --
+  -- Not a foreign key for the same reason link_token is not: an account may be
+  -- erased, and a seat that outlives one should expire on its own clock rather
+  -- than take a constraint failure with it.
+  account_id   TEXT,
   admitted_at  INTEGER NOT NULL,
   admitted_by  TEXT NOT NULL REFERENCES accounts(id),
   -- Whether a member has granted the microphone. Durable, and it has to be:
@@ -1232,6 +1248,17 @@ function migrate(db: Db): void {
   db.exec(
     'CREATE INDEX IF NOT EXISTS accounts_invited_by ON accounts(invited_by)'
   );
+
+  // Null for every seat that predates it, which is right in the only sense
+  // available: a seat admitted before the door could ask was admitted by
+  // somebody the server never identified, and there is nothing to look them up
+  // by. They keep the name they typed.
+  const guestSessionColumns = db
+    .prepare('PRAGMA table_info(guest_sessions)')
+    .all() as Array<{ name: string }>;
+  if (!guestSessionColumns.some((c) => c.name === 'account_id')) {
+    db.exec('ALTER TABLE guest_sessions ADD COLUMN account_id TEXT');
+  }
 
   // The session-scoped half of "which device is this", added 2026-08-24 when
   // several sessions per account became ordinary. Every existing row is null

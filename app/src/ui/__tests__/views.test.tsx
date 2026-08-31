@@ -29,6 +29,7 @@ import { LeaderboardView } from '../LeaderboardView';
 import {
   Alert,
   KeyboardAvoidingView,
+  Platform,
   Share,
   StyleSheet,
   TextInput,
@@ -376,6 +377,53 @@ describe('Home', () => {
     expect(text).toContain('Accept');
     expect(text).not.toContain('Quinn Ito');
     act(() => tree.unmount());
+  });
+
+  it('draws a seat as somewhere to go back to, and never on a phone', () => {
+    // A channel you are a guest of is a place you can return to, which is what
+    // this list means — so it belongs among the rest rather than in a section
+    // of its own. It opens the guest page, a document this app does not own,
+    // and it can only do that in a browser.
+    const seat = {
+      channelId: 'sess_seat',
+      name: 'Alice and Bob',
+      others: [],
+      presentCount: 2,
+      createdAt: NOW,
+      lastActiveAt: NOW,
+      everUsed: true,
+      seat: true,
+    };
+    mockApp.home = {
+      invites: [],
+      rejoinable: [seat],
+      contacts: [],
+      recordings: [],
+    };
+
+    const phone = render(<HomeView {...homeNav} />);
+    // `Platform.OS` is 'ios' under the preset, which is the case this guards:
+    // the same account may hold a seat opened on a laptop, and a row a phone
+    // cannot open is worse than no row.
+    expect(textOf(phone)).not.toContain('Alice and Bob');
+    act(() => phone.unmount());
+
+    const wasOs = Platform.OS;
+    // Assigned rather than mocked: `Platform` is one object the preset hands
+    // every importer, so setting it here is what the module under test reads.
+    (Platform as { OS: string }).OS = 'web';
+    try {
+      const browser = render(<HomeView {...homeNav} />);
+      const text = textOf(browser);
+      expect(text).toContain('Alice and Bob');
+      // Said plainly: a row that read like the others would promise the
+      // channel screen and open a different page.
+      expect(text).toContain('You are a guest here');
+      expect(text).toContain('2 present');
+      act(() => browser.unmount());
+    } finally {
+      (Platform as { OS: string }).OS = wasOs;
+    }
   });
 
   /**
@@ -856,6 +904,38 @@ describe('Channel, with a guest in it', () => {
       guestId: DANA_GUEST,
     });
     act(() => tree.unmount());
+  });
+
+  it('asks a guest to be a contact, and says so once it has', () => {
+    // The rule members already have between themselves — being in a channel
+    // together is permission to ask — reaching the one person in the room it
+    // could not name. Answered on their own page, by them.
+    showChannel(withGuest({ maySpeak: true }));
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    act(() => findButton(tree, 'Add contact')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'ASK_GUEST_CONTACT',
+      guestId: DANA_GUEST,
+    });
+    act(() => tree.unmount());
+
+    // Per reader, not per guest: this is what *this* member asked.
+    showChannel(withGuest({ asks: { [ME]: 'asking' } }));
+    const asked = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    expect(findButton(asked, 'Asked')!.props.disabled).toBe(true);
+    act(() => asked.unmount());
+
+    // And a refusal is a different thing to be told than a silence.
+    showChannel(withGuest({ asks: { [ME]: 'refused' } }));
+    const refused = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    expect(findButton(refused, 'They said no')!.props.disabled).toBe(true);
+    act(() => refused.unmount());
   });
 
   it('shares a link, and says the sharing is not the letting in', async () => {

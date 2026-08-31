@@ -197,6 +197,24 @@ being a departure somebody chose. The claim delay is derived from the ordering
 of `lastClaimedAt`, so absent means never claimed, which counts as having spoken
 longest ago: anyone who has not taken a turn may always claim immediately.
 
+**Members only, since 2026-08-30.** A guest could claim until then, on the
+argument that the floor is about who is talking and a guest with the microphone
+is talking. What that leaves out is what a claim does to everybody else: it is
+not permission to speak — an unclaimed floor already leaves a granted guest free
+to talk — it is a demand that the rest of the room be silent, enforced on the
+media plane. So `canClaimFloor` asks `isParticipant` and `isPresent`, and
+`CLAIM_FLOOR`/`RELEASE_FLOOR` left `GUEST_ACTIONS`.
+
+**The two counts inside that guard ask different questions, and must not be
+merged.** *Is there anybody here to be quiet* is `roomOccupants`, guests
+included — a member alone with a talking guest is exactly who a claim is for.
+*Who is in the queue* is `state.present`, members only: a guest never claims, so
+their `lastClaimedAt` is always absent, which the ladder reads as having spoken
+longest ago — every guest in the room would otherwise add a step to the wait of
+every member who has spoken, behind somebody who can never take the turn. The
+paths that release a claim held by a guest (`guestGone`, `settleEmpty`) are kept
+and are now unreachable: a state blob written before this can still name one.
+
 **And by `DISCONNECTED`, since 2026-08-27 — the one thing a grace period does
 not protect.** Everything else the grace holds belongs to the person who
 dropped: their place in the room, their membership, their recording's stem. A

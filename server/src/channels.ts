@@ -225,6 +225,7 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'CLEAR_CLIP',
   'SET_GUEST_SPEECH',
   'EJECT_GUEST',
+  'ASK_GUEST_CONTACT',
 ]);
 
 /**
@@ -1645,6 +1646,40 @@ export class ChannelRegistry {
         everUsed: channel.everPresent.length > 0,
       });
     }
+    // Every channel this account is sitting in as a guest, which is a place
+    // they can go back to for exactly as long as the seat lives — and that
+    // needs no clock of its own, `channelEmptied` setting the expiry to now
+    // when the last member walks out and the inactivity TTL being the other
+    // end of the same rule. So this list offers a way back precisely while
+    // `resumeGuest` would take it.
+    //
+    // Filled from the seat rather than from the channel, since almost nothing
+    // on this shape is a guest's to know — see `RejoinableView.seat`.
+    for (const session of this.guests.liveForAccount(userId, this.now())) {
+      const channel = this.channels.get(session.channel_id);
+      if (!channel || channel.status !== 'active') continue;
+      // A member of the channel who also holds a seat in it is a member: the
+      // roster entry above is the real one, and two rows for one place would
+      // be the same channel offered twice by two different doors.
+      if (isParticipant(channel, userId)) continue;
+      rejoinable.push({
+        channelId: channel.id,
+        // Resolved rather than null, a guest having no roster to fall back on
+        // — the same answer `guestView` gives, for the same reason.
+        name: this.channelName(channel),
+        // Names only is the guest rule, and this shape carries ids, so it
+        // carries nobody.
+        others: [],
+        presentCount: channel.present.length,
+        // The seat's own facts standing in for the channel's history, which is
+        // not a guest's to read.
+        createdAt: session.admitted_at,
+        lastActiveAt: session.admitted_at,
+        everUsed: true,
+        seat: true,
+      });
+    }
+
     // Least idle first. Home sections this list — live, invited, the rest —
     // and preserves this order inside each section, with the never-used
     // channels sunk to the bottom of theirs.
@@ -1654,6 +1689,12 @@ export class ChannelRegistry {
     // where it was and a channel two people were talking in sank below one
     // somebody had walked out of. Home used to correct for that by asking
     // `presentCount` separately; it no longer has to.
+    // A seat carries no `lastPresenceAt` — the room's history is not a guest's
+    // to read — so it sorts as the never-used channels do, at the foot of
+    // whichever section Home puts it in. Left that way rather than given a
+    // number: the only ones available are the seat's own, and dressing them up
+    // as the room's would put a claim about the channel on the wire that the
+    // guest is not entitled to make.
     return rejoinable.sort(
       (a, b) => (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0)
     );
@@ -3530,7 +3571,16 @@ export class ChannelRegistry {
    */
   knock(
     token: string,
-    name: string
+    name: string,
+    /**
+     * Who is knocking, when the page had a session to offer.
+     *
+     * Kept off the `Knock` itself, exactly as the link token is kept off it:
+     * what the members need is a name, and an account id in a queue every
+     * screen is watching is a fact about somebody who is not in the room yet.
+     * The connection holds it and hands it to `answerKnock`.
+     */
+    account?: { id: string; display_name: string }
   ): { ok: true; channelId: string; knockId: string } | Refused {
     const door = this.doorFor(token);
     if (!door.ok) return door;
@@ -3546,10 +3596,14 @@ export class ChannelRegistry {
       type: 'KNOCKED',
       knock: {
         id: knockId,
-        // What they typed, or something that says a person is there without
-        // pretending to be a name. The `Anon <n>` they may end up with is
-        // assigned on admission, when there is a channel to number them in.
-        name: name.trim().slice(0, MAX_DISPLAY_NAME_LENGTH) || 'Someone',
+        // An account's own name, or what they typed, or something that says a
+        // person is there without pretending to be a name. The `Guest <n>`
+        // they may end up with is assigned on admission, when there is a
+        // channel to number them in.
+        name:
+          account?.display_name ||
+          name.trim().slice(0, MAX_DISPLAY_NAME_LENGTH) ||
+          'Someone',
         at: this.now(),
       },
     } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
@@ -3592,7 +3646,9 @@ export class ChannelRegistry {
      * over here, which is the last moment it is needed. Recording it on the
      * seat is what lets ejecting a guest close the door they came through.
      */
-    linkToken: string | null = null
+    linkToken: string | null = null,
+    /** Who they are, if the door found out. Held by the connection, as above. */
+    account?: { id: string; display_name: string }
   ): { ok: true; admitted: AdmittedGuest | null } | Refused {
     const channel = this.channels.get(channelId);
     if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
@@ -3615,7 +3671,8 @@ export class ChannelRegistry {
       linkToken,
       knock.name === 'Someone' ? null : knock.name,
       userId,
-      this.now()
+      this.now(),
+      account
     );
     this.enterGuest(channelId, admitted.session);
     return { ok: true, admitted };
@@ -3631,6 +3688,9 @@ export class ChannelRegistry {
       guest: {
         id: session.id,
         name: session.display_name,
+        // Omitted rather than sent as null, so a snapshot carries the key only
+        // when it means something — `Guest.accountId` is optional on the wire.
+        ...(session.account_id ? { accountId: session.account_id } : {}),
         admittedAt: session.admitted_at,
         maySpeak: session.may_speak === 1,
         request: 'none',
@@ -3667,6 +3727,93 @@ export class ChannelRegistry {
     }
     this.enterGuest(channel.id, session);
     return { ok: true, channelId: channel.id, session };
+  }
+
+  /**
+   * A guest accepts a member's ask, and stops being a guest.
+   *
+   * **Authenticated three ways, and all three are cheap.** The caller's own
+   * token says which account (the route's `requireAccount`); the seat's secret
+   * says which guest, checked the way a reconnection checks it — against
+   * ejection and expiry as well as the hash — and the seat's `account_id` says
+   * the two are the same person, so a seat and an account cannot be presented
+   * as each other's. The ask itself is the fourth thing, and the only one that
+   * is about consent rather than identity: nothing here can be reached without
+   * a member having asked first.
+   *
+   * Four effects in order, and the order is the same one every other
+   * acceptance uses: the contact, the pair's own channel, the invitation into
+   * the channel they met in, and then the seat, which has nothing left to do.
+   */
+  acceptGuestAsk(
+    accountId: string,
+    guestId: string,
+    secret: string,
+    askerId: string
+  ): { ok: true; channelId: string | null } | Refused {
+    const session = this.guests.reconnect(guestId, secret, this.now());
+    // **A seat with an account must match, and one without is claimed here.**
+    // The door is not the only moment somebody turns out to have an account:
+    // an unidentified guest who accepts makes one from inside the room, and by
+    // then they have proved both halves — this seat's secret and a token — so
+    // there is nobody else the seat could belong to. A seat that already names
+    // somebody else is a different person's, and no amount of holding the
+    // secret makes the two the same.
+    if (!session || (session.account_id && session.account_id !== accountId)) {
+      return { ok: false, error: 'This session has ended.', code: 'forbidden' };
+    }
+    const channel = this.channels.get(session.channel_id);
+    const guest = channel?.guests[guestId];
+    if (!channel || !guest || guest.asks?.[askerId] !== 'asking') {
+      return { ok: false, error: 'Nobody asked.', code: 'not_found' };
+    }
+    this.guests.claim(guestId, accountId);
+
+    // Already contacts is an ordinary way to arrive here: somebody may open a
+    // link into a channel a contact of theirs is in, and be asked by a member
+    // who does not know them from the one who does. Nothing to write, and the
+    // invitation below is the whole of what they came for.
+    if (!this.accounts.areContacts(accountId, askerId)) {
+      // The asker is the requester, here as everywhere: whoever reached out is
+      // the nearest thing the pair has to an initiator, and `ensurePairChannel`
+      // below reads that order.
+      const asked = this.accounts.requestContactById(
+        askerId,
+        accountId,
+        this.now()
+      );
+      if (!asked.ok) return { ok: false, error: asked.error, code: 'invalid' };
+      // `accepted` when they had already asked the asker from the app, which
+      // settles it without a second act.
+      if (!asked.accepted) this.accounts.acceptContact(accountId, askerId);
+      this.ensurePairChannel(askerId, accountId);
+    }
+
+    // On the asker's behalf, and through `dispatch` rather than the reducer, so
+    // that being contacts, the roster's size, and their being in the room are
+    // all re-checked by the code that owns those rules rather than restated
+    // here. A refusal is not a failure: the channel may have emptied or the
+    // asker stepped out while somebody was reading their email, and what they
+    // came for — the contact — has already happened.
+    // The wire form, which is what `dispatch` takes and translates — the same
+    // shape the socket hands it. Cast for the same reason every other call
+    // here is: the reducer's INVITE names an invitee and this one names a
+    // contact, that difference being precisely the check `dispatch` makes.
+    const invited = this.dispatch(channel.id, askerId, {
+      type: 'INVITE',
+      contactId: accountId,
+    } as unknown as Omit<ChannelAction, 'userId'> & {
+      type: ChannelAction['type'];
+    });
+
+    // The seat is finished either way: they are a member now, or they are not
+    // getting in through this door on this visit. Their page is leaving, and
+    // one person holding a seat and a membership in one channel would be two
+    // people to everything that counts.
+    this.guests.close(guestId, this.now());
+    this.guestGone(channel.id, guestId);
+
+    return { ok: true, channelId: invited.ok ? channel.id : null };
   }
 
   /** A guest's socket has gone, or their grace has run out. */
@@ -3738,9 +3885,8 @@ export class ChannelRegistry {
         id: guestId,
         name: guest.name,
         mic,
-        holdingFloor: holder === guestId,
         silenced: holder !== null && holder !== guestId,
-        canClaimFloor: canClaimFloor(channel, guestId, this.now()),
+        accountId: guest.accountId ?? null,
       },
       others: [
         ...channel.present.map((id) => ({
@@ -3756,6 +3902,13 @@ export class ChannelRegistry {
             speaking: holder === other.id,
           })),
       ],
+      // Names, as `others` carries, and the asker's id because an answer has
+      // to address one. Refused asks are left out: they have been answered,
+      // and a page that kept showing them would be asking again on somebody
+      // else's behalf.
+      asks: Object.entries(guest.asks ?? {})
+        .filter(([, state]) => state === 'asking')
+        .map(([askerId]) => ({ askerId, from: this.displayName(askerId) })),
       recording: channel.recording.status === 'recording',
       clip: channel.clip,
       serverNow: this.now(),
@@ -3804,7 +3957,16 @@ export class ChannelRegistry {
       ChannelAction,
       'userId'
     > & { type: ChannelAction['type'] });
-    return applied.ok ? { ok: true } : applied;
+    if (!applied.ok) return applied;
+    // The seat is what a reconnection is rebuilt from, so a name that lived
+    // only in memory would last until the first stumble. Read back from the
+    // state rather than from the action: the reducer trims and caps it, and
+    // two places deciding what a name is would eventually decide differently.
+    if (action.type === 'SET_GUEST_NAME') {
+      const named = this.channels.get(channelId)?.guests[guestId]?.name;
+      if (named) this.guests.rename(guestId, named);
+    }
+    return { ok: true };
   }
 
   /** What to call a channel to somebody with no roster to fall back on. */

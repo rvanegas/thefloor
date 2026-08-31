@@ -42,6 +42,17 @@ const linkToken =
   document.body.dataset.link ?? params.get('link') ?? '';
 
 /**
+ * The channel, when the page was reached from Home rather than from a link.
+ *
+ * `GET /g/c/:channelId` puts it here and puts no link token in at all, there
+ * being none to put: a seat outlives the link that made it. Nothing is handed
+ * out with it — what gets anybody back into the room is the seat below, which
+ * is still in this tab's `sessionStorage` because the walk to `/app` and back
+ * never left the tab or the origin.
+ */
+const pageChannelId = document.body.dataset.channel ?? '';
+
+/**
  * Where a seat is kept between reloads.
  *
  * `sessionStorage` rather than `localStorage`, deliberately: a seat belongs to
@@ -51,8 +62,40 @@ const linkToken =
  */
 const SEAT_KEY = 'thefloor.seat';
 
+/**
+ * Where the app keeps its session, and therefore where this page finds one.
+ *
+ * `localStorage` is scoped to the origin rather than the path, and one server
+ * serves `/g/…` and `/app` alike — the same property `landing.ts` reads this
+ * key on. Repeated here rather than imported, because nothing in the server
+ * may import from `app/` and a comment is the only link the two ends can have.
+ *
+ * **Presence, not validity.** What is here is offered at the door and may be
+ * stale; the server resolves it or does not, and nothing is lost either way.
+ */
+const TOKEN_KEY = 'thefloor.token';
+
+function storedToken(): string | null {
+  try {
+    // Safari with storage blocked throws rather than answering null.
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function keepToken(token: string): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // The acceptance still stands; only the next visit has to sign in again.
+  }
+}
+
 interface Seat {
   channelLink: string;
+  /** So the seat can be found again from an address with no link in it. */
+  channelId: string;
   guestId: string;
   secret: string;
 }
@@ -62,7 +105,12 @@ function storedSeat(): Seat | null {
     const raw = sessionStorage.getItem(SEAT_KEY);
     if (!raw) return null;
     const seat = JSON.parse(raw) as Seat;
-    return seat.channelLink === linkToken ? seat : null;
+    // Two addresses reach the same seat: the link it was got through, and the
+    // channel it is in. A seat from some other visit matches neither.
+    const mine = pageChannelId
+      ? seat.channelId === pageChannelId
+      : seat.channelLink === linkToken;
+    return mine ? seat : null;
   } catch {
     return null;
   }
@@ -322,6 +370,15 @@ function stopWatching(): void {
 
 function connect(): void {
   const seat = storedSeat();
+  // Reached from Home with no seat in this browser: there is no link here to
+  // knock with, so say so rather than opening a socket that can only be
+  // refused. The link somebody was sent is the way in.
+  if (!seat && !linkToken) {
+    $('refused-reason').textContent =
+      'This browser is not holding a seat in that channel. Open the link you were sent.';
+    show('refused');
+    return;
+  }
   socket = new WebSocket(
     seat
       ? socketUrl(
@@ -385,6 +442,7 @@ async function handle(message: GuestServerMessage): Promise<void> {
       navigator.vibrate?.([40, 60, 40]);
       keepSeat({
         channelLink: linkToken,
+        channelId: message.channelId,
         guestId: message.guestId,
         secret: message.secret,
       });
@@ -489,14 +547,145 @@ function render(next: GuestView): void {
   mute.hidden = next.you.mic !== 'open' && next.you.mic !== 'muted';
   mute.textContent = next.you.mic === 'muted' ? 'Unmute' : 'Mute';
 
-  const floor = $('floor-button') as HTMLButtonElement;
-  floor.textContent = next.you.holdingFloor ? 'Give up the floor' : 'Take the floor';
-  floor.disabled = !next.you.holdingFloor && !next.you.canClaimFloor;
-
   $('silenced').hidden = !next.you.silenced;
+
+  // Only for a seat with an account behind it: sending anybody else to `/app`
+  // is sending them to a sign-in they did not ask for.
+  $('home-link').hidden = !next.you.accountId;
+
+  // Seeded rather than bound: retyping over somebody mid-edit is the one way
+  // a field like this can be annoying, and a snapshot arrives on every change
+  // anybody makes.
+  const rename = $('rename-field') as HTMLInputElement;
+  if (document.activeElement !== rename) rename.value = next.you.name;
+
+  renderAsks(next);
 
   const clip = $('clip');
   clip.textContent = next.clip ? next.clip.text : 'Nothing on the clipboard.';
+}
+
+/**
+ * The asks, and the one control that is not addressed to the room.
+ *
+ * Everything else on this page is a message to the channel. This is a message
+ * to an account — accepting makes somebody a contact and a member — so it goes
+ * over HTTP with a token, and the seat's own secret goes with it so the server
+ * can bind the two.
+ */
+let signingInFor: string | null = null;
+let codeSentTo: string | null = null;
+
+function renderAsks(next: GuestView): void {
+  const asks = $('asks');
+  asks.hidden = next.asks.length === 0;
+  if (next.asks.length === 0) {
+    closeSignIn();
+    return;
+  }
+
+  const list = $('ask-list');
+  list.textContent = '';
+  for (const ask of next.asks) {
+    const line = document.createElement('li');
+    const said = document.createElement('p');
+    said.textContent = `${ask.from} would like to add you as a contact.`;
+    line.append(said);
+
+    const accept = document.createElement('button');
+    // The whole difference the account makes, said in the label: one tap for
+    // somebody already signed in, and an address and a code for anybody else.
+    accept.textContent = next.you.accountId
+      ? 'Accept'
+      : 'Accept — sign in here';
+    accept.addEventListener('click', () => {
+      if (next.you.accountId) void acceptAsk(ask.askerId);
+      else openSignIn(ask.askerId, ask.from);
+    });
+
+    const decline = document.createElement('button');
+    decline.textContent = 'No thanks';
+    decline.addEventListener('click', () => {
+      act({ type: 'REFUSE_CONTACT', askerId: ask.askerId });
+    });
+
+    line.append(accept, decline);
+    list.append(line);
+  }
+}
+
+function openSignIn(askerId: string, from: string): void {
+  signingInFor = askerId;
+  codeSentTo = null;
+  $('sign-in').hidden = false;
+  $('sign-in-address').hidden = false;
+  $('sign-in-code').hidden = true;
+  $('sign-in-error').hidden = true;
+  ($('sign-in-button') as HTMLButtonElement).textContent = 'Send me a code';
+  // Said plainly, because signing in is a bigger thing than the tap that led
+  // here and nobody should discover afterwards what they have made.
+  $('sign-in-note').textContent =
+    `Accepting makes you and ${from} contacts, which needs an account. ` +
+    'You stay in this conversation the whole time.';
+}
+
+function closeSignIn(): void {
+  signingInFor = null;
+  codeSentTo = null;
+  $('sign-in').hidden = true;
+}
+
+function signInTrouble(text: string): void {
+  const error = $('sign-in-error');
+  error.textContent = text;
+  error.hidden = false;
+}
+
+/**
+ * Sends the acceptance, and hands the tab over to the app.
+ *
+ * The seat is the second half of the credential, so this cannot be replayed
+ * from anywhere but the page holding it. **No `STEP_OUT` on the way out**: the
+ * server has already taken the seat out of the room by the time this answers,
+ * so sending one would be a guest action from somebody who is no longer a
+ * guest — refused, and drawn as an error across a page that is leaving.
+ */
+async function acceptAsk(askerId: string): Promise<void> {
+  const seat = storedSeat();
+  const token = storedToken();
+  if (!seat || !token) {
+    signInTrouble('This page has lost its seat. Reload and try again.');
+    return;
+  }
+  let answer: { channelId?: string | null; error?: string };
+  try {
+    const response = await fetch('/contacts/guest-ask/accept', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        guestId: seat.guestId,
+        secret: seat.secret,
+        askerId,
+      }),
+    });
+    answer = (await response.json()) as { channelId?: string | null; error?: string };
+    if (!response.ok) {
+      signInTrouble(answer.error ?? 'That would not go through.');
+      return;
+    }
+  } catch {
+    signInTrouble('The network would not carry that. Try again.');
+    return;
+  }
+
+  keepSeat(null);
+  void room?.disconnect();
+  // The channel when they got in, Home when the room emptied or the person who
+  // asked stepped out while this was happening — the contact stands either way.
+  location.assign(answer.channelId ? `/app/c/${answer.channelId}` : '/app');
 }
 
 // --- Wiring ----------------------------------------------------------------
@@ -504,7 +693,96 @@ function render(next: GuestView): void {
 $('knock-form').addEventListener('submit', (event) => {
   event.preventDefault();
   const field = $('name-field') as HTMLInputElement;
-  send({ type: 'knock', name: field.value });
+  send({
+    type: 'knock',
+    name: field.value,
+    ...(storedToken() ? { token: storedToken()! } : {}),
+  });
+});
+
+// Nobody is asked for a name they have already given. A token that turns out
+// to be stale resolves to nobody and the seat is numbered instead, which is
+// what the rename in the room is for.
+if (storedToken()) {
+  $('knock-name').hidden = true;
+  $('knock-as').hidden = false;
+  $('knock-as').textContent = 'You are signed in, so they will see your name.';
+}
+
+$('rename-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const field = $('rename-field') as HTMLInputElement;
+  const name = field.value.trim();
+  if (!name) return;
+  act({ type: 'SET_GUEST_NAME', name });
+});
+
+$('sign-in-cancel').addEventListener('click', () => {
+  closeSignIn();
+});
+
+/**
+ * The address, then the code — the same two routes `AuthView` uses, and the
+ * same ones that make the account when the address is new.
+ *
+ * Written out here rather than shared, there being no way to import a React
+ * Native screen into a page with no framework. What is *not* duplicated is any
+ * judgement: the throttle, the code's validity, and the one answer for every
+ * way of failing all stay on the server.
+ */
+$('sign-in').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const askerId = signingInFor;
+  if (!askerId) return;
+  const button = $('sign-in-button') as HTMLButtonElement;
+  const address = ($('email-field') as HTMLInputElement).value.trim();
+  const code = ($('code-field') as HTMLInputElement).value.trim();
+  $('sign-in-error').hidden = true;
+  button.disabled = true;
+
+  try {
+    if (!codeSentTo) {
+      const response = await fetch('/auth/request-code', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ identifier: address }),
+      });
+      const answer = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        signInTrouble(answer.error ?? 'That address would not go through.');
+        return;
+      }
+      codeSentTo = address;
+      $('sign-in-address').hidden = true;
+      $('sign-in-code').hidden = false;
+      button.textContent = 'Sign in and accept';
+      $('sign-in-note').textContent = `We sent a code to ${address}.`;
+      return;
+    }
+
+    const response = await fetch('/auth/verify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        identifier: codeSentTo,
+        code,
+        // The name they are using here, so an account made at this door is not
+        // born nameless. Ignored by the server for an account that exists.
+        displayName: view?.you.name,
+      }),
+    });
+    const answer = (await response.json()) as { token?: string; error?: string };
+    if (!response.ok || !answer.token) {
+      signInTrouble(answer.error ?? 'That code did not work.');
+      return;
+    }
+    keepToken(answer.token);
+    await acceptAsk(askerId);
+  } catch {
+    signInTrouble('The network would not carry that. Try again.');
+  } finally {
+    button.disabled = false;
+  }
 });
 
 $('unmute-page').addEventListener('click', () => {
@@ -540,10 +818,6 @@ $('ask-button').addEventListener('click', () => act({ type: 'REQUEST_SPEECH' }))
 
 $('mute-button').addEventListener('click', () => {
   act({ type: 'SET_SELF_MUTE', muted: view?.you.mic !== 'muted' });
-});
-
-$('floor-button').addEventListener('click', () => {
-  act(view?.you.holdingFloor ? { type: 'RELEASE_FLOOR' } : { type: 'CLAIM_FLOOR' });
 });
 
 $('leave-button').addEventListener('click', () => {

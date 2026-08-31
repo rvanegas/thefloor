@@ -39,8 +39,15 @@ export function isGuestId(id: string): boolean {
   return id.startsWith(GUEST_PREFIX);
 }
 
-/** What a guest is called when they do not say. */
-export const ANON_NAME_PREFIX = 'Anon ';
+/**
+ * What a guest is called when they do not say and there is no account to ask.
+ *
+ * `Anon ` until 2026-08-30, and the word was the whole of the change:
+ * anonymity was specified and then abandoned, and a label that advertises it
+ * describes a promise this makes to nobody. `Guest 3` says what the person is,
+ * which is what the rest of the interface already calls them.
+ */
+export const GUEST_NAME_PREFIX = 'Guest ';
 
 /**
  * A newly admitted guest, and the only time their secret exists in the clear.
@@ -164,25 +171,33 @@ export class Guests {
    * conversation between a page and the screens of whoever is present, and a
    * process that dies mid-knock leaves a page that knocks again.
    *
-   * The name is what they typed, trimmed and bounded like anybody else's, or
-   * the next `Anon <n>` for this channel when they said nothing.
+   * The name is the account's when there is one behind the seat, otherwise
+   * what they typed, trimmed and bounded like anybody else's, otherwise the
+   * next `Guest <n>` for this channel.
    */
   admit(
     channelId: string,
     linkToken: string | null,
     name: string | null,
     admittedBy: string,
-    now: number
+    now: number,
+    account?: { id: string; display_name: string }
   ): AdmittedGuest {
     const id = newId('guest');
     const secret = randomBytes(24).toString('base64url');
-    const display = this.nameFor(channelId, name);
+    // An account's own name wins over anything typed at the door. Nothing
+    // types one when the page holds a session — the field is not shown — and
+    // if something did, it would be somebody renaming themselves before
+    // arriving rather than at the control that exists for it.
+    const display = account
+      ? account.display_name
+      : this.nameFor(channelId, name);
     this.db
       .prepare(
         `INSERT INTO guest_sessions
-           (id, channel_id, link_token, secret_hash, display_name,
+           (id, channel_id, link_token, secret_hash, display_name, account_id,
             admitted_at, admitted_by, may_speak, last_seen_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
       )
       .run(
         id,
@@ -190,12 +205,39 @@ export class Guests {
         linkToken,
         sha256(secret),
         display,
+        account?.id ?? null,
         now,
         admittedBy,
         now,
         now + GUEST_SESSION_TTL_MS
       );
     return { session: this.byId(id)!, secret };
+  }
+
+  /**
+   * Changes what the room calls a seat.
+   *
+   * **The seat, and only the seat.** One with an account behind it started
+   * from that account's display name and may differ from it for this visit; a
+   * later visit starts from the account again. Changing what somebody is
+   * called everywhere is `PATCH /me`, in the screen that owns it, and is not
+   * something a room should reach out and do.
+   */
+  rename(id: string, name: string): void {
+    this.db
+      .prepare('UPDATE guest_sessions SET display_name = ? WHERE id = ?')
+      .run(name, id);
+  }
+
+  /** Every live seat this account is sitting in, newest first. */
+  liveForAccount(accountId: string, now: number): GuestSessionRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM guest_sessions
+         WHERE account_id = ? AND ejected_at IS NULL AND expires_at > ?
+         ORDER BY admitted_at DESC`
+      )
+      .all(accountId, now) as unknown as GuestSessionRow[];
   }
 
   /** One session, live or not. What `fileRun` asks for a name. */
@@ -305,6 +347,39 @@ export class Guests {
     return true;
   }
 
+
+  /**
+   * Puts an account behind a seat that arrived without one.
+   *
+   * The door is not the only moment somebody can turn out to have an account:
+   * they may make one from inside the room, which is exactly what accepting an
+   * ask does for a guest who had never signed in. Whoever does it has proved
+   * both halves — the seat's secret and a token — so there is nobody else this
+   * could be.
+   */
+  claim(id: string, accountId: string): void {
+    this.db
+      .prepare(
+        'UPDATE guest_sessions SET account_id = ? WHERE id = ? AND account_id IS NULL'
+      )
+      .run(accountId, id);
+  }
+
+  /**
+   * Ends a seat because the person in it has become a member.
+   *
+   * **Not `eject`, and the difference is the link.** Ejecting closes the door
+   * somebody came through, since a guest thrown out could otherwise simply
+   * return — but nobody is being thrown out here, and the link is very often
+   * one other people are also holding. So this ends the one seat and touches
+   * nothing else.
+   */
+  close(id: string, now: number): void {
+    this.db
+      .prepare('UPDATE guest_sessions SET ejected_at = ? WHERE id = ?')
+      .run(now, id);
+  }
+
   /**
    * The last present member has gone: the links stop working and the seats
    * stop being seats.
@@ -354,7 +429,7 @@ export class Guests {
    * ones still in it, which is the second reason rows outlive a disconnect: a
    * guest who leaves and a guest who is thrown out both stop being present,
    * and neither should hand their number to whoever arrives next. Two guests
-   * called Anon 2, one of whom is in a recording, is a conversation nobody can
+   * called Guest 2, one of whom is in a recording, is a conversation nobody can
    * later read.
    */
   private nameFor(channelId: string, typed: string | null): string {
@@ -363,6 +438,6 @@ export class Guests {
     const { n } = this.db
       .prepare('SELECT count(*) AS n FROM guest_sessions WHERE channel_id = ?')
       .get(channelId) as { n: number };
-    return `${ANON_NAME_PREFIX}${Number(n) + 1}`;
+    return `${GUEST_NAME_PREFIX}${Number(n) + 1}`;
   }
 }

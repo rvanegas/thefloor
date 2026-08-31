@@ -397,10 +397,10 @@ describe('what a guest is called', () => {
     await shutdown(app);
   });
 
-  it('numbers the anonymous by the channel, and never twice', async () => {
+  it('numbers whoever did not say, by the channel, and never twice', async () => {
     // The second reason a row outlives a disconnect. A guest who leaves and a
     // guest who is thrown out both stop being present, and neither should hand
-    // their number to whoever arrives next: two people called Anon 2, one of
+    // their number to whoever arrives next: two people called Guest 2, one of
     // them in a recording, is a conversation nobody can read afterwards.
     const app = boot();
     const { alice, channelId } = await pair(app);
@@ -408,12 +408,12 @@ describe('what a guest is called', () => {
 
     const first = guests.admit(channelId, null, null, alice.account.id, clock);
     const second = guests.admit(channelId, null, '  ', alice.account.id, clock);
-    expect(first.session.display_name).toBe('Anon 1');
-    expect(second.session.display_name).toBe('Anon 2');
+    expect(first.session.display_name).toBe('Guest 1');
+    expect(second.session.display_name).toBe('Guest 2');
 
     guests.eject(second.session.id, alice.account.id, clock);
     const third = guests.admit(channelId, null, null, alice.account.id, clock);
-    expect(third.session.display_name).toBe('Anon 3');
+    expect(third.session.display_name).toBe('Guest 3');
     await shutdown(app);
   });
 });

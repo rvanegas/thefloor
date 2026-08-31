@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -125,7 +126,12 @@ export function HomeView({
     ...(home?.invites ?? [])
       .filter((invite) => !dismissed.includes(invite.channelId))
       .map(inviteCard),
-    ...(home?.rejoinable ?? []).map(memberCard),
+    ...(home?.rejoinable ?? [])
+      // A seat can only be used where one can exist. The same account may hold
+      // one opened on a laptop, which makes the row true on a phone and still
+      // unopenable there — so it is drawn where it leads somewhere.
+      .filter((entry) => !entry.seat || Platform.OS === 'web')
+      .map(memberCard),
   ].filter((card) => card.channelId !== liveChannel?.channelId);
 
   /**
@@ -200,6 +206,17 @@ export function HomeView({
   const openChannel = (channelId: string) => {
     if (app.tapToStepIn) app.act(channelId, { type: 'ENTER' });
     onEnterChannel(channelId);
+  };
+
+  /**
+   * A seat, which is not this app's screen to open.
+   *
+   * The guest page is a separate document served by the same origin, so this
+   * is a navigation rather than a route change — and it only ever happens in a
+   * browser, seats existing nowhere else.
+   */
+  const openSeat = (channelId: string) => {
+    globalThis.location?.assign(`/g/c/${encodeURIComponent(channelId)}`);
   };
 
   return (
@@ -300,7 +317,11 @@ export function HomeView({
                 key={card.channelId}
                 card={card}
                 now={now}
-                onPress={() => openChannel(card.channelId)}
+                onPress={() =>
+                  card.kind === 'seat'
+                    ? openSeat(card.channelId)
+                    : openChannel(card.channelId)
+                }
                 stepsIn={app.tapToStepIn}
                 onDismiss={
                   card.kind === 'invite'
@@ -322,7 +343,11 @@ export function HomeView({
                 key={card.channelId}
                 card={card}
                 now={now}
-                onPress={() => openChannel(card.channelId)}
+                onPress={() =>
+                  card.kind === 'seat'
+                    ? openSeat(card.channelId)
+                    : openChannel(card.channelId)
+                }
                 stepsIn={app.tapToStepIn}
                 onDismiss={() => app.dismissInvite(card.channelId)}
               />
@@ -362,7 +387,11 @@ export function HomeView({
             key={card.channelId}
             card={card}
             now={now}
-            onPress={() => openChannel(card.channelId)}
+            onPress={() =>
+              card.kind === 'seat'
+                ? openSeat(card.channelId)
+                : openChannel(card.channelId)
+            }
             stepsIn={app.tapToStepIn}
           />
         ))}
@@ -454,7 +483,14 @@ export function HomeView({
  */
 type Card = {
   channelId: string;
-  kind: 'invite' | 'member';
+  /**
+   * `'seat'` is a channel you are a *guest* of, in a browser. A place you can
+   * go back to is what this list means, so it belongs among the rest — but it
+   * opens the guest page rather than the channel screen, which a
+   * non-participant cannot see, and it is drawn from the seat rather than from
+   * a membership nobody has. See `RejoinableView.seat`.
+   */
+  kind: 'invite' | 'member' | 'seat';
   title: string;
   /** Whether the title is a name somebody wrote or a description of a roster. */
   named: boolean;
@@ -520,6 +556,25 @@ function inviteCard(invite: InviteView): Card {
 }
 
 function memberCard(channel: RejoinableView): Card {
+  // A seat carries the resolved name and the present count and nothing else —
+  // the roster is names-only to a guest and the history is not theirs to read
+  // — so the card is built from what is there rather than from what is
+  // missing. No idleness line: the numbers that would draw one are the seat's
+  // own, and reading them as the room's would be a claim about the channel
+  // that the guest is not entitled to make.
+  if (channel.seat) {
+    return {
+      channelId: channel.channelId,
+      kind: 'seat',
+      title: channel.name ?? 'A channel',
+      named: true,
+      presentCount: channel.presentCount,
+      lastPresenceAt: undefined,
+      lastPresenceByOthers: undefined,
+      steppedInAt: undefined,
+      everUsed: true,
+    };
+  }
   return {
     channelId: channel.channelId,
     kind: 'member',
@@ -682,8 +737,12 @@ function ChannelCard({
           // the setting is not honoured.
           `${card.from} is waiting${stepsIn ? ' — tap to join' : ''}`
         : `${card.from} asked you in${quiet ? ` · ${quiet}` : ''}`
-      : live
-        ? `${card.presentCount} present`
+      : card.kind === 'seat'
+        ? // Said plainly, because a row that looked like the others would be
+          // promising the channel screen and opening a different page.
+          `You are a guest here${live ? ` · ${card.presentCount} present` : ''}`
+        : live
+          ? `${card.presentCount} present`
         : // An empty channel used to be sixty seconds from destruction, and
           // saying so was a reason to hurry back. Channels are permanent now:
           // nobody being in one is a resting state, not a countdown.
@@ -709,7 +768,17 @@ function ChannelCard({
       // not of the mark.
       accessibilityLabel={`${card.title}. ${line ? `${line}. ` : ''}${
         steppedIn ? 'Stepped in and out. ' : ''
-      }${!stepsIn ? 'Open.' : card.kind === 'invite' ? 'Join.' : 'Step in.'}`}
+      }${
+        // A seat opens the guest page, where the way in is the door rather
+        // than a step, and the Home setting has nothing to say about it.
+        card.kind === 'seat'
+          ? 'Open as a guest.'
+          : !stepsIn
+            ? 'Open.'
+            : card.kind === 'invite'
+              ? 'Join.'
+              : 'Step in.'
+      }`}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
     >

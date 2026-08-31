@@ -790,10 +790,14 @@ export function ChannelView({
               speaking={speakingHere(guest.id)}
               failing={failingHere(guest.id)}
               manageable={canManageGuest(channel, me, guest.id)}
+              asked={guest.asks?.[me]}
               onSpeech={(maySpeak) =>
                 act({ type: 'SET_GUEST_SPEECH', guestId: guest.id, maySpeak })
               }
               onEject={() => act({ type: 'EJECT_GUEST', guestId: guest.id })}
+              onAskContact={() =>
+                act({ type: 'ASK_GUEST_CONTACT', guestId: guest.id })
+              }
             />
           ))}
 
@@ -1741,8 +1745,10 @@ function GuestCard({
   speaking,
   failing,
   manageable,
+  asked,
   onSpeech,
   onEject,
+  onAskContact,
 }: {
   guest: Guest;
   muted: boolean;
@@ -1766,8 +1772,17 @@ function GuestCard({
    */
   failing: boolean;
   manageable: boolean;
+  /**
+   * Whether *this* member has asked to keep them, and what came of it.
+   *
+   * Per-reader rather than per-guest: two people in the room may each ask, and
+   * a card that read "Asked" because somebody else had would be answering a
+   * question this one has not put.
+   */
+  asked: 'asking' | 'refused' | undefined;
   onSpeech: (maySpeak: boolean) => void;
   onEject: () => void;
+  onAskContact: () => void;
 }) {
   const status = failing
     ? 'Not receiving you'
@@ -1805,6 +1820,27 @@ function GuestCard({
           variant={guest.request === 'asking' ? 'primary' : 'ghost'}
           disabled={!manageable}
           onPress={() => onSpeech(!guest.maySpeak)}
+        />
+        {/*
+          Being in a channel together is permission to ask, which is the rule
+          members already have between themselves — and a guest is the one
+          person in the room it could not reach, having no account to name.
+          Answered on their own page, by them: this only asks.
+
+          Disabled by the same `manageable` its siblings are, so no control
+          here can offer something the reducer would refuse.
+        */}
+        <Button
+          label={
+            asked === 'asking'
+              ? 'Asked'
+              : asked === 'refused'
+                ? 'They said no'
+                : 'Add contact'
+          }
+          variant="ghost"
+          disabled={!manageable || !!asked}
+          onPress={onAskContact}
         />
         <Button
           label="Remove"

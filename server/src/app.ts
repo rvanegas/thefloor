@@ -930,6 +930,48 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * A guest accepts a member's ask, and walks into the channel as themselves.
+   *
+   * **Over HTTP rather than the guest socket**, and that is the whole reason
+   * this route exists: everything else a guest does is addressed to the room
+   * and needs no account, where this is addressed to an account and needs one.
+   * The seat travels in the body because the caller is holding both — a bearer
+   * token for who they are, and the seat's own secret for where they are
+   * sitting — and binding the two is what makes the acceptance mean anything.
+   *
+   * Answers with the channel to open, or null when only the contact stood: the
+   * room may have emptied, or the asker stepped out, while somebody was
+   * reading their email.
+   */
+  fastify.post('/contacts/guest-ask/accept', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const body = request.body as
+      | { guestId?: string; secret?: string; askerId?: string }
+      | undefined;
+    if (!body?.guestId || !body.secret || !body.askerId) {
+      return reply
+        .code(400)
+        .send({ error: 'guestId, secret and askerId are required' });
+    }
+
+    const result = channels.acceptGuestAsk(
+      account.id,
+      body.guestId,
+      body.secret,
+      body.askerId
+    );
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    // Both, as every contact mutation does: one of them has a new contact and
+    // possibly somebody new in a channel they are sitting in, and the other has
+    // a Home with a contact and a channel on it that were not there before.
+    homeNotifier.notify([account.id, body.askerId]);
+    return { ok: true, channelId: result.channelId };
+  });
+
+  /**
    * Ends a contact, and with it the channels that existed only because of it.
    *
    * Two effects rather than one, and the second is the reason this is not a
@@ -1136,19 +1178,50 @@ export function buildApp(options: BuildOptions = {}): App {
     }
   });
 
+  async function guestShell(reply: FastifyReply): Promise<string | undefined> {
+    try {
+      return await readFile(join(__dirname, '..', 'web', 'guest.html'), 'utf8');
+    } catch {
+      await reply.code(503).send({ error: 'The guest page is not available.' });
+      return undefined;
+    }
+  }
+
   fastify.get('/g/:token', async (request, reply) => {
     const { token } = request.params as { token: string };
-    let shell: string;
-    try {
-      shell = await readFile(join(__dirname, '..', 'web', 'guest.html'), 'utf8');
-    } catch {
-      return reply.code(503).send({ error: 'The guest page is not available.' });
-    }
+    const shell = await guestShell(reply);
+    if (!shell) return;
     reply.type('text/html; charset=utf-8');
     // The one interpolation on the page, into an attribute, escaped — the
     // token is 24 bytes of base64url and cannot contain a quote, and that is
     // an argument for why this is cheap rather than for skipping it.
     return shell.replace('data-link=""', `data-link="${escapeHtml(token)}"`);
+  });
+
+  /**
+   * The way back to a channel somebody is a guest of, from Home.
+   *
+   * Addressed by channel rather than by link because a seat outlives the link
+   * that made it — `link_token` is nullable for exactly that reason — so the
+   * address a page can always be reached at is the one thing that does not go
+   * away.
+   *
+   * **It hands out nothing, and needs no credential to.** The page it returns
+   * is the same static document `/g/:token` is; what gets anybody into the
+   * room is the seat in their own `sessionStorage`, which survives the walk to
+   * `/app` and back because it is one tab on one origin. Somebody arriving
+   * here without one is told to open the link they were sent, which is also
+   * the honest answer for a channel they have never been a guest of.
+   */
+  fastify.get('/g/c/:channelId', async (request, reply) => {
+    const { channelId } = request.params as { channelId: string };
+    const shell = await guestShell(reply);
+    if (!shell) return;
+    reply.type('text/html; charset=utf-8');
+    return shell.replace(
+      'data-link=""',
+      `data-link="" data-channel="${escapeHtml(channelId)}"`
+    );
   });
 
   /**

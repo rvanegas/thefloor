@@ -2,6 +2,7 @@ import {
   DISCONNECT_GRACE_MS,
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
+  MAX_DISPLAY_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
   WAITING_WINDOW_MS,
@@ -390,15 +391,31 @@ export function canClaimFloor(
   now: number
 ): boolean {
   if (state.status !== 'active') return false;
-  // The room rather than the roster, which is what lets a guest claim. The
-  // floor is about who is talking, and a guest who has been given the
-  // microphone is talking; it is also the one grant that was a decision rather
-  // than an oversight, made when the capability list was rewritten.
-  const room = roomOccupants(state);
-  if (!inRoom(state, userId) || room.length < 2) return false;
-  // Ranked against who is in the room, not who belongs to the channel: someone
-  // who has left must not occupy the zero slot they cannot use.
-  return satisfiesEligibilityRule(state.floor, room, userId, now);
+  // **Members only, and this reversed on 2026-08-30.** It read `inRoom`
+  // against `roomOccupants`, deliberately, on the argument that the floor is
+  // about who is talking and a guest with the microphone is talking. What that
+  // left out is what a claim does to everybody else: it is not permission to
+  // speak — an unclaimed floor already leaves a granted guest free to talk —
+  // it is a demand that the rest of the room be silent, enforced on the media
+  // plane. A stranger a member is answering for does not get to mute the
+  // people who let them in.
+  //
+  // Stated here rather than left to GUEST_ACTIONS, in the shape
+  // `holdsSharedControl` uses: a guard and an allowlist that disagree is the
+  // one arrangement this codebase does not allow.
+  if (!isParticipant(state, userId) || !isPresent(state, userId)) return false;
+  // **Two counts, asking two different questions.**
+  //
+  // Whether there is anybody here to be quiet is about the room, guests
+  // included — a member alone with a talking guest is precisely who a claim is
+  // for.
+  if (roomOccupants(state).length < 2) return false;
+  // The queue is members only, and for the reason `claimDelayMs` already
+  // gives: an id that can never take the zero slot delays everybody behind it
+  // for nothing. A guest never claims, so their `lastClaimedAt` is always
+  // absent, which the ladder reads as having spoken longest ago — every guest
+  // in the room would add a step to the wait of every member who has spoken.
+  return satisfiesEligibilityRule(state.floor, state.present, userId, now);
 }
 
 export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
@@ -855,16 +872,18 @@ export function canManageGuest(
  *
  * Adding to it is a decision about what a stranger in the room may do. Note
  * what is not in it: recording, playback, invitations, the name, the
- * description, deleting anything, and answering the door.
+ * description, deleting anything, answering the door — and **the floor**,
+ * which left on 2026-08-30. See `canClaimFloor` for why claiming turned out to
+ * be a thing done *to* the room rather than in it.
  */
 export const GUEST_ACTIONS: ReadonlySet<ChannelAction['type']> = new Set([
   'STEP_OUT',
-  'CLAIM_FLOOR',
-  'RELEASE_FLOOR',
   'SET_SELF_MUTE',
   'PASTE_CLIP',
   'CLEAR_CLIP',
   'REQUEST_SPEECH',
+  'REFUSE_CONTACT',
+  'SET_GUEST_NAME',
 ]);
 
 // --- Reducer ----------------------------------------------------------------
@@ -993,9 +1012,19 @@ export function reduce(
     // into a room everybody has left would otherwise be alone in a channel
     // they cannot be admitted to.
     if (state.present.length === 0) return state;
+    // **The asks survive a reconnection, and have to.** This action is built
+    // from the seat's database row, which has no column for them — so a
+    // straight replacement would erase a member's ask every time a page
+    // stumbled, and a guest page reconnects on any blip and on every deploy.
+    // The member's card would flip back to offering an ask they had already
+    // made, and the prompt in front of the guest would vanish mid-answer.
+    const asks = state.guests[action.guest.id]?.asks;
     return {
       ...state,
-      guests: { ...state.guests, [action.guest.id]: action.guest },
+      guests: {
+        ...state.guests,
+        [action.guest.id]: asks ? { ...action.guest, asks } : action.guest,
+      },
       // Keyed on arrival rather than on admission, so a reconnection puts the
       // microphone back as they left it rather than as they were let in.
       selfMuted: { ...state.selfMuted, [action.guest.id]: false },
@@ -1125,6 +1154,60 @@ export function reduce(
     case 'EJECT_GUEST': {
       if (!canManageGuest(state, action.userId, action.guestId)) return state;
       return guestGone(state, action.guestId, now);
+    }
+
+    case 'ASK_GUEST_CONTACT': {
+      if (!canManageGuest(state, action.userId, action.guestId)) return state;
+      const guest = state.guests[action.guestId];
+      const asks = guest.asks ?? {};
+      // Asking twice is not a second question, and asking again after a
+      // refusal is not a way to have it re-answered. Both return the same
+      // object, which is how `commit` knows nothing happened.
+      if (asks[action.userId]) return state;
+      return {
+        ...state,
+        guests: {
+          ...state.guests,
+          [action.guestId]: {
+            ...guest,
+            asks: { ...asks, [action.userId]: 'asking' },
+          },
+        },
+      };
+    }
+
+    case 'REFUSE_CONTACT': {
+      const guest = state.guests[action.userId];
+      // Members are refused by GUEST_ACTIONS, as `REQUEST_SPEECH` is, and the
+      // reducer says so itself rather than relying on that.
+      if (!guest) return state;
+      const asks = guest.asks ?? {};
+      if (asks[action.askerId] !== 'asking') return state;
+      return {
+        ...state,
+        guests: {
+          ...state.guests,
+          [action.userId]: {
+            ...guest,
+            asks: { ...asks, [action.askerId]: 'refused' },
+          },
+        },
+      };
+    }
+
+    case 'SET_GUEST_NAME': {
+      const guest = state.guests[action.userId];
+      if (!guest) return state;
+      // Trimmed and capped exactly as the door's is, and an empty one is
+      // refused: clearing a name is not a thing to want, and the `Guest <n>`
+      // that would otherwise be underneath is an admission-time fact rather
+      // than a state to return to.
+      const name = action.name.trim().slice(0, MAX_DISPLAY_NAME_LENGTH);
+      if (!name || name === guest.name) return state;
+      return {
+        ...state,
+        guests: { ...state.guests, [action.userId]: { ...guest, name } },
+      };
     }
 
     case 'INVITE': {

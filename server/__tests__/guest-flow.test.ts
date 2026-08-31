@@ -304,6 +304,7 @@ describe('admission', () => {
       'channelName',
       'you',
       'others',
+      'asks',
       'recording',
       'clip',
       'serverNow',
@@ -592,5 +593,229 @@ describe('leaving', () => {
     expect(
       app.channels.guests.reconnect(admission.guestId, admission.secret, clock)
     ).toBeUndefined();
+  });
+});
+
+describe('being asked to be a contact', () => {
+  /** Alice asks the guest to keep in touch. */
+  async function asked(name = 'Dana') {
+    const room = await admitted(name);
+    room.member.send({
+      type: 'channel.action',
+      channelId: room.channelId,
+      action: { type: 'ASK_GUEST_CONTACT', guestId: room.admission.guestId },
+    });
+    const view = await room.guest.next('guest', (m) => m.view.asks.length > 0);
+    return { ...room, view: view.view };
+  }
+
+  const accept = (
+    token: string,
+    payload: { guestId: string; secret: string; askerId: string }
+  ) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/guest-ask/accept',
+      headers: auth(token),
+      payload,
+    });
+
+  it('reaches the guest by name, and carries the id an answer needs', async () => {
+    const { view, alice } = await asked();
+    expect(view.asks).toEqual([{ askerId: alice.account.id, from: 'Alice' }]);
+  });
+
+  it('makes a contact and a member of somebody signing in from the room', async () => {
+    // The whole of it, for a guest who had no account when they knocked: they
+    // sign in where they are standing, and the seat and the token together are
+    // what the acceptance is made of.
+    const { alice, guest, member, channelId, admission } = await asked();
+    const dana = await signIn('dana@example.com', 'Dana');
+
+    const answer = await accept(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+    expect(answer.statusCode).toBe(200);
+    expect(answer.json()).toEqual({ ok: true, channelId });
+
+    // Contacts, both ways, and the pair's own standing channel with them.
+    expect(app.accounts.areContacts(alice.account.id, dana.account.id)).toBe(true);
+    // A member of the channel they met in, and no longer a guest of it.
+    const state = app.channels.get(channelId)!;
+    expect(state.participants).toContain(dana.account.id);
+    expect(state.guests).toEqual({});
+    // The seat is finished, so the page cannot come back as somebody else.
+    expect(
+      app.channels.guests.reconnect(admission.guestId, admission.secret, clock)
+    ).toBeUndefined();
+    guest.close();
+    member.close();
+  });
+
+  it('answers one member without answering another, and refusal is not silence', async () => {
+    const { alice, guest, admission, channelId, member } = await asked();
+    guest.send({
+      type: 'action',
+      action: { type: 'REFUSE_CONTACT', askerId: alice.account.id },
+    });
+    const seen = await member.next(
+      'channel',
+      (m) => m.view.channel.guests[admission.guestId]?.asks?.[alice.account.id] === 'refused'
+    );
+    expect(seen.view.channel.guests[admission.guestId].asks).toEqual({
+      [alice.account.id]: 'refused',
+    });
+    // And a refused ask is no longer put in front of the guest, having been
+    // answered — asking again on the asker's behalf is what that would be.
+    const view = await guest.next('guest', (m) => m.view.asks.length === 0);
+    expect(view.view.asks).toEqual([]);
+    expect(app.channels.get(channelId)!.participants).not.toContain('dana');
+    guest.close();
+    member.close();
+  });
+
+  it('refuses a seat that does not match the account, and one nobody asked about', async () => {
+    const { alice, bob, admission, guest, member } = await asked();
+    const dana = await signIn('dana@example.com', 'Dana');
+
+    // Somebody else's token against this seat: the seat is claimed by the
+    // first account to present it, so Bob taking it would be Bob walking in on
+    // an ask that was not made of him.
+    const wrongSecret = await accept(dana.token, {
+      guestId: admission.guestId,
+      secret: 'not-the-secret',
+      askerId: alice.account.id,
+    });
+    expect(wrongSecret.statusCode).toBe(403);
+
+    // Nobody asked *for Bob*, and holding the seat does not invent an ask.
+    // 400 rather than 404 because that is this server's mapping for both
+    // not-found and invalid — see `statusFor`.
+    const unasked = await accept(bob.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: bob.account.id,
+    });
+    expect(unasked.statusCode).toBe(400);
+    expect(unasked.json()).toEqual({ error: 'Nobody asked.' });
+    guest.close();
+    member.close();
+  });
+
+  it('keeps the contact when the channel has moved on, and says so', async () => {
+    // Somebody reads their email, and by the time they answer the room has
+    // emptied. The invitation is refused by the guards that already exist; the
+    // acceptance is not, because it was never about the room.
+    const { alice, admission, member, channelId, guest } = await asked();
+    const dana = await signIn('dana@example.com', 'Dana');
+    member.send({
+      type: 'channel.action',
+      channelId,
+      action: { type: 'STEP_OUT' },
+    });
+    await member.next('channel', (m) => m.view.channel.present.length === 0);
+
+    const answer = await accept(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+    // The seat went with the last member, so there is nothing left to accept
+    // from — the ask is answered by a page that no longer has a room.
+    expect(answer.statusCode).toBe(403);
+    expect(app.accounts.areContacts(alice.account.id, dana.account.id)).toBe(false);
+    guest.close();
+    member.close();
+  });
+});
+
+describe('a guest who is signed in already', () => {
+  it('is known at the door, and named by their account', async () => {
+    const room = await channelWithLink();
+    const dana = await signIn('dana@example.com', 'Dana Q');
+
+    const guest: Guest = guestSocket(`link=${room.link.token}`);
+    await guest.open();
+    await guest.next('door');
+    // No name is typed: the page does not ask for one it already has.
+    guest.send({ type: 'knock', name: '', token: dana.token });
+    await guest.next('knocking');
+
+    const knocked = await room.member.next(
+      'channel',
+      (m) => m.view.channel.knocks.length > 0
+    );
+    // The knock says who is at it, rather than offering a number to somebody
+    // deciding whether to open a door.
+    expect(knocked.view.channel.knocks[0].name).toBe('Dana Q');
+    room.member.send({
+      type: 'channel.action',
+      channelId: room.channelId,
+      action: {
+        type: 'ANSWER_KNOCK',
+        knockId: knocked.view.channel.knocks[0].id,
+        accept: true,
+      },
+    });
+    await guest.next('admitted');
+
+    const view = await guest.next('guest');
+    expect(view.view.you.name).toBe('Dana Q');
+    expect(view.view.you.accountId).toBe(dana.account.id);
+    // A guest to the channel and not to the app: knowing them confers nothing.
+    expect(app.channels.get(room.channelId)!.participants).not.toContain(
+      dana.account.id
+    );
+
+    // And the channel is a place they can go back to while the seat lasts.
+    const home = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(dana.token),
+    });
+    const seat = (home.json() as { rejoinable: Array<Record<string, unknown>> })
+      .rejoinable.find((entry) => entry.channelId === room.channelId);
+    expect(seat).toMatchObject({ seat: true, name: 'Alice and Bob', others: [] });
+    guest.close();
+    room.member.close();
+  });
+
+  it('takes a stale token as no token at all', async () => {
+    // Presence, not validity — the same reading the landing page makes. What
+    // it costs is a number instead of a name, and the rename is the answer.
+    const room = await channelWithLink();
+    const guest: Guest = guestSocket(`link=${room.link.token}`);
+    await guest.open();
+    await guest.next('door');
+    guest.send({ type: 'knock', name: '', token: 'not-a-token' });
+    const knocked = await room.member.next(
+      'channel',
+      (m) => m.view.channel.knocks.length > 0
+    );
+    expect(knocked.view.channel.knocks[0].name).toBe('Someone');
+    guest.close();
+    room.member.close();
+  });
+});
+
+describe('a guest’s name', () => {
+  it('is theirs to change, and the seat remembers it', async () => {
+    const { guest, member, channelId, admission } = await admitted();
+    guest.send({ type: 'action', action: { type: 'SET_GUEST_NAME', name: 'Robert' } });
+
+    const seen = await member.next(
+      'channel',
+      (m) => m.view.channel.guests[admission.guestId]?.name === 'Robert'
+    );
+    expect(seen.view.channel.guests[admission.guestId].name).toBe('Robert');
+    // Written through to the row, or the next reconnection undoes it.
+    expect(app.channels.guests.byId(admission.guestId)?.display_name).toBe(
+      'Robert'
+    );
+    expect(app.channels.get(channelId)!.participants).toHaveLength(2);
+    guest.close();
+    member.close();
   });
 });
