@@ -121,56 +121,60 @@ Since there's no speaking, there must be another way.
 
 ## Two Devices In One Channel
 
-OPEN, heard once and not reproduced — measure before writing any code
+BUILT on both candidates, and **still never reproduced** — the listen this
+entry asked for first has not happened
 
 **Observed 2026-08-29.** One account stepped into a channel on two devices at
 once, and the two appeared to compete for the audio rather than one of them
-yielding — or both were simply live. It sounded wrong. Nothing was measured and
-there is no recording of it, which is why the first job is a reproduction and
-not a fix.
+yielding. Nothing was measured and there is no recording of it. What follows
+was found by reading instead, which is why the sighting is still open even
+though two mechanisms that would produce it are now closed: **nobody has heard
+the fixed version, and nobody ever heard the broken one on purpose.**
 
-**The mechanism that should already prevent this exists**, and that is what
-makes the sighting worth chasing rather than shrugging at.
-`displaceOtherSessions` in `ws.ts` tells every *other* session of the account
-that it is no longer standing anywhere, and it is fired on the `ENTER` action
-rather than on a change of state precisely "because entering a channel this
-account is already present in changes nothing and is exactly the case that
-needs saying" — its own comment. The client acts on it: `AppProvider.displaced`
-reaches `App.tsx`, `live` becomes null, and `useSessionAudio` tears the room
-down.
+**A token was not a device, and now a device is.** `displaceOtherSessions`
+skipped any connection whose token matched the entering one, so two sessions
+sharing a token were never displaced from each other — invisible to each other
+by construction. That never mattered while iOS refused to run a second copy of
+the app, and two browser tabs on one origin share `localStorage` and therefore
+share a token, so it was about to. The socket now carries a `device` query
+parameter beside `build` and `client`: minted per JavaScript context in
+`app/src/api/device.ts`, which is one per process on a phone and one per *tab*
+in a browser, and never persisted — storing it would put it in the same
+`localStorage` the token is in and hand both tabs the same answer again. A
+socket naming no device falls back to its token, which is exactly the rule
+every installed build already runs under, so nothing shipped changes.
 
-Three candidates, cheapest first.
+**The evicted device now stops instead of fighting.** LiveKit admits one
+participant per identity and the identity is the account, so the later joiner
+displaces the earlier at the media plane whatever this server thinks —
+`useSessionAudio` read that eviction as a network drop and rebuilt on its
+500ms-doubling backoff, which re-evicted the other device, which rebuilt in
+turn. `DisconnectReason.DUPLICATE_IDENTITY` is now not retried, in both the
+native hook and the web one. It gets its own `AudioStatus` rather than `idle`,
+which matters twice: `idle` reads on screen as a channel whose audio never
+started, and the foreground listener rebuilds a room from any status but
+`connected` and `connecting` — so filing an eviction as `idle` would restart
+the ping-pong once per trip through the app switcher.
 
-**A token is not a device.** `displaceOtherSessions` skips any connection whose
-token equals the entering one, and its docstring is honest that "a token is a
-sign-in, which is as close to 'a device' as this server knows" — the skip is
-there so a reconnecting device cannot displace itself. Two sessions sharing one
-token are therefore never displaced from each other. That has never mattered
-because iOS will not run a second copy of the app, and it is about to: two
-browser tabs on one origin share `localStorage`, and so share a token. See
-WEB.md.
+The two are deliberately independent. The server telling the other device it
+has been displaced is a second message on a second connection, and a race or a
+drop would leave nothing breaking the loop; the media plane needs no message,
+because the eviction is itself the news and it arrives on the connection the
+news is about.
 
-**The SFU may be doing the evicting while the clients fight it.** LiveKit
-admits one participant per identity, so the later joiner displaces the earlier
-at the media layer whatever this server thinks. `useSessionAudio` treats
-`RoomEvent.Disconnected` as something to recover from and rebuilds on a
-500ms-doubling backoff — so an eviction is indistinguishable from a network
-drop, the evicted device rejoins, evicts the other, and the two ping-pong.
-That would sound exactly like competing for control. `displaced` is what breaks
-the loop by setting `live` to null; a race, or a `displaced` that never
-arrives, leaves it running.
+**What is not answered.** The third candidate — that nothing was wrong and the
+oddity was the mono/stereo transition in STATES.md, or simply two devices in
+one room hearing each other — is neither confirmed nor ruled out, and the one
+listen that would settle it still costs one listen. Do it before assuming this
+entry is closed by the code above, because a fix for a mechanism nobody
+demonstrated is a fix that cannot be known to have removed the symptom.
 
-**Or nothing is wrong and the oddity was something else** — the mono/stereo
-transition in STATES.md, or simply two devices in one room hearing each other.
-Ruling this out costs one listen and should come first.
-
-**The intended rule is per device rather than per account.** Device B stepping
-into any channel — including the one device A is already in — steps device A
-out. To everybody else nothing happens: the account stays present throughout.
-The server already has that half right, since `displaceOtherSessions` tells
-other sessions rather than dispatching a `STEP_OUT`, so no snapshot changes and
-no roster flickers. The work is on the client and the media plane, not in the
-reducer.
+**The intended rule is per device rather than per account**, and is what the
+above implements. Device B stepping into any channel — including the one device
+A is already in — steps device A out. To everybody else nothing happens: the
+account stays present throughout, since `displaceOtherSessions` tells other
+sessions rather than dispatching a `STEP_OUT`, so no snapshot changes and no
+roster flickers.
 
 ## Downloading From S3 Rather Than Through The Box
 

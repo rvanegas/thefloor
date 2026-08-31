@@ -44,11 +44,17 @@ class Client {
    *              budget the sweep judges it against. Omitted means a client
    *              that says nothing about itself, which is every build before
    *              37 and is treated as old — see `heartbeatTimeoutFor`.
+   * @param device which copy of the app this is, which decides who
+   *               `displaceOtherSessions` skips. Omitted means a client too
+   *               old to have an opinion, which falls back to the token — the
+   *               behaviour every installed build has, and the reason most
+   *               tests here pass nothing.
    */
-  constructor(token: string, base: string, build?: number) {
+  constructor(token: string, base: string, build?: number, device?: string) {
     this.socket = new WebSocket(
       `ws://${base}/ws?token=${token}` +
-        (build === undefined ? '' : `&build=${build}`)
+        (build === undefined ? '' : `&build=${build}`) +
+        (device === undefined ? '' : `&device=${encodeURIComponent(device)}`)
     );
     this.socket.on('message', (raw) => {
       this.received.push(JSON.parse(String(raw)) as ServerMessage);
@@ -1020,6 +1026,118 @@ describe('websocket', () => {
      * for the reason ENTER is: a session's belief is about what it would do
      * next, and it is made wrong whether or not the roster moved.
      */
+    /**
+     * **Two tabs, one token, and the case the token key could not see.**
+     *
+     * A browser shares `localStorage` across tabs of an origin, so a second
+     * tab is a second session holding the *same* credential — which the skip
+     * above reads as the same device and leaves alone. Both then sit in the
+     * room under one identity, the media plane admits one of them, and the
+     * pair trade the conversation back and forth. See TASKS.md § *Two Devices
+     * In One Channel*.
+     *
+     * Both tabs are Alice's own token deliberately. Minting a second session
+     * would test something that already worked.
+     */
+    it('displaces a second tab sharing one token', async () => {
+      const { alice, channelId } = await pairInSession();
+      const first = new Client(alice.token, baseUrl, undefined, 'tab-one');
+      const second = new Client(alice.token, baseUrl, undefined, 'tab-two');
+      await Promise.all([first.open(), second.open()]);
+      await Promise.all([first.next('hello'), second.next('hello')]);
+
+      await enter(first, channelId, alice.account.id);
+      expect(sawDisplaced(first)).toBe(false);
+      // The first tab entering displaced the second, which is the same rule
+      // running the other way and is exactly what used not to happen. Cleared
+      // so that what is asserted below is the second tab's own turn.
+      await second.next('displaced');
+      first.received.length = 0;
+      second.received.length = 0;
+
+      await enter(second, channelId, alice.account.id);
+      await first.next('displaced');
+      expect(sawDisplaced(second)).toBe(false);
+      // The account never left, which is the half that must not move: one
+      // person's second tab is nobody else's event.
+      expect(app.channels.get(channelId)!.present).toContain(alice.account.id);
+
+      first.close();
+      second.close();
+    });
+
+    /**
+     * The flap guard, now that the key is the device rather than the token.
+     * The same trap the token test above describes — a reconnecting client
+     * holding two sockets for a moment and re-sending ENTER on the new one —
+     * except that what has to survive the reconnection is the device name.
+     */
+    it('does not displace another socket naming the same device', async () => {
+      const { alice, channelId } = await pairInSession();
+      const stale = new Client(alice.token, baseUrl, undefined, 'one-phone');
+      await stale.open();
+      await stale.next('hello');
+      const fresh = new Client(alice.token, baseUrl, undefined, 'one-phone');
+      await fresh.open();
+      await fresh.next('hello');
+
+      await enter(fresh, channelId, alice.account.id);
+      await fresh.next('channel');
+
+      expect(sawDisplaced(stale)).toBe(false);
+      expect(sawDisplaced(fresh)).toBe(false);
+
+      stale.close();
+      fresh.close();
+    });
+
+    /**
+     * A device name is compared, never parsed, so there is no such thing as a
+     * malformed one — but there is such a thing as an unbounded one, and the
+     * bound is what this holds. Over the limit is read as no claim at all,
+     * which puts the socket back on the token and so back on exactly the
+     * behaviour of a build that predates the field.
+     */
+    it('ignores a device name too long to keep', async () => {
+      const { alice, channelId } = await pairInSession();
+      const huge = 'd'.repeat(200);
+      const phone = new Client(alice.token, baseUrl, undefined, huge);
+      const other = new Client(alice.token, baseUrl, undefined, huge);
+      await Promise.all([phone.open(), other.open()]);
+      await Promise.all([phone.next('hello'), other.next('hello')]);
+
+      await enter(other, channelId, alice.account.id);
+      await other.next('channel');
+
+      // Neither named a device the server would keep, so both fell back to
+      // the token they share and neither displaced the other.
+      expect(sawDisplaced(phone)).toBe(false);
+
+      phone.close();
+      other.close();
+    });
+
+    /**
+     * A device-naming client and a silent one on one token are two copies of
+     * the app, and the newer one saying so is not a reason to treat them as
+     * one. This is the mixed-build case: a phone updated to name itself and a
+     * tab that has not been reloaded since.
+     */
+    it('separates a device-naming session from a silent one on the same token', async () => {
+      const { alice, channelId } = await pairInSession();
+      const silent = new Client(alice.token, baseUrl);
+      const named = new Client(alice.token, baseUrl, undefined, 'new-tab');
+      await Promise.all([silent.open(), named.open()]);
+      await Promise.all([silent.next('hello'), named.next('hello')]);
+
+      await enter(named, channelId, alice.account.id);
+      await silent.next('displaced');
+      expect(sawDisplaced(named)).toBe(false);
+
+      silent.close();
+      named.close();
+    });
+
     it('tells the tablet when the phone leaves the channel', async () => {
       const { alice, channelId, phone, tablet } = await twoDevices();
       await enter(tablet, channelId, alice.account.id);

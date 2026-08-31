@@ -2233,6 +2233,12 @@ function describeAudio(audio: SessionAudio): string {
     // screen was quietly wrong about the one thing it is here to report.
     case 'reconnecting':
       return 'Audio dropped — reconnecting…';
+    // Not a failure and not a quiet channel, which is why it is neither of the
+    // two above. The room is fine and somebody is in it; it is just not this
+    // screen. `elsewhereOnAnotherDevice` says the same thing about presence,
+    // and this says it about the audio.
+    case 'displaced':
+      return 'Audio moved to your other device.';
     case 'connected':
       if (audio.othersAudible > 0) return 'Audio connected.';
       return audio.micOpen

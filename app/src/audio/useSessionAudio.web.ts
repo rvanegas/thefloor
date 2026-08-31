@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ConnectionQuality,
+  DisconnectReason,
   Room,
   RoomEvent,
   Track,
@@ -41,6 +42,8 @@ export type AudioStatus =
   | 'connecting'
   | 'connected'
   | 'reconnecting'
+  /** Evicted by another of this account's devices. See the native sibling. */
+  | 'displaced'
   | 'denied'
   | 'unavailable'
   | 'error';
@@ -199,9 +202,18 @@ export function useSessionAudio(
       }
     );
 
-    room.on(RoomEvent.Disconnected, () => {
+    room.on(RoomEvent.Disconnected, (reason) => {
       if (cancelled) return;
       sink.textContent = '';
+      // The eviction that must not be retried, and the browser is where it
+      // stops being a rarity: two tabs on one origin share a token, so this
+      // is what a second tab of the same channel does to the first. The
+      // native hook carries the full reasoning; the rule is that the evicted
+      // side goes quiet instead of taking the room back.
+      if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
+        patch({ status: 'displaced', speaking: [], failing: [] });
+        return;
+      }
       patch({ status: 'reconnecting', speaking: [], failing: [] });
       const delay = Math.min(
         RECONNECT_BASE_MS * 2 ** attemptRef.current,

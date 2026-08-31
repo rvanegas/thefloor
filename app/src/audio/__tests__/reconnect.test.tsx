@@ -72,7 +72,15 @@ jest.mock('livekit-client', () => {
     }
   }
 
-  return { Room, RoomEvent: EVENTS, Track: { Kind: { Audio: 'audio' } } };
+  return {
+    Room,
+    RoomEvent: EVENTS,
+    Track: { Kind: { Audio: 'audio' } },
+    // The real enum's value for it. Named here rather than imported because
+    // this factory may not reach outside itself, and the number is wire
+    // protocol — it is what the SFU puts in the leave message.
+    DisconnectReason: { DUPLICATE_IDENTITY: 2 },
+  };
 });
 
 jest.mock('../../api/http', () => ({
@@ -136,6 +144,53 @@ describe('a room that drops', () => {
     // The assertion this whole file exists for.
     expect(mockRooms).toHaveLength(2);
     expect(latest.status).toBe('connected');
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * **The one drop that must not be rebuilt**, which is the opposite of
+   * everything else in this file and is why it lives next to it.
+   *
+   * The room admits one participant per identity and the identity is the
+   * account, so another of this account's devices entering evicts this one. To
+   * the code above that eviction is indistinguishable from a dead network: it
+   * rebuilds, which evicts the device that just took the room, which rebuilds
+   * in turn. Two screens then trade the conversation on a 500ms-doubling
+   * backoff for as long as both are open — which is what "the two devices
+   * competed for the audio" sounded like. See planning/TASKS.md, Two Devices
+   * In One Channel.
+   *
+   * Counting rooms for the same reason the rest of the file does, and for the
+   * mirror-image regression: here the failure is *something* happening.
+   */
+  it('is not rebuilt when another device took the room', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe />);
+    });
+    await settle();
+    expect(mockRooms).toHaveLength(1);
+
+    await act(async () => {
+      mockRooms[0].fire('disconnected', 2);
+    });
+
+    // Neither `reconnecting`, which would promise an attempt nothing will
+    // make, nor `idle`, which the foreground listener rebuilds from.
+    expect(latest.status).toBe('displaced');
+
+    // Well past the backoff the ordinary path would have used, and past
+    // several of its doublings.
+    await act(async () => {
+      jest.advanceTimersByTime(30_000);
+    });
+    await settle();
+
+    expect(mockRooms).toHaveLength(1);
+    expect(latest.status).toBe('displaced');
 
     await act(async () => {
       tree.unmount();

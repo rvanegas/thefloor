@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import {
   ConnectionQuality,
+  DisconnectReason,
   Room,
   RoomEvent,
   Track,
@@ -54,6 +55,21 @@ export type AudioStatus =
    * the same thing to look at.
    */
   | 'reconnecting'
+  /**
+   * Evicted from the room by another of this account's own devices, and not
+   * coming back — the only disconnection that is somebody's decision rather
+   * than a failure.
+   *
+   * Its own state rather than `idle` for two reasons, and the second is the
+   * load-bearing one. It reads differently on screen: `idle` is a channel
+   * whose audio never started, and this is one that stopped because you
+   * picked it up elsewhere. And the foreground listener rebuilds a room from
+   * any status but `connected` and `connecting` — so filing this as `idle`
+   * would have every trip through the app switcher re-enter a room this
+   * device has been evicted from, which is the ping-pong arriving by a second
+   * route after the first was closed.
+   */
+  | 'displaced'
   | 'denied'
   | 'unavailable'
   | 'error';
@@ -731,10 +747,38 @@ export function useSessionAudio(
         // follows it, and every failure so far has followed one.
         recordEvent(`room disconnected (${reason ?? 'no reason given'})`);
         if (cancelled) return;
+        failing.clear();
+        // **The one disconnection that must not be retried.** The room admits
+        // one participant per identity and the identity is the account, so
+        // another of this account's devices entering evicts this one — and
+        // that eviction is indistinguishable from a dead network to
+        // everything below. Rebuilding would re-evict the device that just
+        // took the room, which would rebuild in turn, and the two would trade
+        // the conversation back and forth on a 500ms-doubling backoff for as
+        // long as both screens were open. That is what "the two devices
+        // competed for the audio" sounded like: planning/TASKS.md § *Two
+        // Devices In One Channel*.
+        //
+        // So the loser stops, and stops here rather than waiting to be told.
+        // The server says the same thing over the socket — `displaced` sets
+        // `live` to null and tears this hook down through its own cleanup —
+        // but that is a second message on a second connection, and a race or
+        // a drop would leave nothing at all breaking the loop. This needs no
+        // message: the eviction is itself the news, and it arrives on the
+        // connection that the news is about.
+        //
+        // Its own status rather than `reconnecting`, because nothing is
+        // reconnecting — a spinner promising a recovery no code will attempt
+        // is the worse of the two lies — and rather than `idle`, because the
+        // foreground listener rebuilds from `idle`.
+        if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
+          recordEvent('displaced at the media plane; not rebuilding');
+          update({ status: 'displaced', speaking: [], failing: [] });
+          return;
+        }
         // `livekit-client` retries internally and only fires this once it has
         // given up, so reaching here means the connection is not coming back
         // by itself. Ours is the last word.
-        failing.clear();
         update({ status: 'reconnecting', speaking: [], failing: [] });
         scheduleReconnect();
       });
@@ -900,6 +944,12 @@ export function useSessionAudio(
     const subscription = AppState.addEventListener('change', (next) => {
       if (next !== 'active' || !mediaRoom) return;
       if (state.status === 'connected' || state.status === 'connecting') return;
+      // Nor a room another device holds. Every other status here is a failure
+      // worth one more attempt on a network that may have changed; this one
+      // is a decision, and the network has nothing to do with it. Rebuilding
+      // would evict whichever device is actually carrying the conversation,
+      // once per trip through the app switcher.
+      if (state.status === 'displaced') return;
       // The second path to a rebuild, and the one that leaves no other trace:
       // it fires on a room that has already given up, so there is no
       // `Disconnected` next to it to explain the `connect` that follows.

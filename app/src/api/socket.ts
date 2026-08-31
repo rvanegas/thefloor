@@ -11,6 +11,7 @@ import type {
   ChannelView,
 } from '../../../core/protocol';
 import { appBuild, CLIENT_KIND } from './build';
+import { DEVICE_ID } from './device';
 import { WS_URL } from './config';
 import { reportSignedOut } from './http';
 
@@ -176,7 +177,12 @@ export class Realtime {
         // A query parameter for the same reason `build` is one: no WebSocket
         // implementation this app runs on carries custom headers. Omitted by
         // native, whose absence the server reads as native.
-        (CLIENT_KIND === null ? '' : `&client=${CLIENT_KIND}`)
+        (CLIENT_KIND === null ? '' : `&client=${CLIENT_KIND}`) +
+        // Which copy of the app this is, so the server can displace the
+        // account's *other* devices without displacing this one when it
+        // reconnects. It cannot use the token for that any more: two browser
+        // tabs share one. See device.ts.
+        `&device=${encodeURIComponent(DEVICE_ID)}`
     );
     this.socket = socket;
 

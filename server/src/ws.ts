@@ -82,6 +82,73 @@ interface Connection {
    * the census, which counts native installs alone.
    */
   client: ClientKind;
+  /**
+   * Which copy of the app this socket belongs to, as that copy names itself,
+   * or null from a client too old to have an opinion.
+   *
+   * **The one thing a token cannot say.** A token is a sign-in, and until
+   * 2026-08-31 it was the whole of what this server knew about "a device" —
+   * which was survivable only because iOS will not run a second copy of the
+   * app, so one token meant one running process by construction. The browser
+   * breaks that: two tabs on one origin share `localStorage` and therefore
+   * share a token, and they are two devices in every sense that matters here.
+   *
+   * Read only by `displaceOtherSessions`, and never stored. It is not a
+   * credential and nothing is authorised by it — the token is still what
+   * authenticates, and this only decides which *other* sockets that same
+   * person is holding. So a client that lies about it can displace its own
+   * other sessions and reach nothing else, which is a thing it may already do
+   * by opening a channel.
+   */
+  device: string | null;
+}
+
+/**
+ * The longest device name this server will keep, which is a bound rather than
+ * a format.
+ *
+ * Nothing parses this value — it is only ever compared to another one — so
+ * there is no shape to validate and no reason to insist on a UUID. What there
+ * is reason to insist on is that a client cannot hand the process an
+ * unbounded string to hold for the life of a socket.
+ */
+const MAX_DEVICE_LENGTH = 128;
+
+/**
+ * What a caller claims its device is, from a query parameter.
+ *
+ * **Never refuses**, on the same contract as `claimedBuild` and `claimedClient`
+ * and for the same reason: every build already installed omits it and can
+ * never be taught otherwise, so absence has to be a legal answer describing
+ * the population that exists rather than a bad request. Anything unusable is
+ * read as no claim at all, which puts that socket back on the token — the
+ * behaviour every client had before this field.
+ */
+function claimedDevice(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  return raw.length <= MAX_DEVICE_LENGTH ? raw : null;
+}
+
+/**
+ * What counts as "the same device" when deciding who to displace.
+ *
+ * The device a socket names, and the token it authenticated on when it names
+ * none. **The fallback is the whole compatibility story**: a build that sends
+ * no device is compared to other such builds by token, which is exactly the
+ * rule that shipped before this field existed, so nothing already installed
+ * changes behaviour. A device-naming socket and a silent one sharing a token
+ * come out different, which is also right — a token is not a device, and the
+ * two are not the same copy of the app.
+ *
+ * The token is prefixed rather than used bare so that a client cannot claim
+ * another of its own sessions' tokens as a device name and merge the two.
+ * That would cost it only its own displacement, but a key space where one
+ * side's values can be forged into the other's is not one to leave open.
+ */
+function deviceKey(connection: Connection): string {
+  return connection.device === null
+    ? `token:${connection.tokenHash}`
+    : `device:${connection.device}`;
 }
 
 /** Close code for a credential the server will not accept. */
@@ -255,22 +322,33 @@ export function registerWebsocket(deps: {
    * room admits one participant per identity — so the newest session to enter
    * is the one holding it.
    *
-   * **Keyed on the token rather than on the socket**, which is the part that
+   * **Keyed on the device rather than on the socket**, which is the part that
    * is easy to get wrong. A device that is reconnecting has two connections
    * for a moment, the old one not yet closed; displacing by socket would let
    * a flap take the room away from the device somebody is actually holding,
-   * and the client clears what it would re-enter when it hears this. A token
-   * is a sign-in, which is as close to "a device" as this server knows.
+   * and the client clears what it would re-enter when it hears this. So the
+   * skip has to name something that survives a reconnection, and `deviceKey`
+   * is that thing.
+   *
+   * **It was the token until 2026-08-31, and a token is not a device.** That
+   * held only because iOS will not run a second copy of the app, so one
+   * sign-in meant one running process and the two readings could not come
+   * apart. Two browser tabs on one origin share `localStorage`, share a token,
+   * and were therefore the one pair of sessions this loop could never separate
+   * — each invisible to the other, both live in the same room, competing for
+   * the one voice the account has. See planning/TASKS.md § *Two Devices In
+   * One Channel* and planning/WEB.md.
    *
    * Watch-scoped sockets are left alone. A follower page holds a watch token,
    * never a session token, and is a second screen rather than a second place
    * to be — it was never standing anywhere to be displaced from.
    */
   const displaceOtherSessions = (connection: Connection): void => {
+    const key = deviceKey(connection);
     for (const other of connections) {
       if (other.scope.kind !== 'session') continue;
       if (other.userId !== connection.userId) continue;
-      if (other.token === connection.token) continue;
+      if (deviceKey(other) === key) continue;
       send(other, { type: 'displaced' });
     }
   };
@@ -758,6 +836,11 @@ export function registerWebsocket(deps: {
       // Mirrored as a query parameter for the same reason `build` is: neither
       // React Native's WebSocket nor the browser's carries custom headers.
       client: claimedClient(url.searchParams.get('client')),
+      // A query parameter for the third time and the same reason. Unlike the
+      // other two this one is never mirrored as a header, because nothing but
+      // this socket has a use for it: displacement is about live connections,
+      // and an HTTP call is not one.
+      device: claimedDevice(url.searchParams.get('device')),
     };
     // Asked before the add, so it answers about the sockets that were already
     // here: a second device connecting is not an arrival, and announcing one
