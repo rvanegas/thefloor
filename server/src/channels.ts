@@ -3779,6 +3779,26 @@ export class ChannelRegistry {
     }
     this.guests.claim(guestId, accountId);
 
+    // **Whoever asked brought them here, when they made the account to answer.**
+    // A guest who signs up on the guest page to accept has no invitation
+    // behind them — `pending_invites` keys on an address nobody wrote to — so
+    // without this the one arrival that is most plainly somebody's doing is
+    // the one nothing is credited for.
+    //
+    // *New* is the whole of the test, and it is read off the clock rather
+    // than trusted to the flow: the account has to have been created after
+    // this seat was admitted, which is true exactly when it was made inside
+    // this visit — the sign-up needs an emailed code, so an account made
+    // before the knock cannot share a millisecond with it. A member of two
+    // years who opens a guest link and gets asked is not somebody the asker
+    // brought to this app, and back-dating an inviter onto them would make
+    // the standings a claim about who happened to tap first. `creditInviter` refuses the rest — an account that
+    // already has an inviter, and a cycle.
+    const account = this.accounts.byId(accountId);
+    if (account && account.created_at > session.admitted_at) {
+      this.accounts.creditInviter(accountId, askerId);
+    }
+
     // Already contacts is an ordinary way to arrive here: somebody may open a
     // link into a channel a contact of theirs is in, and be asked by a member
     // who does not know them from the one who does. Nothing to write, and the

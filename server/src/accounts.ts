@@ -362,6 +362,50 @@ export class Accounts {
   }
 
   /**
+   * Names an inviter for an account that arrived without one.
+   *
+   * The second way credit is earned, and the only one that is not an email
+   * address resolving at sign-up. Somebody follows a guest link, makes an
+   * account inside the room to accept a member's ask, and `pending_invites`
+   * has never heard of them — so the walk in `invitedCount` would stop at a
+   * person who is plainly here because a member brought them. See
+   * `ChannelRegistry.acceptGuestAsk`, which is the one caller and which owns
+   * the harder half of the judgement: *whether this account is new*, which
+   * this cannot see and will not guess at.
+   *
+   * What it does own is that credit is written once and never moved. An
+   * account with an inviter keeps the one it has, so a second ask from a
+   * second member cannot reassign it, and the earliest claim wins here for the
+   * same reason the earliest invitation does in `resolveInvitesFor`.
+   *
+   * The forest invariant is checked rather than assumed. Every other edge is
+   * acyclic by construction — an inviter exists before the account naming
+   * them — and this one is not, being written long after both accounts do; so
+   * it walks the inviter's own ancestry first and refuses an edge that would
+   * close a loop. `invitedCount` returns a wrong number rather than looping on
+   * a corrupt table, which is not a guarantee worth spending.
+   */
+  creditInviter(accountId: string, inviterId: string): boolean {
+    if (accountId === inviterId) return false;
+    const account = this.byId(accountId);
+    if (!account || account.invited_by) return false;
+    if (!this.byId(inviterId)) return false;
+
+    for (
+      let ancestor = this.byId(inviterId)?.invited_by;
+      ancestor;
+      ancestor = this.byId(ancestor)?.invited_by
+    ) {
+      if (ancestor === accountId) return false;
+    }
+
+    this.db
+      .prepare('UPDATE accounts SET invited_by = ? WHERE id = ?')
+      .run(inviterId, accountId);
+    return true;
+  }
+
+  /**
    * Everybody who has brought anybody here, most first.
    *
    * One query rather than `invitedCount` per account, because the answer is

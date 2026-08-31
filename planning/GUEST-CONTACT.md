@@ -112,6 +112,35 @@ here, and it is the same shape of record, so it is the same shape of field.
    plain contact. Said on the page rather than swallowed, and the tab goes to
    the app's home rather than to a channel he is not in.
 
+## The asker is credited with the arrival, when there is one
+
+Added after the rest was written. `invited_by` is set at sign-up, out of a
+`pending_invites` row keyed on the address somebody wrote to — and nobody
+wrote to this person. He followed a link, made an account in the room to
+answer Alice's ask, and the walk behind `invitedCount` stops at him: the one
+arrival that is most plainly a member's doing is the one that counted for
+nothing.
+
+So `acceptGuestAsk` names the asker as his inviter. **The asker rather than
+whoever minted the link**, on the same reading the rest of this file makes —
+the ask is the act that brought him in as a person rather than as a seat, and
+the link may have reached him third-hand.
+
+**Only for an account made inside the visit**, and that is read off the clock
+rather than trusted to the flow: `created_at` has to be later than the seat's
+`admitted_at`. A signed-in member who opens a guest link is the ordinary case
+here, and crediting the asker with *him* would make the standings a claim
+about who happened to tap Add contact. The two cannot collide by accident —
+signing up needs a code out of an inbox, so an account made before the knock
+cannot share a millisecond with it.
+
+`Accounts.creditInviter` owns the rest: it refuses an account that already has
+an inviter, so a second ask from a second member cannot reassign the credit,
+and it walks the inviter's own ancestry to refuse an edge that would close a
+loop. Every other edge in that forest is acyclic by construction — an inviter
+exists before the account naming them — and this one is written long after
+both accounts do, which is the one case that argument does not cover.
+
 ## What this costs, and what it does not
 
 **It does not cost the room, which was the point.** The only interruption is

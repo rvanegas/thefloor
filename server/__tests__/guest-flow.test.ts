@@ -692,6 +692,47 @@ describe('being asked to be a contact', () => {
     member.close();
   });
 
+  it('credits the asker with an arrival they made an account to answer', async () => {
+    // The second way credit is earned, and the only one an email address has
+    // nothing to do with: nobody wrote to Dana, so `pending_invites` has never
+    // heard of her, and without this the one arrival that is plainly Alice's
+    // doing would count for nothing.
+    const { alice, guest, member, admission } = await asked();
+    clock += 60_000;
+    const dana = await signIn('dana@example.com', 'Dana');
+
+    await accept(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+
+    expect(app.accounts.byId(dana.account.id)!.invited_by).toBe(alice.account.id);
+    expect(app.accounts.invitedCount(alice.account.id)).toBe(1);
+    guest.close();
+    member.close();
+  });
+
+  it('credits nobody for somebody who was already here', async () => {
+    // An account that existed before the seat did is not an arrival, whoever
+    // asks them — the standings would otherwise say Alice brought somebody
+    // who has been signing in for a year, on the strength of a tap.
+    const dana = await signIn('dana@example.com', 'Dana');
+    clock += 60_000;
+    const { alice, guest, member, admission } = await asked();
+
+    await accept(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+
+    expect(app.accounts.byId(dana.account.id)!.invited_by).toBeNull();
+    expect(app.accounts.invitedCount(alice.account.id)).toBe(0);
+    guest.close();
+    member.close();
+  });
+
   it('answers one member without answering another, and refusal is not silence', async () => {
     const { alice, guest, admission, channelId, member } = await asked();
     guest.send({
