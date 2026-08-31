@@ -270,7 +270,11 @@ there and goes on being true survives them.
    tooling enforces.
 3. **`bin/upload-ios`.** One command: refuses a dirty tree, bumps and commits
    the build number, prebuilds, archives, uploads, tags.
-4. **`bin/set-review-notes`**, which fills the demo code into
+4. **`bin/deploy-web --beta`**, which cuts the beta train from the tag step 3
+   just made. This is the step that puts the submitted build's web app where a
+   reviewer following the listing will actually land — see *The web trains ship
+   with the build* below, and do not reach for `/app` to do it.
+5. **`bin/set-review-notes`**, which fills the demo code into
    `planning/submissions/review-notes-<version>.txt` and sends it. The notes
    come from a file in the tree so they are reviewed like anything else; the
    code is not in that file, and the script refuses one where the placeholder
@@ -286,7 +290,7 @@ there and goes on being true survives them.
    the warning to test account deletion last nor the Guideline 1.2 account of
    guest links. Every check in `bin/submit-ios` passed, the field being
    non-empty.
-5. **`bin/submit-ios`,** which prepares the submission and stops before the
+6. **`bin/submit-ios`,** which prepares the submission and stops before the
    button: it creates the version record if there is none, refuses a build
    whose train does not match `expo.version` or that is still processing,
    insists on "What's New" and on review details a reviewer can sign in with,
@@ -294,7 +298,11 @@ there and goes on being true survives them.
    to press Submit on, because that PATCH is the irreversible half and
    everything before it is editable. `--dry-run` says what it would do;
    `--status` reports what App Store Connect holds and writes nothing.
-6. **Press Submit**, having read the page and the list below.
+7. **Press Submit**, having read the page and the list below.
+8. **Days later, on approval: move `released`, then `bin/deploy-web --stable`
+   in the same sitting.** In that order and not the other one — `--stable` is
+   cut from `released`, so run before the ref moves it re-ships the *previous*
+   release and says nothing is wrong.
 
 And the thing that is not a command: **walk the app on a device first, in the
 order a stranger would, with nothing skipped.** Answering the 2.1 rejection
@@ -309,6 +317,42 @@ weeks old.** The number was doing rhetorical work — surely a long-used app is
 past such things — and the real claim is stronger without it: eight defects in
 two weeks of daily use, by the person who wrote it, none of them found by
 using it and all of them found by walking it in a stranger's order.
+
+### The web trains ship with the build
+
+Written down 2026-08-31, the first time a submission's What's New sent people
+to a browser and the question "when does `/app` go up" had to have an answer.
+
+**`/app` cannot drift, and the reason is that nobody keeps it in step.**
+`bin/deploy-web --stable` is cut from `released` and reads the build number out
+of *that tag's* `app.json` — the ref is the definition, not a thing compared
+against one. So the only discipline is the ordering in step 8: move the ref,
+then deploy. Everything else follows.
+
+**The reviewer is served by `--beta`, not by an early `/app`.** The instinct is
+to put the submitted build on `/app` so a reviewer sees what is being released,
+and it is the wrong lever twice over. `--beta` is cut from the newest
+`build/<n>` tag, which at submission *is* the build just uploaded — so step 4
+already puts that exact code in a browser. And `/open` sends anybody arriving
+without history to whichever trains are actually deployed, so a reviewer
+following the listing lands on it without knowing the word beta exists. Putting
+the same bundle at `/app` with `--ref` would ship it twice and take the loud
+bootstrapping escape hatch to do it.
+
+**So `/app` is only ever deployed on the day of a release**, and a rejection
+costs nothing: the ref never moved, so there is no stale bundle to notice.
+Deploying it at submit inverts that — `/app` would then be serving a build that
+may never ship, and the failure is silent, the web app going on working from
+the wrong source.
+
+**It is a third variant of `deploy`, not a sixth verb.** Reaches everybody in a
+minute, reversible, needs nobody's permission — the same row of the table. It
+restarts nothing, so unlike `bin/deploy` it cannot interrupt a conversation.
+
+One consequence to know rather than fix: `/open` prefers whichever train
+somebody last used, so a browser that met `/beta` stays on it after `/app`
+exists. That is deliberate — evidence about which bundle a person uses beats a
+preference order — and beta is ahead rather than behind, so it costs nothing.
 
 ### What the second build costs that the first did not
 
