@@ -101,6 +101,12 @@ const mockApp = {
     })
   ),
   saveProfile: jest.fn(async () => {}),
+  requestEmailChange: jest.fn(async () => {}),
+  confirmEmailChange: jest.fn(async (identifier: string) => ({
+    account: { id: ME, displayName: 'Me' },
+    invited: 2,
+    email: identifier,
+  })),
   // Nobody has the standings by default, matching the column that grants them.
   leaderboard: false,
   loadLeaderboard: jest.fn(async () => [
@@ -5877,6 +5883,93 @@ describe('editing your own profile', () => {
     await edit(tree);
     expect(textOf(tree)).not.toContain('Invited 2');
     expect(textOf(tree)).not.toContain('Invited by Dana Chu');
+    act(() => tree.unmount());
+  });
+
+  it('changes the address only once a code comes back', async () => {
+    // Every other field here writes on blur. This one cannot: the whole
+    // question is whether the person typing reads the mail there, and the
+    // code is the only thing that answers it.
+    const tree = await edit(await openMine());
+    const field = (placeholder: string) =>
+      tree.root.findAll((n) => n.props?.placeholder === placeholder)[0];
+
+    act(() => field('A different address').props.onChangeText('new@example.com'));
+    // Nothing has been asked for yet, so there is nowhere to type a code.
+    expect(field('Six digits')).toBeUndefined();
+
+    await act(async () => findButton(tree, 'Send a code')!.props.onPress());
+    expect(mockApp.requestEmailChange).toHaveBeenCalledWith('new@example.com');
+    expect(mockApp.confirmEmailChange).not.toHaveBeenCalled();
+
+    act(() => field('Six digits').props.onChangeText('123456'));
+    await act(async () =>
+      findButton(tree, 'Change my address')!.props.onPress()
+    );
+    expect(mockApp.confirmEmailChange).toHaveBeenCalledWith(
+      'new@example.com',
+      '123456'
+    );
+    // What the card says above is now the address the server answered with,
+    // and the form is back at its first step.
+    expect(textOf(tree)).toContain('new@example.com');
+    expect(field('Six digits')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('drops a code that belonged to a different address', async () => {
+    // The code proves one mailbox. Typing another address is the start of a
+    // different change, and carrying the first step over would let a code sent
+    // to one address be spent against another.
+    const tree = await edit(await openMine());
+    const field = (placeholder: string) =>
+      tree.root.findAll((n) => n.props?.placeholder === placeholder)[0];
+
+    act(() => field('A different address').props.onChangeText('new@example.com'));
+    await act(async () => findButton(tree, 'Send a code')!.props.onPress());
+    expect(field('Six digits')).toBeDefined();
+
+    act(() =>
+      field('A different address').props.onChangeText('other@example.com')
+    );
+    expect(field('Six digits')).toBeUndefined();
+    expect(findButton(tree, 'Send a code')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('says what the server said, and keeps the address it has', async () => {
+    // A taken address is the one refusal somebody can act on, and it arrives
+    // only after they have proved the mailbox is theirs to read.
+    mockApp.confirmEmailChange.mockRejectedValueOnce(
+      new Error('That address already signs in to another account.')
+    );
+    const tree = await edit(await openMine());
+    const field = (placeholder: string) =>
+      tree.root.findAll((n) => n.props?.placeholder === placeholder)[0];
+
+    act(() => field('A different address').props.onChangeText('bob@example.com'));
+    await act(async () => findButton(tree, 'Send a code')!.props.onPress());
+    act(() => field('Six digits').props.onChangeText('123456'));
+    await act(async () =>
+      findButton(tree, 'Change my address')!.props.onPress()
+    );
+
+    expect(textOf(tree)).toContain('already signs in to another account');
+    expect(textOf(tree)).toContain('me@example.com');
+    // The code was spent by the attempt whatever came of it, so the field is
+    // cleared rather than left holding something that can no longer work.
+    expect(field('Six digits').props.value).toBe('');
+    act(() => tree.unmount());
+  });
+
+  it('offers no way to change an address in read mode', async () => {
+    // Read mode is where the address is a fact to copy. A form for replacing
+    // it does not belong under a line somebody opened the screen to read.
+    const tree = await openMine();
+    expect(
+      tree.root.findAll((n) => n.props?.placeholder === 'A different address')
+    ).toHaveLength(0);
+    expect(findButton(tree, 'Send a code')).toBeUndefined();
     act(() => tree.unmount());
   });
 

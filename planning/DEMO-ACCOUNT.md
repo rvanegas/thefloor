@@ -37,7 +37,16 @@ it true.
 
 Accepted contacts cannot be undone: the only mutators are request, withdraw,
 accept and decline, and none of them removes an accepted pair. So the link and
-the channel survive anything a reviewer does *except* deleting the account.
+the channel survive anything a reviewer does *except* deleting the account —
+**and, since 2026-08-31, changing its address.** The profile screen can move an
+account to a different sign-in address once a code sent there comes back, and
+nothing exempts this one. A reviewer who did that would leave the submission
+notes naming a mailbox that no longer signs in, and the failure would look like
+a broken demo account rather than a changed one. Unlikely, since it needs a
+mailbox they control and there is no reason to try it — but if sign-in with
+`REVIEW_IDENTIFIER` ever fails while the row is plainly still there, this is
+the first thing to check: `select identifier from accounts where id = '…'`.
+decisions/DECISIONS.md § *Changing your address is a sign-in, not a save*.
 
 **Both addresses are named in `server/.env`, and the second one only so that
 neither counts as a user.** `REVIEW_IDENTIFIER` gets the fixed code;

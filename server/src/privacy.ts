@@ -159,7 +159,10 @@ application collects little.</p>
   you a contact request. It is shown to nobody unless you choose to show it,
   which you can do only for a contact, one person at a time, from their profile.
   You can stop showing it at any time; that removes it from their screen, and it
-  cannot recover a copy they have already written down.</li>
+  cannot recover a copy they have already written down. You can change it from
+  your own profile: a code is sent to the new address, and nothing changes
+  until that code comes back, so the address this account signs in with is
+  always one somebody has proved they can read.</li>
   <li><strong>Your display name.</strong> It is shown to people you share a
   channel or a contact relationship with.</li>
   <li><strong>A WhatsApp, Telegram or Signal handle, if you put one on your

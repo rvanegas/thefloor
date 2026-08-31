@@ -208,7 +208,26 @@ export function ProfileView({
   const [removing, setRemoving] = useState(false);
   /** While the decision about your own address is in flight. */
   const [showingEmail, setShowingEmail] = useState(false);
+  /**
+   * Shared by the two email cards, which are never both drawn: `isSelf` picks
+   * one, and one of them shows an address to a contact while the other changes
+   * your own.
+   */
   const [emailError, setEmailError] = useState<string | null>(null);
+  /**
+   * Changing the address you sign in with, which is a sign-in and not a save.
+   *
+   * Four pieces of state rather than one, because the two steps are two
+   * different things to have got wrong: `draftEmail` is a proposal, `emailSent`
+   * says a code went to it, `emailCode` is what came back, and `changingEmail`
+   * is either request being in flight. The proposal is held separately from
+   * `profile.email` throughout — what the card shows above is the address that
+   * is *true*, and it does not move until the server says it has.
+   */
+  const [draftEmail, setDraftEmail] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailCode, setEmailCode] = useState('');
+  const [changingEmail, setChangingEmail] = useState(false);
   /**
    * Whether the last copy landed, and nothing else. The same three states and
    * the same 2.5s fade the channel's clipboard card uses, that being the
@@ -430,6 +449,65 @@ export function ProfileView({
   };
 
   /**
+   * Sends a code to the address somebody would like to sign in with instead.
+   *
+   * The answer is the same whether or not one went out — a throttle suppresses
+   * a second within the minute, and whether the address is already somebody's
+   * is not settled here. So this only ever moves to the second step, and the
+   * failures it can report are a malformed address and a mailer that is down.
+   */
+  const sendEmailCode = async () => {
+    const wanted = draftEmail.trim();
+    if (wanted === '' || changingEmail) return;
+    setChangingEmail(true);
+    setEmailError(null);
+    try {
+      await app.requestEmailChange(wanted);
+      setEmailSent(true);
+    } catch (e) {
+      setEmailError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChangingEmail(false);
+    }
+  };
+
+  /**
+   * Spends the code and takes the address, or says which of the two ways it
+   * failed.
+   *
+   * The profile comes back from the server rather than being patched together
+   * here, unlike every other write on this screen: this one can change what
+   * the address *is* while also failing, and rebuilding that locally would be
+   * the client deciding an answer only the server has.
+   *
+   * A success clears the form back to its first step, so the card is left
+   * saying the new address as a fact with an empty proposal under it — which
+   * is the state somebody who has just changed their address should be in.
+   */
+  const confirmEmail = async () => {
+    const wanted = draftEmail.trim();
+    const code = emailCode.trim();
+    if (wanted === '' || code === '' || changingEmail) return;
+    setChangingEmail(true);
+    setEmailError(null);
+    try {
+      const moved = await app.confirmEmailChange(wanted, code);
+      setProfile(moved);
+      setDraftEmail('');
+      setEmailCode('');
+      setEmailSent(false);
+    } catch (e) {
+      setEmailError(e instanceof Error ? e.message : String(e));
+      // The code is spent whether or not what followed worked, so the field
+      // is cleared and the step it belongs to stays open: whatever went
+      // wrong, the next attempt needs a new code.
+      setEmailCode('');
+    } finally {
+      setChangingEmail(false);
+    }
+  };
+
+  /**
    * Into edit mode, with what the server holds already in the fields.
    *
    * Only ever reached with a loaded profile, the button being disabled until
@@ -445,6 +523,13 @@ export function ProfileView({
     };
     setDraftName(profile.account.displayName);
     setDraftIm(held);
+    // Not seeded from the address held above it: this field is a proposal
+    // rather than a value being edited, and starting it at the current address
+    // would offer to change it to itself.
+    setDraftEmail('');
+    setEmailCode('');
+    setEmailSent(false);
+    setEmailError(null);
     setSaveError(null);
     setEditing(true);
   };
@@ -961,36 +1046,123 @@ export function ProfileView({
         <>
           <SectionLabel>Email</SectionLabel>
           <Card style={styles.stack}>
-            {/* Selectable and copyable for the same reasons a contact's is. */}
-            <Text style={type.body} selectable numberOfLines={1}>
-              {profile?.email ?? '—'}
-            </Text>
-            {profile?.email ? (
-              <Button
-                label={
-                  copied === 'done'
-                    ? '✓ copied'
-                    : copied === 'failed'
-                      ? '✗ copy failed'
-                      : 'Copy'
-                }
-                variant="ghost"
-                style={styles.imOpen}
-                onPress={() => {
-                  void (async () => {
-                    setCopied(
-                      (await copyText(profile.email!)) ? 'done' : 'failed'
-                    );
-                  })();
-                }}
-              />
-            ) : null}
+            {/* One row, the same shape a handle and its Open take: the button
+                acts on the text beside it, and stacked they read as two
+                separate things with the second one floating. */}
+            <View style={styles.reachRow}>
+              {/* Selectable and copyable for the same reasons a contact's
+                  is, and given two lines rather than one: an address is the
+                  content of this card, where a handle has a service name above
+                  it doing half the work. Two lines hold every address anybody
+                  actually has at this width; past that it ellipsises, and the
+                  text is still selectable in full. */}
+              <Text
+                style={[type.body, styles.reachWho]}
+                selectable
+                numberOfLines={2}
+              >
+                {profile?.email ?? '—'}
+              </Text>
+              {profile?.email ? (
+                <Button
+                  label={
+                    copied === 'done'
+                      ? '✓ copied'
+                      : copied === 'failed'
+                        ? '✗ copy failed'
+                        : 'Copy'
+                  }
+                  variant="ghost"
+                  style={styles.reachAction}
+                  onPress={() => {
+                    void (async () => {
+                      setCopied(
+                        (await copyText(profile.email!)) ? 'done' : 'failed'
+                      );
+                    })();
+                  }}
+                />
+              ) : null}
+            </View>
             {/* Where the other half of this card went, said once rather than
                 drawn as a control that would have nobody to aim at. */}
             <Text style={type.muted}>
               How you sign in. Nobody else sees it unless you show it to them,
               which is done one contact at a time, from their profile.
             </Text>
+
+            {/*
+              Changing it, which is a sign-in rather than a save.
+
+              Under the address rather than in place of it: what you have is
+              the fact, and what is being typed is a proposal that is not true
+              until a code comes back. The two are never the same line, so
+              there is no moment where the card shows an address nobody has
+              proved.
+
+              Two steps, because the proof is the point. Every other field on
+              this screen writes on blur; this one cannot, since the whole
+              question is whether the person typing reads the mail there. The
+              code is the same code and the same mail as signing in — see
+              `/me/email` — which is why the button says so plainly rather than
+              inventing a word for it.
+
+              Only while editing. Read mode is where the address is a fact to
+              copy, and a form for replacing it does not belong under a line
+              somebody opened the screen to read.
+            */}
+            {editing ? (
+              <>
+                <View style={styles.rule} />
+                <Field
+                  value={draftEmail}
+                  onChangeText={(v) => {
+                    setDraftEmail(v);
+                    // The code belongs to the address it was sent to. Typing
+                    // another one is the start of a different change.
+                    setEmailSent(false);
+                    setEmailCode('');
+                    setEmailError(null);
+                  }}
+                  placeholder="A different address"
+                  keyboardType="email-address"
+                  onSubmit={() => void sendEmailCode()}
+                  submitLabel="send"
+                />
+                {emailSent ? (
+                  <>
+                    <Text style={type.muted}>
+                      {`A code is on its way to ${draftEmail.trim()}. It signs you in there, which is what makes it yours.`}
+                    </Text>
+                    {/* No `onSubmit`: a number pad has no return key, which
+                        `Field` knows and ignores it for — the button below is
+                        the way, and is why it is a button rather than a hint
+                        to press enter. */}
+                    <Field
+                      value={emailCode}
+                      onChangeText={setEmailCode}
+                      placeholder="Six digits"
+                      keyboardType="number-pad"
+                    />
+                    <Button
+                      label={changingEmail ? 'Changing…' : 'Change my address'}
+                      disabled={changingEmail || emailCode.trim() === ''}
+                      onPress={() => void confirmEmail()}
+                    />
+                  </>
+                ) : (
+                  <Button
+                    label={changingEmail ? 'Sending…' : 'Send a code'}
+                    variant="ghost"
+                    disabled={changingEmail || draftEmail.trim() === ''}
+                    onPress={() => void sendEmailCode()}
+                  />
+                )}
+                {emailError ? (
+                  <Text style={styles.error}>{emailError}</Text>
+                ) : null}
+              </>
+            ) : null}
           </Card>
         </>
       ) : contact?.status !== 'accepted' ? null : (
@@ -998,11 +1170,15 @@ export function ProfileView({
           <SectionLabel>Email</SectionLabel>
           <Card style={styles.stack}>
             {profile?.email ? (
-              <>
+              <View style={styles.reachRow}>
                 {/* Selectable, because an address on a screen is something
                     people reach for by hand when a button is not enough — and
                     the button is the fallback rather than the only way. */}
-                <Text style={type.body} selectable numberOfLines={1}>
+                <Text
+                  style={[type.body, styles.reachWho]}
+                  selectable
+                  numberOfLines={2}
+                >
                   {profile.email}
                 </Text>
                 <Button
@@ -1014,7 +1190,7 @@ export function ProfileView({
                         : 'Copy'
                   }
                   variant="ghost"
-                  style={styles.imOpen}
+                  style={styles.reachAction}
                   onPress={() => {
                     void (async () => {
                       setCopied(
@@ -1023,7 +1199,7 @@ export function ProfileView({
                     })();
                   }}
                 />
-              </>
+              </View>
             ) : (
               // Said rather than left blank, so the empty half of the card is
               // an answer instead of a gap somebody reads as a bug. It is also
@@ -1096,8 +1272,8 @@ export function ProfileView({
               (service) => {
                 const handle = profile.im![service]!;
                 return (
-                  <View key={service} style={styles.imRow}>
-                    <View style={styles.imWho}>
+                  <View key={service} style={styles.reachRow}>
+                    <View style={styles.reachWho}>
                       <Text style={type.label}>
                         {IM_SERVICE_NAMES[service]}
                       </Text>
@@ -1121,7 +1297,7 @@ export function ProfileView({
                     <Button
                       label="Open"
                       variant="ghost"
-                      style={styles.imOpen}
+                      style={styles.reachAction}
                       onPress={() => void openIm(service, handle)}
                     />
                   </View>
@@ -1336,21 +1512,29 @@ const styles = StyleSheet.create({
    * so that one alone sits exactly where three do.
    */
   facts: { gap: 2, marginBottom: spacing(1) },
-  /** A handle and the button that opens it, on one line. */
-  imRow: {
+  /**
+   * A way of reaching somebody and the button that uses it, on one line.
+   *
+   * Shared by Email and Messaging rather than named for either. Both cards
+   * hold the same thing — something you might act on, and one tap that acts on
+   * it — and Copy was stacked under its address until 2026-08-31, where a
+   * centred button under a left-aligned line read as a second, unrelated
+   * control rather than as what to do with the line above it.
+   */
+  reachRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing(1),
   },
-  /** The name and the handle, taking whatever the button leaves. */
-  imWho: { flex: 1, gap: 2 },
+  /** The address, or the service and its handle: whatever the button leaves. */
+  reachWho: { flex: 1, gap: 2 },
   /**
    * ChannelView's `cardPing`, and deliberately the same numbers: every button
    * on this screen that sits at the end of a row of text rather than in a card
    * of its own — Messaging's Open, and Email's Copy in both halves.
    */
-  imOpen: {
+  reachAction: {
     paddingVertical: spacing(0.5),
     paddingHorizontal: spacing(1),
     minHeight: 0,

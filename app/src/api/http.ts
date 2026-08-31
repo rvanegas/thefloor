@@ -229,6 +229,28 @@ export const api = {
   ) => request<ProfileView>('/me', { method: 'POST', body: changes, token }),
 
   /**
+   * Asks for a code at an address you would like to sign in with instead.
+   *
+   * `requestCode` with a session behind it, and the same answer either way —
+   * whether the address is already somebody's is not settled here. See the
+   * route.
+   */
+  requestEmailChange: (token: string, identifier: string) =>
+    request<{ sent: true }>('/me/email', {
+      method: 'POST',
+      body: { identifier },
+      token,
+    }),
+
+  /** Spends the code and moves the account, answering with the new profile. */
+  confirmEmailChange: (token: string, identifier: string, code: string) =>
+    request<ProfileView>('/me/email/confirm', {
+      method: 'POST',
+      body: { identifier, code },
+      token,
+    }),
+
+  /**
    * The invitation standings.
    *
    * Refused as a 404 to anybody whose account has not been granted them, which

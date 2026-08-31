@@ -320,6 +320,13 @@ interface AppValue extends AppState {
     displayName?: string;
     im?: ImHandles;
   }) => Promise<void>;
+  /** Sends a code to an address you would like to sign in with instead. */
+  requestEmailChange: (identifier: string) => Promise<void>;
+  /** Spends it and moves the account, resolving to the profile that results. */
+  confirmEmailChange: (
+    identifier: string,
+    code: string
+  ) => Promise<ProfileView>;
   startChannel: (contactIds: string[]) => Promise<string>;
   watchChannel: (channelId: string) => void;
   leaveChannelView: (channelId: string) => void;
@@ -1152,6 +1159,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // `me` is what every screen compares against to decide what is yours,
         // so a rename has to land here rather than waiting for a reconnect.
         setState((s) => ({ ...s, me: profile.account }));
+      },
+
+      requestEmailChange: async (identifier) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        await api.requestEmailChange(state.token, identifier);
+      },
+
+      /**
+       * Nothing is stored here. The address is not part of `me` — it is on the
+       * profile, which is fetched by the one screen that shows it — and the
+       * session is unaffected, tokens keying on the account rather than on
+       * where its mail goes. So this hands the new profile back to its caller
+       * and changes nothing globally.
+       */
+      confirmEmailChange: async (identifier, code) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        return api.confirmEmailChange(state.token, identifier, code);
       },
 
       startChannel: async (contactIds) => {

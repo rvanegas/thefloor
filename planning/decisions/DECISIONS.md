@@ -1886,3 +1886,67 @@ narrower is a caller passing `style`, which is why the same three paddings are
 now written out in `ChannelView.cardPing` and `ProfileView.imOpen`. Two copies
 is where it stays for now; a third caller is the point at which it should
 become a prop on `Button` rather than a fourth copy of the numbers.
+
+**And Copy moves onto the address's own row.** It was stacked under it, where a
+centred button beneath a left-aligned line reads as a second, unrelated control
+rather than as what to do with the line above it. `imRow`/`imWho`/`imOpen` are
+now `reachRow`/`reachWho`/`reachAction`, named for what both cards hold —
+something you might act on, and one tap that acts on it — rather than for
+Messaging, which was the only user when they were written.
+
+The address gets two lines where a handle gets one, since it is the whole
+content of its card and a handle has a service name above it doing half the
+work. Two lines hold every address anybody actually has at this width; past
+that it ellipsises at the tail, and the text is selectable in full either way,
+which is the fallback the card was built around before there was a button.
+
+## Changing your address is a sign-in, not a save — 2026-08-31
+
+Your sign-in address is editable, from your own profile, in two steps: a code
+goes to the address you want, and the account moves when it comes back.
+`POST /me/email` and `POST /me/email/confirm`, both authenticated.
+
+**The code is what makes it a change rather than a rename.** Every other field
+on that screen writes on blur, because the only question they raise is what you
+meant to type. This one raises a different question — whether the person typing
+reads the mail at the address they are claiming — and that is precisely what
+the address is going to mean afterwards. A session token proves who is asking;
+it cannot prove that. So `Accounts.consumeCode` was split out of `verifyCode`
+and both paths run it: signing in and moving are two uses of one proof, and a
+check written twice is a check that gets relaxed once.
+
+**The collision check is at confirmation, not at the ask, and that is the
+interesting decision.** The obvious design refuses "that address is already
+taken" when somebody asks for the code, which is friendlier and is a probe: an
+authenticated caller could walk a list of addresses and learn which have
+accounts, one guess at a time. That is the disclosure `requestContact` is
+written to avoid — it stores a pending invite against an unknown address rather
+than saying there is nobody there. So the ask answers `{sent: true}` for any
+well-formed address, exactly as `/auth/request-code` does, and the refusal
+lands at confirmation, where the only person who can reach it has just read a
+code out of the mailbox in question and may reasonably be told what is in it.
+
+**What moves and what does not.** Sessions are untouched: tokens key on the
+account, so changing the address signs nobody out, here or on another device.
+Pending invitations addressed to the new address resolve into contact rows —
+they would otherwise wait for a first sign-in that can never happen, this
+account having already had one — but **nobody is credited as an inviter**.
+Who brought somebody here was settled the day they arrived, and re-running that
+would hand the count to whoever happened to have written to their new address.
+`resolveInvitesFor` grew a `credit` flag for it rather than a second copy.
+
+Historical donations stay attached by `account_id`; future ones from the old
+address will no longer match, which is right and is the only silent loss here.
+
+Confirming the address you already have is a no-op answering 200, not an error:
+somebody who did that has ended up where they meant to be.
+
+**The one hazard is the review account.** `REVIEW_IDENTIFIER` is what App
+Review signs in as, and nothing stops that account from changing its own
+address and leaving the submission notes naming a mailbox that no longer signs
+in. It is not defended against — a special case in this path would be a second
+rule about who may do this — but it is worth knowing before a rejection is
+mysterious. See DEMO-ACCOUNT.md.
+
+Deploy before the build, as ever: the routes have to exist before a client
+calls them.

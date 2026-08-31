@@ -1444,6 +1444,98 @@ export function buildApp(options: BuildOptions = {}): App {
   // --- Profiles -----------------------------------------------------------
 
   /**
+   * Asks for a code at an address you would like to sign in with instead.
+   *
+   * `/auth/request-code` with a session behind it, and deliberately the same
+   * shape: the same format check, the same mailer, the same throttle, and the
+   * same answer whether or not a code went out.
+   *
+   * **It does not check whether the address is taken**, and the omission is
+   * the point. Answering that here would turn this into a probe an
+   * authenticated caller could run one address at a time — precisely the
+   * disclosure `requestContact` is written to avoid. The check happens at
+   * confirmation, where the only person who can reach it has just read a code
+   * out of the mailbox in question.
+   */
+  fastify.post('/me/email', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as { identifier?: string } | undefined;
+    const identifier = body?.identifier?.trim();
+    if (!identifier) {
+      return reply.code(400).send({ error: 'identifier is required' });
+    }
+    if (!isEmailAddress(identifier)) {
+      return reply.code(400).send({
+        error: 'Enter a valid email address.',
+        code: 'invalid_identifier',
+      });
+    }
+
+    if (!options.mailer) {
+      request.log.error('no mailer configured; cannot deliver a code');
+      return reply
+        .code(503)
+        .send({ error: 'Changing your address is temporarily unavailable.' });
+    }
+
+    const code = accounts.issueCode(identifier, now());
+    if (code) {
+      try {
+        await options.mailer.sendCode(identifier, code);
+      } catch (error) {
+        // Logged without the code, for the reason `/auth/request-code` gives.
+        request.log.error({ err: error, identifier }, 'failed to send code');
+        return reply.code(502).send({ error: 'Could not send the code.' });
+      }
+    }
+    return { sent: true };
+  });
+
+  /**
+   * Spends the code and moves the account, or says why it could not.
+   *
+   * Two failures and they are told apart, unlike sign-in's one. A wrong code
+   * is answered the way `/auth/verify` answers it, since the caller has proved
+   * nothing; a taken address is answered plainly, since by then they have.
+   * See `Accounts.changeIdentifier`.
+   *
+   * Answers with the profile, so the screen that asked can show the address it
+   * now has rather than the one it sent.
+   */
+  fastify.post('/me/email/confirm', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as
+      | { identifier?: string; code?: string }
+      | undefined;
+    if (!body?.identifier || !body?.code) {
+      return reply.code(400).send({ error: 'identifier and code are required' });
+    }
+
+    if (!accounts.consumeCode(body.identifier, body.code, now())) {
+      return reply.code(401).send({ error: 'Invalid or expired code.' });
+    }
+
+    const moved = accounts.changeIdentifier(
+      account.id,
+      body.identifier,
+      now()
+    );
+    if (!moved.ok) return reply.code(409).send({ error: moved.error });
+
+    // The contact rows a pending invitation to the new address has just become
+    // are on somebody else's Home, which is showing a list that no longer says
+    // everything it should.
+    homeNotifier.notify(accounts.audienceFor(account.id));
+
+    const profile = accounts.profile(account.id, account.id);
+    return { ...profile, email: moved.account.identifier };
+  });
+
+  /**
    * Your own profile, and the only way to change it.
    *
    * A partial write: a field left out is left alone, so saving a handle cannot

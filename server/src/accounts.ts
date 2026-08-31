@@ -791,16 +791,35 @@ export class Accounts {
     now: number
   ): { account: AccountRow; token: string } | null {
     const id = normalize(identifier);
+    if (!this.consumeCode(id, code, now)) return null;
+    return this.establish(id, displayName, now);
+  }
+
+  /**
+   * Checks a code against an address and spends it, without signing anybody in.
+   *
+   * Split out of `verifyCode` on 2026-08-31 for the second thing a code now
+   * proves: that the person holding it reads the mail at that address. Signing
+   * in is one use of that proof and changing your address is the other, and
+   * the two must not drift — a check written twice is a check that gets
+   * relaxed once.
+   *
+   * True exactly once per code. Spent whether or not what follows succeeds,
+   * which is what a one-time code means; the caller asks for another if it has
+   * to start again.
+   */
+  consumeCode(identifier: string, code: string, now: number): boolean {
+    const id = normalize(identifier);
     const row = this.db
       .prepare('SELECT * FROM otp_codes WHERE identifier = ?')
       .get(id) as
       | { code_hash: string; expires_at: number; attempts: number }
       | undefined;
 
-    if (!row) return null;
+    if (!row) return false;
     if (now > row.expires_at || row.attempts >= OTP_MAX_ATTEMPTS) {
       this.db.prepare('DELETE FROM otp_codes WHERE identifier = ?').run(id);
-      return null;
+      return false;
     }
 
     if (!hashesEqual(sha256(code.trim()), row.code_hash)) {
@@ -809,11 +828,11 @@ export class Accounts {
           'UPDATE otp_codes SET attempts = attempts + 1 WHERE identifier = ?'
         )
         .run(id);
-      return null;
+      return false;
     }
 
     this.db.prepare('DELETE FROM otp_codes WHERE identifier = ?').run(id);
-    return this.establish(id, displayName, now);
+    return true;
   }
 
   /**
@@ -858,6 +877,60 @@ export class Accounts {
     }
 
     return { account, token: this.issueToken(account.id, now) };
+  }
+
+  /**
+   * Moves an account to a different sign-in address.
+   *
+   * **Called only after `consumeCode` has said yes for the new address**, and
+   * the ordering is the whole security argument: the code proves the person
+   * asking reads the mail there, which is exactly what the address is going to
+   * mean afterwards. Anything less would let a stolen token move an account
+   * somewhere its owner cannot follow it.
+   *
+   * The collision check is here rather than at the moment the code was
+   * requested, and that placement is deliberate. Refusing early would answer
+   * "does an account exist at this address" for any address somebody cares to
+   * type, one guess at a time — the disclosure `requestContact` goes out of
+   * its way not to make. Refusing here answers it only to somebody who has
+   * just read a code out of that mailbox, who may have the answer.
+   *
+   * Sessions are untouched. Tokens key on the account, not the address, so
+   * changing it does not sign anybody out — of this device or of any other.
+   */
+  changeIdentifier(
+    accountId: string,
+    identifier: string,
+    now: number
+  ): { ok: true; account: AccountRow } | { ok: false; error: string } {
+    const id = normalize(identifier);
+    const account = this.byId(accountId);
+    if (!account) return { ok: false, error: 'No such account.' };
+
+    // Already yours, which is a no-op rather than a failure: somebody who
+    // confirmed the address they already had has ended up where they meant to
+    // be, and an error would be the screen arguing with them about it.
+    if (sameIdentifier(account.identifier, id)) return { ok: true, account };
+
+    const taken = this.byIdentifier(id);
+    if (taken) {
+      return {
+        ok: false,
+        error: 'That address already signs in to another account.',
+      };
+    }
+
+    this.db
+      .prepare('UPDATE accounts SET identifier = ? WHERE id = ?')
+      .run(id, accountId);
+    const moved = this.byId(accountId)!;
+
+    // Anybody who wrote to the new address before it belonged to anyone gets
+    // their contact request now — the rows would otherwise wait for a first
+    // sign-in that can never happen, this account having already had one.
+    // Without the credit and dated now: see `resolveInvitesFor`.
+    this.resolveInvitesFor(moved, { credit: false, at: now });
+    return { ok: true, account: moved };
   }
 
   // --- Tokens -------------------------------------------------------------
@@ -1014,7 +1087,27 @@ export class Accounts {
    * Someone who signs up therefore finds whoever invited them already waiting,
    * which is the point of storing the request in the first place.
    */
-  private resolveInvitesFor(account: AccountRow): void {
+  private resolveInvitesFor(
+    account: AccountRow,
+    /**
+     * Whether this arrival is one somebody gets the credit for, and what to
+     * date the contact rows.
+     *
+     * A signup is both: the invitation is why this person is here, and the
+     * account's own `created_at` is the honest date for a row that existed in
+     * all but name before the account did. **An address change is neither.**
+     * Who brought somebody here was settled the day they arrived and does not
+     * move because they changed mailbox — crediting it again would hand the
+     * count to whoever happened to have written to their new address, and
+     * `invited_by` is written once by every other path for exactly that
+     * reason. The rows are dated now, because that is when the pair became
+     * reachable to each other.
+     */
+    options: { credit: boolean; at: number } = {
+      credit: true,
+      at: account.created_at,
+    }
+  ): void {
     const invites = this.db
       .prepare(
         `SELECT requester_id FROM pending_invites WHERE identifier = ? COLLATE NOCASE
@@ -1030,7 +1123,7 @@ export class Accounts {
           `INSERT OR IGNORE INTO contacts (a_id, b_id, state, requester_id, created_at)
            VALUES (?, ?, 'pending', ?, ?)`
         )
-        .run(a, b, requester_id, account.created_at);
+        .run(a, b, requester_id, options.at);
     }
 
     // **The earliest invitation gets the credit, and only that one.** Several
@@ -1046,7 +1139,7 @@ export class Accounts {
     // invitation that expired first was swept before this ran, which is what
     // makes an unattributed signup indistinguishable from an uninvited one.
     const first = invites.find(({ requester_id }) => requester_id !== account.id);
-    if (first) {
+    if (first && options.credit) {
       this.db
         .prepare('UPDATE accounts SET invited_by = ? WHERE id = ?')
         .run(first.requester_id, account.id);

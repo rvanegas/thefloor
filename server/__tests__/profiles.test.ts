@@ -8,15 +8,15 @@ import { MemoryMailer } from '../src/mail';
  */
 
 let app: App;
+let mailer: MemoryMailer;
 let clock = 1_700_000_000_000;
 
 beforeEach(() => {
   clock = 1_700_000_000_000;
-  app = buildApp({
-    dbPath: ':memory:',
-    mailer: new MemoryMailer(),
-    now: () => clock,
-  });
+  // Held rather than constructed inline, since changing your address is the
+  // one thing on this screen whose proof arrives by mail.
+  mailer = new MemoryMailer();
+  app = buildApp({ dbPath: ':memory:', mailer, now: () => clock });
 });
 
 afterEach(async () => {
@@ -144,6 +144,197 @@ describe('writing your own profile', () => {
       payload: { displayName: 'hello' },
     });
     expect(response.statusCode).toBe(401);
+  });
+});
+
+describe('changing the address you sign in with', () => {
+  const ask = (user: User, identifier: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: '/me/email',
+      headers: auth(user.token),
+      payload: { identifier },
+    });
+
+  const confirm = (user: User, identifier: string, code: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: '/me/email/confirm',
+      headers: auth(user.token),
+      payload: { identifier, code },
+    });
+
+  it('moves the account once the code comes back', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    expect((await ask(alice, 'alice@new.example.com')).statusCode).toBe(200);
+
+    const code = mailer.lastCodeFor('alice@new.example.com')!;
+    expect(code).toBeDefined();
+    const moved = await confirm(alice, 'alice@new.example.com', code);
+    expect(moved.statusCode).toBe(200);
+    expect((moved.json() as { email: string }).email).toBe(
+      'alice@new.example.com'
+    );
+
+    // And the row moved with it, which is what a sign-in will read next time.
+    expect(app.accounts.byIdentifier('alice@new.example.com')?.id).toBe(
+      alice.account.id
+    );
+    expect(app.accounts.byIdentifier('alice@example.com')).toBeUndefined();
+  });
+
+  it('refuses without the code, whatever the session says', async () => {
+    // The token proves who is asking. The code proves they read the mail at
+    // the address they are asking for, which is the whole of what an address
+    // is going to mean once it is theirs.
+    const alice = await signIn('alice@example.com', 'Alice');
+    await ask(alice, 'alice@new.example.com');
+    expect((await confirm(alice, 'alice@new.example.com', '000000')).statusCode)
+      .toBe(401);
+    expect(app.accounts.byId(alice.account.id)?.identifier).toBe(
+      'alice@example.com'
+    );
+  });
+
+  it('does not say whether an address is taken until the code is in', async () => {
+    // Answering at the asking step would make this a probe an authenticated
+    // caller could run one address at a time — the disclosure a contact
+    // request goes out of its way not to make. Answering at confirmation
+    // tells it only to somebody who has just read a code out of that mailbox.
+    const alice = await signIn('alice@example.com', 'Alice');
+    await signIn('bob@example.com', 'Bob');
+
+    const asked = await ask(alice, 'bob@example.com');
+    expect(asked.statusCode).toBe(200);
+    expect(asked.json()).toEqual({ sent: true });
+
+    const code = mailer.lastCodeFor('bob@example.com')!;
+    const refused = await confirm(alice, 'bob@example.com', code);
+    expect(refused.statusCode).toBe(409);
+    expect(app.accounts.byId(alice.account.id)?.identifier).toBe(
+      'alice@example.com'
+    );
+  });
+
+  it('spends the code, so a refusal cannot be retried with it', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await signIn('bob@example.com', 'Bob');
+    await ask(alice, 'bob@example.com');
+    const code = mailer.lastCodeFor('bob@example.com')!;
+
+    expect((await confirm(alice, 'bob@example.com', code)).statusCode).toBe(409);
+    expect((await confirm(alice, 'bob@example.com', code)).statusCode).toBe(401);
+  });
+
+  it('refuses an address that is not one', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const response = await ask(alice, 'not an address');
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { code: string }).code).toBe(
+      'invalid_identifier'
+    );
+  });
+
+  it('takes the address you already have as a no-op', async () => {
+    // Somebody who confirmed the address they had has ended up where they
+    // meant to be; an error would be the screen arguing with them about it.
+    const alice = await signIn('alice@example.com', 'Alice');
+    await ask(alice, 'alice@example.com');
+    const code = mailer.lastCodeFor('alice@example.com')!;
+    const same = await confirm(alice, 'alice@example.com', code);
+    expect(same.statusCode).toBe(200);
+    expect((same.json() as { email: string }).email).toBe('alice@example.com');
+  });
+
+  it('leaves every session signed in', async () => {
+    // Tokens key on the account, not on where its mail goes.
+    const alice = await signIn('alice@example.com', 'Alice');
+    await ask(alice, 'alice@new.example.com');
+    await confirm(
+      alice,
+      'alice@new.example.com',
+      mailer.lastCodeFor('alice@new.example.com')!
+    );
+    const still = await app.fastify.inject({
+      method: 'GET',
+      url: `/profiles/${alice.account.id}`,
+      headers: auth(alice.token),
+    });
+    expect(still.statusCode).toBe(200);
+  });
+
+  it('picks up a contact request that was waiting at the new address', async () => {
+    // The rows would otherwise wait for a first sign-in that can never
+    // happen, this account having already had one.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(bob.token),
+      payload: { identifier: 'alice@new.example.com' },
+    });
+
+    await ask(alice, 'alice@new.example.com');
+    await confirm(
+      alice,
+      'alice@new.example.com',
+      mailer.lastCodeFor('alice@new.example.com')!
+    );
+
+    const home = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(alice.token),
+    });
+    const contacts = (home.json() as {
+      contacts: Array<{ account: { id: string }; status: string }>;
+    }).contacts;
+    expect(contacts.map((c) => c.account.id)).toContain(bob.account.id);
+  });
+
+  it('credits nobody for a change, the arrival having been settled', async () => {
+    // `invited_by` is written once by every other path. Crediting it again
+    // would hand the count to whoever happened to have written to somebody's
+    // new address.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(bob.token),
+      payload: { identifier: 'alice@new.example.com' },
+    });
+
+    await ask(alice, 'alice@new.example.com');
+    await confirm(
+      alice,
+      'alice@new.example.com',
+      mailer.lastCodeFor('alice@new.example.com')!
+    );
+
+    expect(app.accounts.byId(alice.account.id)?.invited_by).toBeNull();
+  });
+
+  it('refuses an unauthenticated caller at both steps', async () => {
+    expect(
+      (
+        await app.fastify.inject({
+          method: 'POST',
+          url: '/me/email',
+          payload: { identifier: 'someone@example.com' },
+        })
+      ).statusCode
+    ).toBe(401);
+    expect(
+      (
+        await app.fastify.inject({
+          method: 'POST',
+          url: '/me/email/confirm',
+          payload: { identifier: 'someone@example.com', code: '123456' },
+        })
+      ).statusCode
+    ).toBe(401);
   });
 });
 
