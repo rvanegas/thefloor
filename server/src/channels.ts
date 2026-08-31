@@ -920,7 +920,17 @@ export class ChannelRegistry {
   dispatch(
     channelId: string,
     userId: string,
-    action: Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] }
+    action: Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] },
+    /**
+     * Whether this action may wake anybody's phone.
+     *
+     * True everywhere but one place. `acceptGuestAsk` passes false because the
+     * person being invited is standing in the room, holding the page that sent
+     * the acceptance, and is about to be shown the channel — a push telling
+     * them they have been invited somewhere they are already walking into is
+     * the app inventing an event.
+     */
+    options: { announce?: boolean } = {}
   ): { ok: true; channel: ChannelState } | Refused {
     const channel = this.channels.get(channelId);
     if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
@@ -988,7 +998,7 @@ export class ChannelRegistry {
       // closed. It matters more here than it used to — an unnamed channel's
       // invitation is now the only way anyone else joins a conversation in
       // progress, and it is answered rather than merely noticed.
-      if (invited.ok) {
+      if (invited.ok && options.announce !== false) {
         this.push.notify(
           [contactId],
           notifications.invited(
@@ -3804,7 +3814,7 @@ export class ChannelRegistry {
       contactId: accountId,
     } as unknown as Omit<ChannelAction, 'userId'> & {
       type: ChannelAction['type'];
-    });
+    }, { announce: false });
 
     // The seat is finished either way: they are a member now, or they are not
     // getting in through this door on this visit. Their page is leaving, and

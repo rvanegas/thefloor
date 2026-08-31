@@ -76,15 +76,27 @@ here, and it is the same shape of record, so it is the same shape of field.
 6. **The server** writes the `contacts` row the asker's request always meant,
    accepts it, calls `ensurePairChannel` as every accept path does, and
    dispatches `INVITE` on the asker's behalf — which re-checks `areContacts`
-   and `canInvite` for free rather than restating them.
-7. **The page steps the seat out and navigates the tab to `/app/c/<id>`.** One
+   and `canInvite` for free rather than restating them. **Silently**, which is
+   the one place `INVITE` does not wake a phone: the person being invited is
+   holding the page that sent the acceptance and is about to be shown the room,
+   and telling them by push that they have been invited somewhere they are
+   already walking into is the app inventing an event.
+7. **The page navigates the tab to the address the server hands back.** One
    hop, at the end, with the decision already made and the membership already
    real. He arrives as himself, and `tapToStepIn` puts him back in the room on
    the rule that governs opening any channel.
+
+   **Which train that is, is the server's answer.** The page pointed at `/app`
+   unconditionally for one afternoon, and the first person to try it was on a
+   box serving `/beta` — so a phone browser was handed the 503's JSON body and
+   offered to save it as a file, at the moment of tapping Accept. Stable first
+   and beta second, asked per request; null when there is no web app at all,
+   which the page says rather than navigates into. No `STEP_OUT` either: the
+   server has already taken the seat out of the room by the time this answers.
 8. **If the channel has ended, or the asker has left the room**, the invitation
    half is refused by guards that already exist and the acceptance stands as a
    plain contact. Said on the page rather than swallowed, and the tab goes to
-   `/app` instead.
+   the app's home rather than to a channel he is not in.
 
 ## What this costs, and what it does not
 

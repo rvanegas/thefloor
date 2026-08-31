@@ -657,7 +657,7 @@ async function acceptAsk(askerId: string): Promise<void> {
     signInTrouble('This page has lost its seat. Reload and try again.');
     return;
   }
-  let answer: { channelId?: string | null; error?: string };
+  let answer: { channelId?: string | null; url?: string | null; error?: string };
   try {
     const response = await fetch('/contacts/guest-ask/accept', {
       method: 'POST',
@@ -671,7 +671,11 @@ async function acceptAsk(askerId: string): Promise<void> {
         askerId,
       }),
     });
-    answer = (await response.json()) as { channelId?: string | null; error?: string };
+    answer = (await response.json()) as {
+      channelId?: string | null;
+      url?: string | null;
+      error?: string;
+    };
     if (!response.ok) {
       signInTrouble(answer.error ?? 'That would not go through.');
       return;
@@ -683,9 +687,23 @@ async function acceptAsk(askerId: string): Promise<void> {
 
   keepSeat(null);
   void room?.disconnect();
-  // The channel when they got in, Home when the room emptied or the person who
-  // asked stepped out while this was happening — the contact stands either way.
-  location.assign(answer.channelId ? `/app/c/${answer.channelId}` : '/app');
+
+  // **Where the app is, is the server's answer and not this page's guess.**
+  // The two trains ship separately and a box quite normally serves one and
+  // 503s the other — so a hardcoded `/app` handed somebody a JSON error body,
+  // which a phone browser offers to save as a file. Whoever tapped Accept had
+  // become a contact and a member and was shown a download.
+  //
+  // Null when there is no web app on this box at all. Said rather than
+  // navigated into: the seat is closed by now, so there is no room to stay in
+  // and nothing to do but tell them what happened and where they already are.
+  if (answer.url) {
+    location.assign(answer.url);
+    return;
+  }
+  $('refused-reason').textContent =
+    'You are contacts now, and a member of this channel. Open The Floor on your phone to join it.';
+  show('refused');
 }
 
 // --- Wiring ----------------------------------------------------------------

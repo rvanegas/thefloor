@@ -1,3 +1,5 @@
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import WebSocket from 'ws';
 import { DISCONNECT_GRACE_MS } from '../../core/constants';
 import type {
@@ -9,6 +11,7 @@ import type {
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
+import { MemoryPusher } from '../src/push';
 
 /**
  * A stranger with a link, from the door to the microphone and out again.
@@ -26,12 +29,14 @@ import { MemoryMediaServer } from '../src/media';
 
 let app: App;
 let media: MemoryMediaServer;
+let pusher: MemoryPusher;
 let baseUrl: string;
 let clock = 1_700_000_000_000;
 
 beforeEach(async () => {
   clock = 1_700_000_000_000;
   media = new MemoryMediaServer();
+  pusher = new MemoryPusher();
   app = buildApp({
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
@@ -39,6 +44,7 @@ beforeEach(async () => {
     mediaUrl: 'wss://example.livekit.cloud',
     now: () => clock,
     roomCloseGraceMs: 0,
+    pusher,
   });
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const address = app.fastify.server.address();
@@ -638,7 +644,11 @@ describe('being asked to be a contact', () => {
       askerId: alice.account.id,
     });
     expect(answer.statusCode).toBe(200);
-    expect(answer.json()).toEqual({ ok: true, channelId });
+    // `url` is null because a checkout has no web app built — see the test
+    // below, which builds one. Null is a real answer rather than a gap: a box
+    // serving only one train is ordinary, and the page says so rather than
+    // navigating into a 503.
+    expect(answer.json()).toEqual({ ok: true, channelId, url: null });
 
     // Contacts, both ways, and the pair's own standing channel with them.
     expect(app.accounts.areContacts(alice.account.id, dana.account.id)).toBe(true);
@@ -672,6 +682,58 @@ describe('being asked to be a contact', () => {
     const view = await guest.next('guest', (m) => m.view.asks.length === 0);
     expect(view.view.asks).toEqual([]);
     expect(app.channels.get(channelId)!.participants).not.toContain('dana');
+    guest.close();
+    member.close();
+  });
+
+  it('hands the tab an address the server has, rather than one the page guessed', async () => {
+    // What this prevents: the page pointed at `/app` unconditionally, and a box
+    // serving only `/beta` answered that with a 503 — whose JSON body a phone
+    // browser offered to save as a file, to somebody who had just tapped
+    // Accept. Which train exists is a fact about the box, so the box says.
+    const beta = join(__dirname, '..', 'web', 'beta');
+    await mkdir(beta, { recursive: true });
+    await writeFile(join(beta, 'index.html'), '<!doctype html>');
+    try {
+      const { alice, admission, channelId, guest, member } = await asked();
+      const dana = await signIn('dana@example.com', 'Dana');
+      const answer = await accept(dana.token, {
+        guestId: admission.guestId,
+        secret: admission.secret,
+        askerId: alice.account.id,
+      });
+      // Stable first, beta when stable is not there — and stable is expected
+      // to lag, being cut from `released`.
+      expect(answer.json()).toMatchObject({ url: `/beta/c/${channelId}` });
+      guest.close();
+      member.close();
+    } finally {
+      await rm(beta, { recursive: true, force: true });
+    }
+  });
+
+  it('does not ring the phone of somebody walking through the door', async () => {
+    // `INVITE` wakes the invitee, which is right for every other way of being
+    // asked into a channel and wrong for this one: they are holding the page
+    // that sent the acceptance and are about to be shown the room. A push
+    // saying they were invited somewhere they are already walking into is the
+    // app inventing an event.
+    const { alice, admission, guest, member } = await asked();
+    const dana = await signIn('dana@example.com', 'Dana');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/devices',
+      headers: auth(dana.token),
+      payload: { token: 'dana-phone', platform: 'ios' },
+    });
+
+    await accept(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(pusher.messagesFor('dana-phone')).toEqual([]);
     guest.close();
     member.close();
   });

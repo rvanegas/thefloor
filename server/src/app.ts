@@ -968,7 +968,21 @@ export function buildApp(options: BuildOptions = {}): App {
     // possibly somebody new in a channel they are sitting in, and the other has
     // a Home with a contact and a channel on it that were not there before.
     homeNotifier.notify([account.id, body.askerId]);
-    return { ok: true, channelId: result.channelId };
+    // Where to send the tab, decided here rather than on the page: which trains
+    // exist is a fact about this box, and the page guessing at it is how
+    // somebody ended up being offered a 503 as a download. Null when there is
+    // no web app at all, which the page says out loud rather than navigating
+    // into nothing.
+    const base = await appBase();
+    return {
+      ok: true,
+      channelId: result.channelId,
+      url: base
+        ? result.channelId
+          ? `${base}/c/${encodeURIComponent(result.channelId)}`
+          : base
+        : null,
+    };
   });
 
   /**
@@ -1177,6 +1191,39 @@ export function buildApp(options: BuildOptions = {}): App {
         .send({ error: 'The guest page has not been built on this server.' });
     }
   });
+
+  /**
+   * Where the web app is on this box, or null when it is nowhere.
+   *
+   * **Stable first, then beta, and null is a real answer.** The two trains ship
+   * separately and stable is expected to lag — it is cut from `released`, so it
+   * cannot exist until a release contains the web app — which means a box can
+   * quite normally be serving `/beta` and answering `/app` with a 503. That is
+   * exactly what it was doing on 2026-08-30, when the guest page's hand-over
+   * pointed at `/app` unconditionally: a phone browser was handed a JSON error
+   * body and offered to save it as a file, which is what navigating to an API
+   * refusal looks like to somebody who has just tapped Accept.
+   *
+   * Asked per request, like the landing page's check and for the same reason:
+   * `bin/deploy-web` adds a bundle without restarting anything, so an answer
+   * cached at boot is wrong for exactly as long as it matters.
+   *
+   * Deliberately not shared with `/`, which asks only about stable: that page
+   * offers the browser to a stranger, and sending them to a beta train is a
+   * different decision from finding somewhere to put a person who is already
+   * mid-flow.
+   */
+  async function appBase(): Promise<string | null> {
+    for (const train of TRAINS) {
+      try {
+        await access(join(__dirname, '..', 'web', train.dir, 'index.html'));
+        return train.prefix;
+      } catch {
+        // The next one, or none.
+      }
+    }
+    return null;
+  }
 
   async function guestShell(reply: FastifyReply): Promise<string | undefined> {
     try {
