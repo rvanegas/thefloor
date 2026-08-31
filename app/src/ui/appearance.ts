@@ -1,7 +1,16 @@
 import { Appearance, Platform } from 'react-native';
+import {
+  isColorSchemePreference,
+  type ColorSchemePreference,
+} from '../../../core/settings';
 
 /**
  * Light, dark, or whatever the phone is set to.
+ *
+ * The type is `core/settings.ts`'s, re-exported here rather than declared,
+ * because the choice now crosses the wire: it belongs to the account, and two
+ * declarations of what a scheme may be is exactly the drift `core/` exists to
+ * prevent. What stays here is the half that is about *this* window.
  *
  * `Appearance.setColorScheme` sets the *window's* override, which is the trait
  * collection `DynamicColorIOS` resolves against — so choosing a scheme needs
@@ -13,12 +22,26 @@ import { Appearance, Platform } from 'react-native';
  * overriding" — so the stored value and the platform call agree, and there is
  * no third representation to convert between.
  */
-export type ColorSchemePreference = 'light' | 'dark' | 'system';
+export type { ColorSchemePreference };
 
+/**
+ * Where the last-known scheme is cached on this device.
+ *
+ * **A cache of the account's answer, not the answer itself**, since 2026-08-31
+ * — it exists for the frames between a launch and the server's `hello`, which
+ * is the gap a stored scheme was always covering. Written whenever the server
+ * says something and cleared at sign-out, so one person's dark cannot paint
+ * the next person's first screen. See `AppProvider`.
+ */
 export const APPEARANCE_KEY = 'thefloor.appearance';
 
+/**
+ * Kept as a name of its own, delegating, because this module is what the app
+ * imports for anything to do with a scheme and a caller reaching past it into
+ * `core/` for a guard would be reaching past the platform half as well.
+ */
 export function isPreference(value: unknown): value is ColorSchemePreference {
-  return value === 'light' || value === 'dark' || value === 'system';
+  return isColorSchemePreference(value);
 }
 
 /**

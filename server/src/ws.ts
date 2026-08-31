@@ -13,6 +13,7 @@ import type {
   RecordingView,
   ServerMessage,
 } from '../../core/protocol';
+import type { AccountSettings } from '../../core/settings';
 import type { Accounts } from './accounts';
 import type { NotificationPreferences } from './preferences';
 import type { ChannelRegistry } from './channels';
@@ -201,6 +202,28 @@ export function createHomeNotifier(): HomeNotifier {
 }
 
 /**
+ * Lets the route that writes an account's settings tell every device holding
+ * one of its sessions.
+ *
+ * Separate from `HomeNotifier` rather than a second method on it, because the
+ * audiences are different in kind: Home goes to whoever is *watching* Home,
+ * and this goes to every session an account holds whatever screen it is on.
+ * Somebody sitting in a channel when their other phone switches to dark is
+ * exactly the case, and it is the one a Home push would miss.
+ *
+ * A no-op until the socket layer registers, for the reason the other two are:
+ * it is created before the websocket plugin has loaded, and a settings change
+ * that reaches nobody costs a device one stale value until its next hello.
+ */
+export interface SettingsNotifier {
+  notify: (userId: string, settings: AccountSettings) => void;
+}
+
+export function createSettingsNotifier(): SettingsNotifier {
+  return { notify: () => {} };
+}
+
+/**
  * Whether this person is reachable inside the app right now.
  *
  * The one thing push delivery needs from the socket layer: somebody holding a
@@ -245,6 +268,7 @@ export function registerWebsocket(deps: {
   recordingsInChannel: (channelId: string, userId: string) => RecordingView[];
   now: () => number;
   homeNotifier: HomeNotifier;
+  settingsNotifier: SettingsNotifier;
   reachability: Reachability;
   preferences: NotificationPreferences;
   /** Where a guest's page should connect for audio. Absent without a media plane. */
@@ -258,6 +282,7 @@ export function registerWebsocket(deps: {
     recordingsInChannel,
     now,
     homeNotifier,
+    settingsNotifier,
     reachability,
     preferences,
     mediaUrl,
@@ -515,6 +540,17 @@ export function registerWebsocket(deps: {
       live.add(connection.tokenHash);
     }
     return live;
+  };
+
+  // Session-scoped only. A follower page is a second screen rather than one of
+  // this person's devices, holds a watch token rather than a session, and has
+  // no settings screen to be out of date with.
+  settingsNotifier.notify = (userId, settings) => {
+    for (const connection of connections) {
+      if (connection.scope.kind !== 'session') continue;
+      if (connection.userId !== userId) continue;
+      send(connection, { type: 'settings', settings });
+    }
   };
 
   homeNotifier.notify = (userIds) => {
@@ -892,6 +928,11 @@ export function registerWebsocket(deps: {
       // per connection, so setting the column by hand takes effect at the next
       // reconnect rather than needing a restart.
       ...(account.leaderboard === 1 ? { leaderboard: true } : {}),
+      // Read fresh per connection like the two above, and unlike them it is
+      // always present: these are settings rather than grants, so there is no
+      // "absent means no" to lean on — a client that reads this has to be able
+      // to tell "the account says light" from "this server has not been asked".
+      settings: accounts.settings(account.id),
     });
 
     socket.on('message', (raw: Buffer | string) => {

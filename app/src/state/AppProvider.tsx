@@ -40,22 +40,36 @@ import {
   isPreference,
   type ColorSchemePreference,
 } from '../ui/appearance';
+import {
+  DEFAULT_ACCOUNT_SETTINGS,
+  type AccountSettings,
+} from '../../../core/settings';
 
 const TOKEN_KEY = 'thefloor.token';
 /**
- * Whether a tap on a channel walks into it, or only opens it.
+ * Whether a tap on a channel walks into it, or only opens it — cached from
+ * what the server last said this account had chosen.
  *
  * Stored as `'true'`/`'false'` and read as "anything that is not `'false'` is
  * on", so the default survives a missing key, a key from a build that never
  * wrote one, and a value nobody recognises. On is the behaviour every build
  * before this one had, and the one somebody who has never opened Settings
  * should keep.
+ *
+ * **A cache since 2026-08-31**, when this setting and the scheme moved to the
+ * account. It is read once at launch and never again; anything the server says
+ * overwrites it, and signing out clears it. Its whole job is the second or so
+ * between a cold start and `hello`. See `AppValue.tapToStepIn`.
  */
 const TAP_TO_STEP_IN_KEY = 'thefloor.tapToStepIn';
 
 /**
  * Which of the two audio-session rules this phone uses, stored as the
  * non-default so that a missing key reads as off.
+ *
+ * **The one setting on that screen that is genuinely stored here** rather than
+ * cached from the account — see `AppValue.steadyHeadset` for why the headset
+ * is the phone's business and the other two are the person's.
  *
  * Off is what has shipped since 2026-08-18 and what somebody who has never
  * opened Settings keeps, on the same reasoning as the key above: an unverified
@@ -356,7 +370,18 @@ interface AppValue extends AppState {
   expired: boolean;
   /** Where to get a newer build, when the server has been told. */
   updateUrl: string | null;
-  /** Light, dark, or follow the phone. Applied to the window immediately. */
+  /**
+   * Light, dark, or follow the phone. Applied to the window immediately.
+   *
+   * **An account setting**, since 2026-08-31: somebody who has chosen dark has
+   * chosen it, and signing in on a second device to find the app light is the
+   * app forgetting something it was told. It is applied on the tap and sent to
+   * the server, which tells every other device this account holds.
+   *
+   * The value here is the server's, once the server has said anything. Before
+   * that — the frames between a cold start and `hello` — it is this device's
+   * cached copy of the last thing the server said. See `APPEARANCE_KEY`.
+   */
   appearance: ColorSchemePreference;
   setAppearance: (preference: ColorSchemePreference) => void;
   /**
@@ -367,9 +392,13 @@ interface AppValue extends AppState {
    * opens with a Step In button where Step Out would be, and nothing about
    * your presence has changed.
    *
-   * A phone setting rather than an account one, like appearance and for the
-   * same reason: it is about how this device's list behaves under a thumb, and
-   * two phones signed in as you may reasonably want different answers.
+   * **An account setting**, like appearance and since the same day. It was a
+   * phone setting on the argument that two phones signed in as you may
+   * reasonably want different answers about a thumb on a list — which is true
+   * of a headset and turned out not to be true of this: whether a tap is
+   * arriving or only looking is a habit a person has, not a property of the
+   * device the habit is exercised on, and finding the other answer on the
+   * second phone is being surprised by your own app.
    */
   tapToStepIn: boolean;
   setTapToStepIn: (value: boolean) => void;
@@ -377,8 +406,9 @@ interface AppValue extends AppState {
    * Whether this phone holds the hands-free link for as long as it is in a
    * channel, instead of handing it back whenever the room goes quiet.
    *
-   * **A phone setting rather than an account one**, like the two above, and
-   * here the reason is not a preference about lists but the hardware itself:
+   * **A phone setting rather than an account one, and the only one left**:
+   * the two above moved to the account on 2026-08-31 and this deliberately did
+   * not. The reason is not a preference about lists but the hardware itself —
    * what this trades is a property of the headset in your ears. The same
    * person with AirPods on a walk and a Bluetooth speaker on a desk may
    * reasonably want opposite answers, and the phone is where the headset is.
@@ -420,13 +450,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [dismissedInvites, setDismissedInvites] = useState<string[]>([]);
   const [pendingChannelId, setPendingChannelId] = useState<string | null>(null);
   /**
-   * Read before anything is drawn, so a chosen scheme does not arrive as a
-   * flash of the other one. Kept alongside the token rather than on the
-   * server: it is about this phone, not about the account, and two phones
-   * signed in as you may reasonably disagree about it.
+   * Read from this device's cache before anything is drawn, so a chosen scheme
+   * does not arrive as a flash of the other one, and overwritten by the
+   * account's own answer as soon as the socket says hello.
+   *
+   * Two reads deep, in other words, and the first is not the truth — it is the
+   * last thing this device was told, kept for the second or so before the
+   * server can say it again. A launch signed in as somebody else has no cache
+   * to be wrong from: signing out clears it.
    */
   const [appearance, setAppearanceState] =
-    useState<ColorSchemePreference>('system');
+    useState<ColorSchemePreference>(DEFAULT_ACCOUNT_SETTINGS.appearance);
   useEffect(() => {
     void (async () => {
       const stored = await storage.get(APPEARANCE_KEY);
@@ -438,19 +472,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   /**
    * Read the same way and at the same moment as appearance, and with the same
    * gap: for the first frames after a launch this is the default, whatever is
-   * stored. Appearance spends that gap on a flash of the wrong palette; this
+   * cached. Appearance spends that gap on a flash of the wrong palette; this
    * one spends it on a tap in the first instant of a cold start entering a
    * channel somebody meant only to open. Both are one read of the keychain
    * long, and neither is worth blocking the first screen on — the recovery
    * from this one is a tap on Step Out.
    */
-  const [tapToStepIn, setTapToStepInState] = useState(true);
+  const [tapToStepIn, setTapToStepInState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.tapToStepIn
+  );
   useEffect(() => {
     void (async () => {
       if ((await storage.get(TAP_TO_STEP_IN_KEY)) === 'false') {
         setTapToStepInState(false);
       }
     })();
+  }, []);
+  /**
+   * Takes the account's settings as the server states them, whichever device
+   * caused them to change.
+   *
+   * Everything about a settings change goes through here: the tap that made
+   * it, the `hello` that restates it on this connection, and the push that
+   * arrives because the other phone was tapped. One path rather than three, so
+   * a value applied optimistically and the same value confirmed a moment later
+   * cannot take different routes into the window.
+   *
+   * The cache is written on the way through — that is what makes the next cold
+   * start show the right palette immediately — and the window is repainted
+   * whether or not the scheme is the one already showing, since
+   * `applyPreference` is idempotent and cheaper than deciding.
+   */
+  const applySettings = useCallback((settings: AccountSettings) => {
+    setAppearanceState(settings.appearance);
+    applyPreference(settings.appearance);
+    void storage.set(APPEARANCE_KEY, settings.appearance);
+    setTapToStepInState(settings.tapToStepIn);
+    void storage.set(TAP_TO_STEP_IN_KEY, settings.tapToStepIn ? 'true' : 'false');
+  }, []);
+  /**
+   * Puts the settings back to what somebody who has never signed in sees, and
+   * empties the cache.
+   *
+   * Called wherever the session ends — signing out, deleting the account, and
+   * being signed out from elsewhere. These belong to the account, so keeping
+   * them after it has gone would paint the sign-in screen in the last person's
+   * scheme and hand their tap to whoever signs in next before `hello` arrives.
+   *
+   * `steadyHeadset` is deliberately untouched: it belongs to this phone and
+   * its headset, neither of which has changed.
+   */
+  const forgetSettings = useCallback(() => {
+    setAppearanceState(DEFAULT_ACCOUNT_SETTINGS.appearance);
+    applyPreference(DEFAULT_ACCOUNT_SETTINGS.appearance);
+    void storage.remove(APPEARANCE_KEY);
+    setTapToStepInState(DEFAULT_ACCOUNT_SETTINGS.tapToStepIn);
+    void storage.remove(TAP_TO_STEP_IN_KEY);
   }, []);
   /**
    * Read the same way and for the same reason, one keychain read behind the
@@ -533,8 +610,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // only thing that tells a relaunched app who it is. Without it `me`
         // stays null, and every screen that compares against the current user
         // — the whole floor mechanic — silently compares against nothing.
-        onHello: (account, debug, leaderboard) =>
-          setState((s) => ({ ...s, me: account, debug, leaderboard })),
+        onHello: (account, debug, leaderboard, settings) => {
+          setState((s) => ({ ...s, me: account, debug, leaderboard }));
+          // Null from a server that predates the field, which is not the same
+          // as one saying the defaults — this device keeps what it cached.
+          if (settings) applySettings(settings);
+        },
+        // Either this device's own write coming back confirmed, or another
+        // device of this account having been tapped. The two are the same
+        // fact and take the same path.
+        onSettings: applySettings,
         onHome: (home) => setState((s) => ({ ...s, home })),
         // Keyed by the channel the snapshot is about, never by which screen
         // asked for it: whoever is looking picks out the one they want.
@@ -595,7 +680,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       realtime.watchHome();
     },
-    [realtime]
+    [realtime, applySettings]
   );
 
   // Restore a previous sign-in before showing anything.
@@ -788,6 +873,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     onSignedOut(() => {
       realtime.disconnect();
       void storage.remove(TOKEN_KEY);
+      forgetSettings();
       setState({
         ready: true,
         token: null,
@@ -807,7 +893,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
     });
     return () => onSignedOut(null);
-  }, [realtime]);
+  }, [realtime, forgetSettings]);
 
   /**
    * Asks the server what it still supports: once at launch, and again on every
@@ -920,18 +1006,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearPendingChannel: () => setPendingChannelId(null),
 
       appearance,
+      /*
+        Applied here and sent to the server, in that order, and the order is
+        the whole of what makes this feel like a setting rather than a
+        request. The window override is what the colours actually resolve
+        against, so applying first is what makes the tap instant; the write is
+        what makes it the account's. The server then says it back to every
+        device including this one, which is where the value finally comes
+        from — see `applySettings`.
+
+        A failed write is deliberately not reverted and not announced. What is
+        on screen is what this person asked for, and a scheme that flicked back
+        to light half a second later because a tunnel dropped would be the app
+        arguing with them. It is corrected at the next `hello`, which is the
+        soonest anybody could honestly be told what the account holds.
+      */
       setAppearance: (preference) => {
-        // Applied first: the window override is what the colours actually
-        // resolve against, and storing is only so it survives a relaunch.
         applyPreference(preference);
         setAppearanceState(preference);
         void storage.set(APPEARANCE_KEY, preference);
+        if (state.token) {
+          void api
+            .saveSettings(state.token, { appearance: preference })
+            .catch(() => {});
+        }
       },
 
       tapToStepIn,
       setTapToStepIn: (value) => {
         setTapToStepInState(value);
         void storage.set(TAP_TO_STEP_IN_KEY, value ? 'true' : 'false');
+        if (state.token) {
+          void api.saveSettings(state.token, { tapToStepIn: value }).catch(() => {});
+        }
       },
 
       steadyHeadset,
@@ -968,6 +1075,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deviceToken.current = null;
         realtime.disconnect();
         await storage.remove(TOKEN_KEY);
+        forgetSettings();
         setState({
           ready: true,
           token: null,
@@ -1018,6 +1126,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deviceToken.current = null;
         realtime.disconnect();
         await storage.remove(TOKEN_KEY);
+        forgetSettings();
         setState({
           ready: true,
           token: null,
@@ -1255,6 +1364,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       appearance,
       tapToStepIn,
       steadyHeadset,
+      forgetSettings,
       expiry,
     ]
   );

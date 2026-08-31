@@ -1,4 +1,5 @@
 import type { ImHandles } from './im';
+import type { AccountSettings } from './settings';
 import type { NotificationLevel } from './notifications';
 import type { ChannelState, Clip, UserId } from './types';
 
@@ -967,7 +968,41 @@ export type ServerMessage =
        * to offer the screen, and the server decides whether to answer it.
        */
       leaderboard?: boolean;
+      /**
+       * What this account has chosen: the scheme and the tap. Complete, with
+       * the server's defaults filled in, so a client can apply it without
+       * knowing what a default is.
+       *
+       * **Here because `hello` is the one message that is about you and goes
+       * only to you**, which is the same reason `debug` and `leaderboard` are
+       * — and because these settings follow the account across devices, so the
+       * moment a session identifies itself is the moment it can be told. A
+       * client holds a local copy for the frames before this arrives; see
+       * `AppProvider`, which is where the cold-start gap is described.
+       *
+       * Optional, like the two above, so the server can deploy before any
+       * client reads it. Absent means the client keeps whatever it had, which
+       * for a build that has never heard of this is its own device-local
+       * answer.
+       */
+      settings?: AccountSettings;
     }
+  /**
+   * This account's settings have changed — on this device or on another one.
+   *
+   * Sent to every session the account holds, including the one that just
+   * asked, so that the two devices cannot end up disagreeing about a value
+   * either of them may set. The asking session has already applied its own
+   * change optimistically and this restates it, which costs a re-render and
+   * removes the case where a refused or clamped write leaves a screen showing
+   * something the server does not hold.
+   *
+   * Its own message rather than a field on `home`, because a settings change
+   * has to reach a session that is not looking at Home — somebody sitting in
+   * a channel when their other phone goes dark is the case — and `home` is
+   * pushed only to watchers.
+   */
+  | { type: 'settings'; settings: AccountSettings }
   | { type: 'home'; home: HomeView }
   | { type: 'channel'; view: ChannelView }
   /** The channel ended or is no longer visible to this user. */

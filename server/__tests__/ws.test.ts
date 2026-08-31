@@ -241,6 +241,82 @@ describe('websocket', () => {
     client.close();
   });
 
+  /**
+   * The account's settings, on the one message that is about you and goes only
+   * to you. Always present, unlike `debug` beside it: a setting is not a grant,
+   * so there is no "absent means no" for a client to lean on — it has to be
+   * able to tell "the account says light" from "this server was never asked".
+   */
+  it('hands a fresh connection the account’s settings', async () => {
+    const { token } = await signIn('user1@example.com', 'Alice');
+    const client = new Client(token, baseUrl);
+    await client.open();
+    expect((await client.next('hello')).settings).toEqual({
+      appearance: 'system',
+      tapToStepIn: true,
+    });
+    client.close();
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: auth(token),
+      payload: { appearance: 'dark', tapToStepIn: false },
+    });
+    const later = new Client(token, baseUrl);
+    await later.open();
+    expect((await later.next('hello')).settings).toEqual({
+      appearance: 'dark',
+      tapToStepIn: false,
+    });
+    later.close();
+  });
+
+  /**
+   * The whole point of these leaving the phone. A tap on one device has to
+   * reach the other, and it has to reach it wherever it is — Home is pushed
+   * only to watchers, and somebody sitting in a channel when their other phone
+   * goes dark is exactly the case this exists for. Neither client watches
+   * anything here, deliberately.
+   */
+  it('tells this account’s other devices when a setting changes', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    const bob = await signIn('user2@example.com', 'Bob');
+    const phone = new Client(alice.token, baseUrl);
+    const tablet = new Client(
+      app.accounts.issueToken(alice.account.id, clock),
+      baseUrl
+    );
+    const bobs = new Client(bob.token, baseUrl);
+    await Promise.all([phone.open(), tablet.open(), bobs.open()]);
+    await Promise.all([
+      phone.next('hello'),
+      tablet.next('hello'),
+      bobs.next('hello'),
+    ]);
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: auth(alice.token),
+      payload: { appearance: 'dark' },
+    });
+
+    // The device that asked is told as well as the one that did not: what it
+    // applied optimistically is restated by the server rather than trusted.
+    for (const client of [phone, tablet]) {
+      expect((await client.next('settings')).settings).toEqual({
+        appearance: 'dark',
+        tapToStepIn: true,
+      });
+    }
+    expect(bobs.received.some((m) => m.type === 'settings')).toBe(false);
+
+    phone.close();
+    tablet.close();
+    bobs.close();
+  });
+
   it('rejects a bad token', async () => {
     const client = new Client('not-a-real-token', baseUrl);
     await client.open();

@@ -21,6 +21,10 @@ import {
 } from '../../core/im';
 import { describeChannel } from '../../core/naming';
 import {
+  isColorSchemePreference,
+  type AccountSettings,
+} from '../../core/settings';
+import {
   alertFor,
   DEFAULT_NOTIFICATION_LEVEL,
   NOTIFICATION_LEVELS,
@@ -75,6 +79,7 @@ import type { RecordingStore } from './storage';
 import {
   createHomeNotifier,
   createReachability,
+  createSettingsNotifier,
   registerWebsocket,
 } from './ws';
 
@@ -274,6 +279,7 @@ export function buildApp(options: BuildOptions = {}): App {
 
   // Filled in once the websocket plugin loads; no-ops until then.
   const homeNotifier = createHomeNotifier();
+  const settingsNotifier = createSettingsNotifier();
   const reachability = createReachability();
   const devices = new Devices(db);
   const preferences = new NotificationPreferences(db);
@@ -1625,6 +1631,56 @@ export function buildApp(options: BuildOptions = {}): App {
         .filter(Boolean),
     ]);
     return accounts.profile(account.id, account.id);
+  });
+
+  /**
+   * Writes the settings that belong to the account rather than to the phone.
+   *
+   * Two of them: the colour scheme and whether tapping a channel steps into
+   * it. **The third setting on that screen is not here on purpose** — keeping
+   * the hands-free link steady is about the headset somebody is wearing, so it
+   * stays on the device and never reaches this server. See core/settings.ts.
+   *
+   * Partial like `POST /me`, and refused rather than coerced: a scheme this
+   * server does not know is a client bug, and storing it would hand every
+   * other device of that account a value it cannot render either.
+   *
+   * The answer is the whole of the settings, and every session this account
+   * holds is told the same thing — including the one that asked, whose
+   * optimistic copy is then restated by the server rather than trusted.
+   */
+  fastify.post('/me/settings', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as
+      | { appearance?: unknown; tapToStepIn?: unknown }
+      | undefined;
+    const changes: Partial<AccountSettings> = {};
+    if (body?.appearance !== undefined) {
+      if (!isColorSchemePreference(body.appearance)) {
+        return reply
+          .code(400)
+          .send({ error: 'appearance must be light, dark or system.' });
+      }
+      changes.appearance = body.appearance;
+    }
+    if (body?.tapToStepIn !== undefined) {
+      if (typeof body.tapToStepIn !== 'boolean') {
+        return reply
+          .code(400)
+          .send({ error: 'tapToStepIn must be true or false.' });
+      }
+      changes.tapToStepIn = body.tapToStepIn;
+    }
+
+    const settings = accounts.updateSettings(account.id, changes);
+    if (!settings) return reply.code(404).send({ error: 'No such account.' });
+    // Nobody else is told. These change nothing anybody but this person can
+    // see — no roster, no name, no availability — so unlike a rename there is
+    // no audience beyond the account's own devices.
+    settingsNotifier.notify(account.id, settings);
+    return settings;
   });
 
   /**
@@ -3019,6 +3075,7 @@ export function buildApp(options: BuildOptions = {}): App {
       recordingsInChannel,
       now,
       homeNotifier,
+      settingsNotifier,
       reachability,
       preferences,
       mediaUrl: options.mediaUrl,

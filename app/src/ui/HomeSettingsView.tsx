@@ -13,10 +13,20 @@ import type { ColorSchemePreference } from './appearance';
  * they went first to a settings screen behind the contact list and then, on
  * 2026-08-29, into your own profile — which is what they always described, and
  * which now shows what is left of them as fields when Edit is tapped. See ProfileView. What is left is the scope
- * Home actually owns, and it no longer writes anything: appearance takes effect
- * on the tap, signing out and deleting take effect on the confirmation, and
- * there is nothing on this screen to lose by leaving it. The awaited save, the
- * baseline ref and the "Saving…" label went with the fields that needed them.
+ * Home actually owns, and **nothing here is a form**: every setting takes
+ * effect on the tap and signing out and deleting take effect on the
+ * confirmation, so there is nothing on this screen to lose by leaving it. The
+ * awaited save, the baseline ref and the "Saving…" label went with the fields
+ * that needed them, and did not come back when two of these settings moved to
+ * the account on 2026-08-31 — that write is sent behind the tap rather than
+ * waited on. See `AppProvider`.
+ *
+ * **Two scopes on one screen, which is the thing to know before editing it.**
+ * The scheme and the tap belong to the person and follow them onto the next
+ * phone; keeping the headset connection steady belongs to this phone, because
+ * what it trades is a property of the headset. The Headphones card says so in
+ * as many words, since a screen where some settings sync and others do not is
+ * only honest if it admits which is which.
  *
  * One of the two settings screens, one per scope, each reached from the screen
  * whose scope it is: this one from Home, ChannelSettingsView from a channel.
@@ -188,6 +198,15 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           nothing switches under the first word. Off, the sound improves
           whenever the room goes quiet and switches back when it does not.
         </Text>
+        {/*
+          Said out loud because the other two stopped being true of it on
+          2026-08-31. The scheme and the tap follow the account and turn up on
+          the next phone; this one does not, since what it trades is a property
+          of the headset rather than of the person wearing it. A screen where
+          two settings sync and one does not, silently, is a screen that has
+          lied to somebody by the time they notice.
+        */}
+        <Text style={type.muted}>Kept on this phone, not on your account.</Text>
       </Card>
 
       <SectionLabel>Appearance</SectionLabel>

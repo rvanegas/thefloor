@@ -98,6 +98,26 @@ export interface AccountRow {
   im_whatsapp: string | null;
   im_telegram: string | null;
   im_signal: string | null;
+  /**
+   * The colour scheme this person chose, or null for everybody who has never
+   * chosen one — which reads as `system`, the default in
+   * `core/settings.ts`.
+   *
+   * **Null rather than a stored `'system'`**, on the reasoning
+   * `NotificationPreferences` states at length: a row saying the default and
+   * no row at all mean the same thing today and would stop meaning the same
+   * thing the day the default moves, at which point everybody who had opened
+   * the screen and left it alone would be pinned to the old arrangement with
+   * no way to tell them apart from the people who meant it.
+   */
+  appearance: string | null;
+  /**
+   * Whether tapping a channel on Home steps into it: 1 for yes, 0 for no,
+   * null for never having said — which reads as the default, and the default
+   * is on. Null and 1 therefore mean the same thing today, for the reason
+   * above.
+   */
+  tap_to_step_in: number | null;
 }
 
 export interface ContactRow {
@@ -351,7 +371,14 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- value the database can be asked about rather than a string to parse.
   im_whatsapp  TEXT,
   im_telegram  TEXT,
-  im_signal    TEXT
+  im_signal    TEXT,
+  -- What this person chose on the Home settings screen, null until they chose
+  -- anything. Two of the three settings there; the third is about the headset
+  -- in somebody's ears rather than about them, and lives on the phone. See
+  -- core/settings.ts and the row type above for why the untouched case is null
+  -- rather than the default written down.
+  appearance     TEXT,
+  tap_to_step_in INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -1241,6 +1268,16 @@ function migrate(db: Db): void {
   // spent. That is the generous reading and it is the right one: the limit is
   // a rule about what happens next, and charging somebody for a tap that had
   // no limit on it when they made it would be a rule applied backwards.
+  // Null for every account that predates the settings crossing the wire, which
+  // is every account: until 2026-08-31 both of these were device-local, held in
+  // the app's own storage. Nothing is migrated *out* of that storage, and it is
+  // not read once a server answer arrives — a backfill would have to guess
+  // which of somebody's phones was right, and the phones do not agree by
+  // construction. Everybody starts at the default and sets it once more.
+  if (!accountColumns.some((c) => c.name === 'appearance')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN appearance TEXT');
+    db.exec('ALTER TABLE accounts ADD COLUMN tap_to_step_in INTEGER');
+  }
   if (!accountColumns.some((c) => c.name === 'free_transcript_id')) {
     db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_id TEXT');
     db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_at INTEGER');

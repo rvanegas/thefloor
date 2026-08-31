@@ -10,6 +10,7 @@ import type {
   ServerMessage,
   ChannelView,
 } from '../../../core/protocol';
+import type { AccountSettings } from '../../../core/settings';
 import { appBuild, CLIENT_KIND } from './build';
 import { DEVICE_ID } from './device';
 import { WS_URL } from './config';
@@ -36,8 +37,19 @@ export interface RealtimeHandlers {
   onHello?: (
     account: { id: string; displayName: string },
     debug: boolean,
-    leaderboard: boolean
+    leaderboard: boolean,
+    settings: AccountSettings | null
   ) => void;
+  /**
+   * This account's settings, as the server now holds them — sent on every
+   * change, to every device signed in as this person.
+   *
+   * Null in `onHello` rather than absent-as-false, unlike the two flags beside
+   * it: a server that predates the field has said nothing about the account's
+   * preferences, which is not the same as saying it holds the defaults. The
+   * caller keeps what it had.
+   */
+  onSettings?: (settings: AccountSettings) => void;
   onHome?: (home: HomeView) => void;
   onChannel?: (view: ChannelView) => void;
   onChannelGone?: (channelId: string) => void;
@@ -280,8 +292,12 @@ export class Realtime {
           this.handlers.onHello?.(
             message.account,
             message.debug === true,
-            message.leaderboard === true
+            message.leaderboard === true,
+            message.settings ?? null
           );
+          break;
+        case 'settings':
+          this.handlers.onSettings?.(message.settings);
           break;
         case 'home':
           this.handlers.onHome?.(message.home);

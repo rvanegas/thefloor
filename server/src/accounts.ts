@@ -7,6 +7,11 @@ import type {
 } from '../../core/protocol';
 import { MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import {
+  DEFAULT_ACCOUNT_SETTINGS,
+  isColorSchemePreference,
+  type AccountSettings,
+} from '../../core/settings';
+import {
   IM_SERVICES,
   normaliseImHandle,
   type ImHandles,
@@ -292,6 +297,72 @@ export class Accounts {
     }
 
     return this.byId(accountId);
+  }
+
+  /**
+   * What this person has chosen, with the defaults filled in.
+   *
+   * Complete rather than partial, always, so that no caller — and no client
+   * downstream of one — has to hold a second copy of what a default is. Null
+   * columns are the untouched case and are answered from
+   * `DEFAULT_ACCOUNT_SETTINGS`, which is the only place the defaults are
+   * written down.
+   *
+   * Answers for an account that does not exist, with the defaults. The callers
+   * are a socket saying hello and a route that has already authenticated, so a
+   * missing row here means a deletion raced a connection, and the honest thing
+   * for a read-only preference is the answer everybody starts with.
+   */
+  settings(accountId: string): AccountSettings {
+    const row = this.byId(accountId);
+    if (!row) return { ...DEFAULT_ACCOUNT_SETTINGS };
+    return {
+      // Anything unrecognised reads as the default rather than being passed
+      // on. The column is text and this is the one place it is interpreted,
+      // so a value written by hand or left by a retired scheme cannot reach a
+      // client as a colour it has no palette for.
+      appearance: isColorSchemePreference(row.appearance)
+        ? row.appearance
+        : DEFAULT_ACCOUNT_SETTINGS.appearance,
+      tapToStepIn:
+        row.tap_to_step_in === null
+          ? DEFAULT_ACCOUNT_SETTINGS.tapToStepIn
+          : row.tap_to_step_in === 1,
+    };
+  }
+
+  /**
+   * Writes what somebody chose, and answers with all of it.
+   *
+   * Partial in the sense `updateProfile` is: an absent field is left alone, so
+   * a screen saving the scheme cannot silently reset the tap. What comes back
+   * is the whole of it, because the caller's next move is to tell every device
+   * this account holds, and a partial answer would make each of them merge.
+   *
+   * The default is stored as itself rather than as a null. That is the
+   * opposite of what `NotificationPreferences.set` does, and deliberately:
+   * these two are set from a screen showing both choices as buttons, where
+   * choosing the default back is an act — and the row it writes is what a
+   * second device is then told about. Reverting to null would leave the two
+   * cases indistinguishable at the moment the difference is visible, which is
+   * one phone waiting to be told what the other just did.
+   */
+  updateSettings(
+    accountId: string,
+    changes: Partial<AccountSettings>
+  ): AccountSettings | undefined {
+    if (!this.byId(accountId)) return undefined;
+    if (changes.appearance !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET appearance = ? WHERE id = ?')
+        .run(changes.appearance, accountId);
+    }
+    if (changes.tapToStepIn !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET tap_to_step_in = ? WHERE id = ?')
+        .run(changes.tapToStepIn ? 1 : 0, accountId);
+    }
+    return this.settings(accountId);
   }
 
   /**

@@ -7,6 +7,7 @@ import type {
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
+import type { AccountSettings } from '../../../core/settings';
 import type {
   VoiceDeclarations,
   VoiceEntry,
@@ -229,6 +230,7 @@ export const api = {
   ) => request<ProfileView>('/me', { method: 'POST', body: changes, token }),
 
   /**
+  /**
    * Asks for a code at an address you would like to sign in with instead.
    *
    * `requestCode` with a session behind it, and the same answer either way —
@@ -247,6 +249,25 @@ export const api = {
     request<ProfileView>('/me/email/confirm', {
       method: 'POST',
       body: { identifier, code },
+      token,
+    }),
+
+  /**
+   * Writes the settings that follow the account rather than the phone: the
+   * colour scheme and whether tapping a channel steps into it. A partial
+   * write, like `saveProfile` — whatever is left undefined is left alone.
+   *
+   * The answer is the whole of the settings, but the caller does not have to
+   * apply it: the server tells every session this account holds, this one
+   * included, over the socket. See `onSettings`.
+   */
+  saveSettings: (
+    token: string,
+    changes: Partial<AccountSettings>
+  ) =>
+    request<AccountSettings>('/me/settings', {
+      method: 'POST',
+      body: changes,
       token,
     }),
 
