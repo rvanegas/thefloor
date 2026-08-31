@@ -266,15 +266,22 @@ function Root() {
    * wiped. See `useRoute.web.ts`.
    */
   const applyNav = React.useCallback(
-    (next: Nav) => {
+    (next: Nav, intent?: { enter?: boolean }) => {
       if (next.channelId) watchChannel(next.channelId);
+      // The address asked to arrive rather than to look — see `wantsEntry`,
+      // which is one caller: somebody who was in this room a second ago as a
+      // guest and has just been made a member of it. After `watchChannel`, so
+      // the snapshot this acts on is one the app is subscribed to.
+      if (intent?.enter && next.channelId) {
+        app.act(next.channelId, { type: 'ENTER' });
+      }
       setChannelId(next.channelId);
       setSettingsOpen(next.settingsOpen);
       setLeaderboardOpen(next.leaderboardOpen);
       setSupportOpen(next.supportOpen);
       setContactsOpen(next.contactsOpen);
     },
-    [watchChannel]
+    [watchChannel, app]
   );
 
   useRoute(

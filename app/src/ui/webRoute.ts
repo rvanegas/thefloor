@@ -137,6 +137,26 @@ export function screenOfPath(path: string): Screen {
   return { kind: 'home' };
 }
 
+/**
+ * Whether the address that opened this tab meant to *arrive*, not merely look.
+ *
+ * **A one-shot intent rather than part of the address**, which is why it is a
+ * query parameter and why nothing in `pathOf` ever writes one. A channel's
+ * address says which room; whether you walked into it is something that
+ * happened once, and an address that kept saying so would step you back in
+ * every time you pressed Back.
+ *
+ * It exists for one caller: a guest who has just accepted a contact request
+ * and been made a member. They were audible in that room a second ago, so
+ * landing outside it and being asked to step in would be the app forgetting
+ * what it had just watched them do. `tapToStepIn` is not consulted — that
+ * setting is about a list of rooms where a tap is as likely to be curiosity as
+ * intent, and this is not a tap on a list.
+ */
+export function wantsEntry(search: string): boolean {
+  return new URLSearchParams(search).get('enter') === '1';
+}
+
 /** Whether two screens are the same place, so history is not pushed twice. */
 export function sameScreen(a: Screen, b: Screen): boolean {
   if (a.kind !== b.kind) return false;

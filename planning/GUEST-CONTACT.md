@@ -86,6 +86,20 @@ here, and it is the same shape of record, so it is the same shape of field.
    real. He arrives as himself, and `tapToStepIn` puts him back in the room on
    the rule that governs opening any channel.
 
+   **The microphone is handed back before the hop, explicitly.** Disconnecting
+   the room drops the connection and a browser is entitled to leave an open
+   capture running, so a page that merely went away could still hold the device
+   when the app asked for it a second later — which is what two tabs competing
+   for a microphone sounds like. `setMicrophone(false)` unpublishes and stops
+   the track, awaited, and the navigation is a `replace`: the seat is closed,
+   so Back would return to a room that is gone.
+
+   **And it arrives stepped in.** The address carries `?enter=1`, read once by
+   `wantsEntry` and dropped when the app rewrites the address. `tapToStepIn` is
+   not consulted — that setting is about a list of rooms where a tap is as
+   likely to be curiosity as intent, and somebody who was audible in this room
+   a second ago is not curious about it.
+
    **Which train that is, is the server's answer.** The page pointed at `/app`
    unconditionally for one afternoon, and the first person to try it was on a
    box serving `/beta` — so a phone browser was handed the 503's JSON body and

@@ -977,7 +977,13 @@ export function buildApp(options: BuildOptions = {}): App {
     return {
       ok: true,
       channelId: result.channelId,
-      url: result.channelId ? `/open/c/${encodeURIComponent(result.channelId)}` : '/open',
+      // `enter`, because they were audible in that room a second ago: landing
+      // outside it and being asked to step in would be the app forgetting what
+      // it had just watched them do. Carried through the door as a query so
+      // the app can act on it once and drop it — see `wantsEntry`.
+      url: result.channelId
+        ? `/open/c/${encodeURIComponent(result.channelId)}?enter=1`
+        : '/open',
     };
   });
 
@@ -1135,11 +1141,16 @@ export function buildApp(options: BuildOptions = {}): App {
 
   fastify.get('/open/c/:channelId', async (request, reply) => {
     const { channelId } = request.params as { channelId: string };
+    const { enter } = request.query as { enter?: string };
     reply.type('text/html; charset=utf-8');
     reply.header('cache-control', 'no-store');
     return openPage(
       { available: await availableTrains() },
-      `/c/${encodeURIComponent(channelId)}`
+      // The one query this door forwards, and it is forwarded rather than
+      // interpreted: what it means is the app's business, and this is a
+      // hallway. `'1'` exactly, so the parameter cannot be used to smuggle
+      // anything else onto the end of the address.
+      `/c/${encodeURIComponent(channelId)}${enter === '1' ? '?enter=1' : ''}`
     );
   });
 

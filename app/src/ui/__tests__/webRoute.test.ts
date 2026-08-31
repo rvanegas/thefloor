@@ -5,6 +5,7 @@ import {
   sameScreen,
   screenOf,
   screenOfPath,
+  wantsEntry,
   type Nav,
   type Screen,
 } from '../webRoute';
@@ -161,5 +162,28 @@ describe('telling one place from another', () => {
         { kind: 'channel', channelId: 'a' }
       )
     ).toBe(true);
+  });
+});
+
+
+describe('arriving rather than looking', () => {
+  it('reads the one query that means step in', () => {
+    expect(wantsEntry('?enter=1')).toBe(true);
+    expect(wantsEntry('?enter=1&other=x')).toBe(true);
+    expect(wantsEntry('')).toBe(false);
+    expect(wantsEntry('?enter=0')).toBe(false);
+    // Not a truthiness test: only the value the server sends counts, so
+    // nothing else on an address can be read as an instruction to walk in.
+    expect(wantsEntry('?enter=yes')).toBe(false);
+    expect(wantsEntry('?enter')).toBe(false);
+  });
+
+  it('is never written into an address', () => {
+    // A one-shot intent, not a place. An address that kept saying it would
+    // step somebody back in every time they pressed Back.
+    for (const screen of SCREENS) {
+      expect(pathOf(screen)).not.toContain('enter');
+      expect(pathOf(screen)).not.toContain('?');
+    }
   });
 });

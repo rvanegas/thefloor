@@ -14,7 +14,7 @@ import type { Nav } from './webRoute';
  */
 export function useRoute(
   _nav: Nav,
-  _apply: (nav: Nav) => void,
+  _apply: (nav: Nav, intent?: { enter?: boolean }) => void,
   _ready: boolean
 ): void {
   // Nothing. See above.

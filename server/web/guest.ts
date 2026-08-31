@@ -699,8 +699,18 @@ async function acceptAsk(askerId: string): Promise<void> {
     return;
   }
 
+  // **The microphone is released here rather than left to the navigation.**
+  // `room.disconnect()` drops the connection, and a browser is entitled to
+  // leave a capture that is already open running — so a page that merely went
+  // away could still be holding the device when the app asked for it a second
+  // later, and both of them would be. `setMicrophone(false)` unpublishes and
+  // stops the track, which is what actually hands it back.
+  //
+  // Awaited, because the point of it is to have finished before the next view
+  // asks. A page being torn down is not a place to fire and forget.
+  await setMicrophone(false);
   keepSeat(null);
-  void room?.disconnect();
+  await room?.disconnect();
 
   // **Where the app is, is the server's answer and not this page's guess.**
   // The two trains ship separately and a box quite normally serves one and
@@ -712,7 +722,10 @@ async function acceptAsk(askerId: string): Promise<void> {
   // navigated into: the seat is closed by now, so there is no room to stay in
   // and nothing to do but tell them what happened and where they already are.
   if (answer.url) {
-    location.assign(answer.url);
+    // `replace` rather than `assign`: the seat behind this page is closed, so
+    // Back would return to a room that no longer exists and a socket that will
+    // be refused. Nothing here is worth keeping in the history of the tab.
+    location.replace(answer.url);
     return;
   }
   $('refused-reason').textContent =

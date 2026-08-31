@@ -669,10 +669,13 @@ describe('being asked to be a contact', () => {
     // The door rather than a train. Which bundle this browser should get is
     // one question with one place that answers it — see open.test.ts — so this
     // route names the destination and nothing else.
+    // The door rather than a train, and `enter` because they were audible in
+    // that room a second ago — arriving outside it would be the app forgetting
+    // what it had just watched them do.
     expect(answer.json()).toEqual({
       ok: true,
       channelId,
-      url: `/open/c/${channelId}`,
+      url: `/open/c/${channelId}?enter=1`,
     });
 
     // Contacts, both ways, and the pair's own standing channel with them.

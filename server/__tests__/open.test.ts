@@ -115,3 +115,20 @@ describe('the landing page', () => {
     });
   });
 });
+
+describe('arriving rather than looking', () => {
+  it('forwards the one query it knows, and only that one', async () => {
+    await withTrains(['beta'], async () => {
+      const asked = await open('/open/c/chan_abc?enter=1');
+      expect(asked.body).toContain('"/c/chan_abc?enter=1"');
+      expect(asked.body).toContain('href="/beta/c/chan_abc?enter=1"');
+
+      // Anything else is dropped rather than passed along: this is a hallway,
+      // and a door that forwards arbitrary query is a door somebody can push
+      // things through.
+      const smuggled = await open('/open/c/chan_abc?enter=yes&other=1');
+      expect(smuggled.body).toContain('"/c/chan_abc"');
+      expect(smuggled.body).not.toContain('other=1');
+    });
+  });
+});

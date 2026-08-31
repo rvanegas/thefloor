@@ -5,6 +5,7 @@ import {
   sameScreen,
   screenOf,
   screenOfPath,
+  wantsEntry,
   type Nav,
 } from './webRoute';
 
@@ -23,7 +24,7 @@ import {
  */
 export function useRoute(
   nav: Nav,
-  apply: (nav: Nav) => void,
+  apply: (nav: Nav, intent?: { enter?: boolean }) => void,
   ready: boolean
 ): void {
   /**
@@ -44,6 +45,9 @@ export function useRoute(
     if (read.current || !ready) return;
     read.current = true;
     const wanted = screenOfPath(globalThis.location?.pathname ?? '');
+    // Read before the address is rewritten below, which is what drops it: the
+    // intent belongs to the arrival and not to the room. See `wantsEntry`.
+    const enter = wantsEntry(globalThis.location?.search ?? '');
     // Replaced rather than pushed: this is the entry the person arrived on,
     // and pushing here would put a duplicate behind them so that Back went
     // nowhere the first time they pressed it.
@@ -53,7 +57,11 @@ export function useRoute(
       // A browser refusing history is one that simply has no addresses. The
       // app still works; it just does not say where it is.
     }
-    if (!sameScreen(wanted, screenOf(nav))) apply(navOf(wanted));
+    // **Applied even when the screen already matches, if entry was asked for.**
+    // Arriving at `/c/x?enter=1` while the app happens to be showing `/c/x`
+    // is not nothing to do — the step in is the whole of what was asked.
+    if (enter) apply(navOf(wanted), { enter: true });
+    else if (!sameScreen(wanted, screenOf(nav))) apply(navOf(wanted));
   }, [ready, nav, apply]);
 
   /**
