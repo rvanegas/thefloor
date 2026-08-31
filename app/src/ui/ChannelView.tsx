@@ -674,30 +674,41 @@ export function ChannelView({
         ) : null}
 
         <View style={styles.presence}>
-          <View style={styles.titleRow}>
-            {/* Muted italic when nobody has named it, for the reason set out
-                in core/naming.ts: this is a description written from your
-                side, not a name the others would recognise. */}
-            <Text
-              style={channel.name ? styles.otherName : styles.describedName}
-              numberOfLines={1}
-            >
-              {channel.name ??
-                describeChannel(others.map((other) => other.displayName))}
-            </Text>
-            <View style={styles.titleActions}>
-              {/*
-                Back to Home without hanging up. The audio connection lives
-                above this screen, so this is navigation and nothing else.
-              */}
-              <Button label="Home" variant="ghost" onPress={onHome} />
-              <Button
-                label="Settings"
-                variant="ghost"
-                onPress={() => setSettingsOpen(true)}
-              />
-            </View>
+          {/*
+            Navigation above the name rather than beside it. The two shared
+            the title's line until 2026-08-31, which cost the name the width
+            of two buttons and truncated it to pay for them — a channel called
+            after the people in it is exactly the name that runs long, and it
+            was the one thing on that row a tap could not recover. A row of
+            its own is also what the platform does with a large title, so it
+            reads as chrome rather than as content.
+          */}
+          <View style={styles.navRow}>
+            {/*
+              Back to Home without hanging up. The audio connection lives
+              above this screen, so this is navigation and nothing else.
+            */}
+            <Button label="Home" variant="ghost" onPress={onHome} />
+            <Button
+              label="Settings"
+              variant="ghost"
+              onPress={() => setSettingsOpen(true)}
+            />
           </View>
+          {/* Muted italic when nobody has named it, for the reason set out
+              in core/naming.ts: this is a description written from your
+              side, not a name the others would recognise. */}
+          <Text
+            style={channel.name ? styles.otherName : styles.describedName}
+            // Two lines, now that it has the width to itself. A described
+            // channel names everybody in it and passes one line routinely,
+            // and the second is the difference between reading three names
+            // and reading two and an ellipsis.
+            numberOfLines={2}
+          >
+            {channel.name ??
+              describeChannel(others.map((other) => other.displayName))}
+          </Text>
           {channel.description ? (
             <InlineMarkdown
               text={channel.description}
@@ -845,11 +856,117 @@ export function ChannelView({
         </View>
 
         {/*
+          Stepping in, directly under the roster, because on a screen you are
+          not in it is the only thing you came to decide — everything below it
+          describes a conversation you are not part of yet. It used to share a
+          card with Step Out, one position serving two controls that want
+          opposite ends of the screen; see the note on Step Out below.
+
+          Reachable only with "Tap a channel to step in" turned off in Home
+          settings — the setting that opens a channel without arriving in it.
+          Stepping in from here does not navigate: you are already looking at
+          the channel, and what changes is that the others can hear you and the
+          screen fills in around this card — the microphone, the door, the
+          floor — which is a better answer than a screen that closes and
+          reopens on the same channel.
+        */}
+        {iAmPresent ? null : (
+          <>
+            <SectionLabel>Step in</SectionLabel>
+            <Card style={styles.stack}>
+              {/* The loud thing on a screen you are not in yet. */}
+              <Button
+                label="Step in"
+                variant="primary"
+                onPress={() => act({ type: 'ENTER' })}
+              />
+              <Text style={type.muted}>
+                {takenByAnotherDevice
+                  ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
+                  : elsewhereOnAnotherDevice
+                    ? 'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.'
+                    : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
+              </Text>
+            </Card>
+          </>
+        )}
+
+        {/*
+          The floor comes first among the controls, above the microphone,
+          since 2026-08-31. It was fifth on the screen — under the microphone
+          and under the departure — at the same weight as the guest link, which
+          is a strange place for the one mechanic the application is named
+          after. It belongs directly under the roster because it is *about* the
+          roster: it decides which of the people listed above may be heard. The
+          microphone, by contrast, is about you alone and is mostly a readout.
+
+          It is also the only control here with a running clock, and a clock
+          somebody is watching should not be the thing they have to scroll to.
+        */}
+        <SectionLabel>The floor</SectionLabel>
+        <Card
+          style={[
+            styles.floorCard,
+            iHoldFloor && styles.floorCardHeld,
+            iAmSilenced && styles.floorCardSilenced,
+          ]}
+        >
+          <Text style={styles.floorStatus}>
+            {iHoldFloor
+              ? 'You have the floor'
+              : theyHoldFloor
+                ? `${holderName} has the floor — your mic is cut`
+                : 'Nobody has the floor'}
+          </Text>
+
+          {claimRemaining !== null ? (
+            <Text style={styles.countdown}>{formatSeconds(claimRemaining)}</Text>
+          ) : cooldown !== null ? (
+            <Text style={[styles.countdown, styles.countdownMuted]}>
+              {formatSeconds(cooldown)}
+            </Text>
+          ) : null}
+
+          {claimRemaining !== null && iHoldFloor ? null : (
+            <Text style={styles.floorHint}>
+              {iHoldFloor
+                ? others.length === 1
+                  ? `${others[0].displayName} is muted until you release, up to a minute.`
+                  : 'Everyone else is muted until you release, up to a minute.'
+                : !iAmPresent
+                  ? 'Step in to claim the floor.'
+                  : theyHoldFloor
+                    ? 'You cannot claim the floor while you are silenced.'
+                    : cooldown !== null
+                      ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
+                      : !atLeastTwoPresent(channel)
+                        ? 'The floor becomes available once at least two people are present.'
+                        : 'Speak uninterrupted for up to a minute.'}
+            </Text>
+          )}
+
+          {iHoldFloor ? (
+            <Button
+              label="Release the floor"
+              variant="floor"
+              onPress={() => act({ type: 'RELEASE_FLOOR' })}
+            />
+          ) : (
+            <Button
+              label="Claim the floor"
+              variant="floor"
+              disabled={!claimable}
+              onPress={() => act({ type: 'CLAIM_FLOOR' })}
+            />
+          )}
+        </Card>
+
+        {/*
           Nothing here is true of somebody who has not stepped in: the
           microphone is not open, muting it changes nothing anybody can hear,
           and the session this describes has not been asked for. So the card is
-          absent rather than disabled, and the one below it — which is the way
-          in — carries the sentence that would have gone here.
+          absent rather than disabled, and the Step In card above — which is
+          the way in — carries the sentence that would have gone here.
         */}
         {iAmPresent ? (
           <>
@@ -928,113 +1045,53 @@ export function ChannelView({
           beside this one in the colour reserved for danger drew the eye
           straight to the action least likely to be wanted.
 
-          Directly under the microphone, because the two are the same question
-          asked at different strengths — whether the others can hear you, and
-          whether you are still there at all. Everything below is about what
-          the channel is doing rather than about you being in it.
+          Still directly under the microphone, because the two are the same
+          question asked at different strengths — whether the others can hear
+          you, and whether you are still there at all. It is the last thing in
+          the half of the screen that is about you being in the room; the
+          heading below it opens the half that is about what the channel is
+          carrying.
 
           Unexplained: it is the one thing on this screen somebody reaches for
           already knowing what it does, so the sublabel that used to describe
           it is gone. The heading and the card stay, every other control on
           this screen sitting in one.
 
-          The same card says Step In to somebody who is not in the room, which
-          is reachable only with "Tap a channel to step in" turned off in Home
-          settings — the setting that opens a channel without arriving in it.
-          Stepping in from here does not navigate: you are already looking at
-          the channel, and what changes is that the others can hear you and the
-          screen fills in around this card — the microphone above, the door,
-          the floor — which is a better answer than a screen that closes and
-          reopens on the same channel.
+          It no longer doubles as Step In. One card said both, so one position
+          had to serve a control somebody wants at the top of a screen they
+          have not entered and a control that belongs at the foot of one they
+          have — and the position was chosen for Step Out, which left Step In
+          below a microphone card that was not being rendered anyway.
         */}
-        <SectionLabel>{iAmPresent ? 'Step Out' : 'Step In'}</SectionLabel>
-        <Card style={styles.stack}>
-          {iAmPresent ? (
-            <Button
-              label="Step out"
-              onPress={() => {
-                act({ type: 'STEP_OUT' });
-                app.leaveChannelView(channelId);
-                onExit();
-              }}
-            />
-          ) : (
-            <>
-              {/* The loud thing on a screen you are not in yet, which is the
-                  one thing here somebody came to decide. */}
+        {iAmPresent ? (
+          <>
+            <SectionLabel>Step out</SectionLabel>
+            <Card style={styles.stack}>
               <Button
-                label="Step in"
-                variant="primary"
-                onPress={() => act({ type: 'ENTER' })}
+                label="Step out"
+                onPress={() => {
+                  act({ type: 'STEP_OUT' });
+                  app.leaveChannelView(channelId);
+                  onExit();
+                }}
               />
-              <Text style={type.muted}>
-                {takenByAnotherDevice
-                  ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
-                  : elsewhereOnAnotherDevice
-                    ? 'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.'
-                    : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
-              </Text>
-            </>
-          )}
-        </Card>
+            </Card>
+          </>
+        ) : null}
 
-        <SectionLabel>The floor</SectionLabel>
-        <Card
-          style={[
-            styles.floorCard,
-            iHoldFloor && styles.floorCardHeld,
-            iAmSilenced && styles.floorCardSilenced,
-          ]}
-        >
-          <Text style={styles.floorStatus}>
-            {iHoldFloor
-              ? 'You have the floor'
-              : theyHoldFloor
-                ? `${holderName} has the floor — your mic is cut`
-                : 'Nobody has the floor'}
-          </Text>
+        {/*
+          The seam. Everything above is the conversation — who is here, who may
+          speak, whether you can be heard, and whether you are in it at all.
+          Everything below is what the channel is carrying, which outlives the
+          moment: a clipboard, a video, a track, the recordings it keeps.
 
-          {claimRemaining !== null ? (
-            <Text style={styles.countdown}>{formatSeconds(claimRemaining)}</Text>
-          ) : cooldown !== null ? (
-            <Text style={[styles.countdown, styles.countdownMuted]}>
-              {formatSeconds(cooldown)}
-            </Text>
-          ) : null}
-
-          {claimRemaining !== null && iHoldFloor ? null : (
-            <Text style={styles.floorHint}>
-              {iHoldFloor
-                ? others.length === 1
-                  ? `${others[0].displayName} is muted until you release, up to a minute.`
-                  : 'Everyone else is muted until you release, up to a minute.'
-                : !iAmPresent
-                  ? 'Step in to claim the floor.'
-                  : theyHoldFloor
-                    ? 'You cannot claim the floor while you are silenced.'
-                    : cooldown !== null
-                      ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
-                      : !atLeastTwoPresent(channel)
-                        ? 'The floor becomes available once at least two people are present.'
-                        : 'Speak uninterrupted for up to a minute.'}
-            </Text>
-          )}
-
-          {iHoldFloor ? (
-            <Button
-              label="Release the floor"
-              variant="floor"
-              onPress={() => act({ type: 'RELEASE_FLOOR' })}
-            />
-          ) : (
-            <Button
-              label="Claim the floor"
-              variant="floor"
-              disabled={!claimable}
-              onPress={() => act({ type: 'CLAIM_FLOOR' })}
-            />
-          )}
-        </Card>
+          The sections were already in this order, and the comment on Invite
+          below has said since 2026-08-24 that they run "in roughly the order
+          somebody in one reaches for them". A flat column of ten identical
+          labels could not show that; two headings can. Nothing moved to
+          achieve it except the floor and the two departures.
+        */}
+        <GroupHeading>What the channel is carrying</GroupHeading>
 
         <SectionLabel>Shared clipboard</SectionLabel>
         <Card style={styles.stack}>
@@ -1714,6 +1771,8 @@ export function ChannelView({
           what is playing. That is still true of the *roster*, which has not
           moved; it was the invitation that did not belong beside it.
         */}
+        <GroupHeading>Who gets in</GroupHeading>
+
         <SectionLabel>Invite</SectionLabel>
         <Card style={styles.stack}>
           <InviteList
@@ -1780,6 +1839,30 @@ export function ChannelView({
           {shareNote ? <Text style={type.muted}>{shareNote}</Text> : null}
         </Card>
     </Screen>
+  );
+}
+
+/**
+ * The heading above a run of sections, and the only two-level hierarchy in
+ * this application's chrome.
+ *
+ * Local rather than in `components.tsx` because this screen is the only one
+ * long enough to need it: every other view is one run of sections, and a
+ * heading above the only group there is would be a label for the screen. The
+ * same rule the paddings in `cardPing` are kept under — a second caller is
+ * where it moves out, not a first.
+ *
+ * A rule above rather than a heavier weight alone. `SectionLabel` is already
+ * the loudest small type on the screen, so out-shouting it would mean
+ * competing with the section labels rather than sitting over them; a hairline
+ * and a wide margin say "a new part begins" without adding a third size to
+ * argue with the two that are there.
+ */
+export function GroupHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={styles.group}>
+      <Text style={styles.groupHeading}>{children}</Text>
+    </View>
   );
 }
 
@@ -2300,11 +2383,15 @@ const styles = StyleSheet.create({
    * enough.
    */
   statusBad: { color: colors.danger },
-  otherName: { flexShrink: 1, fontSize: 24, fontWeight: '700', color: colors.text },
+  /**
+   * `flexShrink` is gone with the row it was for: the name has the width of
+   * the screen now, so there is nothing beside it to shrink against, and 28
+   * is what `type.title` uses for a screen's own name everywhere else.
+   */
+  otherName: { fontSize: 28, fontWeight: '700', color: colors.text },
   /** Italic alone; see the note on Home's `described`. */
   describedName: {
-    flexShrink: 1,
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: colors.text,
     fontStyle: 'italic',
@@ -2378,12 +2465,41 @@ const styles = StyleSheet.create({
     marginTop: spacing(0.5),
     marginBottom: spacing(0.5),
   },
-  titleActions: { flexDirection: 'row', alignItems: 'center' },
-  titleRow: {
+  /**
+   * The two ghost buttons, on their own line above the name.
+   *
+   * `flex-end` rather than `space-between`: they are a pair and belong
+   * together at the trailing edge, which is also where a title's accessories
+   * sit on this platform. Negative horizontal margin because `Button`'s
+   * padding is sized for a card and would otherwise inset the pair further
+   * than the title beneath them, which reads as a mistake rather than as
+   * chrome.
+   */
+  navRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing(1),
+    justifyContent: 'flex-end',
+    marginHorizontal: -spacing(1),
+    marginBottom: spacing(0.25),
+  },
+  /**
+   * The seam between the conversation and what the channel is carrying.
+   *
+   * The rule is the whole of the visual weight; the text is `type.label`'s
+   * size in `textMuted` rather than a third heading size. Top margin is
+   * larger than `SectionLabel`'s so the group reads as beginning here rather
+   * than as one more section.
+   */
+  group: {
+    marginTop: spacing(3.5),
+    paddingTop: spacing(2),
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  groupHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
   warning: { color: colors.silenced, fontSize: 13, marginTop: spacing(0.5) },
   // Advice rather than a failure, so it carries weight without the colour a
@@ -2423,9 +2539,23 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   floorCard: { gap: spacing(1), borderColor: colors.border },
-  floorCardHeld: { borderColor: colors.floor, backgroundColor: colors.floorDim },
-  floorCardSilenced: { borderColor: colors.silenced },
-  floorStatus: { fontSize: 17, fontWeight: '600', color: colors.text },
+  /**
+   * Two pixels rather than one while the floor is somebody's.
+   *
+   * This card is the first control on the screen now, and the two states that
+   * matter are the two where the room is not behaving normally — somebody is
+   * speaking uninterrupted, or you have been cut off. A colour change on a
+   * hairline is a small signal for a large fact, and `floorDim` alone is too
+   * quiet in light mode, where it is a pale tint on a white card.
+   */
+  floorCardHeld: {
+    borderWidth: 2,
+    borderColor: colors.floor,
+    backgroundColor: colors.floorDim,
+  },
+  floorCardSilenced: { borderWidth: 2, borderColor: colors.silenced },
+  /** Larger than `type.heading`: it is the first sentence anybody reads here. */
+  floorStatus: { fontSize: 20, fontWeight: '700', color: colors.text },
   countdown: {
     fontSize: 34,
     fontWeight: '700',

@@ -17,7 +17,7 @@ import type {
   RecordingView,
 } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
-import { ChannelView, uploadingLabel } from '../ChannelView';
+import { ChannelView, GroupHeading, uploadingLabel } from '../ChannelView';
 import { SectionLabel } from '../components';
 import type { UploadHooks } from '../../api/upload';
 import type { GuestLinkSummary } from '../../api/http';
@@ -1163,7 +1163,8 @@ describe('Channel', () => {
       />);
 
     const text = textOf(tree);
-    expect(text).toContain('Step In');
+    // Sentence case since the two departures stopped sharing a label.
+    expect(text).toContain('Step in');
     expect(text).toContain('Nobody can hear you');
     expect(text).not.toContain('Your microphone');
     expect(findButton(tree, 'Step out')).toBeUndefined();
@@ -1361,7 +1362,7 @@ describe('Channel', () => {
     // Still outside, so the things that are about presence for their own
     // reasons are still refused — the rule did not turn into "anything goes
     // in an empty room".
-    expect(textOf(tree)).toContain('Step In');
+    expect(textOf(tree)).toContain('Step in');
     expect(on('Claim the floor')).toEqual({ disabled: true });
     expect(on('Record')).toEqual({ disabled: true });
 
@@ -1978,12 +1979,22 @@ describe('Channel', () => {
       />);
 
     const order = [
-      'Your microphone',
-      // "Step Out", capitalised, and the label flips to "Step In" when you are
-      // not present — the text search read a lowercase "step out" out of some
-      // card's prose and never checked the heading at all.
-      'Step Out',
+      // The floor is first among the controls as of 2026-08-31, directly under
+      // the roster. It was fifth — under the microphone and under the
+      // departure — which put the one mechanic the application is named after
+      // below a readout about yourself and at the same weight as the guest
+      // link. It is about the roster above it: it decides who among those
+      // people may be heard.
       'The floor',
+      'Your microphone',
+      // Sentence case now, with the rest of them. It was "Step Out",
+      // capitalised, because one label served both departures and flipped to
+      // "Step In" when you were not present; splitting them left nothing for
+      // the capital to distinguish. The lowercase hazard the capital guarded
+      // against is gone with the text search — this reads the `SectionLabel`s
+      // themselves, so a "step out" in some card's prose cannot be mistaken
+      // for the heading.
+      'Step out',
       'Shared clipboard',
       // Above the audio rather than below it, moved 2026-08-23. Both are
       // things the channel can be attending to and only one can be, so the
@@ -2013,6 +2024,37 @@ describe('Channel', () => {
       .findAll((node) => node.type === SectionLabel)
       .map((node) => labelOf(node).trim());
     expect(labels).toEqual(order);
+
+    /*
+      And the seams, in among the sections rather than checked apart from
+      them. Two groups, not ten equal sections: everything before the first
+      heading is the conversation — the room, the floor, your microphone, the
+      way out — and the headings are the only thing on this screen that says
+      the sections below them are a different kind of thing.
+
+      Read as one interleaved sequence on purpose. Asking separately whether
+      both headings render would pass with either of them in the wrong run,
+      which is the only way this can actually go wrong.
+    */
+    const structure = tree.root
+      .findAll(
+        (node) => node.type === SectionLabel || node.type === GroupHeading
+      )
+      .map((node) => labelOf(node).trim());
+    expect(structure).toEqual([
+      'The floor',
+      'Your microphone',
+      'Step out',
+      'What the channel is carrying',
+      'Shared clipboard',
+      'Watch together',
+      'Shared audio',
+      'Recording',
+      'Recordings',
+      'Who gets in',
+      'Invite',
+      'Guest link',
+    ]);
     act(() => tree.unmount());
   });
 
@@ -3192,11 +3234,13 @@ describe('named channels and described ones do not look alike', () => {
         onExit={() => {}}
       />
     );
-    // The header, not the roster below it: both say "Dana Chu".
+    // The header, not the roster below it: both say "Dana Chu". 28 rather
+    // than 24 since the name stopped sharing its line with Home and Settings
+    // — it has the width of the screen now, and 28 is `type.title`.
     const [header] = tree.root.findAll(
       (n) =>
         n.props?.children === 'Dana Chu' &&
-        StyleSheet.flatten(n.props?.style)?.fontSize === 24
+        StyleSheet.flatten(n.props?.style)?.fontSize === 28
     );
     const style = StyleSheet.flatten(header.props.style) as {
       fontStyle?: string;

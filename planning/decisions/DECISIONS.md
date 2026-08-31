@@ -1098,3 +1098,109 @@ which is the soonest anybody could honestly be told what the account holds.
 **The Headphones card now says it is kept on this phone.** A screen where two
 settings follow you and one does not, silently, has lied to somebody by the
 time they notice.
+
+## The channel screen gets two halves and gives the floor its place — 2026-08-31
+
+Eleven sections in one flat column, each a `SectionLabel` over a `Card`, in
+roughly the order the features were built. Three things followed from that, and
+all three are the same problem seen from different sides: **a flat column has no
+way to say that some of what is on it matters more than the rest.**
+
+**The floor was fifth.** Under Your microphone, under the departure, at the same
+weight as Guest link — the one mechanic this application is named after, below a
+readout about yourself. It is now the first control, directly under the roster,
+because it is *about* the roster: it decides which of the people listed there
+may be heard. The microphone is about you alone and is mostly a state readout,
+so it follows. The floor is also the only control on the screen with a running
+clock, and a clock somebody is watching should not be the thing they scroll to.
+
+**Step In and Step Out stopped sharing a card.** One `SectionLabel` said
+`{iAmPresent ? 'Step Out' : 'Step In'}` over one card with a branch inside it,
+which meant one *position* served two controls that want opposite ends of the
+screen. Step In is the only thing you came to decide on a screen you are not in;
+Step Out is the last thing you do on one you are. The position had been chosen
+for Step Out — reasonably — and Step In inherited it, landing below a microphone
+card that is not rendered for somebody outside the room anyway. So Step In goes
+directly under the roster and Step Out stays at the foot of its half.
+
+The recorded reason for Step Out's placement survives intact and is now visible
+rather than merely written down: it is still directly under the microphone,
+still the same question asked at a greater strength, and "everything below is
+about what the channel is doing rather than about you being in it" is now a
+heading instead of a comment.
+
+**Two group headings, and nothing else moved to earn them.** `GroupHeading`, a
+hairline rule and a line of 13px `textMuted`, splits the screen into the
+conversation — the room, the floor, your microphone, the way in or out — and
+*What the channel is carrying*, then *Who gets in*. The sections below the first
+seam were already in this order; the comment on Invite has said since
+2026-08-24 that they run "in roughly the order somebody in one reaches for
+them", and a column of ten identical labels could not show it. Two headings can.
+
+**It is local to `ChannelView` rather than in `components.tsx`**, on the rule
+`cardPing`'s paddings are kept under: every other view in this application is
+one run of sections, where a heading over the only group there is would be a
+label for the screen — which is what *The profile stops saying things its own
+route said* was about. A second caller is where it moves out.
+
+**The rule carries the weight, not a third type size.** `SectionLabel` is
+already the loudest small type here, so a heavier heading would compete with the
+labels rather than sit above them. A hairline and a wide top margin say a new
+part begins without adding a size that argues with the two already present.
+
+### What was considered and not done
+
+**Collapsing the dormant sections.** The largest problem on this screen is that
+Shared clipboard, Watch together, Shared audio, Recording and Recordings render
+in full — a field, two or three buttons, and a paragraph each — whether or not
+anything is happening, so two people talking in a fresh channel scroll past five
+cards describing things nobody is doing. Folding each to a line until it has
+something in it would be the single biggest improvement and is not this change.
+
+It is left because of what it costs elsewhere. `views.test.tsx` finds controls
+by `findButton(tree, label)` over the whole render, so every dormant control
+behind a disclosure disappears from dozens of assertions at once — and more
+importantly it fights the rule this screen is built on, that a control which is
+refused says why. A disclosure hides the reason along with the button. Doing it
+properly means deciding what a collapsed section shows *instead*, which is a
+design question and not a mechanical one. It wants asking for on its own.
+
+### The header
+
+**Home and Settings move above the name.** They shared its line, which cost the
+name the width of two ghost buttons and truncated it at `numberOfLines={1}` to
+pay for them — and a channel named after the people in it is exactly the name
+that runs long. It was the one thing on that row a tap could not recover.
+
+With the line to itself the name goes to 28, which is `type.title` and what a
+screen's own name is everywhere else, and to two lines, which is the difference
+between reading three names and reading two and an ellipsis. `flexShrink: 1`
+goes with the row it was for. The buttons take a negative horizontal margin
+because `Button`'s padding is sized for a card and would otherwise inset the
+pair further than the title beneath them, which reads as a mistake rather than
+as chrome.
+
+### The floor card
+
+`floorCardHeld` and `floorCardSilenced` go to `borderWidth: 2`. These are the
+two states where the room is not behaving normally — somebody is speaking
+uninterrupted, or you have been cut off — and a colour change on a hairline is
+a small signal for a large fact. `floorDim` alone does not carry it in light
+mode, where it is a pale tint on a white card. `floorStatus` goes to 20/700,
+above `type.heading`, being the first sentence anybody reads on the screen now.
+
+### The test
+
+`orders the screen by what somebody in a conversation reaches for` reads
+`SectionLabel` and `GroupHeading` as **one interleaved sequence**. Asking
+separately whether both headings render would pass with either of them in the
+wrong run, which is the only way this can actually go wrong — the same failure
+the structural read replaced the text search to avoid, one level up.
+
+`Step Out` loses its capital and joins the rest in sentence case. The capital
+was there to distinguish the heading from a lowercase "step out" in some card's
+prose, back when the test searched flattened text; the structural read retired
+that hazard, and splitting the two departures retired the flip the capital was
+marking.
+
+1,206 lines, so no rollover.
