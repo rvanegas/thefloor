@@ -72,11 +72,21 @@ function Root() {
   // audio, which follows the channel rather than the socket and would
   // otherwise keep a microphone open behind a screen that says to update.
   //
-  // Nor once another of this account's devices has stepped into a channel.
-  // The snapshot may well still say this person is present — they are, on the
-  // phone in their hand — and one account has one voice, so the microphone
-  // here has to close whatever the roster says. See AppProvider.displaced.
-  const live = view && !app.expired && !app.displaced ? view.channel : null;
+  // Nor anywhere this *device* is not the one standing, which is a narrower
+  // test than the roster can express and is the one that matters. `view` is
+  // the account's presence, and the account is present whether the room is
+  // held here, on the phone in their hand, or by a process that has since been
+  // killed. One account has one voice, so a device that has not entered has to
+  // hold no microphone whatever the roster says — and reading the roster as
+  // though it described this device is what let a second device join the audio
+  // of a channel it had only opened. See AppProvider.standingIn.
+  //
+  // This subsumes the old `!app.displaced` clause rather than sitting beside
+  // it: being displaced clears `standingIn`, because both are the same fact.
+  const live =
+    view && !app.expired && view.channel.id === app.standingIn
+      ? view.channel
+      : null;
 
   // Or asked for and not yet confirmed. The rule in `microphoneNeeded` is
   // right — a recording is something listening, so it opens the microphone —

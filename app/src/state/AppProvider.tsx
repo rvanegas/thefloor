@@ -174,6 +174,23 @@ interface AppState {
    */
   displaced: boolean;
   /**
+   * The channel *this device* is standing in, or null.
+   *
+   * **The account's presence and this device's are different facts, and only
+   * this one is about the app you are holding.** A snapshot reports the
+   * account: it says present whether the room is being held here, on a phone
+   * in another room, or by a process that has since been killed. Reading the
+   * roster as though it described this device is what let a second device open
+   * a channel it had never entered, draw itself a Step Out button, and join
+   * the audio room — where the media plane admits one participant per account
+   * and the two devices took it from each other in turn.
+   *
+   * Owned by `Realtime`, which has kept it all along as the thing a reconnect
+   * re-enters, and mirrored here so the screen and the audio can follow it.
+   * See `onStanding`.
+   */
+  standingIn: string | null;
+  /**
    * A channel where recording has been asked for and not yet confirmed.
    *
    * Only the microphone reads it. Alone in a channel the microphone is closed
@@ -477,6 +494,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     recordingAsked: null,
     movedChannel: null,
     displaced: false,
+    standingIn: null,
     status: 'closed',
     lastError: null,
   });
@@ -557,6 +575,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // App.tsx reads off `live`. No navigation and no notice — the channel
         // screen simply offers Enter again.
         onDisplaced: () => setState((s) => ({ ...s, displaced: true })),
+        // Mirrored rather than derived. Every transition of it is a decision
+        // already taken in `Realtime` — entering, stepping out, being
+        // displaced, following a move, giving up a stale re-entry past the
+        // grace — and recomputing any of that here would be a second opinion
+        // about the same fact.
+        onStanding: (channelId) =>
+          setState((s) =>
+            s.standingIn === channelId ? s : { ...s, standingIn: channelId }
+          ),
         onStatus: (status) => setState((s) => ({ ...s, status })),
         onError: (message) => setState((s) => ({ ...s, lastError: message })),
       });
@@ -767,6 +794,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         recordingAsked: null,
         movedChannel: null,
         displaced: false,
+        standingIn: null,
         status: 'closed',
         lastError:
           'You were signed out. Sign in again with a fresh code by email.',
@@ -946,6 +974,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           recordingAsked: null,
           movedChannel: null,
           displaced: false,
+        standingIn: null,
           status: 'closed',
           lastError: null,
         });
@@ -995,6 +1024,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           recordingAsked: null,
           movedChannel: null,
           displaced: false,
+        standingIn: null,
           status: 'closed',
           lastError: null,
         });
@@ -1129,6 +1159,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         const { channelId } = await api.startChannel(state.token, contactIds);
         realtime.watchChannel(channelId);
+        // Creating a channel is entering it — the server puts the initiator in
+        // `present` the moment it exists — so this is the one way into a
+        // channel that sends no ENTER, and the one place that has to say so
+        // itself. See `Realtime.standIn`.
+        realtime.standIn(channelId);
         return channelId;
       },
 

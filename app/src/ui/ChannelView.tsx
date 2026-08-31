@@ -351,20 +351,45 @@ export function ChannelView({
    * which asks about the room rather than the roster, so they disable
    * themselves without being told about this.
    */
-  const iAmPresent = isPresent(channel, me) && !app.displaced;
+  const iAmPresent = isPresent(channel, me) && app.standingIn === channelId;
   /**
-   * Standing here, but on one of this account's other devices.
+   * Standing here, but not on this device.
    *
    * The roster says present and this screen says otherwise, and both are
    * right: several devices may be signed in, and the one holding the room is
-   * whichever entered a channel last. So `iAmPresent` above is narrowed by it
-   * — the microphone is closed here and the card offers a way in — while the
-   * roster goes on listing this person, because the person is there.
+   * whichever entered last. So `iAmPresent` above is narrowed by it — the
+   * microphone is closed here and the card offers a way in — while the roster
+   * goes on listing this person, because the person is there.
    *
-   * Only worth a word when the room in question is this one. Displaced while
-   * looking at a channel you were not in is a state with nothing to say.
+   * **Asked of `standingIn` rather than of `displaced`, which is the wider
+   * question and the one worth asking.** `displaced` means the server sent
+   * word, and it only ever does that when another device *acts*. A device that
+   * merely opens a channel the account is already in is told nothing — there
+   * is nothing to tell, the channel did not change — and it used to read the
+   * roster and conclude it was standing here. This asks the only question the
+   * screen actually has: is this the device holding the room?
+   *
+   * It covers a case `displaced` cannot, and covers it correctly: an app
+   * launched afresh into a channel the account is still present in holds
+   * nothing either, and is offered the same way in.
    */
-  const elsewhereOnAnotherDevice = app.displaced && isPresent(channel, me);
+  const elsewhereOnAnotherDevice = !iAmPresent && isPresent(channel, me);
+  /**
+   * Whether the server *said* another device took it, which is the difference
+   * between the two sentences offered below.
+   *
+   * `elsewhereOnAnotherDevice` is true in two situations that look identical
+   * from here and are not: another device holds the room, or this process
+   * launched into a channel the account is still present in and holds nothing.
+   * Only the first has another device to point at, and only the first is
+   * something the server announces — it sends `displaced` when another session
+   * acts, and says nothing at all to an app that has merely started up.
+   *
+   * So this is the one case where the vaguer sentence would be a worse answer
+   * than the information available: when the server has told us, say what it
+   * told us.
+   */
+  const takenByAnotherDevice = elsewhereOnAnotherDevice && app.displaced;
   /**
    * Whether somebody is to be shown as speaking *on this screen*, as against
    * somebody the room happens to be hearing.
@@ -389,7 +414,7 @@ export function ChannelView({
    * being in `present`, and the guest cards below ask this too.
    */
   const audioIsThisChannel =
-    !app.displaced &&
+    app.standingIn === channelId &&
     liveChannelView(app.channelViews, me)?.channel.id === channelId;
   const speakingHere = (id: string) =>
     audioIsThisChannel && inRoom(channel, id) && audio.speaking.includes(id);
@@ -943,9 +968,11 @@ export function ChannelView({
                 onPress={() => act({ type: 'ENTER' })}
               />
               <Text style={type.muted}>
-                {elsewhereOnAnotherDevice
+                {takenByAnotherDevice
                   ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
-                  : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
+                  : elsewhereOnAnotherDevice
+                    ? 'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.'
+                    : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
               </Text>
             </>
           )}

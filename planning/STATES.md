@@ -281,6 +281,16 @@ things that this file keeps apart:
 - **Connectivity** — `disconnectedAt`. Whether your socket is up. A socket that
   drops and returns changes nothing about presence; only outlasting
   `DISCONNECT_GRACE_MS` does.
+- **Standing** — `Realtime.enteredChannel` on the client, mirrored into the
+  app as `AppProvider.standingIn`. Which channel *this copy of the app* is in.
+  **Presence is an account's and standing is a device's**, and the two come
+  apart whenever somebody is signed in twice: the account is present while a
+  phone holds the room, and a second phone that has opened the same channel is
+  present-but-not-standing. There is no server-side name for this, because the
+  server has no reason to hold one — an account is present or not, and which
+  of its devices is doing it is settled by `displaceOtherSessions` telling the
+  others they are not. See disagreement 12.
+
 - **Watching** — `Connection.watchingChannels` on the server,
   `Realtime.watchedChannel` and the mounted `ChannelView` in the app. Whether
   snapshots are being sent to you. **Watching is not being there**, and since

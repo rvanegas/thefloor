@@ -26,6 +26,14 @@ const mockApp = {
   me: { id: 'acct_me', displayName: 'Me' },
   home: null,
   channelViews: {} as Record<string, unknown>,
+  /**
+   * Which channel this *device* is standing in — the narrowing App.tsx puts on
+   * the roster before anything opens a microphone. A snapshot says where the
+   * account is present, which is the same for every device it is signed in on;
+   * this says which one is holding the room. See `AppProvider.standingIn`.
+   */
+  standingIn: null as string | null,
+  displaced: false,
   recordingAsked: null as string | null,
   goneChannels: [] as string[],
   status: 'open' as const,
@@ -195,6 +203,9 @@ describe('asking to record', () => {
         serverNow: NOW,
       },
     };
+    // One person, one phone, in the channel — which is what putting somebody
+    // in `present` means everywhere in this file.
+    mockApp.standingIn = present.includes('acct_me') ? CHANNEL : null;
   }
 
   it('opens the microphone before the server has confirmed', () => {

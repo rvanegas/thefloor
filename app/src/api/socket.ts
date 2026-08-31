@@ -57,6 +57,22 @@ export interface RealtimeHandlers {
    * with it is forget what it would re-enter on a reconnect.
    */
   onDisplaced?: () => void;
+  /**
+   * Which channel *this device* is standing in, or null for none.
+   *
+   * **Not the same question as where the account is present**, and the whole
+   * reason this exists. An account may be present in a channel while this
+   * particular copy of the app holds nothing — another device entered, or this
+   * process launched a moment ago into a channel it never entered. A snapshot
+   * cannot tell the two apart: it reports the account, and the account is
+   * present either way.
+   *
+   * So this is the app's own record of what it has asserted, and it is what
+   * the audio and the Step In / Step Out button follow. `enteredChannel` is
+   * the field, and every transition of it is reported here — which is why the
+   * assignments all go through `setStanding` rather than writing it directly.
+   */
+  onStanding?: (channelId: string | null) => void;
   onStatus?: (status: ConnectionStatus) => void;
   onError?: (message: string) => void;
   /** Server time at the moment of the snapshot, for clock alignment. */
@@ -235,7 +251,7 @@ export class Realtime {
           // Stepped out by the server a while ago, and everybody in the room
           // watched it happen. The snapshot that arrives from the watch above
           // says so, and the screen offers Step In.
-          this.enteredChannel = null;
+          this.setStanding(null);
         }
       }
       this.enteredLostAt = 0;
@@ -275,7 +291,7 @@ export class Realtime {
           this.handlers.onChannel?.(message.view);
           break;
         case 'channel.gone':
-          if (this.enteredChannel === message.channelId) this.enteredChannel = null;
+          if (this.enteredChannel === message.channelId) this.setStanding(null);
           this.handlers.onChannelGone?.(message.channelId);
           break;
         case 'channel.moved':
@@ -283,7 +299,7 @@ export class Realtime {
           // well as upstairs: this is what a reconnect would re-enter, and
           // re-entering the channel everybody has left would walk back out of
           // the conversation on the first blip of signal.
-          if (this.enteredChannel === message.from) this.enteredChannel = message.to;
+          if (this.enteredChannel === message.from) this.setStanding(message.to);
           if (this.watchedChannel === message.from) {
             this.send({ type: 'unwatch.channel', channelId: message.from });
             this.watchChannel(message.to);
@@ -300,7 +316,7 @@ export class Realtime {
           // Forgetting `enteredChannel` is the load-bearing half: without it
           // the next reconnect would re-send ENTER and take the room back from
           // the device somebody is holding, or undo a Step Out taken there.
-          this.enteredChannel = null;
+          this.setStanding(null);
           this.handlers.onDisplaced?.();
           break;
         case 'error':
@@ -504,6 +520,45 @@ export class Realtime {
     this.send({ type: 'watch.channel', channelId });
   }
 
+  /**
+   * Records which channel this device is standing in, and says so.
+   *
+   * **The only writer of `enteredChannel`**, so that nothing can move without
+   * the app hearing about it. The field had been assigned from seven places
+   * and read only here, which was fine while its whole job was deciding
+   * whether to re-send ENTER on a reconnect; it is now also what the screen
+   * and the audio follow, and a state the UI mirrors cannot be kept in a
+   * private field that changes silently.
+   *
+   * Idempotent, because several of those seven set it to what it already was
+   * and a redundant notification would re-render for nothing.
+   */
+  private setStanding(channelId: string | null): void {
+    if (this.enteredChannel === channelId) return;
+    this.enteredChannel = channelId;
+    this.handlers.onStanding?.(channelId);
+  }
+
+  /**
+   * Stand in a channel this device is already in without asserting it again.
+   *
+   * **Creating a channel is entering it** — `createChannel` in core puts the
+   * initiator in `present` the moment it exists — so the one route into a
+   * channel that never sends ENTER is the one that starts it. Without this the
+   * creator would watch their own new channel from outside: the roster would
+   * say they were in it, this device would know it had entered nothing, and
+   * the screen would offer them a way in to where they already were.
+   *
+   * It also buys the thing the create path quietly lacked. `enteredChannel` is
+   * what a reconnect re-enters from, so a channel created and then dropped by
+   * a blip was one nothing re-asserted, and its creator was stepped out when
+   * the grace ran out.
+   */
+  standIn(channelId: string): void {
+    this.setStanding(channelId);
+    this.enteredLostAt = 0;
+  }
+
   unwatchChannel(channelId: string): void {
     if (this.watchedChannel === channelId) this.watchedChannel = null;
     this.send({ type: 'unwatch.channel', channelId });
@@ -512,12 +567,12 @@ export class Realtime {
   act(channelId: string, action: ClientAction): void {
     // Track presence locally so a reconnect can restore it.
     if (action.type === 'ENTER') {
-      this.enteredChannel = channelId;
+      this.setStanding(channelId);
       this.enteredLostAt = 0;
     }
     // Both give up presence, so neither should be re-entered on a reconnect.
     if (action.type === 'STEP_OUT' || action.type === 'LEAVE_CHANNEL') {
-      if (this.enteredChannel === channelId) this.enteredChannel = null;
+      if (this.enteredChannel === channelId) this.setStanding(null);
     }
     this.watchedChannel = channelId;
     this.send({ type: 'channel.action', channelId, action });
@@ -537,7 +592,7 @@ export class Realtime {
     this.socket = null;
     this.watchingHome = false;
     this.watchedChannel = null;
-    this.enteredChannel = null;
+    this.setStanding(null);
     this.enteredLostAt = 0;
     // Signing out is not a gap to be bridged. Anything still waiting belongs to
     // the session being ended, and replaying it into the next one would act as

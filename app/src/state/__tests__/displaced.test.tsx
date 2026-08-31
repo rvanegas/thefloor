@@ -47,19 +47,35 @@ jest.mock('../../api/http', () => ({
       contacts: [],
       recordings: [],
     })),
+    startChannel: jest.fn(async () => ({ channelId: 'chan_new' })),
   },
 }));
 
+/**
+ * Enough of `Realtime` to carry the one thing these tests are about: which
+ * channel this device is standing in. The real class keeps it as
+ * `enteredChannel` and reports every move through `onStanding`, so the fake
+ * has to do the same or the provider would never hear the fact under test.
+ */
 jest.mock('../../api/socket', () => ({
   Realtime: class {
+    handlers: RealtimeHandlers = {};
     connect(_token: string, h: RealtimeHandlers) {
       handlers = h;
+      this.handlers = h;
     }
     watchHome() {}
     watchChannel() {}
     unwatchChannel() {}
+    standIn(channelId: string) {
+      this.handlers.onStanding?.(channelId);
+    }
     act(channelId: string, action: { type: string }) {
       acted.push({ channelId, action });
+      if (action.type === 'ENTER') this.handlers.onStanding?.(channelId);
+      if (action.type === 'STEP_OUT' || action.type === 'LEAVE_CHANNEL') {
+        this.handlers.onStanding?.(null);
+      }
     }
     disconnect() {}
   },
@@ -96,7 +112,10 @@ function Standing() {
   // it is never a stale closure over an earlier state.
   latest = app;
   const view = liveChannelView(app.channelViews, ME);
-  const live = view && !app.displaced ? view.channel.id : 'nowhere';
+  // App.tsx's own test, rather than a paraphrase of it: where the account is
+  // present, narrowed to the channel this device is the one standing in.
+  const live =
+    view && view.channel.id === app.standingIn ? view.channel.id : 'nowhere';
   return (
     <Text>
       roster:{view?.channel.id ?? 'nowhere'} live:{live}
@@ -117,7 +136,126 @@ function textOf(tree: ReactTestRenderer): string {
   return out.join('');
 }
 
+/**
+ * What the real socket does on a `displaced` message, in the order it does it.
+ *
+ * Two calls rather than one, because they are two facts: the standing record
+ * is cleared inside `Realtime` — that is the half a reconnect reads, so it
+ * cannot wait for React — and `onDisplaced` is the announcement. A test that
+ * fired only the second would be asserting against a client that does not
+ * exist.
+ */
+function displace(): void {
+  handlers.onStanding?.(null);
+  handlers.onDisplaced?.();
+}
+
 describe('another device takes the room', () => {
+  let tree!: ReactTestRenderer;
+
+  beforeEach(async () => {
+    handlers = {};
+    acted.length = 0;
+    await act(async () => {
+      tree = renderer.create(
+        <AppProvider>
+          <Standing />
+        </AppProvider>
+      );
+    });
+    // Standing here to begin with, which every case below starts from and
+    // which nothing but entering can establish. A snapshot cannot: it reports
+    // the account, and the account is present whichever device holds it.
+    await act(async () => push(present('chan_a')));
+    await act(async () => latest!.act('chan_a', { type: 'ENTER' }));
+    acted.length = 0;
+  });
+
+  afterEach(async () => {
+    await act(async () => tree.unmount());
+  });
+
+  it('stops standing here while the roster goes on saying otherwise', async () => {
+    expect(textOf(tree)).toContain('roster:chan_a live:chan_a');
+
+    await act(async () => displace());
+
+    // Both halves. The roster is right — this person *is* in the channel, on
+    // the phone in their hand — and so is this device, which is not the one
+    // they are in it on.
+    expect(textOf(tree)).toContain('roster:chan_a live:nowhere');
+  });
+
+  it('keeps the snapshot, because the screen has to stay open', async () => {
+    await act(async () => displace());
+
+    // A channel that is gone is a different message with a different handler.
+    // This one leaves the screen showing the channel and offering a way in.
+    expect(textOf(tree)).toContain('roster:chan_a');
+  });
+
+  /**
+   * Taking the room back, which is the same gesture that took it away on the
+   * other device. Ahead of the server deliberately: in the same-channel case
+   * there is no snapshot coming that would confirm it, since nothing about
+   * the channel changed.
+   */
+  it('is undone by stepping in from this device', async () => {
+    await act(async () => displace());
+    expect(textOf(tree)).toContain('live:nowhere');
+
+    await act(async () => latest!.act('chan_a', { type: 'ENTER' }));
+
+    expect(textOf(tree)).toContain('live:chan_a');
+    expect(acted).toContainEqual({
+      channelId: 'chan_a',
+      action: { type: 'ENTER' },
+    });
+  });
+
+  /** Any other action is somebody using the screen, not arriving on it. */
+  it('is not undone by some other action', async () => {
+    await act(async () => displace());
+
+    await act(async () => latest!.act('chan_a', { type: 'CLAIM_FLOOR' }));
+
+    expect(textOf(tree)).toContain('live:nowhere');
+  });
+
+  it('survives a fresh snapshot, which says nothing about which device', async () => {
+    await act(async () => displace());
+
+    // Somebody else speaks, and a snapshot lands. It carries this person as
+    // present — they are — and must not be read as this device being back.
+    await act(async () => push(present('chan_a'), T0 + 1000));
+
+    expect(textOf(tree)).toContain('live:nowhere');
+  });
+
+  /** Stepping out here gives the room up rather than handing it anywhere. */
+  it('stops standing here when this device steps out', async () => {
+    await act(async () => latest!.act('chan_a', { type: 'STEP_OUT' }));
+
+    expect(textOf(tree)).toContain('live:nowhere');
+  });
+});
+
+/**
+ * **The case that had no message and so was never noticed**, and the one this
+ * whole distinction exists for.
+ *
+ * Every test above starts from a `displaced` message, which the server sends
+ * only when another session *acts*. A device that merely opens a channel the
+ * account is already in is told nothing — there is nothing to tell, since the
+ * channel did not change — and it used to read the roster, conclude it was
+ * standing there, draw a Step Out button and connect the audio. The media
+ * plane admits one participant per account, so the two devices then took the
+ * room from each other in turn.
+ *
+ * No `displaced` is fired anywhere here, deliberately. The point is that the
+ * second device gets this right with nothing said to it at all.
+ */
+describe('a second device that only opens the channel', () => {
   let tree!: ReactTestRenderer;
 
   beforeEach(async () => {
@@ -136,38 +274,16 @@ describe('another device takes the room', () => {
     await act(async () => tree.unmount());
   });
 
-  it('stops standing here while the roster goes on saying otherwise', async () => {
+  it('is not standing there, whatever the roster says', async () => {
     await act(async () => push(present('chan_a')));
-    expect(textOf(tree)).toContain('roster:chan_a live:chan_a');
 
-    await act(async () => handlers.onDisplaced?.());
-
-    // Both halves. The roster is right — this person *is* in the channel, on
-    // the phone in their hand — and so is this device, which is not the one
-    // they are in it on.
+    // The roster is right and so is this device: the account is in the
+    // channel, and this copy of the app is not the one holding it.
     expect(textOf(tree)).toContain('roster:chan_a live:nowhere');
   });
 
-  it('keeps the snapshot, because the screen has to stay open', async () => {
+  it('takes the room by stepping in, which is the whole gesture', async () => {
     await act(async () => push(present('chan_a')));
-    await act(async () => handlers.onDisplaced?.());
-
-    // A channel that is gone is a different message with a different handler.
-    // This one leaves the screen showing the channel and offering a way in.
-    expect(textOf(tree)).toContain('roster:chan_a');
-  });
-
-  /**
-   * Taking the room back, which is the same gesture that took it away on the
-   * other device. Ahead of the server deliberately: in the same-channel case
-   * there is no snapshot coming that would confirm it, since nothing about
-   * the channel changed.
-   */
-  it('is undone by stepping in from this device', async () => {
-    await act(async () => push(present('chan_a')));
-    await act(async () => handlers.onDisplaced?.());
-    expect(textOf(tree)).toContain('live:nowhere');
-
     await act(async () => latest!.act('chan_a', { type: 'ENTER' }));
 
     expect(textOf(tree)).toContain('live:chan_a');
@@ -177,24 +293,52 @@ describe('another device takes the room', () => {
     });
   });
 
-  /** Any other action is somebody using the screen, not arriving on it. */
-  it('is not undone by some other action', async () => {
+  /**
+   * Snapshots keep arriving while the other device talks, and not one of them
+   * is evidence about which device is holding the room.
+   */
+  it('stays out through every snapshot that follows', async () => {
     await act(async () => push(present('chan_a')));
-    await act(async () => handlers.onDisplaced?.());
-
-    await act(async () => latest!.act('chan_a', { type: 'CLAIM_FLOOR' }));
+    await act(async () => push(present('chan_a'), T0 + 1000));
+    await act(async () => push(present('chan_a'), T0 + 2000));
 
     expect(textOf(tree)).toContain('live:nowhere');
   });
+});
 
-  it('survives a fresh snapshot, which says nothing about which device', async () => {
-    await act(async () => push(present('chan_a')));
-    await act(async () => handlers.onDisplaced?.());
+/**
+ * Creating a channel is entering it — `createChannel` puts the initiator in
+ * `present` the moment it exists — so it is the one route in that sends no
+ * ENTER, and the one the standing record has to be told about by hand.
+ * Without that the creator would be offered a way into their own new channel.
+ */
+describe('a channel this device started', () => {
+  let tree!: ReactTestRenderer;
 
-    // Somebody else speaks, and a snapshot lands. It carries this person as
-    // present — they are — and must not be read as this device being back.
-    await act(async () => push(present('chan_a'), T0 + 1000));
+  beforeEach(async () => {
+    handlers = {};
+    acted.length = 0;
+    await act(async () => {
+      tree = renderer.create(
+        <AppProvider>
+          <Standing />
+        </AppProvider>
+      );
+    });
+  });
 
-    expect(textOf(tree)).toContain('live:nowhere');
+  afterEach(async () => {
+    await act(async () => tree.unmount());
+  });
+
+  it('is one this device is standing in, without an ENTER', async () => {
+    await act(async () => {
+      await latest!.startChannel([THEM]);
+    });
+    await act(async () => push(present('chan_new')));
+
+    expect(textOf(tree)).toContain('live:chan_new');
+    // Nothing was dispatched: the server had it present already.
+    expect(acted).toHaveLength(0);
   });
 });

@@ -67,6 +67,15 @@ const mockApp = {
     }
   >,
   goneChannels: [] as string[],
+  /**
+   * The channel this *device* is standing in, which is not what the roster
+   * says — see `AppProvider.standingIn`. `showChannel` sets it whenever the
+   * snapshot has ME present, because that is what every test here but the
+   * two-device ones means by putting somebody in a channel: one person, one
+   * phone, in the room. A test that wants the other case clears it by hand.
+   */
+  standingIn: null as string | null,
+  displaced: false,
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -315,12 +324,17 @@ function showChannel(channel: ChannelState, recordings: RecordingView[] = []) {
     recordings,
     serverNow: NOW,
   };
+  // Being in the channel and being the device that is in it are different
+  // facts, and these tests mean both unless they say otherwise.
+  if (channel.present.includes(ME)) mockApp.standingIn = channel.id;
 }
 
 beforeEach(() => {
   mockApp.home = null;
   mockApp.channelViews = {};
   mockApp.goneChannels = [];
+  mockApp.standingIn = null;
+  mockApp.displaced = false;
   mockApp.status = 'open';
   mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
@@ -1837,6 +1851,85 @@ describe('Channel', () => {
     expect(onHome).toHaveBeenCalled();
     expect(mockApp.act).not.toHaveBeenCalled();
     expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **Which device the button is about**, which is the whole of what it had
+   * been getting wrong.
+   *
+   * The roster is one account's answer and the button is one device's
+   * question, and a snapshot only carries the first. A second phone opening a
+   * channel its owner is already in read `present` as though it described
+   * itself, offered Step out, and connected the audio — and since the media
+   * room admits one participant per account, the two devices then took it from
+   * each other in turn. `standingIn` is the fact the roster cannot carry.
+   */
+  it('offers a way in on a device that is not the one standing there', () => {
+    showChannel(channelOf());
+    // The account is in the channel; this copy of the app is not what is
+    // holding it. `showChannel` assumes the ordinary case, so this is the
+    // line that makes it the two-device one.
+    mockApp.standingIn = null;
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    expect(findButton(tree, 'Step out')).toBeUndefined();
+    const stepIn = findButton(tree, 'Step in');
+    expect(stepIn).toBeDefined();
+    // And it says which of the two "not in it" cases this is, rather than the
+    // copy for a channel nobody is in.
+    expect(textOf(tree)).toContain('not on this device');
+    expect(textOf(tree)).not.toContain('without being in it');
+
+    act(() => stepIn!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'ENTER' });
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The server says so only when another session *acts*, and when it has, the
+   * screen can name the reason instead of describing the state.
+   */
+  it('names the other device once the server has said so', () => {
+    showChannel(channelOf());
+    mockApp.standingIn = null;
+    mockApp.displaced = true;
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    expect(findButton(tree, 'Step in')).toBeDefined();
+    expect(textOf(tree)).toContain('on another device');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * A channel nobody is in is the third case, and must keep its own words —
+   * the two above are about being present somewhere you are not holding, and
+   * this is about not being present at all.
+   */
+  it('keeps the plain copy for a channel this account is not in', () => {
+    const channel = reduce(channelOf(), { type: 'STEP_OUT', userId: ME }, NOW);
+    showChannel(channel);
+    mockApp.standingIn = null;
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />);
+
+    expect(findButton(tree, 'Step in')).toBeDefined();
+    expect(textOf(tree)).toContain('without being in it');
+    expect(textOf(tree)).not.toContain('not on this device');
     act(() => tree.unmount());
   });
 
