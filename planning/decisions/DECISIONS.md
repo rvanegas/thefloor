@@ -1550,3 +1550,90 @@ The cost is bounded by how short those lines are, which is the whole of why this
 is safe: at most three muted lines, any of which may be absent, and the group
 carries its own gap so one sits exactly where three do. Ping is still the first
 *card* on the screen and still gets `useRevealOnKeyboard`.
+
+## A token was never a device, and the loser stops fighting — 2026-08-31
+
+Two mechanisms, either of which would sound like one account's two devices
+competing for a channel's audio, and neither of which was measured. That is
+worth saying first, because TASKS.md § *Two Devices In One Channel* asked for a
+reproduction before any code and did not get one. Both were found by reading,
+and both are defects on their own terms — but **nobody has heard the fixed
+version, and nobody ever heard the broken one on purpose.** The entry stays open
+for the listen.
+
+**`displaceOtherSessions` was keyed on the token, and a token is not a device.**
+It skipped any connection whose token matched the entering one, so two sessions
+sharing a token were never displaced from each other — invisible to each other
+by construction, both live in the same room, competing for the one voice the
+account has. The skip is not optional and never was: a reconnecting device holds
+two sockets for a moment, the old one not yet closed, and the client re-sends
+ENTER on the new one, so displacing by *socket* would let a flap take the room
+away from the device somebody is actually holding. Something that survives a
+reconnection has to be named, and the token was the only such thing this server
+knew.
+
+It was survivable because iOS will not run a second copy of the app, so one
+sign-in meant one running process and the two readings could not come apart.
+**The browser is what separates them**: two tabs on one origin share
+`localStorage` and therefore share a token. This was going to arrive with the
+web app whether or not it was the 2026-08-29 sighting. See WEB.md.
+
+So the socket carries a `device` query parameter beside `build` and `client` —
+the third for the same reason as the other two, since neither React Native's
+WebSocket nor the browser's carries custom headers. It is never mirrored as a
+header, because displacement is about live connections and an HTTP call is not
+one.
+
+**Minted per JavaScript context and never persisted**, which is the whole design
+and lands on the right meaning on both platforms without either knowing about
+the other. On a phone a context is a process, so it is stable for as long as the
+app runs — which covers every reconnection, the case the skip exists for. In a
+browser a context is a *tab*, so two tabs get two names. **Persisting it would
+be a bug rather than an improvement**: a stored id lives in the same
+`localStorage` the token does, both tabs would read the same one back, and
+`device.ts` would be an elaborate way of writing the token again.
+
+A socket naming no device falls back to its token, which is exactly the rule
+that shipped before the field existed, so no installed build changes behaviour —
+the same contract `claimedBuild` and `claimedClient` hold, and for the same
+reason. A device-naming socket and a silent one sharing a token come out
+*different*, which is also right: they are two copies of the app, and the newer
+one being able to say so is not a reason to treat them as one. The token side of
+the key is prefixed rather than used bare, so a client cannot claim another of
+its own sessions' tokens as a device name and merge the two. That would cost it
+only its own displacement, but a key space where one side's values can be forged
+into the other's is not one to leave open.
+
+**The media plane had a loop of its own, and it needed no server at all.**
+LiveKit admits one participant per identity and the identity is the account —
+`channels.ts` issues join tokens under `identity: userId` — so the later joiner
+evicts the earlier whatever this server thinks. `useSessionAudio` read that
+eviction as a network drop and rebuilt on its 500ms-doubling backoff, which
+re-evicted the device that had just taken the room, which rebuilt in turn. Two
+screens would trade the conversation for as long as both were open. That is what
+"the two devices competed for the audio" would sound like.
+
+`DisconnectReason.DUPLICATE_IDENTITY` is now not retried, in the native hook and
+the web one. **It gets its own `AudioStatus` rather than `idle`, and that
+mattered twice.** `idle` reads on screen as a channel whose audio never started,
+which is not what happened. And the foreground listener rebuilds a room from any
+status but `connected` and `connecting` — so filing an eviction as `idle` would
+have restarted the ping-pong once per trip through the app switcher, by a second
+route, after the first was closed. The exhaustive switch in `describeAudio` then
+forced the screen to have a real word for it, which is the kind of thing that
+union is for.
+
+**The two halves are deliberately independent, and the redundancy is the
+point.** The server telling the other device it has been displaced is a second
+message on a second connection; a race, or a `displaced` that never arrives,
+would leave nothing breaking the loop. The media-plane guard needs no message,
+because the eviction is itself the news and it arrives on the connection the news
+is about. Either alone would stop the ping-pong. Neither alone is a thing to rely
+on.
+
+**The intended rule, which this implements, is per device rather than per
+account.** Device B stepping into any channel — including the one device A is
+already in — steps device A out. To everybody else nothing happens: the account
+stays present throughout, because `displaceOtherSessions` tells other sessions
+rather than dispatching a `STEP_OUT`, so no snapshot changes and no roster
+flickers.
