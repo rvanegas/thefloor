@@ -785,7 +785,7 @@ with the `[audio]` lines `useSessionAudio` writes in development builds, and
 Each is phrased to lift into TASKS.md or BACKLOG.md as it stands. Those already
 closed say so.
 
-**Six are closed: 2, 5, 6, 8, 9 and 10.** Everything else is open, but two of
+**Seven are closed: 2, 5, 6, 8, 9, 10 and 12.** Everything else is open, but two of
 those are open in a way that reads like closure and is not — **3 and 7 are open
 by design**, 3 because the one case the two names differ in is deliberate and 7
 because `orderChannels` already consults `presentCount`. Both are written down
@@ -956,3 +956,32 @@ lifted an entry elsewhere.
    rebuild, so WebRTC's own defaults and activation itself are still live
    candidates. Disagreement 10's panel is what tells them apart, and the entry
    says how.
+
+12. **Presence is an account's and standing is a device's, and the screen
+   asked the wrong one.** *Closed 2026-08-31.* `ChannelState.present` names
+   the account, so it reads the same on every device that account is signed in
+   on. Step In / Step Out asked it directly, and so did the gate on the audio —
+   which meant a second device that merely *opened* a channel its owner was
+   already in concluded it was standing there, offered Step Out, and joined the
+   room. The media plane admits one participant per identity and the identity
+   is the account, so the two devices then took the room from each other in
+   turn.
+
+   **`displaced` is not the same state and could not have covered it.** The
+   server sends that only when another session acts; a device that has just
+   opened a screen is told nothing, because nothing about the channel has
+   changed. It remains the right signal for what it does say — another device
+   *took* the room — which is why the screen still uses it to choose between
+   two sentences, and why it is not the thing the button is computed from.
+
+   What closed it is `AppProvider.standingIn`, mirrored from
+   `Realtime.enteredChannel`, which had held the fact all along as the thing a
+   reconnect re-enters from. The button, the microphone card and the audio all
+   follow it now, so they cannot disagree about which device is in the room.
+
+   **One consequence is deliberate and is the price of the distinction.** An
+   app relaunched into a channel the account is still present in offers Step In
+   rather than resuming, because a new process holds no room and nobody can
+   hear it. Any model that tracks this per device says the same; the previous
+   behaviour only looked like resumption because it was reading the account's
+   presence and calling it this device's.
