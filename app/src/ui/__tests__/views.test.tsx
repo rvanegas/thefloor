@@ -150,10 +150,6 @@ const mockApp = {
   clearError: jest.fn(),
   removeContact: jest.fn(async () => {}),
   setEmailShown: jest.fn(async () => {}),
-  dismissedInvites: [] as string[],
-  dismissInvite: jest.fn((channelId: string) => {
-    mockApp.dismissedInvites = [...mockApp.dismissedInvites, channelId];
-  }),
   // Off, which is what every account is until somebody sets the column by
   // hand. The panel's own tests are the only ones that turn it on.
   debug: false,
@@ -378,7 +374,6 @@ beforeEach(() => {
   mockApp.displaced = false;
   mockApp.expired = false;
   mockApp.status = 'open';
-  mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
   mockApp.tapToStepIn = true;
   mockApp.controlCards = true;
@@ -735,89 +730,91 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
-  it('takes the invitation off the screen when it is dismissed', () => {
-    // It used to leave a contact row offering to join instead, the contact
-    // list being the other way in. There is no such row now: the channel is
-    // the row, and dismissing one is saying not this, not now.
-    mockApp.home = {
-      invites: [
-        {
-          channelId: 'sess_a',
-          from: { id: THEM, displayName: 'Dana Chu' },
-          createdAt: NOW,
-        },
-      ],
-      rejoinable: [],
-      contacts: [
-        { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
-      ],
-      recordings: [],
+  describe('declining an invitation', () => {
+    const invited = () => {
+      mockApp.home = {
+        invites: [
+          {
+            channelId: 'sess_a',
+            from: { id: THEM, displayName: 'Dana Chu' },
+            createdAt: NOW,
+          },
+        ],
+        rejoinable: [],
+        contacts: [
+          { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
+        ],
+        recordings: [],
+      };
+      const tree = render(<HomeView {...homeNav} />);
+      const [decline] = tree.root.findAll(
+        (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Decline invite'
+      );
+      return { tree, decline };
     };
 
-    const tree = render(<HomeView {...homeNav} />);
-    const [dismiss] = tree.root.findAll(
-      (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
-    );
-    expect(dismiss).toBeDefined();
-    act(() => dismiss.props.onPress());
-    expect(mockApp.dismissInvite).toHaveBeenCalledWith('sess_a');
-
-    // Dismissal lives in the provider now, so re-render with it applied.
-    act(() => tree.update(<HomeView {...homeNav} />));
-    expect(textOf(tree)).not.toContain('tap to join');
-    act(() => tree.unmount());
-  });
-
-  it('keeps an invite dismissed across leaving Home and coming back', () => {
-    // The defect: the dismissed list was component state, so navigating into a
-    // channel and back re-raised a banner the user had already acted on. A
-    // dismissal that forgets itself is not a dismissal.
-    mockApp.home = {
-      invites: [
-        {
-          channelId: 'sess_a',
-          from: { id: THEM, displayName: 'Dana Chu' },
-          createdAt: NOW,
-        },
-      ],
-      rejoinable: [],
-      contacts: [],
-      recordings: [],
+    const alertSpy = () => {
+      const { Alert } = require('react-native');
+      return jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     };
 
-    const first = render(<HomeView {...homeNav} />);
-    const [dismiss] = first.root.findAll(
-      (n: ReactTestInstance) => n.props?.accessibilityLabel === 'Dismiss invite'
-    );
-    act(() => dismiss.props.onPress());
-    act(() => first.unmount());
+    it('asks first, and says what it costs', () => {
+      const asked = alertSpy();
+      const { tree, decline } = invited();
+      expect(decline).toBeDefined();
 
-    // Home is mounted afresh, as it is on returning from a channel.
-    const second = render(<HomeView {...homeNav} />);
-    expect(textOf(second)).not.toContain('tap to join');
-    act(() => second.unmount());
-  });
+      act(() => decline.props.onPress());
+      expect(asked).toHaveBeenCalled();
+      // Nothing has happened yet, which is the whole point of asking: this
+      // used to be a hide, and it is now a departure that cannot be undone
+      // from this screen.
+      expect(mockApp.act).not.toHaveBeenCalled();
+      expect(asked.mock.calls[0][1] as string).toContain('fresh invitation');
 
-  it('raises a new banner when the same contact invites again', () => {
-    // Dismissal is permanent for that invitation and no longer. A pair has at
-    // most one live channel, so a fresh invite is a different channel id.
-    mockApp.dismissedInvites = ['sess_a'];
-    mockApp.home = {
-      invites: [
-        {
-          channelId: 'sess_b',
-          from: { id: THEM, displayName: 'Dana Chu' },
-          createdAt: NOW,
-        },
-      ],
-      rejoinable: [],
-      contacts: [],
-      recordings: [],
-    };
+      asked.mockRestore();
+      act(() => tree.unmount());
+    });
 
-    const tree = render(<HomeView {...homeNav} />);
-    expect(textOf(tree)).toContain('tap to join');
-    act(() => tree.unmount());
+    it('leaves the channel when the destructive choice is taken', () => {
+      // The defect it answers: dismissal was a list in the provider that no
+      // storage ever saw, so the invitation came back on the next launch and
+      // had never gone from any other device. Leaving is the action that
+      // already means no, and the server tells every device at once.
+      const asked = alertSpy();
+      const { tree, decline } = invited();
+      act(() => decline.props.onPress());
+
+      const buttons = asked.mock.calls[0][2] as {
+        text: string;
+        onPress?: () => void;
+      }[];
+      act(() => buttons.find((b) => b.text === 'Decline')!.onPress!());
+      expect(mockApp.act).toHaveBeenCalledWith('sess_a', {
+        type: 'LEAVE_CHANNEL',
+      });
+
+      asked.mockRestore();
+      act(() => tree.unmount());
+    });
+
+    it('does nothing when the ask is cancelled', () => {
+      const asked = alertSpy();
+      const { tree, decline } = invited();
+      act(() => decline.props.onPress());
+
+      const buttons = asked.mock.calls[0][2] as {
+        text: string;
+        onPress?: () => void;
+      }[];
+      act(() => buttons.find((b) => b.text === 'Cancel')!.onPress?.());
+      expect(mockApp.act).not.toHaveBeenCalled();
+      // And the row is still there, the invitation being the server's to
+      // withdraw rather than this screen's to hide.
+      expect(textOf(tree)).toContain('tap to join');
+
+      asked.mockRestore();
+      act(() => tree.unmount());
+    });
   });
 
   it('lists an invite to a stranger like any other sent request', () => {

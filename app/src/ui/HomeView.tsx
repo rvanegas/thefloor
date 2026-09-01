@@ -83,7 +83,6 @@ export function HomeView({
   onReturnToChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
-  const dismissed = app.dismissedInvites;
 
   /**
    * Whether there is anywhere to donate at all, which decides only whether the
@@ -116,6 +115,42 @@ export function HomeView({
   const home = app.home;
   const now = app.serverNow();
 
+  /**
+   * Declining, which is what the ✕ on an invitation does.
+   *
+   * It used to hide the row and nothing more — `dismissedInvites`, a list in
+   * the provider that no storage ever saw — so the invitation came back on the
+   * next launch, and on every other device it had never gone from. A control
+   * whose effect is undone by closing the app is one people press twice and
+   * then stop believing.
+   *
+   * So it leaves the channel, which is the action that already means *no*:
+   * `LEAVE_CHANNEL` gives up membership, and `invitesFor` only ever offered
+   * the channel because the reader was still a participant who had never been
+   * in it. The server tells every device at once and the row is gone for good.
+   *
+   * **Gone for good is why it asks first.** The settings screen's Leave asks,
+   * and this is the same action taken by somebody who has less idea what is in
+   * the channel — they have never been in it. Nothing is said about
+   * recordings, unlike that confirmation: this reader has made none and cannot
+   * see the ones that are there.
+   */
+  const declineInvite = (card: Card) =>
+    Alert.alert(
+      'Decline this invitation?',
+      `It disappears from your home screen and you will need a fresh invitation to ${
+        card.from ? `join ${card.from}` : 'come back'
+      }.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: () => app.act(card.channelId, { type: 'LEAVE_CHANNEL' }),
+        },
+      ]
+    );
+
   // One list from two sources, minus the channel the banner is already
   // showing — the two are alternative presentations of the same row, not a
   // list and an exception to it. The server no longer withholds the channel it
@@ -123,9 +158,7 @@ export function HomeView({
   // channel entirely when it was; whether you are *live* somewhere is settled
   // here, where the app knows what it is actually connected to.
   const cards = [
-    ...(home?.invites ?? [])
-      .filter((invite) => !dismissed.includes(invite.channelId))
-      .map(inviteCard),
+    ...(home?.invites ?? []).map(inviteCard),
     ...(home?.rejoinable ?? [])
       // A seat can only be used where one can exist. The same account may hold
       // one opened on a laptop, which makes the row true on a phone and still
@@ -345,10 +378,8 @@ export function HomeView({
                     : openChannel(card.channelId)
                 }
                 stepsIn={app.tapToStepIn}
-                onDismiss={
-                  card.kind === 'invite'
-                    ? () => app.dismissInvite(card.channelId)
-                    : undefined
+                onDecline={
+                  card.kind === 'invite' ? () => declineInvite(card) : undefined
                 }
               />
             ))}
@@ -371,7 +402,7 @@ export function HomeView({
                     : openChannel(card.channelId)
                 }
                 stepsIn={app.tapToStepIn}
-                onDismiss={() => app.dismissInvite(card.channelId)}
+                onDecline={() => declineInvite(card)}
               />
             ))}
           </View>
@@ -686,22 +717,22 @@ function byIdleness(a: Card, b: Card): number {
  * differences of kind: an invitation was a banner above the list with its own
  * shape, so the same channel looked like two unrelated things depending on
  * whether you had answered it. What actually differs is one line of text, a
- * dismiss control, and whether the accent is on — and an invitation nobody is
+ * decline control, and whether the accent is on — and an invitation nobody is
  * waiting in is not urgent, so it loses the accent and keeps the shape.
  */
 function ChannelCard({
   card,
   now,
   onPress,
-  onDismiss,
+  onDecline,
   stepsIn,
 }: {
   card: Card;
   now: number;
   /** Presence, not membership — you never stopped belonging to it. */
   onPress: () => void;
-  /** Invitations only; hides it until the channel is offered again. */
-  onDismiss?: () => void;
+  /** Invitations only; leaves the channel, after asking. */
+  onDecline?: () => void;
   /**
    * Whether this tap arrives or only looks — the Home setting, passed down so
    * the row can say which of the two it is about to do. It changes no
@@ -833,27 +864,27 @@ function ChannelCard({
           them.
 
           Not a control, and it has to not *look* like one: this sits at the row
-          edge where the dismiss button lives, and an arrow is the glyph most
+          edge where the decline button lives, and an arrow is the glyph most
           likely to be read as something you could press. No `Pressable`, no
           hit slop, and `type.muted` rather than the accent — the live bar is
           the one thing on this screen meant to shout, and this is a memory aid.
 
           It cannot collide with the ✕ beside it. Stepping in is what sets
           `steppedInAt`, and stepping in is also what stops a channel being an
-          invitation, so a row can carry a mark or a dismiss and never both.
+          invitation, so a row can carry a mark or a decline and never both.
         */}
         {steppedIn ? (
           <Text style={styles.steppedIn} accessibilityElementsHidden>
             ↗
           </Text>
         ) : null}
-        {onDismiss ? (
+        {onDecline ? (
           <Pressable
-            onPress={onDismiss}
+            onPress={onDecline}
             hitSlop={12}
-            accessibilityLabel="Dismiss invite"
+            accessibilityLabel="Decline invite"
           >
-            <Text style={styles.dismiss}>✕</Text>
+            <Text style={styles.decline}>✕</Text>
           </Pressable>
         ) : null}
       </Card>
@@ -1091,8 +1122,8 @@ const styles = StyleSheet.create({
    * reserved for a room with somebody in it.
    */
   inviteQuiet: { borderColor: colors.border, borderWidth: 1 },
-  dismiss: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
-  // Muted and a size down from the dismiss glyph beside it, which is a control
+  decline: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
+  // Muted and a size down from the decline glyph beside it, which is a control
   // where this is a note to yourself. Same horizontal padding so the two sit in
   // the same column on rows that have one or the other.
   steppedIn: { color: colors.textMuted, fontSize: 14, paddingHorizontal: 4 },

@@ -140,7 +140,11 @@ follows is what is actually outstanding.
   Nothing ever removes a channel from the second list, so it accumulates every
   channel you have ever been in, for ever. Sorting by presence and recent
   activity is done; bounding the list is not — it wants archiving, or leaving,
-  to be something a person can actually do.
+  to be something a person can actually do. **Half of that arrived on
+  2026-08-31**: the ✕ on an invitation now leaves the channel rather than
+  hiding the row, so the first list can be emptied from Home. The second still
+  cannot — leaving a channel you have been in is on its settings screen, which
+  means entering it first.
 - **The tick loop walks every channel ever created**, every 500ms, as do
   `invitesFor`, `rejoinableFor` and `channelsFor`. It wants an active set — the
   channels with a live floor claim, playing playback, an active recording or a

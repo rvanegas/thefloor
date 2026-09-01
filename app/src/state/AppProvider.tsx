@@ -368,9 +368,6 @@ interface AppValue extends AppState {
    */
   pendingChannelId: string | null;
   clearPendingChannel: () => void;
-  /** Invites this user has dismissed, by channel id. */
-  dismissedInvites: string[];
-  dismissInvite: (channelId: string) => void;
   /**
    * This build is below the floor the server still answers, so nothing it
    * does can be trusted to mean what the screens say it means.
@@ -460,24 +457,6 @@ export function useApp(): AppValue {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  /**
-   * Dismissed invites, by channel id. Held here rather than in the view
-   * because a dismissal is an action, and one that forgets itself the moment
-   * you navigate away is not really a dismissal.
-   *
-   * Keyed by channel, so it is permanent for that invitation and no longer.
-   * Being asked again raises a new banner whenever it is a different channel
-   * asking, which is what gives both halves of what a dismissal should mean
-   * without a second rule. A second invitation from the same person into the
-   * same channel is the case this does *not* re-raise — which used to cover
-   * every repeat ask from one person, two people sharing a single unnamed
-   * channel. They can now share more than one, so a repeat ask can arrive as a
-   * different channel and does raise a fresh banner.
-   *
-   * It does not survive relaunching the app. Channels are short-lived, and
-   * reopening to see what is currently live is reasonable rather than a fault.
-   */
-  const [dismissedInvites, setDismissedInvites] = useState<string[]>([]);
   const [pendingChannelId, setPendingChannelId] = useState<string | null>(null);
   /**
    * Read from this device's cache before anything is drawn, so a chosen scheme
@@ -1046,7 +1025,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       serverNow,
       expired: expiry.expired,
       updateUrl: expiry.updateUrl,
-      dismissedInvites,
       pendingChannelId,
       clearPendingChannel: () => setPendingChannelId(null),
 
@@ -1106,12 +1084,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // comparison of the two rules anybody has ever been able to make.
         setSteadyHeadsetState(value);
         void storage.set(STEADY_HEADSET_KEY, value ? 'true' : 'false');
-      },
-
-      dismissInvite: (channelId) => {
-        setDismissedInvites((d) =>
-          d.includes(channelId) ? d : [...d, channelId]
-        );
       },
 
       requestCode: async (identifier) => {
@@ -1415,7 +1387,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       connect,
       realtime,
       tick,
-      dismissedInvites,
       pendingChannelId,
       appearance,
       tapToStepIn,
