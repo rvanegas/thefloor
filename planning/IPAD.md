@@ -126,23 +126,39 @@ negative margin pulls against the cap rather than against the screen edge —
 which is still the relationship it wants, but it is the kind of thing that
 looks wrong before you work out why it is right.
 
+## What has been seen, and what has not
+
+**Built and run on an iPad Pro 13-inch simulator, 2026-09-01.** Two of the
+questions below closed on the strength of it, and one thing worth saying plainly
+did not: **the split itself has not been looked at.** Everything above the
+sign-in screen needs a session, and the simulator has none — so the caps are
+observed and the two panes are so far only tested and reasoned about. That is
+the gap to close first, and it closes by signing in on the simulator and
+looking, not by more tests.
+
+Rotation is also unobserved. `Info.plist` carries the four `~ipad` orientations
+and `TARGETED_DEVICE_FAMILY = "1,2"`, both read out of the generated artefact
+rather than the JSON, so the configuration is known good; whether the layout
+holds through a rotation is a thing to watch rather than to assume.
+
 ## Open questions
 
-- **Does `alignSelf: 'center'` centre a ScrollView's content container?** It
-  should — the container is the ScrollView's only child on the cross axis — but
-  Yoga has surprised people here. The fallback is `marginHorizontal: 'auto'`.
-- **Does the sign-in form want a narrower cap than a list does?** 620 is a
-  measure for prose and cards. A single email field centred in 620 may still
-  read as lost, in which case cap that screen locally rather than narrowing the
-  shared token.
+- ~~**Does `alignSelf: 'center'` centre a ScrollView's content container?**~~
+  **Yes**, seen on the iPad Pro 13-inch: the sign-in screen is a centred 620pt
+  column on a 1024pt screen where it was a 976pt-wide email field. No
+  `marginHorizontal: 'auto'` fallback needed.
+- ~~**Does the sign-in form want a narrower cap than a list does?**~~ **No.**
+  It reads correctly at 620 and the vertical centring survives the cap, which
+  was the thing to check. Leave the shared token alone.
 - **Does the left pane want a selected-row highlight** for the channel open on
   the right? Almost certainly yes, and it touches `HomeView`'s list rendering,
   so it goes last or to BACKLOG.md.
-- **Does iPadOS 26 still honour `UIRequiresFullScreen`?** Does not change the
-  plan — multitasking is supported either way — but it decides what has to be
-  verified, and it should be established once rather than guessed at twice.
-  This checkout builds against the iOS 26.2 SDK, where `UISceneSizeRestrictions`
-  notes `allowsFullScreen` is "currently only honored on Mac Catalyst".
+- **Does iPadOS 26 still honour `UIRequiresFullScreen`?** Still open, and it no
+  longer blocks anything: the key is deliberately absent and multitasking is
+  supported outright, so the answer only matters on the day somebody wants the
+  retreat. This checkout builds against the iOS 26.2 SDK, where
+  `UISceneSizeRestrictions` notes `allowsFullScreen` is "currently only honored
+  on Mac Catalyst", which reads as though the retreat is gone.
 - **Is 744 the right side of the cliff?** iPad mini portrait stays stacked. A
   split there would leave a 404pt detail pane, thinner than the phone screen it
   replaced, which is the test a breakpoint has to pass. 768 was tried first and
