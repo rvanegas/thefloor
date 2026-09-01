@@ -427,6 +427,22 @@ export function ChannelView({
    */
   const takenByAnotherDevice = elsewhereOnAnotherDevice && app.displaced;
   /**
+   * Whether the floor, the microphone and the two departures still get a card
+   * apiece further down, or whether the footer is the whole of them.
+   *
+   * On by default and off by choice, from Home settings — see
+   * `AppValue.controlCards`. What is conditional on it is only ever a card: no
+   * act becomes unavailable, because every one of the three is in the footer
+   * at all times and the footer is not conditional on anything.
+   *
+   * Two things survive the cards going, and they are marked at each site. The
+   * recording warning is a notice rather than an explanation, and being told
+   * you are captured is not a convenience anybody chose to give up. The
+   * other-device sentence is the same kind: stepping in from here closes a
+   * microphone somewhere else, and the footer's Step In cannot say so.
+   */
+  const controlCards = app.controlCards;
+  /**
    * Whether somebody is to be shown as speaking *on this screen*, as against
    * somebody the room happens to be hearing.
    *
@@ -765,14 +781,26 @@ export function ChannelView({
     The three things you do to a conversation while you are in it, always
     within reach.
 
-    **These are shortcuts, not the controls.** Each of them still has its card
-    further down — with the sentence saying why it is refused, the countdown,
-    the warning about being recorded while silenced. A footer cannot carry any
-    of that, and an icon that greys with no reason given is the one shape this
-    codebase does not allow a control to have. So the card stays as the place
-    the state is explained and this is the place the act is quick, which is the
-    arrangement `ProfileView`'s Copy button already has against the selectable
-    address above it: the shortcut must not outweigh the thing it shortcuts.
+    **These are shortcuts, not the controls, by default.** Each of them still
+    has its card further down — with the sentence saying why it is refused, the
+    countdown, the warning about being recorded while silenced. A footer cannot
+    carry any of that, and an icon that greys with no reason given is the one
+    shape this codebase does not allow a control to have. So the card stays as
+    the place the state is explained and this is the place the act is quick,
+    which is the arrangement `ProfileView`'s Copy button already has against the
+    selectable address above it: the shortcut must not outweigh the thing it
+    shortcuts.
+
+    **Unless the cards have been turned off, in which case this is the whole of
+    them.** `controlCards`, from Home settings, is a choice somebody makes
+    after the sentences have done their work — see `AppValue.controlCards`.
+    That is why the rule above is about what a screen may show somebody who has
+    not asked, rather than about what a screen may ever be: the two facts a
+    footer cannot state and nobody chose to give up are moved up under the
+    roster rather than dropped. Nothing here is conditional on the setting, and
+    nothing here may become so — a bar that changes shape with a preference is
+    the same finger-under-the-thumb problem as one that changes shape with
+    state.
 
     **Labelled, though the request was for icons.** Two of these three are
     mechanics this application invented — nobody arrives knowing what claiming
@@ -897,6 +925,33 @@ export function ChannelView({
           ) : null}
 
           {/*
+            The two sentences the cards below carry, at the one moment there
+            are no cards below to carry them. Both are here rather than left
+            out because neither is an explanation of a control: they are facts
+            about what is happening to you that the footer has no room for, and
+            the settings screen promises in as many words that they stay.
+
+            Under the roster for the same reason the party-muted line is —
+            they are claims about the room you are looking at, made where you
+            are looking. Nothing renders here while the cards are drawn, so
+            neither sentence is ever said twice.
+          */}
+          {!controlCards && recordingLive && iAmSilenced ? (
+            <Text style={styles.warning}>
+              You are still being recorded. Nobody can hear you, but your
+              microphone is captured; it is left out of the exported recording,
+              not out of the capture.
+            </Text>
+          ) : null}
+          {!controlCards && !iAmPresent && elsewhereOnAnotherDevice ? (
+            <Text style={type.muted}>
+              {takenByAnotherDevice
+                ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
+                : 'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.'}
+            </Text>
+          ) : null}
+
+          {/*
             Under the roster and above everything else, because somebody at
             the door is waiting on an answer from this screen and nothing else
             here is. Both lists are usually empty and render nothing at all.
@@ -995,7 +1050,7 @@ export function ChannelView({
           floor — which is a better answer than a screen that closes and
           reopens on the same channel.
         */}
-        {iAmPresent ? null : (
+        {iAmPresent || !controlCards ? null : (
           <>
             <SectionLabel>Step in</SectionLabel>
             <Card style={styles.stack}>
@@ -1028,63 +1083,74 @@ export function ChannelView({
           It is also the only control here with a running clock, and a clock
           somebody is watching should not be the thing they have to scroll to.
         */}
-        <SectionLabel>The floor</SectionLabel>
-        <Card
-          style={[
-            styles.floorCard,
-            iHoldFloor && styles.floorCardHeld,
-            iAmSilenced && styles.floorCardSilenced,
-          ]}
-        >
-          <Text style={styles.floorStatus}>
-            {iHoldFloor
-              ? 'You have the floor'
-              : theyHoldFloor
-                ? `${holderName} has the floor — your mic is cut`
-                : 'Nobody has the floor'}
-          </Text>
-
-          {claimRemaining !== null ? (
-            <Text style={styles.countdown}>{formatSeconds(claimRemaining)}</Text>
-          ) : cooldown !== null ? (
-            <Text style={[styles.countdown, styles.countdownMuted]}>
-              {formatSeconds(cooldown)}
-            </Text>
-          ) : null}
-
-          {claimRemaining !== null && iHoldFloor ? null : (
-            <Text style={styles.floorHint}>
-              {iHoldFloor
-                ? others.length === 1
-                  ? `${others[0].displayName} is muted until you release, up to a minute.`
-                  : 'Everyone else is muted until you release, up to a minute.'
-                : !iAmPresent
-                  ? 'Step in to claim the floor.'
+        {/*
+          Absent, label and all, for somebody who has turned the cards off:
+          claiming and releasing are both in the footer, which is where they
+          are reached from anyway once the countdown has been read a few
+          times. The clock is the one real loss and is named on the settings
+          screen as such.
+        */}
+        {controlCards ? (
+          <>
+            <SectionLabel>The floor</SectionLabel>
+            <Card
+              style={[
+                styles.floorCard,
+                iHoldFloor && styles.floorCardHeld,
+                iAmSilenced && styles.floorCardSilenced,
+              ]}
+            >
+              <Text style={styles.floorStatus}>
+                {iHoldFloor
+                  ? 'You have the floor'
                   : theyHoldFloor
-                    ? 'You cannot claim the floor while you are silenced.'
-                    : cooldown !== null
-                      ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
-                      : !atLeastTwoPresent(channel)
-                        ? 'The floor becomes available once at least two people are present.'
-                        : 'Speak uninterrupted for up to a minute.'}
-            </Text>
-          )}
+                    ? `${holderName} has the floor — your mic is cut`
+                    : 'Nobody has the floor'}
+              </Text>
 
-          {iHoldFloor ? (
-            <Button
-              label="Release the floor"
-              variant="floor"
-              onPress={() => act({ type: 'RELEASE_FLOOR' })}
-            />
-          ) : (
-            <Button
-              label="Claim the floor"
-              variant="floor"
-              disabled={!claimable}
-              onPress={() => act({ type: 'CLAIM_FLOOR' })}
-            />
-          )}
-        </Card>
+              {claimRemaining !== null ? (
+                <Text style={styles.countdown}>{formatSeconds(claimRemaining)}</Text>
+              ) : cooldown !== null ? (
+                <Text style={[styles.countdown, styles.countdownMuted]}>
+                  {formatSeconds(cooldown)}
+                </Text>
+              ) : null}
+
+              {claimRemaining !== null && iHoldFloor ? null : (
+                <Text style={styles.floorHint}>
+                  {iHoldFloor
+                    ? others.length === 1
+                      ? `${others[0].displayName} is muted until you release, up to a minute.`
+                      : 'Everyone else is muted until you release, up to a minute.'
+                    : !iAmPresent
+                      ? 'Step in to claim the floor.'
+                      : theyHoldFloor
+                        ? 'You cannot claim the floor while you are silenced.'
+                        : cooldown !== null
+                          ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
+                          : !atLeastTwoPresent(channel)
+                            ? 'The floor becomes available once at least two people are present.'
+                            : 'Speak uninterrupted for up to a minute.'}
+                </Text>
+              )}
+
+              {iHoldFloor ? (
+                <Button
+                  label="Release the floor"
+                  variant="floor"
+                  onPress={() => act({ type: 'RELEASE_FLOOR' })}
+                />
+              ) : (
+                <Button
+                  label="Claim the floor"
+                  variant="floor"
+                  disabled={!claimable}
+                  onPress={() => act({ type: 'CLAIM_FLOOR' })}
+                />
+              )}
+            </Card>
+          </>
+        ) : null}
 
         {/*
           Nothing here is true of somebody who has not stepped in: the
@@ -1092,8 +1158,14 @@ export function ChannelView({
           and the session this describes has not been asked for. So the card is
           absent rather than disabled, and the Step In card above — which is
           the way in — carries the sentence that would have gone here.
+
+          Absent for a second reason once the cards are off, which is the whole
+          of `controlCards`: the mute is in the footer, the audio line is a
+          readout, and the one sentence here that is a notice rather than a
+          readout — being recorded while silenced — is drawn under the roster
+          instead. The diagnostic panel gets a card of its own below.
         */}
-        {iAmPresent ? (
+        {iAmPresent && controlCards ? (
           <>
             <SectionLabel>Your microphone</SectionLabel>
             <Card style={styles.stack}>
@@ -1188,7 +1260,7 @@ export function ChannelView({
           have — and the position was chosen for Step Out, which left Step In
           below a microphone card that was not being rendered anyway.
         */}
-        {iAmPresent ? (
+        {iAmPresent && controlCards ? (
           <>
             <SectionLabel>Step out</SectionLabel>
             <Card style={styles.stack}>
@@ -1199,6 +1271,35 @@ export function ChannelView({
                   app.leaveChannelView(channelId);
                   onExit();
                 }}
+              />
+            </Card>
+          </>
+        ) : null}
+
+        {/*
+          The diagnostic panel, when the card it normally sits inside is not
+          being drawn.
+
+          It is not a control and the footer does not represent it, so a
+          setting about repeating the footer has no business taking it away —
+          and taking it away is what would happen, silently, to the one account
+          in a position to be debugging its audio. It keeps its position in the
+          order and gets the heading the microphone card was giving it.
+
+          The condition is the whole of the microphone card's, plus this card
+          being the fallback: on web there is nothing to compare against, and
+          `app.debug` is off for everybody who has not been switched on in the
+          database. See the note inside that card for both.
+        */}
+        {!controlCards && iAmPresent && app.debug && Platform.OS !== 'web' ? (
+          <>
+            <SectionLabel>Audio session</SectionLabel>
+            <Card style={styles.stack}>
+              <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
+              <AudioDebugPanel
+                asked={audio.asked}
+                steadyHeadset={app.steadyHeadset}
+                onReconnect={audio.reconnect}
               />
             </Card>
           </>

@@ -254,8 +254,9 @@ export const api = {
 
   /**
    * Writes the settings that follow the account rather than the phone: the
-   * colour scheme and whether tapping a channel steps into it. A partial
-   * write, like `saveProfile` — whatever is left undefined is left alone.
+   * colour scheme, whether tapping a channel steps into it, and whether the
+   * channel screen repeats its footer as cards. A partial write, like
+   * `saveProfile` — whatever is left undefined is left alone.
    *
    * The answer is the whole of the settings, but the caller does not have to
    * apply it: the server tells every session this account holds, this one

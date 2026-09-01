@@ -8,10 +8,11 @@
  * anything at all, and a second table of defaults in the client is one that
  * can disagree with what the account actually holds.
  *
- * **Two of the three settings on the Home settings screen are here, and the
- * third deliberately is not.** Appearance and the tap are about the person:
- * somebody who has chosen dark has chosen it, and signing in on a second phone
- * to find it light is the app forgetting something it was told. `steadyHeadset`
+ * **Three of the four settings on the Home settings screen are here, and the
+ * fourth deliberately is not.** Appearance, the tap and the control cards are
+ * about the person: somebody who has chosen dark has chosen it, and signing in
+ * on a second phone to find it light is the app forgetting something it was
+ * told. `steadyHeadset`
  * is about the hardware in somebody's ears — the same person with AirPods on a
  * walk and a Bluetooth speaker on a desk may reasonably want opposite answers —
  * so it stays on the device, in the app's own storage, and never crosses this
@@ -53,16 +54,38 @@ export interface AccountSettings {
    * others can hear you. Unset, a tap is only looking.
    */
   tapToStepIn: boolean;
+  /**
+   * Whether the channel screen still draws a card for each of the three
+   * controls pinned in its footer.
+   *
+   * Set, which is the default, the screen is as it has always been: the
+   * footer is a row of shortcuts and the floor, the microphone and the two
+   * departures each keep a card further down, where the state is explained.
+   * Unset, the cards go and the footer is the whole of those three controls —
+   * a channel screen that opens on who is in the room and what the room is
+   * carrying, for somebody who has learnt what the three do and no longer
+   * reads the sentences under them.
+   *
+   * It is a preference about how much a screen repeats itself, which is a
+   * habit rather than a property of a handset, so it belongs to the person on
+   * the same reasoning as the tap. See `app/src/ui/ChannelView.tsx`.
+   */
+  controlCards: boolean;
 }
 
 /**
- * What somebody who has never touched either setting gets.
+ * What somebody who has never touched any of these gets.
  *
  * The tap defaults on because arriving is what a channel is for, and the
  * scheme defaults to the phone's because an app that has not been told
- * anything should look like the rest of the phone.
+ * anything should look like the rest of the phone. The cards default on
+ * because they are what every build before this setting drew, and because
+ * they are where a refused control says why it is refused — which is the
+ * thing somebody has to have read before they can reasonably choose to stop
+ * being shown it.
  */
 export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   appearance: 'system',
   tapToStepIn: true,
+  controlCards: true,
 };

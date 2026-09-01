@@ -5,8 +5,9 @@ import { DEFAULT_ACCOUNT_SETTINGS } from '../../core/settings';
 /**
  * The settings that belong to a person rather than to a phone.
  *
- * Two of the three on the Home settings screen: the colour scheme and whether
- * a tap on a channel steps into it. The third — holding the hands-free link
+ * Three of the four on the Home settings screen: the colour scheme, whether a
+ * tap on a channel steps into it, and whether the channel screen repeats its
+ * footer's controls as cards. The fourth — holding the hands-free link
  * steady — is about the headset somebody is wearing and never reaches this
  * server at all, which is what the last test here is for: it is easy to add a
  * field to a route and hard to notice one that has quietly been let in.
@@ -69,7 +70,11 @@ describe('the settings that follow the account', () => {
     // The tap is in the answer though nothing was said about it: the caller's
     // next move is to tell every device this account holds, and a partial
     // answer would make each of them merge.
-    expect(response.json()).toEqual({ appearance: 'dark', tapToStepIn: true });
+    expect(response.json()).toEqual({
+      appearance: 'dark',
+      tapToStepIn: true,
+      controlCards: true,
+    });
   });
 
   /**
@@ -84,12 +89,21 @@ describe('the settings that follow the account', () => {
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'light',
       tapToStepIn: false,
+      controlCards: true,
     });
 
-    await save(alice.token, { tapToStepIn: true });
+    await save(alice.token, { tapToStepIn: true, controlCards: false });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'light',
       tapToStepIn: true,
+      controlCards: false,
+    });
+
+    await save(alice.token, { appearance: 'dark' });
+    expect(app.accounts.settings(alice.account.id)).toEqual({
+      appearance: 'dark',
+      tapToStepIn: true,
+      controlCards: false,
     });
   });
 
@@ -101,14 +115,23 @@ describe('the settings that follow the account', () => {
    */
   it('stores a choice of the default as a choice', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
-    await save(alice.token, { appearance: 'dark', tapToStepIn: false });
-    await save(alice.token, { appearance: 'system', tapToStepIn: true });
+    await save(alice.token, {
+      appearance: 'dark',
+      tapToStepIn: false,
+      controlCards: false,
+    });
+    await save(alice.token, {
+      appearance: 'system',
+      tapToStepIn: true,
+      controlCards: true,
+    });
     expect(app.accounts.settings(alice.account.id)).toEqual(
       DEFAULT_ACCOUNT_SETTINGS
     );
     const row = app.accounts.byId(alice.account.id)!;
     expect(row.appearance).toBe('system');
     expect(row.tap_to_step_in).toBe(1);
+    expect(row.control_cards).toBe(1);
   });
 
   it('refuses a scheme it could not render, and changes nothing', async () => {
@@ -124,6 +147,13 @@ describe('the settings that follow the account', () => {
     const response = await save(alice.token, { tapToStepIn: 'yes' });
     expect(response.statusCode).toBe(400);
     expect(app.accounts.settings(alice.account.id).tapToStepIn).toBe(true);
+  });
+
+  it('refuses a card setting that is not a yes or a no', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    const response = await save(alice.token, { controlCards: 'off' });
+    expect(response.statusCode).toBe(400);
+    expect(app.accounts.settings(alice.account.id).controlCards).toBe(true);
   });
 
   it('is nobody else’s', async () => {
@@ -158,6 +188,7 @@ describe('the settings that follow the account', () => {
     expect(response.statusCode).toBe(200);
     expect(Object.keys(response.json()).sort()).toEqual([
       'appearance',
+      'controlCards',
       'tapToStepIn',
     ]);
   });

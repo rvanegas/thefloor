@@ -64,6 +64,19 @@ const TOKEN_KEY = 'thefloor.token';
 const TAP_TO_STEP_IN_KEY = 'thefloor.tapToStepIn';
 
 /**
+ * Whether the channel screen repeats its footer's controls as cards, cached
+ * from the account in exactly the way the key above is.
+ *
+ * Stored as `'true'`/`'false'` and read as "anything that is not `'false'` is
+ * on", so the default survives a missing key and a build that never wrote one.
+ * The gap this covers is smaller than the tap's — nobody is mid-gesture on a
+ * channel screen a second after a cold start — but it is cached anyway rather
+ * than left to arrive, because the alternative is a screen that draws four
+ * cards and then removes them under a thumb already reaching past them.
+ */
+const CONTROL_CARDS_KEY = 'thefloor.controlCards';
+
+/**
  * Which of the two audio-session rules this phone uses, stored as the
  * non-default so that a missing key reads as off.
  *
@@ -403,6 +416,23 @@ interface AppValue extends AppState {
   tapToStepIn: boolean;
   setTapToStepIn: (value: boolean) => void;
   /**
+   * Whether the channel screen keeps a card for each of the three controls in
+   * its pinned footer, or lets the footer be the whole of them.
+   *
+   * **An account setting**, on the same reasoning as the tap: how much a
+   * screen should repeat itself to you is something you have learnt, not
+   * something about the handset you learnt it on, and the second phone
+   * disagreeing with the first is the app forgetting it.
+   *
+   * On by default and read only by `ChannelView`. What goes with the cards is
+   * named on the settings screen rather than hidden behind the word "compact"
+   * — the sentence saying why a control is refused, the floor's countdown, and
+   * the notice that a silenced microphone is still being recorded. The last of
+   * those does not go: it moves. See `ChannelView`.
+   */
+  controlCards: boolean;
+  setControlCards: (value: boolean) => void;
+  /**
    * Whether this phone holds the hands-free link for as long as it is in a
    * channel, instead of handing it back whenever the room goes quiet.
    *
@@ -488,6 +518,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     })();
   }, []);
+  /** Read the same way, at the same moment, for the same second or so. */
+  const [controlCards, setControlCardsState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.controlCards
+  );
+  useEffect(() => {
+    void (async () => {
+      if ((await storage.get(CONTROL_CARDS_KEY)) === 'false') {
+        setControlCardsState(false);
+      }
+    })();
+  }, []);
   /**
    * Takes the account's settings as the server states them, whichever device
    * caused them to change.
@@ -509,6 +550,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.set(APPEARANCE_KEY, settings.appearance);
     setTapToStepInState(settings.tapToStepIn);
     void storage.set(TAP_TO_STEP_IN_KEY, settings.tapToStepIn ? 'true' : 'false');
+    setControlCardsState(settings.controlCards);
+    void storage.set(CONTROL_CARDS_KEY, settings.controlCards ? 'true' : 'false');
   }, []);
   /**
    * Puts the settings back to what somebody who has never signed in sees, and
@@ -528,6 +571,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.remove(APPEARANCE_KEY);
     setTapToStepInState(DEFAULT_ACCOUNT_SETTINGS.tapToStepIn);
     void storage.remove(TAP_TO_STEP_IN_KEY);
+    setControlCardsState(DEFAULT_ACCOUNT_SETTINGS.controlCards);
+    void storage.remove(CONTROL_CARDS_KEY);
   }, []);
   /**
    * Read the same way and for the same reason, one keychain read behind the
@@ -1041,6 +1086,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
+      controlCards,
+      setControlCards: (value) => {
+        setControlCardsState(value);
+        void storage.set(CONTROL_CARDS_KEY, value ? 'true' : 'false');
+        if (state.token) {
+          void api
+            .saveSettings(state.token, { controlCards: value })
+            .catch(() => {});
+        }
+      },
+
       steadyHeadset,
       setSteadyHeadset: (value) => {
         // Takes effect immediately, including mid-channel: `App.tsx` recomputes
@@ -1363,6 +1419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pendingChannelId,
       appearance,
       tapToStepIn,
+      controlCards,
       steadyHeadset,
       forgetSettings,
       expiry,

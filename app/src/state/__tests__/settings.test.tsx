@@ -7,8 +7,9 @@ import { AppProvider, useApp } from '../AppProvider';
 /**
  * Which settings belong to the person and which belong to the phone.
  *
- * The scheme and the tap follow the account: the server states them, every
- * device this account holds is told, and this one applies what it is told.
+ * The scheme, the tap and the control cards follow the account: the server
+ * states them, every device this account holds is told, and this one applies
+ * what it is told.
  * `steadyHeadset` does not, and the last case here is what keeps that true —
  * it is about the headset in somebody's ears, and the phone is where the
  * headset is.
@@ -48,7 +49,7 @@ jest.mock('../../api/http', () => ({
     signOut: jest.fn(async () => {}),
     saveSettings: jest.fn(async (_token: string, changes: Record<string, unknown>) => {
       mockSaved.push(changes);
-      return { appearance: 'system', tapToStepIn: true };
+      return { appearance: 'system', tapToStepIn: true, controlCards: true };
     }),
   },
 }));
@@ -74,6 +75,7 @@ function Settings() {
   return (
     <Text>
       {app.appearance}/{app.tapToStepIn ? 'tap' : 'open'}/
+      {app.controlCards ? 'cards' : 'bare'}/
       {app.steadyHeadset ? 'steady' : 'switching'}
     </Text>
   );
@@ -96,6 +98,7 @@ function textOf(tree: ReactTestRenderer): string {
 function hello(settings: {
   appearance: 'light' | 'dark' | 'system';
   tapToStepIn: boolean;
+  controlCards: boolean;
 } | null): void {
   handlers.onHello?.(
     { id: 'acct_me', displayName: 'Me' },
@@ -144,15 +147,19 @@ describe('the settings that follow the account', () => {
   it('takes what the server says over what this device had cached', async () => {
     mockStored['thefloor.appearance'] = 'light';
     mockStored['thefloor.tapToStepIn'] = 'true';
+    mockStored['thefloor.controlCards'] = 'false';
     const tree = await mount();
     // The cache first, which is the whole of what a cold start has.
-    expect(textOf(tree)).toContain('light/tap');
+    expect(textOf(tree)).toContain('light/tap/bare');
 
-    await act(async () => hello({ appearance: 'dark', tapToStepIn: false }));
-    expect(textOf(tree)).toContain('dark/open');
+    await act(async () =>
+      hello({ appearance: 'dark', tapToStepIn: false, controlCards: true })
+    );
+    expect(textOf(tree)).toContain('dark/open/cards');
     // And written through, so the next cold start starts from the right one.
     expect(mockStored['thefloor.appearance']).toBe('dark');
     expect(mockStored['thefloor.tapToStepIn']).toBe('false');
+    expect(mockStored['thefloor.controlCards']).toBe('true');
   });
 
   /**
@@ -168,11 +175,17 @@ describe('the settings that follow the account', () => {
 
   it('follows a change made on another device', async () => {
     const tree = await mount();
-    await act(async () => hello({ appearance: 'system', tapToStepIn: true }));
     await act(async () =>
-      handlers.onSettings?.({ appearance: 'light', tapToStepIn: false })
+      hello({ appearance: 'system', tapToStepIn: true, controlCards: true })
     );
-    expect(textOf(tree)).toContain('light/open');
+    await act(async () =>
+      handlers.onSettings?.({
+        appearance: 'light',
+        tapToStepIn: false,
+        controlCards: false,
+      })
+    );
+    expect(textOf(tree)).toContain('light/open/bare');
   });
 
   /**
@@ -181,7 +194,9 @@ describe('the settings that follow the account', () => {
    */
   it('applies a choice at once and tells the server which one changed', async () => {
     const tree = await mount();
-    await act(async () => hello({ appearance: 'system', tapToStepIn: true }));
+    await act(async () =>
+      hello({ appearance: 'system', tapToStepIn: true, controlCards: true })
+    );
 
     await act(async () => latest!.setAppearance('dark'));
     expect(textOf(tree)).toContain('dark/tap');
@@ -190,6 +205,14 @@ describe('the settings that follow the account', () => {
     await act(async () => latest!.setTapToStepIn(false));
     expect(textOf(tree)).toContain('dark/open');
     expect(mockSaved).toEqual([{ appearance: 'dark' }, { tapToStepIn: false }]);
+
+    await act(async () => latest!.setControlCards(false));
+    expect(textOf(tree)).toContain('dark/open/bare');
+    expect(mockSaved).toEqual([
+      { appearance: 'dark' },
+      { tapToStepIn: false },
+      { controlCards: false },
+    ]);
   });
 
   /**
@@ -199,15 +222,18 @@ describe('the settings that follow the account', () => {
    */
   it('forgets them at sign-out, and leaves the headset alone', async () => {
     const tree = await mount();
-    await act(async () => hello({ appearance: 'dark', tapToStepIn: false }));
+    await act(async () =>
+      hello({ appearance: 'dark', tapToStepIn: false, controlCards: false })
+    );
     await act(async () => latest!.setSteadyHeadset(true));
 
     await act(async () => {
       await latest!.signOut();
     });
-    expect(textOf(tree)).toContain('system/tap/steady');
+    expect(textOf(tree)).toContain('system/tap/cards/steady');
     expect(mockStored['thefloor.appearance']).toBeUndefined();
     expect(mockStored['thefloor.tapToStepIn']).toBeUndefined();
+    expect(mockStored['thefloor.controlCards']).toBeUndefined();
     // The phone still has the same headset in front of it as it did a moment
     // ago, and nobody has said otherwise.
     expect(mockStored['thefloor.steadyHeadset']).toBe('true');
@@ -215,7 +241,9 @@ describe('the settings that follow the account', () => {
 
   it('never sends the headset setting to the server', async () => {
     await mount();
-    await act(async () => hello({ appearance: 'system', tapToStepIn: true }));
+    await act(async () =>
+      hello({ appearance: 'system', tapToStepIn: true, controlCards: true })
+    );
     await act(async () => latest!.setSteadyHeadset(true));
     expect(mockSaved).toEqual([]);
   });

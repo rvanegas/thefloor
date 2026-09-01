@@ -118,6 +118,13 @@ export interface AccountRow {
    * above.
    */
   tap_to_step_in: number | null;
+  /**
+   * Whether the channel screen repeats its footer's three controls as cards
+   * further down: 1 for yes, 0 for no, null for never having said. The
+   * default is on, so null and 1 mean the same thing today — for the reason
+   * above, which is why the untouched case is still stored as null.
+   */
+  control_cards: number | null;
 }
 
 export interface ContactRow {
@@ -373,12 +380,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   im_telegram  TEXT,
   im_signal    TEXT,
   -- What this person chose on the Home settings screen, null until they chose
-  -- anything. Two of the three settings there; the third is about the headset
-  -- in somebody's ears rather than about them, and lives on the phone. See
-  -- core/settings.ts and the row type above for why the untouched case is null
-  -- rather than the default written down.
+  -- anything. Three of the four settings there; the fourth is about the
+  -- headset in somebody's ears rather than about them, and lives on the phone.
+  -- See core/settings.ts and the row type above for why the untouched case is
+  -- null rather than the default written down.
   appearance     TEXT,
-  tap_to_step_in INTEGER
+  tap_to_step_in INTEGER,
+  control_cards  INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -1277,6 +1285,14 @@ function migrate(db: Db): void {
   if (!accountColumns.some((c) => c.name === 'appearance')) {
     db.exec('ALTER TABLE accounts ADD COLUMN appearance TEXT');
     db.exec('ALTER TABLE accounts ADD COLUMN tap_to_step_in INTEGER');
+  }
+  // Its own test rather than a third line in the block above, because the two
+  // up there arrived together and this one did not: a database migrated by
+  // that block already has `appearance`, so anything added inside it would
+  // never run there. One column, one guard, is the only arrangement that
+  // survives columns being added on different days.
+  if (!accountColumns.some((c) => c.name === 'control_cards')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN control_cards INTEGER');
   }
   if (!accountColumns.some((c) => c.name === 'free_transcript_id')) {
     db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_id TEXT');

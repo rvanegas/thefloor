@@ -162,6 +162,14 @@ const mockApp = {
   setTapToStepIn: jest.fn((value: boolean) => {
     mockApp.tapToStepIn = value;
   }),
+  // On, for the same reason and with the same consequence: the channel screen
+  // draws a card for each of its footer's three controls unless a test says
+  // otherwise, so every assertion written before the setting existed is still
+  // asserting about the screen everybody gets.
+  controlCards: true,
+  setControlCards: jest.fn((value: boolean) => {
+    mockApp.controlCards = value;
+  }),
 };
 
 // The views are rendered without a native audio stack: @livekit/react-native
@@ -344,6 +352,7 @@ beforeEach(() => {
   mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
   mockApp.tapToStepIn = true;
+  mockApp.controlCards = true;
   mockApp.debug = false;
   uploads.length = 0;
   jest.clearAllMocks();
@@ -4504,6 +4513,211 @@ describe('being alone in a channel', () => {
     );
     expect(textOf(tree)).toContain('Muted by you.');
     expect(textOf(tree)).not.toContain('Closed until somebody else is here');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * A channel screen with the repeated cards turned off.
+ *
+ * The setting says the footer is enough for the floor, the microphone and the
+ * two departures, so what these assert is a subtraction and two exceptions to
+ * it: the four cards go, the footer is untouched, and the two sentences that
+ * are notices rather than explanations survive the cards that used to carry
+ * them. The diagnostic panel survives too, on the ground that it is not a
+ * control and no footer represents it.
+ */
+describe('a channel screen without the repeated cards', () => {
+  const footerOf = (tree: ReactTestRenderer) => {
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    return render(screen.props.footer);
+  };
+
+  const showBare = (channel = channelOf()) => {
+    mockApp.controlCards = false;
+    showChannel(channel);
+    return render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+  };
+
+  it('drops the four cards the footer already offers', () => {
+    const tree = showBare();
+    const text = textOf(tree);
+    expect(text).not.toContain('The floor');
+    expect(text).not.toContain('Your microphone');
+    expect(text).not.toContain('Claim the floor');
+    expect(text).not.toContain('Mute yourself');
+    // Step out is in the footer, which `textOf` reaches through `Screen`, so
+    // the assertion is that there is one of it rather than none — the card
+    // and the heading above it are what went.
+    expect(text.split('Step out')).toHaveLength(2);
+    act(() => tree.unmount());
+  });
+
+  it('leaves everything the footer does not represent alone', () => {
+    const tree = showBare();
+    const text = textOf(tree);
+    // The roster above the seam and the whole of what is below it.
+    expect(text).toContain('Dana Chu');
+    expect(text).toContain('What the channel is carrying');
+    expect(text).toContain('Shared clipboard');
+    expect(text).toContain('Recording');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The point of the setting, and the reason nothing is actually lost: the bar
+   * is the same bar, with the same three acts on it, whichever way this is
+   * set. A footer that thinned out with the cards would be a preference that
+   * removed abilities rather than repetition.
+   */
+  it('keeps all three controls in the footer', () => {
+    const tree = showBare();
+    const footer = footerOf(tree);
+    const text = textOf(footer);
+    expect(text).toContain('Mute');
+    expect(text).toContain('Claim');
+    expect(text).toContain('Step out');
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Being unheard is not being unrecorded, and that sentence lived in the
+   * microphone card. It is a notice rather than an explanation of a control,
+   * so it moves up under the roster rather than going with the card — the
+   * settings screen promises exactly this in as many words.
+   */
+  it('still says a silenced microphone is being recorded', () => {
+    const tree = showBare(
+      channelOf((c) =>
+        reduce(
+          reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW),
+          { type: 'CLAIM_FLOOR', userId: THEM },
+          NOW
+        )
+      )
+    );
+    expect(textOf(tree)).toContain('You are still being recorded');
+    act(() => tree.unmount());
+  });
+
+  it('says it exactly once when the cards are drawn', () => {
+    mockApp.controlCards = true;
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW),
+          { type: 'CLAIM_FLOOR', userId: THEM },
+          NOW
+        )
+      )
+    );
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    expect(textOf(tree).split('You are still being recorded')).toHaveLength(2);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The other exception. Stepping in from here closes a microphone on another
+   * phone, which the footer's Step In has no room to say and which somebody
+   * would otherwise discover by doing it.
+   */
+  it('still says the channel is held on another device', () => {
+    mockApp.controlCards = false;
+    mockApp.displaced = true;
+    showChannel(channelOf());
+    // Present in the room, not on this device: the case the sentence is for.
+    mockApp.standingIn = null;
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('closes the microphone there');
+    // And the card it came from is still gone.
+    expect(text).not.toContain('You are looking at this channel without');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The panel is a diagnostic, not one of the three acts, so a setting about
+   * repeating the footer must not take it away — it would take it away from
+   * the one account in a position to be reading it.
+   */
+  it('keeps the audio diagnostic panel, under a heading of its own', () => {
+    mockApp.debug = true;
+    const tree = showBare();
+    expect(textOf(tree)).toContain('Audio session');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * Whether the channel screen repeats its footer as cards.
+ *
+ * The same three things this screen owes any of its settings: both answers, a
+ * mark on the one in force, and reporting a change upward. What the choice
+ * does is asserted on the channel screen above.
+ */
+describe('the control-cards setting', () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  /**
+   * Three cards on this screen offer On and Off, so the label alone does not
+   * pick one out. They are found in render order and this is the second — the
+   * tap is above it and the headset below.
+   *
+   * One node per button. `findAll` matches three for each — the Pressable, the
+   * component it renders and the host view under that — and an unfiltered
+   * search would make "the second Off" the first button's insides. The one
+   * that carries `onPress` is the one there is exactly one of.
+   */
+  const cardsButton = (tree: ReactTestRenderer, label: string) =>
+    tree.root
+      .findAll(
+        (n) =>
+          n.props?.accessibilityRole === 'button' &&
+          typeof n.props.onPress === 'function'
+      )
+      .filter((n) => labelOf(n).includes(label))[1];
+
+  it('offers both answers and names what goes with the cards', async () => {
+    const tree = await openSettings();
+    const text = textOf(tree);
+    expect(text).toContain('Repeat the channel controls as cards');
+    expect(text).toContain("the floor's countdown");
+    // The promise the channel screen keeps by moving two sentences upward.
+    expect(text).toContain('still being recorded');
+    act(() => tree.unmount());
+  });
+
+  it('reports a change rather than keeping it', async () => {
+    const tree = await openSettings();
+    act(() => cardsButton(tree, 'Off').props.onPress());
+    expect(mockApp.setControlCards).toHaveBeenCalledWith(false);
+    expect(mockApp.setTapToStepIn).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('marks which one is in force', async () => {
+    mockApp.controlCards = false;
+    const tree = await openSettings();
+    const styleOf = (label: string) =>
+      StyleSheet.flatten(
+        cardsButton(tree, label).props.style({ pressed: false })
+      ) as { backgroundColor?: unknown };
+    expect(styleOf('Off').backgroundColor).not.toBe(
+      styleOf('On').backgroundColor
+    );
     act(() => tree.unmount());
   });
 });

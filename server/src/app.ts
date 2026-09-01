@@ -1637,7 +1637,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * Writes the settings that belong to the account rather than to the phone.
    *
    * Two of them: the colour scheme and whether tapping a channel steps into
-   * it. **The third setting on that screen is not here on purpose** — keeping
+   * it. **The fourth setting on that screen is not here on purpose** — keeping
    * the hands-free link steady is about the headset somebody is wearing, so it
    * stays on the device and never reaches this server. See core/settings.ts.
    *
@@ -1654,7 +1654,7 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
 
     const body = request.body as
-      | { appearance?: unknown; tapToStepIn?: unknown }
+      | { appearance?: unknown; tapToStepIn?: unknown; controlCards?: unknown }
       | undefined;
     const changes: Partial<AccountSettings> = {};
     if (body?.appearance !== undefined) {
@@ -1672,6 +1672,14 @@ export function buildApp(options: BuildOptions = {}): App {
           .send({ error: 'tapToStepIn must be true or false.' });
       }
       changes.tapToStepIn = body.tapToStepIn;
+    }
+    if (body?.controlCards !== undefined) {
+      if (typeof body.controlCards !== 'boolean') {
+        return reply
+          .code(400)
+          .send({ error: 'controlCards must be true or false.' });
+      }
+      changes.controlCards = body.controlCards;
     }
 
     const settings = accounts.updateSettings(account.id, changes);

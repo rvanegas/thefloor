@@ -254,6 +254,7 @@ describe('websocket', () => {
     expect((await client.next('hello')).settings).toEqual({
       appearance: 'system',
       tapToStepIn: true,
+      controlCards: true,
     });
     client.close();
 
@@ -261,13 +262,14 @@ describe('websocket', () => {
       method: 'POST',
       url: '/me/settings',
       headers: auth(token),
-      payload: { appearance: 'dark', tapToStepIn: false },
+      payload: { appearance: 'dark', tapToStepIn: false, controlCards: false },
     });
     const later = new Client(token, baseUrl);
     await later.open();
     expect((await later.next('hello')).settings).toEqual({
       appearance: 'dark',
       tapToStepIn: false,
+      controlCards: false,
     });
     later.close();
   });
@@ -308,6 +310,7 @@ describe('websocket', () => {
       expect((await client.next('settings')).settings).toEqual({
         appearance: 'dark',
         tapToStepIn: true,
+        controlCards: true,
       });
     }
     expect(bobs.received.some((m) => m.type === 'settings')).toBe(false);

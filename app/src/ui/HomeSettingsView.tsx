@@ -22,8 +22,9 @@ import type { ColorSchemePreference } from './appearance';
  * waited on. See `AppProvider`.
  *
  * **Two scopes on one screen, which is the thing to know before editing it.**
- * The scheme and the tap belong to the person and follow them onto the next
- * phone; keeping the headset connection steady belongs to this phone, because
+ * The scheme, the tap and the control cards belong to the person and follow
+ * them onto the next phone; keeping the headset connection steady belongs to
+ * this phone, because
  * what it trades is a property of the headset. The Headphones card says so in
  * as many words, since a screen where some settings sync and others do not is
  * only honest if it admits which is which.
@@ -130,9 +131,10 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         screen reads outwards: the app, the phone, the policy, and then the
         account underneath all three.
 
-        This one is at the top because it is the only setting here that changes
+        The tap is at the top because it is the only setting here that changes
         what a tap *does*, and the tap it changes is the one somebody makes
-        most often. Everything below it changes how something looks or ends.
+        most often. Everything below this section changes how something looks
+        or ends.
       */}
       <SectionLabel>Channels</SectionLabel>
       <Card style={styles.stack}>
@@ -157,6 +159,51 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           On, tapping a channel walks you into it and everyone there can hear
           you. Off, it only opens the channel — you can see who is around and
           read what has been shared, and step in when you mean to.
+        </Text>
+      </Card>
+
+      {/*
+        Second in the same section, because it is the other thing that changes
+        what a channel screen is, and it is below the tap because the tap
+        decides whether you arrive at all.
+
+        Named by what it draws rather than by a word like "compact", and the
+        second paragraph names what goes with the cards. Somebody turning this
+        off is giving up the sentence that says why the floor is refused and
+        the countdown on the claim, and a screen that quietly stopped
+        explaining itself would be discovered at exactly the moment the
+        explanation was wanted. The recording warning is called out as staying
+        because it is the one thing here that is not a convenience.
+      */}
+      <Card style={styles.stack}>
+        <Text style={type.heading}>Repeat the channel controls as cards</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, 'On'],
+              [false, 'Off'],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={app.controlCards === value ? 'primary' : 'default'}
+              onPress={() => app.setControlCards(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>
+          A channel keeps the floor, your microphone and the way out under your
+          thumb at all times. On, each of them also has a card further down the
+          screen. Off, the bar is the whole of them and the screen below is who
+          is in the room and what the room is carrying.
+        </Text>
+        <Text style={type.muted}>
+          What goes with the cards: the sentence saying why a control is
+          refused, and the floor's countdown. Two things stay either way — that
+          a silenced microphone is still being recorded, and that you are in
+          this channel on another device.
         </Text>
       </Card>
 

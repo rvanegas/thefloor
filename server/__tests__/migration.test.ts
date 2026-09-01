@@ -331,6 +331,43 @@ it('adds the debug column to a database that predates it', () => {
   db.close();
 });
 
+/**
+ * The `control_cards` column, added 2026-08-31 with the setting that decides
+ * whether the channel screen repeats its footer as cards.
+ *
+ * The case worth having a test for is a database that has already been through
+ * the pass that added `appearance` and `tap_to_step_in` — which is every live
+ * one. That pass is guarded on `appearance` being absent, so a third
+ * `ALTER TABLE` written inside it would run on a fresh database and never on
+ * the box: exactly the failure the debug-column test above describes, arriving
+ * by a different route. Hence its own guard, and hence this.
+ */
+it('adds the control-cards column to a database that has the other settings', () => {
+  const path = join(dir, 'control-cards.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_RENAME);
+  seedAccounts(old);
+  old.close();
+
+  // Once, which puts `appearance` and `tap_to_step_in` on it and leaves the
+  // database looking like the deployed one.
+  openDb(path).close();
+
+  const db = openDb(path);
+  const columns = (
+    db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>
+  ).map((c) => c.name);
+  expect(columns).toContain('control_cards');
+
+  // Null, which reads as the default, which is on — the arrangement every
+  // build before the setting existed drew.
+  const row = db
+    .prepare('SELECT control_cards FROM accounts WHERE id = ?')
+    .get('acct_a') as { control_cards: number | null };
+  expect(row.control_cards).toBeNull();
+  db.close();
+});
+
 it('drops the bio column from a database that has one', () => {
   // The column was added by this same migration pass from 2026-08-23 until
   // 2026-08-31, so every live database has one with people's prose in it. It

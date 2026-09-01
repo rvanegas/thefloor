@@ -328,6 +328,10 @@ export class Accounts {
         row.tap_to_step_in === null
           ? DEFAULT_ACCOUNT_SETTINGS.tapToStepIn
           : row.tap_to_step_in === 1,
+      controlCards:
+        row.control_cards === null
+          ? DEFAULT_ACCOUNT_SETTINGS.controlCards
+          : row.control_cards === 1,
     };
   }
 
@@ -335,13 +339,14 @@ export class Accounts {
    * Writes what somebody chose, and answers with all of it.
    *
    * Partial in the sense `updateProfile` is: an absent field is left alone, so
-   * a screen saving the scheme cannot silently reset the tap. What comes back
+   * a screen saving the scheme cannot silently reset the tap or the cards.
+   * What comes back
    * is the whole of it, because the caller's next move is to tell every device
    * this account holds, and a partial answer would make each of them merge.
    *
    * The default is stored as itself rather than as a null. That is the
    * opposite of what `NotificationPreferences.set` does, and deliberately:
-   * these two are set from a screen showing both choices as buttons, where
+   * these are set from a screen showing both choices as buttons, where
    * choosing the default back is an act — and the row it writes is what a
    * second device is then told about. Reverting to null would leave the two
    * cases indistinguishable at the moment the difference is visible, which is
@@ -361,6 +366,11 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET tap_to_step_in = ? WHERE id = ?')
         .run(changes.tapToStepIn ? 1 : 0, accountId);
+    }
+    if (changes.controlCards !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET control_cards = ? WHERE id = ?')
+        .run(changes.controlCards ? 1 : 0, accountId);
     }
     return this.settings(accountId);
   }

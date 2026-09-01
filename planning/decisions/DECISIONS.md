@@ -1582,3 +1582,94 @@ there: `wantsEntry` and the `enter` intent in `applyNav` are exactly this, one
 caller in.
 
 1,584 lines, so no rollover.
+
+## The cards the footer already carries can be turned off — 2026-08-31
+
+A fourth setting on the Home settings screen, `controlCards`, on by default.
+Turned off, the channel screen stops drawing the four cards that repeat what
+the pinned footer already offers: *The floor*, *Your microphone*, *Step out*
+and *Step in*. The footer is untouched.
+
+It is an account setting, alongside the scheme and the tap and by the same
+argument — how much a screen should repeat itself to you is a habit you have
+learnt, not a property of the handset you learnt it on, and the second phone
+disagreeing with the first is the app forgetting something it was told. The
+headset setting remains the only device-local one. Same shape as the other two
+end to end: a nullable column, a partial `POST /me/settings`, a push to every
+session the account holds, and a cache on the device for the second between a
+cold start and `hello`.
+
+### It contradicts the footer's own comment, which was the interesting part
+
+That comment, written the same day the footer was, says the cards *are* the
+controls and the bar is only a shortcut — because a card carries the sentence
+saying why a control is refused, the countdown, the warning that being silenced
+is not being unrecorded, and *a greyed icon with no reason given is the one
+shape this codebase does not allow a control to have*.
+
+That rule survives, narrowed to what it was always about: **what a screen may
+show somebody who has not asked**. The cards are what everybody gets, they are
+where the explanations live, and nothing about the default screen moved. A
+person who has read those sentences enough times to want them gone is not the
+person the rule protects, and refusing them on a rule written for somebody else
+is paternalism dressed as consistency.
+
+What the rule does still forbid, and the footer comment now says so: **the
+footer may not become conditional on this**. A bar that changed shape with a
+preference would have the same problem as one that changed shape with state —
+items appearing and disappearing move the other two under a finger already on
+its way. Every act stays reachable at every setting; what the choice removes is
+repetition, never an ability.
+
+### Two sentences move up rather than going with the cards
+
+The line between what goes and what stays is *explanation of a control* versus
+*notice about what is happening to you*. Two things fell on the second side and
+are rendered under the roster when the cards are off:
+
+- **"You are still being recorded."** Being unheard is not being unrecorded.
+  Somebody silenced by another person's floor claim, during a recording, would
+  otherwise speak freely on an assumption this codebase has apologised for
+  elsewhere. A display preference must not quietly withdraw it.
+- **"…closes the microphone there."** Stepping in from a second device hangs up
+  the first, which the footer's *Step In* has no room to say and which somebody
+  would otherwise discover by doing it. Only the two surprising cases get the
+  line; the ordinary "you are looking at this channel without being in it" goes
+  with its card, because the footer's *Step In* already says it.
+
+The settings screen names both in as many words, and names what does go — the
+refusal sentences and the floor's countdown. A screen that quietly stopped
+explaining itself would be discovered at the moment the explanation was wanted,
+and naming the trade at the point of choice is cheaper than being right about
+it.
+
+### The diagnostic panel is not a control
+
+It lived inside the microphone card, so the first version of this took it away
+from the one account in a position to be reading it — `debug` is off for
+everybody until a column is set by hand, which means the person losing it is
+whoever is mid-investigation. It gets its own card and heading when the
+microphone card is not drawn, in the same position in the order. Nothing about
+the panel is represented in the footer, so nothing about the footer should
+decide whether it exists.
+
+### The migration has its own guard
+
+`control_cards` is added by a test of its own rather than a third line inside
+the block that added `appearance` and `tap_to_step_in`. That block is guarded
+on `appearance` being absent, and every live database has been through it — so
+a column added inside it would appear on a fresh database and never on the box.
+That is the failure the `debug` column's test describes, arriving by a
+different route, and `migration.test.ts` now covers this one: open an old
+database twice, and assert the column arrives on the second pass.
+
+### One test surprise
+
+`findAll` returns three nodes per button — the Pressable, the component it
+renders and the host view under it — which does not matter while a label is
+unique and matters immediately here: the settings screen now has three cards
+offering *On* and *Off*, and "the second Off" naively found is the first
+button's insides. The one node that carries `onPress` is the one there is
+exactly one of.
+
+1,675 lines, so no rollover.
