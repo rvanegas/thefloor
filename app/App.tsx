@@ -337,6 +337,13 @@ function Root() {
         // what tells this component you are still present.
         onHome={() => setChannelId(null)}
         onExit={() => setChannelId(null)}
+        // A profile opened from the roster lists the channels you and that
+        // person share, and tapping one goes there — the same tap the same
+        // cards take from the contact list. Nothing is closed on the way: the
+        // channel screen is the only thing on the stack, and presence is not a
+        // screen, so this changes which conversation you are looking at and
+        // not whether you are still in the one you left.
+        onEnterChannel={setChannelId}
       />
     );
   }

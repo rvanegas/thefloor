@@ -1478,4 +1478,47 @@ merging: this is UI, and it moves on the server's clock while the phone moves
 on App Store review's. That is real. It is outweighed here only because the
 guest page has no counterpart on the phone to drift *from*.
 
-1,481 lines, so no rollover.
+
+## A shared channel on a profile is a place you can go, from anywhere — 2026-08-31
+
+`ProfileView`'s *Channels with them* section took an optional `onEnterChannel`,
+and drew a `Pressable` when it had one and a plain `View` when it did not. The
+contact list passed one. `ChannelView`, which opens the same profile from the
+roster, did not — deliberately, on the reading that an in-channel screen should
+not offer to walk you out of the conversation you are in.
+
+That reading is wrong, and the shape of the code is what makes it wrong. The
+section is drawn either way — it stopped depending on the callback earlier, once
+it turned out that gating the whole list on a prop neither caller passed meant
+nobody had ever seen it. So what the withheld callback actually produced was one
+list, in one component, pressable on one route and inert on the other. A card
+saying three people are in a room, tapped, and doing nothing does not read as
+restraint; it reads as a broken control, and the reader has no way to know the
+same card works elsewhere.
+
+The premise was also stale. **Presence is not a screen** — the audio connection
+is held in `App.tsx` above the channel screen, so navigating to another channel
+hangs nothing up and the room you left is one tap away on Home's live bar. The
+restraint was protecting against a cost that stopped existing when the
+connection moved out of `ChannelView`.
+
+So `ChannelView` takes `onEnterChannel` and `App.tsx` passes `setChannelId`.
+Nothing is closed on the way: the channel screen is the only thing on the stack,
+where Contacts closes itself because the channel screen's Home button would
+otherwise land back on a list.
+
+**The channel you are standing in is in that list, and its card closes the
+profile and routes nowhere.** It belongs in the list — a card saying they have
+not been in the room you are sitting in for a week is the point of the section —
+but the only thing a tap on it can mean is dismissing the profile.
+`ProfileView` has already run the ENTER by then if `tapToStepIn` asks for one,
+so tapping the room you are looking at steps you into it exactly as Home's live
+card does, and calling back to route to the channel already mounted would be a
+no-op wearing the shape of navigation.
+
+The prop stays optional and the plain-`View` branch stays with it. No route in
+the app reaches this screen without one now, but the honest drawing for a caller
+with nowhere to send anybody is a card rather than a button that refuses — the
+rule the ping section follows, applied to the tap rather than to the section.
+
+1,524 lines, so no rollover.

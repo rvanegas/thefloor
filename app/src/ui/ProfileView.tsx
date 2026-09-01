@@ -145,15 +145,25 @@ export function ProfileView({
   fallbackName: string;
   onBack: () => void;
   /**
-   * Opens a channel the two of you share. Omitted where going somewhere else
-   * would be wrong — from inside a channel, which is the other way this screen
-   * is reached — and the cards are then drawn as cards rather than as buttons.
+   * Opens a channel the two of you share. Both callers in the app pass it, so
+   * the cards are pressable wherever this screen is reached from — the contact
+   * list, and, since 2026-08-31, a channel's own roster.
+   *
+   * From inside a channel it was omitted, on the reading that walking out of
+   * the conversation you are in to go to another is not something that screen
+   * should offer. The cards were drawn anyway — see below — which left the
+   * same list pressable on one route and inert on the other, and a card
+   * reporting three people in a room that does nothing when tapped reads as
+   * broken rather than as restraint. Presence is not a screen: going there
+   * hangs nothing up. See ChannelView.
    *
    * **The section itself does not depend on this.** It used to, and that is
-   * why nobody ever saw it: neither caller in the app passes this, so a list
-   * that only existed alongside it existed nowhere. Which channels you share
-   * with somebody, and when they were last in each, is worth reading whether
-   * or not this screen is the place to act on it.
+   * why nobody ever saw it: neither caller passed one, so a list that only
+   * existed alongside it existed nowhere. Which channels you share with
+   * somebody, and when they were last in each, is worth reading whether or not
+   * this screen is the place to act on it — which is why the prop stays
+   * optional, and why the cards still draw as cards for a caller with nowhere
+   * to send anybody.
    */
   onEnterChannel?: (channelId: string) => void;
   /**
@@ -969,10 +979,11 @@ export function ProfileView({
                 </>
               );
               /*
-                A card rather than a button where there is nowhere to go: from
-                inside a channel this screen is something to read, and an
+                A card rather than a button where there is nowhere to go —
+                which is now no route in the app, both callers passing one, but
+                stays as the honest drawing for a caller without one: an
                 affordance that is present but refuses is worse than one that
-                is honestly absent — the rule the ping section follows, applied
+                is honestly absent, the rule the ping section follows, applied
                 to the tap rather than to the section, because the reading is
                 worth having on its own.
               */

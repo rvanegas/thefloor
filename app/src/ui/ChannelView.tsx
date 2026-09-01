@@ -112,6 +112,7 @@ export function ChannelView({
   audio,
   onHome,
   onExit,
+  onEnterChannel,
 }: {
   channelId: string;
   /**
@@ -123,6 +124,23 @@ export function ChannelView({
   onHome: () => void;
   /** Off this screen having given up presence or membership. */
   onExit: () => void;
+  /**
+   * To another channel entirely, which this screen offers in exactly one
+   * place: the "Channels with them" cards on a profile opened from the roster.
+   *
+   * It used to offer it nowhere, on the reading that walking out of the
+   * conversation you are in to go to another is not something an in-channel
+   * screen should suggest. What that got wrong is that the cards were still
+   * drawn — the section is worth reading either way — so the same list was
+   * pressable from Contacts and inert here, and a card that says three people
+   * are in a room and does nothing when tapped is not restraint, it is a dead
+   * control. Presence is not a screen: going there does not hang anything up,
+   * and the channel you leave behind is a tap away on Home. See App.tsx.
+   *
+   * Optional so this screen still renders where there is nowhere to route to,
+   * the same way `ProfileView`'s own is.
+   */
+  onEnterChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
   // This channel's snapshot, and nothing else's. Picked out by id rather than
@@ -298,6 +316,22 @@ export function ChannelView({
         // special case — you are present, so there is no ping, and you are not
         // among your own contacts, so there is nothing to remove.
         onBack={() => setViewing(null)}
+        // Stepping into another channel the two of you share. The profile
+        // closes either way: for a different channel this screen is about to
+        // be about that one, and for *this* channel — which is in the list,
+        // deliberately, since a card saying they have not been in the room you
+        // are sitting in is the point of the section — closing is the whole of
+        // what the tap can mean. `ProfileView` has already done the ENTER by
+        // then if the preference asks for one, so tapping the room you are
+        // looking at steps you in exactly as Home's live card does.
+        onEnterChannel={
+          onEnterChannel
+            ? (id) => {
+                setViewing(null);
+                if (id !== channelId) onEnterChannel(id);
+              }
+            : undefined
+        }
         // Offered only for somebody who is not standing in the room, because
         // pinging a person who can hear you is not a thing that means
         // anything. The server refuses it on the same test, so a screen that

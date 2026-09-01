@@ -3917,11 +3917,12 @@ describe('channels you share with somebody', () => {
   });
 
   it('still lists them when there is nowhere to send you', async () => {
-    // Reached from inside a channel there is no `onEnterChannel` — walking
-    // out of the conversation you are in to go to another is not a thing that
-    // screen offers — and the section used to be left out entirely, which
-    // meant nobody ever saw it, neither caller in the app then passing one. What you share with somebody is
-    // worth reading where it cannot be acted on; only the tap goes.
+    // No route in the app leaves this out any more — both callers pass one,
+    // ChannelView included since 2026-08-31 — but the prop stays optional and
+    // this is what a caller without one gets. The section used to be left out
+    // entirely when it was absent, which meant nobody ever saw it, neither
+    // caller then passing one. What you share with somebody is worth reading
+    // where it cannot be acted on; only the tap goes.
     withChannels([channel('sess_shared', 'Thursday rehearsal', THEM)]);
 
     let tree!: ReactTestRenderer;
@@ -5716,6 +5717,115 @@ describe('who is in the channel, and who is talking', () => {
     expect(mockApp.loadProfile).toHaveBeenCalledWith(THEM);
     // And from there they can be kept, which is what the card is a route to.
     expect(findButton(tree, 'Add contact')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And from there to another room the two of you share, which this screen
+   * used to draw and refuse. The cards were always listed — what you share
+   * with somebody is worth reading wherever the profile is opened — but
+   * `onEnterChannel` was withheld here on the reading that an in-channel
+   * screen should not suggest walking out of the conversation you are in.
+   * That left one list pressable from Contacts and inert here. Presence is
+   * not a screen: going there hangs nothing up, and the room you left is a
+   * tap away on Home.
+   */
+  it('steps into another channel tapped on the profile it opened', async () => {
+    showChannel(channelOf());
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_other',
+          name: 'Thursday rehearsal',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const onEnterChannel = jest.fn();
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+        onEnterChannel={onEnterChannel}
+      />
+    );
+    const theirs = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => String(n.props?.accessibilityLabel).startsWith('Dana Chu'));
+    await act(async () => theirs!.props.onPress());
+
+    const card = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) =>
+        String(n.props?.accessibilityLabel).startsWith('Thursday rehearsal')
+      );
+    expect(card).toBeDefined();
+    await act(async () => card!.props.onPress());
+
+    expect(mockApp.act).toHaveBeenCalledWith('sess_other', { type: 'ENTER' });
+    expect(onEnterChannel).toHaveBeenCalledWith('sess_other');
+    // And the profile closes behind it, since this screen is about to be
+    // about the channel that was tapped rather than the one it was opened in.
+    expect(textOf(tree)).not.toContain('Channels with them');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Except the one you are standing in, which is in the list deliberately —
+   * a card saying they have not been in the room you are sitting in for a
+   * week is the point of the section. Tapping it can only mean closing the
+   * profile; routing to the channel already on screen would be a no-op that
+   * looked like navigation.
+   */
+  it('only closes the profile when the channel tapped is this one', async () => {
+    showChannel(channelOf());
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_1',
+          name: 'This very room',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 1,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const onEnterChannel = jest.fn();
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+        onEnterChannel={onEnterChannel}
+      />
+    );
+    const theirs = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => String(n.props?.accessibilityLabel).startsWith('Dana Chu'));
+    await act(async () => theirs!.props.onPress());
+
+    const card = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) =>
+        String(n.props?.accessibilityLabel).startsWith('This very room')
+      );
+    await act(async () => card!.props.onPress());
+
+    expect(onEnterChannel).not.toHaveBeenCalled();
+    expect(textOf(tree)).not.toContain('Channels with them');
     act(() => tree.unmount());
   });
 
