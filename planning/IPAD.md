@@ -141,6 +141,54 @@ and `TARGETED_DEVICE_FAMILY = "1,2"`, both read out of the generated artefact
 rather than the JSON, so the configuration is known good; whether the layout
 holds through a rotation is a thing to watch rather than to assume.
 
+## The wide-format refinements, settled and not built
+
+Designed 2026-09-01, after the split landed and before anybody had looked at
+it. **Nothing here is implemented.** It was held back because the last of it
+turned into TASKS.md § *The Tier Above Both Lists*, and building on the current
+structure would mean writing part of it twice. Build it when the tier lands, or
+before, if the tier waits.
+
+**One value for the detail pane, replacing a precedence chain.** Five nav flags
+resolved in a fixed order answer *which of several open things is on top*. What
+is wanted is *the last thing you asked for wins* — tapping a channel while a
+profile is open must show the channel. The chain cannot do that, and the bug is
+live in what shipped: `HomeView`'s `onEnterChannel` does not clear the profile,
+and profile outranks channel, so the tap does nothing visible. Three call sites
+already clear other state by hand and the ones that forget are exactly the
+faults. A single-valued `Detail` — `none | channel | profile | settings |
+standings | support` — makes overriding structural, and stack still renders
+`detail.kind === 'none' ? list : detail`, which is the tree that ships today.
+It also deletes the `!split && contactsOpen` special case.
+
+**Close, not Back, everywhere and in both layouts.** Six screens say *Back*:
+`HomeSettingsView`, `SupportView`, `LeaderboardView`, `ProfileView`,
+`ChannelSettingsView`, `TranscriptView`. On a phone the word means *reveal what
+is underneath*; in a split there is nothing underneath, since the list is
+beside rather than under, and all the control can do is empty the pane. *Close*
+is true in both, and one word in both layouts is what keeps the handler
+identical — `() => setDetail({ kind: 'none' })`, with no `split` anywhere. Every
+attempt to make the wording pane-dependent reintroduces a conditional that this
+choice removes.
+
+**`ChannelView` gets a Close too, but only when you are not present in it.**
+Without one it is the only view in the detail pane that cannot be dismissed,
+which is the single place the panes behave unlike each other. With one offered
+unconditionally, somebody present in a conversation can close it, switch the
+left pane to Contacts, and be in a call with nothing on screen saying so. So
+the button appears exactly when `live?.id !== channelId`, which means it
+appears the moment you step out. **The tier is what makes this belt-and-braces
+rather than load-bearing**: once the room you are in is shown above both lists,
+closing its view cannot hide it.
+
+**`ChannelView`'s Home button stays hidden in a split**, which is already
+built. The left pane is either Home or a contact list with a Home button of its
+own, so the destination is always one tap away in a pane that never went away.
+
+**A live bar duplicated into `ContactsView` was proposed and rejected.** It
+would have closed the same gap, and a live room is not a contact and has no
+business in that list. That objection is what produced the tier.
+
 ## Open questions
 
 - ~~**Does `alignSelf: 'center'` centre a ScrollView's content container?**~~

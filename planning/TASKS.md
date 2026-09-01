@@ -8,6 +8,16 @@ and things to go and find out. There are more in BACKLOG.md.
 
 Improve look and feel
 
+## The Tier Above Both Lists
+
+Channels and contacts are peers — two indexes onto the people you can reach —
+but one of them is the app's root and the other is a screen you open from it,
+and nothing about the pair justifies which. Give them a tier they are both
+inside, and put the room you are present in at that tier, above whichever list
+is showing. Chip in and Standings stop being the tail of the channel list and
+become what they are, elements of the application. Restructures the first
+screen on every device, not just the iPad. Design is here: HOME.md
+
 ## Keep Alive During Watch Party
 
 Since there's no speaking, there must be another way.
