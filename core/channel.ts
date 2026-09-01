@@ -808,6 +808,38 @@ export function canClearClip(state: ChannelState, userId: UserId): boolean {
  * from being a nuisance — handing somebody a link ahead of a conversation is
  * the normal way this is used, and there is nothing to interrupt.
  */
+/**
+ * Whether one participant may ping another: a notification asking them to come
+ * back, which only means something if they are not already in earshot.
+ *
+ * **Not in earshot is not the same as not present, and that is the whole of
+ * why this is a function.** Somebody whose connection has died is held in
+ * `present` for DISCONNECT_GRACE_MS so that a flap costs them nothing — but
+ * the grace protects what belongs to *them*, their place in the room and their
+ * stem and their mute, and it was also withholding the one act that belongs to
+ * everybody else. A phone that suspends a second after stepping in is noticed
+ * five seconds later and stays nominally present for a minute after that, so
+ * whoever walked in on the arrival notification found the person they came for
+ * described as present and unreachable, with no way to call them, for over a
+ * minute. Same reasoning as the floor, which the grace stopped protecting on
+ * 2026-08-27: see STATES.md § *Claimed Floor*.
+ *
+ * So the test is `disconnectedAt`, which is the server saying it has stopped
+ * hearing from them. Being wrong costs a notification to somebody sitting in
+ * the room with a flapping socket, once per PING_INTERVAL_MS.
+ */
+export function canPing(
+  state: ChannelState,
+  senderId: UserId,
+  targetId: UserId
+): boolean {
+  return (
+    senderId !== targetId &&
+    isParticipant(state, senderId) &&
+    isParticipant(state, targetId) &&
+    (!isPresent(state, targetId) || targetId in state.disconnectedAt)
+  );
+}
 export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&

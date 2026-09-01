@@ -1001,6 +1001,29 @@ describe('a ping', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([]);
   });
 
+  /**
+   * The case the refusal above must not swallow: a phone that suspended a
+   * second after stepping in is still in `present` for a minute, and whoever
+   * walked in on the arrival notification has nobody to call. Presence is not
+   * reachability; `canPing` is the test. See `core/channel.ts`.
+   */
+  it('reaches somebody the grace period is still counting present', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.report(channelId, bob.account.id, 'DISCONNECTED');
+    await settle();
+    expect(app.channels.get(channelId)!.present).toContain(bob.account.id);
+    pusher.sent.length = 0;
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(200);
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+  });
+
   it('refuses somebody who is not in the channel', async () => {
     const { alice, channelId } = await bobStepsOut();
     const carol = await signIn('carol@example.com', 'Carol');

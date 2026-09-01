@@ -215,8 +215,8 @@ every member who has spoken, behind somebody who can never take the turn. The
 paths that release a claim held by a guest (`guestGone`, `settleEmpty`) are kept
 and are now unreachable: a state blob written before this can still name one.
 
-**And by `DISCONNECTED`, since 2026-08-27 — the one thing a grace period does
-not protect.** Everything else the grace holds belongs to the person who
+**And by `DISCONNECTED`, since 2026-08-27 — the first thing a grace period was
+found not to protect, `canPing` being the second.** Everything else the grace holds belongs to the person who
 dropped: their place in the room, their membership, their recording's stem. A
 claim is the opposite, being a lock on everybody else — they are silenced by
 it, and `satisfiesEligibilityRule` refuses a claim outright while it is held,
@@ -281,6 +281,15 @@ things that this file keeps apart:
 - **Connectivity** — `disconnectedAt`. Whether your socket is up. A socket that
   drops and returns changes nothing about presence; only outlasting
   `DISCONNECT_GRACE_MS` does.
+
+  **But it changes whether you can be reached, and two guards now ask it
+  directly rather than asking `present`.** `canClaimFloor` since 2026-08-27 and
+  `canPing` since 2026-08-31. The rule behind both: the grace period holds a
+  dropped person's *own* things — their place, their stem, their self-mute —
+  and must not hold anything that belongs to everybody else. A claimed floor is
+  a lock on the room; a ping is the room's only way to call somebody back, and
+  the minute it was withheld for was the exact minute it was for. See
+  decisions/DECISIONS.md § *The grace period stops withholding the ping*.
 - **Standing** — `Realtime.enteredChannel` on the client, mirrored into the
   app as `AppProvider.standingIn`. Which channel *this copy of the app* is in.
   **Presence is an account's and standing is a device's**, and the two come

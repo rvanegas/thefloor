@@ -5824,6 +5824,39 @@ describe('who is in the channel, and who is talking', () => {
   });
 
   /**
+   * The minute the grace period used to cost.
+   *
+   * A phone suspends within a second of being pocketed, so somebody who steps
+   * in and vanishes is held in `present` for DISCONNECT_GRACE_MS after the
+   * heartbeat gives up. Whoever came in on the arrival notification spent all
+   * of that reading "Present · reconnecting…" with nothing to press. The line
+   * is unchanged, because it is still true; the button is there while it
+   * stands.
+   */
+  it('offers a ping while the grace period still calls them present', async () => {
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW))
+    );
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    expect(textOf(tree)).toContain('Present · reconnecting…');
+    const ping = findButton(tree, 'Ping');
+    expect(ping).toBeDefined();
+    await act(async () => {
+      ping!.props.onPress();
+    });
+    expect(mockApp.ping).toHaveBeenCalledWith('sess_1', THEM, '');
+    act(() => tree.unmount());
+  });
+
+  /**
    * Somebody who stepped out an hour ago is a different act — open their
    * profile and say something. A button on every absent card would turn the
    * roster into a row of controls rather than a picture of the room.

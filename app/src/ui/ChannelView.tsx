@@ -48,6 +48,7 @@ import {
   canManageGuest,
   hasTheRoom,
   isPresent,
+  canPing,
 } from '../../../core/channel';
 import { inRoom } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
@@ -332,13 +333,14 @@ export function ChannelView({
               }
             : undefined
         }
-        // Offered only for somebody who is not standing in the room, because
-        // pinging a person who can hear you is not a thing that means
-        // anything. The server refuses it on the same test, so a screen that
-        // has gone stale — they walked in while this was open — is refused
-        // rather than silently sending.
+        // Offered only for somebody who cannot hear you, because pinging a
+        // person who can is not a thing that means anything — and somebody
+        // inside the disconnect grace cannot, however present the roster says
+        // they are. `canPing` is that test and the server enforces the same
+        // one, so a screen that has gone stale — they walked in while this was
+        // open — is refused rather than silently sending.
         onPing={
-          channel && !isPresent(channel, viewing.id)
+          channel && canPing(channel, me, viewing.id)
             ? (text) => app.ping(channel.id, viewing.id, text)
             : undefined
         }
@@ -902,11 +904,11 @@ export function ChannelView({
                 now={now}
                 onPress={() => setViewing(participant)}
                 // The same test the profile's composer uses and the server
-                // enforces: not yourself, and not somebody standing in the
-                // room, who can hear you. The card narrows it further to
-                // whoever is nearby, which is the state the shortcut is for.
+                // enforces: not yourself, and not somebody who can hear you.
+                // The card narrows it further to whoever is out of reach and
+                // still worth calling, which is the state the shortcut is for.
                 onPing={
-                  participant.id !== me && !isPresent(channel, participant.id)
+                  canPing(channel, me, participant.id)
                     ? () => app.ping(channel.id, participant.id, '')
                     : undefined
                 }
@@ -2398,6 +2400,19 @@ function ParticipantCard({
    * the app where those two are the same fact.
    */
   const nearby = !here && away !== null && isWaiting(channel, participant.id, now);
+  /**
+   * Out of reach and worth calling — which is `nearby`, plus the minute before
+   * anybody is allowed to call it that.
+   *
+   * A phone suspends within a second of its owner pocketing it, and the room
+   * is not told for five seconds more, and then the grace holds them nominally
+   * present for a minute. Somebody who walked in on the arrival notification
+   * spent all of that looking at "Present · reconnecting…" with nothing to
+   * press — waiting out a timeout to be told what the line already said. The
+   * status keeps saying reconnecting, because that is still what it is; what
+   * changes is that the button is there while it does.
+   */
+  const callable = nearby || reconnecting;
   const [pinging, setPinging] = useState(false);
   /**
    * That this card sent one, which the server's window does not say yet.
@@ -2512,12 +2527,13 @@ function ParticipantCard({
           {holdsFloor ? ' · has the floor' : ''}
         </Text>
         {/*
-          Offered only while they are nearby, which is the state it answers.
-          Somebody who stepped out an hour ago is a different act — open their
-          profile and say something — and a button on every absent card would
-          make the roster a row of buttons rather than a picture of the room.
+          Offered only while they are out of reach and recently so, which is
+          the state it answers. Somebody who stepped out an hour ago is a
+          different act — open their profile and say something — and a button
+          on every absent card would make the roster a row of buttons rather
+          than a picture of the room.
         */}
-        {onPing && nearby ? (
+        {onPing && callable ? (
           <Button
             label={
               pinging ? 'Pinging…' : pinged || pingWait !== null ? 'Pinged' : 'Ping'

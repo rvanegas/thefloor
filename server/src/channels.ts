@@ -24,6 +24,7 @@ import {
   isParticipant,
   isPartyMuted,
   isPresent,
+  canPing,
   isWithheld,
   lastPresenceAt,
   lastPresenceByOthers,
@@ -2420,7 +2421,9 @@ export class ChannelRegistry {
     if (senderId === targetId) {
       return { ok: false, error: 'You are already here.', code: 'invalid' };
     }
-    if (channel.present.includes(targetId)) {
+    // Reachability rather than presence — somebody inside the disconnect grace
+    // is counted present and cannot hear a word of it. See `canPing`.
+    if (!canPing(channel, senderId, targetId)) {
       return { ok: false, error: 'They are already here.', code: 'conflict' };
     }
 

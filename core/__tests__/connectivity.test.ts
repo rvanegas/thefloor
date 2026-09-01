@@ -3,7 +3,13 @@ import {
   FLOOR_CLAIM_DELAY_STEP_MS,
   FLOOR_CLAIM_MS,
 } from '../constants';
-import { canClaimFloor, createChannel, isPresent, reduce } from '../channel';
+import {
+  canClaimFloor,
+  canPing,
+  createChannel,
+  isPresent,
+  reduce,
+} from '../channel';
 import type { ChannelState } from '../types';
 
 /**
@@ -224,5 +230,45 @@ describe('when everyone disconnects', () => {
     expect(state.status).toBe('active');
     expect(isPresent(state, A)).toBe(true);
     expect(isPresent(state, B)).toBe(false);
+  });
+});
+
+/**
+ * The other thing the grace period must not withhold.
+ *
+ * Everything the grace holds belongs to the person who dropped; being called
+ * back belongs to everybody else, and it is the one act that is *only* useful
+ * while they are gone. The case that named it: somebody steps in, pockets the
+ * phone, and whoever came for the arrival notification finds them described as
+ * present and cannot reach them for a minute.
+ */
+describe('calling somebody back', () => {
+  it('is refused while they are standing in the room', () => {
+    expect(canPing(joined(), A, B)).toBe(false);
+  });
+
+  it('is allowed the moment their connection is noticed to be dead', () => {
+    const state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
+    // Still present, deliberately — and still unable to hear a word of it.
+    expect(isPresent(state, B)).toBe(true);
+    expect(canPing(state, A, B)).toBe(true);
+  });
+
+  it('is refused again the moment they are back', () => {
+    let state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
+    state = reduce(state, { type: 'CONNECTED', userId: B }, T0 + 10_000);
+    expect(canPing(state, A, B)).toBe(false);
+  });
+
+  it('outlasts the grace period, the person being plainly gone by then', () => {
+    let state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
+    state = tick(state, T0 + DISCONNECT_GRACE_MS);
+    expect(canPing(state, A, B)).toBe(true);
+  });
+
+  it('is never a thing you do to yourself, or to a stranger', () => {
+    const state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
+    expect(canPing(state, B, B)).toBe(false);
+    expect(canPing(state, A, 'user-c')).toBe(false);
   });
 });

@@ -1714,3 +1714,45 @@ to belong together. The order is unchanged, the tap above the cards, and the
 settings screen is the only file that moved for it.
 
 1,716 lines, so no rollover.
+## The grace period stops withholding the ping — 2026-08-31
+
+Somebody steps into an empty channel, and their phone suspends in their pocket
+a second later. The arrival notification has already gone. Whoever it fetched
+walks in, sees the person they came for described as **Present ·
+reconnecting…**, and has no way to call them back for over a minute — the
+heartbeat's five seconds of silence budget, plus `DISCONNECT_GRACE_MS`. The
+button they need appears at the far end of a timeout whose only conclusion is
+what the status line said all along.
+
+Both ends refused it, on the same test: `channels.ping` returned `409 They are
+already here.` for anyone in `present`, and the roster and the profile composer
+withheld the control on `!isPresent`. The test was right about the wrong thing.
+**Presence is not reachability.** The grace period holds a dropped person in
+`present` so that a flap costs them nothing, and everything it holds that way
+belongs to *them* — their place in the room, their stem, their self-mute. Being
+called back is the one thing in that minute that belongs to everybody else, and
+it is only ever useful while they are gone.
+
+Same shape as the floor, which stopped being protected by the grace on
+2026-08-27 for the same reason — see STATES.md § *Claimed Floor*. That one was a
+lock on the room; this one is the room's only way to reach outside itself.
+
+So `canPing(state, senderId, targetId)` joins the `can*` family in
+`core/channel.ts`, and the server and both UI call sites read it. It asks
+`disconnectedAt`, which is the server saying it has stopped hearing from them —
+not `isWaiting`, which cannot be true yet, the person still being nominally
+present. The roster card's gate becomes `nearby || reconnecting`; the status
+line is untouched, because *reconnecting* is still exactly what it is. What
+changes is that there is now something to press while it says so.
+
+**What it costs when it is wrong:** somebody sitting in the room with a
+genuinely flapping socket gets one notification, bounded by `PING_INTERVAL_MS`
+like every other. Against a minute of being visibly present and unreachable to
+the person who came for them, that is not a close trade.
+
+**What was not done.** Stepping out deliberately still shows no ping on the
+roster card — that person is not waiting, and the profile composer is the act
+that fits saying something to them. The card is for *come back*, and it is
+offered only to somebody out of reach who has not chosen to be.
+
+1,758 lines, so no rollover.
