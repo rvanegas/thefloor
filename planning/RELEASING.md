@@ -280,7 +280,8 @@ there and goes on being true survives them.
    code is not in that file, and the script refuses one where the placeholder
    has been filled in by hand. **A submission's two texts live in `planning/submissions/`** —
    the notes and the `whats-new-<version>.txt` that `bin/submit-ios
-   --whats-new` sends — because they are the only files in `planning/` that are
+   --whats-new` sends, which *Writing "What's New"* below is about — because
+   they are the only files in `planning/` that are
    payload rather than prose: they carry no first line saying what they are,
    since every character of them is read by a reviewer or shipped on the
    listing. A directory keeps that distinction visible and keeps `ls planning/`
@@ -317,6 +318,51 @@ weeks old.** The number was doing rhetorical work — surely a long-used app is
 past such things — and the real claim is stronger without it: eight defects in
 two weeks of daily use, by the person who wrote it, none of them found by
 using it and all of them found by walking it in a stranger's order.
+
+### Writing "What's New", which is a list of what is new
+
+Adopted 2026-08-31, from a draft that reached 3,992 characters of a 4,000
+cap and came back to 2,471 without losing an item. Every character cut was
+a sentence doing something other than saying what changed.
+
+**Three kinds of sentence get in, and none of them is news.** They arrive
+honestly, each answering a real question — just not one the reader is asking.
+
+- **Limitations.** "Notifications still go to your phone." "You can only be in
+  a channel on one device at a time." Written to forestall a complaint, and
+  nobody opens release notes to learn what an update does not do. Where a limit
+  genuinely surprises, it belongs in the app or on the support page, next to
+  whoever meets it.
+- **Instructions.** How to sign in, which browser to use, what a setting trades
+  and which way to set it. A release note says a control now exists; the screen
+  it is on says how to work it, and has room to.
+- **The old behaviour.** "Previously the room stayed silenced." "Before, the
+  invitation reappeared." Naming the defect explains *why* the change was made.
+  A reader who never hit it learns only that the app used to be worse.
+
+**State the change and stop.** "The floor is released as soon as the person
+holding it disconnects, and disconnections are detected in five to seven
+seconds" replaced three sentences that said the same thing with an apology
+around it.
+
+**Name controls as they appear on screen** — Step In, Add contact, "Keep the
+connection steady" — since these notes are often read beside the screen they
+describe.
+
+**Say what is taken away, and say it plainly.** The one exception to cutting
+limitations: an addition that goes unmentioned is merely missed, but somebody
+who could ping a stranger last week and cannot this week is owed the sentence.
+
+**Compose it from `git log released..master`, and check the claims against the
+released tree rather than the log.** A commit describes what changed in the
+repository, which is not the same as what changed for somebody holding a
+phone: two claims in the first 1.3.1 draft were already installed, the feature
+having shipped in an earlier build and only been *refined* here.
+
+**The cap is 4,000 characters and `bin/submit-ios` refuses to exceed it**,
+loudly, at the moment of submitting rather than by truncating. It counts the
+file trimmed. Drafts run long because the material above accumulates; cutting
+it is usually the whole of the fix.
 
 ### The web trains ship with the build
 
