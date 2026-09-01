@@ -1,0 +1,150 @@
+# Growing the UI for iPad
+
+**A design for work in flight.** TASKS.md § *Grow UI for iPad* names it in a
+line; this is what that line turns out to mean. When it ships, what survives
+goes to `decisions/DECISIONS.md` and this file is deleted. What is here is what
+is only true while the work is open — the step list, the simulator matrix, the
+per-file inventory, and the questions still unanswered.
+
+## Context
+
+`app/app.json` says `ios.supportsTablet: false`, and RELEASING.md says why:
+*"Nothing in the layout adapts to a larger screen and nobody has opened it on
+an iPad. Claiming support invites App Review to test there, on a layout built
+for a phone. Turn it back on after actually looking at one."*
+
+That was still literally true when this began — not one `maxWidth`,
+`Dimensions` or `useWindowDimensions` call anywhere in `app/src/`. Every screen
+is flex-fill with padding, so at 1024pt nothing *breaks*; everything
+**stretches**. A channel row with a two-word title and a timestamp 900pt away.
+A 976pt email field on the sign-in screen. A transcript running the full width,
+past any measure a person can read.
+
+**It is the web app's outstanding layout item too.** WEB.md ends with *"The
+layout. Measured, not fixed: at a 1600px viewport the Claim the floor button is
+1534px wide. A container with a maximum and a couple of breakpoints."* Same
+defect from the other end, and the web train has not been deployed yet. One
+responsive layer closes both, which is why none of this is gated on
+`Platform.OS`.
+
+## What was decided before any of it was written
+
+Two panes on a wide viewport, a list on the left and the screen you are looking
+at on the right. Multitasking supported outright rather than opted out of. All
+four orientations on iPad, iPhone left portrait-only. Nested screens confined
+to the right pane. And the scope stops at the code: no upload, no submission,
+no App Store screenshots.
+
+## Why it is smaller than it looks
+
+Two facts about the codebase do most of the work, and both are worth knowing
+before touching anything.
+
+**No screen knows how wide it is.** Every one renders through `Screen` into a
+`flex: 1` parent. Putting one in a 340pt column and another in the remaining
+700 asks nothing of either.
+
+**"Nested screens open in the right pane" is satisfied by doing nothing.**
+`ProfileView`, `ChannelSettingsView` and `TranscriptView` are early returns
+*inside* `ChannelView` and `ContactsView`, and those are the right pane. The
+nesting already puts them where the decision wants them — and this is also what
+preserves the argument at the top of `App.tsx`, that routing profiles through
+`Root` would make it know which screen a profile was opened from.
+
+So there are two mechanisms, deliberately separate because they answer
+different questions:
+
+1. **A measure.** No column of cards or controls exceeds 620pt. `maxWidth` plus
+   `alignSelf: 'center'` — a **constant**, relative to its parent by
+   construction, needing no hook and no measurement, correct in a window or in
+   a pane.
+2. **A layout mode.** Two panes or one, from the current window width.
+   Reactive, and with exactly one call site.
+
+Keeping them apart is what leaves `ui/theme.ts` intact. That file argues the
+module-scope `StyleSheet.create` blocks may capture their tokens once at import
+because the *platform* re-resolves colour, and that a `useTheme()` would force a
+re-render path through all of them. A cap is a constant, so a module-scope block
+spreads it exactly as it spreads `spacing(2)`. **No existing style block becomes
+reactive.**
+
+## The steps, in order
+
+Each is independently shippable and independently verifiable.
+
+1. **This file.**
+2. **`ui/layout.ts` and its test**, imported by nothing. Pure addition.
+3. **The measure** — the token in `theme.ts`, `Screen`'s content container, the
+   seven header rows, the channel footer. Ships alone, changes nothing on a
+   phone, and fixes desktop web by itself.
+4. **The panes** — `ui/Panes.tsx`, `NoDetailView`, `Root`'s restructure,
+   `Screen`'s keyboard suppression in the list pane. Still invisible on a
+   phone, because nothing is 800pt wide.
+5. **`app.json`** — the first commit that can be opened on an iPad.
+6. **Pane-aware trims** — the channel screen's Home button, Home's live bar.
+7. **The documents**, and this file goes.
+
+## The simulator matrix
+
+| Device | Portrait | Landscape | Proves |
+| --- | --- | --- | --- |
+| iPhone SE | 320 | — | the phone is untouched |
+| iPhone 16 | 393 | — | the phone is untouched |
+| iPad mini | 744 → stack | 1133 → split | the fallback, on real iPad hardware |
+| iPad 11" | 820 → split | 1180 → split | the ordinary case |
+| iPad Pro 13" | 1032 → split | 1376 → split | the caps, at the widest |
+
+What to do on each iPad, beyond looking:
+
+- Rotate through all four with a channel open, then again with a transcript
+  open. **Nothing should remount** — a lost composer or a closed profile is the
+  tell.
+- Drag another app in to make the window narrow, then wide, then out again.
+  The transition is live and must not remount either.
+- **With audio connected, do the whole sweep and confirm the call survives.**
+  The session hook is above the split so it should, and this is the one thing
+  that has to be verified rather than reasoned about.
+- Open a recording rename in the right pane: the reveal scrolls its card, and
+  the left pane does not shrink.
+- The iPad's floating keyboard, and a hardware keyboard. Neither is something
+  the phone layout has ever met.
+
+## The seven header rows
+
+Each is a `headerTop` block, `flexDirection: 'row'` with
+`justifyContent: 'space-between'`, inside a full-bleed header with a bottom
+hairline. The row gets the cap; the header and its border stay full-bleed, so
+the rule still runs edge to edge.
+
+    HomeView.tsx            ContactsView.tsx        ProfileView.tsx
+    ChannelSettingsView.tsx HomeSettingsView.tsx    SupportView.tsx
+    LeaderboardView.tsx
+
+`HomeView` and `ContactsView` each carry `marginRight: -spacing(1)` on
+`headerActions`, to align a button's own padding with the edge. Capped, that
+negative margin pulls against the cap rather than against the screen edge —
+which is still the relationship it wants, but it is the kind of thing that
+looks wrong before you work out why it is right.
+
+## Open questions
+
+- **Does `alignSelf: 'center'` centre a ScrollView's content container?** It
+  should — the container is the ScrollView's only child on the cross axis — but
+  Yoga has surprised people here. The fallback is `marginHorizontal: 'auto'`.
+- **Does the sign-in form want a narrower cap than a list does?** 620 is a
+  measure for prose and cards. A single email field centred in 620 may still
+  read as lost, in which case cap that screen locally rather than narrowing the
+  shared token.
+- **Does the left pane want a selected-row highlight** for the channel open on
+  the right? Almost certainly yes, and it touches `HomeView`'s list rendering,
+  so it goes last or to BACKLOG.md.
+- **Does iPadOS 26 still honour `UIRequiresFullScreen`?** Does not change the
+  plan — multitasking is supported either way — but it decides what has to be
+  verified, and it should be established once rather than guessed at twice.
+  This checkout builds against the iOS 26.2 SDK, where `UISceneSizeRestrictions`
+  notes `allowsFullScreen` is "currently only honored on Mac Catalyst".
+- **Is 744 the right side of the cliff?** iPad mini portrait stays stacked. A
+  split there would leave a 404pt detail pane, thinner than the phone screen it
+  replaced, which is the test a breakpoint has to pass. 768 was tried first and
+  fails that same test by twelve points against an iPhone 16 Pro Max, which is
+  how the constant became 800. It is still one constant.
