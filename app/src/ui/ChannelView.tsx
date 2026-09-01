@@ -157,6 +157,31 @@ export function ChannelView({
   // one way that could still crash the screen.
   const recordings = view?.recordings ?? [];
   const me = app.me?.id ?? '';
+  /**
+   * Whether to offer a ping for somebody, which is two questions rather than
+   * one — and they are stated together here so the two surfaces that ask
+   * cannot drift apart.
+   *
+   * `canPing` is the reachability half: not yourself, and not somebody who can
+   * hear you. The contact list is the authorization half, and it is not in
+   * `core/` because `ChannelState` has no idea who knows whom — a channel
+   * holds people a mutual friend brought in, and being in the room together is
+   * not permission to put a notification on somebody's lock screen. The server
+   * checks both, so a screen that has gone stale is refused rather than
+   * silently sending.
+   *
+   * `?? []` **fails closed**, deliberately: no home means no ping button,
+   * which is the safe direction and the same reading `InviteList` makes below.
+   * Home arrives before any screen that can reach this one and is re-pushed on
+   * every contact change, so the case is a moment at boot rather than a state
+   * anybody sits in.
+   */
+  const mayPing = (targetId: string) =>
+    !!channel &&
+    canPing(channel, me, targetId) &&
+    (app.home?.contacts ?? []).some(
+      (entry) => entry.account.id === targetId && entry.status === 'accepted'
+    );
   // One piece of state rather than three, because they are one thing: an
   // upload in flight, what it has managed so far, and how to stop it. `null`
   // is not uploading; a `cancel` of `null` is the moment between the picker
@@ -333,14 +358,21 @@ export function ChannelView({
               }
             : undefined
         }
-        // Offered only for somebody who cannot hear you, because pinging a
-        // person who can is not a thing that means anything — and somebody
+        // Offered only for somebody who cannot hear you and who is a contact.
+        // Pinging a person who can hear you means nothing — and somebody
         // inside the disconnect grace cannot, however present the roster says
-        // they are. `canPing` is that test and the server enforces the same
-        // one, so a screen that has gone stale — they walked in while this was
-        // open — is refused rather than silently sending.
+        // they are — while pinging a stranger is a thing you may not do at
+        // all, a channel being a place a mutual friend can put you in.
+        // `mayPing` is both halves and the server enforces both, so a screen
+        // that has gone stale — they walked in, or you removed them — is
+        // refused rather than silently sending.
+        //
+        // Nothing is drawn in the card's place, and it does not need to be:
+        // the Contact card further down this same scroll offers Add contact
+        // for exactly this person, so the screen answers *why not* and *what
+        // to do about it* in the order somebody reads them.
         onPing={
-          channel && canPing(channel, me, viewing.id)
+          channel && mayPing(viewing.id)
             ? (text) => app.ping(channel.id, viewing.id, text)
             : undefined
         }
@@ -903,12 +935,13 @@ export function ChannelView({
                 failing={failingHere(participant.id)}
                 now={now}
                 onPress={() => setViewing(participant)}
-                // The same test the profile's composer uses and the server
-                // enforces: not yourself, and not somebody who can hear you.
-                // The card narrows it further to whoever is out of reach and
-                // still worth calling, which is the state the shortcut is for.
+                // `mayPing`, the same gate the profile's composer uses and
+                // the server enforces: not yourself, not somebody who can hear
+                // you, not a stranger. The card narrows it further to whoever
+                // is out of reach and still worth calling, which is the state
+                // the shortcut is for.
                 onPing={
-                  canPing(channel, me, participant.id)
+                  mayPing(participant.id)
                     ? () => app.ping(channel.id, participant.id, '')
                     : undefined
                 }
@@ -2440,10 +2473,18 @@ function ParticipantCard({
       setPinged(true);
     } catch {
       // Left to correct itself rather than reported on a card with no room for
-      // a sentence. Both refusals the server can give are already on their way
-      // here as state: they walked in, and the card stops being nearby; or
-      // somebody pinged them a moment ago, and the next snapshot brings the
-      // window that disables this button and says "Pinged".
+      // a sentence. Two of the three refusals the server can give are already
+      // on their way here as state: they walked in, and the card stops being
+      // nearby; or somebody pinged them a moment ago, and the next snapshot
+      // brings the window that disables this button and says "Pinged".
+      //
+      // The third — they are not a contact — is the one that explains itself
+      // to nobody, since the card stays nearby and the window is untouched. It
+      // is unreachable from a build that has `mayPing`, which does not draw
+      // the button at all; what can produce it is a screen whose contact list
+      // said otherwise a moment ago, and the home push that corrects the list
+      // is what takes the button away. So the swallow is still right: the
+      // refusal it hides is one this screen has already stopped offering.
     } finally {
       setPinging(false);
     }

@@ -342,6 +342,28 @@ function showChannel(channel: ChannelState, recordings: RecordingView[] = []) {
   if (channel.present.includes(ME)) mockApp.standingIn = channel.id;
 }
 
+/**
+ * Who I am a contact of, which is half of whether I may ping them.
+ *
+ * Stated per test rather than folded into `showChannel`, which has well over a
+ * hundred call sites: `app.home` is read by the Invite section and by the
+ * profile as well, so making everybody a contact by default would quietly
+ * change what those render in tests about neither — and would mask this gate
+ * rather than exercise it. Set before `showChannel`, per the convention the
+ * other home-reading tests already follow.
+ */
+function knowing(...ids: string[]) {
+  mockApp.home = {
+    invites: [],
+    rejoinable: [],
+    contacts: ids.map((id) => ({
+      account: { id, displayName: id === THEM ? 'Dana Chu' : id },
+      status: 'accepted' as const,
+    })),
+    recordings: [],
+  };
+}
+
 beforeEach(() => {
   mockApp.home = null;
   mockApp.channelViews = {};
@@ -4349,6 +4371,13 @@ describe('reaching somebody in the messaging apps they use', () => {
  * the room and withheld for somebody who is, and the server refuses on the same
  * test — so a screen left open while they walked in is refused rather than
  * silently sending.
+ *
+ * **These render `ProfileView` directly and are given `onPing` as a prop**, so
+ * they are about what the composer does with one, not about who gets one. The
+ * empty `contacts` below is therefore not a claim that a stranger is offered a
+ * composer — whether `onPing` is supplied at all is `ChannelView`'s decision,
+ * and pinging requires being a contact. That gate is tested over in
+ * *who is in the channel, and who is talking*, which renders `ChannelView`.
  */
 describe('pinging somebody who is not in the room', () => {
   /** Button carries no accessibility label, so it is found by its own props. */
@@ -5791,6 +5820,7 @@ describe('who is in the channel, and who is talking', () => {
    * said is "come back", which the notification says by arriving.
    */
   it('offers a wordless ping on the card of somebody nearby', async () => {
+    knowing(THEM);
     showChannel(
       channelOf((s) => {
         const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
@@ -5824,6 +5854,80 @@ describe('who is in the channel, and who is talking', () => {
   });
 
   /**
+   * The composer, reached the way somebody actually reaches it — through the
+   * roster card rather than by rendering `ProfileView` with an `onPing` handed
+   * to it. Whether that handler is supplied at all is this screen's decision,
+   * and it is the half nothing else covers.
+   *
+   * Both directions in one test, because the fixture is otherwise identical
+   * and the difference between the two runs is the whole claim.
+   */
+  async function openProfileOfSomebodyAway() {
+    showChannel(channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW)));
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const row = tree.root
+      .findAll((n) => n.props?.accessibilityRole === 'button')
+      .find((n) => String(n.props?.accessibilityLabel).includes('Dana Chu'));
+    await act(async () => row!.props.onPress());
+    return tree;
+  }
+
+  it('withholds the composer from a stranger and offers it to a contact', async () => {
+    knowing();
+    const stranger = await openProfileOfSomebodyAway();
+    expect(textOf(stranger)).not.toContain('Send ping');
+    // The screen is not empty in its place: the act that fits is on it.
+    expect(textOf(stranger)).toContain('Add contact');
+    act(() => stranger.unmount());
+
+    knowing(THEM);
+    const contact = await openProfileOfSomebodyAway();
+    expect(textOf(contact)).toContain('Send ping');
+    act(() => contact.unmount());
+  });
+
+  /**
+   * The other half of the gate, and the one `core/` cannot state.
+   *
+   * A channel holds people a mutual friend brought in, and being in the room
+   * with somebody is not permission to put a notification on their lock
+   * screen. So the card is drawn exactly as it is for a contact — they are
+   * still nearby, and the line still says so — and the one thing that is gone
+   * is the button. Asserting the card survives is what keeps this from
+   * passing because the roster stopped rendering.
+   */
+  it('offers no ping on the card of somebody who is only in the room', async () => {
+    knowing();
+    showChannel(
+      channelOf((s) => {
+        const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
+        return reduce(dropped, { type: 'TICK' }, NOW + DISCONNECT_GRACE_MS + 1);
+      })
+    );
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    expect(textOf(tree)).toContain('Nearby');
+    expect(findButton(tree, 'Ping')).toBeUndefined();
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
    * The minute the grace period used to cost.
    *
    * A phone suspends within a second of being pocketed, so somebody who steps
@@ -5834,6 +5938,7 @@ describe('who is in the channel, and who is talking', () => {
    * stands.
    */
   it('offers a ping while the grace period still calls them present', async () => {
+    knowing(THEM);
     showChannel(
       channelOf((s) => reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW))
     );
@@ -5861,7 +5966,11 @@ describe('who is in the channel, and who is talking', () => {
    * profile and say something. A button on every absent card would turn the
    * roster into a row of controls rather than a picture of the room.
    */
+  // A contact, deliberately: the point is that `callable` withholds the button
+  // from somebody who chose to leave, and a test with no contact list would
+  // pass on the other gate and stop saying that.
   it('offers no ping on a card that is merely absent', () => {
+    knowing(THEM);
     showChannel(channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW)));
     mockApp.serverNow = () => NOW + 60 * 60_000;
     const tree = render(
@@ -5885,6 +5994,7 @@ describe('who is in the channel, and who is talking', () => {
    * where one that says "Pinged" says what happened.
    */
   it('refuses a second ping while the window is open, and says which', () => {
+    knowing(THEM);
     showChannel(
       channelOf((s) => {
         const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);

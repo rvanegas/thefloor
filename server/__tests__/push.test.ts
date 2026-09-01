@@ -1051,6 +1051,113 @@ describe('a ping', () => {
     expect(pusher.messagesFor('bob-phone')).toEqual([]);
   });
 
+  /**
+   * Alice, Bob and Carol in one named channel, where **Alice and Carol are
+   * strangers**: Bob is the only one who knows them both, and Bob is the one
+   * who invited Carol in, because only he may.
+   *
+   * The one way a channel comes to hold two people who are not contacts —
+   * `create` already refuses a stranger — and so the only shape this rule can
+   * be tested in.
+   */
+  async function aStrangerInTheRoom() {
+    const { alice, bob } = await twoContacts();
+    const carol = await signIn('carol@example.com', 'Carol');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(bob.token),
+      payload: { identifier: 'carol@example.com' },
+    });
+    await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${bob.account.id}/accept`,
+      headers: auth(carol.token),
+    });
+
+    const channelId = await createChannel(alice.token, [bob.account.id]);
+    // Named, for the reason the arrival tests give: inviting into an unnamed
+    // channel moves the conversation elsewhere rather than taking somebody in.
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Standup',
+    } as never);
+    // Bob steps in first, `canInvite` asking for the room rather than mere
+    // membership — an invitation is something you send from inside.
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, {
+      type: 'INVITE',
+      contactId: carol.account.id,
+    } as never);
+    await settle();
+
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, carol.account.id, { type: 'STEP_OUT' });
+    await settle();
+    await registerDevice(carol.token, 'carol-phone');
+    pusher.sent.length = 0;
+    return { alice, bob, carol, channelId };
+  }
+
+  /**
+   * **The room is not the unit of permission**, and both halves are here
+   * because the asymmetry is the whole point: the same absent person, in the
+   * same channel, reachable by one of the two people looking at her card and
+   * not by the other.
+   *
+   * Being audible to somebody is a thing they walked into and can walk out of.
+   * Being notified is not — it arrives on a locked phone in a pocket — so it
+   * is owed to the relationship rather than to the room, and a channel is a
+   * place a mutual friend can put you in.
+   *
+   * Without the second half a bug that refused every ping in a three-person
+   * channel would pass this test.
+   */
+  it('is refused between two people who share a room and nothing else', async () => {
+    const { alice, bob, carol, channelId } = await aStrangerInTheRoom();
+
+    const refused = await ping(alice.token, channelId, {
+      targetId: carol.account.id,
+    });
+    await settle();
+
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().error).toBe('Not a contact.');
+    expect(pusher.messagesFor('carol-phone')).toEqual([]);
+
+    const allowed = await ping(bob.token, channelId, {
+      targetId: carol.account.id,
+    });
+    await settle();
+
+    expect(allowed.statusCode).toBe(200);
+    expect(pusher.messagesFor('carol-phone')).toHaveLength(1);
+  });
+
+  /**
+   * Pins where the rung sits. A stranger standing in the room fails two tests
+   * at once, and the answer has to be the permanent one rather than the one
+   * that invites a retry she will never be allowed to win.
+   *
+   * Without this the check can be moved below `canPing` and nothing else in
+   * the suite notices.
+   */
+  it('answers the relationship rather than the presence when both are wrong', async () => {
+    const { alice, carol, channelId } = await aStrangerInTheRoom();
+    app.channels.dispatch(channelId, carol.account.id, { type: 'ENTER' });
+    await settle();
+    pusher.sent.length = 0;
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: carol.account.id,
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(403);
+    expect(reply.json().error).toBe('Not a contact.');
+    expect(pusher.messagesFor('carol-phone')).toEqual([]);
+  });
+
   it('refuses more words than a lock screen will hold', async () => {
     const { alice, bob, channelId } = await bobStepsOut();
 

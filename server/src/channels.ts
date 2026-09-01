@@ -2394,6 +2394,18 @@ export class ChannelRegistry {
    * anyone present, so a ping arriving for one is a stale screen rather than an
    * intention. Refusing it agrees with the button that is not there.
    *
+   * **Contacts only**, which is a different kind of guard from the rest and is
+   * why it sits where it does. Pinging is something contacts do to each other,
+   * not something co-participants do: a channel holds people a mutual friend
+   * invited, and being in the room with somebody is not permission to put a
+   * notification on their lock screen. Being in the room together is
+   * permission to *ask* — `POST /contacts/:id/request` — and the profile they
+   * are already reachable through carries that button.
+   *
+   * The check cannot live in `canPing`, which is pure over `ChannelState` and
+   * has no idea who knows whom. Same layering INVITE has, and for the reason
+   * stated there: contacts are the server's concern.
+   *
    * The text is trimmed, and empty becomes null rather than an empty body: a
    * composer somebody tabbed through should send the plain form, not a ping
    * with a colon and nothing after it.
@@ -2420,6 +2432,29 @@ export class ChannelRegistry {
     }
     if (senderId === targetId) {
       return { ok: false, error: 'You are already here.', code: 'invalid' };
+    }
+    // Below the two membership checks, because the ladder's arc is the room
+    // first and then the person — and because it keeps `areContacts` from
+    // being asked about an arbitrary account id by anybody holding a channel
+    // id. Below the self-check too, and that one is load-bearing rather than
+    // tidy: `areContacts(x, x)` is false, so a rung placed any higher would
+    // answer a self-ping with "not a contact", which is nonsense about
+    // yourself.
+    //
+    // Above `canPing`, because authorization precedes condition. "They are
+    // already here." is a try-again-later answer, and offering it to somebody
+    // who will never be allowed to win the retry is the wrong sentence. The
+    // relationship is the more permanent fact and so is the honest one to
+    // report; nothing leaks either way, a co-participant already having the
+    // whole roster's presence in the snapshot.
+    //
+    // The same sentence `create` and INVITE answer with, deliberately. Nothing
+    // offers this and then refuses it — the app draws no button without the
+    // contact — so this is an answer to a caller rather than copy for a
+    // reader, and the three gates saying one thing beats a wording chosen for
+    // somebody who is not there.
+    if (!this.accounts.areContacts(senderId, targetId)) {
+      return { ok: false, error: 'Not a contact.', code: 'forbidden' };
     }
     // Reachability rather than presence — somebody inside the disconnect grace
     // is counted present and cannot hear a word of it. See `canPing`.

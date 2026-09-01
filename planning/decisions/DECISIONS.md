@@ -1845,3 +1845,86 @@ alone: it is the one thing the notice needs that only a browser has.
 
 The guest page's markup, copy and placement are untouched, and the wire did not
 move.
+## Pinging is something contacts do — 2026-08-31
+
+From TASKS § *Ping Depends on Being Contact*. A ping asked only whether the two
+of you were in the same channel, so anybody a mutual friend brought in could put
+a notification on your lock screen. Now it asks whether you are contacts, and
+both surfaces withhold the control.
+
+**Being in a room with somebody is not a relationship with them.** It is the
+one thing this app already says in the other direction — `core/types.ts` records
+that being in a channel together is permission to *ask* somebody to be a
+contact, which is what the guest-ask card and the profile's Add contact button
+are — and pinging was quietly reading it as permission to act as one. `create`
+and INVITE have both refused a stranger since long before this; ping was the
+gap. Which is also why the gap is narrow: a channel can only come to hold two
+strangers by way of a third person's invitation, or by a contact being removed
+afterwards while a wider channel survives. That second case is the one a reader
+wonders about, and it is intended — removing somebody takes the ping with it.
+
+**The check could not go in `canPing`**, and that is the whole of the structure.
+`ChannelState` has no idea who knows whom and `core/` is pure over it, so the
+function stays exactly what it was — the reachability half — and authorization
+is layered outside it, in `Channels.ping` on one side and the app's own contact
+list on the other. Same arrangement INVITE has, for the reason stated there:
+contacts are the server's concern. `canPing`'s doc now says so, because the
+name had quietly become broader than the function and the next reader was going
+to try to unify the two halves.
+
+**Where the rung sits, which is three separate arguments.** Below both
+membership checks, so the ladder reads room-then-person and `areContacts` is
+never asked about an arbitrary id by somebody holding a channel id. Below the
+self-check, and this one is load-bearing rather than tidy: `areContacts(x, x)`
+is false, so any higher and a self-ping is answered *not a contact*, which is
+nonsense about yourself. Above `canPing`, because authorization precedes
+condition — *They are already here.* invites a retry that a stranger can never
+win, and the relationship is the more permanent fact. There is a test for that
+last one specifically, since without it the rung can be moved and nothing else
+notices.
+
+**The string is `'Not a contact.'`, the same sentence `create` and INVITE
+answer with.** A wording of its own was drafted and dropped, on the argument
+that this is the one of the three a human might read — the profile composer
+renders the server's error under itself. But nothing offers a ping and then
+refuses it: without the contact there is no button, so the refusal is an answer
+to a caller rather than copy for a reader. The exception is builds already
+installed, which have no gate and will show it — a population that goes away
+with the next release, and not worth three sibling gates disagreeing about one
+sentence for ever.
+
+**The client reads `home.contacts` rather than anything new on the wire.** It
+already holds that list, fetched before the socket opens and re-pushed on every
+contact change, so a snapshot field would have been a second channel for one
+fact — and a wire change, which this otherwise is not: the request and response
+shapes are identical and a case that returned 200 returns 403. Server and client
+deploy independently. `?? []` fails closed, so no home means no button. Both
+call sites go through one `mayPing` in `ChannelView`, because they were already
+the same gate stated twice and this was the moment that stopped being a
+one-liner.
+
+**What it costs on a build that predates this**, which is the honest half. The
+profile composer degrades tolerably — it shows the sentence, with Add contact on
+the same screen. The roster card does not: it swallows refusals by design, having no
+room for a sentence, and the two it was built to swallow both arrive as state
+that explains them. This third one does not — the card stays *Nearby* and the
+ping window is untouched — so an old build offers a button that appears to do
+nothing. Least-bad on a card that size, and a build away from gone, but it is
+real and it is why the comment there now names three refusals rather than two.
+
+**What was not done.** The arrival announcements are untouched: a stranger in
+your channel is still told the room filled up. That is a different decision
+about what channel membership is worth and making it quietly here would have
+been a second change wearing this one's clothes. `pingableAt` is not narrowed to
+contacts either — it is a rate-limit fact keyed on channel and target, it leaks
+nothing a co-participant cannot already see, and the client stops reading it the
+moment the button is gone. And nothing is drawn where the Ping card was: the
+Contact card further down the same scroll already offers Add contact for exactly
+that person, so the screen answers *why not* and *what to do about it* in the
+order somebody reads them. The tempting shortcut — inferring contact-ness from
+the profile payload's missing `inApp`/`im` fields — was refused: that is an
+inference from absence rather than the fact, it fails open on a partial payload,
+and it would tangle what you may see about somebody with what you may do to
+them.
+
+1,930 lines, so no rollover.

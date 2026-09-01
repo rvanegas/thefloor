@@ -241,6 +241,13 @@ describe('when everyone disconnects', () => {
  * while they are gone. The case that named it: somebody steps in, pockets the
  * phone, and whoever came for the arrival notification finds them described as
  * present and cannot reach them for a minute.
+ *
+ * **Reachability only, which is all `canPing` is.** Whether you may ping
+ * somebody also asks whether the two of you are contacts, and that cannot be
+ * asked here — `ChannelState` has no idea who knows whom. `Channels.ping`
+ * applies it, so this suite is not the whole account of who may ping whom.
+ * Note the two senses of *stranger* that meet in the last case below: there it
+ * means somebody not in the channel, which is the only kind `core/` can see.
  */
 describe('calling somebody back', () => {
   it('is refused while they are standing in the room', () => {

@@ -827,6 +827,15 @@ export function canClearClip(state: ChannelState, userId: UserId): boolean {
  * So the test is `disconnectedAt`, which is the server saying it has stopped
  * hearing from them. Being wrong costs a notification to somebody sitting in
  * the room with a flapping socket, once per PING_INTERVAL_MS.
+ *
+ * **This is not the whole of whether you may ping somebody, and the name is
+ * broader than the function.** It is the reachability half. The other half is
+ * authorization — you may ping a contact, and being in the same channel as
+ * somebody is not being their contact, a channel holding people a mutual
+ * friend brought in. That half cannot live here: `ChannelState` has no idea
+ * who knows whom, and `core/` is pure over it. `Channels.ping` applies it on
+ * the server and the app reads its own contact list, which is the same
+ * layering INVITE has — contacts are the server's concern.
  */
 export function canPing(
   state: ChannelState,

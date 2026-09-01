@@ -8,10 +8,6 @@ and things to go and find out. There are more in BACKLOG.md.
 
 If a channel in displayed in a profile view is live on the device, show it in same style as live channel on home view.
 
-## Ping Depends on Being Contact
-
-Authorization to ping someone requires being a contact. So, if A, B, and C are in a channel together but A and C are not mutual contacts, then A cannot ping C, and should not see the option to do so.
-
 ## UI Restyling
 
 Improve look and feel
