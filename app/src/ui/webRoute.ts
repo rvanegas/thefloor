@@ -8,9 +8,16 @@
  * something testable leaves only the plumbing unproven.
  *
  * `App.tsx` routes with a channel id and four booleans, resolved in a fixed
- * order of early returns. That order is the model: it is what decides which
- * screen is on top when two are notionally open, and `screenOf` states it once
- * rather than letting the URL and the renderer each have an opinion.
+ * order. That order is the model: it is what decides which screen is on top
+ * when two are notionally open, and `screenOf` states it once rather than
+ * letting the URL and the renderer each have an opinion.
+ *
+ * **Above the breakpoint the order resolves the detail pane, and nothing here
+ * changed.** A wide window shows Home beside whatever you have open, and the
+ * list is not a screen and has no address — you cannot navigate to it, it is
+ * simply there. So the address still names exactly one screen, `/settings` is
+ * still Settings, and Home is still the state with nothing set, which on an
+ * iPad is a live list on the left and an empty pane on the right.
  *
  * Web only. Native has no addresses and wants none — see planning/WEB.md.
  */
@@ -43,9 +50,10 @@ export const NOWHERE: Nav = {
 /**
  * Which screen is showing, in `App.tsx`'s own order of precedence.
  *
- * A channel beats everything because the early return for it comes first —
- * and that is not arbitrary: presence is not navigation, so the channel screen
- * is the one you are *in* while the others are things opened over Home.
+ * A channel beats everything because it comes first in the chain — and that is
+ * not arbitrary: presence is not navigation, so the channel screen is the one
+ * you are *in* while the others are things opened over Home. In a split, over
+ * the detail pane; Home itself is never what this is choosing between.
  */
 export function screenOf(nav: Nav): Screen {
   if (nav.channelId) return { kind: 'channel', channelId: nav.channelId };

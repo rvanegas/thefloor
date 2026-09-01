@@ -413,8 +413,15 @@ touching `history` and `popstate` are unproven.
 want of a media server, and `useSessionAudio.web.ts` has never held a real
 room. It is the piece with the least evidence behind it.
 
-**The layout.** Measured, not fixed: at a 1600px viewport the *Claim the floor*
-button is 1534px wide. A container with a maximum and a couple of breakpoints.
+**The layout — done, 2026-09-01, and not by this work.** Measured, not fixed:
+at a 1600px viewport the *Claim the floor* button was 1534px wide. What it
+wanted was a container with a maximum and a couple of breakpoints, and that is
+exactly what the iPad adaptation had to build — so `ui/theme.ts`'s `measure`
+caps every column at 620 and `ui/layout.ts` puts Home beside the screen you are
+looking at above 800. Neither is gated on `Platform.OS`, deliberately: this is
+the same defect measured from two ends, and a browser window and an iPad are
+the same problem. **Still unseen in a browser**, along with everything else in
+this section.
 - **Whether the spike's `?channel=` seed becomes a real URL model.** It has to:
   the sign-out effect wipes navigation state while the token is still being
   read from storage, because the app has no notion of navigation that predates

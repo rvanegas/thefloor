@@ -99,10 +99,36 @@ DEMO-ACCOUNT.md.
 
 Configuration decided 2026-08-09 and worth knowing the reasons for.
 
-- **`supportsTablet` is now false.** Nothing in the layout adapts to a larger
-  screen and nobody has opened it on an iPad. Claiming support invites App
-  Review to test there, on a layout built for a phone. Turn it back on after
-  actually looking at one.
+- **`supportsTablet` was false until 2026-09-01, and is now true.** The reason
+  it was false was that nothing in the layout adapted to a larger screen and
+  nobody had opened it on an iPad, so claiming support invited App Review to
+  test there on a layout built for a phone. Both halves have been dealt with:
+  somebody has looked at one, and above 800pt the app shows Home beside
+  whatever you have open rather than one screen stretched across the width.
+  `app/src/ui/layout.ts` carries the breakpoint and the reasoning.
+
+  **What follows from it at submission time is a screenshot set**, which is the
+  entry in the checklist below.
+- **Orientation is per-platform, and Expo has no key for that.** `orientation`
+  is `default` — not `portrait` — solely so prebuild writes no array of its
+  own, and the two `infoPlist` keys say it instead:
+  `UISupportedInterfaceOrientations` is portrait, for the iPhone, and
+  `UISupportedInterfaceOrientations~ipad` is all four, which Apple requires of
+  an app that can share the screen. **`UIRequiresFullScreen` is deliberately
+  absent**, and its absence is what allows that sharing; setting it true is the
+  one-line retreat if multitasking ever proves untenable, and it would leave
+  the layout correct, merely unexercised.
+
+  This is also the one place `orientation: "default"` reaches Android, whose
+  regenerated manifest stops pinning portrait. Nobody builds Android, so it is
+  recorded rather than chased.
+
+  **Read the generated plist, not `app.json`.** The two keys and the merge
+  order are exactly the sort of thing that is right in the config and wrong in
+  the artefact — the same rule `rtc.use_external_ip` earns in AGENTS.md.
+  `plutil -extract 'UISupportedInterfaceOrientations~ipad' xml1 -o -
+  app/ios/TheFloor/Info.plist` after a prebuild, and
+  `TARGETED_DEVICE_FAMILY = "1,2"` in `project.pbxproj`.
 - **`voip` removed from `UIBackgroundModes`, and still out.** It does nothing
   without PushKit, and reviewers have objected to apps declaring it unused.
   Push notification has since been picked up and this did *not* change: a
@@ -463,8 +489,15 @@ is the kind that goes stale between a decision and a submission.
   the next section — the answers, the ones deliberately left No, and the
   manifest that does not agree with them. It is app-level rather than
   version-level, so nothing about a submission forces the look; take it.
-- **`supportsTablet: false`,** so App Review does not open a phone layout on an
-  iPad and file what it finds.
+- **An iPad screenshot set exists in App Store Connect.** `supportsTablet` is
+  true since 2026-09-01, and **App Store Connect requires a 13" iPad set the
+  moment the binary declares iPad support.** Nothing local catches this:
+  `bin/upload-ios` will send the build happily and `bin/submit-ios` does not
+  look at media at all, so the first sign of it is the submission being
+  refused with the version record already created. The iPhone sets carry
+  forward between submissions; this one has to exist once.
+- **The split renders on whatever the reviewer opens.** They will open an iPad,
+  because the binary says they may.
 - **The review account holds demo data and nothing real**, since its code is
   published in the notes and is public from the moment the notes are.
 - **`/privacy` is live and the date on it is right.** `PRIVACY_UPDATED` changes

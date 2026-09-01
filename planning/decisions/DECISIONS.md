@@ -1079,3 +1079,126 @@ choice sends `LEAVE_CHANNEL`, and a cancel leaves the row where it is, the
 invitation being the server's to withdraw rather than the screen's to hide.
 
 1,081 lines, so no rollover.
+
+---
+
+## The iPad gets the room it has, which is two panes — 2026-09-01
+
+`supportsTablet` had been false since 2026-08-09 on a stated reason: nothing in
+the layout adapted to a larger screen and nobody had opened it on an iPad, so
+claiming support invited App Review to test there on a phone layout.
+RELEASING.md said to turn it back on after actually looking at one. This is
+that, and the looking came first.
+
+**Nothing was broken at 1024pt. Everything was stretched.** There was not one
+`maxWidth`, `Dimensions` or `useWindowDimensions` call anywhere in `app/src/`;
+every screen is flex-fill with padding, which is exactly right on a phone and
+produces, on an iPad, a channel row with a two-word title and a timestamp 900
+points away, a 976pt-wide email field on the sign-in screen, and a transcript
+running the full width past any measure a person can read.
+
+**Two mechanisms, deliberately separate, because they answer different
+questions.** A *measure* — no column exceeds 620 — and a *layout mode*, two
+panes or one. Keeping them apart is what let `ui/theme.ts`'s argument survive
+whole. That file says the fourteen module-scope `StyleSheet.create` blocks may
+capture their tokens once at import because the platform re-resolves colour,
+and that a `useTheme()` would force a re-render path through all of them. A cap
+is a **constant**: `maxWidth` resolved by the layout engine against whatever
+parent it finds, so a block spreads it exactly as it spreads `spacing(2)` and
+nothing becomes reactive. Only the mode is a hook, and it has one call site.
+
+**620 because `server/src/html.ts` already sets 38rem** on the privacy, support
+and landing pages. One measure across the product beats two defensible ones. It
+is inert below its own width, so no phone renders a pixel differently — which
+is what let it ship as its own commit, ahead of anything iPad-specific.
+
+**The breakpoint is 800, and it is arithmetic.** A 340pt list — a phone-width
+Home, so Home needed no second design — plus a detail pane that must never be
+narrower than the phone screen it replaced. 768 was written first and the test
+caught it: 768 − 340 is 428, and an iPhone 16 Pro Max is 440. An iPad mini in
+portrait is 744 and stays stacked for the same reason. And jest mocks the
+window at 750×1334, so a breakpoint below that would have switched every future
+test rendering `App` into the split layout without anybody asking; a test should
+have to mock `useWindowDimensions` to get it.
+
+**Width, never `Device.deviceType`**, though `expo-device` is already a
+dependency and would have read more directly. An iPad window dragged to a third
+of the screen beside a browser is a phone-shaped surface, and it is resized
+while somebody watches. Device identity answers a question nobody asked. The
+same fact is why none of it is gated on `Platform.OS`: WEB.md had already
+measured this defect from the other end — a *Claim the floor* button 1534px
+wide at a 1600px viewport — and a browser window and an iPad are one problem.
+
+**Two things did not have to be built, and knowing why is worth more than the
+code that was.** Nested screens — a profile, channel settings, a transcript —
+are early returns *inside* `ChannelView` and `ContactsView`, which are the
+detail pane, so "nested screens stay in the right pane" was satisfied by
+changing nothing. Lifting them into `Root` would have reintroduced exactly what
+`App.tsx`'s opening comment refuses, this component knowing which screen a
+profile was opened from. And `Screen`'s `reveal` needed nothing: it measures
+the card and the frame both with `measureInWindow` and uses only their
+difference, discarding `x`, so it is translation-invariant and two `Screen`s
+side by side measure correctly and independently. That *sounds* broken, which
+is why it is written down — somebody will otherwise rewrite it.
+
+**`Panes` holds both arrangements, and that is the part that is not obvious.**
+React preserves a subtree that stays in the same place in the tree. A stacked
+layout rendering its screen directly and a split one rendering it two Views
+down would therefore remount on every crossing — and a crossing is a rotation
+or a window drag, something happening under somebody's hand. `ChannelView`
+holds an open profile, an open transcript and every composer field in local
+state, and all of it would have gone while the audio carried on regardless,
+because the session hook is above all of this. Quiet enough to ship. So the
+detail slot sits at one depth under one key in both modes, and
+`panes.test.tsx` asserts the screen is not remounted across the flip; the naive
+version fails that assertion, which is how the test is known to have teeth.
+
+**The list pane does not avoid the keyboard.** iOS reports one keyboard frame
+for the window rather than one per pane, so typing into the composer on the
+right shortened Home on the left for a keyboard nothing over there had asked
+for. This is the only thing `PaneContext` is load-bearing for, and that context
+carries pane identity and never tokens — it is deliberately not the theme
+context `theme.ts` argues against.
+
+**One reasoned decision was reversed rather than quietly edited.** The channel
+footer's comment argued its three equal thirds from the thumb. There is no
+thumb at the bottom of a 1300pt screen, so the bar is capped at 480 and centred
+— 620 divided three ways is a 206pt target for an icon and one word, which stops
+reading as a control. What the cap does not touch is the property the comment
+was really about: each action is still `flex: 1` within the bar, so the middle
+one still does not move when *Claim* becomes *Release*. Stability of position
+is the rule; reach was only ever a phone's reason for wanting it.
+
+**Two things on screen were phone-shaped rather than merely narrow.** The
+channel screen's Home button goes in the detail pane, Home being the thing
+beside it; the exits are unaffected, another conversation being a tap on the
+list and leaving this one being *Step out*. And Home's live bar goes when the
+conversation it points at is the pane next door, since it says you are
+somewhere else and offers to take you back, and neither is true from a hairline
+away.
+
+**The address still names one screen.** `webRoute.ts` did not change: the list
+pane is not a screen and has no address — you cannot navigate to it, it is
+simply there — so the precedence order now resolves the *detail* pane and
+`screenOf(navOf(s)) === s` still holds. Home is still the state with nothing
+set, which on a wide window is a live list on the left and an empty pane on the
+right.
+
+**Orientation is per-platform and Expo has no key for it.** `orientation` is
+`default` purely so prebuild writes no array of its own, and two `infoPlist`
+keys say it instead: portrait for the iPhone,
+`UISupportedInterfaceOrientations~ipad` for all four, which Apple requires of
+an app that can share the screen. `UIRequiresFullScreen` is deliberately absent
+— that absence *is* the multitasking support, and setting it true is the
+one-line retreat if it ever proves untenable. Verified against the generated
+`Info.plist` and `TARGETED_DEVICE_FAMILY = "1,2"` in `project.pbxproj`, on the
+rule `rtc.use_external_ip` earned: the config file is no evidence.
+
+**What this costs at submission time** is an iPad screenshot set, which App
+Store Connect requires the moment the binary declares iPad support. Nothing
+local catches it — `bin/submit-ios` does not look at media — so it surfaces as
+a refused submission with the version record already made. It is in
+RELEASING.md's pre-submission list now, where the old assertion that
+`supportsTablet` was false used to be.
+
+1,202 lines, so no rollover.

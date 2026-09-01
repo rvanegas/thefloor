@@ -8,10 +8,6 @@ and things to go and find out. There are more in BACKLOG.md.
 
 Improve look and feel
 
-## Grow UI for iPad
-
-Target iPad specifically.
-
 ## Keep Alive During Watch Party
 
 Since there's no speaking, there must be another way.

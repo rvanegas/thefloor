@@ -47,6 +47,12 @@ import type { Nav } from './src/ui/webRoute';
  *
  * What the connection follows is the channel you are *present in*, which the
  * server reports, rather than the channel whose screen happens to be mounted.
+ *
+ * **A wide window shows Home beside all of this rather than instead of it**,
+ * and neither paragraph above changed for it. Profiles still belong to the
+ * screens that open them, so the split gave this component no new reason to
+ * learn where one was opened from; and the split is in what is returned rather
+ * than in what is held, so presence is no more a screen than it was.
  */
 function Root() {
   const app = useApp();
