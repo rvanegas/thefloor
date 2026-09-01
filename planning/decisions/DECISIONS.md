@@ -1673,3 +1673,44 @@ button's insides. The one node that carries `onPress` is the one there is
 exactly one of.
 
 1,675 lines, so no rollover.
+
+## The floor's card keeps everything but its button — 2026-08-31
+
+An amendment to the entry above, made hours after it. `controlCards` turned off
+took the whole of *The floor* with the other three cards, on the reading that
+the footer already carries claiming and releasing. It does — but claiming is
+the smaller half of that card. The rest is a readout: who holds the floor, the
+countdown, and the sentence saying why a claim is refused. None of that is
+repeated anywhere, and a footer icon has no room to state any of it.
+
+So the card stays at every setting and only the *Claim the floor* /
+*Release the floor* button is conditional. It is the reverse shape from the
+microphone card, which is a button with a readout attached and so still goes
+whole: here the button was the part that repeated something.
+
+This narrows the setting to what it was always meant to be. The name on the
+settings screen is *Repeat the channel controls as cards*, and what a
+preference by that name may remove is repetition — a second way of doing a
+thing already under the thumb — rather than the only account of a state.
+Removing the countdown was removing the second kind while calling it the first,
+which the previous entry noticed at the level of two sentences and missed at
+the level of a clock.
+
+The settings screen's second paragraph is rewritten to match: it named the
+countdown and the refusal sentences as what goes, and now names the floor's
+card as the exception that stays. The channel screen's own note about the
+countdown — *a clock somebody is watching should not be the thing they have to
+scroll to* — was already in the file, one comment above the conditional that
+took it away.
+
+### The two Channels settings share one card
+
+They are the same question asked twice — how much of a channel screen you want
+— and two cards under one *Channels* label read as two subjects rather than one
+subject with two dials. They are now one card with a hairline between them: a
+gap inside a card reads as loose spacing where a rule reads as a boundary, and
+the second heading needs to be obviously a new question without the two ceasing
+to belong together. The order is unchanged, the tap above the cards, and the
+settings screen is the only file that moved for it.
+
+1,716 lines, so no rollover.

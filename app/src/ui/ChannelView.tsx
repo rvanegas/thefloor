@@ -427,19 +427,27 @@ export function ChannelView({
    */
   const takenByAnotherDevice = elsewhereOnAnotherDevice && app.displaced;
   /**
-   * Whether the floor, the microphone and the two departures still get a card
-   * apiece further down, or whether the footer is the whole of them.
+   * Whether the microphone and the two departures still get a card apiece
+   * further down, and whether the floor's card still carries its button.
    *
    * On by default and off by choice, from Home settings — see
-   * `AppValue.controlCards`. What is conditional on it is only ever a card: no
-   * act becomes unavailable, because every one of the three is in the footer
-   * at all times and the footer is not conditional on anything.
+   * `AppValue.controlCards`. What is conditional on it is only ever a way of
+   * doing something twice: no act becomes unavailable, because every one of
+   * the three is in the footer at all times and the footer is not conditional
+   * on anything.
    *
-   * Two things survive the cards going, and they are marked at each site. The
-   * recording warning is a notice rather than an explanation, and being told
-   * you are captured is not a convenience anybody chose to give up. The
-   * other-device sentence is the same kind: stepping in from here closes a
-   * microphone somewhere else, and the footer's Step In cannot say so.
+   * The floor is the exception in shape, since 2026-08-31: its card stays and
+   * only the Claim/Release button goes. What that card mostly holds is a
+   * readout — the holder, the countdown, and the sentence saying why the act
+   * is refused — and none of that is repetition of anything, a footer icon
+   * having no room to state it. See the card itself.
+   *
+   * Two sentences survive the cards that carried them, and they are marked at
+   * each site. The recording warning is a notice rather than an explanation,
+   * and being told you are captured is not a convenience anybody chose to give
+   * up. The other-device sentence is the same kind: stepping in from here
+   * closes a microphone somewhere else, and the footer's Step In cannot say
+   * so.
    */
   const controlCards = app.controlCards;
   /**
@@ -792,15 +800,17 @@ export function ChannelView({
     shortcuts.
 
     **Unless the cards have been turned off, in which case this is the whole of
-    them.** `controlCards`, from Home settings, is a choice somebody makes
-    after the sentences have done their work — see `AppValue.controlCards`.
-    That is why the rule above is about what a screen may show somebody who has
-    not asked, rather than about what a screen may ever be: the two facts a
-    footer cannot state and nobody chose to give up are moved up under the
-    roster rather than dropped. Nothing here is conditional on the setting, and
-    nothing here may become so — a bar that changes shape with a preference is
-    the same finger-under-the-thumb problem as one that changes shape with
-    state.
+    the microphone and the two departures.** `controlCards`, from Home
+    settings, is a choice somebody makes after the sentences have done their
+    work — see `AppValue.controlCards`. That is why the rule above is about
+    what a screen may show somebody who has not asked, rather than about what a
+    screen may ever be: what a footer cannot state is kept rather than dropped.
+    The floor keeps its card either way and loses only its button, so even
+    then this bar is not the sole account of the floor — the countdown and the
+    reason a claim is refused are still on the screen below. Nothing here is
+    conditional on the setting, and nothing here may become so — a bar that
+    changes shape with a preference is the same finger-under-the-thumb problem
+    as one that changes shape with state.
 
     **Labelled, though the request was for icons.** Two of these three are
     mechanics this application invented — nobody arrives knowing what claiming
@@ -1084,73 +1094,83 @@ export function ChannelView({
           somebody is watching should not be the thing they have to scroll to.
         */}
         {/*
-          Absent, label and all, for somebody who has turned the cards off:
-          claiming and releasing are both in the footer, which is where they
-          are reached from anyway once the countdown has been read a few
-          times. The clock is the one real loss and is named on the settings
-          screen as such.
+          The one card the setting does not take away, and the only one whose
+          button it removes on its own. What is here is mostly not a control:
+          who holds the floor, how long is left, and why it is refused are a
+          readout, and a readout of the one mechanic the application is named
+          after. The button is the repetition — claiming and releasing are both
+          in the footer — so with the cards off the button goes and the clock
+          and the sentences stay.
+
+          It is the reverse of the microphone card, which is a button with a
+          readout attached and so goes whole. Here the button was the smaller
+          half.
         */}
-        {controlCards ? (
-          <>
-            <SectionLabel>The floor</SectionLabel>
-            <Card
-              style={[
-                styles.floorCard,
-                iHoldFloor && styles.floorCardHeld,
-                iAmSilenced && styles.floorCardSilenced,
-              ]}
-            >
-              <Text style={styles.floorStatus}>
-                {iHoldFloor
-                  ? 'You have the floor'
+        <SectionLabel>The floor</SectionLabel>
+        <Card
+          style={[
+            styles.floorCard,
+            iHoldFloor && styles.floorCardHeld,
+            iAmSilenced && styles.floorCardSilenced,
+          ]}
+        >
+          <Text style={styles.floorStatus}>
+            {iHoldFloor
+              ? 'You have the floor'
+              : theyHoldFloor
+                ? `${holderName} has the floor — your mic is cut`
+                : 'Nobody has the floor'}
+          </Text>
+
+          {claimRemaining !== null ? (
+            <Text style={styles.countdown}>{formatSeconds(claimRemaining)}</Text>
+          ) : cooldown !== null ? (
+            <Text style={[styles.countdown, styles.countdownMuted]}>
+              {formatSeconds(cooldown)}
+            </Text>
+          ) : null}
+
+          {claimRemaining !== null && iHoldFloor ? null : (
+            <Text style={styles.floorHint}>
+              {iHoldFloor
+                ? others.length === 1
+                  ? `${others[0].displayName} is muted until you release, up to a minute.`
+                  : 'Everyone else is muted until you release, up to a minute.'
+                : !iAmPresent
+                  ? 'Step in to claim the floor.'
                   : theyHoldFloor
-                    ? `${holderName} has the floor — your mic is cut`
-                    : 'Nobody has the floor'}
-              </Text>
+                    ? 'You cannot claim the floor while you are silenced.'
+                    : cooldown !== null
+                      ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
+                      : !atLeastTwoPresent(channel)
+                        ? 'The floor becomes available once at least two people are present.'
+                        : 'Speak uninterrupted for up to a minute.'}
+            </Text>
+          )}
 
-              {claimRemaining !== null ? (
-                <Text style={styles.countdown}>{formatSeconds(claimRemaining)}</Text>
-              ) : cooldown !== null ? (
-                <Text style={[styles.countdown, styles.countdownMuted]}>
-                  {formatSeconds(cooldown)}
-                </Text>
-              ) : null}
-
-              {claimRemaining !== null && iHoldFloor ? null : (
-                <Text style={styles.floorHint}>
-                  {iHoldFloor
-                    ? others.length === 1
-                      ? `${others[0].displayName} is muted until you release, up to a minute.`
-                      : 'Everyone else is muted until you release, up to a minute.'
-                    : !iAmPresent
-                      ? 'Step in to claim the floor.'
-                      : theyHoldFloor
-                        ? 'You cannot claim the floor while you are silenced.'
-                        : cooldown !== null
-                          ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
-                          : !atLeastTwoPresent(channel)
-                            ? 'The floor becomes available once at least two people are present.'
-                            : 'Speak uninterrupted for up to a minute.'}
-                </Text>
-              )}
-
-              {iHoldFloor ? (
-                <Button
-                  label="Release the floor"
-                  variant="floor"
-                  onPress={() => act({ type: 'RELEASE_FLOOR' })}
-                />
-              ) : (
-                <Button
-                  label="Claim the floor"
-                  variant="floor"
-                  disabled={!claimable}
-                  onPress={() => act({ type: 'CLAIM_FLOOR' })}
-                />
-              )}
-            </Card>
-          </>
-        ) : null}
+          {/*
+            The half of this card that the footer already carries, and so the
+            half the setting removes. Everything above stays: a countdown
+            nobody can reach any other way, and the sentence saying why the
+            act is refused, which a greyed icon in the bar cannot say.
+          */}
+          {controlCards ? (
+            iHoldFloor ? (
+              <Button
+                label="Release the floor"
+                variant="floor"
+                onPress={() => act({ type: 'RELEASE_FLOOR' })}
+              />
+            ) : (
+              <Button
+                label="Claim the floor"
+                variant="floor"
+                disabled={!claimable}
+                onPress={() => act({ type: 'CLAIM_FLOOR' })}
+              />
+            )
+          ) : null}
+        </Card>
 
         {/*
           Nothing here is true of somebody who has not stepped in: the

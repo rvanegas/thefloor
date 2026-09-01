@@ -137,6 +137,16 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         or ends.
       */}
       <SectionLabel>Channels</SectionLabel>
+      {/*
+        Both of them in one card rather than two, since 2026-08-31. They are
+        the same question asked twice — how much of a channel screen you want
+        — and two cards under one label read as two subjects rather than one
+        with two dials. The hairline between them is what a card gives up when
+        it stops being one setting: enough of a seam that the second heading is
+        obviously a new question, and not so much that the two stop belonging
+        together. The tap is above the rule for the reason the section comment
+        gives; the cards are about the same screen once you are looking at it.
+      */}
       <Card style={styles.stack}>
         <Text style={type.heading}>Tap a channel to step in</Text>
         <View style={styles.choices}>
@@ -160,22 +170,18 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           you. Off, it only opens the channel — you can see who is around and
           read what has been shared, and step in when you mean to.
         </Text>
-      </Card>
 
-      {/*
-        Second in the same section, because it is the other thing that changes
-        what a channel screen is, and it is below the tap because the tap
-        decides whether you arrive at all.
+        <View style={styles.divider} />
 
-        Named by what it draws rather than by a word like "compact", and the
-        second paragraph names what goes with the cards. Somebody turning this
-        off is giving up the sentence that says why the floor is refused and
-        the countdown on the claim, and a screen that quietly stopped
-        explaining itself would be discovered at exactly the moment the
-        explanation was wanted. The recording warning is called out as staying
-        because it is the one thing here that is not a convenience.
-      */}
-      <Card style={styles.stack}>
+        {/*
+          Named by what it draws rather than by a word like "compact", and the
+          second paragraph names what goes with the cards. What goes is a way
+          of doing something a second time and nothing else: the floor keeps
+          its card, minus the button, so the countdown and the sentence saying
+          why a claim is refused stay on the screen either way. A setting that
+          quietly stopped a screen explaining itself would be discovered at
+          exactly the moment the explanation was wanted.
+        */}
         <Text style={type.heading}>Repeat the channel controls as cards</Text>
         <View style={styles.choices}>
           {(
@@ -200,10 +206,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           is in the room and what the room is carrying.
         </Text>
         <Text style={type.muted}>
-          What goes with the cards: the sentence saying why a control is
-          refused, and the floor's countdown. Two things stay either way — that
-          a silenced microphone is still being recorded, and that you are in
-          this channel on another device.
+          The floor is the exception: its card stays either way, with the
+          countdown and the reason a claim is refused, and only the button on
+          it goes. Two more things stay whichever way this is set — that a
+          silenced microphone is still being recorded, and that you are in this
+          channel on another device.
         </Text>
       </Card>
 
@@ -413,5 +420,15 @@ const styles = StyleSheet.create({
   stack: { gap: spacing(1) },
   choices: { flexDirection: 'row', gap: spacing(1) },
   choice: { flex: 1 },
+  /*
+   * The seam between two settings sharing a card. A hairline rather than a
+   * gap, because a gap inside a card reads as loose spacing and a rule reads
+   * as a boundary; the margin is what keeps it from crowding either heading.
+   */
+  divider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    marginVertical: spacing(1),
+  },
   error: { color: colors.danger, fontSize: 13 },
 });

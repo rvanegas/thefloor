@@ -4520,12 +4520,13 @@ describe('being alone in a channel', () => {
 /**
  * A channel screen with the repeated cards turned off.
  *
- * The setting says the footer is enough for the floor, the microphone and the
- * two departures, so what these assert is a subtraction and two exceptions to
- * it: the four cards go, the footer is untouched, and the two sentences that
- * are notices rather than explanations survive the cards that used to carry
- * them. The diagnostic panel survives too, on the ground that it is not a
- * control and no footer represents it.
+ * The setting removes ways of doing a thing twice, and nothing else, so what
+ * these assert is a subtraction and the several exceptions to it: the
+ * microphone and the two departures go whole, the floor's card stays and loses
+ * only its button, the footer is untouched, and the two sentences that are
+ * notices rather than explanations survive the cards that used to carry them.
+ * The diagnostic panel survives too, on the ground that it is not a control
+ * and no footer represents it.
  */
 describe('a channel screen without the repeated cards', () => {
   const footerOf = (tree: ReactTestRenderer) => {
@@ -4541,17 +4542,52 @@ describe('a channel screen without the repeated cards', () => {
     );
   };
 
-  it('drops the four cards the footer already offers', () => {
+  it('drops the cards the footer already offers', () => {
     const tree = showBare();
     const text = textOf(tree);
-    expect(text).not.toContain('The floor');
     expect(text).not.toContain('Your microphone');
-    expect(text).not.toContain('Claim the floor');
     expect(text).not.toContain('Mute yourself');
     // Step out is in the footer, which `textOf` reaches through `Screen`, so
     // the assertion is that there is one of it rather than none — the card
     // and the heading above it are what went.
     expect(text.split('Step out')).toHaveLength(2);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The one card that stays, and the only one the setting reaches into rather
+   * than removing. What it holds is a readout — who has the floor, how long is
+   * left, why a claim is refused — and a footer icon has no room for any of
+   * it. Only the button is a second way of doing something already under the
+   * thumb.
+   */
+  it('keeps the floor card and takes only its button', () => {
+    const tree = showBare();
+    const text = textOf(tree);
+    expect(text).toContain('The floor');
+    expect(text).toContain('Nobody has the floor');
+    expect(text).toContain('Speak uninterrupted for up to a minute.');
+    // 'Claim' alone is the footer's, which stays. The card's button is the
+    // longer label, and there is none of it.
+    expect(text).not.toContain('Claim the floor');
+    expect(text).not.toContain('Release the floor');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The clock, which is the reason the card stays: it is not repeated
+   * anywhere, least of all in a bar with room for one word.
+   */
+  it('still runs the countdown while somebody holds the floor', () => {
+    const tree = showBare(
+      channelOf((c) => reduce(c, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
+    );
+    const text = textOf(tree);
+    expect(text).toContain('has the floor');
+    // The clock itself, and the sentence saying why the act is refused.
+    expect(text).toContain('60s');
+    expect(text).toContain('You cannot claim the floor while you are silenced.');
+    expect(text).not.toContain('Claim the floor');
     act(() => tree.unmount());
   });
 
@@ -4694,7 +4730,8 @@ describe('the control-cards setting', () => {
     const tree = await openSettings();
     const text = textOf(tree);
     expect(text).toContain('Repeat the channel controls as cards');
-    expect(text).toContain("the floor's countdown");
+    // What the second paragraph promises, and what the channel screen keeps.
+    expect(text).toContain('its card stays either way');
     // The promise the channel screen keeps by moving two sentences upward.
     expect(text).toContain('still being recorded');
     act(() => tree.unmount());
