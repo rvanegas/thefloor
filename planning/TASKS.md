@@ -4,10 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Live Channel in Profile View
-
-If a channel in displayed in a profile view is live on the device, show it in same style as live channel on home view.
-
 ## UI Restyling
 
 Improve look and feel

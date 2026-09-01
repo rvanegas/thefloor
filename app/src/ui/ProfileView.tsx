@@ -39,6 +39,7 @@ import {
   describeQuiet,
   sentence,
 } from './availability';
+import { liveChannelHere } from '../state/live';
 import { duration } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
 
@@ -329,6 +330,37 @@ export function ProfileView({
   const shared = (app.home?.rejoinable ?? []).filter((channel) =>
     channel.others.some((other) => other.id === accountId)
   );
+
+  /**
+   * The one of these you are standing in on this device, if it is one of them
+   * at all — the same fact Home draws its live bar from, read through the same
+   * helper so the two screens cannot disagree about where you are.
+   *
+   * Unlike the rest of this section it is genuinely live: it comes off the
+   * channel snapshot rather than the fetched profile, so muting yourself
+   * changes the dot without leaving the screen.
+   */
+  const here = liveChannelHere(
+    app.channelViews,
+    app.me?.id ?? '',
+    app.standingIn,
+    app.expired
+  );
+  const liveId = here?.channel.id ?? null;
+  const liveMuted = !!here?.channel.selfMuted[app.me?.id ?? ''];
+
+  /**
+   * And it goes first, the way Home pins its live bar above the lists. The
+   * rest keep the order Home gave them; this is a stable partition rather than
+   * a sort, so nothing else moves.
+   */
+  const orderedShared =
+    liveId === null
+      ? shared
+      : [
+          ...shared.filter((c) => c.channelId === liveId),
+          ...shared.filter((c) => c.channelId !== liveId),
+        ];
 
   /**
    * Where they have been in each, by channel id.
@@ -921,7 +953,8 @@ export function ProfileView({
         <>
           <SectionLabel>Channels with them</SectionLabel>
           <View style={styles.stack}>
-            {shared.map((channel) => {
+            {orderedShared.map((channel) => {
+              const isHere = channel.channelId === liveId;
               const title =
                 channel.name ??
                 describeChannel(channel.others.map((o) => o.displayName));
@@ -967,14 +1000,39 @@ export function ProfileView({
                         app.serverNow()
                       ) ?? ''
                     );
+              /*
+                A dot before the title when this is the room you are standing
+                in, and nothing else changed — the same mark Home puts on its
+                live bar, carrying the same second fact for free: filled means
+                you are available to talk, hollow and grey means you muted
+                yourself.
+
+                The two lines stay as they were. Home's bar says how many are
+                present and offers to take you back, but this section exists to
+                say where *they* have been, and replacing that with a fact
+                about you would take away the reason the card is here at all.
+
+                Invisible to a screen reader, which is why the label below says
+                it in words.
+              */
               const body = (
                 <>
-                  <Text
-                    style={channel.name ? type.body : styles.channelDescribed}
-                    numberOfLines={1}
-                  >
-                    {title}
-                  </Text>
+                  <View style={styles.channelTitleRow}>
+                    {isHere ? (
+                      <View
+                        style={[
+                          styles.channelDot,
+                          liveMuted && styles.channelDotMuted,
+                        ]}
+                      />
+                    ) : null}
+                    <Text
+                      style={channel.name ? type.body : styles.channelDescribed}
+                      numberOfLines={1}
+                    >
+                      {title}
+                    </Text>
+                  </View>
                   <Text style={type.muted}>{line}</Text>
                 </>
               );
@@ -991,7 +1049,13 @@ export function ProfileView({
                 <Pressable
                   key={channel.channelId}
                   accessibilityRole="button"
-                  accessibilityLabel={`${title}. ${line}. Step in.`}
+                  accessibilityLabel={
+                    isHere
+                      ? `${title}. ${line}. You are here${
+                          liveMuted ? ', your microphone is muted' : ''
+                        }. Tap to go back.`
+                      : `${title}. ${line}. Step in.`
+                  }
                   onPress={() => {
                     // The same tap Home's rows take, preference and all: with
                     // "Tap a channel to step in" off, this opens the channel
@@ -1005,13 +1069,21 @@ export function ProfileView({
                   }}
                   style={({ pressed }) => [
                     styles.channel,
-                    pressed && styles.channelPressed,
+                    isHere && styles.channelLive,
+                    // The ordinary pressed style swaps the background, which
+                    // would take the accent away on the one card that has one.
+                    // So the live card dims instead of changing colour.
+                    pressed &&
+                      (isHere ? styles.channelLivePressed : styles.channelPressed),
                   ]}
                 >
                   {body}
                 </Pressable>
               ) : (
-                <View key={channel.channelId} style={styles.channel}>
+                <View
+                  key={channel.channelId}
+                  style={[styles.channel, isHere && styles.channelLive]}
+                >
                   {body}
                 </View>
               );
@@ -1498,13 +1570,52 @@ const styles = StyleSheet.create({
    */
   headerAlone: { justifyContent: 'flex-end' },
   stack: { gap: spacing(1) },
+  /**
+   * The transparent border is not decoration. The live variant below adds a
+   * real one, and without a matching border here that card would be two pixels
+   * larger than the ones around it — the same reason Home's `inviteQuiet`
+   * keeps a border it does not otherwise need.
+   */
   channel: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
     padding: spacing(1.5),
     gap: 2,
   },
   channelPressed: { backgroundColor: colors.surfaceRaised },
+  /**
+   * The channel you are standing in, wearing Home's live bar: the one accent
+   * pair this application has, spent on the one card that is a conversation
+   * you are currently in rather than a room you could go to.
+   */
+  channelLive: {
+    backgroundColor: colors.floorDim,
+    borderColor: colors.floor,
+  },
+  channelLivePressed: { opacity: 0.7 },
+  channelTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1),
+  },
+  channelDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: colors.floor,
+  },
+  /**
+   * Hollow and grey rather than a second bright colour, exactly as on Home:
+   * muting yourself is not an alarm and it is not the floor silencing you, so
+   * it reads as absence of transmission rather than as a warning.
+   */
+  channelDotMuted: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.textFaint,
+  },
   /** Italic when nobody has named it; see core/naming.ts. */
   channelDescribed: { ...type.body, fontStyle: 'italic' },
   /**

@@ -76,6 +76,12 @@ const mockApp = {
    */
   standingIn: null as string | null,
   displaced: false,
+  /**
+   * Below the compatibility floor, which stops anything from being live
+   * however present the roster says you are — the socket is already hung up.
+   * Cleared in `beforeEach` like the rest.
+   */
+  expired: false,
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -370,6 +376,7 @@ beforeEach(() => {
   mockApp.goneChannels = [];
   mockApp.standingIn = null;
   mockApp.displaced = false;
+  mockApp.expired = false;
   mockApp.status = 'open';
   mockApp.dismissedInvites = [];
   mockApp.appearance = 'system';
@@ -3945,6 +3952,158 @@ describe('channels you share with somebody', () => {
     expect(text).toContain('Not used yet');
     expect(text).not.toContain('Nobody here right now');
     act(() => tree.unmount());
+  });
+
+  /**
+   * The card for the room you are standing in wears Home's live bar.
+   *
+   * The most common way to open a profile is from the roster of the channel
+   * you are in, so this section is routinely drawn on top of a live
+   * conversation — and until this it drew that room exactly like one neither
+   * of you had opened in a week. Home refuses to be that quiet about an open
+   * microphone; this is the same mark, from the same helper.
+   */
+  describe('the one you are standing in', () => {
+    /** The card's own style, flattened past the press-state function. */
+    const cardFor = (tree: ReactTestRenderer, name: string) => {
+      const node = tree.root
+        .findAll(
+          (n) =>
+            typeof n.type === 'string' &&
+            String(n.props?.accessibilityLabel ?? '').startsWith(name)
+        )
+        .at(0);
+      const style = node?.props?.style;
+      return {
+        node,
+        style: StyleSheet.flatten(
+          typeof style === 'function' ? style({ pressed: false }) : style
+        ) as { borderColor?: unknown; backgroundColor?: unknown },
+      };
+    };
+
+    /** Every dot drawn in the section, in the order they appear. */
+    const dots = (tree: ReactTestRenderer) =>
+      tree.root
+        .findAll((n) => {
+          const flat = StyleSheet.flatten(n.props?.style) as
+            | { width?: number; borderRadius?: number }
+            | undefined;
+          return (
+            typeof n.type === 'string' &&
+            flat?.width === 9 &&
+            flat?.borderRadius === 5
+          );
+        })
+        .map(
+          (n) =>
+            StyleSheet.flatten(n.props.style) as {
+              backgroundColor?: unknown;
+              borderColor?: unknown;
+            }
+        );
+
+    const open = async () => {
+      let tree!: ReactTestRenderer;
+      await act(async () => {
+        tree = renderer.create(
+          <ProfileView
+            accountId={THEM}
+            fallbackName="Dana Chu"
+            onBack={() => {}}
+            onEnterChannel={() => {}}
+          />
+        );
+      });
+      return tree;
+    };
+
+    beforeEach(() => {
+      withChannels([
+        channel('sess_other', 'Someone else entirely', THEM),
+        channel('sess_1', 'Thursday rehearsal', THEM),
+      ]);
+    });
+
+    it('marks it, puts it first, and leaves the rest alone', async () => {
+      showChannel(channelOf());
+      const tree = await open();
+
+      const live = cardFor(tree, 'Thursday rehearsal');
+      const other = cardFor(tree, 'Someone else entirely');
+      expect(live.style.borderColor).toBe(colors.floor);
+      expect(live.style.backgroundColor).toBe(colors.floorDim);
+      expect(other.style.borderColor).not.toBe(colors.floor);
+
+      // The dot is invisible to a screen reader, so the label says it in
+      // words — and only on the card it is true of.
+      expect(String(live.node!.props.accessibilityLabel)).toContain(
+        'You are here'
+      );
+      expect(String(other.node!.props.accessibilityLabel)).toContain('Step in');
+
+      // One dot, filled, because nothing is muted.
+      const drawn = dots(tree);
+      expect(drawn).toHaveLength(1);
+      expect(drawn[0]!.backgroundColor).toBe(colors.floor);
+
+      // First, the way Home pins its live bar above the lists — the fixture
+      // lists it second.
+      const text = textOf(tree);
+      expect(text.indexOf('Thursday rehearsal')).toBeLessThan(
+        text.indexOf('Someone else entirely')
+      );
+      act(() => tree.unmount());
+    });
+
+    it('goes hollow when you have muted yourself', async () => {
+      showChannel(
+        channelOf((c) =>
+          reduce(c, { type: 'SET_SELF_MUTE', userId: ME, muted: true }, NOW)
+        )
+      );
+      const tree = await open();
+
+      const drawn = dots(tree);
+      expect(drawn).toHaveLength(1);
+      expect(drawn[0]!.backgroundColor).toBe('transparent');
+      expect(drawn[0]!.borderColor).toBe(colors.textFaint);
+      expect(
+        String(
+          cardFor(tree, 'Thursday rehearsal').node!.props.accessibilityLabel
+        )
+      ).toContain('your microphone is muted');
+      act(() => tree.unmount());
+    });
+
+    it('marks nothing when the room is held by another device', async () => {
+      // Being present and being the device that is present are different
+      // facts. The roster says the account is in there; this device is not,
+      // so there is no microphone here to admit to. See state/live.ts.
+      showChannel(channelOf());
+      mockApp.standingIn = null;
+      const tree = await open();
+
+      expect(cardFor(tree, 'Thursday rehearsal').style.borderColor).not.toBe(
+        colors.floor
+      );
+      expect(dots(tree)).toHaveLength(0);
+      act(() => tree.unmount());
+    });
+
+    it('marks nothing once the build is expired', async () => {
+      // The socket is already hung up and the screen behind this says to
+      // update; a card claiming you are in a conversation would outlive it.
+      showChannel(channelOf());
+      mockApp.expired = true;
+      const tree = await open();
+
+      expect(cardFor(tree, 'Thursday rehearsal').style.borderColor).not.toBe(
+        colors.floor
+      );
+      expect(dots(tree)).toHaveLength(0);
+      act(() => tree.unmount());
+    });
   });
 
   it('still lists them when there is nowhere to send you', async () => {

@@ -1928,3 +1928,67 @@ and it would tangle what you may see about somebody with what you may do to
 them.
 
 1,930 lines, so no rollover.
+
+## The profile stops being quiet about the room you are in — 2026-08-31
+
+`ProfileView`'s "Channels with them" section draws every channel you share with
+somebody, taken from Home's `rejoinable` list — **including the one you are
+standing in**, deliberately, since a card saying they have not been in the room
+you are sitting in for a week is the point of the section. And the most common
+way to reach a profile is from the roster of the channel you are in. So the
+routine case was this screen drawn on top of a live conversation, drawing that
+conversation exactly like a room neither of you had opened in a fortnight.
+
+Home refuses to be that quiet. Its live bar exists because **an open microphone
+behind a screen that gives no sign of it is the one way any of this could be
+worse than having to step out first**, and the profile is the second screen that
+can sit on top of a live channel. It now carries the same mark: `colors.floorDim`
+on `colors.floor`, and the availability dot before the title — filled when you
+can be heard, hollow and grey when you have muted yourself.
+
+**Which of Home's two meanings of *live*, and only one of them has a style.** A
+row is live when `presentCount > 0`; *you* are live when this device is holding
+a room. Home gives the first no treatment at all for a member channel — only
+invitations take the accent, and the live section is otherwise ordinary cards —
+so "the style of the live channel on home" can only mean the bar, and the bar is
+about the second. That also settles what "live on the device" in the task meant:
+the narrow one, which is the one with a picture.
+
+**The lines under the title do not change, and that is the whole restraint.**
+The live bar says `3 present · tap to go back`, which is a fact about you and
+about the room. This section exists to say where *they* have been, which is what
+`sharedChannels` was added to the wire for. Adopting the bar's subtitle would
+have spent the card on the one thing the reader could already see by looking
+around them, and taken away the reason it is drawn. So the skin and the dot
+move; the sentence stays. What the dot cannot say it says in the accessibility
+label instead, the same way the bar does, a dot being invisible to a screen
+reader.
+
+**One definition of standing here, now that there are two readers.** The test is
+not `liveChannelView` — that answers a question about the *account*, and an
+account is present whether the room is held on this phone, on another one, or by
+a process since killed. App.tsx spelt the narrowing out inline with a long
+comment about exactly that, plus the expiry clause that overrides everything. A
+second reader arriving is when that stops being a local detail, so it is
+`liveChannelHere(views, me, standingIn, expired)` in `state/live.ts` and both
+screens call it. Copying the expression would have been a rule kept in two
+places, one of which would eventually learn something the other did not.
+
+The card is hoisted to the head of its list, the way the bar is pinned above
+Home's — a stable partition rather than a sort, so nothing else moves.
+
+**Two things that would have looked like styling and are not.**
+`styles.channelPressed` swaps the background, which would have taken the accent
+off the one card that has one at the moment of pressing it; the live card dims
+instead. And `styles.channel` carried no border, so adding a real one for the
+live variant would have made that card two pixels larger than its neighbours —
+it now carries a transparent one, which is the same trick `inviteQuiet` on Home
+plays for the same reason.
+
+**What stays stale, on purpose.** The person's half of each line is fetched with
+the profile and never refreshed, so a card can still read "Here now" after they
+walk out — a stated decision about the whole screen, unchanged. The mark itself
+is not stale: it comes off the channel snapshot rather than the fetched profile,
+so muting yourself hollows the dot without leaving the screen.
+
+1,994 lines, so no rollover.

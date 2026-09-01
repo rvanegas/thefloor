@@ -29,3 +29,36 @@ export function liveChannelView(
   }
   return live;
 }
+
+/**
+ * The channel this *device* is standing in, which is narrower than the one
+ * above and is the fact most callers actually want.
+ *
+ * `liveChannelView` answers a question about the account, and the account is
+ * present whether the room is held here, on the phone in their hand, or by a
+ * process that has since been killed. One account has one voice, so a device
+ * that has not entered has to hold no microphone whatever the roster says —
+ * and reading the roster as though it described this device is what let a
+ * second device join the audio of a channel it had only opened. See
+ * `AppProvider.standingIn`.
+ *
+ * Nothing is live once the build is expired either, whatever the last snapshot
+ * to arrive said. The provider has already hung the socket up; what follows
+ * the channel rather than the socket — the audio, and now the mark on a
+ * profile — would otherwise go on describing a conversation behind a screen
+ * that says to update.
+ *
+ * The `standingIn` test subsumes the old `!displaced` clause rather than
+ * sitting beside it: being displaced clears `standingIn`, because both are the
+ * same fact.
+ */
+export function liveChannelHere(
+  views: Record<string, ChannelView>,
+  me: string,
+  standingIn: string | null,
+  expired: boolean
+): ChannelView | null {
+  const view = liveChannelView(views, me);
+  if (!view || expired) return null;
+  return view.channel.id === standingIn ? view : null;
+}

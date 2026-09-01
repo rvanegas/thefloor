@@ -7,7 +7,7 @@ import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { recordEvent } from './src/audio/diagnostics';
-import { liveChannelView } from './src/state/live';
+import { liveChannelHere } from './src/state/live';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
@@ -63,30 +63,14 @@ function Root() {
   const [contactsOpen, setContactsOpen] = useState(false);
 
   const me = app.me?.id ?? '';
-  // Where this person is standing, across every snapshot held rather than read
-  // off whichever one arrived last — which is what used to hang the audio up
-  // when a channel nobody was looking at changed. See state/live.ts.
-  const view = liveChannelView(app.channelViews, me);
-  // Nothing is live once this build is expired, whatever the last snapshot to
-  // arrive said. The provider has already hung the socket up; this is the
-  // audio, which follows the channel rather than the socket and would
-  // otherwise keep a microphone open behind a screen that says to update.
-  //
-  // Nor anywhere this *device* is not the one standing, which is a narrower
-  // test than the roster can express and is the one that matters. `view` is
-  // the account's presence, and the account is present whether the room is
-  // held here, on the phone in their hand, or by a process that has since been
-  // killed. One account has one voice, so a device that has not entered has to
-  // hold no microphone whatever the roster says — and reading the roster as
-  // though it described this device is what let a second device join the audio
-  // of a channel it had only opened. See AppProvider.standingIn.
-  //
-  // This subsumes the old `!app.displaced` clause rather than sitting beside
-  // it: being displaced clears `standingIn`, because both are the same fact.
-  const live =
-    view && !app.expired && view.channel.id === app.standingIn
-      ? view.channel
-      : null;
+  // Where this person is standing, on *this device*, across every snapshot
+  // held rather than read off whichever one arrived last — which is what used
+  // to hang the audio up when a channel nobody was looking at changed. The
+  // device test, and the expiry that overrides both, are in state/live.ts:
+  // this used to be spelled out here and now has a second reader in
+  // ProfileView, which marks the same channel on a profile.
+  const here = liveChannelHere(app.channelViews, me, app.standingIn, app.expired);
+  const live = here?.channel ?? null;
 
   // Or asked for and not yet confirmed. The rule in `microphoneNeeded` is
   // right — a recording is something listening, so it opens the microphone —
@@ -413,7 +397,7 @@ function Root() {
         live
           ? {
               channelId: live.id,
-              title: titleOf(live.name, view!.participants, me),
+              title: titleOf(live.name, here!.participants, me),
               present: live.present.length,
               muted: !!live.selfMuted[me],
             }
