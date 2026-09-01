@@ -18,6 +18,7 @@ import type { RecordingView } from '../../../core/protocol';
 import { exportRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
+import { usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
@@ -257,12 +258,27 @@ export function Screen({
     });
   }, []);
 
+  /**
+   * The list pane does not move for a keyboard that is not its own.
+   *
+   * iOS reports one keyboard frame for the window, not one per pane — so with
+   * both panes avoiding it, typing into the composer on the right shortened
+   * Home on the left as well, for a keyboard nothing on that side had asked
+   * for. The detail pane is where every field in this application lives; the
+   * list is names and a way in.
+   *
+   * Null outside a split, which is every phone, so this is inert there.
+   */
+  const pane = usePane();
+
   return (
     <KeyboardAvoidingView
       style={styles.screen}
       // Android resizes the window itself, so asking for padding as well
       // double-counts the keyboard and leaves a gap the height of it.
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={
+        Platform.OS === 'ios' && pane !== 'list' ? 'padding' : undefined
+      }
     >
       <RevealContext.Provider value={reveal}>
         {header}

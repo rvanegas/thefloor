@@ -16,6 +16,7 @@ import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
+import { NoDetailView, Panes } from './src/ui/Panes';
 import {
   anyMicrophoneOpen,
   channelHasAudio,
@@ -23,6 +24,7 @@ import {
 } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
+import { useLayout } from './src/ui/layout';
 import { useRoute } from './src/ui/useRoute';
 import type { Nav } from './src/ui/webRoute';
 
@@ -306,6 +308,19 @@ function Root() {
   );
 
   /**
+   * Whether there is room for the list and a screen at once.
+   *
+   * **Read here, with the hooks, and consulted by none of them.** A hook has to
+   * be called before the early returns below, but nothing above this line has
+   * any business knowing how wide the window is: the audio, the two nudges and
+   * the route table are about presence and a session. The split happens
+   * strictly in what is returned — which is what keeps the promise at the top
+   * of this file, that walking to Home does not hang up. Nor does dragging the
+   * window narrower.
+   */
+  const layout = useLayout();
+
+  /**
    * Below the server's floor, and therefore not an app any more.
    *
    * Ahead of `ready` and of the token, because both of those are about a
@@ -326,62 +341,85 @@ function Root() {
 
   if (!token) return <AuthView />;
 
-  if (channelId) {
-    return (
-      <ChannelView
-        channelId={channelId}
-        audio={audio}
-        // Off this screen without leaving the channel. Deliberately not
-        // `leaveChannelView`: that unwatches, and the snapshot it drops is
-        // what tells this component you are still present.
-        onHome={() => setChannelId(null)}
-        onExit={() => setChannelId(null)}
-        // A profile opened from the roster lists the channels you and that
-        // person share, and tapping one goes there — the same tap the same
-        // cards take from the contact list. Nothing is closed on the way: the
-        // channel screen is the only thing on the stack, and presence is not a
-        // screen, so this changes which conversation you are looking at and
-        // not whether you are still in the one you left.
-        onEnterChannel={setChannelId}
-      />
-    );
-  }
+  /**
+   * The screen you are looking at, or nothing.
+   *
+   * **The same ordered chain that has always decided this, moved off the
+   * component's own `return` and onto a name.** The order is the model — a
+   * channel beats everything because presence is not navigation, and the four
+   * booleans are screens stacked over Home — and `webRoute.ts` § `screenOf`
+   * states it a second time for the address bar. Neither has changed.
+   *
+   * What is new is only that Home is no longer the last case in it. Home is
+   * the pane beside this one, and below the breakpoint it is what an empty
+   * answer here falls back to.
+   */
+  const detail = (): React.ReactNode => {
+    if (channelId) {
+      return (
+        <ChannelView
+          channelId={channelId}
+          audio={audio}
+          // Off this screen without leaving the channel. Deliberately not
+          // `leaveChannelView`: that unwatches, and the snapshot it drops is
+          // what tells this component you are still present.
+          onHome={() => setChannelId(null)}
+          onExit={() => setChannelId(null)}
+          // A profile opened from the roster lists the channels you and that
+          // person share, and tapping one goes there — the same tap the same
+          // cards take from the contact list. Nothing is closed on the way: the
+          // channel screen is the only thing on the stack, and presence is not a
+          // screen, so this changes which conversation you are looking at and
+          // not whether you are still in the one you left.
+          onEnterChannel={setChannelId}
+        />
+      );
+    }
 
-  // Reached from Home rather than from a channel, because what is in here is
-  // about you rather than about whichever conversation you happen to be in.
-  if (settingsOpen) {
-    return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
-  }
+    // Reached from Home rather than from a channel, because what is in here is
+    // about you rather than about whichever conversation you happen to be in.
+    if (settingsOpen) {
+      return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
+    }
 
-  // Reached from Home and from nowhere else, and offered only to an account
-  // that has been granted it by hand. `app.leaderboard` comes from `hello`, so
-  // revoking the column closes the way in at the next connection.
-  if (leaderboardOpen) {
-    return <LeaderboardView onBack={() => setLeaderboardOpen(false)} />;
-  }
+    // Reached from Home and from nowhere else, and offered only to an account
+    // that has been granted it by hand. `app.leaderboard` comes from `hello`, so
+    // revoking the column closes the way in at the next connection.
+    if (leaderboardOpen) {
+      return <LeaderboardView onBack={() => setLeaderboardOpen(false)} />;
+    }
 
-  if (supportOpen) {
-    return <SupportView onBack={() => setSupportOpen(false)} />;
-  }
+    if (supportOpen) {
+      return <SupportView onBack={() => setSupportOpen(false)} />;
+    }
 
-  if (contactsOpen) {
-    return (
-      <ContactsView
-        onHome={() => setContactsOpen(false)}
-        // A profile opened from the contact list lists the channels the two of
-        // you share, and tapping one goes there. The list closes behind it:
-        // the channel screen's way out is a button that says Home, and leaving
-        // this open under it would make that button land somewhere else. Same
-        // rule the notification tap follows above.
-        onEnterChannel={(id) => {
-          setContactsOpen(false);
-          setChannelId(id);
-        }}
-      />
-    );
-  }
+    if (contactsOpen) {
+      return (
+        <ContactsView
+          onHome={() => setContactsOpen(false)}
+          // A profile opened from the contact list lists the channels the two of
+          // you share, and tapping one goes there. The list closes behind it:
+          // the channel screen's way out is a button that says Home, and leaving
+          // this open under it would make that button land somewhere else. Same
+          // rule the notification tap follows above.
+          onEnterChannel={(id) => {
+            setContactsOpen(false);
+            setChannelId(id);
+          }}
+        />
+      );
+    }
 
-  return (
+    return null;
+  };
+
+  /**
+   * Home, which in a split is the pane that never goes away.
+   *
+   * The way back out of everything else, which is why nothing above closes it
+   * and why the screen beside it has no need of a Home button of its own.
+   */
+  const list = (
     <HomeView
       onEnterChannel={setChannelId}
       onOpenContacts={() => setContactsOpen(true)}
@@ -404,6 +442,22 @@ function Root() {
           : null
       }
       onReturnToChannel={setChannelId}
+    />
+  );
+
+  const showing = detail();
+
+  /**
+   * Below the breakpoint this is the element tree that has always shipped —
+   * `showing ?? list` reproduces the early-return order exactly — wrapped in
+   * the one View that holds the detail subtree at a fixed depth so a resize
+   * does not remount it. See `Panes`.
+   */
+  return (
+    <Panes
+      layout={layout}
+      list={list}
+      detail={showing ?? (layout === 'split' ? <NoDetailView /> : list)}
     />
   );
 }
