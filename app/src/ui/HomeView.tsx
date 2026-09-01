@@ -18,7 +18,7 @@ import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Screen, SectionLabel } from './components';
-import { colors, radius, spacing, type } from './theme';
+import { colors, measure, radius, spacing, type } from './theme';
 
 /**
  * Signed in, not in a channel. A list of channels in three sections — the ones
@@ -266,6 +266,15 @@ export function HomeView({
   */
   const header = (
     <View style={styles.header}>
+      {/*
+        The measure, applied to the header's contents and not to the header
+        itself: the rule under it is an edge, and an edge that stops short of
+        the window is not one. The horizontal padding moved in here for the
+        same reason — the column of cards below carries its padding inside the
+        cap, so a header carrying it outside would sit the title twenty points
+        off the rows it names.
+      */}
+      <View style={styles.headerInner}>
       <View style={styles.headerTop}>
         {/*
           Who you are signed in as used to be a second line here, with the
@@ -341,6 +350,7 @@ export function HomeView({
           </View>
         </Pressable>
       ) : null}
+      </View>
     </View>
   );
 
@@ -989,13 +999,12 @@ const styles = StyleSheet.create({
    * one does not — see the note on TranscriptView's.
    */
   header: {
-    paddingHorizontal: spacing(2.5),
     paddingTop: spacing(1),
     paddingBottom: spacing(1.5),
-    gap: spacing(1),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  headerInner: { ...measure, paddingHorizontal: spacing(2.5), gap: spacing(1) },
   /** What used to be `header` itself: the title and the two ways off here. */
   headerTop: {
     flexDirection: 'row',

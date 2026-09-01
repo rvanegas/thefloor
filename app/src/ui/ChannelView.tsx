@@ -79,6 +79,7 @@ import {
   colors,
   formatDuration,
   formatSeconds,
+  measure,
   radius,
   spacing,
   type,
@@ -767,6 +768,13 @@ export function ChannelView({
   */
   const header = (
     <View style={styles.header}>
+      {/*
+        The measure goes on the contents, not on the header: the rule
+        underneath is an edge, and an edge that stops short of the window is
+        not one. The horizontal padding came in here with it, so the name lines
+        up with the cards below rather than sitting outside their column.
+      */}
+      <View style={styles.headerInner}>
       <View style={styles.headerTop}>
         {/* Muted italic when nobody has named it, for the reason set out in
             core/naming.ts: this is a description written from your side, not
@@ -816,6 +824,7 @@ export function ChannelView({
           </Text>
         </View>
       ) : null}
+      </View>
     </View>
   );
 
@@ -854,13 +863,24 @@ export function ChannelView({
 
     **All three are always present, greyed rather than absent**, which is the
     opposite of what the cards do. On a screen that scrolls, a control that is
-    not true of you should not be there at all; in a bar fixed under your
-    thumb, items appearing and disappearing move the other two under a finger
-    already on its way — and the mute you meant becomes the floor you did not.
-    Position is the thing a footer is for, so position is what stays fixed.
+    not true of you should not be there at all; in a fixed bar, items appearing
+    and disappearing move the other two under a finger already on its way — and
+    the mute you meant becomes the floor you did not. Position is the thing a
+    footer is for, so position is what stays fixed.
+
+    **That used to be argued from the thumb, and the thumb has stopped being
+    universal.** On an iPad in landscape there is no thumb at the bottom of a
+    1300pt screen, and the bar is capped and centred there rather than run edge
+    to edge — see `footerInner`, which exists because a third of 1300 is not a
+    control. What the cap does *not* touch is the property above: each action
+    is still `flex: 1` within the bar, so all three are still a third of it
+    whatever their labels say, and the middle one still does not move when
+    "Claim" becomes "Release". **Stability of position is the rule; reach was
+    only ever the reason a phone had for wanting it.**
   */
   const footer = (
     <View style={styles.footer}>
+      <View style={styles.footerInner}>
       <FooterAction
         label={iAmSelfMuted ? 'Unmute' : 'Mute'}
         hint={iAmSelfMuted ? 'Your microphone is muted' : 'Your microphone is open'}
@@ -900,6 +920,7 @@ export function ChannelView({
           onExit();
         }}
       />
+      </View>
     </View>
   );
 
@@ -2844,13 +2865,12 @@ const styles = StyleSheet.create({
    * the two moved.
    */
   header: {
-    paddingHorizontal: spacing(2),
     paddingTop: spacing(1),
     paddingBottom: spacing(1),
-    gap: spacing(0.5),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  headerInner: { ...measure, paddingHorizontal: spacing(2), gap: spacing(0.5) },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2879,12 +2899,29 @@ const styles = StyleSheet.create({
    * already accounted for; adding padding for it here would double it.
    */
   footer: {
-    flexDirection: 'row',
     backgroundColor: colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     paddingTop: spacing(1),
     paddingBottom: spacing(0.75),
+  },
+  /**
+   * The bar itself, capped and centred inside the full-bleed surface above.
+   *
+   * Narrower than `measure`, and by a lot: 620 divided three ways is a 206pt
+   * target for an icon and one word, which stops reading as a control and
+   * starts reading as a row of banners. 480 puts each at 160, against the ~125
+   * a phone gives them — the same object, slightly larger, rather than a
+   * different one.
+   *
+   * The rule and the fill stay full-bleed, for the reason the header's do: an
+   * edge that stops short of the window is not an edge.
+   */
+  footerInner: {
+    flexDirection: 'row',
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
     paddingHorizontal: spacing(1),
   },
   /**

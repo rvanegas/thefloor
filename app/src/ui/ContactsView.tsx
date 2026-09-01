@@ -5,7 +5,7 @@ import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
 import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
 import { ProfileView } from './ProfileView';
-import { colors, spacing, type } from './theme';
+import { colors, measure, spacing, type } from './theme';
 
 /**
  * The people you know, and whether they are about.
@@ -370,17 +370,25 @@ const styles = StyleSheet.create({
    * does not — see the note on TranscriptView's.
    */
   header: {
-    paddingHorizontal: spacing(2.5),
     paddingTop: spacing(1),
     paddingBottom: spacing(1.5),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  /** What used to be `header` itself: the title and the way back. */
+  /**
+   * What used to be `header` itself: the title and the way back.
+   *
+   * It carries the measure and the horizontal padding, where the header
+   * carries the rule underneath. An edge that stops short of the window is not
+   * an edge; and the padding belongs inside the cap, so the title lines up
+   * with the rows below rather than sitting twenty points outside them.
+   */
   headerTop: {
+    ...measure,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: spacing(2.5),
   },
   /**
    * Negative trailing margin, so `Button`'s card-sized horizontal padding

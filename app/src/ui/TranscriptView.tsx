@@ -11,7 +11,7 @@ import { exportTranscript } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
-import { colors, formatDuration, radius, spacing, type } from './theme';
+import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
 /**
  * One recording's transcript: what was said, who said it, and when.
@@ -148,6 +148,9 @@ export function TranscriptView({
   */
   const header = (
     <View style={styles.header}>
+      {/* The measure on the contents, the rule on the header — an edge that
+          stops short of the window is not an edge. See `headerInner`. */}
+      <View style={styles.headerInner}>
       <View style={styles.headerTop}>
         <View style={styles.headerMain}>
           <Text style={type.heading}>Transcript</Text>
@@ -243,6 +246,7 @@ export function TranscriptView({
           Step in to delete this. It leaves everybody's screen at once.
         </Text>
       ) : null}
+      </View>
     </View>
   );
 
@@ -647,8 +651,7 @@ const styles = StyleSheet.create({
     gap: spacing(1),
   },
   header: {
-    gap: spacing(1),
-    padding: spacing(2),
+    paddingVertical: spacing(2),
     paddingBottom: spacing(1.5),
     /**
      * The one thing a pinned header needs that a scrolling one does not: an
@@ -658,6 +661,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  headerInner: { ...measure, paddingHorizontal: spacing(2), gap: spacing(1) },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',

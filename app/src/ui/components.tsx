@@ -19,7 +19,7 @@ import { exportRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
 import { offsetToReveal } from './reveal';
-import { colors, formatDuration, radius, spacing, type } from './theme';
+import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
 export function Button({
   label,
@@ -272,7 +272,9 @@ export function Screen({
         <ScrollView
           ref={scroll}
           style={styles.screen}
-          contentContainerStyle={contentStyle}
+          // The measure, applied once for every screen in the app. Second, so
+          // a screen that needs a narrower column of its own can still say so.
+          contentContainerStyle={[contentStyle, styles.measure]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           // The height shrinks when the keyboard opens, which is exactly the
@@ -367,6 +369,7 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  measure,
   button: {
     paddingVertical: spacing(1.5),
     paddingHorizontal: spacing(2),

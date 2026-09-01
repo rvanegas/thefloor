@@ -132,6 +132,34 @@ export const spacing = (n: number) => n * 8;
 
 export const radius = { sm: 8, md: 12, lg: 16, pill: 999 };
 
+/**
+ * The widest a column of prose, cards or controls may get.
+ *
+ * **A constant, which is the whole reason it may live here.** The blocks in
+ * this file are captured once at import by fourteen module-scope
+ * `StyleSheet.create` calls, on the argument above that nothing in JavaScript
+ * ever needs to learn a colour has changed. A cap keeps that true where a
+ * width would not: it is `maxWidth`, resolved by the layout engine against
+ * whatever parent it finds, so a block spreads it exactly as it spreads
+ * `spacing(2)` and no style becomes reactive. Which side of a split a screen
+ * is on is a different question and is `ui/layout.ts`'s.
+ *
+ * **Inert on a phone.** Every iPhone is narrower than this, so the cap never
+ * binds and the shipped layout is unchanged to the pixel. It binds on an iPad,
+ * in a pane, and in a browser window — where the same defect had already been
+ * measured from the other end: a *Claim the floor* button 1534px wide at a
+ * 1600px viewport.
+ *
+ * 620 rather than a round number, because `server/src/html.ts` already sets
+ * `max-width: 38rem` on the privacy, support and landing pages. One measure
+ * across the product is worth more than two defensible ones.
+ */
+export const measure = {
+  width: '100%',
+  maxWidth: 620,
+  alignSelf: 'center',
+} as const;
+
 export const type = {
   title: { fontSize: 28, fontWeight: '700' as const, color: colors.text },
   heading: { fontSize: 17, fontWeight: '600' as const, color: colors.text },
