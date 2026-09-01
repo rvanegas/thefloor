@@ -7,6 +7,7 @@ import {
   type RemoteTrack,
 } from 'livekit-client';
 import { HEARTBEAT_INTERVAL_MS } from '../../core/constants';
+import { isEmbeddedBrowser } from '../../core/embedded';
 import type {
   GuestAction,
   GuestClientMessage,
@@ -280,36 +281,26 @@ async function setMuted(muted: boolean): Promise<void> {
 /**
  * Whether this page is inside an app's own browser rather than a browser.
  *
- * It matters because **a microphone that is granted is not a microphone that
- * works**. On iOS every in-app browser is a `WKWebView` owned by the host app,
- * and the host app owns the audio session with it: Telegram, Instagram and the
- * rest prompt for the microphone, grant it, hand this page a live track, and
- * deliver silence down it. Nothing in the WebRTC API reports that — the track
- * is live and unmuted, the SFU forwards the packets, and the channel hears
- * nothing. Found on 2026-08-22 by somebody following a link inside Telegram;
- * the same link in Chrome on the same phone was fine. Apple's forums carry the
- * same shape of report against several host apps and several iOS versions, and
- * every fix in them is a change to the *embedding app*, which is not us.
+ * **The reasoning moved to `core/embedded.ts` and is not repeated here**, along
+ * with the rule itself — why a granted microphone is not a working one, why the
+ * test is by exclusion, and the two directions it is wrong in. It moved because
+ * `/app` and `/beta` need the same answer and open the same microphone through
+ * the same library, and a second copy of this would drift the first time a host
+ * app joined the list.
  *
- * The test is by exclusion, because in-app browsers are not obliged to
- * identify themselves and the interesting one does not. A real iOS browser
- * always announces itself — Safari with `Version/… Safari`, everything else
- * with its own token — so a WebKit page on iOS carrying neither is inside
- * something. The named checks in front are for the platforms where the host
- * app does say, and cost nothing.
+ * What is left here is the half that cannot move: reading the browser. Nothing
+ * in this repository can run this file, so keeping the globals on this side of
+ * the boundary is also what made the rule testable — see
+ * `core/__tests__/embedded.test.ts`, which is the first test it has ever had.
  */
 function embeddedBrowser(): boolean {
-  const ua = navigator.userAgent;
-  if (/FBAN|FBAV|Instagram|Line\/|MicroMessenger|Telegram/i.test(ua)) return true;
-  if ('TelegramWebviewProxy' in window) return true;
-
-  const ios =
-    /iPhone|iPad|iPod/.test(ua) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  if (!ios) return false;
-  // Added to the home screen is not embedded, and has no Safari token either.
-  if ((navigator as { standalone?: boolean }).standalone) return false;
-  return !/CriOS|FxiOS|EdgiOS|OPiOS|Version\/[\d.]+.*Safari/.test(ua);
+  return isEmbeddedBrowser({
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    maxTouchPoints: navigator.maxTouchPoints,
+    telegramProxy: 'TelegramWebviewProxy' in window,
+    standalone: (navigator as { standalone?: boolean }).standalone === true,
+  });
 }
 
 /**
