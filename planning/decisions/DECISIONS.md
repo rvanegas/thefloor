@@ -1135,7 +1135,10 @@ are early returns *inside* `ChannelView` and `ContactsView`, which are the
 detail pane, so "nested screens stay in the right pane" was satisfied by
 changing nothing. Lifting them into `Root` would have reintroduced exactly what
 `App.tsx`'s opening comment refuses, this component knowing which screen a
-profile was opened from. And `Screen`'s `reveal` needed nothing: it measures
+profile was opened from. (**Half of this stopped being true within the day** —
+see *The left pane is a choice* below, where the contact list's profile is
+lifted after all, on the ground that the argument was about a profile covering
+the screen it was opened from and a split is the case where it does not.) And `Screen`'s `reveal` needed nothing: it measures
 the card and the frame both with `measureInWindow` and uses only their
 difference, discarding `x`, so it is translation-invariant and two `Screen`s
 side by side measure correctly and independently. That *sounds* broken, which
@@ -1201,4 +1204,57 @@ a refused submission with the version record already made. It is in
 RELEASING.md's pre-submission list now, where the old assertion that
 `supportsTablet` was false used to be.
 
-1,202 lines, so no rollover.
+---
+
+## The left pane is a choice, and there are two things to put in it — 2026-09-01
+
+Written hours after the entry above, which said the pane on the left was Home.
+It is now Home *or* the contact list, switched by the same `contactsOpen` flag
+that makes Contacts a screen on a phone.
+
+**The reason is that they are two indexes onto one thing.** Home lists the
+people you can reach by the conversations you have with them; Contacts lists
+them by name. Everything else in this application is something you *opened*,
+and opened things belong in the pane on the right. Sending the contact list
+there made it an interruption — it covered whatever conversation was open, and
+closing it was an exit rather than a switch — when what it actually is is the
+other way of reading the same list.
+
+**Below the breakpoint nothing changed at all.** One flag, read two ways by the
+two layouts, rather than a second notion of where the contact list lives. On a
+phone `contactsOpen` still means Contacts is the screen, and `detail() ?? list`
+still reproduces the old chain exactly.
+
+**The address needed no work, which was not obvious until it was checked.**
+With a channel open, `screenOf` already prefers the channel over
+`contactsOpen`, so a contact list beside a conversation is that conversation's
+address — the left pane is not a location and cannot be navigated to. A contact
+list beside an empty pane is `/contacts`, which is exactly what is showing, and
+it survives a reload. `webRoute.ts` is untouched and `screenOf(navOf(s)) === s`
+still holds, since the invariant is about what `navOf` produces rather than
+about every `Nav` that can exist.
+
+**The profile is lifted into `Root`, and the entry above says it would not be.**
+That entry was right about the argument and wrong about its reach.
+`App.tsx`'s opening comment refuses to route profiles through it because it
+would have to decide where closing one goes *back* to — and that is a question
+only where the profile covers the screen it was opened from. In a split it
+covers nothing: the contact list is the pane next door and never went away, so
+closing the profile empties the right-hand pane and there is nothing to decide.
+So the refusal stands exactly where it applied, and `ContactsView` still owns
+its profile on a phone. The seam is one optional prop, `onOpenProfile`, given
+only when there is a second pane to open into — and the two paths are
+deliberately not collapsed, because collapsing them would drag the question the
+comment refuses back into the case where it is real.
+
+`ChannelView`'s profiles were never in question. It *is* the detail pane, so
+its roster's profiles have always opened in the right place, in both layouts.
+
+**A profile sits ahead of the channel rather than instead of it.** Tapping a
+contact while a conversation is open draws the profile over it and closing the
+profile puts the conversation back — nothing was cleared, so nothing has to be
+restored, and presence never noticed. It also means the address still reads
+`/c/…` under an open profile, which is what it has always done: profiles have
+no address here and never had one.
+
+1,260 lines, so no rollover.

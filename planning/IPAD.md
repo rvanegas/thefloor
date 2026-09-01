@@ -150,6 +150,11 @@ holds through a rotation is a thing to watch rather than to assume.
 - ~~**Does the sign-in form want a narrower cap than a list does?**~~ **No.**
   It reads correctly at 620 and the vertical centring survives the cap, which
   was the thing to check. Leave the shared token alone.
+- **The left pane holds Home or the contact list**, switched by the same flag
+  that makes Contacts a screen on a phone, and a profile opened from that list
+  goes in the pane on the right. Added 2026-09-01, after the split shipped;
+  `decisions/DECISIONS.md` § *The left pane is a choice* carries the reasoning
+  and the one claim it retracts. **Unlooked-at like the rest of the split.**
 - **Does the left pane want a selected-row highlight** for the channel open on
   the right? Almost certainly yes, and it touches `HomeView`'s list rendering,
   so it goes last or to BACKLOG.md.

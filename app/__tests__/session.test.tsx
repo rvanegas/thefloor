@@ -67,6 +67,29 @@ const mockApp = {
   loadLeaderboard: jest.fn(async () => []),
 };
 
+/**
+ * How wide the window is, which decides one pane or two.
+ *
+ * Mocked at the module React Native's own export is a getter onto, rather than
+ * by spreading `react-native` — spreading it evaluates every one of those
+ * getters, which pulls in native modules this file has no business touching.
+ *
+ * **It has to be mocked at all**, and that is the point of the default here:
+ * jest's window is 750×1334, which is on the stack side of the breakpoint but
+ * only by chance. A test that wants two panes says so.
+ */
+const windowWidth = { current: 390 };
+
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({
+    width: windowWidth.current,
+    height: 1200,
+    scale: 2,
+    fontScale: 1,
+  }),
+}));
+
 jest.mock('../src/state/AppProvider', () => ({
   useApp: () => mockApp,
   AppProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -379,5 +402,70 @@ describe('asking to record', () => {
     expect(audioCalls.at(-1)?.[4]).toBe(true);
 
     act(() => tree.unmount());
+  });
+});
+
+/**
+ * The list pane, which is the one thing on a wide window you choose to put
+ * there.
+ *
+ * Below the breakpoint none of this exists: Contacts is a screen, it covers
+ * Home, and a profile covers it. Those cases are the rest of this file and the
+ * views' own tests. What is asserted here is only what the second pane makes
+ * possible — that the list and the conversation stop being alternatives.
+ */
+describe('a window wide enough for two panes', () => {
+  beforeEach(() => {
+    mockApp.token = 'token';
+    mockApp.ready = true;
+    mockApp.home = null;
+    // `mockApp` is one mutable object shared by every block in this file, and
+    // the notification tests leave a channel in it. Without these, `Root`
+    // opens that channel and the pane under test is never reached.
+    mockApp.pendingChannelId = null;
+    mockApp.channelViews = {};
+    mockApp.standingIn = null;
+    windowWidth.current = 1024;
+  });
+
+  afterEach(() => {
+    windowWidth.current = 390;
+  });
+
+  it('puts the contact list where Home was, and leaves the pane beside it', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    // Home's own header carries a Contacts button, so the list is identified
+    // by `AddContact`, which only the list itself draws.
+    expect(textOf(tree)).not.toContain('Add contact');
+
+    pressButton(tree, 'Contacts');
+
+    const shown = textOf(tree);
+    // The list has taken the pane Home was in...
+    expect(shown).toContain('Add contact');
+    // ...and the pane beside it is still there, holding what it held.
+    expect(shown).toContain('Pick a conversation on the left');
+
+    // The way back is a button in that same pane rather than an exit.
+    pressButton(tree, 'Home');
+    expect(textOf(tree)).not.toContain('Add contact');
+    expect(textOf(tree)).toContain('Pick a conversation on the left');
+  });
+
+  it('keeps the contact list a whole screen below the breakpoint', () => {
+    windowWidth.current = 390;
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    pressButton(tree, 'Contacts');
+    expect(textOf(tree)).toContain('Add contact');
+    // One pane, so there is no empty one beside it — the list is the screen.
+    expect(textOf(tree)).not.toContain('Pick a conversation on the left');
   });
 });

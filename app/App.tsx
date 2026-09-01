@@ -12,6 +12,7 @@ import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
 import { ContactsView } from './src/ui/ContactsView';
+import { ProfileView } from './src/ui/ProfileView';
 import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
@@ -69,6 +70,25 @@ function Root() {
    * business of knowing which profile was opened from where.
    */
   const [contactsOpen, setContactsOpen] = useState(false);
+  /**
+   * Whose profile is open in the detail pane, and **only ever in a split.**
+   *
+   * The comment at the top of this file refuses to route profiles through here,
+   * on the grounds that it would make this component decide where closing one
+   * goes back to. That argument is about a profile that *covers* the screen it
+   * was opened from, and it still holds everywhere it applied: on a phone
+   * `ContactsView` owns its profile exactly as before, and `ChannelView` owns
+   * the ones opened from its roster in either layout.
+   *
+   * A split is the case the argument does not reach. The contact list is the
+   * pane next door and never went away, so there is no "back" to know about —
+   * closing this empties the pane, and the list is still there. It is held here
+   * rather than in `ContactsView` because the two panes are siblings and
+   * neither can render into the other.
+   */
+  const [profile, setProfile] = useState<{ id: string; name: string } | null>(
+    null
+  );
 
   const me = app.me?.id ?? '';
   // Where this person is standing, on *this device*, across every snapshot
@@ -229,6 +249,9 @@ function Root() {
     setLeaderboardOpen(false);
     setSupportOpen(false);
     setContactsOpen(false);
+    // And whoever's profile was open in the detail pane, which the tap is
+    // asking to replace with a conversation.
+    setProfile(null);
     clearPendingChannel();
   }, [pendingChannelId, ready, token, watchChannel, clearPendingChannel]);
 
@@ -255,6 +278,7 @@ function Root() {
   useEffect(() => {
     if (token) return;
     setChannelId(null);
+    setProfile(null);
     setSettingsOpen(false);
     // Standings, for the reason the notification tap gives — and here the
     // omission was not invisible, merely rare: it is reachable only for an
@@ -325,6 +349,7 @@ function Root() {
    * window narrower.
    */
   const layout = useLayout();
+  const split = layout === 'split';
 
   /**
    * Below the server's floor, and therefore not an app any more.
@@ -361,6 +386,35 @@ function Root() {
    * answer here falls back to.
    */
   const detail = (): React.ReactNode => {
+    /*
+      Ahead of the channel rather than instead of it. Tapping a contact while a
+      conversation is open shows the profile over it and closing the profile
+      puts the conversation back — nothing was cleared, so there is nothing to
+      restore. Presence never noticed either way.
+    */
+    if (split && profile) {
+      return (
+        <ProfileView
+          accountId={profile.id}
+          // From `app.me` for your own, so a name changed on the profile
+          // itself is not stale the moment it is written. The same read
+          // `ContactsView` makes when it owns this screen.
+          fallbackName={
+            profile.id === app.me?.id ? app.me.displayName : profile.name
+          }
+          onBack={() => setProfile(null)}
+          onEnterChannel={(id) => {
+            setProfile(null);
+            setChannelId(id);
+          }}
+          // Removing a contact takes the row this was opened from with it, so
+          // there is nothing to go back to — and in a split the list beside it
+          // has already lost the row.
+          onRemoved={() => setProfile(null)}
+        />
+      );
+    }
+
     if (channelId) {
       return (
         <ChannelView
@@ -399,7 +453,12 @@ function Root() {
       return <SupportView onBack={() => setSupportOpen(false)} />;
     }
 
-    if (contactsOpen) {
+    /*
+      A screen only where there is one pane. In a split the contact list is the
+      pane on the left — see `list` below — and rendering it here as well would
+      put it on both sides of the window at once.
+    */
+    if (!split && contactsOpen) {
       return (
         <ContactsView
           onHome={() => setContactsOpen(false)}
@@ -420,12 +479,40 @@ function Root() {
   };
 
   /**
-   * Home, which in a split is the pane that never goes away.
+   * The pane that never goes away, and the one thing you choose to put in it.
    *
-   * The way back out of everything else, which is why nothing above closes it
-   * and why the screen beside it has no need of a Home button of its own.
+   * **Home or the contact list, and nothing else.** Both are lists of people
+   * you can reach — one by the conversations you have with them, one by name —
+   * so they are two indexes onto the same thing and belong in the same place.
+   * Everything else in this application is something you *opened*, and opened
+   * things go in the pane on the right.
+   *
+   * It is `contactsOpen` that switches it, the same flag that makes Contacts a
+   * screen below the breakpoint. One state, read two ways by the two layouts,
+   * rather than a second notion of where the contact list is — which is also
+   * what keeps the address honest without `webRoute.ts` changing: with a
+   * channel open `screenOf` already prefers it, so a contact list beside a
+   * conversation is still that conversation's address, and a contact list
+   * beside nothing is `/contacts`, which is exactly what is showing.
    */
-  const list = (
+  const list =
+    split && contactsOpen ? (
+      <ContactsView
+        // Back to Home in the same pane. Not an exit: nothing on the right is
+        // disturbed, and whatever conversation was open there stays open.
+        onHome={() => setContactsOpen(false)}
+        // Into the pane next door rather than over this list. See `profile`.
+        onOpenProfile={setProfile}
+        // A channel shared with somebody, opened from their card. The list
+        // stays exactly where it is — that it does not close is the whole
+        // point of this pane — where the phone has to close it to have
+        // anywhere to put the conversation.
+        onEnterChannel={(id) => {
+          setProfile(null);
+          setChannelId(id);
+        }}
+      />
+    ) : (
     <HomeView
       onEnterChannel={setChannelId}
       onOpenContacts={() => setContactsOpen(true)}
@@ -455,7 +542,7 @@ function Root() {
       }
       onReturnToChannel={setChannelId}
     />
-  );
+    );
 
   const showing = detail();
 

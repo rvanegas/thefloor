@@ -48,6 +48,7 @@ import { colors, measure, spacing, type } from './theme';
 export function ContactsView({
   onHome,
   onEnterChannel,
+  onOpenProfile,
 }: {
   onHome: () => void;
   /**
@@ -56,11 +57,32 @@ export function ContactsView({
    * cards either way and only the tap depends on it.
    */
   onEnterChannel?: (channelId: string) => void;
+  /**
+   * Hands a tapped contact upward instead of opening them here.
+   *
+   * **Given only when this screen is the list pane of a split**, where the
+   * profile belongs in the pane next door rather than in a 340pt column, and
+   * where this list stays on screen underneath it as the way back. Absent
+   * everywhere else — on a phone, and in any window too narrow to split — and
+   * then this screen owns its profile exactly as it always has.
+   *
+   * The two are deliberately not collapsed into one path. `App.tsx` argues
+   * that routing profiles through it would put it in the business of knowing
+   * which screen a profile was opened from, so it could decide where closing
+   * one goes back to. That argument is untouched here: it holds wherever the
+   * profile covers the screen it was opened from, which is the case this prop
+   * is *not* given for. In a split there is nothing to decide — the list never
+   * went away, and closing the profile empties the pane beside it.
+   */
+  onOpenProfile?: (contact: { id: string; name: string }) => void;
 }) {
   const app = useApp();
   const [profile, setProfile] = useState<{ id: string; name: string } | null>(
     null
   );
+  /** Upward when there is a pane to open it in, here when there is not. */
+  const openProfile =
+    onOpenProfile ?? ((contact: { id: string; name: string }) => setProfile(contact));
   const now = app.serverNow();
 
   const contacts = (app.home?.contacts ?? [])
@@ -142,7 +164,7 @@ export function ContactsView({
             accessibilityRole="button"
             accessibilityLabel={`${app.me.displayName}. You. Open your profile.`}
             onPress={() =>
-              app.me && setProfile({ id: app.me.id, name: app.me.displayName })
+              app.me && openProfile({ id: app.me.id, name: app.me.displayName })
             }
             style={({ pressed }) => pressed && styles.rowPressed}
           >
@@ -171,7 +193,7 @@ export function ContactsView({
               entry={entry}
               now={now}
               onPress={() =>
-                setProfile({
+                openProfile({
                   id: entry.account.id,
                   name: entry.account.displayName,
                 })
