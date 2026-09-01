@@ -431,8 +431,14 @@ function Root() {
       // What Home needs to show that a conversation is still going without you
       // looking at it. An open microphone behind a screen that gives no sign of
       // it is the one thing this change could plausibly make worse.
+      //
+      // **Not when that conversation is the pane next to this one.** The bar
+      // says you are somewhere else and offers to take you back, and both
+      // halves of that are false when the channel is on screen a hairline
+      // away. It returns the moment the other pane is showing anything else,
+      // which is when the sentence becomes true again.
       liveChannel={
-        live
+        live && !(layout === 'split' && channelId === live.id)
           ? {
               channelId: live.id,
               title: titleOf(live.name, here!.participants, me),

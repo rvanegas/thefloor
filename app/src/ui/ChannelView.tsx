@@ -57,6 +57,7 @@ import { pickAndUploadTrack } from '../api/upload';
 import { copyText, pasteText } from '../clipboard';
 import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
+import { usePane } from './layout';
 import { liveChannelView } from '../state/live';
 import { AudioDebugPanel } from './AudioDebugPanel';
 import { ChannelSettingsView } from './ChannelSettingsView';
@@ -144,6 +145,11 @@ export function ChannelView({
    */
   onEnterChannel?: (channelId: string) => void;
 }) {
+  /**
+   * Which side of a split this is on, or null on a phone. Read for one thing
+   * only: a Home button is worth nothing when Home is the pane next door.
+   */
+  const pane = usePane();
   const app = useApp();
   // This channel's snapshot, and nothing else's. Picked out by id rather than
   // taken from a single slot, so a snapshot arriving for another watched
@@ -790,8 +796,16 @@ export function ChannelView({
           {/*
             Back to Home without hanging up. The audio connection lives above
             this screen, so this is navigation and nothing else.
+
+            **Gone in the detail pane, where Home is the thing beside it.** A
+            button that navigates to a screen already on show is not an exit,
+            and the two exits this screen does have are unaffected: another
+            conversation is a tap on the list to the left, and leaving this one
+            is Step out, in the footer where it has always been.
           */}
-          <Button label="Home" variant="ghost" onPress={onHome} />
+          {pane === 'detail' ? null : (
+            <Button label="Home" variant="ghost" onPress={onHome} />
+          )}
           <Button
             label="Settings"
             variant="ghost"
