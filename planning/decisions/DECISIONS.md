@@ -1756,3 +1756,92 @@ that fits saying something to them. The card is for *come back*, and it is
 offered only to somebody out of reach who has not chosen to be.
 
 1,758 lines, so no rollover.
+
+## The web app says at its door what the guest page already did — 2026-08-31
+
+The guest page has warned about in-app browsers since 2026-08-22, and the
+reason is in `DECISIONS-2026-08-21-to-2026-08-23.md` § *A granted microphone is
+not a working one, inside somebody else's browser*: every in-app browser on iOS
+is a `WKWebView` whose audio session belongs to the host app, so `getUserMedia`
+resolves, the track is live, `publishTrack` succeeds, and what arrives at the
+far end is digital silence. No step fails. No fix is available to a page.
+
+`/app` and `/beta` shipped without any of that. They open the same microphone
+through the same `livekit-client` — `useSessionAudio.web.ts` was written from
+`guest.ts` and says so in its header — and inherited the failure without the
+warning. Nothing in `app/` or `core/` read `navigator.userAgent` at all.
+
+**The detector moved to `core/embedded.ts` rather than being copied.** It is
+now pure over a `BrowserFacts` argument, and `server/web/guest.ts` and
+`app/src/ui/embedded.web.ts` are two readers of one rule. The alternative was a
+second copy in `app/`, declined on the ordinary grounds: the named-host-app list
+is the part that changes, and two lists drift the first time one of them is
+extended.
+
+**The move is also what gave it a test, which is the larger half of the
+benefit.** `guest.ts` cannot be run by anything in this repository — the file
+says so in its own header — so a regex deciding whether somebody is warned
+about a microphone nobody can hear had never been executed except on
+strangers' phones. `core/__tests__/embedded.test.ts` is the first test it has
+had in the nine days it has been shipped, and it is written against real user
+agents rather than trimmed ones, because a shortened UA tests the regex against
+itself.
+
+Two of those cases are worth naming, since both are ways an exclusion rule goes
+wrong and neither is obvious from the code:
+
+- **A page added to the home screen is not embedded and looks exactly like
+  something that is.** It runs in its own `WKWebView` and carries no Safari
+  token, so `navigator.standalone` is the only thing separating it from
+  Telegram. That check was already in the original and now has something
+  asserting it.
+- **An iPad calls itself a Mac**, which is why `platform` and `maxTouchPoints`
+  are arguments rather than an afterthought. Safari on an iPad still carries
+  its token and is excluded by the ordinary rule; the same machine with no
+  token is inside something.
+
+**The known miss is asserted rather than left to be discovered.** An unnamed
+Android WebView announces nothing and is not on iOS, so it goes undetected.
+That is a limit and not a defect: on Android the host app does not own the
+audio session the way iOS's does, and the failure this warns about is an iOS
+failure. A test says so, so the next person to read the regex does not have to
+decide whether it is an oversight.
+
+**The notice is at the door and nowhere else**, which is the guest page's
+placement and the guest page's reasoning transposed. There the seat is in
+`sessionStorage` and switching browsers costs it; here the session is in
+`localStorage` and switching costs a code in the post, an in-app browser having
+its own storage jar. Both say the same thing: the cure is to open this
+somewhere else, and the moment to say so is before anything has been paid for.
+That storage jar is also why the door catches nearly every case — an embedded
+visitor arrives signed out.
+
+The alternative considered was an in-channel notice as well, for somebody who
+signed in inside the embedded browser on an earlier visit and would otherwise
+never meet the warning. Declined, and the reason is not effort: **the door
+notice is a guess and the channel deserves a measurement.** `guest.ts` watches
+its own published track with an `AnalyserNode` and raises a notice after eight
+seconds below the floor, precisely because a user-agent test is wrong in both
+directions. Putting the guess where the measurement belongs would have made the
+weaker instrument look like the stronger one. The web app has neither yet; that
+is in BACKLOG.md § *The browser's audio hook is a spike, and two of its gaps
+are named*, along with the missing gesture button for a refused autoplay.
+
+**The wording is the guest page's, with one clause dropped.** That page opens
+by offering to let somebody listen anyway, which is true of a guest being
+admitted to a room and false on a signed-out door. Everything after it stands
+unaltered — the microphone that produces silence, *Open in Safari* / *Open in
+browser*, and the copy-and-paste fallback. One failure with one cure should not
+have two descriptions, because two descriptions are two things to keep true.
+
+The copy button is not decoration. Naming the control is the half of the advice
+that is a guess — every host app puts it somewhere different and some bury it —
+so a link on the clipboard is what works when the menu cannot be found.
+
+**`embedded.ts` and `embedded.web.ts` are a pair on the `useRoute` pattern**, so
+`AuthView` carries no `Platform.OS` test and `window` stays out of a file that
+must still typecheck for native. `currentLink()` is in the pair for that reason
+alone: it is the one thing the notice needs that only a browser has.
+
+The guest page's markup, copy and placement are untouched, and the wire did not
+move.

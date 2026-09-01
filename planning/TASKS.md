@@ -4,6 +4,14 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+## Live Channel in Profile View
+
+If a channel in displayed in a profile view is live on the device, show it in same style as live channel on home view.
+
+## Ping Depends on Being Contact
+
+Authorization to ping someone requires being a contact. So, if A, B, and C are in a channel together but A and C are not mutual contacts, then A cannot ping C, and should not see the option to do so.
+
 ## UI Restyling
 
 Improve look and feel
@@ -11,6 +19,93 @@ Improve look and feel
 ## Grow UI for iPad
 
 Target iPad specifically.
+
+## Keep Alive During Watch Party
+
+Since there's no speaking, there must be another way.
+
+## App Description
+
+Consider UNINTERRUPTED.md to rewrite description of app. The idea is to reinvent voip, letting go, finally, of the logic of pre-internet telephony, adopting the logic of group text messaging, such as in telegram and whatsapp, and respecting preferences of today's younger generation for whom phone calls are rude, but discord rooms are okay.
+
+## PIP Watch Party
+
+Small video in the corner.
+
+## Review S3
+
+What's there? How many files? What kind? What is the lifecycle?
+
+## Lock Screen
+
+explore options in case screen locks during a call. lock screen, control center, etc.
+
+## SMS Authentication
+
+Not just email.
+
+## App as Watch Party Player
+
+If watch party is started and a there is a second session with the same account, let the second app become the player.
+
+## API to Create Telegram or Whatsapp Group Chat
+
+Is it possible?
+
+## Add Voice Messages
+
+These are recordings, sharing the infrastructure with the existing recordings, but with a distinct interface.
+
+- Recording is the same. In the room, everyone and media is heard and recorded. 
+- Constrained to 60s.
+
+## Publishable Recordings
+
+A channel may declare itself public. If public, then it has a page at thefloor.rvanegas.co where anyone can listen to selected recordings. Settings would include image. Name and description would show on the page. Contacts remain private, though they may be explicitly described in the description.
+
+PODCAST.md designs an RSS feed as the machine-readable half of the same publication — an addition to this entry rather than a reading of it, and it carries what publishing costs: the Ogg/Opus mix no podcast client plays, the consent a guest cannot give, and the fact that unpublishing recalls nothing.
+
+## Calendar Integrations
+
+Explore scheduling and usage patterns
+
+## Introduce Radiate
+
+A channel owner can gen a link defining the channel as root. Define a user's radiate number relative to a channel as 0 if user is in channel, and 1 + n the minimum radiate number of one's recently connected contacts is n. Recency is defined as having exchanged words in a channel. Having exchanhed words is defined as taking immediate turns in both directions in a channel.
+
+Number is updated lazily when exchange occurs. In User View display radiate number.
+
+## Build for Android
+
+First evaluate relevant differences and establish dev simulator on mac.
+
+## Payments Upgrade
+
+Voluntary donations shipped on 2026-08-14 — a Ko-fi link, external, unlocking
+nothing. See decisions/DECISIONS.md for why it is not in-app purchase. What is
+left:
+
+- **`bin/import-donations`**, reconciling a Ko-fi CSV export into the
+  `donations` table. Ko-fi has no read API, so a delivery missed while the
+  server was down exists only in their dashboard; their dashboard is the
+  authoritative record and ours is a convenience copy. Deferred until there is
+  a real export to write the parser against, and it is also the answer for a
+  donation paid from an address nobody signed in with.
+- **In-app purchase, or Stripe**, if the Ko-fi arrangement stops being worth
+  it. IAP is the only option that works outside the United States storefront;
+  Stripe is the only one that can attribute a donation exactly, via
+  `client_reference_id`. Both are a larger build than what shipped.
+
+## A Leaderboard Of One's Contacts
+
+The standings ship gated on an `accounts.leaderboard` column set by hand, and
+the gate is not a feature — it is the only answer anybody had to the objection
+that a board of the whole population is the directory `/privacy` promises does
+not exist here. Show a reader only their own accepted contacts and every name
+on the screen is one they were already entitled to, so the column has nothing
+left to protect and the screen can be open to everybody. That is the change:
+the filtering is the mechanism, and removing the gate is the point. Plan is
+here: LEADERBOARD.md
 
 ## The Foreground Interruption
 
@@ -110,10 +205,6 @@ carries `drops`, `dropsRecovered` and `dropsExpired`, printed by `bin/health`.
 `DISCONNECT_GRACE_MS` was deliberately left at a minute — read those counts off
 a box that has been up a while before proposing a change to it, and read the
 constant's own comment for what it is load-bearing for beyond a dot on a roster.
-
-## Keep Alive During Watch Party
-
-Since there's no speaking, there must be another way.
 
 ## Two Devices In One Channel
 
@@ -236,85 +327,3 @@ Pairs with § *Review S3*, which is what would say what the stems actually cost.
 their own credential and never through this process, so the largest category of
 bytes is missing from every number it reports.
 
-## App Description
-
-Consider UNINTERRUPTED.md to rewrite description of app. The idea is to reinvent voip, letting go, finally, of the logic of pre-internet telephony, adopting the logic of group text messaging, such as in telegram and whatsapp, and respecting preferences of today's younger generation for whom phone calls are rude, but discord rooms are okay.
-
-## PIP Watch Party
-
-Small video in the corner.
-
-## Review S3
-
-What's there? How many files? What kind? What is the lifecycle?
-
-## Lock Screen
-
-explore options in case screen locks during a call. lock screen, control center, etc.
-
-## SMS Authentication
-
-Not just email.
-
-## App as Watch Party Player
-
-If watch party is started and a there is a second session with the same account, let the second app become the player.
-
-## API to Create Telegram or Whatsapp Group Chat
-
-Is it possible?
-
-## Add Voice Messages
-
-These are recordings, sharing the infrastructure with the existing recordings, but with a distinct interface.
-
-- Recording is the same. In the room, everyone and media is heard and recorded. 
-- Constrained to 60s.
-
-## Publishable Recordings
-
-A channel may declare itself public. If public, then it has a page at thefloor.rvanegas.co where anyone can listen to selected recordings. Settings would include image. Name and description would show on the page. Contacts remain private, though they may be explicitly described in the description.
-
-PODCAST.md designs an RSS feed as the machine-readable half of the same publication — an addition to this entry rather than a reading of it, and it carries what publishing costs: the Ogg/Opus mix no podcast client plays, the consent a guest cannot give, and the fact that unpublishing recalls nothing.
-
-## Calendar Integrations
-
-Explore scheduling and usage patterns
-
-## Introduce Radiate
-
-A channel owner can gen a link defining the channel as root. Define a user's radiate number relative to a channel as 0 if user is in channel, and 1 + n the minimum radiate number of one's recently connected contacts is n. Recency is defined as having exchanged words in a channel. Having exchanhed words is defined as taking immediate turns in both directions in a channel.
-
-Number is updated lazily when exchange occurs. In User View display radiate number.
-
-## Build for Android
-
-First evaluate relevant differences and establish dev simulator on mac.
-
-## Payments Upgrade
-
-Voluntary donations shipped on 2026-08-14 — a Ko-fi link, external, unlocking
-nothing. See decisions/DECISIONS.md for why it is not in-app purchase. What is
-left:
-
-- **`bin/import-donations`**, reconciling a Ko-fi CSV export into the
-  `donations` table. Ko-fi has no read API, so a delivery missed while the
-  server was down exists only in their dashboard; their dashboard is the
-  authoritative record and ours is a convenience copy. Deferred until there is
-  a real export to write the parser against, and it is also the answer for a
-  donation paid from an address nobody signed in with.
-- **In-app purchase, or Stripe**, if the Ko-fi arrangement stops being worth
-  it. IAP is the only option that works outside the United States storefront;
-  Stripe is the only one that can attribute a donation exactly, via
-  `client_reference_id`. Both are a larger build than what shipped.
-
-## A Leaderboard Of One's Contacts
-
-The standings ship gated on an `accounts.leaderboard` column set by hand, and
-the gate is not a feature — it is the only answer anybody had to the objection
-that a board of the whole population is the directory `/privacy` promises does
-not exist here. Show a reader only their own accepted contacts and every name
-on the screen is one they were already entitled to, so the column has nothing
-left to protect and the screen can be open to everybody. That is the change:
-the filtering is the mechanism, and removing the gate is the point. Plan is
-here: LEADERBOARD.md
