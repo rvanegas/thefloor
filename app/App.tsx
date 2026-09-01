@@ -224,7 +224,17 @@ function Root() {
     // Every screen stacked over Home closes: a tap on a notification means go
     // to that conversation, and coming back to a settings screen you had left
     // open would be a surprise.
+    //
+    // **Standings was missed here until 2026-08-31**, and the omission was
+    // invisible from the front: a channel outranks every one of these in the
+    // switch below, so the tap always did land on the conversation. What it
+    // left behind was the way out — Home from that channel screen went to
+    // Standings, a screen nobody had opened since before the notification
+    // arrived. The list is written out rather than collapsed into one
+    // `NOWHERE` apply because `applyNav` is the web route's and takes a whole
+    // `Nav`; that is a seam worth closing, and closing it is not this change.
     setSettingsOpen(false);
+    setLeaderboardOpen(false);
     setSupportOpen(false);
     setContactsOpen(false);
     clearPendingChannel();
@@ -254,6 +264,11 @@ function Root() {
     if (token) return;
     setChannelId(null);
     setSettingsOpen(false);
+    // Standings, for the reason the notification tap gives — and here the
+    // omission was not invisible, merely rare: it is reachable only for an
+    // account the server has granted the column, so signing out of one and
+    // into an account without it left the screen up with nothing to grant it.
+    setLeaderboardOpen(false);
     setSupportOpen(false);
     setContactsOpen(false);
   }, [token]);

@@ -1,7 +1,12 @@
 import * as Notifications from 'expo-notifications';
 
 import { api } from '../api/http';
-import { registerIfGranted, sweepArrivals, sweepChannel } from '../push';
+import {
+  onNotificationTap,
+  registerIfGranted,
+  sweepArrivals,
+  sweepChannel,
+} from '../push';
 
 jest.mock('../api/http', () => ({
   api: { registerDevice: jest.fn(async () => ({})) },
@@ -241,5 +246,135 @@ describe('registering for push without asking', () => {
     registerDevice.mockRejectedValueOnce(new Error('offline'));
 
     await expect(registerIfGranted('auth')).resolves.toBeNull();
+  });
+});
+
+/**
+ * Where a tap lands, which is the half of this module the rest of the app is
+ * actually for.
+ *
+ * **Two sources, and the second is the one that keeps being forgotten.** A
+ * listener catches a tap while the app is running; `getLastNotificationResponseAsync`
+ * catches the tap that *launched* it, which no listener can have been present
+ * for. Both are covered here, because a regression in the second is invisible
+ * in every ordinary exercise of the first — and the launch case is the one the
+ * feature exists for, a notification being read most often by somebody whose
+ * app is closed.
+ */
+describe('a tap on a notification', () => {
+  const lastResponse =
+    Notifications.getLastNotificationResponseAsync as jest.Mock;
+  const listen =
+    Notifications.addNotificationResponseReceivedListener as jest.Mock;
+
+  const response = (data: unknown) =>
+    ({
+      notification: { request: { content: { data } } },
+    }) as Notifications.NotificationResponse;
+
+  /** The listener the module registered, to deliver a tap through by hand. */
+  const deliver = (data: unknown) => listen.mock.calls[0][0](response(data));
+
+  /**
+   * Lets the launch read's `.then` run. Nothing in the module awaits it —
+   * deliberately, since a launch must not wait on the notification centre —
+   * so a test that does not yield sees the state before it resolved.
+   */
+  const settle = () =>
+    new Promise<void>((resolve) => setImmediate(() => resolve()));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    lastResponse.mockResolvedValue(null);
+    listen.mockReturnValue({ remove: jest.fn() });
+  });
+
+  it('routes a tap that arrived while the app was running', async () => {
+    const handle = jest.fn();
+    onNotificationTap(handle);
+    await settle();
+
+    deliver({ channelId: 'chan_1', kind: 'pinged' });
+
+    expect(handle).toHaveBeenCalledWith('chan_1');
+  });
+
+  /**
+   * The cold launch, and the reason the module reads a second source at all.
+   * Without it the feature works when backgrounded and silently does nothing
+   * when closed.
+   */
+  it('routes the tap that launched the app, which no listener saw', async () => {
+    lastResponse.mockResolvedValue(response({ channelId: 'chan_2' }));
+    const handle = jest.fn();
+
+    onNotificationTap(handle);
+    await settle();
+
+    expect(handle).toHaveBeenCalledWith('chan_2');
+  });
+
+  /** An icon launch. Nothing was tapped, so there is nowhere to be taken. */
+  it('goes nowhere when nothing launched the app', async () => {
+    const handle = jest.fn();
+    onNotificationTap(handle);
+    await settle();
+
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A payload from a build of the server this one predates, or one whose field
+   * is not a string. The only safe reading of a missing channel is to stay
+   * put: navigating to `undefined` is a channel screen for no channel.
+   */
+  it('goes nowhere on a payload carrying no channel', async () => {
+    const handle = jest.fn();
+    onNotificationTap(handle);
+    await settle();
+
+    deliver({ kind: 'arrived' });
+    deliver({ channelId: 7 });
+    deliver(undefined);
+
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The launch read is a promise and the unsubscribe can land first — a
+   * remount inside React's strict double-invoke is exactly that ordering.
+   * Delivering into a handler whose owner has gone is a navigation nobody
+   * asked for.
+   */
+  it('does not route a launch read that resolves after unsubscribing', async () => {
+    lastResponse.mockResolvedValue(response({ channelId: 'chan_3' }));
+    const handle = jest.fn();
+
+    onNotificationTap(handle)();
+    await settle();
+
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Reading a payload this app did not write, at the one moment where an
+   * unhandled rejection is a launch failure rather than a missed notification.
+   */
+  it('survives a launch read that rejects', async () => {
+    lastResponse.mockRejectedValue(new Error('no notification centre'));
+    const handle = jest.fn();
+
+    expect(() => onNotificationTap(handle)).not.toThrow();
+    await settle();
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it('stops listening when the app lets go', () => {
+    const remove = jest.fn();
+    listen.mockReturnValue({ remove });
+
+    onNotificationTap(jest.fn())();
+
+    expect(remove).toHaveBeenCalled();
   });
 });

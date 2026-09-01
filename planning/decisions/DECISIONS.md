@@ -1522,3 +1522,63 @@ with nowhere to send anybody is a card rather than a button that refuses — the
 rule the ping section follows, applied to the tap rather than to the section.
 
 1,524 lines, so no rollover.
+
+## The notification tap was right, and left Standings behind it — 2026-08-31
+
+A session was sent to make tapping a notification land in the channel, and
+found — for the second time, after § *"Notification UI" was already shipped* in
+`DECISIONS-2026-08-24-to-2026-08-27.md` — that it already did. Written down
+again because the search was repeated in full, and because this time it turned
+up something.
+
+**The path is whole and was re-walked end to end.** Every one of the three
+kinds carries `channelId` in the payload — `invited`, `arrived`, `pinged`, all
+of them built in `server/src/push.ts` — and the app reads it through
+`channelOf` → `pendingChannelId` → the effect in `App.tsx`, which watches the
+channel and shows it. Cold launch works because `getLastNotificationResponseAsync`
+is read alongside the listener, and the navigation is deferred until
+`ready && token` because the launch tap is read while the stored token is still
+coming out of storage.
+
+**What was actually wrong was the way back out.** The effect closed Settings,
+Support and Contacts and did not close Standings. That is invisible from the
+front — a channel outranks every other screen in `Root`'s switch, so the tap
+did land where it should — and it only shows when somebody presses Home from
+the channel and arrives at a leaderboard they last opened before the
+notification came in. The sign-out effect had the same omission, where it is
+rarer and worse in kind: Standings is reachable only for an account the server
+granted the column, so signing out of one and into an account without it left
+the screen up with nothing to grant it. Both fixed; both were one line.
+
+**The real finding is that none of it was tested.** `push.test.ts` covered the
+handler, the sweeps and registration, and stopped at the edge of the one
+function the feature is for; `session.test.tsx` held `pendingChannelId: null`
+in its mock and never moved it. So the second-most-load-bearing path in the
+application — the one a closed app takes — was resting on two readings of the
+source, a year apart, by people who each concluded it was fine and had nothing
+to leave behind but a paragraph saying so.
+
+Seven tests now cover `onNotificationTap`: both sources, an icon launch, a
+payload with no channel or a non-string one, the unsubscribe racing the launch
+read, a rejecting read, and the listener being removed. Three more cover
+`Root`: that the tap shows the channel and watches it on the way in, that it
+waits for the session rather than acting on an id that arrived before the
+token, and that Home from the channel lands on Home. The last of those fails
+against the code as it stood, which is what makes it worth having.
+
+**The `Nav` seam is left open deliberately.** The clearing is four `setState`
+calls written out rather than one apply of `NOWHERE`, because `applyNav` is the
+web route's and takes a whole `Nav`; unifying them is a real simplification and
+a different change, and doing it inside a fix for a missed line is how the fix
+stops being reviewable.
+
+**Not touched: a tap still lands you watching rather than present.** The
+notification announces that somebody is there, and stepping in is a thing you
+do — `STATES.md` § *Watching* has said so since 2026-08-22, and the same
+reading is what the Home setting *Tap a channel to step in* is about. If that
+is what "directly into the channel" is eventually meant to say, it is a
+decision about entering and not about routing, and the machinery is already
+there: `wantsEntry` and the `enter` intent in `applyNav` are exactly this, one
+caller in.
+
+1,584 lines, so no rollover.

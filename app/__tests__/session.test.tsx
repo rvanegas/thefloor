@@ -59,9 +59,12 @@ const mockApp = {
   dismissInvite: jest.fn(),
   appearance: 'system' as const,
   setAppearance: jest.fn(),
-  pendingChannelId: null,
+  pendingChannelId: null as string | null,
   clearPendingChannel: jest.fn(),
   movedChannel: null,
+  /** Granted by hand on the account, and the only way Standings is reachable. */
+  leaderboard: false,
+  loadLeaderboard: jest.fn(async () => []),
 };
 
 jest.mock('../src/state/AppProvider', () => ({
@@ -88,6 +91,7 @@ jest.mock('../src/audio/useSessionAudio', () => ({
   ),
 }));
 
+import { createChannel } from '../../core/channel';
 import App from '../App';
 
 function textOf(tree: ReactTestRenderer): string {
@@ -166,6 +170,154 @@ describe('a session ending', () => {
   });
 });
 
+
+/**
+ * Where a notification tap lands, which is a question about `Root` and about
+ * nothing else: `push.ts` turns a payload into a channel id and `AppProvider`
+ * holds it, but the navigation itself — watch the channel, show it, close what
+ * was stacked over Home — is here, and until now nothing exercised it.
+ *
+ * The deferral is the half worth pinning hardest. A tap that *launched* the
+ * app is read while the stored token is still coming out of storage, so the id
+ * arrives before there is anywhere to put it, and the effect that clears every
+ * screen while there is no token cannot tell that moment from a sign-out.
+ */
+describe('a tap on a notification', () => {
+  const TAPPED = 'chan_tapped';
+
+  /**
+   * Built through `createChannel` rather than written out, so the shape stays
+   * whatever the model currently says it is. A hand-rolled literal here went
+   * stale against `watch` within the week and failed inside `core` rather than
+   * saying what it was missing.
+   */
+  function snapshotOf(id: string) {
+    const channel = {
+      ...createChannel({
+        id,
+        initiator: 'acct_me',
+        invitees: ['acct_them'],
+        now: NOW,
+        // Somebody else in the room and not us, which is what an `arrived`
+        // notification announces and the state a tap on one lands in:
+        // watching, not present. See STATES.md § Watching.
+        present: ['acct_them'],
+      }),
+      // Named, so the assertions can point at one word that belongs to this
+      // screen and to no other. An unnamed channel is titled from its roster,
+      // which Home draws too.
+      name: 'Kitchen',
+    };
+    return {
+      channel,
+      participants: [
+        { id: 'acct_me', displayName: 'Me' },
+        { id: 'acct_them', displayName: 'Dana Chu' },
+      ],
+      recordings: [],
+      serverNow: NOW,
+    };
+  }
+
+  beforeEach(() => {
+    mockApp.ready = true;
+    mockApp.token = 'token';
+    mockApp.pendingChannelId = null;
+    mockApp.channelViews = { [TAPPED]: snapshotOf(TAPPED) };
+    // Watching is not being there. A tap has always landed outside the room,
+    // on the channel screen, which is what `standingIn` being null says here.
+    mockApp.standingIn = null;
+    mockApp.leaderboard = false;
+    (mockApp.watchChannel as jest.Mock).mockClear();
+    (mockApp.clearPendingChannel as jest.Mock).mockClear();
+  });
+
+  it('shows the channel, and watches it on the way in', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    expect(textOf(tree)).toContain('Start a channel');
+
+    act(() => {
+      mockApp.pendingChannelId = TAPPED;
+      tree.update(<App />);
+    });
+
+    expect(textOf(tree)).toContain('Kitchen');
+    expect(textOf(tree)).not.toContain('Start a channel');
+    // Arriving this way skips every path that would otherwise have subscribed
+    // to the channel, so the screen would sit on a snapshot nobody refreshed.
+    expect(mockApp.watchChannel).toHaveBeenCalledWith(TAPPED);
+    // Consumed, or the next render would navigate here all over again — and a
+    // second tap on the same channel would then be a no-op.
+    expect(mockApp.clearPendingChannel).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The cold launch, which is the case the feature exists for. The id is read
+   * before the token is, and acting on it then drops somebody behind the
+   * sign-in form — or into a channel screen that is immediately wiped.
+   */
+  it('waits for the session before going anywhere', () => {
+    mockApp.token = null;
+    mockApp.pendingChannelId = TAPPED;
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    expect(mockApp.watchChannel).not.toHaveBeenCalled();
+    // Held rather than dropped: this is the tap that started the app, and
+    // forgetting it would mean nothing happened at all.
+    expect(mockApp.clearPendingChannel).not.toHaveBeenCalled();
+
+    act(() => {
+      mockApp.token = 'token';
+      tree.update(<App />);
+    });
+
+    expect(textOf(tree)).toContain('Kitchen');
+    expect(mockApp.watchChannel).toHaveBeenCalledWith(TAPPED);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * What is *behind* the channel, which is invisible until somebody presses
+   * Home — a channel outranks every other screen in `Root`, so a stacked
+   * screen left open costs nothing until the way out lands on it.
+   *
+   * Standings was the one missed, and it is the one this asserts on for that
+   * reason.
+   */
+  it('closes the screen it was stacked over, so Home is the way out', () => {
+    mockApp.leaderboard = true;
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    pressButton(tree, 'Leaderboard');
+    expect(textOf(tree)).toContain('Invitations');
+
+    act(() => {
+      mockApp.pendingChannelId = TAPPED;
+      tree.update(<App />);
+    });
+    expect(textOf(tree)).toContain('Kitchen');
+
+    // Off the channel screen without leaving the channel. This is where a
+    // screen nobody had opened since before the notification would surface.
+    pressButton(tree, 'Home');
+
+    expect(textOf(tree)).toContain('Start a channel');
+    expect(textOf(tree)).not.toContain('Invitations');
+    act(() => tree.unmount());
+  });
+});
 
 /**
  * The microphone has to open on the tap, not on the server's answer.
