@@ -32,15 +32,12 @@ convention is extended to cover them.
 
 `DECISIONS` is **more than one file**. `planning/decisions/DECISIONS.md` is
 always the live volume and the only one new decisions are appended to; closed
-volumes are `planning/decisions/DECISIONS-<first date>-to-<last date>.md`. The
-first, `planning/decisions/DECISIONS-2026-08-07-to-2026-08-13.md`, runs from
-the beginning to the day the media server came off LiveKit Cloud; the second
-ends at the first App Review submission, which is the seam between a project
-with no installed population and one with. **The later ones are cut where the
-line count fell, not at a seam**, and say so. The live volume's header carries
-the index and the rule for closing it. **Grep across the set** —
-`planning/decisions/DECISIONS*.md` — rather than the live one alone, or you
-will search only the last few days of the project's reasoning.
+volumes are `planning/decisions/DECISIONS-<first date>-to-<last date>.md`, cut
+at a seam that meant something for the first two and **where the line count
+fell** for the ones after, each saying which in its own header. The live
+volume's header carries the index and the rule for closing it. **Grep across
+the set** — `planning/decisions/DECISIONS*.md` — rather than the live one
+alone, or you will search only the last few days of the project's reasoning.
 
 **`planning/RELEASING.md`** answers a fourth, and is different in kind from the
 rest: it is not deferred work or history but standing guidance that was in this
@@ -50,7 +47,7 @@ file until 2026-08-15. Everything only somebody producing an iOS build needs —
 Read it before `bin/upload-ios`.
 
 **`planning/CREDENTIALS.md`** is the second of that kind, split out the same
-day: the seven credentials, where each lives, what it can do and what losing it
+day: the eight credentials, where each lives, what it can do and what losing it
 costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 
@@ -96,6 +93,16 @@ session is configured from whether **anybody** present is capturing rather than
 whether you are, and the reason the resulting mono/stereo transition is a
 feature rather than a blemish.
 
+**`planning/GLOSSARY.md`** is the fourth, and is **the source of truth for the
+vocabulary**: what every word this project uses means, in two parts — words a
+user meets, and words that exist only in the code. Where a name in the code and
+an entry there disagree, one of them is a bug. Most of these nouns are ordinary
+English used narrowly — *present*, *live*, *member*, *seat* — and reading one
+the way English suggests is how somebody builds the adjacent thing, twice so
+far. **Maintain it as the code evolves**: rename there in the same commit as
+the rename in the code, and add an entry when a word starts to mean something
+the dictionary does not. A lagging source of truth authorises the wrong word.
+
 Two are one-offs that stay. **`planning/POSTMORTEM-echo.md`** is the build 17
 echo bug, start to finish. Read it before touching the iOS audio session —
 three separate components configure it and the ways they disagree are not
@@ -122,17 +129,12 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 649 now, having been 728,
-then 650, then 600 — all on 2026-08-15, which is also the day this number was
-found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
-the same commit as any change to this file**, or the rule governs against a
-figure nobody has checked: it was claiming 104 lines of headroom when there
-were 50. The two splits it records are the iOS release material to
-`planning/RELEASING.md` and the credentials to `planning/CREDENTIALS.md`. The
-headroom used to be about one deploy wide, back when each new deploy displaced
-the last one written up here. Nothing displaces anything now, so the file has
-no reason to climb at all: material arrives only when a rule is added, and one
-should usually leave with it.
+**Keep it under 650 lines, and nearer 600.** It is 649 now. **Correct that
+figure in the same commit as any change to this file**, or the rule governs
+against a number nobody has checked — it was once 54 lines stale, claiming 104
+lines of headroom when there were 50. Nothing displaces anything here any more,
+so the file has no reason to climb at all: material arrives only when a rule is
+added, and one should usually leave with it.
 
 When it passes 650, **do not shave the traps.** Almost all of the excess will be
 one of these:
@@ -557,12 +559,11 @@ Two more things that fail quietly and are worth checking before anything else:
 
 ### Known rough edges
 
-- **A deploy costs presence, not channels.** This said a deploy destroyed
-  every channel, which stopped being true on 2026-08-10 when `9761d72` made
-  them survive a restart — and the line stayed, so it was still being believed
-  and acted on a day later. `restore()` revives every unended channel from its
-  state blob. What a restart does drop is `present`, `disconnectedAt`, the
-  floor and any recording in flight: the process, not the place.
+- **A deploy costs presence, not channels.** `restore()` revives every unended
+  channel from its state blob; what a restart drops is `present`,
+  `disconnectedAt`, the floor and any recording in flight — the process, not
+  the place. This file claimed the opposite for a day after `9761d72` made it
+  false, and was believed.
 - **The 380-day-uptime box is not this one.** dianoia runs on a separate
   instance and was deliberately left alone — it owns ports 80 and 443 there
   with its own nginx and certbot.
@@ -579,13 +580,12 @@ Two more things that fail quietly and are worth checking before anything else:
   argues and `bin/provision-livekit` exists to make cheap. It is worth listening
   for rather than waiting to be told about.
 
-  **Half-observed on 2026-08-19**, and the half that was observed is the less
-  interesting one. Somebody was present in a channel through a restart and saw
+  **Half-observed on 2026-08-19.** Somebody present through a restart saw
   nothing: the socket dropped, the client re-entered from the set of channels
-  `socket.ts` keeps for exactly that, and the screen never changed. So presence
+  `socket.ts` keeps for exactly that, and the screen never changed — presence
   recovery works outside its tests. But **nobody was talking**, so what a
-  restart does to audio in flight is still unheard — and the case worth hearing
-  is not silence but a claimed floor, since a restart drops the floor while the
+  restart does to audio in flight is still unheard, and the case worth hearing
+  is a claimed floor rather than silence: a restart drops the floor while the
   mutes it implied are stated in LiveKit and get restated a tick later by
   `reconcileSilence`. That gap is where an artefact would live.
 
