@@ -122,7 +122,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 648 now, having been 728,
+**Keep it under 650 lines, and nearer 600.** It is 649 now, having been 728,
 then 650, then 600 — all on 2026-08-15, which is also the day this number was
 found to be 54 lines stale, reporting 546 against a real 600. **Correct it in
 the same commit as any change to this file**, or the rule governs against a
@@ -348,9 +348,10 @@ are the rules.
   which build, `git diff released..master` is the drift users cannot see, and
   `bin/submit-ios --status` is the second opinion, since what is downloadable
   is a state Apple holds rather than a ref. It is a **lightweight ref pointing
-  at the `build/<n>` tag object**, not at a commit — move it with `git
-  update-ref`, since `git tag -f` peels it to the commit and silently changes
-  the convention.
+  at the `build/<n>` tag object**, not at a commit — `git tag -f released
+  build/<n>` moves it and leaves it pointing at that tag object. This demanded
+  `git update-ref`, on the grounds that `git tag -f` peels to the commit; it
+  does not, and both leave a ref of type `tag`.
 - **`MIN_SUPPORTED_BUILD` in `server/src/release.ts` is the compatibility
   floor**: a shim may be deleted only once the floor has passed the build that
   needed it. The server enforces nothing, but **the client does, since
