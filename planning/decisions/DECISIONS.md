@@ -78,6 +78,26 @@ plane's vocabulary; in the interface it does not exist.
 ---
 ## The deploy history
 
+### 2026-09-02 — `2844534` → `2d9e00f`
+
+App-only again, and this one is worth saying so about twice over: everything
+in it is `app/`, `planning/`, or a test, so the box gained no behaviour and the
+deploy exists to put the sha in `deployed.json` and to carry the guest page
+rebuild that `bin/deploy` does anyway. What shipped in the app half was the
+start-a-channel row moving to the top of the channel list, *Close* and
+*Settings* becoming glyphs across seven screens, and the channel and contact
+screens gaining a word above the name saying which kind of screen they are.
+
+**The one thing in it that was a live defect is invisible from here.** The web
+shim for `@livekit/react-native` had never exported `AndroidAudioTypePresets`,
+which `session.ts` reads at module scope — so every web bundle cut from master
+since the Android audio work landed died at load with `Cannot read properties
+of undefined (reading 'media')` and served a white page. This deploy does not
+fix that for anybody: the web trains are built from tags by `bin/deploy-web`,
+not from the server tree, so `/beta` stays broken until it is cut again from a
+ref that has this commit. `/app` was never affected, `released` predating the
+break.
+
 ### 2026-08-29 — `41be02f` → `2844534`
 
 Two commits, both app-only: the Email card moved up beside Ping on a profile,
