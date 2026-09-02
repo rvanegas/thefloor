@@ -254,13 +254,19 @@ Named so nobody meets them for the first time under a deadline. All deferred.
   it: while the two numbers stay equal, `MIN_SUPPORTED_BUILD` keeps meaning one
   thing, and AGENTS.md's floor rule needs no second column.
 
-  **The two numbers will drift, and nothing prevents it.** `bin/upload-ios`
-  bumps `buildNumber` and knows nothing about `versionCode`, so the next iOS
-  upload separates them. Either that script learns to move both, or the floor
-  grows a platform dimension — and the choice should be made deliberately
-  rather than discovered when an Android install expires for a second time.
-  Until Android ships to anybody, the drift costs a manual edit before an
-  Android build and nothing else.
+  **`bin/upload-ios` now moves both**, decided the same day. It takes the next
+  number from the *larger* of the two rather than from iOS, so a pair that has
+  already drifted is healed rather than carried forward, and it says so on
+  stderr when it finds one — drift is repairable but is evidence that something
+  bumped one alone, which is worth knowing. The commit it makes is *Bump build
+  number to N* rather than *Bump iOS build number to N*, because it is no
+  longer only that.
+
+  Two things this does not do. It does not regenerate `android/`, so a bumped
+  `app.json` reaches an Android build only through `bin/android --prebuild` —
+  the same trap as any other `app.json` edit. And it is still the *only*
+  bumper: an Android-only release path, when there is one, has to move both
+  numbers too or the drift comes back from the other side.
 - **`UpdateRequiredView.tsx` says "Open the App Store"**, and the expiry screen
   is the one piece of UI every expired install sees.
 - **The Ko-fi gate implements an Apple rule.** `server/src/region.ts` hides the

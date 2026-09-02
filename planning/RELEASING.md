@@ -175,11 +175,20 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   **There is an `android/` since 2026-09-01, and `bin/upload-ios` is still the
   only release path.** Those were one clause until Android built; they are two
   facts now, and only the second one is about releasing. `bin/android` builds
-  and installs to an emulator and reaches nobody — there is no signing key, no
-  Play listing and no `eas.json`. See planning/ANDROID.md, which also carries
-  the `versionCode`/`buildNumber` drift this creates: **`bin/upload-ios` bumps
-  the iOS build number and knows nothing about `android.versionCode`**, and the
-  two are equal today only because they were set equal by hand.
+  and installs to an emulator, or produces an APK to sideload, and reaches
+  nobody through a store — there is no upload key, no Play listing and no
+  `eas.json`. See planning/ANDROID.md.
+
+- **The build number is one stream across both platforms**, adopted
+  2026-09-01. `bin/upload-ios` bumps `ios.buildNumber` and
+  `android.versionCode` together, taking the next value from the larger of the
+  two so a drifted pair heals. The reason is not tidiness: the client sends
+  whichever of the two its platform has as `x-thefloor-build`, and the server
+  tests it against a single `MIN_SUPPORTED_BUILD` with no platform dimension —
+  so two independently numbered streams would make one integer mean two
+  different builds, and raising the floor for one platform would expire
+  installs on the other. **Anything that bumps one alone breaks this**,
+  including a future Android release path.
 
 - **The splash is still the Expo default.**
 

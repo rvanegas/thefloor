@@ -84,23 +84,53 @@ fi
 
 # Every upload needs a build number Apple has not seen before, even when the
 # version is unchanged. Bumping it here means one fewer thing to forget.
+#
+# **`android.versionCode` moves with it, and the two are one stream.** Adopted
+# 2026-09-01, when Android first built. The client sends
+# `Application.nativeBuildVersion` as `x-thefloor-build` — `CFBundleVersion` on
+# iOS, `versionCode` on Android — and the server tests it against a single
+# `MIN_SUPPORTED_BUILD`. That floor has no platform dimension, so two streams
+# numbered independently would collide in it: the same integer would mean two
+# different builds, and raising the floor for one platform would expire
+# installs on the other. Keeping the numbers equal is the cheap answer to that,
+# and it holds only for as long as nothing bumps one alone — which is why this
+# is here rather than in a note.
+#
+# The next value comes from the **larger** of the two rather than from iOS, so
+# that a pair which has already drifted is healed rather than carried forward.
+# Drift is the expected failure: this script is the only bumper, but an Android
+# build made by hand needs a number too, and whoever makes one will reach for
+# app.json rather than for this file.
 BUILD=$(node - <<'JS'
 const fs = require('fs');
 const path = 'app/app.json';
 const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
-const next = String(Number(cfg.expo.ios.buildNumber || '0') + 1);
-cfg.expo.ios.buildNumber = next;
+const ios = Number(cfg.expo.ios.buildNumber || '0');
+const android = Number(cfg.expo.android?.versionCode || 0);
+if (ios !== android) {
+  // Not fatal — the whole point of taking the max is that this is repairable —
+  // but it is worth naming, because it means something bumped one alone and
+  // the reason is worth knowing before the next release.
+  process.stderr.write(
+    `  note: ios buildNumber ${ios} and android versionCode ${android} had ` +
+      `drifted; taking the larger\n`
+  );
+}
+const next = Math.max(ios, android) + 1;
+cfg.expo.ios.buildNumber = String(next);
+cfg.expo.android = cfg.expo.android || {};
+cfg.expo.android.versionCode = next;
 fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
-console.log(next);
+console.log(String(next));
 JS
 )
-echo "→ build $BUILD"
+echo "→ build $BUILD (ios buildNumber and android versionCode)"
 
 # Committed before the archive, not after, so the commit is what gets built
 # rather than a description of it. ios/ is generated and gitignored, so
 # prebuild leaves the tree clean and this stays the only change.
 git add app/app.json
-git commit -q -m "Bump iOS build number to $BUILD"
+git commit -q -m "Bump build number to $BUILD"
 
 # --clean, deliberately. Without it, prebuild reuses the existing ios/ and a
 # newly added native dependency can fail to be linked at all — which is how
