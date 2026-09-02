@@ -47,7 +47,7 @@ file until 2026-08-15. Everything only somebody producing an iOS build needs —
 Read it before `bin/upload-ios`.
 
 **`planning/CREDENTIALS.md`** is the second of that kind, split out the same
-day: the eight credentials, where each lives, what it can do and what losing it
+day: the nine credentials, where each lives, what it can do and what losing it
 costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 

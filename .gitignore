@@ -29,6 +29,11 @@ server/web/beta/
 .kotlin/
 *.orig.*
 *.jks
+# The Android upload key, which is a PKCS12 store and so named `.keystore`
+# rather than `.jks`. It lives in ~/.config/thefloor and never in the tree —
+# see planning/CREDENTIALS.md — and this pattern is the second line of defence
+# rather than the first.
+*.keystore
 *.p8
 *.p12
 *.key
