@@ -241,6 +241,44 @@ export function ChannelsView({
         </View>
       ) : null}
 
+      {/*
+        The list, and above all of it the way to make another channel.
+
+        It says "Start a channel" and nothing more. What it used to say —
+        "Start a channel with several people" — was describing a mode rather
+        than an outcome, and it only appeared once you had two contacts, so the
+        one affordance that opens an empty channel was hidden from exactly the
+        people who had nowhere to talk yet. That is still the rule: the row is
+        drawn whether or not there is a channel under it, because it is the way
+        out of an empty screen — which is why it sits outside the guard on the
+        label rather than inside the list.
+
+        It is the first thing in the scroll rather than the foot of the list,
+        since 2026-09-02, and the reason is the tab beside this one: *Add
+        contact* sits in exactly that place on Contacts, and the two lists' one
+        affordance for making something new should be in the same position as
+        well as the same shape. It was the last row for a while, on the
+        argument that somebody who has read the whole list without finding what
+        they want is already looking at the bottom of it. That reads well for a
+        long list and badly for a short one, where the thing you came to do is
+        below everything you did not, and it put the two tabs' matching rows at
+        opposite ends of the screen.
+
+        **Above every section label, not merely above *Your channels*.** It
+        spent a few hours between the live tier and the rest, which put it
+        under a heading — and a row under LIVE reads as something live, since
+        that is what a section label is for. The action at the top of a list
+        has no label of its own on either tab, and it can only stay that way by
+        being above the first one, whichever section happens to be first.
+
+        What it is not, either way, is a filled black button above the list —
+        which is what it was before both, and made the loudest thing on the
+        screen a thing to do rather than the conversations already open. The
+        card with the accented mark is the shape that keeps it available
+        without shouting.
+      */}
+      <StartChannelRow onPress={startAlone} />
+
       {live.length > 0 ? (
         <>
           <SectionLabel>Live</SectionLabel>
@@ -287,36 +325,6 @@ export function ChannelsView({
         </>
       ) : null}
 
-      {/*
-        The channels, and above them the way to make another.
-
-        It says "Start a channel" and nothing more. What it used to say —
-        "Start a channel with several people" — was describing a mode rather
-        than an outcome, and it only appeared once you had two contacts, so the
-        one affordance that opens an empty channel was hidden from exactly the
-        people who had nowhere to talk yet. That is still the rule: the row is
-        drawn whether or not there is a channel under it, because it is the way
-        out of an empty screen — which is why it sits outside the guard on the
-        label rather than inside the list.
-
-        It is above the label rather than at the foot of the list, since
-        2026-09-02, and the reason is the tab beside this one: *Add contact*
-        sits in exactly that place on Contacts, and the two lists' one
-        affordance for making something new should be in the same position as
-        well as the same shape. It was the last row for a while, on the
-        argument that somebody who has read the whole list without finding what
-        they want is already looking at the bottom of it. That reads well for a
-        long list and badly for a short one, where the thing you came to do is
-        below everything you did not, and it put the two tabs' matching rows at
-        opposite ends of the screen.
-
-        What it is not, either way, is a filled black button above the list —
-        which is what it was before both, and made the loudest thing on the
-        screen a thing to do rather than the conversations already open. The
-        card with the accented mark is the shape that keeps it available
-        without shouting.
-      */}
-      <StartChannelRow onPress={startAlone} />
       {/*
         Before the first snapshot there are no channels *and* no evidence that
         there are none. Saying so beats drawing an empty screen, which reads as
