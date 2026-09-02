@@ -1,10 +1,17 @@
 # The web app
 
-**A design, now mostly built and not yet deployed.** Delete it when the work
-ships, moving whatever survives into `decisions/DECISIONS.md`.
+**A design, built and landed, and deployed on both trains.** Delete it when the
+work ships, moving whatever survives into `decisions/DECISIONS.md` — and it has
+not shipped in the sense that matters here, because **nobody has looked at it
+in a browser.** See *What is left*, which is what the file is now mostly for.
 
-**What is built**, on `worktree-web-spike` and nowhere else — nothing has been
-landed and no train has been deployed:
+**The claim that this lived on `worktree-web-spike` and nowhere else was true
+until it was not, and stayed on the page afterwards.** Corrected 2026-09-01:
+all of it is on `master`, and `/open` reports both `/app` and `/beta` live on
+the box. A status line in a design document is the first thing to go stale and
+the last thing anybody re-reads.
+
+**What is built:**
 
 - The three paths. `/` is `landing.ts`, `/app` and `/beta` are
   `@fastify/static` behind a per-prefix not-found handler.
@@ -422,8 +429,12 @@ looking at above 800. Neither is gated on `Platform.OS`, deliberately: this is
 the same defect measured from two ends, and a browser window and an iPad are
 the same problem. **Still unseen in a browser**, along with everything else in
 this section.
-- **Whether the spike's `?channel=` seed becomes a real URL model.** It has to:
-  the sign-out effect wipes navigation state while the token is still being
-  read from storage, because the app has no notion of navigation that predates
-  a session. On a phone there is none. In a browser the address *is* the
-  navigation, and every route meets this.
+- ~~**Whether the spike's `?channel=` seed becomes a real URL model.**~~
+  **Answered: yes, and built.** `webRoute.ts` is the model and
+  `useRoute.web.ts` is the plumbing, and the trap this bullet named is what its
+  `read` ref exists for — the read is gated on `ready && token` rather than run
+  on mount, because the sign-out effect wipes navigation state while the token
+  is still coming out of storage and cannot tell that case from a sign-out.
+  Applying an address before the session arrives is watching it be wiped. The
+  app has no notion of navigation that predates a session, because a phone has
+  no such thing; in a browser every route meets it.
