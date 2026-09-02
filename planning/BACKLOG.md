@@ -1256,6 +1256,13 @@ layer. Most of what it lacks is instrumentation the native hook grew for
 reasons a browser does not have — no playout polling, no speaking hold, no
 route diagnostics, `asked` permanently null — and none of that is missed.
 
+**It has since held a real room**: two browsers in one channel heard each other
+on 2026-09-02, which the spike had never been asked to do, having been written
+when there was no media server to ask it of. That is a reason to finish this
+hook rather than replace it, and it is not evidence against either gap below —
+a browser that grants the microphone and permits playback exercises exactly the
+paths that work.
+
 Two of them are not instrumentation. Both are things `server/web/guest.ts`
 learnt the expensive way and paid for in a defect, and the web app has neither:
 
@@ -1348,10 +1355,11 @@ phone the question could not arise, the list having been replaced by what you
 opened; beside it, a list with no mark is a list that has stopped answering
 where you are.
 
-Almost certainly worth doing, and it was held back for a reason that has not
-changed: it touches `ChannelsView`'s list rendering, which is the busiest
-surface in the app, and it should follow rather than precede somebody actually
-looking at the split. TASKS.md § *Look At The Split On An iPad*.
+Almost certainly worth doing, and what held it back is gone: it should follow
+rather than precede somebody actually looking at the split, and somebody did on
+2026-09-02 — decisions/DECISIONS.md § *The split and the web app have both been
+looked at*. What remains is only that it touches `ChannelsView`'s list
+rendering, which is the busiest surface in the app.
 
 **The tier landed on 2026-09-01 and made it a smaller question, not a settled
 one.** The room you are in is now above the list, in Home's pinned top, so a

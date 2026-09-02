@@ -1674,3 +1674,49 @@ client change: no protocol change, no compatibility floor, nothing to deploy
 before it. What it does change is the first screen every existing user sees on
 launch, so it is a release-note item, and it wants the walk in
 APPREVIEWSCRIPT.md before it goes anywhere.
+
+---
+
+## The split and the web app have both been looked at — 2026-09-02
+
+Two entries in TASKS.md existed for one reason each, and the reason was the
+same: something was built, tested, reasoned about and shipped without anybody
+ever having seen it. *Look At The Split On An iPad* and *Look At The Web App In
+A Browser* both closed on 2026-09-02 by somebody signing in and looking, which
+is the only way either could have closed. **Both swept clean.** Nothing is
+recorded here about what the sweeps found because they found nothing; what is
+recorded is that they happened, since the entries said in their own text that
+no test in this repository reaches the code in question and the absence of a
+defect is therefore evidence rather than silence.
+
+What that covers, so a later reader does not have to guess how much was
+released by the word *verified*. On the iPad: iPhone SE at 320 and iPhone 16 at
+393 unchanged; iPad mini stacked in portrait and split in landscape; 11" split
+at both; Pro 13" at the widest the caps go. All four orientations on each, with
+a channel open and with a transcript open, no remount either time; the Slide
+Over and Split View transitions narrow to wide to out again, also live; a call
+surviving the whole sweep, which was the one thing the entry said had to be
+seen rather than argued; the rename reveal scrolling its own card; the floating
+and hardware keyboards. And both of the behaviours that had never had a reader:
+tapping a channel while a profile is open in the right pane, and the live tier
+staying above the left pane after closing the channel you are present in and
+switching to Contacts.
+
+In the browser: the tab cue marking title and favicon and clearing on look, the
+file picker and the download anchor, a large upload showing progress, the
+landing page's redirect for a signed-in visitor and `/?stay` defeating it, Back
+and Forward walking the route table, and how it all sits at desktop width under
+the measure. **Including two browsers in one channel hearing each other**,
+which was named as the piece with the least evidence behind it —
+`useSessionAudio.web.ts` had never held a real room, the spike having been
+written when there was no media server to hold one. It has now.
+
+**Two things this releases and one it does not.** BACKLOG.md § *The left pane
+has no selected-row highlight* was held back explicitly on the grounds that it
+should follow rather than precede somebody looking at the split; that gate is
+open. The spike hook having carried a real room is one more reason to finish it
+rather than replace it. What it does not release is BACKLOG.md § *The browser's
+audio hook is a spike* — its two named gaps are a refused autoplay with no way
+out and nothing listening to what was published, and neither is a thing a clean
+session would have shown. A browser that grants the microphone and permits
+playback exercises exactly the paths that work.
