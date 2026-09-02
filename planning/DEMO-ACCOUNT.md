@@ -35,9 +35,15 @@ at all.** The review notes promise a reviewer can create one, and with a single
 demo account that promise is false and the app looks broken. Sam is what makes
 it true.
 
-Accepted contacts cannot be undone: the only mutators are request, withdraw,
-accept and decline, and none of them removes an accepted pair. So the link and
-the channel survive anything a reviewer does *except* deleting the account —
+**Accepted contacts can be undone, and this file said otherwise until
+2026-09-01.** `DELETE /contacts/:id` calls `removeContact` and then
+`leavePairChannels`, so removing the contact takes the shared channels with it
+— which is exactly the pairing this account depends on. The claim that the only
+mutators were request, withdraw, accept and decline was true when it was
+written and stopped being true without this file noticing.
+
+So the repair below is needed after **three** things a reviewer can do, not
+one: removing the contact, deleting the account —
 **and, since 2026-08-31, changing its address.** The profile screen can move an
 account to a different sign-in address once a code sent there comes back, and
 nothing exempts this one. A reviewer who did that would leave the submission

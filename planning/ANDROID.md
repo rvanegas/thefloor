@@ -133,15 +133,105 @@ Three things about the artifact that differ from the APK path:
   an edit to it disappears silently — leaving a debug-signed bundle that fails
   at upload.
 
+#### Where the account is created, and what to have ready first
+
+**play.google.com/console/signup.** It cannot be done by anybody but the person
+whose identity backs it: it takes a government ID, a payment card and
+acceptance of an agreement in their name.
+
+Assemble these before starting, because the flow asks for them in the middle
+and several are permanent:
+
+| | |
+| --- | --- |
+| **Google account** | Owns the listing more or less forever — transferring later is a support process. Pick the one that should still exist in five years, not the convenient one. |
+| **Account type** | **Personal.** Organization skips the 12-tester gate but needs a D-U-N-S number and a registered entity. |
+| **$25** | One-time, not annual — unlike Apple. |
+| **Government photo ID and an address** | Verification takes days, and nothing proceeds until it clears. Start here. |
+| **A public developer name** | Shown on every listing. |
+| **A public contact email and address** | Google publishes developer contact details. For a personal account this can mean a home address unless an alternative is given — read those screens rather than clicking through, since changing it later is harder. |
+
+Then the app entry itself, whose answers are mostly already decided by things
+in this repository:
+
+| | |
+| --- | --- |
+| App name | `The Floor` — **check availability, do not assume the iOS compromise applies.** Play does not require globally unique titles, so the App Store's `The Floor Uninterrupted` may be unnecessary here. |
+| Package name | `co.rvanegas.thefloor`, matching the iOS bundle id. **Permanent once uploaded.** |
+| App or game | App |
+| Free or paid | **Free, and permanent in one direction**: a free app can never become paid. Donations are external and do not make it paid. |
+| Category | Communication |
+| Website | `https://thefloor.rvanegas.co` |
+| Privacy policy | `https://thefloor.rvanegas.co/privacy` — already served, already accurate |
+| The artifact | `bin/android --aab` |
+
+And the **App content** declarations, which must all be answered before a
+release reaches *any* track, internal included:
+
+- **App access** — not a public app; give the App Review demo account from
+  planning/DEMO-ACCOUNT.md. The same credentials serve both stores.
+- **Ads** — none. `/privacy` says so and is true.
+- **Content rating** — a questionnaire. This app carries user-generated content
+  and direct user-to-user communication, which is the branch that asks about
+  moderation; see the safety note below.
+- **Target audience** — not children. `/privacy` has a Children section.
+- **Data safety** — the substantive one, drafted below.
+- **Government apps, financial features, health** — none.
+- **Data deletion** — asks for a URL. **There is not one**; see below.
+
+#### Data safety, drafted from `/privacy`
+
+The form is a transcription of a policy that is already written, not new
+research — but it is a public declaration and must agree with `/privacy`
+exactly. What that page says is collected:
+
+| Item | Play's category | Notes |
+| --- | --- | --- |
+| Email address | Personal info → Email address | How you sign in; required |
+| Display name | Personal info → Name | Shown to contacts and channel members |
+| WhatsApp/Telegram/Signal handle | Personal info → **Phone number** | Optional, user-typed. `/privacy` says outright that two of the three are phone numbers, so this must be declared even though nothing reads the device for them |
+| Audio recordings | Audio → Voice or sound recordings | Deliberate, visible to the channel, stored in S3 in the US |
+| Transcripts | Audio, or Other | **Shared with AssemblyAI**, and the only third party that receives anything |
+| Channels and membership | App activity, or Other | So a conversation survives the app closing |
+| Notification token | Device or other IDs | Identifies an installation, not a person |
+| Last connected | App activity | Shown to contacts |
+| Usage totals | Other | Durations and byte counts, never content, deleted after the retention window |
+
+Also true and worth stating because it is unusually clean: **no advertising, no
+third-party analytics, no address book access, no profiling, no location.**
+Encrypted in transit, yes. Deletion available, yes — with the gap below.
+
+#### A safety question the content rating will raise
+
+Play's user-generated-content policy expects a way to report or block. **There
+is no report and no block in this app.** What there is:
+
+- The graph is **consent-based** — a contact request must be accepted before
+  anybody can reach you, and `/contacts/:id/decline` refuses it.
+- **A contact can be removed**, and it is not merely cosmetic: `DELETE
+  /contacts/:id` calls `removeContact` and then `leavePairChannels`, so the
+  shared channels go with it.
+
+That is a real answer to "how does a user get away from somebody", and it is
+the answer App Review accepted. It is **not** the same as a reporting channel,
+which is what Google's policy asks for, and whether the closed graph is
+accepted in its place is unknown rather than settled. Worth deciding what to
+say before the questionnaire rather than during it.
+
 #### What Play wants that Apple did not
 
 - **A web account-deletion path, and there is none.** Google requires apps with
   accounts to offer deletion *without* the app — a URL submitted in the console
   — alongside the in-app route. `DELETE /me` is a bearer-token API route, and
   `/privacy` says in as many words that "your account is deleted from inside the
-  application". So this needs building or the policy needs a stated request
-  path. **This is a production blocker, not an internal-testing one**, but it
-  is the least expected item on the list and worth starting early.
+  application". So this needs building, or the policy needs a stated request
+  path somebody signed out can use.
+
+  **It is on the critical path to the first tester, not to the public
+  listing** — this file said the latter for part of 2026-09-01 and it was
+  wrong. The Data safety form asks for the URL, and Data safety must be
+  complete before a release reaches *any* track, internal included. So it
+  blocks handing the app to one person, which is the whole current goal.
 - **The Data safety form**, which is more specific than Apple's nutrition
   label and is a public declaration. What this app actually collects: an email
   address, audio recordings, transcripts, push tokens, and per-account usage
