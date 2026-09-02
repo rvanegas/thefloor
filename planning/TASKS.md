@@ -144,13 +144,23 @@ First evaluate relevant differences and establish dev simulator on mac.
 
 **Both halves of that were done on 2026-09-01, and what they turned up is
 planning/ANDROID.md.** `bin/android` builds, installs and runs the app on an
-emulator; the audio session is configured on Android, which it had never been.
-This entry stays because the work it names is not finished — what is left, in
-order, is a channel between an Android device and an iPhone, then the four
-questions only real hardware can answer (echo, Bluetooth routing, audio focus,
-the phone-call interruption), then background audio. Push has no Android
-delivery at all and is the largest single item. ANDROID.md carries each with
-what it would cost; read it rather than re-deriving from this paragraph.
+emulator and on a handset; the audio session is configured on Android, which it
+had never been. **Two-party audio works** — an Android phone and an iPhone
+audible both ways, which was the question the whole port rested on.
+
+This entry stays because what it names is not finished, and the order changed
+once real hardware was involved. **Background audio is first now**: the same
+session confirmed a call dies when the app is backgrounded, so it is a
+reproduced defect rather than a predicted one, and it is what stops anybody
+using an Android build for a real conversation. Then the three things still
+unheard — echo, Bluetooth and wired routing, and an incoming phone call — none
+of which a working two-way call says anything about. Then audio focus.
+
+Push has no Android delivery at all and is the largest single item, outside
+that sequence. Getting onto Play is its own track and is blocked only on
+creating the Console account; ANDROID.md carries the signup checklist, the
+Data safety draft and what each remaining item would cost. Read it rather than
+re-deriving from this paragraph.
 
 ## Payments Upgrade
 
