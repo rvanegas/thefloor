@@ -220,12 +220,14 @@ say before the questionnaire rather than during it.
 
 #### What Play wants that Apple did not
 
-- **A web account-deletion path, and there is none.** Google requires apps with
-  accounts to offer deletion *without* the app — a URL submitted in the console
-  — alongside the in-app route. `DELETE /me` is a bearer-token API route, and
-  `/privacy` says in as many words that "your account is deleted from inside the
-  application". So this needs building, or the policy needs a stated request
-  path somebody signed out can use.
+- **A web account-deletion path, which is being built as this is written.**
+  Google requires apps with accounts to offer deletion *without* the app — a
+  URL submitted in the console — alongside the in-app route. `DELETE /me` is a
+  bearer-token API route, and `/privacy` said in as many words that "your
+  account is deleted from inside the application". A separate piece of work
+  started 2026-09-01 closes it; **when it lands, the URL goes in the Data
+  safety form and this paragraph should say what the URL is** rather than that
+  the gap exists.
 
   **It is on the critical path to the first tester, not to the public
   listing** — this file said the latter for part of 2026-09-01 and it was
