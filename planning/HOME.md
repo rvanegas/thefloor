@@ -91,21 +91,31 @@ being a tidier arrangement of the same parts.
 application rather than about either list, which is the same argument in three
 places. Settings is already a header button and stays one.
 
-## The decision this document does not make
+## The decision this document did not make, and now has
 
-**How prominent Chip in becomes.** Promoting it to the tier is a claim about
-what it belongs to, not about how loudly it should ask. The comment quoted
-above is a real argument and it survives the restructure: somebody passing
-through should not be met by a request for money. Three ways to honour both:
+**How prominent Chip in becomes. Settled 2026-09-01: at the end of the tier's
+own scroll**, below the list — the recommendation below, chosen at the prompt.
+Promoting it to the tier is a claim about what it belongs to, not about how
+loudly it should ask, and this is the option that answers the first without
+touching the second. It is as visible as it is today and it stops being the
+tail of your channels while staying the last thing you meet.
+
+**The comment it has to keep faith with survives the restructure**, which is
+why the question was worth asking rather than defaulting: *"Everything above it
+is what somebody opened the app to do. A request for money that sat above the
+channels would be reading the room wrong."* That argument was never about the
+channel list in particular. It is about not meeting somebody with a request for
+money on the way past, and it governs the tier exactly as it governed Home.
+
+The two that were declined, so nobody re-runs the comparison:
 
 - **Pinned at the foot of the tier.** Most visible, always on screen. Furthest
-  from what the comment asks for.
-- **At the end of the tier's own scroll**, below the list. As visible as today,
-  and it stops being the tail of your channels while staying the last thing you
-  meet. **Recommended** — the structural claim is answered and the tone is not
-  changed.
+  from what the comment asks for, and the reason it loses.
 - **Folded behind Settings.** Quietest, and it makes Settings a drawer of
-  unrelated things, which is what Home's footer already is.
+  unrelated things, which is what Home's footer already is — trading one
+  miscellany for another.
+
+Standings moves with it, being the same argument in the same place.
 
 ## What it does not change
 
