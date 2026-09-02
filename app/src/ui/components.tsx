@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  type ColorValue,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -77,6 +78,59 @@ export function Button({
           {sublabel}
         </Text>
       ) : null}
+    </Pressable>
+  );
+}
+
+/**
+ * A header control that is a glyph rather than a word: *Close* and *Settings*,
+ * which is the whole of what this is for as of 2026-09-02.
+ *
+ * **The label does not disappear, it stops being drawn.** It is still required,
+ * and it is still the same word — it becomes the `accessibilityLabel`, so a
+ * screen reader says "Close" exactly as before and the tests that press these
+ * buttons by name go on finding them. A glyph with no name is a control only
+ * sighted users have.
+ *
+ * Ghost tone and nothing else, because these are the only two controls that
+ * were ever ghost buttons in a header. It takes the icon as a function of the
+ * colour rather than as an element so that this file, which knows the palette,
+ * keeps deciding the tone, and `icons.tsx`, which knows the geometry, keeps
+ * deciding the shape — and so that a pressed or disabled tint has somewhere to
+ * be applied. Nothing imports the other.
+ *
+ * 44 square is the touch target, which is larger than the 40 the ghost button
+ * it replaced stood at. The header is taller than either, so nothing moves;
+ * what it buys is a target that does not need aiming at.
+ */
+export function IconButton({
+  label,
+  icon,
+  onPress,
+  disabled,
+  style,
+}: {
+  /** What a screen reader says. The word this glyph replaced. */
+  label: string;
+  icon: (color: ColorValue) => React.ReactNode;
+  onPress: () => void;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.iconButton,
+        pressed && !disabled && styles.pressed,
+        style,
+      ]}
+    >
+      {icon(disabled ? colors.textFaint : colors.textMuted)}
     </Pressable>
   );
 }
@@ -395,6 +449,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   buttonGhost: { minHeight: 40 },
+  iconButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pressed: { opacity: 0.7 },
   buttonLabel: { fontSize: 15, fontWeight: '600' },
   buttonSublabel: {

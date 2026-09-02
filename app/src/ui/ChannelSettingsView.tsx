@@ -16,7 +16,15 @@ import type { ChannelState } from '../../../core/types';
 import { showRoutePicker } from '../audio/routePicker';
 import { type GuestLinkSummary } from '../api/http';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Field, Screen, SectionLabel } from './components';
+import {
+  Button,
+  Card,
+  Field,
+  IconButton,
+  Screen,
+  SectionLabel,
+} from './components';
+import { CloseIcon } from './icons';
 import { InlineMarkdown } from './markdown';
 import { colors, spacing, type } from './theme';
 
@@ -204,7 +212,11 @@ export function ChannelSettingsView({
             what the button does. *Back* was that word until there were two
             layouts, and it names a destination by implication; see
             HomeSettingsView, which carries the argument. */}
-        <Button label="Close" variant="ghost" onPress={done} />
+        <IconButton
+          label="Close"
+          icon={(color) => <CloseIcon color={color} />}
+          onPress={done}
+        />
       </View>
 
       <SectionLabel>Channel name</SectionLabel>

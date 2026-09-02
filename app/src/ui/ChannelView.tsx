@@ -63,12 +63,19 @@ import { ChannelSettingsView } from './ChannelSettingsView';
 import { TranscriptView } from './TranscriptView';
 import { ProfileView } from './ProfileView';
 import { InlineMarkdown, isSafeUrl, openUrl } from './markdown';
-import { FloorIcon, MicIcon, StepIcon } from './icons';
+import {
+  CloseIcon,
+  FloorIcon,
+  MicIcon,
+  SettingsIcon,
+  StepIcon,
+} from './icons';
 import {
   Button,
   Card,
   Empty,
   Field,
+  IconButton,
   RecordingRow,
   TranscriptSearch,
   Screen,
@@ -804,13 +811,19 @@ export function ChannelView({
           {/*
             Off this screen without hanging up. The audio connection lives
             above this screen, so this is navigation and nothing else — and it
-            is one word in both panes, which is what the tier made true. See
-            `onClose`.
+            means the same thing in both panes, which is what the tier made
+            true. A cross since 2026-09-02, the word surviving as its
+            accessible name; the reasoning for *Close* over *Back* is in
+            HomeSettingsView. See `onClose`.
           */}
-          <Button label="Close" variant="ghost" onPress={onClose} />
-          <Button
+          <IconButton
+            label="Close"
+            icon={(color) => <CloseIcon color={color} />}
+            onPress={onClose}
+          />
+          <IconButton
             label="Settings"
-            variant="ghost"
+            icon={(color) => <SettingsIcon color={color} />}
             onPress={() => setSettingsOpen(true)}
           />
         </View>

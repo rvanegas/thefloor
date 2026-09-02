@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import type { SupportView as SupportSnapshot } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Screen } from './components';
+import { Button, Card, IconButton, Screen } from './components';
+import { CloseIcon } from './icons';
 import { describeGiving } from './money';
 import { colors, spacing, type } from './theme';
 
@@ -54,7 +55,11 @@ export function SupportView({ onBack }: { onBack: () => void }) {
         <Text style={type.heading}>Support</Text>
         {/* "Close", not "Back": beside a list there is nothing underneath this
             to go back to. See HomeSettingsView. */}
-        <Button label="Close" variant="ghost" onPress={onBack} />
+        <IconButton
+          label="Close"
+          icon={(color) => <CloseIcon color={color} />}
+          onPress={onBack}
+        />
       </View>
 
       {!loaded ? (

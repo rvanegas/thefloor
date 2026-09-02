@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Screen, SectionLabel } from './components';
+import {
+  Button,
+  Card,
+  IconButton,
+  Screen,
+  SectionLabel,
+} from './components';
+import { CloseIcon } from './icons';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 
@@ -130,8 +137,20 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             *Close* is true in both, which is what lets the handler be the same
             one word in both layouts with no `split` anywhere in it. Every
             attempt to make the wording pane-dependent puts that conditional
-            back. See planning/decisions/DECISIONS.md. */}
-        <Button label="Close" variant="ghost" onPress={onBack} />
+            back. See planning/decisions/DECISIONS.md.
+
+            **It is a cross rather than the word, since 2026-09-02**, and every
+            argument above survives that intact: the word is still there as the
+            `accessibilityLabel`, which is what a screen reader reads and what
+            the tests press by, so what changed is what is drawn and not what
+            this control is called. An arrow would have undone it — that is a
+            destination again, and there is no destination in a split. See
+            `IconButton` and `CloseIcon`. */}
+        <IconButton
+          label="Close"
+          icon={(color) => <CloseIcon color={color} />}
+          onPress={onBack}
+        />
       </View>
 
       {/*

@@ -1,16 +1,21 @@
 import React from 'react';
-import Svg, { Path, Rect, type NumberProp } from 'react-native-svg';
+import Svg, { Circle, Path, Rect, type NumberProp } from 'react-native-svg';
 import type { ColorValue } from 'react-native';
 
 /**
- * The footer's three icons, drawn from Lucide path data copied into this file.
+ * The icons this app draws, from Lucide path data copied into this file.
+ *
+ * Three of them are the channel footer's, and were the reason the file
+ * exists; the two below them are the header's *Close* and *Settings*, which
+ * were words until 2026-09-02.
  *
  * **Vendored rather than imported.** `lucide-react-native` would be a second
  * dependency on top of `react-native-svg`, and Metro does not tree-shake by
  * default on SDK 54 — so the barrel import that reads most naturally is the
  * one that risks dragging a 25MB, 9,251-file package into the graph. Six
  * glyphs do not need an icon system. See DECISIONS.md § *The channel grows a
- * footer*.
+ * footer*. That argument is about the dependency rather than about the number
+ * of glyphs, so it holds unchanged as this file grows.
  *
  * The cost of vendoring is that the geometry is ours to get right, and a
  * mistyped path is silent — it draws the wrong shape and nothing fails. So
@@ -170,6 +175,55 @@ export function StepIcon({
           <Path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
         </>
       )}
+    </Glyph>
+  );
+}
+
+/**
+ * Off this screen. `lucide/x`.
+ *
+ * **A cross rather than an arrow**, which is the same distinction the word it
+ * replaced was making: every header this appears in says *Close* rather than
+ * *Back* on purpose, because in a split pane there is nothing underneath to go
+ * back to and all the control can do is empty the pane. An arrow would put the
+ * destination back into a control that deliberately names only the act. The
+ * reasoning is written out at the top of `HomeSettingsView`.
+ */
+export function CloseIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M18 6 6 18" />
+      <Path d="m6 6 12 12" />
+    </Glyph>
+  );
+}
+
+/**
+ * The settings behind this screen. `lucide/settings`.
+ *
+ * The gear, which is the one glyph in this file nobody has to be taught. It
+ * stands for two different screens — the app's settings from the home tier,
+ * and a channel's from its own header — and that is what the word did too:
+ * *Settings* means "the settings of what you are looking at", and the shape
+ * inherits that without any help.
+ */
+export function SettingsIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+      <Circle cx="12" cy="12" r="3" />
     </Glyph>
   );
 }

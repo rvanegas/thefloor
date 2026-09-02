@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { LeaderboardEntry } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Screen } from './components';
+import { Button, Card, IconButton, Screen } from './components';
+import { CloseIcon } from './icons';
 import { colors, radius, spacing, type } from './theme';
 
 /**
@@ -48,7 +49,11 @@ export function LeaderboardView({ onBack }: { onBack: () => void }) {
         <Text style={type.heading}>Invitations</Text>
         {/* "Close", not "Back": beside a list there is nothing underneath this
             to go back to. See HomeSettingsView. */}
-        <Button label="Close" variant="ghost" onPress={onBack} />
+        <IconButton
+          label="Close"
+          icon={(color) => <CloseIcon color={color} />}
+          onPress={onBack}
+        />
       </View>
 
       {!loaded ? (

@@ -29,10 +29,12 @@ import {
   Button,
   Card,
   Field,
+  IconButton,
   Screen,
   SectionLabel,
   useRevealOnKeyboard,
 } from './components';
+import { CloseIcon } from './icons';
 import {
   describeAvailability,
   describePresence,
@@ -754,7 +756,11 @@ export function ProfileView({
             {/* "Close", not "Back": in a split this sits beside the list it
                 was opened from rather than over it, and all this can do is
                 empty the pane. See HomeSettingsView. */}
-            <Button label="Close" variant="ghost" onPress={onBack} />
+            <IconButton
+              label="Close"
+              icon={(color) => <CloseIcon color={color} />}
+              onPress={onBack}
+            />
           </>
         )}
       </View>

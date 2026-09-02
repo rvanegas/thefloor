@@ -10,7 +10,16 @@ import {
 import { exportTranscript } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
+import {
+  Button,
+  Card,
+  Empty,
+  Field,
+  IconButton,
+  Screen,
+  SectionLabel,
+} from './components';
+import { CloseIcon } from './icons';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
 /**
@@ -159,7 +168,11 @@ export function TranscriptView({
           </Text>
         </View>
         {/* "Close", not "Back". See HomeSettingsView. */}
-        <Button label="Close" variant="ghost" onPress={onBack} />
+        <IconButton
+          label="Close"
+          icon={(color) => <CloseIcon color={color} />}
+          onPress={onBack}
+        />
       </View>
 
       {!naming && (state === 'ready' || deletable) ? (

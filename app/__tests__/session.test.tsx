@@ -142,6 +142,13 @@ function labelOf(instance: ReactTestInstance): string {
     }
   };
   walk(instance.props.children);
+  // A control drawn as a glyph has no text under it, and its name is the
+  // `accessibilityLabel` instead — which is the name a screen reader reads
+  // out, so it is the honest thing to search by. Only when there is no text
+  // at all: plenty of rows carry both, and there the words on screen are what
+  // a test naming them means. See `IconButton`.
+  if (out.length === 0 && typeof instance.props.accessibilityLabel === 'string')
+    return instance.props.accessibilityLabel;
   return out.join(' ');
 }
 

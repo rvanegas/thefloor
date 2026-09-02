@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Screen, SectionLabel } from './components';
+import { Button, Card, IconButton, Screen, SectionLabel } from './components';
+import { SettingsIcon } from './icons';
 import { ChannelsView } from './ChannelsView';
 import { ContactsView } from './ContactsView';
 import { ProfileView } from './ProfileView';
@@ -194,7 +195,11 @@ export function HomeView({
             what was true all along.
           */}
           <View style={styles.headerActions}>
-            <Button label="Settings" variant="ghost" onPress={onOpenSettings} />
+            <IconButton
+              label="Settings"
+              icon={(color) => <SettingsIcon color={color} />}
+              onPress={onOpenSettings}
+            />
           </View>
         </View>
 
