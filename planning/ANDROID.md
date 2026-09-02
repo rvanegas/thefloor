@@ -65,6 +65,35 @@ afternoon and none of them announces itself:
   `bin/android --prebuild` is the answer, and this is how `versionCode` was
   set, built cleanly, and still shipped as 1.
 
+### Getting a build onto somebody else's phone
+
+`bin/android --apk` produces a standalone APK to send. **Release, not debug**,
+and the distinction is the trap: a debug apk carries no JavaScript — it fetches
+the bundle from Metro on the building machine at launch, so to anybody else it
+is a blank or red screen with nothing naming the cause.
+
+Three things to know before sending one:
+
+- **It is signed with the debug keystore**, which the Expo template uses for
+  `release` too. Fine for sideloading, useless for Play — Google refuses the
+  shared debug key, and a real upload key is one of the deferred items below.
+- **`EXPO_PUBLIC_API_URL` is baked in at bundle time** from `app/.env`. Nothing
+  in the app tells you which server it is talking to, so check that file before
+  building a copy for somebody else — a build made while pointed at a LAN
+  address is one they cannot use and cannot diagnose.
+- **`accounts.debug` is a server-side column, not a build flag.** It arrives in
+  `hello` and turns on the debug panel and the audio-log shipping in
+  `AppProvider`. So a remote tester can be given diagnostics without a new
+  build: set the column for their account with `bin/db --write`. This matters
+  because a release build has no `__DEV__`, so the `[audio]` console trace that
+  made the emulator legible is simply absent on their phone.
+
+And one thing to tell whoever installs it: **backgrounding the app will
+probably drop the audio**, because the foreground service does not exist yet.
+Keep it in the foreground. That is a known gap rather than a bug worth
+reporting — see below — and without saying so, it is the first thing they will
+report and the least informative.
+
 ### What the emulator cannot tell you
 
 This matters more than what it can, because a green emulator reads as a working

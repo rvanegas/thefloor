@@ -6,6 +6,7 @@
 #     bin/android --setup     install the SDK pieces and create the AVD
 #     bin/android             boot the AVD if it is cold, then `expo run:android`
 #     bin/android --prebuild  regenerate android/ from app.json first
+#     bin/android --apk       build a standalone APK to send somebody else
 #
 # **Reach for `--prebuild` after any edit to `app.json`, and know why.**
 # `expo run:android` regenerates `android/` only when it is *missing*. An
@@ -198,6 +199,43 @@ boot_emulator() {
   echo
 }
 
+apk() {
+  require_sdk
+  require_jdk17
+  say "building a release APK"
+  # **Release rather than debug, and the difference is the whole point.** A
+  # debug apk carries no JavaScript: it fetches the bundle from Metro on this
+  # machine at launch, so it is unusable to anybody who is not on this LAN and
+  # fails as a blank screen or a red one rather than as anything that names the
+  # cause. A release build runs `createBundleReleaseJsAndAssets` and embeds it.
+  #
+  # **It is signed with the debug keystore**, which the Expo template configures
+  # for `release` too — see `signingConfigs` in android/app/build.gradle. That is
+  # fine for sideloading and is *not* a Play-store artifact: Google will not
+  # accept an apk signed with the shared debug key, and a real upload key is one
+  # of the things planning/ANDROID.md defers.
+  #
+  # `EXPO_PUBLIC_API_URL` is baked in from app/.env at bundle time, so whoever
+  # installs this talks to whatever that file pointed at when it was built —
+  # the deployed server, unless somebody has pointed it at a LAN address for
+  # local work. Worth checking before sending the file to another person, since
+  # nothing in the app says which server it is talking to.
+  # **arm64 only, which is a choice and not a default.** `gradle.properties`
+  # lists four architectures, and building all of them makes a 108MB apk —
+  # awkward to send to a person and three-quarters wasted, since every Android
+  # phone worth testing this on has been arm64 for close to a decade. The cost
+  # is that the file will not install on a 32-bit armeabi-v7a device or an x86
+  # emulator; if that is what somebody has, drop this flag and send the fat one.
+  ( cd app/android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a )
+  local out=app/android/app/build/outputs/apk/release/app-release.apk
+  [ -f "$out" ] || fail "gradle reported success but $out is missing"
+  echo
+  echo "✓ $out"
+  echo "  $(du -h "$out" | cut -f1), versionCode $(grep -oE 'versionCode [0-9]+' app/android/app/build.gradle | head -1 | cut -d' ' -f2)"
+  echo "  Sideload: adb install -r $out — or send the file and have them"
+  echo "  allow installing from that source when Android asks."
+}
+
 prebuild() {
   say "regenerating android/ from app.json"
   # `--clean` rather than a plain prebuild: without it the generator merges into
@@ -222,6 +260,7 @@ run() {
 case "${1:-}" in
   --setup)    setup ;;
   --prebuild) run --prebuild ;;
+  --apk)      apk ;;
   "")         run ;;
-  *)          fail "usage: bin/android [--setup | --prebuild]" ;;
+  *)          fail "usage: bin/android [--setup | --prebuild | --apk]" ;;
 esac
