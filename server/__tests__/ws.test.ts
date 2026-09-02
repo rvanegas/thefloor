@@ -1112,8 +1112,8 @@ describe('websocket', () => {
      * tab is a second session holding the *same* credential — which the skip
      * above reads as the same device and leaves alone. Both then sit in the
      * room under one identity, the media plane admits one of them, and the
-     * pair trade the conversation back and forth. See TASKS.md § *Two Devices
-     * In One Channel*.
+     * pair trade the conversation back and forth. See
+     * planning/TWO-DEVICES-WALK.md.
      *
      * Both tabs are Alice's own token deliberately. Minting a second session
      * would test something that already worked.

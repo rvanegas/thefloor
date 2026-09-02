@@ -361,8 +361,8 @@ export function registerWebsocket(deps: {
    * apart. Two browser tabs on one origin share `localStorage`, share a token,
    * and were therefore the one pair of sessions this loop could never separate
    * — each invisible to the other, both live in the same room, competing for
-   * the one voice the account has. See planning/TASKS.md § *Two Devices In
-   * One Channel* and planning/decisions/DECISIONS.md § *The web app is a
+   * the one voice the account has. See planning/TWO-DEVICES-WALK.md
+   * and planning/decisions/DECISIONS.md § *The web app is a
    * secondary interface*.
    *
    * Watch-scoped sockets are left alone. A follower page holds a watch token,

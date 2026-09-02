@@ -817,8 +817,8 @@ export function useSessionAudio(
         // took the room, which would rebuild in turn, and the two would trade
         // the conversation back and forth on a 500ms-doubling backoff for as
         // long as both screens were open. That is what "the two devices
-        // competed for the audio" sounded like: planning/TASKS.md § *Two
-        // Devices In One Channel*.
+        // competed for the audio" sounded like:
+        // planning/TWO-DEVICES-WALK.md.
         //
         // So the loser stops, and stops here rather than waiting to be told.
         // The server says the same thing over the socket — `displaced` sets
