@@ -584,6 +584,39 @@ disagreement 10.
 | `IDLE` | `playback` | `mixWithOthers` | `spokenAudio` |
 | `CALL` | `playAndRecord` | `allowBluetooth`, `allowAirPlay`, `defaultToSpeaker` | `videoChat` |
 
+**Android says the same two states in a vocabulary with nothing in common**,
+since 2026-09-01 — `ANDROID_IDLE` and `ANDROID_CALL` in the same file, chosen by
+`androidSessionFor` from the *same* boolean. That the question does not fork is
+the invariant; the values are not comparable and are not meant to be.
+
+| | `AudioManager` mode | stream | usage |
+| --- | --- | --- | --- |
+| `ANDROID_IDLE` | `normal` | `music` | `media` |
+| `ANDROID_CALL` | `inCommunication` | `voiceCall` | `voiceCommunication` |
+
+`inCommunication` is this platform's `videoChat`: it is what switches on the
+hardware echo canceller. **Before that date Android was configured with nothing
+at all — which did not mean `MODE_NORMAL`.** The SDK's default is already
+`MODE_IN_COMMUNICATION`, so what was absent was not the echo canceller but the
+*transition*: Android sat in communication mode for the whole connection,
+whether or not this app had audio. `ANDROID_IDLE` is the half that did not
+exist, and an empty channel holding the phone in voice-call mode is what it
+costs.
+
+Two differences from the iOS story above, both structural rather than pending
+work. There is **no second writer** — no native policy observer, no shared
+process-wide session object — so `policyFor` has no Android counterpart and
+`pushPolicy` stays iOS-only by design rather than by debt. And **nothing reads
+the result back**: `app/modules/audio-route` is iOS-only, so the comparison
+disagreement 10 describes is unavailable here, and `adb logcat` is the
+substitute. See planning/ANDROID.md.
+
+**Mixing does not appear in the Android row, and its absence is not an
+omission.** On iOS mixing is a category *option*; on Android it is the audio
+*focus* request, which both presets set to `gain`. So the behaviour `IDLE`
+exists to provide — an empty channel costing another app's audio nothing — is
+**unverified on Android** rather than stated there.
+
 **There were three until 2026-08-27.** `LISTENING` was `IDLE` without
 `mixWithOthers`, applied when something was audible but nothing was capturing,
 so that shared playback interrupted another app rather than mixing with it. It

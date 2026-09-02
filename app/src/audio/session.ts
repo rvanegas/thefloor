@@ -1,4 +1,6 @@
+import { AndroidAudioTypePresets } from '@livekit/react-native';
 import type {
+  AndroidAudioTypeOptions,
   AppleAudioConfiguration,
   IOSAudioSessionPolicy,
 } from '@livekit/react-native';
@@ -217,5 +219,125 @@ export function policyFor(hasAudio: boolean): IOSAudioSessionPolicy {
 export function nameOf(config: AppleAudioConfiguration): string {
   if (config === CALL) return 'CALL';
   if (config === IDLE) return 'IDLE';
+  return 'unknown';
+}
+
+/* -------------------------------------------------------------------------
+ * The same two states, said in Android's vocabulary.
+ *
+ * **Two states, not two state machines.** Everything above is about what
+ * `IDLE` and `CALL` *mean*; the constants below are the same two meanings
+ * spelled for a different platform, and they are chosen by the same
+ * `hasAudio` boolean from the same rule in core/micNeeded.ts. If a third state
+ * is ever wanted, it is wanted on both sides — adding one here alone is how
+ * the two ends start disagreeing about what a call is, which is the thing
+ * `core/` exists to prevent.
+ *
+ * The shapes are not analogous and it is worth knowing why before looking for
+ * a category here. iOS has one process-wide session that three writers mutate
+ * and last-writer-wins, which is what the whole of the file above is coping
+ * with. Android has no such object: `AndroidAudioTypeOptions` is a bundle of
+ * `AudioManager` mode, audio-focus request, stream type and `AudioAttributes`,
+ * applied when the session starts, and there is **no native policy observer
+ * re-applying anything behind us**. So there is no `policyFor` counterpart and
+ * no second writer to keep in agreement — which is the one respect in which
+ * Android is the simpler platform here, and the reason `pushPolicy` in
+ * `useSessionAudio` stays iOS-only rather than growing a branch.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * What Android is asked for when this app has no audio of its own.
+ *
+ * `AndroidAudioTypePresets.media` — `audioMode: 'normal'`, stream `music`,
+ * usage `media`. The counterpart of `IDLE`'s `playback` category, and it earns
+ * the name for the same reason: an empty channel should cost the speakers
+ * nothing.
+ *
+ * **There is no `mixWithOthers` here, and its absence is not a gap.** Mixing on
+ * iOS is a category option; on Android it is the audio-*focus* request, which
+ * `manageAudioFocus: true` in both presets hands to the SDK. What decides
+ * whether another app keeps playing is `audioFocusMode`, `gain` in both — so
+ * the mixing behaviour this app relies on is not expressible as one flag here
+ * and has not been verified. See planning/ANDROID.md: it is one of the things
+ * an emulator cannot answer.
+ */
+export const ANDROID_IDLE: AndroidAudioTypeOptions =
+  AndroidAudioTypePresets.media;
+
+/**
+ * What Android is asked for when somebody could be heard.
+ *
+ * `AndroidAudioTypePresets.communication` — `audioMode: 'inCommunication'`,
+ * stream `voiceCall`, usage `voiceCommunication`, content `speech`.
+ *
+ * **`inCommunication` is this platform's `videoChat`.** On iOS the system
+ * voice-processing unit — the echo canceller — is switched on solely by
+ * `voiceChat`/`videoChat` mode, and a capturing session left in a non-voice
+ * mode is the build 17 echo, written up in planning/POSTMORTEM-echo.md.
+ * Android's hardware AEC and noise suppression hang off
+ * `MODE_IN_COMMUNICATION` in the same way.
+ *
+ * **What this fixed was not a missing echo canceller, and the first guess that
+ * it was is worth recording because it is the natural one.** Before this
+ * existed, `applyFor` returned early off iOS and Android was configured with
+ * nothing — but *nothing* does not mean `MODE_NORMAL`. The SDK's own default
+ * is `MODE_IN_COMMUNICATION` (`AudioSwitchManager.java`, `audioMode`), so an
+ * unconfigured Android build was already capturing under the right mode.
+ *
+ * What it did not have was the *transition*. It sat in communication mode for
+ * the whole time it was connected, whether or not this app had any audio —
+ * which is `IDLE` being unavailable rather than `CALL` being wrong. An empty
+ * channel held the phone in voice-call mode, on the voice stream, with
+ * everything that costs another app's playback. That is the same argument
+ * `IDLE` exists for on iOS, arrived at from the other end.
+ */
+export const ANDROID_CALL: AndroidAudioTypeOptions =
+  AndroidAudioTypePresets.communication;
+
+/**
+ * The order Android should pick an output in when nobody has chosen one.
+ *
+ * The nearest thing to `CALL`'s category options, and only the nearest: on iOS
+ * the options say which routes are *eligible* and the system picks; here the
+ * list says which to *prefer* and eligibility is not ours to state. Bluetooth
+ * first, then a wired headset, then the loudspeaker, then the earpiece — which
+ * is the SDK's own default order, written down rather than inherited so that
+ * `defaultToSpeaker`'s Android counterpart is somewhere a reader can find it.
+ *
+ * **Speaker before earpiece is the deliberate half**, and it is the same
+ * decision `defaultToSpeaker` makes on iOS: a channel this app is in should be
+ * audible to somebody who has put the phone down, not held to the ear like a
+ * telephone call.
+ *
+ * The A2DP trap that `CALL` is written around does not arise in this form —
+ * `'bluetooth'` here is a preference among what the platform already considers
+ * usable, not a claim that an output-only device can capture. Whether Android
+ * makes the same mistake by another route is unverified; a mic-less Bluetooth
+ * speaker is on the list in planning/ANDROID.md of what needs real hardware.
+ */
+export const ANDROID_OUTPUTS = [
+  'bluetooth',
+  'headset',
+  'speaker',
+  'earpiece',
+] as const;
+
+/**
+ * Which of the two Android should be in, from the same boolean as `sessionFor`.
+ *
+ * Deliberately a second function rather than a platform branch inside
+ * `sessionFor`: the return types have nothing in common, and a single function
+ * returning either would push a discriminated union into every caller to say
+ * something the caller already knows from `Platform.OS`. The thing that must
+ * not fork is the *question*, and it has not — both take `hasAudio`.
+ */
+export function androidSessionFor(hasAudio: boolean): AndroidAudioTypeOptions {
+  return hasAudio ? ANDROID_CALL : ANDROID_IDLE;
+}
+
+/** Which of the two this is, for a log line. See `nameOf`. */
+export function androidNameOf(config: AndroidAudioTypeOptions): string {
+  if (config === ANDROID_CALL) return 'CALL';
+  if (config === ANDROID_IDLE) return 'IDLE';
   return 'unknown';
 }

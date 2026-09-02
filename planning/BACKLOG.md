@@ -241,46 +241,12 @@ disconnect grace, and the eviction path all read from the socket today.
 
 ## Android has never been built or run
 
-**Status:** not started. The spec asks for it; nothing has been done about it.
+**Status:** superseded by planning/ANDROID.md on 2026-09-01, which is where the
+whole of it now lives. It builds and runs on an emulator; nothing has shipped.
 
-> React Native, targeting both iOS and Android from a single codebase.
-
-`app.json` carries Android configuration from the scaffold, and the icons are
-still Expo's defaults. There is no `android/` directory, no build has ever been
-attempted, and no line of this has run on Android hardware or an emulator.
-
-### What makes it more than a build step
-
-Every hard problem in this project has been an iOS problem, and each was solved
-against iOS's rules:
-
-- **Background audio** was chased for two days through `UIBackgroundModes`,
-  AVAudioSession ownership and CallKit (see
-  decisions/DECISIONS-2026-08-07-to-2026-08-13.md). Android's
-  foreground-service model is different in every particular, and the work does
-  not transfer.
-- **The audio channel** is started explicitly through
-  `@livekit/react-native`'s `AudioSession`, whose behaviour differs by
-  platform — `AndroidAudioTypeOptions` exists precisely because the two need
-  configuring differently.
-- **Export** hands a file to `expo-sharing`, which resolves to a different
-  system sheet with different expectations about file URIs.
-- **The dev loop** is `expo run:ios` against a paired device. Nothing equivalent
-  is set up, and EAS was deliberately deferred until Android arrived — which is
-  now.
-
-So this is not "flip a target and rebuild". Expect the platform-specific parts
-to need doing twice, and expect the second time to surface assumptions the
-first one baked in.
-
-### Sequence when picked up
-
-1. `npx expo prebuild --platform android`, and confirm the WebRTC and
-   file-system config plugins produce a working build at all.
-2. Get a channel running between an Android device and an iPhone, which is the
-   first real test of whether the media layer is as portable as assumed.
-3. Only then background audio, where the work genuinely diverges.
-
+This entry is kept as a pointer rather than deleted because two other things in
+this file refer to it, and because what it said had gone quietly false — there
+was no `android/` directory when it was written and there is one now.
 ---
 
 ## Notifications do not ring — they are alerts
@@ -321,8 +287,11 @@ the same server-side events would drive both.
   accepted, or somebody inviting you into a channel you are already a member of
   all still reach you in-app only.
 - **Android has no delivery at all.** `device_tokens` carries a `platform`
-  column and accepts `'android'`, but no FCM sender exists — see the Android
-  section above, where this is one item among many.
+  column and accepts `'android'`, but no FCM sender exists, `app/src/push.ts`
+  registers every token as `'ios'`, and there is no notification channel or
+  `POST_NOTIFICATIONS` permission. It is the largest single item in
+  planning/ANDROID.md, which is where the rest of it lives now that Android
+  builds.
 
 ---
 

@@ -53,6 +53,35 @@ jest.mock('@livekit/react-native', () => ({
     setAppleAudioConfiguration: jest.fn(async () => {}),
     startAudioSession: jest.fn(async () => {}),
     stopAudioSession: jest.fn(async () => {}),
+    // The Android half of `applyFor`. Same shape as its Apple counterpart
+    // above: a promise nobody reads, stubbed so the hook's configure edge runs
+    // under the test renderer without a bridge.
+    configureAudio: jest.fn(async () => {}),
+  },
+  // The two Android configurations, inlined for the same reason
+  // `AudioEngineMuteMode` is: requiring them from the real module would reach
+  // the bridge at import time, which is what this mock exists to avoid.
+  // src/audio/session.ts holds these by identity, so the objects must be
+  // distinct and stable — two references to one object would make
+  // `androidNameOf` unable to tell the states apart. Keep in step with
+  // AndroidAudioTypePresets.
+  AndroidAudioTypePresets: {
+    communication: {
+      manageAudioFocus: true,
+      audioMode: 'inCommunication',
+      audioFocusMode: 'gain',
+      audioStreamType: 'voiceCall',
+      audioAttributesUsageType: 'voiceCommunication',
+      audioAttributesContentType: 'speech',
+    },
+    media: {
+      manageAudioFocus: true,
+      audioMode: 'normal',
+      audioFocusMode: 'gain',
+      audioStreamType: 'music',
+      audioAttributesUsageType: 'media',
+      audioAttributesContentType: 'unknown',
+    },
   },
   registerGlobals: jest.fn(),
   setupIOSAudioManagement: jest.fn(),

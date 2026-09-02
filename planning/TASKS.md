@@ -142,6 +142,16 @@ Number is updated lazily when exchange occurs. In User View display radiate numb
 
 First evaluate relevant differences and establish dev simulator on mac.
 
+**Both halves of that were done on 2026-09-01, and what they turned up is
+planning/ANDROID.md.** `bin/android` builds, installs and runs the app on an
+emulator; the audio session is configured on Android, which it had never been.
+This entry stays because the work it names is not finished — what is left, in
+order, is a channel between an Android device and an iPhone, then the four
+questions only real hardware can answer (echo, Bluetooth routing, audio focus,
+the phone-call interruption), then background audio. Push has no Android
+delivery at all and is the largest single item. ANDROID.md carries each with
+what it would cost; read it rather than re-deriving from this paragraph.
+
 ## Payments Upgrade
 
 Voluntary donations shipped on 2026-08-14 — a Ko-fi link, external, unlocking

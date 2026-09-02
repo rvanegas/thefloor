@@ -120,8 +120,12 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   the layout correct, merely unexercised.
 
   This is also the one place `orientation: "default"` reaches Android, whose
-  regenerated manifest stops pinning portrait. Nobody builds Android, so it is
-  recorded rather than chased.
+  regenerated manifest stops pinning portrait. **Confirmed 2026-09-01** rather
+  than predicted: the generated manifest carries
+  `android:screenOrientation="unspecified"`, where the copy generated before the
+  iPad work said `portrait`. Android now builds — see planning/ANDROID.md — so
+  this is a real rotation on a real device rather than a note, and it has not
+  been looked at.
 
   **Read the generated plist, not `app.json`.** The two keys and the merge
   order are exactly the sort of thing that is right in the config and wrong in
@@ -164,9 +168,18 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
 
 - **The Android adaptive icon is prepared but Android is not shipped here.**
   Three layers, generated from `the-floor-icon.svg` and
-  `the-floor-icon-mono.svg`; there is no `android/` and `bin/upload-ios` is
-  the only release path. Why each layer is what it is — and why the monochrome
-  silhouette gets its own master file — is in planning/decisions/DECISIONS.md.
+  `the-floor-icon-mono.svg`. Why each layer is what it is — and why the
+  monochrome silhouette gets its own master file — is in
+  planning/decisions/DECISIONS.md.
+
+  **There is an `android/` since 2026-09-01, and `bin/upload-ios` is still the
+  only release path.** Those were one clause until Android built; they are two
+  facts now, and only the second one is about releasing. `bin/android` builds
+  and installs to an emulator and reaches nobody — there is no signing key, no
+  Play listing and no `eas.json`. See planning/ANDROID.md, which also carries
+  the `versionCode`/`buildNumber` drift this creates: **`bin/upload-ios` bumps
+  the iOS build number and knows nothing about `android.versionCode`**, and the
+  two are equal today only because they were set equal by hand.
 
 - **The splash is still the Expo default.**
 

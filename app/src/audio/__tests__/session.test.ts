@@ -1,4 +1,14 @@
-import { CALL, IDLE, policyFor, sessionFor } from '../session';
+import {
+  ANDROID_CALL,
+  ANDROID_IDLE,
+  ANDROID_OUTPUTS,
+  androidNameOf,
+  androidSessionFor,
+  CALL,
+  IDLE,
+  policyFor,
+  sessionFor,
+} from '../session';
 
 describe('sessionFor', () => {
   /**
@@ -120,5 +130,76 @@ describe('policyFor', () => {
   // on any transition writes the mixing value and nobody's music stops.
   it('mixes when this app has nothing of its own to play', () => {
     expect(policyFor(false).playout).toBe(IDLE);
+  });
+});
+
+describe('the same two states on Android', () => {
+  /**
+   * **The question must not fork, and this is what says so.** The two
+   * platforms describe the audio session in vocabularies with nothing in
+   * common — a category and mode against an `AudioManager` mode and a stream
+   * type — so the thing worth pinning is not that the values correspond but
+   * that the *boolean* does: one rule in core/micNeeded.ts, asked once, and
+   * both platforms answering it in the same direction. A third Android-only
+   * state would pass every other test in this file and is exactly what this
+   * catches.
+   */
+  it.each([[false], [true]])(
+    'moves with the same boolean as the Apple half (hasAudio=%s)',
+    (hasAudio) => {
+      const apple = sessionFor(hasAudio) === CALL;
+      const android = androidSessionFor(hasAudio) === ANDROID_CALL;
+      expect(android).toBe(apple);
+    }
+  );
+
+  /**
+   * `inCommunication` is what switches on Android's hardware echo canceller,
+   * as `videoChat` is on iOS — see planning/POSTMORTEM-echo.md for what a
+   * capturing session in a non-voice mode costs to find from the far end.
+   *
+   * **This assertion would have passed before there was any Android
+   * configuration at all**, since the SDK already defaults to this mode. It is
+   * here to stop the value being changed, not to record a fix. The pair below
+   * is the one that carries the fix: `ANDROID_IDLE` is what did not exist.
+   */
+  it('captures under the mode that turns on the echo canceller', () => {
+    expect(ANDROID_CALL.audioMode).toBe('inCommunication');
+    expect(ANDROID_CALL.audioStreamType).toBe('voiceCall');
+  });
+
+  // The other half of the pair, and the reason an empty channel costs the
+  // speakers nothing: `normal` and the music stream, which is what `IDLE`'s
+  // `playback` category means here.
+  it('idles as ordinary media', () => {
+    expect(ANDROID_IDLE.audioMode).toBe('normal');
+    expect(ANDROID_IDLE.audioStreamType).toBe('music');
+  });
+
+  // Identity, not equality: `androidNameOf` tells the states apart by
+  // reference, exactly as `nameOf` does, so two presets that happened to be
+  // the same object would make the log line unable to say which state it is
+  // in. The jest mock supplies two distinct literals for this reason.
+  it('has two distinct configurations', () => {
+    expect(ANDROID_IDLE).not.toBe(ANDROID_CALL);
+    expect(androidNameOf(androidSessionFor(true))).toBe('CALL');
+    expect(androidNameOf(androidSessionFor(false))).toBe('IDLE');
+  });
+
+  /**
+   * Speaker before earpiece, which is the same decision `defaultToSpeaker`
+   * makes in `CALL`: a channel should be audible to somebody who has put the
+   * phone down rather than held to the ear like a telephone call. Stated as an
+   * ordering rather than a list so that adding a route does not silently
+   * reverse it.
+   */
+  it('prefers the loudspeaker over the earpiece', () => {
+    const outputs: readonly string[] = ANDROID_OUTPUTS;
+    expect(outputs.indexOf('speaker')).toBeLessThan(
+      outputs.indexOf('earpiece')
+    );
+    expect(outputs.indexOf('bluetooth')).toBeLessThan(
+      outputs.indexOf('speaker')
+    );
   });
 });

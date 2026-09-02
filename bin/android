@@ -1,0 +1,227 @@
+#!/bin/bash
+#
+# Builds and runs the app on an Android emulator, and sets up the machine to be
+# able to in the first place.
+#
+#     bin/android --setup     install the SDK pieces and create the AVD
+#     bin/android             boot the AVD if it is cold, then `expo run:android`
+#     bin/android --prebuild  regenerate android/ from app.json first
+#
+# **Reach for `--prebuild` after any edit to `app.json`, and know why.**
+# `expo run:android` regenerates `android/` only when it is *missing*. An
+# existing one is left exactly as it is, so a changed `app.json` has no effect
+# whatsoever on the next build and nothing says so — the build succeeds, the app
+# installs, and it is the old configuration. That cost a round of confusion over
+# `versionCode` on the first day this worked: the value was added, the build was
+# clean, and the apk still carried the default.
+#
+# This exists because the Android dev loop is four environment facts that no
+# error message names. `expo run:android` on a machine missing any of them fails
+# somewhere inside Gradle, in the register of a compiler problem rather than the
+# missing install it is — the same shape as `bin/worktree-setup`'s
+# `jest: command not found`, and for the same reason.
+#
+# The four:
+#
+# 1. **`ANDROID_HOME` is not set anywhere on this machine.** Android Studio
+#    installs the SDK to ~/Library/Android/sdk and does not export it; nothing in
+#    a shell profile does either. Gradle then cannot find `adb` or the platform.
+#
+# 2. **`JAVA_HOME` must point at a JDK 17, and every JDK already installed here
+#    is too new.** This is the one that costs the afternoon. Android Studio ships
+#    a bundled runtime, which is the obvious thing to point at and is **JDK 25**;
+#    Homebrew's `openjdk` is **JDK 26**. Gradle 8.14.3 — what
+#    `android/gradle/wrapper/gradle-wrapper.properties` pins — supports neither,
+#    and what it says when handed one is a class-file-version error naming a jar,
+#    not a sentence about Java versions. So this script pins the keg-only
+#    `openjdk@17` and refuses to guess: a JDK on `PATH` is not evidence of a JDK
+#    that works.
+#
+# 3. **The emulator zeroes out microphone input unless `-allow-host-audio` is
+#    passed.** Not muted, not absent — *zeroes*, so the app publishes a track
+#    that carries digital silence and everything else looks perfect. An audio
+#    port debugged against that emulator is an audio port debugged against a
+#    dead microphone. There is a second half to this that no flag fixes; see
+#    `boot_emulator` below.
+#
+# 4. **The system image has to match the machine's architecture.** This is
+#    arm64; an x86_64 image boots under emulation slowly enough to look hung.
+#
+# What this script deliberately does *not* do is ship anything. There is no
+# Android release path — no `eas.json`, no signing key, no `bin/upload-android`
+# — and `planning/ANDROID.md` says what each would cost. This is a development
+# loop and nothing more.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+SDK="$HOME/Library/Android/sdk"
+JDK17="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+AVD=thefloor
+
+# The API level is not a preference. `compileSdkVersion` comes from
+# expo-modules-core's gradle plugin, which defaults to 36 — so the platform must
+# be 36 whatever `platforms/` happens to already contain. This machine had
+# android-37 and only android-37, which is the newer number and the wrong one.
+API=36
+IMAGE="system-images;android-$API;google_apis;arm64-v8a"
+
+# `google_apis` rather than `google_apis_playstore`. Play images cannot be
+# rooted, and nothing here wants the Play Store — but a rootable image is worth
+# having the first time push or a permission needs poking at from `adb shell`.
+PACKAGES=("platform-tools" "emulator" "platforms;android-$API" "$IMAGE")
+
+CMDLINE_TOOLS_BUILD=15641748
+
+say()  { echo "→ $*"; }
+fail() { echo "✗ $*" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
+
+require_jdk17() {
+  if [ ! -x "$JDK17/bin/java" ]; then
+    fail "no JDK 17 at $JDK17
+  Gradle 8.14.3 does not support the JDKs on this machine (Android Studio
+  bundles 25, Homebrew's openjdk is 26). Install the one it does:
+      brew install openjdk@17
+  It is keg-only, so it does not go on PATH and does not displace anything —
+  this script points JAVA_HOME straight at it."
+  fi
+  export JAVA_HOME="$JDK17"
+}
+
+require_sdk() {
+  [ -d "$SDK" ] || fail "no Android SDK at $SDK — install Android Studio first"
+  export ANDROID_HOME="$SDK"
+  # Both names, because the ecosystem is split on which it reads: Gradle and the
+  # Expo CLI want ANDROID_HOME, parts of the platform tooling want
+  # ANDROID_SDK_ROOT, and neither warns when it falls back to the other.
+  export ANDROID_SDK_ROOT="$SDK"
+  export PATH="$SDK/platform-tools:$SDK/emulator:$SDK/cmdline-tools/latest/bin:$PATH"
+}
+
+# ---------------------------------------------------------------------------
+
+setup() {
+  require_sdk
+
+  # cmdline-tools is the bootstrap and is itself absent from a stock Android
+  # Studio install — `sdkmanager` lives inside it, so there is no SDK command to
+  # install it with. Hence the download: it is the one package that cannot be
+  # fetched the ordinary way.
+  if [ ! -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
+    say "installing cmdline-tools (build $CMDLINE_TOOLS_BUILD)"
+    local zip
+    zip=$(mktemp -d)/cmdline-tools.zip
+    curl -fL# -o "$zip" \
+      "https://dl.google.com/android/repository/commandlinetools-mac-${CMDLINE_TOOLS_BUILD}_latest.zip"
+    unzip -q "$zip" -d "$(dirname "$zip")"
+    mkdir -p "$SDK/cmdline-tools"
+    # The zip unpacks to a directory called `cmdline-tools`; the SDK expects it
+    # at `cmdline-tools/latest`. Getting this wrong yields
+    # `cmdline-tools/cmdline-tools`, which sdkmanager silently does not find.
+    mv "$(dirname "$zip")/cmdline-tools" "$SDK/cmdline-tools/latest"
+  fi
+
+  require_jdk17
+
+  say "accepting SDK licenses"
+  # `pipefail` off for this one line, and it is not a shortcut. sdkmanager stops
+  # reading once it has consumed the licenses it wanted, `yes` takes a SIGPIPE
+  # for it, and the pipeline reports 141 — so under `set -euo pipefail` the
+  # script exits **silently and successfully-looking** at exactly this point,
+  # having installed nothing and created no AVD. It did, before this subshell.
+  ( set +o pipefail; yes | sdkmanager --sdk_root="$SDK" --licenses >/dev/null )
+
+  say "installing: ${PACKAGES[*]}"
+  sdkmanager --sdk_root="$SDK" "${PACKAGES[@]}"
+
+  if avdmanager list avd -c 2>/dev/null | grep -qx "$AVD"; then
+    say "AVD '$AVD' already exists"
+  else
+    say "creating AVD '$AVD'"
+    echo no | avdmanager create avd --name "$AVD" --package "$IMAGE" --device pixel_7
+    # `hw.audioInput` is what lets the guest see a microphone at all. It defaults
+    # on, but an AVD created without a device profile has been seen without it,
+    # and a missing microphone presents as a permission the app never gets asked
+    # for rather than as an error.
+    local ini="$HOME/.android/avd/$AVD.avd/config.ini"
+    if [ -f "$ini" ] && ! grep -q '^hw.audioInput=yes' "$ini"; then
+      echo 'hw.audioInput=yes' >> "$ini"
+    fi
+  fi
+
+  echo
+  echo "✓ set up. Run: bin/android"
+}
+
+# ---------------------------------------------------------------------------
+
+boot_emulator() {
+  # An emulator already attached is left alone — rebooting one mid-session
+  # throws away the app's signed-in state, which is several taps to get back.
+  if adb devices | grep -q '^emulator-.*device$'; then
+    say "emulator already running"
+    return
+  fi
+
+  avdmanager list avd -c 2>/dev/null | grep -qx "$AVD" \
+    || fail "no AVD named '$AVD' — run: bin/android --setup"
+
+  say "booting '$AVD'"
+  # Detached and discarded: the emulator outlives this script deliberately, so
+  # that the next `bin/android` is the fast path above rather than another boot.
+  emulator -avd "$AVD" -allow-host-audio >/dev/null 2>&1 &
+
+  say "waiting for boot"
+  adb wait-for-device
+  # `wait-for-device` returns when adb can talk to it, which is well before the
+  # system is up; installing an apk in that window fails as a device-offline
+  # error that reads like a cable problem. `sys.boot_completed` is the honest
+  # signal.
+  until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
+    sleep 2
+  done
+  say "booted"
+
+  # The flag above is necessary and not sufficient, and the remaining half
+  # cannot be scripted: the emulator's *runtime* microphone toggle lives in
+  # Extended Controls → Microphone → "Virtual microphone uses host audio input",
+  # it is off by default, and it resets on every boot. Without it the guest
+  # microphone records silence exactly as if `-allow-host-audio` had been
+  # omitted. Nobody hearing nothing from the emulator should touch the audio
+  # code before checking that box.
+  echo
+  echo "  Audio note: to be heard from the emulator, turn on"
+  echo "  Extended Controls (…) → Microphone → 'Virtual microphone uses host"
+  echo "  audio input'. It is off by default and resets on every boot."
+  echo
+}
+
+prebuild() {
+  say "regenerating android/ from app.json"
+  # `--clean` rather than a plain prebuild: without it the generator merges into
+  # what is there, and the merge is what silently keeps a stale value. The
+  # directory is gitignored and holds nothing hand-written, so there is nothing
+  # to lose by discarding it — `app.json` is the source, and `app/modules/`
+  # holds the only native code this project writes itself.
+  ( cd app && npx expo prebuild -p android --clean )
+}
+
+run() {
+  require_sdk
+  require_jdk17
+  [ "${1:-}" = "--prebuild" ] && prebuild
+  boot_emulator
+  say "building and installing (first build is slow — Gradle has nothing cached)"
+  npm run android --prefix app
+}
+
+# ---------------------------------------------------------------------------
+
+case "${1:-}" in
+  --setup)    setup ;;
+  --prebuild) run --prebuild ;;
+  "")         run ;;
+  *)          fail "usage: bin/android [--setup | --prebuild]" ;;
+esac

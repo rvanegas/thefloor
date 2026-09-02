@@ -47,8 +47,17 @@ export function isPreference(value: unknown): value is ColorSchemePreference {
 /**
  * Applies a preference to the window.
  *
- * Guarded like the palette itself: Android is not built, and the whole scheme
- * there is the dark one regardless of what is stored.
+ * Guarded like the palette itself, and for the same reason it gives: where no
+ * scheme can be resolved the answer is **light**, so on Android the whole app
+ * is the light palette regardless of what is stored, and there is nothing for
+ * a preference to change.
+ *
+ * **This said "dark" until 2026-09-01**, on the strength of nobody having built
+ * Android to look at. `theme.ts` had already been changed to fall back to light
+ * — deliberately, and it explains why — and this comment was not changed with
+ * it. The first Android build settled it by rendering: light. Worth knowing as
+ * a shape rather than a typo, since a guard whose comment describes the wrong
+ * behaviour is how somebody "fixes" the guard.
  *
  * **The web has the same shape by a different mechanism.** `theme.ts` resolves
  * every colour to a CSS custom property there, so the override is an attribute

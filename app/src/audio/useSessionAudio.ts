@@ -24,7 +24,13 @@ import {
   PLAYOUT_POLL_MS,
   type PlayoutReading,
 } from './playout';
-import { nameOf, policyFor, sessionFor } from './session';
+import {
+  ANDROID_OUTPUTS,
+  androidSessionFor,
+  nameOf,
+  policyFor,
+  sessionFor,
+} from './session';
 import {
   NOBODY_SPEAKING,
   nextReleaseAt,
@@ -233,6 +239,45 @@ async function applyConfiguration(
 }
 
 /**
+ * The same edge on Android, which until 2026-09-01 did not exist at all.
+ *
+ * **What was here before was nothing**, and that is the defect this closes
+ * rather than a feature it adds: `applyConfiguration` returns early off iOS,
+ * `pushPolicy` does too, and so an Android build connected to a room having
+ * asked the platform for no audio mode, no stream type and no focus.
+ *
+ * **That is not the same as being misconfigured, and the difference was
+ * measured rather than assumed.** The SDK defaults to
+ * `MODE_IN_COMMUNICATION`, so the echo canceller was already on; what was
+ * missing was the *transition* between the two states. Android stayed in
+ * communication mode for as long as it was connected, so an empty channel held
+ * the phone in voice-call mode and cost another app its playback — `IDLE`
+ * unavailable, rather than `CALL` wrong. See src/audio/session.ts.
+ *
+ * **`configureAudio` must precede `room.connect`, and here that is already
+ * true** rather than newly arranged: `applyFor` is called on the connect path
+ * before the room is built, for the iOS reason that the session must be right
+ * before the engine starts. The SDK states the same requirement for Android
+ * explicitly, and the two agree, so no ordering changed for this.
+ *
+ * Swallows its error for the same reason the Apple half does. A configuration
+ * that did not land is a routing problem to be read back off the device, not a
+ * reason to fail a connection somebody is waiting on — and on Android there is
+ * nothing to read it back *with*, since `app/modules/audio-route` is iOS-only.
+ * `adb logcat` against `AudioManager` is the substitute, which is why
+ * planning/ANDROID.md names it.
+ */
+async function applyAndroidConfiguration(hasAudio: boolean): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await AudioSession.configureAudio({
+    android: {
+      audioTypeOptions: androidSessionFor(hasAudio),
+      preferredOutputList: [...ANDROID_OUTPUTS],
+    },
+  }).catch(() => {});
+}
+
+/**
  * Records every write this app makes to the audio session, in development
  * builds only.
  *
@@ -312,6 +357,16 @@ function trace(
  * assignment, and it touches neither the session nor the engine.
  */
 function pushPolicy(hasAudio: boolean): void {
+  // **Android has no counterpart and is not missing one**, which is worth
+  // stating because every other `Platform.OS !== 'ios'` guard in this
+  // directory marks something Android still owes. This one does not: the
+  // policy exists to agree with the SDK's *native observer*, a second writer
+  // that re-applies a configuration on every audio-engine transition with no
+  // JavaScript in the path. Android has no such observer and no shared
+  // process-wide session object for one to write to — `configureAudio` is
+  // applied once when the session starts and stays. So there is nobody here to
+  // agree with, and a branch added to this function would be agreeing with
+  // nothing. See src/audio/session.ts and planning/STATES.md.
   if (Platform.OS !== 'ios') return;
   setupIOSAudioManagement(true, policyFor(hasAudio));
 }
@@ -433,6 +488,12 @@ async function applyFor(hasAudio: boolean): Promise<void> {
   const config = sessionFor(hasAudio);
   trace(config, hasAudio);
   await applyConfiguration(config);
+  // Each half is a no-op off its own platform, so both are stated
+  // unconditionally and the branch lives in one place rather than at every
+  // call site. `trace` above names the *state* — IDLE or CALL — which is the
+  // one thing the two platforms genuinely share, so the development log line
+  // reads the same on both.
+  await applyAndroidConfiguration(hasAudio);
 }
 
 /**
