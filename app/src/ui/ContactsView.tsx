@@ -120,7 +120,7 @@ export function ContactsView({
         </>
       ) : null}
 
-      {contacts.length > 0 ? <SectionLabel>Contacts</SectionLabel> : null}
+      {contacts.length > 0 ? <SectionLabel>Your contacts</SectionLabel> : null}
       {contacts.length === 0 ? (
         <Empty>
           Nobody yet. Add somebody by the address they signed up with, and they
@@ -258,11 +258,13 @@ function AddContact() {
   }
 
   if (!open) {
-    // Closed, it is Home's start-a-channel row: a mark and a label in the
-    // shape of a card rather than of a button. The two screens' one
-    // affordance for making something new should not be two different
-    // shapes, and this is the same kind of thing — available rather than
-    // urgent, which is why only the mark carries the accent.
+    // Closed, it is the channel list's start-a-channel row: a mark and a
+    // label in the shape of a card rather than of a button, and since
+    // 2026-09-02 in the same position too, above the first section label
+    // rather than at the foot of a list. The two tabs' one affordance for
+    // making something new should not be two different shapes in two
+    // different places, and this is the same kind of thing — available rather
+    // than urgent, which is why only the mark carries the accent.
     return (
       <Pressable
         accessibilityRole="button"

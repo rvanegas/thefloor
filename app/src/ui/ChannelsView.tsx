@@ -288,23 +288,35 @@ export function ChannelsView({
       ) : null}
 
       {/*
-        The channels, and at the foot of them the way to make another.
+        The channels, and above them the way to make another.
 
         It says "Start a channel" and nothing more. What it used to say —
         "Start a channel with several people" — was describing a mode rather
         than an outcome, and it only appeared once you had two contacts, so the
         one affordance that opens an empty channel was hidden from exactly the
-        people who had nowhere to talk yet. That is still the rule: this
-        section is drawn whether or not it has any channels in it, because the
-        row at its foot is the way out of an empty screen.
+        people who had nowhere to talk yet. That is still the rule: the row is
+        drawn whether or not there is a channel under it, because it is the way
+        out of an empty screen — which is why it sits outside the guard on the
+        label rather than inside the list.
 
-        It sat above this list as a filled black button, which made the loudest
-        thing on the screen a thing to do rather than the conversations already
-        open. As the last row of the list it is in the place somebody is
-        already looking when nothing there is the one they want, and it reads
-        as one more channel — the one that does not exist yet.
+        It is above the label rather than at the foot of the list, since
+        2026-09-02, and the reason is the tab beside this one: *Add contact*
+        sits in exactly that place on Contacts, and the two lists' one
+        affordance for making something new should be in the same position as
+        well as the same shape. It was the last row for a while, on the
+        argument that somebody who has read the whole list without finding what
+        they want is already looking at the bottom of it. That reads well for a
+        long list and badly for a short one, where the thing you came to do is
+        below everything you did not, and it put the two tabs' matching rows at
+        opposite ends of the screen.
+
+        What it is not, either way, is a filled black button above the list —
+        which is what it was before both, and made the loudest thing on the
+        screen a thing to do rather than the conversations already open. The
+        card with the accented mark is the shape that keeps it available
+        without shouting.
       */}
-      {rest.length > 0 ? <SectionLabel>Your channels</SectionLabel> : null}
+      <StartChannelRow onPress={startAlone} />
       {/*
         Before the first snapshot there are no channels *and* no evidence that
         there are none. Saying so beats drawing an empty screen, which reads as
@@ -312,22 +324,26 @@ export function ChannelsView({
         first thing anybody sees.
       */}
       {!home ? <Empty>Loading…</Empty> : null}
-      <View style={[styles.list, rest.length === 0 && styles.listUnlabelled]}>
-        {rest.map((card) => (
-          <ChannelCard
-            key={card.channelId}
-            card={card}
-            now={now}
-            onPress={() =>
-              card.kind === 'seat'
-                ? openSeat(card.channelId)
-                : openChannel(card.channelId)
-            }
-            stepsIn={app.tapToStepIn}
-          />
-        ))}
-        <StartChannelRow onPress={startAlone} />
-      </View>
+      {rest.length > 0 ? (
+        <>
+          <SectionLabel>Your channels</SectionLabel>
+          <View style={styles.list}>
+            {rest.map((card) => (
+              <ChannelCard
+                key={card.channelId}
+                card={card}
+                now={now}
+                onPress={() =>
+                  card.kind === 'seat'
+                    ? openSeat(card.channelId)
+                    : openChannel(card.channelId)
+                }
+                stepsIn={app.tapToStepIn}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
 
       {/*
         Requests, which are the one part of the old contact list that cannot be
@@ -724,8 +740,9 @@ function ChannelCard({
 }
 
 /**
- * The last row of the channel list: a mark and a label, in the shape of a
- * channel rather than of a button.
+ * The row above the channel list: a mark and a label, in the shape of a
+ * channel rather than of a button. Contacts' `AddContact` closed is the same
+ * row in the same place, deliberately.
  *
  * The accent is on the mark alone. A whole row in the floor colour would be
  * competing with the live bar, which is the one thing above this that
@@ -822,12 +839,6 @@ const styles = StyleSheet.create({
   },
   offlineText: { color: colors.silenced, fontSize: 13 },
   list: { gap: spacing(1) },
-  /**
-   * The gap a SectionLabel would have left. With no channels there is no
-   * heading, and the start row would otherwise sit against whatever is above
-   * it — the tier's pinned top, or an invitation.
-   */
-  listUnlabelled: { marginTop: spacing(2) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -857,6 +868,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing(1.5),
     paddingVertical: spacing(1.5),
+    // The gap under it that a card in the list below would otherwise fall
+    // straight into. Contacts' `addRow` carries the same number, this being
+    // the same row in the same position.
+    marginBottom: spacing(1.5),
   },
   startMark: {
     width: 28,
