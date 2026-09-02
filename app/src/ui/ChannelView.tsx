@@ -821,6 +821,11 @@ export function ChannelView({
           </Text>
         </View>
         <View style={styles.headerActions}>
+          <IconButton
+            label="Settings"
+            icon={(color) => <SettingsIcon color={color} />}
+            onPress={() => setSettingsOpen(true)}
+          />
           {/*
             Off this screen without hanging up. The audio connection lives
             above this screen, so this is navigation and nothing else — and it
@@ -828,16 +833,19 @@ export function ChannelView({
             true. A cross since 2026-09-02, the word surviving as its
             accessible name; the reasoning for *Close* over *Back* is in
             HomeSettingsView. See `onClose`.
+
+            **Last in the row, since the pair became glyphs.** It is the way
+            out, and every other screen in the app puts the way out at the
+            trailing edge with nothing beyond it — as words the two read in
+            order and Close came first, but as two shapes side by side what
+            tells them apart is position as much as geometry, and a cross that
+            sits where the cross always sits is the one you can hit without
+            reading. Settings takes the place it vacated.
           */}
           <IconButton
             label="Close"
             icon={(color) => <CloseIcon color={color} />}
             onPress={onClose}
-          />
-          <IconButton
-            label="Settings"
-            icon={(color) => <SettingsIcon color={color} />}
-            onPress={() => setSettingsOpen(true)}
           />
         </View>
       </View>
