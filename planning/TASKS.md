@@ -35,11 +35,12 @@ phone layout has ever met.
 Two behaviours are new enough to be worth aiming at. **Tap a channel while a
 profile is open in the right pane** — the channel has to appear; that was a
 live bug and the value that replaced the precedence chain is what fixes it, and
-no test in this repository reaches `App.tsx`. And **the channel you are present
-in should have no Close**, the button appearing the moment you step out; then
-close it, switch the left pane to Contacts, and see whether anything on screen
-still says you are in a call. That last part is what *The Tier Above Both
-Lists* is for.
+no test in this repository reaches `App.tsx`. And **close the channel you are
+present in, then switch the left pane to Contacts** — the live bar has to be
+there, above whichever list is showing. That is what the tier was built for and
+what a Close withheld while you were present used to stand in for; both halves
+are now one thing to look at. See `decisions/DECISIONS.md` § *The tier above
+both lists*.
 
 ## Look At The Web App In A Browser
 
@@ -81,16 +82,6 @@ which that comment argues against, or letting a screen contribute to the URL.
 opened in a split now *is* held in `App.tsx`, which is one of the two things
 this entry said could not be assumed. Worth deciding once, and still not
 urgent.
-
-## The Tier Above Both Lists
-
-Channels and contacts are peers — two indexes onto the people you can reach —
-but one of them is the app's root and the other is a screen you open from it,
-and nothing about the pair justifies which. Give them a tier they are both
-inside, and put the room you are present in at that tier, above whichever list
-is showing. Chip in and Standings stop being the tail of the channel list and
-become what they are, elements of the application. Restructures the first
-screen on every device, not just the iPad. Design is here: HOME.md
 
 ## Keep Alive During Watch Party
 

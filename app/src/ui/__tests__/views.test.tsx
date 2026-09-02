@@ -297,7 +297,8 @@ function render(element: React.ReactElement): ReactTestRenderer {
 }
 
 /**
- * The three handlers HomeView requires, as no-ops.
+ * What the tier requires, as no-ops — and the Channels tab, which is what it
+ * opens on and what almost every test below is about.
  *
  * Spread first, so a test that is about one of them overrides just that one and
  * every other site stays quiet about navigation it does not exercise. These
@@ -306,11 +307,13 @@ function render(element: React.ReactElement): ReactTestRenderer {
  * It exists because `onOpenContacts` was added to HomeView and broke
  * thirty-eight call sites that had each written the same two no-ops out by
  * hand — a compile error per test, none of them about anything the test was
- * testing. The next required handler now costs one line here.
+ * testing. The next required handler now costs one line here, which is what it
+ * cost when the tier arrived and took `list` and `onList`.
  */
 const homeNav = {
+  list: 'channels' as const,
+  onList: () => {},
   onEnterChannel: () => {},
-  onOpenContacts: () => {},
   onOpenSettings: () => {},
 };
 
@@ -894,7 +897,7 @@ describe('Channel, with a guest in it', () => {
       )
     );
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const text = textOf(tree);
     expect(text).toContain('is at the door');
@@ -913,7 +916,7 @@ describe('Channel, with a guest in it', () => {
   it('shows a guest as a guest, and says nobody can hear them', () => {
     showChannel(withGuest());
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const text = textOf(tree);
     expect(text).toContain('Dana');
@@ -925,7 +928,7 @@ describe('Channel, with a guest in it', () => {
   it('makes asking to speak the loud thing, and grants it in one tap', () => {
     showChannel(withGuest({ request: 'asking' }));
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     expect(textOf(tree)).toContain('asking to speak');
 
@@ -943,7 +946,7 @@ describe('Channel, with a guest in it', () => {
     // making "stop them talking" mean "throw them out".
     showChannel(withGuest({ maySpeak: true }));
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
 
     act(() => findButton(tree, 'Turn their microphone off')!.props.onPress());
@@ -967,7 +970,7 @@ describe('Channel, with a guest in it', () => {
     // could not name. Answered on their own page, by them.
     showChannel(withGuest({ maySpeak: true }));
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     act(() => findButton(tree, 'Add contact')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
@@ -979,7 +982,7 @@ describe('Channel, with a guest in it', () => {
     // Per reader, not per guest: this is what *this* member asked.
     showChannel(withGuest({ asks: { [ME]: 'asking' } }));
     const asked = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     expect(findButton(asked, 'Asked')!.props.disabled).toBe(true);
     act(() => asked.unmount());
@@ -987,7 +990,7 @@ describe('Channel, with a guest in it', () => {
     // And a refusal is a different thing to be told than a silence.
     showChannel(withGuest({ asks: { [ME]: 'refused' } }));
     const refused = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     expect(findButton(refused, 'They said no')!.props.disabled).toBe(true);
     act(() => refused.unmount());
@@ -1004,7 +1007,7 @@ describe('Channel, with a guest in it', () => {
       .mockResolvedValue({ action: 'sharedAction' } as never);
     showChannel(channelOf());
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     expect(textOf(tree)).toContain('whoever is in the channel decides');
 
@@ -1031,7 +1034,7 @@ describe('Channel, with a guest in it', () => {
       .mockResolvedValue(true);
     showChannel(channelOf());
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
 
     await act(async () => {
@@ -1055,7 +1058,7 @@ describe('Channel, with a guest in it', () => {
       .mockResolvedValue(false);
     showChannel(channelOf());
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
 
     await act(async () => {
@@ -1077,7 +1080,7 @@ describe('Channel, with a guest in it', () => {
     const copied = jest.spyOn(Clipboard, 'setStringAsync');
     showChannel(channelOf());
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
 
     await act(async () => {
@@ -1096,7 +1099,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).toContain('Loading channel');
@@ -1117,7 +1120,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).not.toContain('Loading channel');
@@ -1131,7 +1134,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).toContain('Channel gone');
@@ -1156,7 +1159,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(tree.root.findAll((n) => n.type === KeyboardAvoidingView)).toHaveLength(1);
@@ -1168,7 +1171,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -1194,7 +1197,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={onExit}
       />);
 
@@ -1234,7 +1237,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -1297,7 +1300,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const disabled = (label: string) => {
@@ -1381,7 +1384,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const on = (label: string) =>
@@ -1428,7 +1431,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
@@ -1459,7 +1462,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -1484,7 +1487,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -1505,7 +1508,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -1525,7 +1528,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={{ ...AUDIO, failing: [THEM] }}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -1545,7 +1548,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={{ ...AUDIO, failing: [ME] }}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).not.toContain('not receiving you');
@@ -1559,7 +1562,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -1580,7 +1583,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).toContain('20s');
@@ -1593,7 +1596,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const claim = findButton(tree, 'Claim the floor');
@@ -1609,7 +1612,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(findButton(tree, 'Play something together')).toBeDefined();
@@ -1627,7 +1630,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -1664,7 +1667,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -1707,7 +1710,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -1742,7 +1745,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -1776,7 +1779,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, '+15s')!.props.onPress());
@@ -1794,7 +1797,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     // Held back at first: foregrounding drops the socket every time, and this
@@ -1823,7 +1826,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -1858,7 +1861,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const invite = findButton(tree, 'Invite');
@@ -1871,26 +1874,27 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('goes Home without giving up presence or the connection', () => {
+  it('closes without giving up presence or the connection', () => {
     // The whole point of the change. Stepping out dispatches STEP_OUT and
-    // unwatches; going Home must do neither, or the snapshot that proves you
-    // are still present disappears and the connection above goes with it.
-    const onHome = jest.fn();
+    // unwatches; closing the screen must do neither, or the snapshot that
+    // proves you are still present disappears and the connection above goes
+    // with it.
+    const onClose = jest.fn();
     showChannel(channelOf());
     const tree = render(
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={onHome}
+        onClose={onClose}
         onExit={() => {}}
       />
     );
 
-    const home = findButton(tree, 'Home');
-    expect(home).toBeDefined();
-    act(() => home!.props.onPress());
+    const close = findButton(tree, 'Close');
+    expect(close).toBeDefined();
+    act(() => close!.props.onPress());
 
-    expect(onHome).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
     expect(mockApp.act).not.toHaveBeenCalled();
     expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
     act(() => tree.unmount());
@@ -1916,7 +1920,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -1944,7 +1948,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -1965,7 +1969,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -1982,7 +1986,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -2010,7 +2014,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -2116,16 +2120,16 @@ describe('Channel', () => {
       )
     );
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const [screen] = tree.root.findAll((node) => node.type === Screen);
     const header = render(screen.props.header);
 
     // Where you are and the two ways out of it, which is what has to stay: on
-    // the longest screen in the application, Home used to be a flick away
-    // from wherever anybody actually was.
+    // the longest screen in the application, the way off it used to be a flick
+    // away from wherever anybody actually was.
     expect(textOf(header)).toContain('Dana Chu');
-    expect(findButton(header, 'Home')).toBeDefined();
+    expect(findButton(header, 'Close')).toBeDefined();
     expect(findButton(header, 'Settings')).toBeDefined();
 
     // And the description stayed behind, in the scroll. It is prose of any
@@ -2139,16 +2143,16 @@ describe('Channel', () => {
   });
 
   /**
-   * The way out of the detail pane, which is a different button from Home and
-   * is not always offered.
+   * The one way out, and the same word for it in both panes.
    *
-   * Home is worth nothing beside a Home that never went away, so it goes; a
-   * Close in its place is what stops this being the only view the pane can
-   * hold that cannot be dismissed. And it is withheld while you are present
-   * here, or somebody could close the conversation they are talking in, put
-   * Contacts in the pane beside it, and be in a call with nothing on screen
-   * saying so. `App.tsx` decides that, since it is the thing that knows where
-   * you are standing; this asserts what each answer renders.
+   * **It was two buttons and three cases until 2026-09-01**: *Home* on a
+   * phone, *Close* in the detail pane, and neither there while you were
+   * present — because closing the conversation you were talking in, then
+   * putting Contacts in the pane beside it, left somebody in a call with
+   * nothing on screen saying so. The tier answers that from above: the pane
+   * this closes into carries the live bar whichever list it is showing. So
+   * there is one prop, one word, and no case where the screen cannot be
+   * dismissed.
    */
   const headerOf = (element: React.ReactElement) => {
     const tree = render(element);
@@ -2156,39 +2160,16 @@ describe('Channel', () => {
     return { tree, header: render(screen!.props.header) };
   };
 
-  it('offers Home on a phone and never a Close', () => {
+  it('offers Close on a phone', () => {
     showChannel(channelOf());
+    const closed = jest.fn();
     const { tree, header } = headerOf(
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
-        onClose={() => {}}
+        onClose={closed}
         onExit={() => {}}
       />
-    );
-    // Given one and still not drawing it: on a phone this screen covers the
-    // list, so the way out means Home. The prop is what the pane reads, not
-    // what the phone does.
-    expect(findButton(header, 'Home')).toBeDefined();
-    expect(findButton(header, 'Close')).toBeUndefined();
-    act(() => header.unmount());
-    act(() => tree.unmount());
-  });
-
-  it('swaps Home for Close in the detail pane, when one is given', () => {
-    showChannel(channelOf());
-    const closed = jest.fn();
-    const { tree, header } = headerOf(
-      <PaneContext.Provider value="detail">
-        <ChannelView
-          channelId="sess_1"
-          audio={AUDIO}
-          onHome={() => {}}
-          onClose={closed}
-          onExit={() => {}}
-        />
-      </PaneContext.Provider>
     );
     expect(findButton(header, 'Home')).toBeUndefined();
     act(() => findButton(header, 'Close')!.props.onPress());
@@ -2197,21 +2178,22 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('leaves the detail pane with neither while you are present in it', () => {
-    // Which is `App.tsx` withholding `onClose`. Step out and it appears.
+  it('offers the same Close in the detail pane', () => {
     showChannel(channelOf());
+    const closed = jest.fn();
     const { tree, header } = headerOf(
       <PaneContext.Provider value="detail">
         <ChannelView
           channelId="sess_1"
           audio={AUDIO}
-          onHome={() => {}}
+          onClose={closed}
           onExit={() => {}}
         />
       </PaneContext.Provider>
     );
     expect(findButton(header, 'Home')).toBeUndefined();
-    expect(findButton(header, 'Close')).toBeUndefined();
+    act(() => findButton(header, 'Close')!.props.onPress());
+    expect(closed).toHaveBeenCalled();
     // And Settings is still there, so the header did not simply fail to draw.
     expect(findButton(header, 'Settings')).toBeDefined();
     act(() => header.unmount());
@@ -2227,7 +2209,7 @@ describe('Channel', () => {
   it('pins the recording indicator, and only while one is running', () => {
     showChannel(channelOf());
     const idle = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const [idleScreen] = idle.root.findAll((node) => node.type === Screen);
     const idleHeader = render(idleScreen.props.header);
@@ -2241,7 +2223,7 @@ describe('Channel', () => {
       )
     );
     const live = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const [liveScreen] = live.root.findAll((node) => node.type === Screen);
     const liveHeader = render(liveScreen.props.header);
@@ -2265,7 +2247,7 @@ describe('Channel', () => {
   it('pins three controls under the conversation', () => {
     showChannel(channelOf());
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const footer = footerOf(tree);
 
@@ -2295,7 +2277,7 @@ describe('Channel', () => {
       )
     );
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const footer = footerOf(tree);
     expect(textOf(footer)).toContain('Unmute');
@@ -2308,7 +2290,7 @@ describe('Channel', () => {
       channelOf((c) => reduce(c, { type: 'CLAIM_FLOOR', userId: ME }, NOW))
     );
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const footer = footerOf(tree);
     expect(textOf(footer)).toContain('Release');
@@ -2328,7 +2310,7 @@ describe('Channel', () => {
       channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW))
     );
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const footer = footerOf(tree);
 
@@ -2346,7 +2328,7 @@ describe('Channel', () => {
   it('acts on the same actions the cards send', () => {
     showChannel(channelOf());
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const footer = footerOf(tree);
 
@@ -2376,7 +2358,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
@@ -2402,7 +2384,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
@@ -2418,7 +2400,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
@@ -2443,7 +2425,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
@@ -2469,7 +2451,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
@@ -2499,7 +2481,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -2545,7 +2527,7 @@ describe('Channel', () => {
     const mine = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(mine, 'Tuesday')!.props.onPress());
@@ -2559,7 +2541,7 @@ describe('Channel', () => {
     const theirs = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(theirs, 'Tuesday')!.props.onPress());
@@ -2582,7 +2564,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -2620,7 +2602,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
@@ -2665,7 +2647,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
@@ -2719,7 +2701,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -2744,7 +2726,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).toContain('Nothing recorded here yet');
@@ -2757,7 +2739,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).not.toContain('elapsed');
@@ -2776,7 +2758,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).toContain('Channel ended');
@@ -2792,7 +2774,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -2821,7 +2803,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const text = textOf(tree);
@@ -2844,7 +2826,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(linksIn(tree)).toEqual([]);
@@ -2856,7 +2838,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     act(() => findButton(tree, 'Settings')!.props.onPress());
@@ -2888,7 +2870,7 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
 
@@ -3159,10 +3141,70 @@ describe('Home while still in a channel', () => {
 
     expect(text).toContain('The Floor');
     expect(text).toContain('Book club');
+    // The switch is pinned with it, being the other thing that is about the
+    // frame rather than about the list inside it.
+    expect(findButton(header, 'Channels')).toBeDefined();
     expect(findButton(header, 'Contacts')).toBeDefined();
     expect(findButton(header, 'Settings')).toBeDefined();
     act(() => header.unmount());
     act(() => tree.unmount());
+  });
+
+  /**
+   * The fault the tier was built for.
+   *
+   * The bar was in the channel list's header, so switching to the contacts
+   * took it off the screen. On a phone that survived — the contacts covered
+   * the channels and you had been there a moment ago — but in a split the
+   * contact list holds the left pane while something else holds the right, and
+   * then somebody is present in a conversation with nothing anywhere on screen
+   * saying so. The fix proposed first was to draw the bar in the contact list
+   * too, which is why this asserts on the *tier's* header rather than merely
+   * on the text: a live room is not a contact, and the bar being above both
+   * lists is the whole of the change.
+   */
+  it('keeps the live bar over the contacts, not only over the channels', () => {
+    home();
+    const bar = {
+      channelId: 'sess_1',
+      title: 'Book club',
+      present: 2,
+      muted: false,
+    };
+    for (const list of ['channels', 'contacts'] as const) {
+      const tree = render(
+        <HomeView
+          {...homeNav}
+          list={list}
+          liveChannel={bar}
+          onReturnToChannel={jest.fn()}
+        />
+      );
+      const [screen] = tree.root.findAll((node) => node.type === Screen);
+      const header = render(screen.props.header);
+      expect(textOf(header)).toContain('Book club');
+      act(() => header.unmount());
+      act(() => tree.unmount());
+    }
+  });
+
+  /*
+    And Chip in is the tier's too, for the same reason said the other way
+    round: it is about the application rather than about either list, so it is
+    under both of them rather than at the tail of somebody's channels.
+  */
+  it('offers Chip in under either list', async () => {
+    home();
+    // The default stub is a server with somewhere to give, which is what makes
+    // this about where the row is drawn rather than about whether it is.
+    for (const list of ['channels', 'contacts'] as const) {
+      let tree!: ReactTestRenderer;
+      await act(async () => {
+        tree = renderer.create(<HomeView {...homeNav} list={list} />);
+      });
+      expect(findButton(tree, 'Chip in')).toBeTruthy();
+      act(() => tree.unmount());
+    }
   });
 
   it('falls back to the roster when the channel has no name', () => {
@@ -3274,7 +3316,7 @@ describe('reading somebody else’s profile', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -3307,7 +3349,7 @@ describe('reading somebody else’s profile', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -3436,7 +3478,7 @@ describe('adding a contact you met in a channel', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -3571,7 +3613,7 @@ describe('named channels and described ones do not look alike', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -4732,7 +4774,7 @@ describe('being alone in a channel', () => {
       <ChannelView
         channelId="sess_1"
         audio={{ ...showAudio(micOpen), status: 'connected' as const }}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -4773,7 +4815,7 @@ describe('being alone in a channel', () => {
       <ChannelView
         channelId="sess_1"
         audio={{ ...showAudio(false), status: 'connected' as const }}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -4804,7 +4846,7 @@ describe('a channel screen without the repeated cards', () => {
     mockApp.controlCards = false;
     showChannel(channel);
     return render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
   };
 
@@ -4917,7 +4959,7 @@ describe('a channel screen without the repeated cards', () => {
       )
     );
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     expect(textOf(tree).split('You are still being recorded')).toHaveLength(2);
     act(() => tree.unmount());
@@ -4935,7 +4977,7 @@ describe('a channel screen without the repeated cards', () => {
     // Present in the room, not on this device: the case the sentence is for.
     mockApp.standingIn = null;
     const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onHome={() => {}} onExit={() => {}} />
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     const text = textOf(tree);
     expect(text).toContain('closes the microphone there');
@@ -5882,7 +5924,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -5902,7 +5944,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={audioWith(THEM)}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -5925,7 +5967,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -5951,7 +5993,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={audioWith(THEM)}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -5987,7 +6029,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={audioWith(THEM)}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6005,7 +6047,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6039,7 +6081,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6069,7 +6111,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6105,7 +6147,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6153,7 +6195,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6183,7 +6225,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6214,7 +6256,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6247,7 +6289,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6277,7 +6319,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6300,7 +6342,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6322,7 +6364,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6337,7 +6379,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -6383,7 +6425,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
         onEnterChannel={onEnterChannel}
       />
@@ -6438,7 +6480,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
         onEnterChannel={onEnterChannel}
       />
@@ -6473,7 +6515,7 @@ describe('who is in the channel, and who is talking', () => {
       <ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />
     );
@@ -7090,31 +7132,45 @@ describe('Contacts', () => {
     };
   };
 
+  /*
+    Through the tier, with the Contacts tab selected, which is the only way
+    this list is ever on screen — and the only way a tapped row opens
+    anything, the profile having moved up there with everything else that was
+    not a list.
+  */
   const open = () => {
     let tree!: ReactTestRenderer;
     act(() => {
-      tree = renderer.create(<ContactsView onHome={() => {}} />);
+      tree = renderer.create(<HomeView {...homeNav} list="contacts" />);
     });
     return tree;
   };
 
   /*
-    Pinned, like Home's and the channel's, and asserted on `Screen`'s prop for
-    the same reason: both arrangements flatten to one string, so a text search
-    reads a header that scrolls away and one that does not as identical.
+    The list has no header of its own any more — the tier above it does, and
+    what identifies this tab up there is the switch. Asserted on `Screen`'s
+    prop for the reason the channel's is: both arrangements flatten to one
+    string, so a text search reads a header that scrolls away and one that does
+    not as identical.
 
-    This list has no other way out of it than the one button up here, so a
-    header that scrolls strands whoever is furthest down \u2014 which is whoever
-    has the most contacts.
+    This list is as long as the number of people somebody knows, and the switch
+    is the only way off it, so a header that scrolled would strand whoever has
+    the most contacts.
   */
-  it('pins the contacts header above the list', () => {
+  it('is reached by the switch in the tier\'s pinned header', () => {
     withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
     const tree = open();
     const [screen] = tree.root.findAll((node) => node.type === Screen);
     const header = render(screen.props.header);
 
-    expect(textOf(header)).toContain('Contacts');
-    expect(findButton(header, 'Home')).toBeDefined();
+    // Both halves are up there, and the one you are on says so to a screen
+    // reader rather than in a word nobody else's label carries.
+    const contacts = findButton(header, 'Contacts');
+    const channels = findButton(header, 'Channels');
+    expect(contacts!.props.accessibilityState).toEqual({ selected: true });
+    expect(channels!.props.accessibilityState).toEqual({ selected: false });
+    // The way back is that switch and nothing else.
+    expect(findButton(header, 'Home')).toBeUndefined();
 
     // Adding somebody stayed in the scroll. Once opened it is a field that
     // grows a line when it has something to report, and the header is the one
@@ -7123,6 +7179,23 @@ describe('Contacts', () => {
     // the placeholder would not do, being a prop that `textOf` cannot see.
     expect(textOf(tree)).toContain('Add contact');
     expect(textOf(header)).not.toContain('Add contact');
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('switches back to the channels from the same place', () => {
+    withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
+    const onList = jest.fn();
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <HomeView {...homeNav} list="contacts" onList={onList} />
+      );
+    });
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    const header = render(screen.props.header);
+    act(() => findButton(header, 'Channels')!.props.onPress());
+    expect(onList).toHaveBeenCalledWith('channels');
     act(() => header.unmount());
     act(() => tree.unmount());
   });
@@ -7157,11 +7230,27 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
-  it('carries no settings button, the settings having been your profile', () => {
+  it('carries no settings button of its own, those having been your profile', () => {
+    // The tier has one, in its header, and it is about the application. What
+    // this list must not grow back is a second one meaning your own account —
+    // that is your profile, behind the card under "You".
     withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
+    // The body on its own, which is the thing being asserted about. Rendered
+    // bare rather than through the tier, whose header carries a Settings of
+    // its own that would answer the search.
+    let body!: ReactTestRenderer;
+    act(() => {
+      body = renderer.create(<ContactsView onOpenProfile={() => {}} />);
+    });
+    expect(findButton(body, 'Settings')).toBeUndefined();
+    act(() => body.unmount());
+
+    // And the one the tier has is about the application, not your account.
     const tree = open();
-    expect(findButton(tree, 'Settings')).toBeUndefined();
-    expect(findButton(tree, 'Home')).toBeDefined();
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    const header = render(screen.props.header);
+    expect(findButton(header, 'Settings')).toBeDefined();
+    act(() => header.unmount());
     act(() => tree.unmount());
   });
 
@@ -7191,8 +7280,9 @@ describe('Contacts', () => {
   });
 
   it('lists people you are contacts with, and not requests', () => {
-    // Requests stay on Home: they are not contacts yet, and answering one is
-    // something to do rather than somebody to look up.
+    // Requests stay in the channel list, where they were drawn when it was
+    // Home: they are not contacts yet, and answering one is something to do
+    // rather than somebody to look up.
     withContacts([
       { id: 'a', displayName: 'Dana Chu', status: 'accepted' },
       { id: 'b', displayName: 'Pat Ito', status: 'incoming' },
@@ -7289,7 +7379,11 @@ describe('Contacts', () => {
     let tree!: ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <ContactsView onHome={() => {}} onEnterChannel={onEnterChannel} />
+        <HomeView
+          {...homeNav}
+          list="contacts"
+          onEnterChannel={onEnterChannel}
+        />
       );
     });
     const row = tree.root.findAll(
@@ -7355,7 +7449,7 @@ describe('the order contacts are listed in', () => {
     };
     let tree!: ReactTestRenderer;
     act(() => {
-      tree = renderer.create(<ContactsView onHome={() => {}} />);
+      tree = renderer.create(<ContactsView onOpenProfile={() => {}} />);
     });
     const names = namesOn(tree);
     act(() => tree.unmount());
@@ -7416,7 +7510,7 @@ describe('the audio diagnostic panel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).not.toContain('Audio diagnostics');
@@ -7429,7 +7523,7 @@ describe('the audio diagnostic panel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     expect(textOf(tree)).toContain('Audio diagnostics');
@@ -7460,7 +7554,7 @@ describe('the audio diagnostic panel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     // Mounting the screen is the case that mattered: it is what a walk back
@@ -7490,7 +7584,7 @@ describe('the audio diagnostic panel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const button = (label: string) =>
@@ -7528,7 +7622,7 @@ describe('the audio diagnostic panel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const button = (label: string) =>
@@ -7570,7 +7664,7 @@ describe('copying the diagnostics', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
     const toggle = tree.root
@@ -7671,7 +7765,7 @@ describe('the channel clipboard', () => {
     return render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
   }
@@ -7888,7 +7982,7 @@ describe('Channel, watching together', () => {
     return render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        onHome={() => {}}
+        onClose={() => {}}
         onExit={() => {}}
       />);
   }

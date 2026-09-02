@@ -1,74 +1,85 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import type {
-  ContactView,
-  InviteView,
-  RejoinableView,
-} from '../../../core/protocol';
-import { WAITING_WINDOW_MS } from '../../../core/constants';
-import { describeChannel } from '../../../core/naming';
-import { describeQuiet, sentence } from './availability';
-import { useOfflineNotice } from './useOfflineNotice';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Empty, Screen, SectionLabel } from './components';
+import { Button, Card, Screen, SectionLabel } from './components';
+import { ChannelsView } from './ChannelsView';
+import { ContactsView } from './ContactsView';
+import { ProfileView } from './ProfileView';
+import type { List } from './detail';
 import { colors, measure, radius, spacing, type } from './theme';
 
 /**
- * Signed in, not in a channel. A list of channels in three sections — the ones
- * somebody is in, the ones you have been asked into, and the rest — and then
- * the contact requests that have not turned into either yet.
+ * What the app opens on: a frame with a pinned top, and inside it one of the
+ * two lists of people you can reach.
  *
- * **There is no contact list on this screen, and that is its shape.** There
- * used to be one, and it was the only way to open a one-to-one channel with
- * somebody, so the two lists overlapped and argued: a contact row had to work
- * out whether a channel with that person already existed, say so, and offer to
- * join it rather than start a second — sixty lines of comment about a question
- * that need never have been asked. Every accepted contact now *has* an unnamed
- * one-to-one channel, made when the pair accept and guaranteed by the server,
- * so a contact appears here as the thing you would talk to them in.
+ * **This is a tier, and it is new on 2026-09-01.** Home used to *be* the
+ * channel list, and Contacts a screen you opened from a button in its header
+ * with a button of its own to get back — two peers navigated as though one
+ * contained the other, and neither of them the place the things that are
+ * about the *application* belonged. Chip in and Standings sat at the tail of
+ * somebody's channels because the tail of somebody's channels was the only
+ * place there was.
  *
- * The contacts themselves are a screen of their own, `ContactsView`, one tap
- * away in the header — where a row opens the person rather than offering a
- * channel, which is what kept the two lists from arguing again. Availability
- * went with them: "In the app now", "last seen 3 hours ago", which a channel's
- * idleness cannot stand in for, a room nobody has been in for a week saying
- * nothing about whether its other member is holding a phone.
+ * The fault that made it urgent is the live bar. It was in Home's header, so
+ * it did not exist while Contacts was showing. On a phone that survives —
+ * Contacts covers Home and you were there a moment ago — but above the
+ * breakpoint the contact list holds the left pane while something else holds
+ * the right, and then you are present in a conversation with nothing anywhere
+ * on screen saying so. The fix proposed first was to draw the bar in the
+ * contact list too, and it is wrong: a live room is not a contact and has no
+ * business in that list. It belongs to whatever contains both lists, which is
+ * this. See planning/decisions/DECISIONS.md § *The tier above both lists*.
  *
- * What stays here is requests. They are not contacts yet, they are the one
- * thing on this screen that cannot be a channel, and answering one is
- * something to do rather than somebody to look up.
+ * **Three things are pinned and one scrolls.** The title and Settings, the
+ * room you are in if there is one, and the switch between the two lists; then
+ * the selected list, scrolling, with Chip in and Standings at the foot of it.
  *
- * Everything here is a server snapshot. Nothing is computed locally except
- * which section a channel belongs in, which is a display question.
+ * **The lists are bodies rather than screens.** `ChannelsView` and
+ * `ContactsView` render into this scroll and own no header, which is what
+ * lets one frame hold either without knowing which. Neither has a way back to
+ * the other any more — the switch is the whole of that — and neither draws
+ * the live bar, which is the point of the tier rather than a detail of it.
  */
 export function HomeView({
+  list,
+  onList,
   onEnterChannel,
-  onOpenContacts,
   onOpenSettings,
   onOpenSupport = () => {},
   onOpenLeaderboard,
+  onOpenProfile,
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
+  /** Which of the two lists is in the body. See `List` in `ui/detail.ts`. */
+  list: List;
+  onList: (list: List) => void;
   onEnterChannel: (channelId: string) => void;
-  /** The contact list, which is a screen of its own. See ContactsView. */
-  onOpenContacts: () => void;
   onOpenSettings: () => void;
   /** Opens the screen that explains donating, and carries the link out. */
   onOpenSupport?: () => void;
   /**
    * Opens the invitation standings. Absent unless this account has been
-   * granted them, in which case Home says nothing about them at all — the
-   * row is the whole of how anybody learns the screen exists.
+   * granted them, in which case nothing here says they exist at all — the
+   * row is the whole of how anybody learns the screen does.
    */
   onOpenLeaderboard?: () => void;
+  /**
+   * Hands a tapped contact upward instead of opening the profile here.
+   *
+   * **Given only when this tier is the list pane of a split**, where a profile
+   * belongs in the pane next door rather than in a 340pt column. Absent
+   * everywhere else, and then this component owns the profile and shows it
+   * over the whole tier.
+   *
+   * It moved up from `ContactsView` with everything else that was not a list.
+   * `App.tsx` refuses to route profiles through itself, on the grounds that it
+   * would have to know which screen one was opened from to know where closing
+   * it goes back to; that argument does not reach here, because there is only
+   * one answer — back to this tier, with the contacts showing, which is where
+   * it was tapped.
+   */
+  onOpenProfile?: (contact: { id: string; name: string }) => void;
   /**
    * The channel you are present in right now, if you walked back here without
    * stepping out. Null when you are not in one.
@@ -85,6 +96,19 @@ export function HomeView({
   const app = useApp();
 
   /**
+   * A profile, when there is no pane to put it in. Held here rather than in
+   * `ContactsView` because that is a body now and cannot cover anything; see
+   * `onOpenProfile`.
+   */
+  const [profile, setProfile] = useState<{ id: string; name: string } | null>(
+    null
+  );
+  /** Upward when there is a pane to open it in, here when there is not. */
+  const openProfile =
+    onOpenProfile ??
+    ((contact: { id: string; name: string }) => setProfile(contact));
+
+  /**
    * Whether there is anywhere to donate at all, which decides only whether the
    * way in is shown. The explanation and the link itself are on the screen
    * behind it.
@@ -92,7 +116,7 @@ export function HomeView({
    * Asked here rather than carried on the Home snapshot, which is pushed to
    * every client on every change and would be answering this question
    * constantly for a row that never moves. Failure is silence: an older server,
-   * or one with no link configured, leaves Home exactly as it was rather than
+   * or one with no link configured, leaves this exactly as it was rather than
    * reporting an error about something nobody asked for.
    */
   const [canSupport, setCanSupport] = useState(false);
@@ -112,389 +136,156 @@ export function HomeView({
     };
   }, [app.token]);
 
-  const home = app.home;
-  const now = app.serverNow();
-
-  /**
-   * Declining, which is what the ✕ on an invitation does.
-   *
-   * It used to hide the row and nothing more — `dismissedInvites`, a list in
-   * the provider that no storage ever saw — so the invitation came back on the
-   * next launch, and on every other device it had never gone from. A control
-   * whose effect is undone by closing the app is one people press twice and
-   * then stop believing.
-   *
-   * So it leaves the channel, which is the action that already means *no*:
-   * `LEAVE_CHANNEL` gives up membership, and `invitesFor` only ever offered
-   * the channel because the reader was still a participant who had never been
-   * in it. The server tells every device at once and the row is gone for good.
-   *
-   * **Gone for good is why it asks first.** The settings screen's Leave asks,
-   * and this is the same action taken by somebody who has less idea what is in
-   * the channel — they have never been in it. Nothing is said about
-   * recordings, unlike that confirmation: this reader has made none and cannot
-   * see the ones that are there.
-   */
-  const declineInvite = (card: Card) =>
-    Alert.alert(
-      'Decline this invitation?',
-      `It disappears from your home screen and you will need a fresh invitation to ${
-        card.from ? `join ${card.from}` : 'come back'
-      }.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Decline',
-          style: 'destructive',
-          onPress: () => app.act(card.channelId, { type: 'LEAVE_CHANNEL' }),
-        },
-      ]
+  if (profile) {
+    return (
+      <ProfileView
+        accountId={profile.id}
+        // Read from `app.me` for your own rather than from what the card said
+        // when it was tapped, so a name changed on the profile itself is not
+        // stale the moment it is written.
+        fallbackName={
+          profile.id === app.me?.id ? app.me.displayName : profile.name
+        }
+        onBack={() => setProfile(null)}
+        // Stepping into a channel the two of you share. Handed straight
+        // through: what a tap does — arrive, or merely open — is the profile's
+        // business and the same preference the channel list reads.
+        onEnterChannel={onEnterChannel}
+        // Removing a contact from their own profile takes the row this was
+        // opened from with it, so there is nothing to go back to.
+        onRemoved={() => setProfile(null)}
+      />
     );
-
-  // One list from two sources, minus the channel the banner is already
-  // showing — the two are alternative presentations of the same row, not a
-  // list and an exception to it. The server no longer withholds the channel it
-  // thinks you are in, because it can be wrong about that and used to hide the
-  // channel entirely when it was; whether you are *live* somewhere is settled
-  // here, where the app knows what it is actually connected to.
-  const cards = [
-    ...(home?.invites ?? []).map(inviteCard),
-    ...(home?.rejoinable ?? [])
-      // A seat can only be used where one can exist. The same account may hold
-      // one opened on a laptop, which makes the row true on a phone and still
-      // unopenable there — so it is drawn where it leads somewhere.
-      .filter((entry) => !entry.seat || Platform.OS === 'web')
-      .map(memberCard),
-  ].filter((card) => card.channelId !== liveChannel?.channelId);
-
-  /**
-   * The three sections, as a priority ladder: each channel appears once, in
-   * the first one it qualifies for.
-   *
-   * So an invitation with somebody in it is *live* rather than invited, which
-   * is the case worth getting right — it is the most urgent thing on the
-   * screen, and burying it under channels nobody is in to keep the categories
-   * tidy would be sorting by taxonomy rather than by what to do next. Its card
-   * still says who asked you in.
-   */
-  const live = cards.filter(isLive).sort(byIdleness);
-  const invited = cards
-    .filter((card) => !isLive(card) && card.kind === 'invite')
-    .sort(byIdleness);
-  const rest = cards
-    .filter((card) => !isLive(card) && card.kind === 'member')
-    .sort(byIdleness);
-
-  // Everything that is not yet a contact, and so is not yet a channel. The
-  // accepted ones are in the lists above, as the channels they now come with.
-  const requests = (home?.contacts ?? []).filter(
-    (entry) => entry.status !== 'accepted'
-  );
-
-  const showOffline = useOfflineNotice(app.status);
-
-  /**
-   * Opens a channel and walks into it, with nobody else in it yet.
-   *
-   * This replaced a multi-select mode over the contact list — tap to arm it,
-   * pick people, confirm — which was a form to fill in before anything could
-   * happen, and had to be understood before the first channel. Now the button
-   * does the thing and the invitations are made from inside, where the roster
-   * is already on screen and adding somebody is one tap whether it is the
-   * first or the third.
-   *
-   * The empty case is idempotent on the server, one unnamed channel per set of
-   * people meaning one channel per person for the set of just themselves. So
-   * this is safe to tap twice and does not litter Home with empty rows.
-   *
-   * It enters whatever "Tap a channel to step in" is set to, and that is not
-   * an oversight. The setting is about a list of rooms that already exist,
-   * where a tap is as likely to be curiosity as intent; opening a channel of
-   * your own is the intent, and a room you have just made that you are not
-   * standing in is a strange thing to have produced.
-   */
-  const startAlone = async () => {
-    try {
-      const id = await app.startChannel([]);
-      app.act(id, { type: 'ENTER' });
-      onEnterChannel(id);
-    } catch (e) {
-      Alert.alert(
-        'Could not start channel',
-        e instanceof Error ? e.message : String(e)
-      );
-    }
-  };
-
-  /**
-   * What a tap on a channel does, which is one of two things.
-   *
-   * By default it is arriving: ENTER, and the others can hear you the moment
-   * the screen opens. With "Tap a channel to step in" off it is only looking —
-   * the channel screen opens, offering Step In where it would offer Step Out,
-   * and nothing about presence has changed. The screen subscribes to the
-   * channel itself, so a snapshot arrives either way; watching has never been
-   * being there. See ChannelView.
-   */
-  const openChannel = (channelId: string) => {
-    if (app.tapToStepIn) app.act(channelId, { type: 'ENTER' });
-    onEnterChannel(channelId);
-  };
-
-  /**
-   * A seat, which is not this app's screen to open.
-   *
-   * The guest page is a separate document served by the same origin, so this
-   * is a navigation rather than a route change — and it only ever happens in a
-   * browser, seats existing nowhere else.
-   */
-  const openSeat = (channelId: string) => {
-    globalThis.location?.assign(`/g/c/${encodeURIComponent(channelId)}`);
-  };
+  }
 
   /*
-    Pinned, so the two ways off this screen stay reachable and the live bar
-    stops being something you can scroll past. This list is as long as the
-    number of channels somebody has, and both of those were only ever at the
-    top of it.
+    Pinned, all three rows of it. The list under it is as long as the number of
+    channels or contacts somebody has, and none of this is part of either.
 
-    The header keeps the shape it had — it was already one row — so what
-    changes is that it no longer moves. It is the live bar below it that this
-    is really for: an open microphone behind a screen giving no sign of it is
-    the failure that bar exists to prevent, and a sign that leaves the viewport
-    on the first flick is one that gives no sign for most of the screen.
+    The live bar is what this is really for: an open microphone behind a screen
+    giving no sign of it is the failure that bar exists to prevent, and a sign
+    that leaves the viewport on the first flick gives no sign for most of the
+    screen. Switching lists is now the other half of the same argument — the
+    bar used to go with the channel list, and the room you were in disappeared
+    with it.
   */
   const header = (
     <View style={styles.header}>
       {/*
         The measure, applied to the header's contents and not to the header
         itself: the rule under it is an edge, and an edge that stops short of
-        the window is not one. The horizontal padding moved in here for the
-        same reason — the column of cards below carries its padding inside the
-        cap, so a header carrying it outside would sit the title twenty points
-        off the rows it names.
+        the window is not one. The horizontal padding is in here for the same
+        reason — the column of cards below carries its padding inside the cap,
+        so a header carrying it outside would sit the title twenty points off
+        the rows it names.
       */}
       <View style={styles.headerInner}>
-      <View style={styles.headerTop}>
-        {/*
-          Who you are signed in as used to be a second line here, with the
-          connection appended to it. Both halves were in the wrong place. The
-          name is a fact about the account, and the screen about the account is
-          Contact settings, where it now sits above the field that sets it; the
-          connection was a quieter copy of the banner a few lines below, which
-          says the same thing in a sentence and is the one people read.
-        */}
-        <Text style={type.title}>The Floor</Text>
-        {/*
-          The two ways off this screen that are not a channel. Contacts is a
-          screen rather than a section here for the reason the doc comment
-          above gives — a contact row and a channel row answer different
-          questions, and the last time they shared a list they argued.
+        <View style={styles.headerTop}>
+          <Text style={type.title}>The Floor</Text>
+          {/*
+            Settings, and nothing beside it. It is about the application rather
+            than about either list, which is why it is up here — the same
+            argument that promotes Chip in, made about a button that was
+            already in a header.
 
-          Signing out is in Settings rather than either of these: it is about
-          the account rather than about the list, and it sat beside a dozen
-          taps that are not remotely destructive.
-        */}
-        <View style={styles.headerActions}>
-          <Button label="Contacts" variant="ghost" onPress={onOpenContacts} />
-          <Button label="Settings" variant="ghost" onPress={onOpenSettings} />
+            The Contacts button that stood next to it is gone. It said "go to
+            the other screen" about something that was never a screen; the
+            switch below says which of two peers you are looking at, which is
+            what was true all along.
+          */}
+          <View style={styles.headerActions}>
+            <Button label="Settings" variant="ghost" onPress={onOpenSettings} />
+          </View>
         </View>
-      </View>
 
-      {/*
-        You can now be in a conversation while looking at this screen, which
-        means the app has to say so. An open microphone behind a screen giving
-        no sign of it is the one way this could be worse than having to step
-        out first.
-      */}
-      {liveChannel ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${liveChannel.title}, ${
-            liveChannel.muted ? 'your microphone is muted' : 'you are here'
-          }. Tap to return.`}
-          onPress={() => onReturnToChannel(liveChannel.channelId)}
-          style={styles.liveBar}
-        >
-          <View style={styles.rowMain}>
-            {/*
-              A dot, and nothing else. That you are in here is not a sentence
-              worth spending on a screen that is mostly a list of names — but
-              it is worth a mark, and the mark can carry a second fact for
-              free: filled means you are available to talk, hollow and grey
-              means you muted yourself.
+        {/*
+          You can be in a conversation while looking at either list, which means
+          the app has to say so from somewhere that outlives both of them. This
+          is that somewhere, and it is the whole reason this tier exists rather
+          than being a tidier arrangement of the same parts.
+        */}
+        {liveChannel ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${liveChannel.title}, ${
+              liveChannel.muted ? 'your microphone is muted' : 'you are here'
+            }. Tap to return.`}
+            onPress={() => onReturnToChannel(liveChannel.channelId)}
+            style={styles.liveBar}
+          >
+            <View style={styles.rowMain}>
+              {/*
+                A dot, and nothing else. That you are in here is not a sentence
+                worth spending on a screen that is mostly a list of names — but
+                it is worth a mark, and the mark can carry a second fact for
+                free: filled means you are available to talk, hollow and grey
+                means you muted yourself.
 
-              Availability rather than "the microphone is open", which stopped
-              being the same thing when the microphone began closing while you
-              are alone. That closing is invisible to everyone else — it opens
-              by itself the moment somebody arrives — so it leaves you no less
-              reachable, and one bit should spend itself on intent.
+                Availability rather than "the microphone is open", which stopped
+                being the same thing when the microphone began closing while you
+                are alone. That closing is invisible to everyone else — it opens
+                by itself the moment somebody arrives — so it leaves you no less
+                reachable, and one bit should spend itself on intent.
 
-              Nothing to a screen reader, though, which is why the whole bar
-              carries a label saying it in words.
-            */}
-            <View style={styles.liveTitleRow}>
-              <View
-                style={[styles.liveDot, liveChannel.muted && styles.liveDotMuted]}
-              />
-              <Text style={styles.liveTitle} numberOfLines={1}>
-                {liveChannel.title}
+                Nothing to a screen reader, though, which is why the whole bar
+                carries a label saying it in words.
+              */}
+              <View style={styles.liveTitleRow}>
+                <View
+                  style={[
+                    styles.liveDot,
+                    liveChannel.muted && styles.liveDotMuted,
+                  ]}
+                />
+                <Text style={styles.liveTitle} numberOfLines={1}>
+                  {liveChannel.title}
+                </Text>
+              </View>
+              <Text style={styles.liveSub}>
+                {liveChannel.present === 1
+                  ? 'Nobody else is here yet'
+                  : `${liveChannel.present} present`}{' '}
+                · tap to go back
               </Text>
             </View>
-            <Text style={styles.liveSub}>
-              {liveChannel.present === 1
-                ? 'Nobody else is here yet'
-                : `${liveChannel.present} present`}{' '}
-              · tap to go back
-            </Text>
-          </View>
-        </Pressable>
-      ) : null}
+          </Pressable>
+        ) : null}
+
+        <ListSwitch list={list} onList={onList} />
       </View>
     </View>
   );
 
   return (
     <Screen header={header} contentStyle={styles.container}>
-      {/*
-        The offline notice stays in the scroll rather than joining the header.
-        It is held back for a moment before it appears at all, it goes away by
-        itself, and pinning it would give the most transient thing on the
-        screen the one position that never moves.
-      */}
-      {/* Held back for a moment; see useOfflineNotice. */}
-      {showOffline ? (
-        <View style={styles.offline}>
-          <Text style={styles.offlineText}>
-            {app.status === 'connecting'
-              ? 'Reconnecting…'
-              : 'Not connected — invites and channels will not update.'}
-          </Text>
-        </View>
-      ) : null}
-
-      {live.length > 0 ? (
-        <>
-          <SectionLabel>Live</SectionLabel>
-          <View style={styles.list}>
-            {live.map((card) => (
-              <ChannelCard
-                key={card.channelId}
-                card={card}
-                now={now}
-                onPress={() =>
-                  card.kind === 'seat'
-                    ? openSeat(card.channelId)
-                    : openChannel(card.channelId)
-                }
-                stepsIn={app.tapToStepIn}
-                onDecline={
-                  card.kind === 'invite' ? () => declineInvite(card) : undefined
-                }
-              />
-            ))}
-          </View>
-        </>
-      ) : null}
-
-      {invited.length > 0 ? (
-        <>
-          <SectionLabel>Invitations</SectionLabel>
-          <View style={styles.list}>
-            {invited.map((card) => (
-              <ChannelCard
-                key={card.channelId}
-                card={card}
-                now={now}
-                onPress={() =>
-                  card.kind === 'seat'
-                    ? openSeat(card.channelId)
-                    : openChannel(card.channelId)
-                }
-                stepsIn={app.tapToStepIn}
-                onDecline={() => declineInvite(card)}
-              />
-            ))}
-          </View>
-        </>
-      ) : null}
+      {list === 'channels' ? (
+        <ChannelsView
+          onEnterChannel={onEnterChannel}
+          // The bar above and a row down here are two renderings of one
+          // channel, so exactly one of them appears.
+          liveChannelId={liveChannel?.channelId ?? null}
+        />
+      ) : (
+        <ContactsView onEnterChannel={onEnterChannel} onOpenProfile={openProfile} />
+      )}
 
       {/*
-        The channels, and at the foot of them the way to make another.
+        Last in the scroll, below whichever list is showing, and one line
+        rather than three.
 
-        It says "Start a channel" and nothing more. What it used to say —
-        "Start a channel with several people" — was describing a mode rather
-        than an outcome, and it only appeared once you had two contacts, so the
-        one affordance that opens an empty channel was hidden from exactly the
-        people who had nowhere to talk yet. That is still the rule: this
-        section is drawn whether or not it has any channels in it, because the
-        row at its foot is the way out of an empty screen.
+        **Promoted to the tier and left exactly as loud as it was**, which is
+        the decision HOME.md was written to make. Being about the application
+        rather than about either list is a claim about what it belongs to, not
+        about how loudly it should ask — and the comment it inherited governs
+        the tier exactly as it governed Home: everything above it is what
+        somebody opened the app to do, and a request for money that sat above
+        that would be reading the room wrong. Pinning it to the foot of the
+        frame was the other option, and it loses on precisely that.
 
-        It sat above this list as a filled black button, which made the loudest
-        thing on the screen a thing to do rather than the conversations already
-        open. As the last row of the list it is in the place somebody is
-        already looking when nothing there is the one they want, and it reads
-        as one more channel — the one that does not exist yet.
-      */}
-      {rest.length > 0 ? <SectionLabel>Your channels</SectionLabel> : null}
-      {/*
-        Before the first snapshot there are no channels *and* no evidence that
-        there are none. Saying so beats drawing an empty screen, which reads as
-        an account with nothing in it — and this is a cold launch, so it is the
-        first thing anybody sees.
-      */}
-      {!home ? <Empty>Loading…</Empty> : null}
-      <View style={[styles.list, rest.length === 0 && styles.listUnlabelled]}>
-        {rest.map((card) => (
-          <ChannelCard
-            key={card.channelId}
-            card={card}
-            now={now}
-            onPress={() =>
-              card.kind === 'seat'
-                ? openSeat(card.channelId)
-                : openChannel(card.channelId)
-            }
-            stepsIn={app.tapToStepIn}
-          />
-        ))}
-        <StartChannelRow onPress={startAlone} />
-      </View>
-
-      {/*
-        Requests, which are the one part of the old contact list that cannot be
-        a channel: there is nobody to talk to until they are answered. Drawn
-        only when there are any, so an account with nothing outstanding sees a
-        screen about channels and nothing else.
-      */}
-      {requests.length > 0 ? (
-        <>
-          <SectionLabel>Requests</SectionLabel>
-          <View style={styles.list}>
-            {requests.map((entry) => (
-              <RequestRow
-                // An outgoing request carries no account id — deliberately, so
-                // that one sent to an address without an account is
-                // indistinguishable from one sent to a user. Its identity is
-                // the address, which is what `displayName` holds for these rows
-                // and is unique: there cannot be two requests to one address.
-                key={entry.account.id || `sent:${entry.account.displayName}`}
-                entry={entry}
-              />
-            ))}
-          </View>
-        </>
-      ) : null}
-
-      {/*
-        Last on the screen, and one line rather than three.
-
-        Everything above it is what somebody opened the app to do. A request
-        for money that sat above the channels would be reading the room wrong,
-        and the argument for it — what the server costs, that it unlocks
-        nothing, which address to pay with — is longer than belongs on a screen
-        somebody is passing through. That lives one tap away, where it has been
-        chosen rather than imposed.
+        The argument for it — what the server costs, that it unlocks nothing,
+        which address to pay with — is longer than belongs on a screen somebody
+        is passing through. That lives one tap away, where it has been chosen
+        rather than imposed.
       */}
       {canSupport || onOpenLeaderboard ? (
         <>
@@ -518,8 +309,9 @@ export function HomeView({
               the unit this screen uses for one place to go. It appears for the
               few accounts granted the standings and for nobody else, which is
               why the section survives a server with nowhere to give — the
-              label reads as the part of Home that is about the project rather
-              than about a conversation, and the standings belong there too.
+              label reads as the part of the app that is about the project
+              rather than about a conversation, and the standings belong there
+              too.
             */}
             {onOpenLeaderboard ? (
               <Card>
@@ -533,470 +325,73 @@ export function HomeView({
           </View>
         </>
       ) : null}
-
     </Screen>
   );
 }
 
 /**
- * A channel as this screen needs it, from either of the two lists the server
- * sends. Flattened deliberately: which section a channel goes in and how idle
- * it is are the same questions for an invitation and for a channel you belong
- * to, and answering them twice is how the two drift apart.
+ * The two lists, and which one you are looking at.
+ *
+ * **A switch rather than two buttons that navigate**, which is the whole of
+ * what this change is about. Channels and contacts are peers — two indexes
+ * onto the people you can reach, one by the conversations you have with them
+ * and one by name — and the pair used to be dressed as a root and a child: a
+ * *Contacts* button in one header, a *Home* button in the other. Nothing about
+ * them justified which was which.
+ *
+ * Drawn as a segmented control rather than as a tab bar at the foot. A tab bar
+ * is for the top level of a whole application and there are two things in this
+ * one, so it would spend a permanent strip of a small screen saying something
+ * a line under the title says as well.
+ *
+ * `accessibilityState` rather than a word in the label: a screen reader
+ * announces the selection itself, and "Channels, selected, button" is the
+ * sentence it makes of this. Both halves stay pressable when selected — a
+ * control that goes inert where you already are is one people press twice
+ * wondering whether it registered.
  */
-type Card = {
-  channelId: string;
-  /**
-   * `'seat'` is a channel you are a *guest* of, in a browser. A place you can
-   * go back to is what this list means, so it belongs among the rest — but it
-   * opens the guest page rather than the channel screen, which a
-   * non-participant cannot see, and it is drawn from the seat rather than from
-   * a membership nobody has. See `RejoinableView.seat`.
-   */
-  kind: 'invite' | 'member' | 'seat';
-  title: string;
-  /** Whether the title is a name somebody wrote or a description of a roster. */
-  named: boolean;
-  /**
-   * How many people are in it. `undefined` from a server that predates the
-   * field on an invitation, and read as occupied — the old text asserted
-   * somebody was waiting, so this preserves it rather than inventing an
-   * emptiness nothing reported.
-   */
-  presentCount: number | undefined;
-  /**
-   * The most recent moment anybody was in it, the reader included. No longer
-   * what the row says or what the list is ordered by — kept for two jobs it
-   * still does alone: standing in for `lastPresenceByOthers` against a server
-   * too old to send it, and ordering the tier of channels nobody but the reader
-   * has ever been in, which have no other number.
-   */
-  lastPresenceAt: number | undefined;
-  /**
-   * The most recent moment anybody *else* was in it. What the row says and what
-   * the list is ordered by. Null is nobody else ever; undefined is a server
-   * that predates the field, and `describeQuiet` tells the two apart.
-   */
-  lastPresenceByOthers: number | null | undefined;
-  /**
-   * When the reader last stepped in here, or null. Draws the mark, orders
-   * nothing — see `RejoinableView.steppedInAt`.
-   */
-  steppedInAt: number | null | undefined;
-  /** False only for a channel nobody has ever been in. */
-  everUsed: boolean;
-  /** Who asked you in, for an invitation. */
-  from?: string;
-};
-
-function inviteCard(invite: InviteView): Card {
-  // Named where it has a name, described by its roster where it has not —
-  // exactly as a channel row does, since the reader is choosing between them
-  // and they should speak the same way. An older server sends neither, and
-  // then the sender's name is the only thing there is to call it.
-  const described = invite.others?.length
-    ? describeChannel(invite.others.map((other) => other.displayName))
-    : null;
-  return {
-    channelId: invite.channelId,
-    kind: 'invite',
-    title: invite.name ?? described ?? invite.from.displayName,
-    named: invite.name != null,
-    presentCount: invite.presentCount,
-    lastPresenceAt: invite.lastPresenceAt,
-    // Neither, and neither is an omission. An invitation is a channel the
-    // reader has never entered — that is the whole test `invitesFor` applies —
-    // so its own stamp is already about other people, and there is no visit of
-    // theirs for a mark to remember. `describeQuiet` takes the undefined branch
-    // and draws exactly the line it drew before.
-    lastPresenceByOthers: undefined,
-    steppedInAt: undefined,
-    // Somebody has been in it: that is what makes it an invitation rather than
-    // the standing channel a pair of contacts share.
-    everUsed: true,
-    from: invite.from.displayName,
-  };
-}
-
-function memberCard(channel: RejoinableView): Card {
-  // A seat carries the resolved name and the present count and nothing else —
-  // the roster is names-only to a guest and the history is not theirs to read
-  // — so the card is built from what is there rather than from what is
-  // missing. No idleness line: the numbers that would draw one are the seat's
-  // own, and reading them as the room's would be a claim about the channel
-  // that the guest is not entitled to make.
-  if (channel.seat) {
-    return {
-      channelId: channel.channelId,
-      kind: 'seat',
-      title: channel.name ?? 'A channel',
-      named: true,
-      presentCount: channel.presentCount,
-      lastPresenceAt: undefined,
-      lastPresenceByOthers: undefined,
-      steppedInAt: undefined,
-      everUsed: true,
-    };
-  }
-  return {
-    channelId: channel.channelId,
-    kind: 'member',
-    title:
-      channel.name ??
-      describeChannel(channel.others.map((other) => other.displayName)),
-    named: channel.name != null,
-    presentCount: channel.presentCount,
-    // `lastActiveAt` is the fallback for a server that predates the better
-    // stamp, and is the same answer for every channel nobody is in — which are
-    // the only ones an idleness line is drawn for.
-    lastPresenceAt: channel.lastPresenceAt ?? channel.lastActiveAt,
-    // No `lastActiveAt` fallback here, unlike the line above, and the asymmetry
-    // is the point. That one wants any answer about the room; this one wants an
-    // answer with the reader taken out, and `lastActiveAt` moves on *anybody's*
-    // entry or exit including theirs — so falling back to it would let the
-    // solitary morning back in through the side door. Undefined stays
-    // undefined, and `describeQuiet` uses the old number under its old meaning.
-    lastPresenceByOthers: channel.lastPresenceByOthers,
-    steppedInAt: channel.steppedInAt,
-    everUsed: channel.everUsed ?? true,
-  };
-}
-
-const isLive = (card: Card) =>
-  card.presentCount === undefined || card.presentCount > 0;
-
-/**
- * Whoever else was here most recently, first — then the rooms only the reader
- * has been in, then the ones nobody has been in at all.
- *
- * **Three tiers, not two**, since 2026-08-26, and the middle one is new because
- * the number this reads is. It used to be `lastPresenceAt`, the last moment
- * anybody at all was here, which counts the reader: presence is exclusive, so
- * stepping into a channel to announce yourself and then stepping into the next
- * left the first sitting at the top of the list, above a room two other people
- * had spent an hour in yesterday. It ordered on visits, and what somebody
- * scanning this list wants is what they missed.
- *
- * The row's own line says the same number, which is the other half of the
- * reason. A list ordered by one fact and annotated with another puts the
- * disagreement in front of the reader and makes both look wrong.
- *
- * That leaves a channel the reader alone has opened with nothing to sort on,
- * which is the middle tier. It cannot stay at the top on the strength of a
- * solitary visit — that is the whole complaint — and it must not drop in among
- * the never-opened either: somebody *went* there, possibly to wait for you, and
- * that is worth more than a channel neither of you has touched. Among its own
- * kind it goes by `lastPresenceAt`, the only number it has.
- *
- * The never-used stay pinned at the bottom, for the reason they always were:
- * their stamp is the moment they were created, which is not a visit, and a
- * contact you have not spoken to yet would otherwise arrive as the freshest
- * thing on the list. Among themselves they go by name, there being nothing else
- * true to order them by.
- *
- * **`steppedInAt` is not read here.** The mark says the reader was here, and
- * sorting on it would put their own echo back at the top — undoing, with the
- * second signal, exactly what the first one was for.
- *
- * Against a server that predates the field every row takes the `lastPresenceAt`
- * fallback, which restores the old order exactly rather than collapsing the
- * whole list into the middle tier and shuffling it by name.
- */
-function seenOfOthers(card: Card): number | null {
-  if (card.lastPresenceByOthers !== undefined) return card.lastPresenceByOthers;
-  return card.lastPresenceAt ?? null;
-}
-
-function byIdleness(a: Card, b: Card): number {
-  if (a.everUsed !== b.everUsed) return a.everUsed ? -1 : 1;
-  if (!a.everUsed) return a.title.localeCompare(b.title);
-  const at = seenOfOthers(a);
-  const bt = seenOfOthers(b);
-  if (at === null || bt === null) {
-    if (at !== bt) return at === null ? 1 : -1;
-    return (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0);
-  }
-  return bt - at;
-}
-
-
-/**
- * One card for both kinds of channel.
- *
- * They were two components, and the differences between them had grown into
- * differences of kind: an invitation was a banner above the list with its own
- * shape, so the same channel looked like two unrelated things depending on
- * whether you had answered it. What actually differs is one line of text, a
- * decline control, and whether the accent is on — and an invitation nobody is
- * waiting in is not urgent, so it loses the accent and keeps the shape.
- */
-function ChannelCard({
-  card,
-  now,
-  onPress,
-  onDecline,
-  stepsIn,
+function ListSwitch({
+  list,
+  onList,
 }: {
-  card: Card;
-  now: number;
-  /** Presence, not membership — you never stopped belonging to it. */
-  onPress: () => void;
-  /** Invitations only; leaves the channel, after asking. */
-  onDecline?: () => void;
-  /**
-   * Whether this tap arrives or only looks — the Home setting, passed down so
-   * the row can say which of the two it is about to do. It changes no
-   * behaviour here; the row calls back either way.
-   */
-  stepsIn: boolean;
+  list: List;
+  onList: (list: List) => void;
 }) {
-  const live = isLive(card);
-  // Null only for an invitation from a server that predates the stamp, which
-  // is a line that goes away rather than a line that says nothing.
-  const quiet = describeQuiet(card, now);
-  /**
-   * Whether the reader stepped in here recently enough to be worth being
-   * reminded of.
-   *
-   * Drawn only on a row nobody is in, the same rule the interval follows, and
-   * for the same reason: a row with people in it is showing its count, and a
-   * channel the reader is *still* standing in does not need to be told they
-   * arrived. What this is for is the room they have already left, which under a
-   * recency measure that leaves them out carries no other trace of the visit.
-   *
-   * Expired against the phone's own clock rather than the snapshot's, which is
-   * why the wire carries a moment instead of a flag: nothing has to happen in
-   * the channel for the mark to go.
-   *
-   * **`WAITING_WINDOW_MS`, and not `PRESENCE_LIFETIME_MS`, since 2026-08-27.**
-   * The mark was five minutes wide because it was reading the *push*'s window
-   * — how long "somebody is here now" stays worth delivering — and the two
-   * only ever looked like one number. What the mark reports is a visit, and
-   * the length a visit stays worth mentioning is the length the app already
-   * commits to elsewhere: `WAITING_WINDOW_MS` is how long somebody's roster
-   * card goes on saying they are nearby rather than that they stepped out. So
-   * the mark now fades when the reader stops reading as nearby to everybody
-   * else, which is one claim with two audiences instead of two clocks.
-   *
-   * The two clocks are not the same instant, and the difference runs the safe
-   * way. `steppedInAt` is when the reader *arrived*, where the roster's
-   * `nearby` measures from the last thing heard from them — so on a long visit
-   * this expires first and can never outlive the state it is aligned with.
-   */
-  const steppedIn =
-    !live && card.steppedInAt != null && now - card.steppedInAt < WAITING_WINDOW_MS;
-  /**
-   * An invitation outlives the moment it was sent. What it must not do is go
-   * on claiming that moment is still happening — the banner used to say
-   * somebody "is waiting in a channel" whatever the truth of it, so an
-   * invitation to a room they had left summoned you to nobody.
-   */
-  const line =
-    card.kind === 'invite'
-      ? live
-        ? // "tap to join" only when a tap joins. With stepping in made
-          // deliberate, the same tap opens the channel and joins nothing, and
-          // promising otherwise would be the one place on this screen where
-          // the setting is not honoured.
-          `${card.from} is waiting${stepsIn ? ' — tap to join' : ''}`
-        : `${card.from} asked you in${quiet ? ` · ${quiet}` : ''}`
-      : card.kind === 'seat'
-        ? // Said plainly, because a row that looked like the others would be
-          // promising the channel screen and opening a different page.
-          `You are a guest here${live ? ` · ${card.presentCount} present` : ''}`
-        : live
-          ? `${card.presentCount} present`
-        : // An empty channel used to be sixty seconds from destruction, and
-          // saying so was a reason to hurry back. Channels are permanent now:
-          // nobody being in one is a resting state, not a countdown.
-          quiet && sentence(quiet);
-
   return (
-    // The whole row, rather than a button on the end of it. There is only one
-    // thing to do with a channel you are not in, so a target the size of the
-    // row is the honest shape for it — and it matches the live bar above,
-    // which has always worked this way.
-    <Pressable
-      accessibilityRole="button"
-      // The mark is a glyph, and a glyph reads as nothing. This is the only
-      // place that cost can be paid, so it is paid here rather than left to a
-      // screen reader to guess at an arrow.
-      //
-      // **"in and out" rather than "in"**, and the extra two words are not
-      // padding. The action at the end of this same label is "Step in", so a
-      // state called "Stepped in" put the two a syllable apart and read as
-      // gibberish — "Stepped in. Step in." Saying the whole of what happened
-      // separates them. It outlived the glyph it was written beside and is
-      // kept deliberately: the stutter it fixes is a property of the label,
-      // not of the mark.
-      accessibilityLabel={`${card.title}. ${line ? `${line}. ` : ''}${
-        steppedIn ? 'Stepped in and out. ' : ''
-      }${
-        // A seat opens the guest page, where the way in is the door rather
-        // than a step, and the Home setting has nothing to say about it.
-        card.kind === 'seat'
-          ? 'Open as a guest.'
-          : !stepsIn
-            ? 'Open.'
-            : card.kind === 'invite'
-              ? 'Join.'
-              : 'Step in.'
-      }`}
-      onPress={onPress}
-      style={({ pressed }) => pressed && styles.rowPressed}
-    >
-      <Card
-        style={[
-          styles.row,
-          card.kind === 'invite' && (live ? styles.invite : styles.inviteQuiet),
-        ]}
-      >
-        <View style={styles.rowMain}>
-          {/*
-            A named channel is asserted; an unnamed one is only described, and
-            the muted italic says so. Without it the two sit in one list looking
-            alike, and a description written from your side alone reads as a
-            name every member would recognise — which it is not. See
-            core/naming.ts.
-          */}
-          <Text style={card.named ? type.body : styles.described} numberOfLines={1}>
-            {card.title}
-          </Text>
-          {line ? <Text style={type.muted}>{line}</Text> : null}
-        </View>
-        {/*
-          `↗` again. `‥`, U+2025 TWO DOT LEADER, held this spot for a day on
-          the argument that a footprint beats a departure — two dots being two
-          steps, in and out. It read better written down than drawn: two periods
-          of ink at the edge of a row are too small to register as anything, and
-          beside the rest of this screen the arrow is simply the one that can be
-          seen. The label kept the two dots' phrasing, which never depended on
-          them.
-
-          Not a control, and it has to not *look* like one: this sits at the row
-          edge where the decline button lives, and an arrow is the glyph most
-          likely to be read as something you could press. No `Pressable`, no
-          hit slop, and `type.muted` rather than the accent — the live bar is
-          the one thing on this screen meant to shout, and this is a memory aid.
-
-          It cannot collide with the ✕ beside it. Stepping in is what sets
-          `steppedInAt`, and stepping in is also what stops a channel being an
-          invitation, so a row can carry a mark or a decline and never both.
-        */}
-        {steppedIn ? (
-          <Text style={styles.steppedIn} accessibilityElementsHidden>
-            ↗
-          </Text>
-        ) : null}
-        {onDecline ? (
-          <Pressable
-            onPress={onDecline}
-            hitSlop={12}
-            accessibilityLabel="Decline invite"
+    <View style={styles.switch}>
+      {(['channels', 'contacts'] as const).map((which) => (
+        <Pressable
+          key={which}
+          accessibilityRole="button"
+          accessibilityState={{ selected: list === which }}
+          onPress={() => onList(which)}
+          style={({ pressed }) => [
+            styles.switchHalf,
+            list === which && styles.switchHalfOn,
+            pressed && styles.switchHalfPressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.switchLabel,
+              list === which && styles.switchLabelOn,
+            ]}
           >
-            <Text style={styles.decline}>✕</Text>
-          </Pressable>
-        ) : null}
-      </Card>
-    </Pressable>
-  );
-}
-
-/**
- * The last row of the channel list: a mark and a label, in the shape of a
- * channel rather than of a button.
- *
- * The accent is on the mark alone. A whole row in the floor colour would be
- * competing with the live bar, which is the one thing on this screen that
- * should be able to shout — and this is not urgent, it is merely available.
- *
- * `accessibilityLabel` is given explicitly so a screen reader says the action
- * and not the plus sign, which is decoration and does not read as a word.
- */
-function StartChannelRow({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Start a channel"
-      onPress={onPress}
-      style={({ pressed }) => pressed && styles.rowPressed}
-    >
-      <Card style={styles.startRow}>
-        <View style={styles.startMark}>
-          <Text style={styles.startMarkGlyph}>+</Text>
-        </View>
-        <Text style={styles.startLabel}>Start a channel</Text>
-      </Card>
-    </Pressable>
-  );
-}
-
-/**
- * A contact request, incoming or outgoing — the one part of the old contact
- * list that cannot be expressed as a channel, there being nobody to talk to
- * until it is answered.
- *
- * No profile behind it and no availability on it, both deliberately. An
- * outgoing request is an address rather than a person: whether anybody is
- * behind it is exactly what must not be revealed, which is why the server
- * withholds the id and the name.
- */
-function RequestRow({ entry }: { entry: ContactView }) {
-  const app = useApp();
-  const { account, status } = entry;
-  return (
-    <Card style={styles.row}>
-      <View style={styles.rowMain}>
-        <Text style={type.body}>{account.displayName}</Text>
-        <Text style={type.muted}>
-          {status === 'incoming' ? 'Wants to be a contact' : 'Pending'}
-        </Text>
-      </View>
-      {status === 'incoming' ? (
-        <View style={styles.rowActions}>
-          <Button
-            label="Accept"
-            variant="primary"
-            onPress={() => app.acceptContact(account.id)}
-          />
-          <Button
-            label="Decline"
-            variant="ghost"
-            onPress={() => app.declineContact(account.id)}
-          />
-        </View>
-      ) : (
-        <View style={styles.rowActions}>
-          <Text style={styles.pendingTag}>Sent</Text>
-          {/*
-            Identified by the address, which is what displayName holds for
-            outgoing rows — these have no account id to cancel by, on purpose.
-          */}
-          <Button
-            label="Withdraw"
-            variant="ghost"
-            onPress={() =>
-              app.withdrawContact(account.displayName).catch((e) => {
-                Alert.alert(
-                  'Could not withdraw',
-                  e instanceof Error ? e.message : String(e)
-                );
-              })
-            }
-          />
-        </View>
-      )}
-    </Card>
+            {which === 'channels' ? 'Channels' : 'Contacts'}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
   /**
-   * The pinned header. It carries `container`'s horizontal padding itself now
-   * that it sits outside the scroll, so the title lines up with the rows
-   * under it, and the hairline is what a pinned header needs and a scrolling
-   * one does not — see the note on TranscriptView's.
+   * The pinned top. It carries `container`'s horizontal padding itself, being
+   * outside the scroll, so the title lines up with the rows under it, and the
+   * hairline is what a pinned header needs and a scrolling one does not — see
+   * the note on TranscriptView's.
    */
   header: {
     paddingTop: spacing(1),
@@ -1005,7 +400,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerInner: { ...measure, paddingHorizontal: spacing(2.5), gap: spacing(1) },
-  /** What used to be `header` itself: the title and the two ways off here. */
+  /** The title and the one button that is about the application. */
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1013,8 +408,8 @@ const styles = StyleSheet.create({
   },
   /**
    * Negative trailing margin, so `Button`'s card-sized horizontal padding
-   * does not inset the pair further from the edge than the title is from the
-   * other one.
+   * does not inset it further from the edge than the title is from the other
+   * one.
    */
   headerActions: {
     flexDirection: 'row',
@@ -1030,14 +425,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.lg,
     padding: spacing(1.75),
-    marginBottom: spacing(1),
   },
   liveTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing(1),
   },
-  liveTitle: { flexShrink: 1, fontSize: 17, fontWeight: '600', color: colors.text },
+  liveTitle: {
+    flexShrink: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.text,
+  },
   liveSub: { fontSize: 13, color: colors.textMuted },
   liveDot: {
     width: 9,
@@ -1055,85 +454,30 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.textFaint,
   },
-  offline: {
-    backgroundColor: colors.surface,
-    borderColor: colors.silenced,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    padding: spacing(1.25),
-    marginBottom: spacing(1),
-  },
-  offlineText: { color: colors.silenced, fontSize: 13 },
-  list: { gap: spacing(1) },
-  /**
-   * The gap a SectionLabel would have left. With no channels there is no
-   * heading, and the start row would otherwise sit against whatever is above
-   * it — the header, or an invitation.
-   */
-  listUnlabelled: { marginTop: spacing(2) },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing(1.5),
-  },
   rowMain: { flex: 1, gap: 2 },
-  /** Feedback on a row whose whole surface is the target. */
-  rowPressed: { opacity: 0.7 },
   /**
-   * A channel nobody has named: described rather than called something.
-   *
-   * Italic alone. Dimming it as well said "less important" on top of "not a
-   * name", and these are not less important — most channels have no name, and
-   * they were the greyest thing on the screen.
+   * The switch: one track, two halves, and the selected half raised out of it
+   * rather than coloured. The accent belongs to the live bar directly above,
+   * which is the one thing here meant to shout; a purple half would be
+   * competing with a room somebody is standing in.
    */
-  described: { ...type.body, fontStyle: 'italic' },
-  rowActions: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
-  /**
-   * Not `row`, which spreads its children apart to put a control on the end.
-   * Here the mark and the label are one phrase and belong together on the
-   * left, so it packs rather than justifies. A shorter card too: this row has
-   * one line where a channel has two.
-   */
-  startRow: {
+  switch: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing(1.5),
-    paddingVertical: spacing(1.5),
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: 3,
+    gap: 3,
   },
-  startMark: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  switchHalf: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.floorDim,
+    paddingVertical: spacing(0.75),
+    borderRadius: radius.sm,
   },
-  startMarkGlyph: {
-    color: colors.floor,
-    fontSize: 19,
-    // Centred by hand: the glyph's own box is taller than its ink, so leaving
-    // it to `justifyContent` alone hangs it low in the circle.
-    lineHeight: 21,
-    fontWeight: '500',
-  },
-  startLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
-  pendingTag: { ...type.muted, color: colors.textFaint },
-  /** An invitation somebody is waiting in, which is worth shouting about. */
-  invite: {
-    backgroundColor: colors.floorDim,
-    borderColor: colors.floor,
-    borderWidth: 1,
-  },
-  /**
-   * And one nobody is waiting in, which is still worth answering and is not
-   * worth shouting. It keeps its shape and loses the urgency, which is
-   * reserved for a room with somebody in it.
-   */
-  inviteQuiet: { borderColor: colors.border, borderWidth: 1 },
-  decline: { color: colors.textMuted, fontSize: 16, paddingHorizontal: 4 },
-  // Muted and a size down from the decline glyph beside it, which is a control
-  // where this is a note to yourself. Same horizontal padding so the two sit in
-  // the same column on rows that have one or the other.
-  steppedIn: { color: colors.textMuted, fontSize: 14, paddingHorizontal: 4 },
+  switchHalfOn: { backgroundColor: colors.surfaceRaised },
+  switchHalfPressed: { opacity: 0.7 },
+  switchLabel: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+  switchLabelOn: { color: colors.text },
+  list: { gap: spacing(1) },
 });

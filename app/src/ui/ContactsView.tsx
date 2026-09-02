@@ -3,34 +3,42 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ContactView as Contact } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
-import { Button, Card, Empty, Field, Screen, SectionLabel } from './components';
-import { ProfileView } from './ProfileView';
-import { colors, measure, spacing, type } from './theme';
+import { Button, Card, Empty, Field, SectionLabel } from './components';
+import { colors, spacing, type } from './theme';
 
 /**
- * The people you know, and whether they are about.
+ * The people you know, and whether they are about — the body of the Contacts
+ * tab, and one of the two lists the tier holds.
  *
- * Home used to carry this, and lost it when it became a list of channels —
- * which was right for Home and wrong for the fact: a channel's idleness says
- * when anybody was last in a room, and says nothing at all about whether its
- * other member is holding a phone right now. Those are different questions and
- * only one of them was still being answered.
+ * **A body rather than a screen, since 2026-09-01.** It had a header with the
+ * title and a *Home* button, and it covered the channel list, which is how a
+ * pair of peers came to be navigated as a root and a child. It has neither now:
+ * the switch above is the whole of how you get between the two, and the frame
+ * around this is `HomeView`. See planning/decisions/DECISIONS.md § *The tier
+ * above both lists*.
  *
- * It is a screen rather than a section because of what a contact row is for.
- * A row is not a channel — the channel list is Home's job, and a contact row
- * that offered one would be the overlap that took the old list apart. What a
- * row does is open the person: where they are, how to reach them, and the one
- * destructive thing you can do about them.
+ * The channel list used to carry this, and lost it when it became a list of
+ * channels — which was right for that list and wrong for the fact: a channel's
+ * idleness says when anybody was last in a room, and says nothing at all about
+ * whether its other member is holding a phone right now. Those are different
+ * questions and only one of them was still being answered.
  *
- * A profile opened from here is a different matter, and is why this screen now
- * takes `onEnterChannel`. Its "Channels with them" section is not a directory
- * of rooms competing with Home's; it is the rooms this pair share, read on the
- * screen about the pair, and the reason to read a line saying three people are
- * in one of them is to go there. See ProfileView.
+ * It is a list of its own rather than a section of that one because of what a
+ * contact row is for. A row is not a channel — a contact row that offered one
+ * would be the overlap that took the old list apart. What a row does is open
+ * the person: where they are, how to reach them, and the one destructive thing
+ * you can do about them.
  *
- * Requests stay on Home. They are not contacts yet, they are the one thing on
- * that screen that cannot be a channel, and answering one is a thing to do
- * rather than somebody to look up.
+ * A profile opened from here is a different matter, and is why this takes
+ * `onEnterChannel`. Its "Channels with them" section is not a directory of
+ * rooms competing with the channel list; it is the rooms this pair share, read
+ * on the screen about the pair, and the reason to read a line saying three
+ * people are in one of them is to go there. See ProfileView.
+ *
+ * Requests stay in the channel list, where they were drawn when it was Home.
+ * They are not contacts yet, and answering one is a thing to do rather than
+ * somebody to look up — but which tab they belong in is a question the tier
+ * reopened and did not settle. See `ChannelsView`.
  *
  * You are a card of your own, since 2026-08-29, under the add-contact row
  * rather than above it, and under a section label reading *You* since
@@ -38,108 +46,40 @@ import { colors, measure, spacing, type } from './theme';
  * does not — it returns the *other* id of each contacts row, which is what
  * stops the list being about you — so the card is drawn from `app.me` and sits
  * in its own section rather than in theirs. Adding somebody is what this
- * screen is for when the list is not enough, so it takes the top; your own
- * card is a way in to your profile, which is a thing you go to occasionally
- * and not the first thing to read. There is no
- * Settings button any more: what it opened was your own account, which is your
- * profile with the fields showing, and that now lives behind Edit on the
- * profile itself. See ProfileView.
+ * list is for when it is not enough, so it takes the top; your own card is a
+ * way in to your profile, which is a thing you go to occasionally and not the
+ * first thing to read. There is no Settings button any more: what it opened
+ * was your own account, which is your profile with the fields showing, and
+ * that now lives behind Edit on the profile itself. See ProfileView.
  */
 export function ContactsView({
-  onHome,
   onEnterChannel,
   onOpenProfile,
 }: {
-  onHome: () => void;
   /**
    * Opens a channel shared with whoever's profile is open. Optional, so this
-   * screen still renders somewhere with nowhere to go — the profile draws the
-   * cards either way and only the tap depends on it.
+   * still renders somewhere with nowhere to go — the profile draws the cards
+   * either way and only the tap depends on it.
    */
   onEnterChannel?: (channelId: string) => void;
   /**
-   * Hands a tapped contact upward instead of opening them here.
-   *
-   * **Given only when this screen is the list pane of a split**, where the
-   * profile belongs in the pane next door rather than in a 340pt column, and
-   * where this list stays on screen underneath it as the way back. Absent
-   * everywhere else — on a phone, and in any window too narrow to split — and
-   * then this screen owns its profile exactly as it always has.
-   *
-   * The two are deliberately not collapsed into one path. `App.tsx` argues
-   * that routing profiles through it would put it in the business of knowing
-   * which screen a profile was opened from, so it could decide where closing
-   * one goes back to. That argument is untouched here: it holds wherever the
-   * profile covers the screen it was opened from, which is the case this prop
-   * is *not* given for. In a split there is nothing to decide — the list never
-   * went away, and closing the profile empties the pane beside it.
+   * Opens a tapped contact. Always given, and always by the tier: where the
+   * profile *goes* — the pane next door in a split, over the whole tier on a
+   * phone — is a question about the frame rather than about this list, and it
+   * is answered once in `HomeView` rather than twice here. This used to hold
+   * its own profile state for the phone case, which is what made it a screen.
    */
-  onOpenProfile?: (contact: { id: string; name: string }) => void;
+  onOpenProfile: (contact: { id: string; name: string }) => void;
 }) {
   const app = useApp();
-  const [profile, setProfile] = useState<{ id: string; name: string } | null>(
-    null
-  );
-  /** Upward when there is a pane to open it in, here when there is not. */
-  const openProfile =
-    onOpenProfile ?? ((contact: { id: string; name: string }) => setProfile(contact));
   const now = app.serverNow();
 
   const contacts = (app.home?.contacts ?? [])
     .filter((entry) => entry.status === 'accepted')
     .sort(byAvailability);
 
-  if (profile) {
-    return (
-      <ProfileView
-        accountId={profile.id}
-        // Read from `app.me` for your own rather than from what the card said
-        // when it was tapped, so a name changed on the profile itself is not
-        // stale the moment it is written.
-        fallbackName={
-          profile.id === app.me?.id ? app.me.displayName : profile.name
-        }
-        onBack={() => setProfile(null)}
-        // Stepping into a channel the two of you share. Handed straight
-        // through: what a tap does — arrive, or merely open — is the profile's
-        // business and the same preference Home reads, and where the channel
-        // screen goes when it is closed is whoever gave us this.
-        onEnterChannel={onEnterChannel}
-        // Removing a contact from their own profile takes the row this screen
-        // was opened from with it, so there is nothing to go back to.
-        onRemoved={() => setProfile(null)}
-      />
-    );
-  }
-
-  /*
-    Pinned, as Home's and the channel's are. This list is as long as the number
-    of people somebody knows and has no other way out of it — the one button up
-    here is the way back — so a header that scrolls away strands whoever is
-    furthest down it, which is exactly whoever has the most contacts.
-
-    `AddContact` stays in the scroll. It is a field with a button under it and
-    it grows a line when it has something to report, and a pinned header is the
-    one place on a screen that cannot afford something that changes height for
-    a reason nobody asked about. It also is not navigation: it is the first
-    thing you do on this screen, which is what the top of a scroll is for.
-  */
-  const header = (
-    <View style={styles.header}>
-      <View style={styles.headerTop}>
-        <Text style={type.title}>Contacts</Text>
-        {/* The way back, and nothing beside it. Every other screen carries its
-            scope's settings here too; this one's were your own account, which
-            is your own profile — the card under "You". */}
-        <View style={styles.headerActions}>
-          <Button label="Home" variant="ghost" onPress={onHome} />
-        </View>
-      </View>
-    </View>
-  );
-
   return (
-    <Screen header={header} contentStyle={styles.container}>
+    <>
       <AddContact />
 
       {/*
@@ -164,7 +104,8 @@ export function ContactsView({
             accessibilityRole="button"
             accessibilityLabel={`${app.me.displayName}. You. Open your profile.`}
             onPress={() =>
-              app.me && openProfile({ id: app.me.id, name: app.me.displayName })
+              app.me &&
+              onOpenProfile({ id: app.me.id, name: app.me.displayName })
             }
             style={({ pressed }) => pressed && styles.rowPressed}
           >
@@ -193,7 +134,7 @@ export function ContactsView({
               entry={entry}
               now={now}
               onPress={() =>
-                openProfile({
+                onOpenProfile({
                   id: entry.account.id,
                   name: entry.account.displayName,
                 })
@@ -202,7 +143,7 @@ export function ContactsView({
           ))}
         </View>
       )}
-    </Screen>
+    </>
   );
 }
 
@@ -384,44 +325,6 @@ function AddContact() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing(2.5), paddingBottom: spacing(6) },
-  /**
-   * The pinned header, carrying `container`'s horizontal padding itself now
-   * that it sits outside the scroll, so the title lines up with the rows
-   * under it. The hairline is what a pinned header needs and a scrolling one
-   * does not — see the note on TranscriptView's.
-   */
-  header: {
-    paddingTop: spacing(1),
-    paddingBottom: spacing(1.5),
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  /**
-   * What used to be `header` itself: the title and the way back.
-   *
-   * It carries the measure and the horizontal padding, where the header
-   * carries the rule underneath. An edge that stops short of the window is not
-   * an edge; and the padding belongs inside the cap, so the title lines up
-   * with the rows below rather than sitting twenty points outside them.
-   */
-  headerTop: {
-    ...measure,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing(2.5),
-  },
-  /**
-   * Negative trailing margin, so `Button`'s card-sized horizontal padding
-   * does not inset it further from the edge than the title is from the other
-   * one.
-   */
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: -spacing(1),
-  },
   list: { gap: spacing(1) },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing(1.5) },
   rowMain: { flex: 1, gap: 2 },

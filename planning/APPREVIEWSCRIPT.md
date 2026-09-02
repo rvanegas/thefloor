@@ -62,10 +62,10 @@ whether the thing works, not for a pitch.
    enter it. Sign-up and sign-in are one screen, so this covers both.
 3. **Home, empty.** Say out loud that there is nothing to browse and nobody to
    find: this is the Guideline 1.2 claim, shown rather than asserted.
-4. **Add a contact.** Contacts, at the top of Home. Enter the second account's
-   address and send. Then accept it on the other device, and come back. Show
-   that the channel appeared on Home by itself — becoming somebody's contact
-   produces the place you would talk to them in.
+4. **Add a contact.** The Contacts half of the switch under Home's title. Enter
+   the second account's address and send. Then accept it on the other device,
+   switch back to Channels, and show that the channel appeared by itself —
+   becoming somebody's contact produces the place you would talk to them in.
 5. **Open the channel and step in.** The microphone prompt fires here. Grant it.
 6. **The floor.** With both accounts present, claim it, and show the other
    phone's microphone going quiet and saying so. This is the app's one mechanic

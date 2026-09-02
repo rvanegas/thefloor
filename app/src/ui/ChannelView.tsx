@@ -57,7 +57,6 @@ import { pickAndUploadTrack } from '../api/upload';
 import { copyText, pasteText } from '../clipboard';
 import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
-import { usePane } from './layout';
 import { liveChannelView } from '../state/live';
 import { AudioDebugPanel } from './AudioDebugPanel';
 import { ChannelSettingsView } from './ChannelSettingsView';
@@ -113,7 +112,6 @@ export function uploadingLabel(percent: number | null): string {
 export function ChannelView({
   channelId,
   audio,
-  onHome,
   onClose,
   onExit,
   onEnterChannel,
@@ -121,28 +119,24 @@ export function ChannelView({
   channelId: string;
   /**
    * Held above this screen, because the connection outlives it: walking back
-   * to Home must not hang up. See App.tsx.
+   * to the tier must not hang up. See App.tsx.
    */
   audio: SessionAudio;
-  /** Back to Home, still present, still connected. */
-  onHome: () => void;
   /**
-   * Empties the pane this is in, leaving the list beside it alone.
+   * Off this screen, still present, still connected — one way out with one
+   * word, in both layouts.
    *
-   * **Given only when you are not present in this channel**, which is a
-   * judgement `App.tsx` makes because it is the one that knows where you are
-   * standing. Without any way out, this is the only view the detail pane can
-   * hold that cannot be dismissed — the single place the two panes behave
-   * unlike each other. Offered unconditionally, somebody present in a
-   * conversation could close its screen, switch the left pane to Contacts, and
-   * be in a call with nothing on screen saying so. Absent while you are
-   * present, and appearing the moment you step out, is both.
-   *
-   * Rendered only in the detail pane, where the Home button is not: on a phone
-   * this screen covers the list and Home is what the way out means. See
-   * `pane`.
+   * **It was two, until 2026-09-01.** A phone had *Home*, which revealed the
+   * screen underneath, and the detail pane had *Close*, which emptied it — and
+   * `Close` was withheld while you were present here, because closing into a
+   * contact list that could not show a live room would have left somebody in a
+   * call with nothing on screen saying so. Both of those went with the tier:
+   * the list this closes into now carries the live bar above it whichever list
+   * it is showing, so there is nothing to withhold, and *Close* is honest
+   * about both — it reveals the tier on a phone and empties the pane in a
+   * split. See GLOSSARY.md § *Close*.
    */
-  onClose?: () => void;
+  onClose: () => void;
   /** Off this screen having given up presence or membership. */
   onExit: () => void;
   /**
@@ -156,18 +150,14 @@ export function ChannelView({
    * pressable from Contacts and inert here, and a card that says three people
    * are in a room and does nothing when tapped is not restraint, it is a dead
    * control. Presence is not a screen: going there does not hang anything up,
-   * and the channel you leave behind is a tap away on Home. See App.tsx.
+   * and the channel you leave behind is a tap away on the tier. See
+   * App.tsx.
    *
    * Optional so this screen still renders where there is nowhere to route to,
    * the same way `ProfileView`'s own is.
    */
   onEnterChannel?: (channelId: string) => void;
 }) {
-  /**
-   * Which side of a split this is on, or null on a phone. Read for one thing
-   * only: a Home button is worth nothing when Home is the pane next door.
-   */
-  const pane = usePane();
   const app = useApp();
   // This channel's snapshot, and nothing else's. Picked out by id rather than
   // taken from a single slot, so a snapshot arriving for another watched
@@ -812,25 +802,12 @@ export function ChannelView({
         </Text>
         <View style={styles.headerActions}>
           {/*
-            Back to Home without hanging up. The audio connection lives above
-            this screen, so this is navigation and nothing else.
-
-            **Gone in the detail pane, where Home is the thing beside it.** A
-            button that navigates to a screen already on show is not an exit,
-            and the two exits this screen does have are unaffected: another
-            conversation is a tap on the list to the left, and leaving this one
-            is Step out, in the footer where it has always been.
+            Off this screen without hanging up. The audio connection lives
+            above this screen, so this is navigation and nothing else — and it
+            is one word in both panes, which is what the tier made true. See
+            `onClose`.
           */}
-          {pane === 'detail' ? (
-            // And a Close in its place, when there is one to give. See
-            // `onClose`: it is the pane's way out, and it is absent exactly
-            // while you are present in this room.
-            onClose ? (
-              <Button label="Close" variant="ghost" onPress={onClose} />
-            ) : null
-          ) : (
-            <Button label="Home" variant="ghost" onPress={onHome} />
-          )}
+          <Button label="Close" variant="ghost" onPress={onClose} />
           <Button
             label="Settings"
             variant="ghost"

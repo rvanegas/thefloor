@@ -315,7 +315,7 @@ describe('a tap on a notification', () => {
    * Standings was the one missed, and it is the one this asserts on for that
    * reason.
    */
-  it('closes the screen it was stacked over, so Home is the way out', () => {
+  it('closes the screen it was stacked over, so the tier is what is left', () => {
     mockApp.leaderboard = true;
 
     let tree!: ReactTestRenderer;
@@ -334,7 +334,9 @@ describe('a tap on a notification', () => {
 
     // Off the channel screen without leaving the channel. This is where a
     // screen nobody had opened since before the notification would surface.
-    pressButton(tree, 'Home');
+    // One word for it in either layout, since 2026-09-01 — see GLOSSARY.md
+    // § *Close*.
+    pressButton(tree, 'Close');
 
     expect(textOf(tree)).toContain('Start a channel');
     expect(textOf(tree)).not.toContain('Invitations');
@@ -409,10 +411,11 @@ describe('asking to record', () => {
  * The list pane, which is the one thing on a wide window you choose to put
  * there.
  *
- * Below the breakpoint none of this exists: Contacts is a screen, it covers
- * Home, and a profile covers it. Those cases are the rest of this file and the
- * views' own tests. What is asserted here is only what the second pane makes
- * possible — that the list and the conversation stop being alternatives.
+ * Below the breakpoint there is one of these: the tier is the screen, and a
+ * profile opened from its contact list covers it. Those cases are the rest of
+ * this file and the views' own tests. What is asserted here is only what the
+ * second pane makes possible — that the list and the conversation stop being
+ * alternatives.
  */
 describe('a window wide enough for two panes', () => {
   beforeEach(() => {
@@ -432,31 +435,34 @@ describe('a window wide enough for two panes', () => {
     windowWidth.current = 390;
   });
 
-  it('puts the contact list where Home was, and leaves the pane beside it', () => {
+  it('switches the tier to the contacts, and leaves the pane beside it', () => {
     let tree!: ReactTestRenderer;
     act(() => {
       tree = renderer.create(<App />);
     });
 
-    // Home's own header carries a Contacts button, so the list is identified
-    // by `AddContact`, which only the list itself draws.
+    // The tier's switch carries the word "Contacts" whichever half is
+    // selected, so the list is identified by `AddContact`, which only the list
+    // itself draws.
     expect(textOf(tree)).not.toContain('Add contact');
 
     pressButton(tree, 'Contacts');
 
     const shown = textOf(tree);
-    // The list has taken the pane Home was in...
+    // The tier's body is the contact list now...
     expect(shown).toContain('Add contact');
     // ...and the pane beside it is still there, holding what it held.
     expect(shown).toContain('Pick a conversation on the left');
 
-    // The way back is a button in that same pane rather than an exit.
-    pressButton(tree, 'Home');
+    // Back by the other half of the same switch, which is the whole of how
+    // the two lists are navigated between. There is no Home button anywhere
+    // any more: Home is the frame both of them are inside.
+    pressButton(tree, 'Channels');
     expect(textOf(tree)).not.toContain('Add contact');
     expect(textOf(tree)).toContain('Pick a conversation on the left');
   });
 
-  it('keeps the contact list a whole screen below the breakpoint', () => {
+  it('keeps the contact list the whole of the tier below the breakpoint', () => {
     windowWidth.current = 390;
     let tree!: ReactTestRenderer;
     act(() => {

@@ -1580,4 +1580,97 @@ because Safari with storage blocked throws rather than returning null; and
 `/?stay` is the escape hatch, since otherwise a signed-in person could never
 read the informational page or reach `/support` from it.
 
-1,583 lines, so no rollover.
+---
+
+## The tier above both lists — 2026-09-01
+
+Home used to *be* the channel list. Contacts was a screen you opened from a
+button in its header, with a button of its own to get back. The two are peers —
+both are lists of the people you can reach, one indexed by the conversations you
+have with them and one by name — and nothing about the pair justified which one
+was the root of the application and which was reached from it.
+
+Home is now a **tier** containing both, and the channel list has a name of its
+own for the first time. The frame has a pinned top — the title and Settings, the
+room you are present in if there is one, and a switch between the two lists —
+and a scrolling middle, which is the selected list with Chip in and Standings
+at the foot of it. The design that argued all of this was HOME.md,
+deleted with this entry; what follows is what survives it.
+
+**The live bar is the reason it was worth building rather than tidier.** It sat
+in Home's header, so it did not exist while Contacts was showing. On a phone
+that survives, because Contacts covered Home and you were there a moment ago.
+Above the width breakpoint it does not: the contact list holds the left pane
+while something else holds the right, and then somebody is present in a
+conversation with nothing anywhere on screen saying so — which `HomeView`'s own
+comment had called *"the one thing this change could plausibly make worse"* when
+the second pane shipped that morning. The fix proposed first was to draw the bar
+in the contact list as well, and it is wrong: a live room is not a contact and
+has no business in that list. It belongs to whatever contains both lists, which
+did not exist until now.
+
+**Chip in and Standings were at the bottom of your channels because the bottom
+of your channels was the only place there was.** They are about the application
+rather than about either list, which is the same argument in two places, and
+Settings — already a header button — is the third. All three are now tier-level.
+
+**How prominent Chip in became was the one open question the design carried, and
+it is answered: exactly as prominent as it was.** It is the last thing in the
+tier's scroll, below whichever list is showing. Promoting it is a claim about
+what it belongs to, not about how loudly it should ask, and the comment it
+inherited governs the tier exactly as it governed Home: *"Everything above it is
+what somebody opened the app to do. A request for money that sat above the
+channels would be reading the room wrong."* That argument was never about the
+channel list in particular. Two alternatives were declined — pinning it to the
+foot of the frame, which is the most visible and the furthest from what the
+comment asks for, and folding it behind Settings, which would make Settings a
+drawer of unrelated things, trading one miscellany for another.
+
+**The address needed no new axis, because it already had one.** The iPad split
+had introduced `contactsOpen` as a state independent of what the detail pane
+shows; the tier is that state with honest names, `List = 'channels' |
+'contacts'`. `/` is the Channels tab and `/contacts` the other, exactly as
+before. **`webRoute.ts` is untouched** — the boolean survives on the wire
+between `detail.ts` and the address bar, because a URL only ever needs to know
+whether the contact list is the one showing. This is the one place the split and
+the tier fit together rather than fight.
+
+**`ChannelView` has one way out with one word.** It had two buttons and three
+cases: *Home* on a phone, which revealed the screen underneath and also put the
+channel list back in the pane behind it; *Close* in the detail pane; and
+neither, while you were present in the channel, because closing the conversation
+you were talking in and then switching the pane beside it to Contacts would have
+left somebody in a call with nothing on screen saying so. The tier answers all
+three from above. The pane this closes into carries the live bar whichever list
+it is showing, so there is nothing left to withhold, and *Close* is honest in
+both layouts — it reveals the tier on a phone and empties the pane in a split.
+See GLOSSARY.md § *Close*, whose "distinct from Home" clause is now about a
+frame rather than about a button.
+
+**The profile a phone opens from a contact row moved up one level with
+everything else that was not a list.** `ContactsView` owned it, which is what
+made it a screen; it is a body now and cannot cover anything. `App.tsx`'s
+refusal to route profiles through itself is untouched and for the reason it
+always gave — it would have to know which screen a profile was opened from to
+know where closing it goes back to — and that question does not arise one level
+down, where there is exactly one answer: back to the tier, with the contacts
+showing, which is where it was tapped. The same optional `onOpenProfile` seam,
+given only when there is a second pane, now hangs off the tier rather than off
+the list.
+
+**Three questions the design raised and this deliberately did not answer.**
+Where contact requests belong now that each tab could answer for its own pending
+work — they are still drawn in the channel list, where they have always been,
+which is the status quo rather than a decision. Whether the switch should carry
+counts, which is the obvious answer to a pending request going invisible behind
+the other tab and is the first thing that will be asked for. And whether the
+*You* card should leave the Contacts tab, which is the same argument that
+promoted Chip in, applied to a card. None of the three is load-bearing for what
+shipped, and each is worth deciding on its own rather than in the middle of a
+restructure.
+
+**Nothing on the wire, in the reducer, in presence or in the audio.** A pure
+client change: no protocol change, no compatibility floor, nothing to deploy
+before it. What it does change is the first screen every existing user sees on
+launch, so it is a release-note item, and it wants the walk in
+APPREVIEWSCRIPT.md before it goes anywhere.

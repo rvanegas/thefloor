@@ -64,6 +64,18 @@ walking out of one does not end it. Up to six members
 Never called a *room* on screen. See *room* in Part Two, which is the media
 plane's word for the audio underneath a channel and is a different thing.
 
+## Channels
+
+**One of Home's two lists**: the conversations you can walk into, in three
+sections — the ones somebody is in, the ones you have been asked into, and the
+rest — with your contact *requests* under them. The tab Home opens on, and `/`
+in a browser.
+
+The word had no user-facing life until 2026-09-01, the list having been called
+*Home*. It is the plural of *channel* and nothing more; what it contrasts with
+is *Contacts*, which is the same people indexed by name rather than by the room
+you talk to them in.
+
 ## Chip in
 
 The donation link, in Settings. Voluntary, unlocks nothing, and shown only to
@@ -92,8 +104,15 @@ what is underneath*, and above the width breakpoint there is nothing underneath
 — the list is beside rather than under. One word that is true in both layouts
 is what lets the handler be one line with no test of which layout is in force.
 
-Distinct from *Home*, which is a destination and takes the contact list with
-it, and from *Step out*, which gives up presence rather than closing anything.
+**The channel screen's own way off used to be two words and three cases** —
+*Home* on a phone, *Close* in the *detail* pane, and neither while you were
+present in the channel. All three collapsed into this one on 2026-09-01, when
+*Home* became the frame that carries the live bar over whichever list is
+showing: closing a channel can no longer hide a conversation somebody is in, so
+there is nothing to withhold and nothing to navigate to.
+
+Distinct from *Home*, which is a place rather than an action, and from *Step
+out*, which gives up presence rather than closing anything.
 
 ## Contact
 
@@ -141,8 +160,17 @@ channel is empty of members.
 
 ## Home
 
-The screen the app opens on: your channels, your invitations, your contact
-requests, your recordings. Its first section is **Live** — see *live*.
+**The screen the app opens on, and the frame everything else on it sits in.**
+Not a list: it holds two of them — *Channels* and *Contacts* — with a switch
+between, and above that the room you are present in if there is one. Settings,
+*Chip in* and the *Leaderboard* are Home's rather than either list's, being
+about the application rather than about anybody you can reach.
+
+**It named the channel list until 2026-09-01**, when the two lists became peers
+inside it; passages elsewhere that say "Home" for a list of channels are from
+before that. Above the width breakpoint Home is the *list* pane and never goes
+away, which is what lets *Close* mean one thing in both layouts. See
+decisions/DECISIONS.md § *The tier above both lists*.
 
 ## Invitation
 
@@ -299,9 +327,9 @@ confers nothing.
 
 ## Card
 
-One row on Home, from either source — an invitation or a channel you belong to.
-The two are alternative presentations of the same row rather than a list and an
-exception to it.
+One row in the *Channels* list, from either source — an invitation or a channel
+you belong to. The two are alternative presentations of the same row rather than
+a list and an exception to it.
 
 ## Channel state
 
@@ -348,10 +376,12 @@ thing the pane above is showing — `none`, a channel, a profile, settings,
 standings or support. Named after the pane, and it is what `App.tsx` holds
 where it used to hold a channel id and four booleans resolved in order.
 
-**The contact list is not one of its kinds**, which is the distinction worth
-keeping: the list is not something you opened but which index of people the
-*list* pane is showing, so it is its own flag and reads the same in both
-layouts.
+**Which of Home's two lists is showing is not one of its kinds**, which is the
+distinction worth keeping: that is not something you opened but which index of
+people the *list* pane is showing. It is `List` — `'channels' | 'contacts'` —
+its own value, and it reads the same in both layouts. It was a boolean called
+`contactsOpen` until 2026-09-01, which was the asymmetry written down: it named
+one list and called the other *not that one*.
 
 ## Detail (of a notification level)
 

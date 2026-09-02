@@ -1380,11 +1380,15 @@ opened; beside it, a list with no mark is a list that has stopped answering
 where you are.
 
 Almost certainly worth doing, and it was held back for a reason that has not
-changed: it touches `HomeView`'s list rendering, which is the busiest surface in
-the app, and it should follow rather than precede somebody actually looking at
-the split. TASKS.md § *Look At The Split On An iPad*. It also overlaps *The
-Tier Above Both Lists*, which may put the room you are in above the list
-instead, and would make the highlight a smaller question than it looks.
+changed: it touches `ChannelsView`'s list rendering, which is the busiest
+surface in the app, and it should follow rather than precede somebody actually
+looking at the split. TASKS.md § *Look At The Split On An iPad*.
+
+**The tier landed on 2026-09-01 and made it a smaller question, not a settled
+one.** The room you are in is now above the list, in Home's pinned top, so a
+list with no mark is no longer the only thing on screen saying where you are —
+but it still does not say which conversation the pane beside it is showing, and
+the two are different rooms as often as not.
 
 ## Whether iPadOS 26 still honours `UIRequiresFullScreen`
 

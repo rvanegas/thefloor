@@ -50,34 +50,34 @@ describe('the address', () => {
   it('round-trips every kind that has one', () => {
     for (const detail of ALL) {
       if (detail.kind === 'profile' || detail.kind === 'none') continue;
-      expect(detailOfNav(navOfDetail(detail, false))).toEqual({
+      expect(detailOfNav(navOfDetail(detail, 'channels'))).toEqual({
         detail,
-        contactsOpen: false,
+        list: 'channels',
       });
     }
   });
 
   it('gives a profile the address of the list beside it', () => {
     const profile: Detail = { kind: 'profile', id: 'acct_1', name: 'Ada' };
-    expect(pathOf(screenOf(navOfDetail(profile, true)))).toBe('/contacts');
-    expect(pathOf(screenOf(navOfDetail(profile, false)))).toBe('/');
+    expect(pathOf(screenOf(navOfDetail(profile, 'contacts')))).toBe('/contacts');
+    expect(pathOf(screenOf(navOfDetail(profile, 'channels')))).toBe('/');
   });
 
-  it('carries the contact list independently of what is open', () => {
+  it('carries which list is showing independently of what is open', () => {
     for (const detail of ALL) {
-      expect(navOfDetail(detail, true).contactsOpen).toBe(true);
-      expect(navOfDetail(detail, false).contactsOpen).toBe(false);
+      expect(navOfDetail(detail, 'contacts').contactsOpen).toBe(true);
+      expect(navOfDetail(detail, 'channels').contactsOpen).toBe(false);
     }
   });
 
-  it('reads a contact-list address as the list and an empty detail', () => {
+  it('reads a contact-list address as that list and an empty detail', () => {
     expect(detailOfNav({ ...NOWHERE, contactsOpen: true })).toEqual({
       detail: NO_DETAIL,
-      contactsOpen: true,
+      list: 'contacts',
     });
   });
 
-  it('closes the contact list for an address that names a screen', () => {
+  it('puts the channels back for an address that names a screen', () => {
     // `screenOf` prefers the screen, so an address that named both would be
     // showing the screen; leaving the flag set would put the contact list in
     // the pane beside it, which is not what the address said.
@@ -85,14 +85,14 @@ describe('the address', () => {
       detailOfNav({ ...NOWHERE, channelId: 'chan_1', contactsOpen: true })
     ).toEqual({
       detail: { kind: 'channel', channelId: 'chan_1' },
-      contactsOpen: false,
+      list: 'channels',
     });
   });
 
-  it('reads home as nothing open', () => {
+  it('reads home as the channels, with nothing open', () => {
     expect(detailOfNav(NOWHERE)).toEqual({
       detail: NO_DETAIL,
-      contactsOpen: false,
+      list: 'channels',
     });
   });
 });

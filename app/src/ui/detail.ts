@@ -14,10 +14,10 @@
  * right, no state left set behind what is showing, and no handler that has to
  * remember what else might be open.
  *
- * **The contact list is deliberately not in here.** It is the pane on the
- * left, and below the breakpoint it is what that pane becomes when there is
- * only one — see `App.tsx` — so it is a property of the list rather than of
- * the detail.
+ * **Which list is showing is deliberately not in here.** That is `List`
+ * below: the tier holds two peers and one of them is in its body, which is a
+ * property of the frame the whole application sits in rather than of anything
+ * somebody opened. Opened things are what this type is for.
  *
  * Pure, and separated from `App.tsx` for the reason `webRoute.ts` is: the
  * mapping between this and an address is a table worth testing, and the
@@ -33,8 +33,24 @@ export type Detail =
   | { kind: 'standings' }
   | { kind: 'support' };
 
-/** Nothing open, which on a phone means the list and in a split an empty pane. */
+/** Nothing open, which on a phone means the tier and in a split an empty pane. */
 export const NO_DETAIL: Detail = { kind: 'none' };
+
+/**
+ * Which of the tier's two lists is in its body.
+ *
+ * **Two peers, not a root and a child**, which is the whole of what the name
+ * change on 2026-09-01 says. This was `contactsOpen`, a boolean, back when the
+ * channel list was the app's root and the contacts were a screen you opened
+ * over it; nothing about the pair justified which way round that was. `'home'`
+ * would name the tier that contains both, which is not what this chooses
+ * between. See planning/decisions/DECISIONS.md § *The tier above both lists*.
+ *
+ * The address needs no new axis for it, which is the one place the iPad split
+ * and the tier fit together rather than fight: `/` is the Channels tab and
+ * `/contacts` the other, exactly as before, and `webRoute.ts` is untouched.
+ */
+export type List = 'channels' | 'contacts';
 
 /**
  * The address state for what is open, which is `Nav` because the browser's
@@ -47,8 +63,8 @@ export const NO_DETAIL: Detail = { kind: 'none' };
  * shipped before this type existed — the address then names the list beside
  * it, which is truthful and is what the other pane is showing.
  */
-export function navOfDetail(detail: Detail, contactsOpen: boolean): Nav {
-  const base = { ...NOWHERE, contactsOpen };
+export function navOfDetail(detail: Detail, list: List): Nav {
+  const base = { ...NOWHERE, contactsOpen: list === 'contacts' };
   switch (detail.kind) {
     case 'channel':
       return { ...base, channelId: detail.channelId };
@@ -65,8 +81,7 @@ export function navOfDetail(detail: Detail, contactsOpen: boolean): Nav {
 }
 
 /**
- * What an address asks to be showing, and whether the list beside it is the
- * contact list.
+ * What an address asks to be showing, and which list the tier is showing.
  *
  * `screenOf` rather than a second chain: the browser's order of precedence is
  * stated once, in the file that owns addresses, and this reads it. An address
@@ -75,25 +90,25 @@ export function navOfDetail(detail: Detail, contactsOpen: boolean): Nav {
  */
 export function detailOfNav(nav: Nav): {
   detail: Detail;
-  contactsOpen: boolean;
+  list: List;
 } {
   const screen = screenOf(nav);
   switch (screen.kind) {
     case 'channel':
       return {
         detail: { kind: 'channel', channelId: screen.channelId },
-        contactsOpen: false,
+        list: 'channels',
       };
     case 'settings':
-      return { detail: { kind: 'settings' }, contactsOpen: false };
+      return { detail: { kind: 'settings' }, list: 'channels' };
     case 'standings':
-      return { detail: { kind: 'standings' }, contactsOpen: false };
+      return { detail: { kind: 'standings' }, list: 'channels' };
     case 'support':
-      return { detail: { kind: 'support' }, contactsOpen: false };
+      return { detail: { kind: 'support' }, list: 'channels' };
     case 'contacts':
-      return { detail: NO_DETAIL, contactsOpen: true };
+      return { detail: NO_DETAIL, list: 'contacts' };
     case 'home':
-      return { detail: NO_DETAIL, contactsOpen: false };
+      return { detail: NO_DETAIL, list: 'channels' };
   }
 }
 
