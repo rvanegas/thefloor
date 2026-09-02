@@ -299,6 +299,44 @@ export function ProfileView({
     (entry) => entry.account.id === accountId
   );
 
+  /**
+   * What this screen is, said above the name — *Contact*, which is the word a
+   * reader knows this screen by, rather than *profile*, which is the word the
+   * code knows it by. Added 2026-09-02 with the channel header's *Channel*:
+   * these two were the only screens headed by their contents rather than by
+   * their kind, and an unnamed channel's header — a muted italic roster
+   * description — is very nearly what a contact's header looks like.
+   *
+   * **Four words rather than one, because this screen has four audiences.**
+   * *Contact* asserts something GLOSSARY defines as mutual, so it may only be
+   * said of somebody it is true of. Yourself is *You*, matching the section
+   * label on Contacts that leads here. A request either way is *Contact
+   * requested*, which is what the card further down is about. Anybody else
+   * reached this screen from a channel roster, and *Channel member* is what
+   * they are — *member* being the user-facing word for somebody who belongs to
+   * a channel, and provable from what this screen already knows.
+   *
+   * **What it deliberately does not say is that they are a contact of a
+   * contact.** Inviting checks contacts, so whoever brought them in has them
+   * as one — but that person need not be *your* contact, so at two hops the
+   * claim is false and nothing on the client can tell. Saying it would need
+   * the server to send who introduced them.
+   *
+   * Nothing at all until the first snapshot lands: `contact` is read from
+   * `app.home`, so before it arrives an accepted contact is indistinguishable
+   * from a stranger, and *Channel member* under somebody's name is a worse
+   * answer than no word for one frame.
+   */
+  const kind = !app.home
+    ? null
+    : isSelf
+      ? 'You'
+      : contact?.status === 'accepted'
+        ? 'Contact'
+        : contact?.status === 'outgoing' || contact?.status === 'incoming'
+          ? 'Contact requested'
+          : 'Channel member';
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -726,6 +764,7 @@ export function ProfileView({
       <View style={[styles.header, editing && styles.headerAlone]}>
         {editing ? null : (
           <View style={styles.headerMain}>
+            {kind ? <Text style={type.label}>{kind}</Text> : null}
             <Text style={type.heading} numberOfLines={1}>
               {profile?.account.displayName ?? fallbackName}
             </Text>

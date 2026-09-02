@@ -124,6 +124,18 @@ Being in the same channel as somebody is not being their contact. Channels hold
 people a mutual friend brought in, which is why *inviting* and *pinging* check
 contacts separately from presence.
 
+**It is also the name of a screen, and the code calls that screen something
+else.** What a reader opens by tapping somebody is headed *Contact*; the
+component and the file are `ProfileView`, and *profile* is the developer word
+throughout — one of the places this glossary exists to stop somebody
+reconciling. The header says which of four things the person is, because
+*Contact* may only be said where it is true: **You** for yourself, **Contact**,
+**Contact requested** while a request either way is outstanding, and **Channel
+member** for somebody reached from a roster who is none of yours. That last one
+is deliberately not *contact of a contact*: whoever invited them has them as a
+contact, but need not be a contact of *yours*, and nothing on the client can
+tell.
+
 ## Floor, the
 
 The thing the app is named after. Claiming the floor cuts everybody else's
@@ -213,6 +225,11 @@ thing and is not what the Home section means.
 half of the app uses, because *participant* means nothing to somebody who has
 just followed a link: a guest's screen labels everybody else as either a member
 or a guest.
+
+Since 2026-09-02 it is said to signed-in readers too, in one place: the contact
+screen heads somebody who is in a channel with you and is not your contact as a
+*channel member*. Same meaning, and it is the reason that header can say
+something true without claiming a contact. See *contact*.
 
 Inside the codebase the same people are *participants*. The two are the same
 set; which word is used says who is being spoken to. See *participant*.

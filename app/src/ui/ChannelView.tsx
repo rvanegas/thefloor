@@ -797,16 +797,29 @@ export function ChannelView({
       */}
       <View style={styles.headerInner}>
       <View style={styles.headerTop}>
-        {/* Muted italic when nobody has named it, for the reason set out in
-            core/naming.ts: this is a description written from your side, not
-            a name the others would recognise. */}
-        <Text
-          style={channel.name ? styles.otherName : styles.describedName}
-          numberOfLines={1}
-        >
-          {channel.name ??
-            describeChannel(others.map((other) => other.displayName))}
-        </Text>
+        <View style={styles.headerMain}>
+          {/*
+            What this screen is, above what it is called. It costs a line in a
+            header that is pinned and argued above to be short, and it is worth
+            it for the unnamed case directly below: a channel nobody has named
+            is headed by a muted italic list of who is in it, which is very
+            nearly what the contact screen's header looks like. The word
+            separates the two exactly where nothing else does. Its counterpart
+            there says *Contact*; see ProfileView, which carries the reasoning
+            for both.
+          */}
+          <Text style={styles.headerKind}>Channel</Text>
+          {/* Muted italic when nobody has named it, for the reason set out in
+              core/naming.ts: this is a description written from your side, not
+              a name the others would recognise. */}
+          <Text
+            style={channel.name ? styles.otherName : styles.describedName}
+            numberOfLines={1}
+          >
+            {channel.name ??
+              describeChannel(others.map((other) => other.displayName))}
+          </Text>
+        </View>
         <View style={styles.headerActions}>
           {/*
             Off this screen without hanging up. The audio connection lives
@@ -2807,10 +2820,12 @@ const styles = StyleSheet.create({
    * so its height is paid for on all of them, and a large title is a thing a
    * scroll is entitled to at its top and a pinned bar is not.
    */
-  otherName: { flex: 1, fontSize: 20, fontWeight: '700', color: colors.text },
+  // No `flex: 1` on either: they sit in `headerMain`, which is a column, and
+  // there it would stretch them down the header rather than along it. The
+  // width they truncate against is that column's, which the row constrains.
+  otherName: { fontSize: 20, fontWeight: '700', color: colors.text },
   /** Italic alone; see the note on Home's `described`. */
   describedName: {
-    flex: 1,
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
@@ -2906,6 +2921,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing(1),
   },
+  /** The kind and the name, taking whatever the two controls leave. */
+  headerMain: { flex: 1, gap: spacing(0.5) },
+  headerKind: { ...type.label },
   /**
    * Negative trailing margin: `Button`'s horizontal padding is sized for a
    * card, and without it the pair sits further from the edge than the name is

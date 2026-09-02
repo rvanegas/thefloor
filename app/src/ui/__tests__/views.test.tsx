@@ -4522,6 +4522,111 @@ describe('showing your email to a contact', () => {
 });
 
 /**
+ * What each of these two screens says it *is*, above what it is called.
+ *
+ * They were the only screens headed by their contents rather than by their
+ * kind, which reads worst on an unnamed channel: its header is a muted italic
+ * list of who is in it, and so is very nearly what a contact's header looks
+ * like. What is asserted here is the word and its position — above the name,
+ * not beside it — and, on the contact screen, that the word tells the truth
+ * about a relationship rather than about a route.
+ */
+describe('a screen saying which kind of screen it is', () => {
+  const openProfile = async (accountId: string = THEM) => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = render(
+        <ProfileView
+          accountId={accountId}
+          fallbackName="Dana Chu"
+          onBack={() => {}}
+        />
+      );
+    });
+    return tree;
+  };
+
+  const withContact = (status: string | null) => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: status
+        ? [{ account: { id: THEM, displayName: 'Dana Chu' }, status }]
+        : [],
+    } as never;
+  };
+
+  it('heads a channel with the word, above its name', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    const text = textOf(tree);
+    expect(text.indexOf('Channel')).toBeLessThan(text.indexOf('Dana Chu'));
+    act(() => tree.unmount());
+  });
+
+  it('calls a contact a Contact', async () => {
+    withContact('accepted');
+    const tree = await openProfile();
+    const text = textOf(tree);
+    expect(text).toContain('Contact');
+    expect(text.indexOf('Contact')).toBeLessThan(text.indexOf('Dana Chu'));
+    act(() => tree.unmount());
+  });
+
+  it('calls you You, since you are not among your own contacts', async () => {
+    withContact(null);
+    const tree = await openProfile(ME);
+    // The word the section label on Contacts uses for the card that opens
+    // this, so the route and the destination agree.
+    expect(textOf(tree)).toContain('You');
+    act(() => tree.unmount());
+  });
+
+  it.each(['outgoing', 'incoming'])(
+    'says a %s request is outstanding rather than settled',
+    async (status) => {
+      withContact(status);
+      const tree = await openProfile();
+      expect(textOf(tree)).toContain('Contact requested');
+      act(() => tree.unmount());
+    }
+  );
+
+  /**
+   * The case the word exists to get right. This screen is reachable from a
+   * channel roster, where somebody may be nobody of yours — and *Contact*
+   * asserts a mutual standing GLOSSARY defines as exactly that, so it must not
+   * be said here. What is claimed instead is the one thing the screen can
+   * prove: they belong to a channel you are in.
+   */
+  it('calls a stranger in a channel a Channel member, not a Contact', async () => {
+    withContact(null);
+    const tree = await openProfile();
+    const text = textOf(tree);
+    expect(text).toContain('Channel member');
+    expect(text.indexOf('Channel member')).toBeLessThan(text.indexOf('Dana Chu'));
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Before the first snapshot there are no contacts to be absent from, so a
+   * contact and a stranger are indistinguishable. Saying nothing for that
+   * frame beats calling somebody a channel member and correcting it.
+   */
+  it('says nothing at all until it knows', async () => {
+    mockApp.home = null;
+    const tree = await openProfile();
+    const text = textOf(tree);
+    expect(text).not.toContain('Channel member');
+    expect(text).toContain('Dana Chu');
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * Where else somebody can be reached, which is the other half of the errand
  * the Email card is the first half of.
  *
