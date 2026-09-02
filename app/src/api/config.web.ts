@@ -7,7 +7,7 @@
  * inferring is not merely convenient here but *required*: this server has no
  * CORS of any kind, so a cross-origin call is refused by the browser before it
  * is made. Same origin is the design rather than a default. See
- * planning/WEB.md.
+ * planning/decisions/DECISIONS.md § *Three variants of deploy*.
  *
  * `EXPO_PUBLIC_API_URL` still wins when set, which is what makes
  * `npx expo start --web` against a server on another port work at all — but

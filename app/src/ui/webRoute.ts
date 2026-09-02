@@ -19,7 +19,7 @@
  * still Settings, and Home is still the state with nothing set, which on an
  * iPad is a live list on the left and an empty pane on the right.
  *
- * Web only. Native has no addresses and wants none — see planning/WEB.md.
+ * Web only. Native has no addresses and wants none.
  */
 
 export type Screen =

@@ -362,7 +362,8 @@ export function registerWebsocket(deps: {
    * and were therefore the one pair of sessions this loop could never separate
    * — each invisible to the other, both live in the same room, competing for
    * the one voice the account has. See planning/TASKS.md § *Two Devices In
-   * One Channel* and planning/WEB.md.
+   * One Channel* and planning/decisions/DECISIONS.md § *The web app is a
+   * secondary interface*.
    *
    * Watch-scoped sockets are left alone. A follower page holds a watch token,
    * never a session token, and is a second screen rather than a second place

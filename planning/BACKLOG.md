@@ -1321,6 +1321,83 @@ that the task that touched this file was about the door.
 
 ---
 
+## The update screen tells a browser to open the App Store
+
+`MIN_SUPPORTED_BUILD` applies to the web app, deliberately and consistently —
+the floor is never raised past what is released, and the web client reports the
+build number of the train it was cut from. So a browser **can** be shown
+`UpdateRequiredView`, which says "Update from the App Store and everything will
+be where you left it" and offers a button that opens `updateUrl`.
+
+What a browser user must do is reload. The screen needs a web variant, which is
+the smallest of the pieces here: the copy and the button, gated the way
+`AudioDebugPanel` already gates itself on the platform. It was named as
+required in WEB.md § *Required elsewhere* and did not get built before that
+file was retired into decisions/DECISIONS.md § *The web app is a versioned
+client*.
+
+Worth knowing that it is unreachable today and will stay so for a while: the
+floor is 51 and every web train is cut at or above the released build, so this
+is a screen waiting for the first time somebody leaves a tab open across a
+floor raise.
+
+## The support page's notifications section is iOS-only, and there is now a web client
+
+`server/src/support.ts` § *Notifications* says that if notifications are not
+arriving, check that they are allowed for The Floor in the iOS Settings app.
+That is the whole of the advice, and it is a public page that `/app` and
+`/beta` link to.
+
+The web app **deliberately has none** — the reasoning is
+decisions/DECISIONS.md § *The web app is a secondary interface*, where a
+secondary interface has no business waking anybody and the phone is already
+there to do it. But nothing says so anywhere a browser user will look, so what
+that section currently does is send them hunting for a setting that does not
+exist. It wants a sentence, not a section.
+
+The same page was already fixed once for the web client, on 2026-08-24, when it
+still claimed that signing in on a second device signs you out on the first.
+This is the half of that pass that was named and missed.
+
+## `/app/` with a trailing slash is a 403
+
+Found 2026-09-01 by `curl`, while auditing whether the web work was finished.
+`https://thefloor.rvanegas.co/app` is 200 and `/app/index.html` is 200, but
+**`/app/` is 403** — and the same for `/beta/`. It looks like `@fastify/static`
+answering the directory request itself, before the per-prefix not-found handler
+that would have served `index.html`.
+
+Small, and it is the front door of the stable train: a URL people type, and one
+that anything appending a slash will produce. Nothing in the app links that way
+— `/open` forwards to `/app` without the slash — so it has probably never bitten
+anybody, which is also why nobody has seen it.
+
+## The left pane has no selected-row highlight
+
+Nothing in the list beside a conversation says which conversation is open. On a
+phone the question could not arise, the list having been replaced by what you
+opened; beside it, a list with no mark is a list that has stopped answering
+where you are.
+
+Almost certainly worth doing, and it was held back for a reason that has not
+changed: it touches `HomeView`'s list rendering, which is the busiest surface in
+the app, and it should follow rather than precede somebody actually looking at
+the split. TASKS.md § *Look At The Split On An iPad*. It also overlaps *The
+Tier Above Both Lists*, which may put the room you are in above the list
+instead, and would make the highlight a smaller question than it looks.
+
+## Whether iPadOS 26 still honours `UIRequiresFullScreen`
+
+Open, and it no longer blocks anything: the key is deliberately absent and
+multitasking is supported outright, so the answer matters only on the day
+somebody wants the retreat. This checkout builds against the iOS 26.2 SDK,
+where `UISceneSizeRestrictions` notes that `allowsFullScreen` is "currently
+only honored on Mac Catalyst", which reads as though the retreat is gone.
+
+Worth settling before anyone plans on being able to opt back out.
+
+---
+
 ## Known defects
 
 Real, reproducible, and left alone. Resolved entries have been dropped — the

@@ -1125,9 +1125,10 @@ have to mock `useWindowDimensions` to get it.
 dependency and would have read more directly. An iPad window dragged to a third
 of the screen beside a browser is a phone-shaped surface, and it is resized
 while somebody watches. Device identity answers a question nobody asked. The
-same fact is why none of it is gated on `Platform.OS`: WEB.md had already
-measured this defect from the other end — a *Claim the floor* button 1534px
-wide at a 1600px viewport — and a browser window and an iPad are one problem.
+same fact is why none of it is gated on `Platform.OS`: the web spike had
+already measured this defect from the other end — a *Claim the floor* button
+1534px wide at a 1600px viewport — and a browser window and an iPad are one
+problem.
 
 **Two things did not have to be built, and knowing why is worth more than the
 code that was.** Nested screens — a profile, channel settings, a transcript —
@@ -1334,4 +1335,249 @@ A live bar duplicated into `ContactsView` was proposed for the same gap and
 rejected: a live room is not a contact and has no business in that list. That
 objection is what produced the tier.
 
-1,337 lines, so no rollover.
+---
+
+## The web app is a secondary interface, and the phone is the install — 2026-09-01
+
+Written out of WEB.md when that file was deleted, along with the four entries
+below it. The design is built, landed and serving on both trains; what it was
+still holding was reasoning, which belongs here, and a list of things nobody
+has looked at, which went to BACKLOG.md and TASKS.md.
+
+**Every reference to `WEB.md` in code and in `planning/` was repointed at these
+five entries in the same commit** — which is the job that makes deleting a
+design document more than an `rm`, since a dozen files named it and four named
+a section of it. One pointer could not be fixed and is left dangling
+deliberately: `DECISIONS-2026-08-28-to-2026-08-31.md` says *See WEB.md*, and a
+closed volume is never edited. If you have followed it here, this is where it
+was going.
+
+**The premise, which decides nearly everything else: the web app is a
+secondary interface, and the phone is the referential install.** Somebody is
+expected to install on a phone and reach for a browser as a convenience — a
+laptop already open, a machine that is not theirs, a keyboard for the
+clipboard. Almost every scope decision follows from that sentence rather than
+from a technical limit, so it is the thing to argue with directly if it ever
+stops being true.
+
+It is why **notifications are skipped**: no service worker, no VAPID, no server
+path beside APNs. A secondary interface has no business waking anybody, and the
+phone is already there to do it.
+
+It is also why **file upload and download are not optional**. Picking a file is
+the one thing a laptop does better than a phone, so it is among the reasons to
+open the browser at all rather than a feature ported for completeness. Upload
+is `<input type="file">` into the raw body the server already accepts, and
+**`fetch` reports no upload progress** — a 100 MB file over domestic upstream
+is minutes of silence, so it wants `XMLHttpRequest`, which does, rather than
+the more obvious call. Download cannot be a plain link, because
+`GET /recordings/:id/export` needs the bearer token: fetch, blob,
+`URL.createObjectURL`, click a synthetic `<a download>`, revoke. The whole file
+is in memory for the moment that takes.
+
+**`AudioDebugPanel` is hidden on web** — 454 lines of `AVAudioSession` route
+diagnostics describing a session a browser does not have. Already gated on
+`hello.debug`; the web build gates it on the platform as well.
+
+**The tab indicator replaces the buzz, and is deliberately weaker.** `cue.ts` is
+imported as `./cue` by both nudge hooks and both already take
+`fire: () => void = buzz`, so one `cue.web.ts` covers it and neither hook
+changed. It marks `document.title`, swaps the favicon, and clears both on
+`visibilitychange`. The buzz's entire justification was that it reaches a
+*locked phone*; a browser tab has no equivalent, and with notifications skipped
+there is no delivery to a machine nobody is watching. **That is the premise
+working, not a gap** — written down so nobody later closes it by reaching for
+notifications, or by reviving the tone into the audio session, which
+`DECISIONS-2026-08-20-to-2026-08-21.md` § *The buzz reaches a locked phone, so
+the tone is not built* rules out and which would play over the very voice it
+was announcing.
+
+**What the spike established, and it inverted the scope question.** The iOS UI
+ports essentially wholesale under `react-native-web`: `ChannelView`, all 2,356
+lines of it, renders with correct state and no console errors. The cost was
+three web-only files, not eight thousand lines retyped — `index.web.ts`
+(whose native twin is nothing but iOS audio setup),
+`livekitReactNative.web.ts` (because `@livekit/react-native` reaches
+`react-native-webrtc`, which calls `requireNativeComponent`, an API
+`react-native-web` has removed, so the import throws before any of our code
+runs) and `useSessionAudio.web.ts`. Bundle: 1.51 MB raw, **405 KB gzipped**,
+582 modules. `Pressable` renders as a real `<button role="button">`, so the
+semantic-HTML cost is lower than assumed.
+
+**Metro does not apply platform extensions to the entry point.** With
+`"main": "index.ts"` in `app/package.json`, `index.web.ts` is silently ignored
+and the whole iOS audio graph bundles anyway — 765 modules rather than 582, and
+no error. `"main": "index"` is the fix and is why it reads that way.
+
+## What react-native-web ships inert, which is not nothing — 2026-09-01
+
+Audited 2026-08-30, after *Sign out* and *Leave channel* turned out to do
+nothing in a browser. **The library's compatibility strategy is that every
+React Native export exists**, so shared code imports and renders — but an API
+with no browser equivalent is shipped *inert* rather than omitted (which would
+fail at import) or throwing (which would fail at the first call). That is the
+generalisation worth holding: the failure mode of this library is silence, and
+it will not appear in a stack trace.
+
+Two cost this app something:
+
+- **`Alert` is `static alert() {}`.** A no-op, and its own declaration says so:
+  `static alert(): any`, no parameters. All twenty-six call sites did nothing —
+  confirmations never asked, so the action behind them never ran, and error
+  reports never appeared. Patched in `app/src/ui/alerts.web.ts`, installed from
+  `index.web.ts`, mapping onto `alert`/`confirm`.
+- **`Share` rejects** where `navigator.share` is missing, which is every
+  desktop browser and no iOS one — **so the fault hid from a phone.** The guest
+  link is the whole of how somebody without an account gets into a channel, so
+  `app/src/share.ts` falls back to the clipboard and the control says which it
+  is about to do.
+
+Two more are inert without costing anything yet. **`Keyboard`** never fires a
+listener and `isVisible()` is always false, so `useRevealOnKeyboard` does
+nothing here — browsers scroll a focused field into view themselves. And
+**`DynamicColorIOS` does not exist at all**, so the import in `theme.ts` is
+`undefined` on web; every use is behind a `Platform.OS` guard, and an unguarded
+one would be an immediate crash rather than a quiet no-op.
+
+## The web app is a versioned client; the guest page is lockstep — 2026-09-01
+
+**The two browser clients have opposite compatibility policies, deliberately.**
+Written down because the next person will otherwise "fix" one to match the
+other.
+
+The guest page is rebuilt on **every** `bin/deploy` and must stay in lockstep
+with the server. `build.mjs` explains why its bundle is never committed, and
+`bin/deploy` states the stake: a stale bundle is a page whose behaviour is a
+deploy behind its server, and nothing on it would say so. For a page with no
+version, that unconditional rebuild *is* the entire compatibility mechanism —
+and it is free, because a guest seat is ephemeral, `sessionStorage`, no
+install.
+
+The web app takes the other route: it gets a version and is pinned to a release
+train, so it **can** fall behind the server. The protection is therefore the
+discipline that already protects iOS — *never ship a wire change to a server
+before the client can speak it*, two-stepped, aliases first.
+
+**It reports the App Store build number of the train it was cut from**, read
+from `app.json`'s `ios.buildNumber` at the exported tag and inlined at export
+as `EXPO_PUBLIC_BUILD`. Correct by construction: stable is cut from `released`,
+beta from its `build/<n>` tag, and neither needs hand-syncing. `build.ts` reads
+`nativeBuildVersion` rather than `app.json` because Xcode's re-signing has been
+observed bumping `CFBundleVersion`; **that objection does not apply here** —
+there is no signing step and the bundle is the artefact — so `build.web.ts`
+returning the injected constant is sound rather than a shortcut.
+
+Two things follow. `heartbeatTimeoutFor` keys the 5s cadence on `build >= 110`,
+so a web client reporting a real build gets the fast path rather than the
+legacy 12s one. And **`MIN_SUPPORTED_BUILD` applies to web**, which is
+consistent — the floor is never raised past what is released — but it means a
+browser can be shown `UpdateRequiredView`, whose button is an App Store link
+when what a browser user must do is reload. That variant is still not built;
+see BACKLOG.md.
+
+## The census counts native only, and absent means native — 2026-09-01
+
+The build census exists to measure an *installed population*, and the web app
+has none: there is one live version and everyone gets it on load. So web is
+counted out.
+
+**This needs a platform field separate from the build number, and the reason is
+counter-intuitive enough to keep.** Absence of a build number is web-shaped
+today — production reports `silentBuilds: 0` — but it is not a safe rule: every
+native build before 37 is silent too, those installs still exist, and a
+returning one misfiled as web would be dropped from the census. That number's
+job is to say when a shim may be deleted; misfiling it to zero would license a
+deletion that strands a phone.
+
+So platform is explicit and opt-in, and **absent means native** — not because
+silence is native-shaped, but because the field will not exist in any installed
+binary, and every client that can omit it shipped before the field was
+invented. **A new field's absent-value must describe the population that
+already exists**, since that population is exactly the set that cannot be
+taught the field is there. That generalises past this field and is the reason
+this entry is worth its length.
+
+With the build number above, web is not silent anyway; the platform field is
+what keeps it out of the count.
+
+## Three variants of deploy, and one door called `/open` — 2026-09-01
+
+**`RELEASING.md` § *The five verbs* gains variants rather than a sixth verb**:
+deploy server, deploy web stable, deploy web beta. Deploying is still deploying
+— it reaches everybody in a minute and is reversible — and only the target
+differs. Stable tracks what is on the App Store, cut from the `released` ref;
+beta tracks what is in TestFlight, cut from its `build/<n>` tag. Both are
+served at prefixes on the existing host, so there is no DNS record, no second
+certificate, and same-origin holds.
+
+**Built from the tag, not the working tree.** `bin/deploy` rsyncs the working
+tree on purpose, but "coinciding with the App Store release" is only nominally
+true unless the bundle is exported from `released` rather than from whatever is
+checked out. And **not folded into `bin/upload-ios` or the release step**:
+naming one verb does not name another, and these are manually triggered every
+time.
+
+**Fastify serves it, and same origin is not a preference.** The server has no
+CORS at all — no `@fastify/cors`, no `Access-Control` headers anywhere — so an
+app served from another port renders and then says it cannot reach the server.
+Confirmed by `curl -H 'Origin: …'`. `@fastify/static` rather than a hand-rolled
+directory server, because the existing `/g/assets/:file` allowlist — named
+rather than resolved, which is the whole of the traversal story — cannot carry
+to hashed Expo filenames, and traversal defence is where hand-rolled static
+servers fail.
+
+**`index.html` must be served `no-store`.** Hashed assets can be `immutable`,
+but a cached shell means a returning visitor silently runs an old bundle, which
+falsifies the premise that the web app is always current — and that premise is
+what excuses it from the census above.
+
+**`--exclude 'app/'` matches at any depth.** rsync patterns without a leading
+slash match a directory of that name anywhere, so a bundle exported to
+`server/web/app/` is silently not shipped: the deploy succeeds and the page
+404s with nothing saying why. Confirmed by dry run. Anchored to `/app/`, and
+the export directories are `stable/` and `beta/` rather than `app/` for the
+same reason.
+
+**`/open` exists because a channel has no train**, and neither does a contact
+or a guest link. Every address that sends a browser *into* the app has to
+answer a question none of them holds the answer to, and on 2026-08-30 four of
+them tried: the landing page's redirect and its link, the guest page's way out,
+and the hand-over after a guest accepts a contact request. Three named `/app`
+outright, which on a box serving only `/beta` is a 503 whose JSON body a phone
+offers to save as a file — found that way twice, by the same person, a day
+apart. So they link to `/open` and the rule lives once, in `server/src/open.ts`.
+
+It reads the train this browser last used from `thefloor.train` in
+`localStorage`, written by the app itself on boot — evidence rather than a
+guess — intersects that against the trains actually deployed so a retired train
+is a redirect rather than a refusal, falls back to stable and then beta, and
+when there is no web app on the box at all says so in a sentence instead of
+forwarding into nothing.
+
+**It is a page rather than a 302, and that is structural**: the answer is in
+`localStorage`, which the server cannot read. There are deliberately **no
+cookies anywhere in this application** — the token is not one either — and this
+is the place one would have been convenient. What a cookie would buy is a
+correct plain `<a href>`; what it would cost is a header on every request, a
+line in the privacy policy, and a property the codebase has kept from the
+beginning.
+
+**Stable stays at `/app` rather than earning the root**, so `/` can speak to
+somebody who has never heard of this — server-rendered by `landing.ts` through
+the same `page()` helper as `/privacy` and `/support`, because shipping 405 KB
+to show a paragraph and three links to a non-user is the wrong trade. It also
+keeps the single-page catch-all safely inside `/app` and `/beta`, where it
+cannot swallow `/privacy`, `/healthz`, `/g/:token` or anything added later; a
+catch-all at the root would have to enumerate every API route and would be
+wrong again the next time one was added.
+
+A signed-in visitor is forwarded from `/` by an inline script before paint.
+**Presence, not validity** — checking would mean a round trip before paint, and
+a stale token costs a redirect to `/app`, which restores, takes a 401 and lands
+on sign-in, where that person was going anyway. `location.replace` rather than
+`assign`, so Back does not bounce into the redirect; wrapped in `try`/`catch`,
+because Safari with storage blocked throws rather than returning null; and
+`/?stay` is the escape hatch, since otherwise a signed-in person could never
+read the informational page or reach `/support` from it.
+
+1,583 lines, so no rollover.

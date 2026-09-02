@@ -8,6 +8,80 @@ and things to go and find out. There are more in BACKLOG.md.
 
 Improve look and feel
 
+## Look At The Split On An iPad
+
+The two-pane layout is built, tested and reasoned about, and **nobody has ever
+seen it.** Everything above the sign-in screen needs a session and the
+simulator has none, so what was observed on an iPad Pro 13-inch was the
+measure — a centred 620pt column where there had been a 976pt email field — and
+nothing else. It closes by signing in on a simulator and looking, not by more
+tests. `decisions/DECISIONS.md` § *The iPad gets the room it has* and the three
+entries after it are what is being checked.
+
+The matrix: iPhone SE at 320 and iPhone 16 at 393 prove the phone is untouched;
+iPad mini at 744 portrait must stay stacked and split at 1133 landscape; iPad
+11" splits at both; iPad Pro 13" is where the caps are seen at their widest.
+On each iPad, rotate through all four orientations with a channel open and then
+with a transcript open — **nothing should remount**, and a lost composer or a
+closed profile is the tell. Drag another app in to make the window narrow, then
+wide, then out again; the transition is live and must not remount either.
+**With audio connected, do the whole sweep and confirm the call survives** —
+the session hook is above the split so it should, and this is the one thing
+that has to be verified rather than reasoned about. Open a recording rename in
+the right pane: the reveal scrolls its card and the left pane does not shrink.
+Then the iPad's floating keyboard and a hardware keyboard, neither of which the
+phone layout has ever met.
+
+Two behaviours are new enough to be worth aiming at. **Tap a channel while a
+profile is open in the right pane** — the channel has to appear; that was a
+live bug and the value that replaced the precedence chain is what fixes it, and
+no test in this repository reaches `App.tsx`. And **the channel you are present
+in should have no Close**, the button appearing the moment you step out; then
+close it, switch the left pane to Contacts, and see whether anything on screen
+still says you are in a call. That last part is what *The Tier Above Both
+Lists* is for.
+
+## Look At The Web App In A Browser
+
+Built, landed, and serving on both trains, and **not once looked at.** The
+Chrome extension disconnected part-way through the work, so everything since is
+verified by `curl`, by the suite, and against a live server and a migrated
+database — but not by eye. The reasoning is `decisions/DECISIONS.md` § *The web
+app is a secondary interface* and the four entries after it.
+
+Specifically unverified: that the tab cue marks the title and favicon and
+clears them when the tab is looked at; that the file picker and the download
+anchor behave, including that a large upload shows progress rather than
+minutes of silence; that the landing page's redirect fires for a signed-in
+visitor and that `/?stay` defeats it; that Back and Forward walk the route
+table, which is the half of the routing no test can reach; and how any of it
+looks at desktop width now that the measure caps it. None of it is hard. None
+of it has been seen.
+
+**Two browsers hearing each other is the piece with the least evidence behind
+it** — `useSessionAudio.web.ts` has never held a real room, the spike having
+had no media server. Two of its known gaps are already written up in
+BACKLOG.md § *The browser's audio hook is a spike*, and a session with two
+browsers in one channel is what would say whether there are more.
+
+## Addresses Inside A Screen
+
+`webRoute.ts` covers the six top-level places — Home, a channel, Settings, the
+standings, Support, Contacts — and not what those screens open over themselves:
+a profile, a transcript, a channel's own settings. So a person can reach all of
+them and simply cannot link to them, which on a phone is no loss and in a
+browser is half of what an address is for.
+
+The reason it is a decision rather than a task is that `App.tsx` deliberately
+does not own that state. `ContactsView` and `ChannelView` each hold the profile
+they opened, so that component does not have to know which screen a profile was
+reached from — and giving those addresses means either moving the state up,
+which that comment argues against, or letting a screen contribute to the URL.
+**The single-valued `Detail` changed the shape of this**, since a profile
+opened in a split now *is* held in `App.tsx`, which is one of the two things
+this entry said could not be assumed. Worth deciding once, and still not
+urgent.
+
 ## The Tier Above Both Lists
 
 Channels and contacts are peers — two indexes onto the people you can reach —

@@ -6,9 +6,10 @@ import { ApiError, reportSignedOut } from './http';
  *
  * **This is a reason to open the browser rather than a port for
  * completeness.** The web app is a secondary interface and the phone is the
- * referential install — planning/WEB.md § *The premise* — but choosing a file
- * is the one thing a laptop does better than a phone, so this is among the
- * things somebody opens a browser *for*.
+ * referential install — planning/decisions/DECISIONS.md § *The web app is a
+ * secondary interface* — but choosing a file is the one thing a laptop does
+ * better than a phone, so this is among the things somebody opens a browser
+ * *for*.
  *
  * Same wire as the native file: raw bytes rather than multipart, the name in
  * the query string, the server asking the file how long it is.

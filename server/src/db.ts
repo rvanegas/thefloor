@@ -1346,7 +1346,8 @@ function migrate(db: Db): void {
   // exist when they were built — so the population that can be silent here is
   // exactly the population that is native, and a default of "native" leaves
   // every existing number untouched. Web says what it is; nothing else has to
-  // be taught anything. See planning/WEB.md § *The census counts native only*.
+  // be taught anything. See planning/decisions/DECISIONS.md § *The census
+  // counts native only*.
   //
   // Deliberately not inferred from `last_build` being null. Absence of a build
   // is web-shaped today — production reports `silentBuilds: 0` — but it is not

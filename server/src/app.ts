@@ -1031,8 +1031,8 @@ export function buildApp(options: BuildOptions = {}): App {
    *
    * `/app` is what the App Store release is, `/beta` what TestFlight has, and
    * they are deployed by `bin/deploy-web` rather than by `bin/deploy` — see
-   * planning/WEB.md § *Three variants of `deploy`*. The server serves whatever
-   * is on disk and knows nothing about which build that is.
+   * planning/decisions/DECISIONS.md § *Three variants of deploy*. The server
+   * serves whatever is on disk and knows nothing about which build that is.
    *
    * **The directories are `stable/` and `beta/`, not `app/`,** and that is not
    * a preference. An rsync pattern without a leading slash matches a directory
@@ -1110,7 +1110,8 @@ export function buildApp(options: BuildOptions = {}): App {
             // name never changes, and a cached copy means a returning visitor
             // silently runs an old bundle — which would falsify the premise
             // that the web app is always current, and that premise is what
-            // excuses it from the build census. See planning/WEB.md.
+            // excuses it from the build census. See
+            // planning/decisions/DECISIONS.md § *Three variants of deploy*.
             //
             // `index: false` means this should never see the shell, but it is
             // still named: a request for `/app/index.html` by hand is served

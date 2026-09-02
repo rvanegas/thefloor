@@ -549,7 +549,7 @@ is) and `/beta` (`beta/`, what TestFlight has). `server/src/open.ts` is the one
 door that decides which a browser is sent to, from what that browser last used.
 Deployed by `bin/deploy-web`, not `bin/deploy`, and both directories are
 excluded from the latter's rsync — `--delete` would otherwise take them off the
-box. See WEB.md.
+box. See decisions/DECISIONS.md § *Three variants of deploy*.
 
 ## Withheld
 

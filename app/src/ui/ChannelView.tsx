@@ -1337,7 +1337,8 @@ export function ChannelView({
                 browser has none of those to compare. `useSessionAudio.web.ts`
                 reports `asked` as permanently null by construction, so the
                 panel would render a column of blanks and invite somebody to
-                debug the wrong layer. See planning/WEB.md § *Scope*.
+                debug the wrong layer. See planning/decisions/DECISIONS.md §
+                *The web app is a secondary interface*.
               */}
               {app.debug && Platform.OS !== 'web' ? (
                 <AudioDebugPanel

@@ -233,7 +233,7 @@ describe('what build is calling', () => {
    * The census measures an *installed population*, and the web app has none —
    * there is one live version and everybody gets it on load, so it can neither
    * be stranded by a raised floor nor tell you anything about what has been.
-   * See planning/WEB.md § *The census counts native only*.
+   * See planning/decisions/DECISIONS.md § *The census counts native only*.
    *
    * It reports a real build rather than staying silent, which is what makes
    * this test necessary: left in, a browser would drag `oldestBuild` down to

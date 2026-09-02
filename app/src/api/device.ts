@@ -16,7 +16,8 @@
  * the case the server's skip exists for. In a browser a context is a *tab*, so
  * two tabs get two names — which is the case that has never been expressible
  * before, since two tabs on one origin share `localStorage` and therefore
- * share a token. See planning/WEB.md.
+ * share a token. See planning/decisions/DECISIONS.md § *The web app is a
+ * secondary interface*.
  *
  * A relaunch mints a new one and so displaces the previous run's socket if the
  * server is somehow still holding it. That is correct rather than tolerated:
