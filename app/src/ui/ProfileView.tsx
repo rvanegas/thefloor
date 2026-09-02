@@ -751,7 +751,10 @@ export function ProfileView({
                 onPress={startEditing}
               />
             ) : null}
-            <Button label="Back" variant="ghost" onPress={onBack} />
+            {/* "Close", not "Back": in a split this sits beside the list it
+                was opened from rather than over it, and all this can do is
+                empty the pane. See HomeSettingsView. */}
+            <Button label="Close" variant="ghost" onPress={onBack} />
           </>
         )}
       </View>

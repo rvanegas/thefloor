@@ -197,12 +197,14 @@ export function ChannelSettingsView({
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Channel settings</Text>
-        {/* "Back" rather than "Channel". Naming the destination reads well
+        {/* "Close" rather than "Channel". Naming the destination reads well
             until there are three settings screens and each names a different
             place — then the one word every one of them shares is the act, and
             the reader stops having to check which screen they are on to know
-            what the button does. */}
-        <Button label="Back" variant="ghost" onPress={done} />
+            what the button does. *Back* was that word until there were two
+            layouts, and it names a destination by implication; see
+            HomeSettingsView, which carries the argument. */}
+        <Button label="Close" variant="ghost" onPress={done} />
       </View>
 
       <SectionLabel>Channel name</SectionLabel>

@@ -158,7 +158,8 @@ export function TranscriptView({
             {recording.name}
           </Text>
         </View>
-        <Button label="Back" variant="ghost" onPress={onBack} />
+        {/* "Close", not "Back". See HomeSettingsView. */}
+        <Button label="Close" variant="ghost" onPress={onBack} />
       </View>
 
       {!naming && (state === 'ready' || deletable) ? (

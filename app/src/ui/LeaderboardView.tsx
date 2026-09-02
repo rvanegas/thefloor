@@ -46,7 +46,9 @@ export function LeaderboardView({ onBack }: { onBack: () => void }) {
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Invitations</Text>
-        <Button label="Back" variant="ghost" onPress={onBack} />
+        {/* "Close", not "Back": beside a list there is nothing underneath this
+            to go back to. See HomeSettingsView. */}
+        <Button label="Close" variant="ghost" onPress={onBack} />
       </View>
 
       {!loaded ? (

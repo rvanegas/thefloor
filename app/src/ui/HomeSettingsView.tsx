@@ -117,12 +117,21 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <Text style={type.heading}>Settings</Text>
-        {/* "Back" rather than "Home", which is what it said while this screen
-            was reachable from one place. It is not: the way off a settings
-            screen names the act rather than the destination, so the three of
-            them read alike and none of them has to be kept in step with where
-            it was opened from. */}
-        <Button label="Back" variant="ghost" onPress={onBack} />
+        {/* "Close" rather than "Home", which is what it said while this screen
+            was reachable from one place, and rather than "Back", which is what
+            it said while a phone was the only shape this app had.
+
+            The way off a settings screen names the act rather than the
+            destination, so none of them has to be kept in step with where it
+            was opened from — and *Back* names a destination by implication.
+            On a phone it means "reveal what is underneath"; beside a list
+            there is nothing underneath, since the list is next to this rather
+            than behind it, and all the control can do is empty the pane.
+            *Close* is true in both, which is what lets the handler be the same
+            one word in both layouts with no `split` anywhere in it. Every
+            attempt to make the wording pane-dependent puts that conditional
+            back. See planning/decisions/DECISIONS.md. */}
+        <Button label="Close" variant="ghost" onPress={onBack} />
       </View>
 
       {/*

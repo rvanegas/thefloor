@@ -1257,4 +1257,81 @@ restored, and presence never noticed. It also means the address still reads
 `/c/…` under an open profile, which is what it has always done: profiles have
 no address here and never had one.
 
-1,260 lines, so no rollover.
+---
+
+## What is open is a value, not a race down five flags — 2026-09-01
+
+The third of the same day, and the one that retracts a paragraph of the first.
+`App.tsx` held a channel id and four booleans and resolved them in a fixed
+order to decide what the detail pane showed. That order answers *which of
+several open things is on top*. The question is *what did you last ask for*.
+
+**A chain cannot answer it, and the bug was already shipped.** A profile
+outranked a channel, so `HomeView`'s `onEnterChannel` — which set the channel
+and cleared nothing — did nothing visible while a profile was open in the pane.
+Three other call sites cleared the neighbouring state by hand to avoid exactly
+that, and the ones that forgot were the faults. The entry above this one
+records the reasoning that made it look correct: *a profile sits ahead of the
+channel rather than instead of it*, which is true of a profile opened over a
+conversation and false of a channel tapped under an open profile. **That
+paragraph is retracted.** Closing a profile still puts the conversation back;
+the pane simply no longer holds both at once, and the conversation is what the
+list to the left is showing as open.
+
+`ui/detail.ts` is one value — `none | channel | profile | settings | standings
+| support` — and every handler assigns it. Overriding is structural: there is
+no order to get right, nothing left set behind what is showing, and no handler
+that has to remember what else might be open. The three defensive clearings
+went with it, and the notification tap's five `setX(false)` calls became one
+assignment. That tap had missed Standings until 2026-08-31, invisibly, because
+the channel outranked it and only the way *out* was wrong — a class of fault
+the type no longer permits.
+
+**Ordering did not disappear; it moved to where it belongs.** An address is
+read rather than assigned, so `webRoute.ts` § `screenOf` still resolves a
+precedence, and `detailOfNav` calls it rather than restating it. The two ends
+cannot drift because there is only one chain left.
+
+**The contact list is deliberately not one of the kinds.** It is not something
+you opened; it is which list you are indexing people by, so it stays its own
+flag — and that is what deletes the `!split && contactsOpen` special case.
+Below the breakpoint the list pane *is* the screen, so rendering `ContactsView`
+there covers the phone exactly as the special case did, without a layout test.
+One consequence is deliberate and visible: entering a channel from the contact
+list on a phone no longer closes the list behind it, so stepping out returns to
+the list you came from. Home still means Home — `ChannelView`'s Home button
+clears both.
+
+## Close, not Back, in both layouts — 2026-09-01
+
+Six screens said *Back*: `HomeSettingsView`, `SupportView`, `LeaderboardView`,
+`ProfileView`, `ChannelSettingsView`, `TranscriptView`. On a phone the word
+means *reveal what is underneath*. In a split there is nothing underneath — the
+list is beside rather than under — and all the control can do is empty the
+pane.
+
+*Close* is true in both, which is the point: one word means the handler is
+`() => setDetail({ kind: 'none' })` with no `split` in it. **Every attempt to
+make the wording pane-dependent reintroduces the conditional the choice
+removes**, and buys nothing, since the act is identical either way.
+
+**`ChannelView` gets one too, and only when you are not present in it.**
+Without any way out it is the only view the detail pane can hold that cannot be
+dismissed — the single place the two panes behave unlike each other. Offered
+unconditionally, somebody present in a conversation could close its screen,
+switch the left pane to Contacts, and be in a call with nothing on screen
+saying so. So `App.tsx` passes `onClose` exactly when `live?.id !== channelId`,
+which means it appears the moment you step out. It is drawn only in the detail
+pane, taking the place of the Home button that is already hidden there — on a
+phone this screen covers the list, and Home is what the way out means.
+
+**TASKS.md § *The Tier Above Both Lists* is what makes that belt-and-braces
+rather than load-bearing.** Once the room you are in is shown above both lists,
+closing its view cannot hide it, and the condition could be dropped. It is
+worth keeping until then.
+
+A live bar duplicated into `ContactsView` was proposed for the same gap and
+rejected: a live room is not a contact and has no business in that list. That
+objection is what produced the tier.
+
+1,337 lines, so no rollover.

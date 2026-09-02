@@ -27,17 +27,29 @@ import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
 import { useLayout } from './src/ui/layout';
 import { useRoute } from './src/ui/useRoute';
+import {
+  channelOf,
+  detailOfNav,
+  navOfDetail,
+  NO_DETAIL,
+  type Detail,
+} from './src/ui/detail';
 import type { Nav } from './src/ui/webRoute';
 
 /**
- * Auth when signed out, Channel when you are looking at one, Settings or
- * Support or the contact list when you open them, Home otherwise.
+ * Auth when signed out, and otherwise a list — Home or the contacts — with
+ * whatever you have opened beside it, or over it where there is only room for
+ * one. What is open is one value rather than a race down five flags; see
+ * `ui/detail.ts`.
  *
- * A profile is not among them, and has not been since the contact list became
- * a screen. `ContactsView` and `ChannelView` each open the profiles they are
- * about and own the state for it — routing that through here would put this
- * component in the business of knowing which screen a profile was opened from
- * so it could decide where closing one goes back to.
+ * **A profile is among what can be open, and only ever in a split.** On a
+ * phone it is not: `ContactsView` and `ChannelView` each open the profiles
+ * they are about and own the state for it, because routing that through here
+ * would put this component in the business of knowing which screen a profile
+ * was opened from so it could decide where closing one goes back to. That
+ * argument is about a profile that *covers* what it was opened from. Beside a
+ * list that never went away there is nothing to decide — closing empties the
+ * pane — so the split is the one case it does not reach.
  *
  * **Presence is not a screen.** The audio connection is held here rather than
  * inside the channel screen, so walking back to Home leaves you in the
@@ -58,37 +70,40 @@ import type { Nav } from './src/ui/webRoute';
 function Root() {
   const app = useApp();
   const { ready, token } = app;
-  const [channelId, setChannelId] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  /** The screen explaining what donating is for, reached from Home. */
-  const [supportOpen, setSupportOpen] = useState(false);
-  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   /**
-   * The contact list, reached from Home. It owns its own settings screen and
-   * its own profile screen, the way ChannelView does — the three of them are
-   * one scope, and routing them through here would put this component in the
-   * business of knowing which profile was opened from where.
+   * What the detail pane is showing, as **one value rather than five flags.**
+   *
+   * The chain this replaced resolved a channel id and four booleans in a fixed
+   * order, which answers *which of several open things is on top* when the
+   * question is *what did you last ask for*. See `ui/detail.ts` for the whole
+   * argument and for the bug that made it worth the change; what matters here
+   * is that every handler below now assigns rather than sets one flag and
+   * remembers to clear the others.
+   *
+   * **A profile is among them, and only ever appears in a split.** The comment
+   * at the top of this file refuses to route profiles through here, on the
+   * grounds that it would make this component decide where closing one goes
+   * back to. That argument is about a profile that *covers* the screen it was
+   * opened from, and it still holds everywhere it applied: on a phone
+   * `ContactsView` owns its profile exactly as before, and `ChannelView` owns
+   * the ones opened from its roster in either layout. A split is the case the
+   * argument does not reach — the contact list is the pane next door and never
+   * went away, so there is no "back" to know about, and closing simply empties
+   * the pane.
+   */
+  const [detail, setDetail] = useState<Detail>(NO_DETAIL);
+  /**
+   * Whether the pane that never goes away is the contact list rather than
+   * Home.
+   *
+   * **Not part of `detail`, because it is not what you opened — it is which
+   * list you are indexing people by.** Below the breakpoint there is one pane,
+   * so this is the screen you see when nothing is open; above it, it is the
+   * column on the left with whatever you opened beside it. One flag, read the
+   * same way by both layouts.
    */
   const [contactsOpen, setContactsOpen] = useState(false);
-  /**
-   * Whose profile is open in the detail pane, and **only ever in a split.**
-   *
-   * The comment at the top of this file refuses to route profiles through here,
-   * on the grounds that it would make this component decide where closing one
-   * goes back to. That argument is about a profile that *covers* the screen it
-   * was opened from, and it still holds everywhere it applied: on a phone
-   * `ContactsView` owns its profile exactly as before, and `ChannelView` owns
-   * the ones opened from its roster in either layout.
-   *
-   * A split is the case the argument does not reach. The contact list is the
-   * pane next door and never went away, so there is no "back" to know about —
-   * closing this empties the pane, and the list is still there. It is held here
-   * rather than in `ContactsView` because the two panes are siblings and
-   * neither can render into the other.
-   */
-  const [profile, setProfile] = useState<{ id: string; name: string } | null>(
-    null
-  );
+  const channelId = channelOf(detail);
 
   const me = app.me?.id ?? '';
   // Where this person is standing, on *this device*, across every snapshot
@@ -212,8 +227,10 @@ function Root() {
   const { movedChannel } = app;
   useEffect(() => {
     if (!movedChannel) return;
-    setChannelId((current) =>
-      current === movedChannel.from ? movedChannel.to : current
+    setDetail((current) =>
+      current.kind === 'channel' && current.channelId === movedChannel.from
+        ? { kind: 'channel', channelId: movedChannel.to }
+        : current
     );
   }, [movedChannel]);
 
@@ -232,26 +249,22 @@ function Root() {
   useEffect(() => {
     if (!pendingChannelId || !ready || !token) return;
     watchChannel(pendingChannelId);
-    setChannelId(pendingChannelId);
-    // Every screen stacked over Home closes: a tap on a notification means go
-    // to that conversation, and coming back to a settings screen you had left
-    // open would be a surprise.
+    // Whatever was open closes, because this is an assignment: a tap on a
+    // notification means go to that conversation, and coming back to a
+    // settings screen you had left open would be a surprise.
     //
-    // **Standings was missed here until 2026-08-31**, and the omission was
-    // invisible from the front: a channel outranks every one of these in the
-    // switch below, so the tap always did land on the conversation. What it
-    // left behind was the way out — Home from that channel screen went to
-    // Standings, a screen nobody had opened since before the notification
-    // arrived. The list is written out rather than collapsed into one
-    // `NOWHERE` apply because `applyNav` is the web route's and takes a whole
-    // `Nav`; that is a seam worth closing, and closing it is not this change.
-    setSettingsOpen(false);
-    setLeaderboardOpen(false);
-    setSupportOpen(false);
+    // **This was five statements and once was four.** Standings was missed
+    // until 2026-08-31, invisibly — a channel outranked every one of them, so
+    // the tap did land on the conversation and only the way out was wrong,
+    // leading back to a screen nobody had opened since before the
+    // notification arrived. There is nothing to miss now; a value cannot be
+    // left set behind what is showing.
+    setDetail({ kind: 'channel', channelId: pendingChannelId });
+    // The contact list is the other pane and is not among them, so it is still
+    // said separately — and it is still said, because a tap that lands on a
+    // conversation should leave Home beside it rather than a list somebody was
+    // scrolling before their phone buzzed.
     setContactsOpen(false);
-    // And whoever's profile was open in the detail pane, which the tap is
-    // asking to replace with a conversation.
-    setProfile(null);
     clearPendingChannel();
   }, [pendingChannelId, ready, token, watchChannel, clearPendingChannel]);
 
@@ -265,7 +278,7 @@ function Root() {
    * occasional: sign out, sign in, and you were looking at Settings again,
    * holding the previous session's `settingsOpen`.
    *
-   * `channelId` is the one worth closing on its own account. Signing out inside
+   * A channel is the one worth closing on its own account. Signing out inside
    * a channel and back in as somebody else left this rendering `ChannelView`
    * for a channel the new account may not be a member of — the server refuses
    * the snapshot, so it is a confused screen rather than a leak, but it is the
@@ -277,15 +290,7 @@ function Root() {
    */
   useEffect(() => {
     if (token) return;
-    setChannelId(null);
-    setProfile(null);
-    setSettingsOpen(false);
-    // Standings, for the reason the notification tap gives — and here the
-    // omission was not invisible, merely rare: it is reachable only for an
-    // account the server has granted the column, so signing out of one and
-    // into an account without it left the screen up with nothing to grant it.
-    setLeaderboardOpen(false);
-    setSupportOpen(false);
+    setDetail(NO_DETAIL);
     setContactsOpen(false);
   }, [token]);
 
@@ -316,26 +321,17 @@ function Root() {
       if (intent?.enter && next.channelId) {
         app.act(next.channelId, { type: 'ENTER' });
       }
-      setChannelId(next.channelId);
-      setSettingsOpen(next.settingsOpen);
-      setLeaderboardOpen(next.leaderboardOpen);
-      setSupportOpen(next.supportOpen);
-      setContactsOpen(next.contactsOpen);
+      // One address names one place, so this is an assignment too — see
+      // `detailOfNav`, which reads the browser's own order of precedence out
+      // of `webRoute.ts` rather than restating it.
+      const arriving = detailOfNav(next);
+      setDetail(arriving.detail);
+      setContactsOpen(arriving.contactsOpen);
     },
     [watchChannel, app]
   );
 
-  useRoute(
-    {
-      channelId,
-      settingsOpen,
-      leaderboardOpen,
-      supportOpen,
-      contactsOpen,
-    },
-    applyNav,
-    ready && !!token
-  );
+  useRoute(navOfDetail(detail, contactsOpen), applyNav, ready && !!token);
 
   /**
    * Whether there is room for the list and a screen at once.
@@ -372,110 +368,100 @@ function Root() {
 
   if (!token) return <AuthView />;
 
+  /** Nothing open, which is the way out of everything the pane can hold. */
+  const close = () => setDetail(NO_DETAIL);
+  /** A conversation, whatever was open before it. */
+  const enterChannel = (id: string) =>
+    setDetail({ kind: 'channel', channelId: id });
+
   /**
    * The screen you are looking at, or nothing.
    *
-   * **The same ordered chain that has always decided this, moved off the
-   * component's own `return` and onto a name.** The order is the model — a
-   * channel beats everything because presence is not navigation, and the four
-   * booleans are screens stacked over Home — and `webRoute.ts` § `screenOf`
-   * states it a second time for the address bar. Neither has changed.
+   * **One `switch` over one value, where this was an ordered chain.** The
+   * order used to be the model, and `webRoute.ts` § `screenOf` still states it
+   * for the address bar because a URL is read rather than assigned. Here there
+   * is nothing left to order: the pane shows what was last asked for. See
+   * `ui/detail.ts`.
    *
-   * What is new is only that Home is no longer the last case in it. Home is
-   * the pane beside this one, and below the breakpoint it is what an empty
-   * answer here falls back to.
+   * Home is not among the cases. Home is the pane beside this one, and below
+   * the breakpoint it is what an empty answer here falls back to.
    */
-  const detail = (): React.ReactNode => {
-    /*
-      Ahead of the channel rather than instead of it. Tapping a contact while a
-      conversation is open shows the profile over it and closing the profile
-      puts the conversation back — nothing was cleared, so there is nothing to
-      restore. Presence never noticed either way.
-    */
-    if (split && profile) {
-      return (
-        <ProfileView
-          accountId={profile.id}
-          // From `app.me` for your own, so a name changed on the profile
-          // itself is not stale the moment it is written. The same read
-          // `ContactsView` makes when it owns this screen.
-          fallbackName={
-            profile.id === app.me?.id ? app.me.displayName : profile.name
-          }
-          onBack={() => setProfile(null)}
-          onEnterChannel={(id) => {
-            setProfile(null);
-            setChannelId(id);
-          }}
-          // Removing a contact takes the row this was opened from with it, so
-          // there is nothing to go back to — and in a split the list beside it
-          // has already lost the row.
-          onRemoved={() => setProfile(null)}
-        />
-      );
-    }
+  const renderDetail = (): React.ReactNode => {
+    switch (detail.kind) {
+      /*
+        Only ever opened from the contact list in a split — see `list` — but
+        rendered without asking which layout is in force, because a window
+        dragged narrow while one is open should show it rather than blank the
+        screen. Closing it then falls back to the contact list, which is
+        exactly where it was opened from.
+      */
+      case 'profile':
+        return (
+          <ProfileView
+            accountId={detail.id}
+            // From `app.me` for your own, so a name changed on the profile
+            // itself is not stale the moment it is written. The same read
+            // `ContactsView` makes when it owns this screen.
+            fallbackName={
+              detail.id === app.me?.id ? app.me.displayName : detail.name
+            }
+            onBack={close}
+            onEnterChannel={enterChannel}
+            // Removing a contact takes the row this was opened from with it,
+            // so there is nothing to go back to — and the list beside it has
+            // already lost the row.
+            onRemoved={close}
+          />
+        );
 
-    if (channelId) {
-      return (
-        <ChannelView
-          channelId={channelId}
-          audio={audio}
-          // Off this screen without leaving the channel. Deliberately not
-          // `leaveChannelView`: that unwatches, and the snapshot it drops is
-          // what tells this component you are still present.
-          onHome={() => setChannelId(null)}
-          onExit={() => setChannelId(null)}
-          // A profile opened from the roster lists the channels you and that
-          // person share, and tapping one goes there — the same tap the same
-          // cards take from the contact list. Nothing is closed on the way: the
-          // channel screen is the only thing on the stack, and presence is not a
-          // screen, so this changes which conversation you are looking at and
-          // not whether you are still in the one you left.
-          onEnterChannel={setChannelId}
-        />
-      );
-    }
+      case 'channel':
+        return (
+          <ChannelView
+            channelId={detail.channelId}
+            audio={audio}
+            // Off this screen without leaving the channel. Deliberately not
+            // `leaveChannelView`: that unwatches, and the snapshot it drops is
+            // what tells this component you are still present.
+            //
+            // **Home means Home**, so it takes the contact list with it when
+            // that is what the pane behind this is showing. The button is
+            // hidden in a split, where the list is beside rather than behind.
+            onHome={() => {
+              close();
+              setContactsOpen(false);
+            }}
+            // The way out that empties the pane and leaves the list alone,
+            // which is what a Close is. Offered by `ChannelView` only when you
+            // are not present here — see `onClose` there.
+            onClose={live?.id === detail.channelId ? undefined : close}
+            onExit={close}
+            // A profile opened from the roster lists the channels you and that
+            // person share, and tapping one goes there — the same tap the same
+            // cards take from the contact list. Presence is not a screen, so
+            // this changes which conversation you are looking at and not
+            // whether you are still in the one you left.
+            onEnterChannel={enterChannel}
+          />
+        );
 
-    // Reached from Home rather than from a channel, because what is in here is
-    // about you rather than about whichever conversation you happen to be in.
-    if (settingsOpen) {
-      return <HomeSettingsView onBack={() => setSettingsOpen(false)} />;
-    }
+      // Reached from Home rather than from a channel, because what is in here
+      // is about you rather than about whichever conversation you are in.
+      case 'settings':
+        return <HomeSettingsView onBack={close} />;
 
-    // Reached from Home and from nowhere else, and offered only to an account
-    // that has been granted it by hand. `app.leaderboard` comes from `hello`, so
-    // revoking the column closes the way in at the next connection.
-    if (leaderboardOpen) {
-      return <LeaderboardView onBack={() => setLeaderboardOpen(false)} />;
-    }
+      // Reached from Home and from nowhere else, and offered only to an
+      // account that has been granted it by hand. `app.leaderboard` comes from
+      // `hello`, so revoking the column closes the way in at the next
+      // connection.
+      case 'standings':
+        return <LeaderboardView onBack={close} />;
 
-    if (supportOpen) {
-      return <SupportView onBack={() => setSupportOpen(false)} />;
-    }
+      case 'support':
+        return <SupportView onBack={close} />;
 
-    /*
-      A screen only where there is one pane. In a split the contact list is the
-      pane on the left — see `list` below — and rendering it here as well would
-      put it on both sides of the window at once.
-    */
-    if (!split && contactsOpen) {
-      return (
-        <ContactsView
-          onHome={() => setContactsOpen(false)}
-          // A profile opened from the contact list lists the channels the two of
-          // you share, and tapping one goes there. The list closes behind it:
-          // the channel screen's way out is a button that says Home, and leaving
-          // this open under it would make that button land somewhere else. Same
-          // rule the notification tap follows above.
-          onEnterChannel={(id) => {
-            setContactsOpen(false);
-            setChannelId(id);
-          }}
-        />
-      );
+      case 'none':
+        return null;
     }
-
-    return null;
   };
 
   /**
@@ -487,39 +473,43 @@ function Root() {
    * Everything else in this application is something you *opened*, and opened
    * things go in the pane on the right.
    *
-   * It is `contactsOpen` that switches it, the same flag that makes Contacts a
-   * screen below the breakpoint. One state, read two ways by the two layouts,
-   * rather than a second notion of where the contact list is — which is also
-   * what keeps the address honest without `webRoute.ts` changing: with a
-   * channel open `screenOf` already prefers it, so a contact list beside a
-   * conversation is still that conversation's address, and a contact list
-   * beside nothing is `/contacts`, which is exactly what is showing.
+   * It is `contactsOpen` that switches it, in **both** layouts. Below the
+   * breakpoint there is one pane, so the contact list simply *is* what you see
+   * with nothing open — which is the phone screen that has always shipped,
+   * reached without the `!split && contactsOpen` case that used to render it
+   * as a detail. One state, one rendering, and no layout test.
+   *
+   * It is also what keeps the address honest without `webRoute.ts` changing:
+   * with a channel open `screenOf` already prefers it, so a contact list
+   * beside a conversation is still that conversation's address, and a contact
+   * list with nothing open is `/contacts`, which is exactly what is showing.
    */
-  const list =
-    split && contactsOpen ? (
+  const list = contactsOpen ? (
       <ContactsView
         // Back to Home in the same pane. Not an exit: nothing on the right is
         // disturbed, and whatever conversation was open there stays open.
         onHome={() => setContactsOpen(false)}
-        // Into the pane next door rather than over this list. See `profile`.
-        onOpenProfile={setProfile}
-        // A channel shared with somebody, opened from their card. The list
-        // stays exactly where it is — that it does not close is the whole
-        // point of this pane — where the phone has to close it to have
-        // anywhere to put the conversation.
-        onEnterChannel={(id) => {
-          setProfile(null);
-          setChannelId(id);
-        }}
+        // Into the pane next door rather than over this list — and only where
+        // there is a pane next door. On a phone this screen owns its profile,
+        // which is the case `App.tsx`'s opening argument is about; see the
+        // prop's own comment in `ContactsView`.
+        onOpenProfile={
+          split ? (contact) => setDetail({ kind: 'profile', ...contact }) : undefined
+        }
+        // A channel shared with somebody, opened from their card. In a split
+        // the list stays exactly where it is, which is the whole point of the
+        // pane; on a phone the conversation covers it, and Home is the way
+        // back past both.
+        onEnterChannel={enterChannel}
       />
     ) : (
     <HomeView
-      onEnterChannel={setChannelId}
+      onEnterChannel={enterChannel}
       onOpenContacts={() => setContactsOpen(true)}
-      onOpenSettings={() => setSettingsOpen(true)}
-      onOpenSupport={() => setSupportOpen(true)}
+      onOpenSettings={() => setDetail({ kind: 'settings' })}
+      onOpenSupport={() => setDetail({ kind: 'support' })}
       onOpenLeaderboard={
-        app.leaderboard ? () => setLeaderboardOpen(true) : undefined
+        app.leaderboard ? () => setDetail({ kind: 'standings' }) : undefined
       }
       // What Home needs to show that a conversation is still going without you
       // looking at it. An open microphone behind a screen that gives no sign of
@@ -540,11 +530,11 @@ function Root() {
             }
           : null
       }
-      onReturnToChannel={setChannelId}
+      onReturnToChannel={enterChannel}
     />
     );
 
-  const showing = detail();
+  const showing = renderDetail();
 
   /**
    * Below the breakpoint this is the element tree that has always shipped —

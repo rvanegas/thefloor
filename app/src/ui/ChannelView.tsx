@@ -114,6 +114,7 @@ export function ChannelView({
   channelId,
   audio,
   onHome,
+  onClose,
   onExit,
   onEnterChannel,
 }: {
@@ -125,6 +126,23 @@ export function ChannelView({
   audio: SessionAudio;
   /** Back to Home, still present, still connected. */
   onHome: () => void;
+  /**
+   * Empties the pane this is in, leaving the list beside it alone.
+   *
+   * **Given only when you are not present in this channel**, which is a
+   * judgement `App.tsx` makes because it is the one that knows where you are
+   * standing. Without any way out, this is the only view the detail pane can
+   * hold that cannot be dismissed — the single place the two panes behave
+   * unlike each other. Offered unconditionally, somebody present in a
+   * conversation could close its screen, switch the left pane to Contacts, and
+   * be in a call with nothing on screen saying so. Absent while you are
+   * present, and appearing the moment you step out, is both.
+   *
+   * Rendered only in the detail pane, where the Home button is not: on a phone
+   * this screen covers the list and Home is what the way out means. See
+   * `pane`.
+   */
+  onClose?: () => void;
   /** Off this screen having given up presence or membership. */
   onExit: () => void;
   /**
@@ -803,7 +821,14 @@ export function ChannelView({
             conversation is a tap on the list to the left, and leaving this one
             is Step out, in the footer where it has always been.
           */}
-          {pane === 'detail' ? null : (
+          {pane === 'detail' ? (
+            // And a Close in its place, when there is one to give. See
+            // `onClose`: it is the pane's way out, and it is absent exactly
+            // while you are present in this room.
+            onClose ? (
+              <Button label="Close" variant="ghost" onPress={onClose} />
+            ) : null
+          ) : (
             <Button label="Home" variant="ghost" onPress={onHome} />
           )}
           <Button

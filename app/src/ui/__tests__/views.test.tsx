@@ -36,6 +36,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { colors } from '../theme';
+import { PaneContext } from '../layout';
 
 /**
  * The views now render server snapshots rather than driving a local model, so
@@ -2137,6 +2138,86 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The way out of the detail pane, which is a different button from Home and
+   * is not always offered.
+   *
+   * Home is worth nothing beside a Home that never went away, so it goes; a
+   * Close in its place is what stops this being the only view the pane can
+   * hold that cannot be dismissed. And it is withheld while you are present
+   * here, or somebody could close the conversation they are talking in, put
+   * Contacts in the pane beside it, and be in a call with nothing on screen
+   * saying so. `App.tsx` decides that, since it is the thing that knows where
+   * you are standing; this asserts what each answer renders.
+   */
+  const headerOf = (element: React.ReactElement) => {
+    const tree = render(element);
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    return { tree, header: render(screen!.props.header) };
+  };
+
+  it('offers Home on a phone and never a Close', () => {
+    showChannel(channelOf());
+    const { tree, header } = headerOf(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onHome={() => {}}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    // Given one and still not drawing it: on a phone this screen covers the
+    // list, so the way out means Home. The prop is what the pane reads, not
+    // what the phone does.
+    expect(findButton(header, 'Home')).toBeDefined();
+    expect(findButton(header, 'Close')).toBeUndefined();
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('swaps Home for Close in the detail pane, when one is given', () => {
+    showChannel(channelOf());
+    const closed = jest.fn();
+    const { tree, header } = headerOf(
+      <PaneContext.Provider value="detail">
+        <ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          onHome={() => {}}
+          onClose={closed}
+          onExit={() => {}}
+        />
+      </PaneContext.Provider>
+    );
+    expect(findButton(header, 'Home')).toBeUndefined();
+    act(() => findButton(header, 'Close')!.props.onPress());
+    expect(closed).toHaveBeenCalled();
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('leaves the detail pane with neither while you are present in it', () => {
+    // Which is `App.tsx` withholding `onClose`. Step out and it appears.
+    showChannel(channelOf());
+    const { tree, header } = headerOf(
+      <PaneContext.Provider value="detail">
+        <ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          onHome={() => {}}
+          onExit={() => {}}
+        />
+      </PaneContext.Provider>
+    );
+    expect(findButton(header, 'Home')).toBeUndefined();
+    expect(findButton(header, 'Close')).toBeUndefined();
+    // And Settings is still there, so the header did not simply fail to draw.
+    expect(findButton(header, 'Settings')).toBeDefined();
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
+
   /*
     The recording indicator joins them while a recording runs, and only then.
     It marked the top of the scroll, so the one fact somebody needs at every
@@ -2794,7 +2875,7 @@ describe('Channel', () => {
 
     // Tapping the way back straight from the field keeps it, which is the trap
     // the old pair of Save buttons set: Done sat above both and discarded.
-    act(() => findButton(tree, 'Back')!.props.onPress());
+    act(() => findButton(tree, 'Close')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_DESCRIPTION',
       description: 'See [notes](https://notes.example)',
@@ -2831,7 +2912,7 @@ describe('Channel', () => {
     // And it does not close the screen out from under somebody who was also
     // going to write a description.
     expect(textOf(tree)).toContain('Channel settings');
-    act(() => findButton(tree, 'Back')!.props.onPress());
+    act(() => findButton(tree, 'Close')!.props.onPress());
     expect(textOf(tree)).toContain('The floor');
     act(() => tree.unmount());
   });
@@ -3212,7 +3293,7 @@ describe('reading somebody else’s profile', () => {
     // And the channel is gone from view without anything being dispatched.
     expect(mockApp.act).not.toHaveBeenCalled();
 
-    await act(async () => findButton(tree, 'Back')!.props.onPress());
+    await act(async () => findButton(tree, 'Close')!.props.onPress());
     expect(textOf(tree)).toContain('The floor');
     act(() => tree.unmount());
   });

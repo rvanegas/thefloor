@@ -80,6 +80,21 @@ nothing to delete individually. Silent, so it is not governed by the *floor*.
 
 The thing on it is a *clip*.
 
+## Close
+
+**The way off a screen you opened**, and the word every one of them uses:
+Settings, Channel settings, Support, Standings, a profile, a transcript, and a
+channel you are no longer present in. It empties the *detail* pane and leaves
+the *list* beside it alone.
+
+**Deliberately not "Back", which it said until 2026-09-01.** Back means *reveal
+what is underneath*, and above the width breakpoint there is nothing underneath
+— the list is beside rather than under. One word that is true in both layouts
+is what lets the handler be one line with no test of which layout is in force.
+
+Distinct from *Home*, which is a destination and takes the contact list with
+it, and from *Step out*, which gives up presence rather than closing anything.
+
 ## Contact
 
 Somebody you have both agreed to be in touch with. Contacts are mutual;
@@ -323,8 +338,20 @@ and
 application lives in the detail pane, which is what the breakpoint is sized to
 protect: it must never be narrower than a phone.
 
-**Nothing to do with a level of detail**, and unrelated to the second sense
+**Nothing to do with a level of detail**, and unrelated to the two senses
 below.
+
+## Detail (what is open)
+
+**The `Detail` type in `app/src/ui/detail.ts`**: one value naming the single
+thing the pane above is showing — `none`, a channel, a profile, settings,
+standings or support. Named after the pane, and it is what `App.tsx` holds
+where it used to hold a channel id and four booleans resolved in order.
+
+**The contact list is not one of its kinds**, which is the distinction worth
+keeping: the list is not something you opened but which index of people the
+*list* pane is showing, so it is its own flag and reads the same in both
+layouts.
 
 ## Detail (of a notification level)
 

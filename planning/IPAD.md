@@ -82,7 +82,11 @@ Each is independently shippable and independently verifiable.
    phone, because nothing is 800pt wide.
 5. **`app.json`** — the first commit that can be opened on an iPad.
 6. **Pane-aware trims** — the channel screen's Home button, Home's live bar.
-7. **The documents**, and this file goes.
+7. **The wide-format refinements** — `ui/detail.ts` and the single value,
+   *Close* on the seven screens that can be closed. Added to this list after
+   the fact, having been designed once the split had landed.
+8. **The documents**, and this file goes — **which is waiting on somebody
+   signing in on a simulator and looking**, not on more code. See below.
 
 ## The simulator matrix
 
@@ -106,6 +110,15 @@ What to do on each iPad, beyond looking:
   that has to be verified rather than reasoned about.
 - Open a recording rename in the right pane: the reveal scrolls its card, and
   the left pane does not shrink.
+- **Tap a channel while a profile is open in the right pane.** The channel has
+  to appear. This is the fault the single value was for, and it is the one
+  thing here that a test cannot see, since no test in this repository reaches
+  `App.tsx`.
+- **Close the channel you are present in — you should not be able to.** The
+  button is absent while you are in the room and appears the moment you step
+  out. Then close it, switch the left pane to Contacts, and confirm the app
+  still says somewhere that you are in a call. That last part is what the tier
+  is for.
 - The iPad's floating keyboard, and a hardware keyboard. Neither is something
   the phone layout has ever met.
 
@@ -141,53 +154,24 @@ and `TARGETED_DEVICE_FAMILY = "1,2"`, both read out of the generated artefact
 rather than the JSON, so the configuration is known good; whether the layout
 holds through a rotation is a thing to watch rather than to assume.
 
-## The wide-format refinements, settled and not built
+**The wide-format refinements are built as of 2026-09-01**, and were the last
+of the code. What is open is a single-valued `Detail` in `ui/detail.ts`,
+*Close* rather than *Back* on the six screens that said it, and a Close on the
+channel screen offered exactly when you are not present in it. The reasoning is
+in `decisions/DECISIONS.md` § *What is open is a value, not a race down five
+flags* and § *Close, not Back, in both layouts*; the second retracts a
+paragraph of the first iPad entry, which is the kind of thing worth knowing
+before reading that entry as current.
 
-Designed 2026-09-01, after the split landed and before anybody had looked at
-it. **Nothing here is implemented.** It was held back because the last of it
-turned into TASKS.md § *The Tier Above Both Lists*, and building on the current
-structure would mean writing part of it twice. Build it when the tier lands, or
-before, if the tier waits.
+They were held back once, on the ground that TASKS.md § *The Tier Above Both
+Lists* would mean writing part of them twice. **That held for the live bar and
+not for these**: the tier changes what sits *above* both lists, and none of
+this touches that. The one place it will bear is `ChannelView`'s Close
+condition, which the tier makes belt-and-braces and which could then be
+dropped — a deletion, not a rewrite.
 
-**One value for the detail pane, replacing a precedence chain.** Five nav flags
-resolved in a fixed order answer *which of several open things is on top*. What
-is wanted is *the last thing you asked for wins* — tapping a channel while a
-profile is open must show the channel. The chain cannot do that, and the bug is
-live in what shipped: `HomeView`'s `onEnterChannel` does not clear the profile,
-and profile outranks channel, so the tap does nothing visible. Three call sites
-already clear other state by hand and the ones that forget are exactly the
-faults. A single-valued `Detail` — `none | channel | profile | settings |
-standings | support` — makes overriding structural, and stack still renders
-`detail.kind === 'none' ? list : detail`, which is the tree that ships today.
-It also deletes the `!split && contactsOpen` special case.
-
-**Close, not Back, everywhere and in both layouts.** Six screens say *Back*:
-`HomeSettingsView`, `SupportView`, `LeaderboardView`, `ProfileView`,
-`ChannelSettingsView`, `TranscriptView`. On a phone the word means *reveal what
-is underneath*; in a split there is nothing underneath, since the list is
-beside rather than under, and all the control can do is empty the pane. *Close*
-is true in both, and one word in both layouts is what keeps the handler
-identical — `() => setDetail({ kind: 'none' })`, with no `split` anywhere. Every
-attempt to make the wording pane-dependent reintroduces a conditional that this
-choice removes.
-
-**`ChannelView` gets a Close too, but only when you are not present in it.**
-Without one it is the only view in the detail pane that cannot be dismissed,
-which is the single place the panes behave unlike each other. With one offered
-unconditionally, somebody present in a conversation can close it, switch the
-left pane to Contacts, and be in a call with nothing on screen saying so. So
-the button appears exactly when `live?.id !== channelId`, which means it
-appears the moment you step out. **The tier is what makes this belt-and-braces
-rather than load-bearing**: once the room you are in is shown above both lists,
-closing its view cannot hide it.
-
-**`ChannelView`'s Home button stays hidden in a split**, which is already
-built. The left pane is either Home or a contact list with a Home button of its
-own, so the destination is always one tap away in a pane that never went away.
-
-**A live bar duplicated into `ContactsView` was proposed and rejected.** It
-would have closed the same gap, and a live room is not a contact and has no
-business in that list. That objection is what produced the tier.
+**Also unlooked-at**, on the same simulator gap as the rest of the split: every
+one of these is above the sign-in screen.
 
 ## Open questions
 
