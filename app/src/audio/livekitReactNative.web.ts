@@ -51,6 +51,55 @@ export const AudioDeviceModule = {
   setEngineAvailabilityObserver: (): void => {},
 };
 
+/**
+ * The engine's own callbacks, which no browser will ever fire. `engineState.ts`
+ * registers handlers on these behind a `Platform.OS === 'ios'` guard, so these
+ * exist to keep the module importable rather than because anything calls them.
+ */
+export const audioDeviceModuleEvents = {
+  setWillStartEngineHandler: (): void => {},
+  setDidStopEngineHandler: (): void => {},
+};
+
+/**
+ * What Android would be asked for, which is data rather than behaviour — and
+ * so is copied verbatim from the real package rather than stubbed.
+ *
+ * **This is the export whose absence blanked the web build.** `session.ts`
+ * reads `AndroidAudioTypePresets.media` at *module scope* to define
+ * `ANDROID_IDLE`, so a shim without it does not degrade quietly: the module
+ * throws `Cannot read properties of undefined (reading 'media')` while it
+ * evaluates, which takes the whole page with it and names nothing that would
+ * lead you here. A no-op object would be the wrong repair for the same reason
+ * — what these are is a pair of constants that Android applies and a browser
+ * never reads, so the honest stub is their actual values.
+ *
+ * **`tsc` cannot catch the next one of these.** TypeScript resolves
+ * `@livekit/react-native` to the real package's types; only Metro substitutes
+ * this file, and only for web. So a typecheck passes over an export this file
+ * has never heard of, and the first evidence is a white screen in a browser.
+ * Adding an import of the real package here is what would close that gap, and
+ * cannot be done: importing it is the thing this file exists to avoid.
+ */
+export const AndroidAudioTypePresets = {
+  communication: {
+    manageAudioFocus: true,
+    audioMode: 'inCommunication',
+    audioFocusMode: 'gain',
+    audioStreamType: 'voiceCall',
+    audioAttributesUsageType: 'voiceCommunication',
+    audioAttributesContentType: 'speech',
+  },
+  media: {
+    manageAudioFocus: true,
+    audioMode: 'normal',
+    audioFocusMode: 'gain',
+    audioStreamType: 'music',
+    audioAttributesUsageType: 'media',
+    audioAttributesContentType: 'unknown',
+  },
+} as const;
+
 export function registerGlobals(): void {}
 
 export function setupIOSAudioManagement(): void {}
