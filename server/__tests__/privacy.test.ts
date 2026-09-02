@@ -70,15 +70,26 @@ describe('The privacy policy', () => {
     expect(page).toContain('Ko-fi');
   });
 
-  it('says account deletion happens in the app, and what it leaves behind', async () => {
+  it('says where account deletion happens, and what it leaves behind', async () => {
     // This page promised deletion by writing to a support address until the
     // route existed, which is the arrangement Guideline 5.1.1(v) was written to
     // end. Asserted here because a page making a claim about a feature is one
     // that goes stale the moment the feature moves.
+    //
+    // **It said "from inside the application" until 2026-09-01**, which was
+    // true of the mobile app and misleading about the web one — the same
+    // application, in a browser, where deletion has always worked. Google Play
+    // requires a way to delete an account *without* the app, so the sentence
+    // being read as mobile-only was a compliance problem as well as an
+    // inaccuracy. See server/src/deletion.ts.
     app = buildApp({ dbPath: ':memory:', contactEmail: 'hello@example.com' });
     const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
 
-    expect(page).toContain('deleted from inside the application');
+    expect(page).toContain('deleted under Settings');
+    expect(page).toContain('in a browser');
+    // The link is the half a form can be pointed at, so it is asserted rather
+    // than left to the prose.
+    expect(page).toContain('href="/delete-account"');
     // And the part that is not obvious: a channel is not yours to take with
     // you, and the recordings made in one belong to it.
     expect(page).toContain('carry on without you');

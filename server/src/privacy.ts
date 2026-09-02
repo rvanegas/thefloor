@@ -18,7 +18,7 @@ import { escapeHtml, page } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '25 August 2026';
+export const PRIVACY_UPDATED = '1 September 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -179,9 +179,9 @@ application collects little.</p>
   <li><strong>Your channels and who is in them</strong>, so that a conversation
   survives the app being closed.</li>
   <li><strong>A notification token</strong>, if you allow notifications, so the
-  server can ask Apple to show you one. It identifies an installation, not a
-  person, and it is discarded when you sign out or when Apple reports it as
-  dead.</li>
+  server can ask your device’s notification service to show you one. It
+  identifies an installation, not a person, and it is discarded when you sign
+  out or when that service reports it as dead.</li>
   <li><strong>When you were last connected</strong>, shown to your contacts so
   they can tell whether it is a reasonable moment to talk.</li>
   <li><strong>How much the server carried for you</strong>: how many minutes
@@ -220,8 +220,9 @@ everyone at once and can no longer be played or exported. The underlying data
 is removed about ${RETENTION_DAYS} days later, so that a deletion made by
 mistake can be recovered by asking.</p>
 
-<p><strong>Your account is deleted from inside the application</strong>, under
-Settings, and it happens immediately. Your address, your name, your contacts
+<p><strong>Your account is deleted under Settings</strong>, in the app or
+<a href="/delete-account">in a browser</a> — you do not need anything
+installed — and it happens immediately. Your address, your name, your contacts
 and every sign-in are removed. You are taken out
 of every channel you were in: channels you shared with other people carry on
 without you, since they are those people’s conversations too, and channels you

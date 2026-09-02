@@ -33,6 +33,7 @@ import {
 } from '../../core/notifications';
 import { Accounts } from './accounts';
 import { openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
+import { deletionPage } from './deletion';
 import { Devices, type DevicePlatform } from './devices';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
@@ -1360,6 +1361,28 @@ export function buildApp(options: BuildOptions = {}): App {
   fastify.get('/support', async (_request, reply) => {
     reply.type('text/html; charset=utf-8');
     return supportPage(options.contactEmail);
+  });
+
+  /**
+   * How to delete your account, which **Google Play requires a URL for** in the
+   * Data safety form — and requires before a release to any track, internal and
+   * closed testing included, not only production.
+   *
+   * Its two neighbours above exist because App Store Connect demanded a URL;
+   * this one is the same shape of obligation from the other store, so it sits
+   * with them rather than near `DELETE /me`, which is the route it describes.
+   *
+   * Unauthenticated, and that is the point rather than an oversight: the
+   * requirement is that somebody can find out how to delete their account
+   * *without* the app, so a page that needed a session would not satisfy it.
+   * It carries no controls and destroys nothing — deletion itself is still the
+   * authenticated `DELETE /me`, reached from Settings in the app or in the web
+   * app at `/app`. See server/src/deletion.ts for why a signed-out deletion
+   * endpoint was deliberately not built.
+   */
+  fastify.get('/delete-account', async (_request, reply) => {
+    reply.type('text/html; charset=utf-8');
+    return deletionPage({ contactEmail: options.contactEmail });
   });
 
 

@@ -39,11 +39,23 @@ four environment facts that no error message names; read its header rather than
 this paragraph, since it is the thing that goes stale otherwise.
 
 **What has actually been seen**, so that the claim is a measurement rather than
-a promise: the app builds, installs, launches, renders the sign-in screen in
-the light palette, and reaches the deployed server — Pixel 7 profile, API 36,
-arm64, `versionCode` 131. Nobody has signed in on it, so **no channel, no
-audio and no floor has been exercised on Android at all**. That is the next
-step and it needs a second device.
+a promise. On the emulator: the app builds, installs, launches, renders the
+sign-in screen in the light palette, signs in, joins a channel, and connects to
+LiveKit — Pixel 7 profile, API 36, arm64, `versionCode` 131.
+
+And on a physical handset, 2026-09-01, from the sideloaded APK:
+
+- **Two-party audio works.** An Android phone and an iPhone in one channel,
+  audible both ways. This was the open question the whole port rested on —
+  BACKLOG.md called it "the first real test of whether the media layer is as
+  portable as assumed" — and the answer is that it is.
+- **A call does not survive backgrounding.** Confirmed rather than suspected,
+  which promotes the foreground service from a known gap to the next piece of
+  work; see below.
+
+Still unheard, and not to be inferred from the above: **echo**, Bluetooth and
+wired-headset routing, and what an incoming phone call does. A call being
+audible both ways says nothing about any of them.
 
 Three of those facts are worth repeating here, because each cost part of the
 afternoon and none of them announces itself:
@@ -220,20 +232,32 @@ say before the questionnaire rather than during it.
 
 #### What Play wants that Apple did not
 
-- **A web account-deletion path, which is being built as this is written.**
-  Google requires apps with accounts to offer deletion *without* the app — a
-  URL submitted in the console — alongside the in-app route. `DELETE /me` is a
-  bearer-token API route, and `/privacy` said in as many words that "your
-  account is deleted from inside the application". A separate piece of work
-  started 2026-09-01 closes it; **when it lands, the URL goes in the Data
-  safety form and this paragraph should say what the URL is** rather than that
-  the gap exists.
+- **A web account-deletion path. Built 2026-09-01; the URL is
+  `https://thefloor.rvanegas.co/delete-account`**, and that is what goes in the
+  Data safety form. Google requires apps with accounts to offer deletion
+  *without* the app, alongside the in-app route.
+
+  **What was missing was a page, not a capability**, and the distinction shaped
+  the work. `DELETE /me` is authenticated and reached from Settings — and the
+  web app at `/app` is the same application, so a browser could already sign in
+  with a mailed code and delete an account end to end. What did not exist was
+  an address saying so, and `/privacy` actively misled by saying the account is
+  "deleted from inside the application", which reads as mobile-only. So the new
+  route is a document that points at the existing path; it carries no controls
+  and destroys nothing.
+
+  **A signed-out deletion endpoint was considered and rejected.** It would be a
+  second way to destroy an account, keyed on an email address, with its own
+  proof-of-address handling, sitting on the most destructive operation this
+  server has. A requirement to publish a URL is not a requirement to build a
+  new trust surface. `server/src/deletion.ts` carries the argument, and
+  `delete-account.test.ts` asserts the page deletes nothing itself.
 
   **It is on the critical path to the first tester, not to the public
   listing** — this file said the latter for part of 2026-09-01 and it was
   wrong. The Data safety form asks for the URL, and Data safety must be
   complete before a release reaches *any* track, internal included. So it
-  blocks handing the app to one person, which is the whole current goal.
+  blocked handing the app to one person, which is the whole current goal.
 - **The Data safety form**, which is more specific than Apple's nutrition
   label and is a public declaration. What this app actually collects: an email
   address, audio recordings, transcripts, push tokens, and per-account usage
@@ -258,17 +282,28 @@ say before the questionnaire rather than during it.
   terms of the US storefront. Google's rules are different, so the Ko-fi link
   needs a platform dimension — not removal, which would break the iOS build's
   compliance.
-- **`/privacy` is Apple-shaped in at least one place**: it says a push token is
-  discarded "when Apple reports it as" stale. Whatever the Android push story
-  becomes, that sentence needs to cover it.
+- **`/privacy` is Apple-shaped, and one of the two places is fixed.** The
+  notification-token sentence said the token is discarded "when Apple reports
+  it as" dead; it now names the device's notification service instead, which is
+  true today and stays true when there is a second one. **The other is
+  deliberately left**: "Apple delivers notifications", under *Who else can see
+  any of it*, is an accurate statement of what this server does right now and
+  naming Google beside it would be a claim about a path that does not exist.
+  That sentence is part of shipping FCM, not part of preparing for it.
 
 #### What a tester will find missing
 
-Worth stating before anybody installs from the track, because all three are
-known and none is a bug report worth having: **no notifications at all** (there
-is no FCM sender), **audio probably stops when the app is backgrounded** (no
-foreground service), and **nobody has yet heard two-party audio on Android at
-all**. The last is the reason production is not the first target.
+Worth stating before anybody installs from the track, because both are known
+and neither is a bug report worth having: **no notifications at all** (there is
+no FCM sender), and **the call ends when the app is backgrounded** — confirmed
+on hardware, not suspected, and the foreground service that would fix it does
+not exist.
+
+The second is the one to warn people about in the words they will otherwise use
+to report it: *the call drops when I switch apps*. Tell them to keep it in the
+foreground, and expect short sessions until the service is built.
+
+Two-party audio itself works, so what a tester is being asked to try is real.
 
 ### What the emulator cannot tell you
 
@@ -402,8 +437,18 @@ iOS's `UIBackgroundModes: ["audio"]` has no counterpart. Android needs a
   foregrounded, which interacts badly with being *pulled* into a channel by a
   notification.
 
-BACKLOG.md's sequencing was right and stands: this is third, after the build and
-after a channel works between two real devices.
+BACKLOG.md's sequencing was right and has now been walked: the build first, then
+a channel between two real devices, then this. **Both of the first two are
+done** — two-party audio was confirmed on hardware on 2026-09-01 — and the same
+session confirmed that a call dies when the app is backgrounded. So this is no
+longer a gap somebody predicted from the manifest; it is a reproduced defect,
+and it is the next piece of Android work.
+
+**It is also what makes an Android build hard to test in earnest.** Anybody
+asked to use this for a real conversation will background it — to look
+something up, to answer a message — and the call ends. That costs more than the
+feature itself: it makes every other Android question harder to ask, because
+sessions keep ending for a reason nobody is investigating.
 
 Also absent and needed on real hardware: **`BLUETOOTH_CONNECT`**, required from
 Android 12 for headset routing. Its absence would present as Bluetooth simply
@@ -485,12 +530,22 @@ Named so nobody meets them for the first time under a deadline. All deferred.
 
 ## What to do next, in order
 
-1. **A channel between an Android device and an iPhone**, which is the first
-   real test of whether the media layer is as portable as assumed. An emulator
-   can do half of this; the half it cannot do is the half that matters.
-2. **Real hardware for the four questions an emulator cannot answer** — echo,
-   Bluetooth routing, mixing/focus, the interruption.
-3. **Background audio**, and only then.
+1. ~~A channel between an Android device and an iPhone.~~ **Done 2026-09-01,
+   and it worked** — audible both ways, which settles the question the port
+   rested on.
+2. **Background audio.** Promoted from third to first outstanding, because the
+   same session confirmed the call dies on backgrounding. It is now a
+   reproduced defect rather than a predicted one, and it is what stops anybody
+   using an Android build for a real conversation — which in turn is what makes
+   every remaining question harder to ask.
+3. **The three questions still unheard on hardware**: echo, Bluetooth and wired
+   routing, and what an incoming phone call does. A working two-way call says
+   nothing about any of them, and echo is the one with a two-day precedent in
+   planning/POSTMORTEM-echo.md.
+4. **Audio focus** — whether an empty channel lets another app keep playing,
+   which is `IDLE`'s whole purpose and has no `mixWithOthers` equivalent here.
 
 Push, and everything release-shaped, sit outside that sequence: none of them
-blocks the next step, and each is a day of its own.
+blocks the next step, and each is a day of its own. Note though that **push and
+the foreground service are the same kind of missing**, and a tester meets both
+in the first ten minutes.
