@@ -16,6 +16,7 @@ import {
   type AppleAudioConfiguration,
 } from '@livekit/react-native';
 import { setAllowHapticsDuringRecording } from '../../modules/audio-route';
+import { startCallService, stopCallService } from '../../modules/call-service';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
 import {
@@ -597,6 +598,38 @@ export function useSessionAudio(
     intent: MicIntent;
     config: AppleAudioConfiguration;
   } | null>(null);
+
+  /**
+   * Keeps Android's foreground service up for as long as this app is in a
+   * channel, which is what stops the call dying when the app leaves the screen.
+   *
+   * **Keyed on `mediaRoom` alone, deliberately, where the connection below is
+   * keyed on `[mediaRoom, token, generation]`.** A reconnect bumps
+   * `generation`, so a service tied to the connection would be stopped and
+   * started again on every rebuild — and a rebuild is precisely the moment the
+   * app may not be foregrounded, which is the one condition Android refuses a
+   * start under. The service is about *being in a channel*, not about holding
+   * a room, and those come apart exactly when a dropped connection is being
+   * retried in the background. Starting it here also puts it before the
+   * microphone opens rather than after, which is the order Android 14 wants:
+   * a `microphone` service may not be started by a process that has nothing to
+   * keep alive yet, but it may be started by one that is about to.
+   *
+   * No-op everywhere but Android, where the module does not exist. See
+   * `modules/call-service`.
+   */
+  useEffect(() => {
+    if (!mediaRoom) return;
+    startCallService().then((started) => {
+      // Worth a line in the audio log rather than silence: `false` here is the
+      // difference between a channel that survives the app switcher and one
+      // that does not, and there is no other way to tell from inside the app.
+      recordEvent(`call service ${started ? 'started' : 'unavailable'}`);
+    });
+    return () => {
+      stopCallService();
+    };
+  }, [mediaRoom]);
 
   useEffect(() => {
     if (!mediaRoom || !channelIdRef.current || !token) return;

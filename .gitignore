@@ -74,6 +74,19 @@ android/
 # never be consulted.
 !app/modules/*/ios/
 
+# The same again for Android, added 2026-09-03 with `app/modules/call-service`
+# — the foreground service that keeps a channel alive off screen, whose whole
+# implementation is Kotlin and a manifest under a directory called `android`.
+# Identical trap, identical cost, and it would have been quieter this time: a
+# module with no native half links to nothing, so `startCallService` answers
+# `false` exactly as it does on iOS, and the only symptom would be Android
+# calls dying in the background again.
+#
+# Gradle's own output has to go back out, since the rule that was catching it
+# is the one being negated.
+!app/modules/*/android/
+app/modules/*/android/build/
+
 # editor backups
 *~
 

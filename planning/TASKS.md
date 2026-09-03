@@ -92,12 +92,17 @@ had never been. **Two-party audio works** — an Android phone and an iPhone
 audible both ways, which was the question the whole port rested on.
 
 This entry stays because what it names is not finished, and the order changed
-once real hardware was involved. **Background audio is first now**: the same
-session confirmed a call dies when the app is backgrounded, so it is a
-reproduced defect rather than a predicted one, and it is what stops anybody
-using an Android build for a real conversation. Then the three things still
-unheard — echo, Bluetooth and wired routing, and an incoming phone call — none
-of which a working two-way call says anything about. Then audio focus.
+once real hardware was involved. **Background audio was first and was built on
+2026-09-03** — a foreground service typed `microphone`, in a local Expo module
+at `app/modules/call-service/`, started for as long as this app is in a
+channel. It compiles and autolinks and nobody has watched it work: what stops a
+process being killed off screen is the platform's judgement, which neither a
+test nor an emulator can stand in for.
+
+So what is first now is **a handset**, carrying four questions rather than one:
+whether a backgrounded call survives, and the three that were already waiting —
+echo, Bluetooth and wired routing, and an incoming phone call — none of which a
+working two-way call says anything about. Then audio focus.
 
 Push has no Android delivery at all and is the largest single item, outside
 that sequence. Getting onto Play is its own track and is blocked only on

@@ -4,8 +4,10 @@
 § *Build for Android* asked for two things — evaluate the relevant differences,
 and establish a dev simulator on the Mac. Both were done on 2026-09-01, along
 with the one piece of code that could not be deferred without shipping a known
-defect. Everything else this file describes is unbuilt, and each item says what
-it would cost. When Android ships, what survives moves to
+defect — the audio session — and the foreground service followed on 2026-09-03,
+once hardware had shown the defect it fixes. Everything else this file
+describes is unbuilt, and each item says what it would cost. When Android
+ships, what survives moves to
 `decisions/DECISIONS.md` and this file goes.
 
 It replaces BACKLOG.md § *Android has never been built or run*, whose factual
@@ -16,10 +18,12 @@ claims had gone stale — there is an `android/`, and a build has been attempted
 ## What is true now
 
 `bin/android` builds and installs the app on an emulator. `app/src/audio/`
-configures the Android audio session, which it did not before. Nothing else
-about this app is Android-aware, and **no Android build has ever been in
-anybody's hands**: there is no signing key, no Play listing, no `eas.json`, and
-`bin/upload-ios` remains the only release path this repository has.
+configures the Android audio session, which it did not before. **`app/modules/
+call-service/` keeps a channel alive off screen**, added 2026-09-03 and the
+second piece of Android-aware code this app has. There is an upload key and a
+signed bundle; there is no Play listing, no `eas.json`, no `bin/upload-android`,
+and **no Android build has ever been in anybody's hands** — `bin/upload-ios`
+remains the only release path this repository has.
 
 The premise BACKLOG.md wrote down still holds where it matters:
 
@@ -49,9 +53,11 @@ And on a physical handset, 2026-09-01, from the sideloaded APK:
   audible both ways. This was the open question the whole port rested on —
   BACKLOG.md called it "the first real test of whether the media layer is as
   portable as assumed" — and the answer is that it is.
-- **A call does not survive backgrounding.** Confirmed rather than suspected,
-  which promotes the foreground service from a known gap to the next piece of
-  work; see below.
+- **A call did not survive backgrounding.** Confirmed rather than suspected,
+  which promoted the foreground service from a known gap to the next piece of
+  work. **It was built on 2026-09-03 and has not been on a handset since** —
+  see below, and treat the line above as the last measurement rather than as
+  the current behaviour.
 
 Still unheard, and not to be inferred from the above: **echo**, Bluetooth and
 wired-headset routing, and what an incoming phone call does. A call being
@@ -100,11 +106,13 @@ Three things to know before sending one:
   because a release build has no `__DEV__`, so the `[audio]` console trace that
   made the emulator legible is simply absent on their phone.
 
-And one thing to tell whoever installs it: **backgrounding the app will
-probably drop the audio**, because the foreground service does not exist yet.
-Keep it in the foreground. That is a known gap rather than a bug worth
-reporting — see below — and without saying so, it is the first thing they will
-report and the least informative.
+And one thing to ask whoever installs it: **background the app during a call
+and say whether the audio survives.** It should now — the foreground service
+landed 2026-09-03 — and nobody has watched it do so on a handset. Until
+somebody has, that is the single most useful report a tester can make, in
+either direction. They will see a notification reading *In a channel* for as
+long as they are in one; that is the service, and it is what buys the process
+its life rather than an announcement.
 
 ### Getting onto Play
 
@@ -293,15 +301,19 @@ say before the questionnaire rather than during it.
 
 #### What a tester will find missing
 
-Worth stating before anybody installs from the track, because both are known
-and neither is a bug report worth having: **no notifications at all** (there is
-no FCM sender), and **the call ends when the app is backgrounded** — confirmed
-on hardware, not suspected, and the foreground service that would fix it does
-not exist.
+Worth stating before anybody installs from the track: **no notifications at
+all**, because there is no FCM sender. That one is known and is not a bug
+report worth having.
 
-The second is the one to warn people about in the words they will otherwise use
-to report it: *the call drops when I switch apps*. Tell them to keep it in the
-foreground, and expect short sessions until the service is built.
+**The backgrounding defect was the other half of this paragraph until
+2026-09-03**, and the foreground service that fixes it now exists. What is left
+of it is a question rather than a gap: nobody has seen the service work on a
+handset, so ask, and ask in the words they would otherwise use — *does the call
+drop when you switch apps?*
+
+One thing they will see that iOS testers do not: **a persistent notification
+for as long as they are in a channel**. It is not optional and cannot be
+dismissed; Android will not let a process capture audio off screen without one.
 
 Two-party audio itself works, so what a tester is being asked to try is real.
 
@@ -423,32 +435,58 @@ and a channel + permission on the client. It is the largest single item here and
 it is not on the critical path to a working dev loop, which is why it was
 deferred rather than started.
 
-## Background audio, where the work genuinely diverges
+## Background audio, which was where the work genuinely diverged
 
-iOS's `UIBackgroundModes: ["audio"]` has no counterpart. Android needs a
-**foreground service typed `microphone`**, which means:
+**Built 2026-09-03, and unverified on hardware.** `app/modules/call-service/`
+is a local Expo module — the second this project has, after
+`modules/audio-route` — holding a foreground service typed `microphone` and two
+functions to start and stop it. `useSessionAudio` starts it when this app
+enters a channel and stops it when it leaves.
 
-- `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_MICROPHONE` permissions, neither
-  declared;
-- a persistent notification the user can see for as long as the channel is open,
-  which is a product decision as much as a technical one — iOS shows nothing
-  equivalent;
-- and from Android 14, the service may only start while the app is already
-  foregrounded, which interacts badly with being *pulled* into a channel by a
-  notification.
+iOS's `UIBackgroundModes: ["audio"]` has no counterpart, and the shape of the
+difference is worth keeping even now the code exists: on iOS the background
+mode is a line in `Info.plist` and the system does the rest, where Android will
+kill a process that captures audio with nothing visible on screen. So the
+persistent notification is not a courtesy — it is what buys the process its
+life, and it cannot be traded away.
 
-BACKLOG.md's sequencing was right and has now been walked: the build first, then
-a channel between two real devices, then this. **Both of the first two are
-done** — two-party audio was confirmed on hardware on 2026-09-01 — and the same
-session confirmed that a call dies when the app is backgrounded. So this is no
-longer a gap somebody predicted from the manifest; it is a reproduced defect,
-and it is the next piece of Android work.
+Four things about it that are decisions rather than mechanics:
 
-**It is also what makes an Android build hard to test in earnest.** Anybody
-asked to use this for a real conversation will background it — to look
-something up, to answer a message — and the call ends. That costs more than the
-feature itself: it makes every other Android question harder to ask, because
-sessions keep ending for a reason nobody is investigating.
+- **The service is scoped to the channel, not to the room**, which is why it is
+  started by an effect keyed on `mediaRoom` alone rather than inside the
+  connect effect. A reconnect bumps `generation` and rebuilds the room, and a
+  reconnect is *precisely* when the app may be in the background — where
+  Android refuses a foreground-service start. A service tied to the connection
+  would therefore stop and fail to restart at the one moment it is needed.
+  `__tests__/callService.test.tsx` pins that a rebuild does not cycle it, which
+  is a regression no assertion about the audio state could catch.
+- **The notification does not name the channel.** It is visible on the lock
+  screen for as long as the channel is open, and iOS shows nothing equivalent —
+  so a name there would be this app disclosing on one platform what it does not
+  on the other, to whoever picks the phone up. The words live in
+  `modules/call-service/index.ts` rather than in Kotlin, so that a reader of
+  this app can find them.
+- **`POST_NOTIFICATIONS` is declared and never requested**, which is the one
+  loose end. From Android 13 an ungranted notification permission means the
+  notification is *not shown* — the service still runs and the call still
+  survives, so this is cosmetic rather than functional, but it leaves the user
+  with a microphone running and nothing on screen saying why. The permission
+  has to be in the manifest before it can ever be asked for, which is why it is
+  there now; asking belongs with the push work, which is the other reason to
+  ask and will prompt for it anyway.
+- **Everything answers `false` rather than throwing**, on the same contract
+  `modules/audio-route` keeps: a channel with no service behind it still works
+  for as long as the app is on screen, which is every case except the one this
+  fixes. The start that genuinely fails is the one Android 14 refuses — a
+  service started while the app is not foregrounded — and it is recorded in the
+  audio log as `call service unavailable`, which is the only way to tell from
+  inside the app.
+
+Verified as far as a Mac can: it compiles, autolinks, and the merged manifest
+carries the service and all three permissions. **That is not the same as
+knowing a call survives the app switcher**, and the emulator cannot settle it
+either, since what is being tested is the platform's willingness to keep a
+process alive. It needs the handset.
 
 Also absent and needed on real hardware: **`BLUETOOTH_CONNECT`**, required from
 Android 12 for headset routing. Its absence would present as Bluetooth simply
@@ -533,19 +571,19 @@ Named so nobody meets them for the first time under a deadline. All deferred.
 1. ~~A channel between an Android device and an iPhone.~~ **Done 2026-09-01,
    and it worked** — audible both ways, which settles the question the port
    rested on.
-2. **Background audio.** Promoted from third to first outstanding, because the
-   same session confirmed the call dies on backgrounding. It is now a
-   reproduced defect rather than a predicted one, and it is what stops anybody
-   using an Android build for a real conversation — which in turn is what makes
-   every remaining question harder to ask.
-3. **The three questions still unheard on hardware**: echo, Bluetooth and wired
-   routing, and what an incoming phone call does. A working two-way call says
-   nothing about any of them, and echo is the one with a two-day precedent in
+2. ~~Background audio.~~ **Built 2026-09-03**, and it is the first item on the
+   list below rather than off it: what was a defect is now an unverified fix.
+3. **A handset, and four questions for it**, which is now one errand rather
+   than several. The first is whether a backgrounded call actually survives —
+   nothing short of hardware can say, since what is being tested is the
+   platform's willingness to keep a process alive. The other three were already
+   waiting and are unchanged: echo, Bluetooth and wired routing, and what an
+   incoming phone call does. Echo is the one with a two-day precedent in
    planning/POSTMORTEM-echo.md.
 4. **Audio focus** — whether an empty channel lets another app keep playing,
    which is `IDLE`'s whole purpose and has no `mixWithOthers` equivalent here.
 
 Push, and everything release-shaped, sit outside that sequence: none of them
-blocks the next step, and each is a day of its own. Note though that **push and
-the foreground service are the same kind of missing**, and a tester meets both
-in the first ten minutes.
+blocks the next step, and each is a day of its own. **Push is now the only one
+of that kind a tester meets in the first ten minutes** — it and the foreground
+service were the pair, and the service has been built.

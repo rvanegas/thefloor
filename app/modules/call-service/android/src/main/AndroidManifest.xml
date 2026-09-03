@@ -1,0 +1,26 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      Fully qualified deliberately. A library manifest's relative `.Name`
+      resolves against the *application's* package at merge time, not this
+      module's, so `.CallService` here would name a class in
+      `co.rvanegas.thefloor` that does not exist — and the failure is a
+      ClassNotFound at start time rather than at build time.
+
+      `foregroundServiceType` is stated here as well as at `startForeground`.
+      Android 14 requires both to agree, and the manifest is the half that
+      makes the permission check pass at all.
+
+      `stopWithTask` so that swiping the app away takes the channel with it.
+      The default is the opposite: a foreground service outlives the task that
+      started it, which would leave a notification for a call whose UI is gone
+      and no way back to it except through the notification.
+    -->
+    <service
+      android:name="expo.modules.callservice.CallService"
+      android:enabled="true"
+      android:exported="false"
+      android:stopWithTask="true"
+      android:foregroundServiceType="microphone" />
+  </application>
+</manifest>
