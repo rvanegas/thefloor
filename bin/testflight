@@ -1,0 +1,264 @@
+#!/usr/bin/env node
+//
+// What TestFlight holds, newest build first.
+//
+//   bin/testflight              the most recent build, in full
+//   bin/testflight --count 5    the last five, one line each
+//   bin/testflight --build 64   a particular build, in full
+//   bin/testflight --json       the raw records, for when a field is missing here
+//
+// Read-only, always: it makes no PATCH, POST or DELETE, and there is no flag
+// that would. It is to bin/upload-ios what bin/health is to bin/deploy — the
+// measurement that says whether the thing you ran did what you think, taken
+// against Apple rather than against a local tag or a terminal that has since
+// scrolled away.
+//
+// Four states are reported and they are four different questions, which the
+// TestFlight UI runs together in one column:
+//
+//   - **processing** is Apple's, about the binary. `PROCESSING` for a few
+//     minutes after an upload, then `VALID` — or `FAILED`/`INVALID`, which is
+//     the answer to "the upload said it succeeded, why is there nothing to
+//     install".
+//   - **internal** is whether the team's own testers can install it. It
+//     follows processing and needs no review.
+//   - **external** is whether anybody outside the team can, and it is gated on
+//     **beta review**, which is a separate review from App Review with its own
+//     state and its own rejections. A build can be `VALID`, installable
+//     internally, and invisible to external testers for a day because of it.
+//   - **expiry**. A build stops being installable 90 days after upload,
+//     quietly, and an expired build is why a tester who had it yesterday
+//     cannot reinstall it today. The days remaining are printed for the newest
+//     build because that is the number nobody thinks to look up.
+//
+// It also says what the newest upload is *not*: app.json's buildNumber when
+// that is ahead (a bump that has not been uploaded), and the commits between
+// the build's tag and HEAD (work that no tester has). Neither is a fault —
+// they are the two ways "the latest build" means two different things in one
+// sentence, and the reason this prints them rather than leaving it to memory.
+//
+// The key is the App Store Connect one bin/upload-ios uploads with and
+// bin/submit-ios submits with, read the same way from the same directory.
+// CREDENTIALS.md says where it lives.
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+const { execFileSync } = require('child_process');
+
+const ROOT = path.resolve(__dirname, '..');
+const HOST = 'https://api.appstoreconnect.apple.com';
+
+// ---------------------------------------------------------------- arguments
+
+const argv = process.argv.slice(2);
+const opts = { count: 1, build: null, json: false };
+while (argv.length) {
+  const arg = argv.shift();
+  if (arg === '--json') opts.json = true;
+  else if (arg === '--count' || arg === '-n') opts.count = Number(argv.shift());
+  else if (arg === '--build') opts.build = String(argv.shift());
+  else if (arg === '--help' || arg === '-h') {
+    // The whole comment block, however long it grows: a fixed line range is a
+    // help text that truncates the next time the header gains a paragraph.
+    const lines = fs.readFileSync(__filename, 'utf8').split('\n').slice(1);
+    for (const line of lines) {
+      if (!line.startsWith('//')) break;
+      console.log(line.replace(/^\/\/ ?/, ''));
+    }
+    process.exit(0);
+  } else die(`unknown argument ${arg}`);
+}
+if (!Number.isInteger(opts.count) || opts.count < 1) die('--count wants a positive integer');
+
+function die(message, ...rest) {
+  console.error(`✗ ${message}`);
+  for (const line of rest) console.error(`  ${line}`);
+  process.exit(1);
+}
+
+// --------------------------------------------------------------------- auth
+
+// Its own directory, and that is not tidiness: the APNs key is a `.p8` under
+// ~/.config/thefloor too, both are ES256 private keys, and a glob cannot tell
+// them apart by content. bin/upload-ios and bin/submit-ios carry the same guard.
+const ASC_DIR = process.env.THEFLOOR_ASC_DIR || path.join(os.homedir(), '.config/thefloor/asc');
+const keys = fs.existsSync(ASC_DIR)
+  ? fs.readdirSync(ASC_DIR).filter((f) => /^AuthKey_.+\.p8$/.test(f))
+  : [];
+if (keys.length === 0) die(`no App Store Connect key in ${ASC_DIR}`,
+  'CREDENTIALS.md says where it lives and how to make another.');
+if (keys.length > 1) die(`more than one key in ${ASC_DIR}; cannot tell which is the release key`);
+
+const keyId = keys[0].replace(/^AuthKey_|\.p8$/g, '');
+const issuerId = (process.env.APP_STORE_CONNECT_ISSUER_ID
+  || fs.readFileSync(path.join(ASC_DIR, 'issuer-id'), 'utf8')).trim();
+
+const token = (() => {
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const iat = Math.floor(Date.now() / 1000);
+  const body = `${b64({ alg: 'ES256', kid: keyId, typ: 'JWT' })}.`
+    + b64({ iss: issuerId, iat, exp: iat + 1200, aud: 'appstoreconnect-v1' });
+  // ES256 wants the raw r||s pair; node signs DER unless told otherwise, and
+  // Apple answers 401 NOT_AUTHORIZED to a DER signature without saying why.
+  const sig = crypto.sign('sha256', Buffer.from(body), {
+    key: fs.readFileSync(path.join(ASC_DIR, keys[0])),
+    dsaEncoding: 'ieee-p1363',
+  });
+  return `${body}.${sig.toString('base64url')}`;
+})();
+
+async function api(method, endpoint) {
+  const res = await fetch(HOST + endpoint, { method, headers: { Authorization: `Bearer ${token}` } });
+  const text = await res.text();
+  const body = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const detail = (body?.errors || []).map((e) => `${e.title}: ${e.detail}`).join('\n  ');
+    die(`${method} ${endpoint} → ${res.status}`, detail || text.slice(0, 400));
+  }
+  return body;
+}
+
+// ---------------------------------------------------------------- formatting
+
+const stamp = (iso) => (iso
+  ? new Date(iso).toISOString().slice(0, 16).replace('T', ' ')
+  : '—');
+
+const days = (iso) => Math.round((new Date(iso) - Date.now()) / 86400000);
+
+// Apple's states are SHOUTING_SNAKE and there are a lot of them; lower case
+// with spaces reads as prose without inventing names for them.
+const say = (state) => (state ? state.toLowerCase().replace(/_/g, ' ') : '—');
+
+// ------------------------------------------------------------------ app.json
+
+const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'app/app.json'), 'utf8')).expo;
+const bundleId = config.ios.bundleIdentifier;
+
+const git = (...args) => {
+  try {
+    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+};
+
+const main = async () => {
+  const apps = await api('GET', `/v1/apps?filter[bundleId]=${bundleId}`);
+  const app = apps.data[0];
+  if (!app) die(`no app in App Store Connect for ${bundleId}`);
+
+  // One call carries processing, train, expiry and both testing states; the
+  // beta review state and the groups are relationships and need their own.
+  const query = `/v1/builds?filter[app]=${app.id}`
+    + (opts.build ? `&filter[version]=${opts.build}` : '')
+    + `&sort=-uploadedDate&limit=${Math.max(opts.count, 1)}`
+    + '&include=preReleaseVersion,buildBetaDetail';
+  const builds = await api('GET', query);
+
+  if (!builds.data.length) {
+    die(opts.build
+      ? `Apple has no build ${opts.build} for ${bundleId}`
+      : `Apple has no builds at all for ${bundleId}`);
+  }
+
+  const trainOf = (b) => (builds.included || []).find((i) => i.type === 'preReleaseVersions'
+    && i.id === b.relationships?.preReleaseVersion?.data?.id)?.attributes.version;
+  const betaOf = (b) => (builds.included || []).find((i) => i.type === 'buildBetaDetails'
+    && i.id === b.relationships?.buildBetaDetail?.data?.id)?.attributes || {};
+
+  if (opts.json) {
+    console.log(JSON.stringify(builds, null, 2));
+    return;
+  }
+
+  console.log(`→ ${bundleId} in TestFlight, as API key ${keyId}`);
+  console.log('');
+
+  if (builds.data.length > 1) {
+    // A list is for "which builds are still installable", so it carries the
+    // three columns that answer it and nothing else.
+    for (const b of builds.data) {
+      const a = b.attributes;
+      const beta = betaOf(b);
+      console.log(`  ${String(a.version).padEnd(6)}${String(trainOf(b) || '—').padEnd(8)}`
+        + `${stamp(a.uploadedDate).padEnd(18)}${say(a.processingState).padEnd(12)}`
+        + `${a.expired ? 'expired' : `${days(a.expirationDate)}d left`}`
+        + `   internal ${say(beta.internalBuildState)}`);
+    }
+    console.log('');
+    return;
+  }
+
+  await one(builds.data[0]);
+};
+
+async function one(build) {
+  const a = build.attributes;
+  const detail = (await api('GET', `/v1/builds/${build.id}/buildBetaDetail`)).data?.attributes || {};
+  const train = (await api('GET', `/v1/builds/${build.id}/preReleaseVersion`)).data?.attributes?.version;
+
+  console.log(`  build         ${a.version}${train ? `, uploaded under ${train}` : ''}`);
+  console.log(`  uploaded      ${stamp(a.uploadedDate)}`);
+  console.log(`  processing    ${say(a.processingState)}`);
+  console.log(`  internal      ${say(detail.internalBuildState)}`);
+  console.log(`  external      ${say(detail.externalBuildState)}`);
+
+  // Beta review is not App Review and has its own rejections. Absent is the
+  // ordinary case for a build only the team has ever installed.
+  const review = (await api('GET', `/v1/builds/${build.id}/betaAppReviewSubmission`)).data;
+  if (review) {
+    console.log(`  beta review   ${say(review.attributes.betaReviewState)}`
+      + `, submitted ${stamp(review.attributes.submittedDate)}`);
+  }
+
+  if (a.expired) {
+    console.log('  expiry        expired; nobody can install it any more');
+  } else if (a.expirationDate) {
+    console.log(`  expiry        ${stamp(a.expirationDate)} (${days(a.expirationDate)} days)`);
+  }
+
+  // Asked from the groups' end: builds/{id}/betaGroups answers 403, the
+  // relationship being write-only, and says so only after everything above has
+  // already printed.
+  const groups = (await api('GET', `/v1/betaGroups?filter[builds]=${build.id}&limit=50`)).data;
+  console.log(`  groups        ${groups.length
+    ? groups.map((g) => g.attributes.name).join(', ')
+    : 'none; only the team can install it'}`);
+
+  // ------------------------------------------- what this build is not
+
+  console.log('');
+  // Only when nobody named a build: asked for an old one on purpose, "app.json
+  // is ahead of it" is not news, and printing it there teaches you to skip the
+  // line in the one case where it is.
+  const local = String(config.ios.buildNumber);
+  if (opts.build) {
+    // nothing to compare: this build was named rather than found
+  } else if (Number(local) > Number(a.version)) {
+    console.log(`  ⚠ app.json says build ${local}, which is ahead of anything uploaded.`);
+  } else if (local !== String(a.version)) {
+    console.log(`  ⚠ app.json says build ${local}, and Apple's newest is ${a.version}.`);
+  }
+
+  const tag = `build/${a.version}`;
+  if (git('rev-parse', '--verify', `refs/tags/${tag}`)) {
+    const sha = git('rev-parse', '--short', `${tag}^{commit}`);
+    const subject = git('log', '-1', '--format=%s', `${tag}^{commit}`);
+    console.log(`  ${tag} is ${sha} — ${subject}`);
+    const ahead = git('rev-list', '--count', `${tag}..HEAD`);
+    if (ahead && ahead !== '0') {
+      console.log(`  ${ahead} commit(s) on HEAD that this build does not carry.`);
+    }
+  } else {
+    console.log(`  ⚠ no ${tag} tag here; nothing records which commit this build is.`);
+  }
+
+  console.log('');
+  console.log('  bin/submit-ios --status is the next question along: what App');
+  console.log('  Review, rather than TestFlight, holds.');
+}
+
+main();
