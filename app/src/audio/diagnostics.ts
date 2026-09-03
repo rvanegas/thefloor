@@ -3,8 +3,10 @@ import { AudioEngineMuteMode } from '@livekit/react-native';
 import type { AppleAudioConfiguration } from '@livekit/react-native';
 import {
   onRouteChange,
+  routeFault,
   routeLine,
   routeSnapshot,
+  type RouteFault,
   type RouteSnapshot,
 } from '../../modules/audio-route';
 import {
@@ -51,8 +53,18 @@ export interface AudioDiagnostic {
   asked: AudioIntent | null;
   /** What the audio engine reports, or null where there is no engine to ask. */
   engine: EngineSnapshot | null;
-  /** What `AVAudioSession` reports, or null where the module did not load. */
+  /** What `AVAudioSession` reports, or null where it could not be read. */
   route: RouteSnapshot | null;
+  /**
+   * Why `route` is null, and null when it is not.
+   *
+   * **Carried rather than inferred, because the two causes are not the same
+   * advice.** A module that never linked is a build fault; a module that
+   * linked and whose `snapshot()` then failed is a native fault in a module
+   * that is demonstrably present, and sending somebody to check autolinking
+   * for the second is how an evening goes missing. See `RouteFault`.
+   */
+  routeFault: RouteFault | null;
   /** When this was taken, for a panel that says how fresh it is. */
   at: number;
 }
@@ -74,10 +86,17 @@ export interface AudioDiagnostic {
  * to read something, having already lost the thing they wanted to look at.
  */
 export function readDiagnostic(asked: AudioIntent | null): AudioDiagnostic {
+  // Ordered: `routeFault()` explains the call above it, so the two must be
+  // read in that order and in that order only. Written as statements rather
+  // than object properties because property evaluation order is a language
+  // rule somebody would have to know to read this safely.
+  const route = routeSnapshot();
+  const fault = routeFault();
   return {
     asked,
     engine: engineSnapshot(),
-    route: routeSnapshot(),
+    route,
+    routeFault: fault,
     at: Date.now(),
   };
 }
@@ -205,20 +224,42 @@ export function diagnosticSections(
   d: AudioDiagnostic,
   steadyHeadset: boolean
 ): DiagnosticSection[] {
-  const { asked, engine, route } = d;
+  const { asked, engine, route, routeFault } = d;
 
   return [
-    { title: 'Session — asked vs actual', rows: sessionRows(asked, route) },
-    { title: 'Route', rows: routeRows(route) },
+    {
+      title: 'Session — asked vs actual',
+      rows: sessionRows(asked, route, routeFault),
+    },
+    { title: 'Route', rows: routeRows(route, routeFault) },
     { title: 'Engine', rows: engineRows(engine) },
     { title: 'Other apps', rows: otherAudioRows(route) },
     { title: 'App', rows: appRows(asked, steadyHeadset) },
   ];
 }
 
+/**
+ * What an unreadable route should say, which is not one sentence but two.
+ *
+ * **The distinction is the whole of the 2026-09-03 diagnostic fix.** A panel
+ * that says `module absent or not linked` when the module is plainly linked
+ * sends the next reader to the build system, which is the one place the fault
+ * is not. See `RouteFault` in modules/audio-route.
+ */
+function faultText(fault: RouteFault | null): string {
+  // Null with no recorded fault is the case that should not arise — the
+  // snapshot is null and nothing knows why — so it says that rather than
+  // guessing at either cause.
+  if (!fault) return `${UNREADABLE} — no reason recorded`;
+  return fault === 'absent'
+    ? `${UNREADABLE} — module absent or not linked`
+    : `${UNREADABLE} — module linked, snapshot() failed`;
+}
+
 function sessionRows(
   asked: AudioIntent | null,
-  route: RouteSnapshot | null
+  route: RouteSnapshot | null,
+  fault: RouteFault | null
 ): DiagnosticRow[] {
   if (!asked) {
     // Not an error. It is what "connected to no channel" looks like, and the
@@ -227,7 +268,7 @@ function sessionRows(
     // this panel can produce.
     return [
       { label: 'asked', value: 'nothing yet — no audio connection' },
-      ...actualOnlyRows(route),
+      ...actualOnlyRows(route, fault),
     ];
   }
 
@@ -236,7 +277,7 @@ function sessionRows(
     return [
       { label: 'asked', value: `${nameOf(wanted)} ${describeConfig(wanted)}` },
       { label: 'asked opts', value: list(wanted.audioCategoryOptions) },
-      { label: 'actual', value: UNREADABLE, alarm: true },
+      { label: 'actual', value: faultText(fault), alarm: true },
     ];
   }
 
@@ -277,8 +318,11 @@ function sessionRows(
 }
 
 /** The actual half alone, for when there is nothing to compare it against. */
-function actualOnlyRows(route: RouteSnapshot | null): DiagnosticRow[] {
-  if (!route) return [{ label: 'actual', value: UNREADABLE, alarm: true }];
+function actualOnlyRows(
+  route: RouteSnapshot | null,
+  fault: RouteFault | null
+): DiagnosticRow[] {
+  if (!route) return [{ label: 'actual', value: faultText(fault), alarm: true }];
   return [
     {
       label: 'actual',
@@ -294,15 +338,20 @@ function actualOnlyRows(route: RouteSnapshot | null): DiagnosticRow[] {
   ];
 }
 
-function routeRows(route: RouteSnapshot | null): DiagnosticRow[] {
+function routeRows(
+  route: RouteSnapshot | null,
+  fault: RouteFault | null
+): DiagnosticRow[] {
   if (!route) {
     return [
       {
         label: 'route',
         // Distinguished from "no route", which is a different and rarer thing.
         // Build 61 shipped this module without its Swift — `.gitignore`'s
-        // unanchored `ios/` ate it — and read exactly this.
-        value: 'unreadable — module absent or not linked',
+        // unanchored `ios/` ate it — and read exactly this. Since 2026-09-03 it
+        // is also distinguished from a module that linked and then failed,
+        // which read identically and sent a reader after the wrong fault.
+        value: faultText(fault),
         alarm: true,
       },
     ];

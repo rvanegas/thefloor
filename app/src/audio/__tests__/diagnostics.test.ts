@@ -73,6 +73,7 @@ function reading(patch: Partial<AudioDiagnostic> = {}): AudioDiagnostic {
     asked: ASKED_CALL,
     engine: ENGINE,
     route: ROUTE_CALL,
+    routeFault: null,
     at: 1_700_000_000_000,
     ...patch,
   };
@@ -166,14 +167,14 @@ describe('a reading that could not be taken', () => {
   // The rule this whole file is written under: an instrument that goes quiet
   // must not look like an instrument reporting nothing wrong.
   it('never renders as blank or false', () => {
-    const d = reading({ route: null, engine: null });
-    expect(row(d, 'actual').value).toBe('unreadable');
+    const d = reading({ route: null, engine: null, routeFault: 'absent' });
+    expect(row(d, 'actual').value).toMatch(/^unreadable/);
     expect(row(d, 'engine').value).toBe('unreadable');
     expect(row(d, 'other audio').value).toBe('unreadable');
   });
 
   it('is itself an alarm, since it is the comparison that failed', () => {
-    const d = reading({ route: null, engine: null });
+    const d = reading({ route: null, engine: null, routeFault: 'absent' });
     expect(row(d, 'actual').alarm).toBe(true);
     expect(row(d, 'engine').alarm).toBe(true);
   });
@@ -181,7 +182,32 @@ describe('a reading that could not be taken', () => {
   it('distinguishes a missing module from a missing route', () => {
     // Build 61 shipped the reader without its Swift half and read exactly
     // this; the line has to say which of the two happened.
-    expect(row(reading({ route: null }), 'route').value).toMatch(/module/);
+    const d = reading({ route: null, routeFault: 'absent' });
+    expect(row(d, 'route').value).toMatch(/module absent/);
+  });
+
+  /**
+   * The 2026-09-03 misreport, which is the one an instrument can make that is
+   * worse than saying nothing: it accused the build of a linking fault in a
+   * session whose log already held ninety seconds of route lines from that
+   * very module. Both causes render as `unreadable`, and they must not render
+   * as the *same* unreadable.
+   */
+  it('distinguishes a module that never linked from one that then failed', () => {
+    const absent = row(reading({ route: null, routeFault: 'absent' }), 'route');
+    const threw = row(reading({ route: null, routeFault: 'threw' }), 'route');
+    expect(absent.value).toMatch(/module absent/);
+    expect(threw.value).toMatch(/module linked/);
+    expect(threw.value).not.toBe(absent.value);
+    expect(threw.alarm).toBe(true);
+  });
+
+  // Null with nothing recorded is a state that should not arise. It says so
+  // rather than picking whichever cause reads more plausibly, which is the
+  // habit this whole panel exists to break.
+  it('does not guess a cause it was not given', () => {
+    const d = reading({ route: null, routeFault: null });
+    expect(row(d, 'route').value).toMatch(/no reason recorded/);
   });
 
   // A binary older than the field it is being asked for. Absent is not

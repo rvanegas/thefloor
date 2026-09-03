@@ -348,9 +348,13 @@ function Tap({ label, onPress }: { label: string; onPress: () => void }) {
  * renders as `unreadable` rather than as false. That distinction is the oldest
  * rule in `diagnostics.ts` and it is exactly right for this case: nothing was
  * measured, which is not the same as measuring nothing.
+ *
+ * `routeFault` is null for the same reason, and renders as *no reason
+ * recorded* — which is the truth here. No snapshot was attempted, so there is
+ * no fault to report, and naming either cause would be inventing one.
  */
 function readingPlaceholder(asked: AudioIntent | null): AudioDiagnostic {
-  return { asked, engine: null, route: null, at: Date.now() };
+  return { asked, engine: null, route: null, routeFault: null, at: Date.now() };
 }
 
 /** hh:mm:ss, so a line in the log can be lined up against a memory of a sound. */

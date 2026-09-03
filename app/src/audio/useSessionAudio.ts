@@ -15,7 +15,10 @@ import {
   setupIOSAudioManagement,
   type AppleAudioConfiguration,
 } from '@livekit/react-native';
-import { setAllowHapticsDuringRecording } from '../../modules/audio-route';
+import {
+  onRouteChange,
+  setAllowHapticsDuringRecording,
+} from '../../modules/audio-route';
 import { startCallService, stopCallService } from '../../modules/call-service';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
@@ -25,6 +28,11 @@ import {
   PLAYOUT_POLL_MS,
   type PlayoutReading,
 } from './playout';
+import {
+  NO_RECOVERY,
+  onRouteObserved,
+  type RecoveryState,
+} from './routeRecovery';
 import {
   ANDROID_OUTPUTS,
   androidSessionFor,
@@ -1180,6 +1188,48 @@ export function useSessionAudio(
       s.micOpen === transmitting ? s : { ...s, micOpen: transmitting }
     );
   }, [selfMuted, micNeeded, hasAudio, state.status, state.othersAudible]);
+
+  /**
+   * Puts the output back on the loudspeaker when iOS has dropped it to the
+   * earpiece.
+   *
+   * **Its own effect rather than a branch in the one above, because it is
+   * driven by a different clock.** That effect runs when *we* change our mind
+   * about the session; this one runs when *iOS* changes its mind about the
+   * route, which happens on a device arriving or leaving with no state of ours
+   * moving at all. The 2026-09-03 report is exactly that shape: an AirPlay
+   * device took the route while the app was backgrounded, and what the phone
+   * was playing through afterwards was never anything this app had asked for.
+   *
+   * **It does not own the configuration and does not contend with the effect
+   * above.** It restates what `sessionFor` already returned rather than
+   * choosing anything, so the worst it can do is write the value that is
+   * already meant to be there — and it only ever fires while that value is
+   * `CALL`, since the receiver is not an eligible output under `playback`.
+   *
+   * Read through `hasAudioRef` and keyed on the status alone, on the same
+   * reasoning as every other ref in this hook: somebody arriving must not tear
+   * the subscription down and rebuild it. `onRouteChange` is a no-op with no
+   * module, which is Android, jest, and any build where the local module did
+   * not link — so no platform branch is needed here.
+   */
+  useEffect(() => {
+    if (state.status !== 'connected') return;
+    let recovery: RecoveryState = NO_RECOVERY;
+    return onRouteChange((snapshot) => {
+      const step = onRouteObserved(
+        recovery,
+        snapshot.outputs,
+        hasAudioRef.current
+      );
+      recovery = step.next;
+      if (step.event) recordEvent(step.event);
+      // `sessionFor(true)` rather than the constant, so this cannot drift from
+      // what the rest of the hook means by a call. It is only reached when
+      // `wantsCall` was true, so the two are the same object by construction.
+      if (step.reassert) void applyConfiguration(sessionFor(true));
+    });
+  }, [state.status]);
 
   /**
    * Watches whether this device is rendering what it is subscribed to.

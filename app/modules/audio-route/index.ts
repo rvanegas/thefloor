@@ -91,13 +91,61 @@ function load(): NativeAudioRoute | null {
 
 const native = load();
 
+/**
+ * Why a reading came back null, which is two different faults wearing one face.
+ *
+ * - `absent` — the module never linked. `load()` returned null at import and
+ *   nothing here will ever answer. Build 61 shipped exactly this, `.gitignore`'s
+ *   unanchored `ios/` having eaten the Swift.
+ * - `threw` — the module linked and `snapshot()` failed anyway. Something is
+ *   wrong on the native side of a module that is demonstrably present.
+ *
+ * **They were the same `null` until 2026-09-03, and that cost a diagnosis.** A
+ * panel read `module absent or not linked` in a session whose own log held
+ * ninety seconds of route lines from this very module — so the reading accused
+ * the build of a linking fault while the evidence beside it said the link was
+ * fine. `diagnostics.ts` opens with the rule this breaks: nothing may render as
+ * blank or false when the truth is that it could not be read, and `null` and
+ * `false` are never allowed to look alike. Two causes collapsed into one `null`
+ * is that rule broken one level down, where the reader cannot see it.
+ */
+export type RouteFault = 'absent' | 'threw';
+
+/**
+ * Why the last `routeSnapshot` failed, or null if it did not.
+ *
+ * Held rather than returned beside the snapshot so that every existing caller
+ * keeps its `RouteSnapshot | null`, and only the panel — the one thing that
+ * reports a cause — has to ask. Seeded from `load()`, so it is already right
+ * before anything has been read.
+ */
+let lastFault: RouteFault | null = native ? null : 'absent';
+
 /** Where the audio is going and coming from right now, or null if unreadable. */
 export function routeSnapshot(): RouteSnapshot | null {
-  try {
-    return native?.snapshot() ?? null;
-  } catch {
+  if (!native) {
+    lastFault = 'absent';
     return null;
   }
+  try {
+    const snapshot = native.snapshot();
+    lastFault = null;
+    return snapshot;
+  } catch {
+    lastFault = 'threw';
+    return null;
+  }
+}
+
+/**
+ * Why the last `routeSnapshot()` came back null, or null when it did not.
+ *
+ * Read *after* the snapshot it explains — `readDiagnostic` gathers them in that
+ * order — because this is the reason for that call rather than a standing
+ * property of the module.
+ */
+export function routeFault(): RouteFault | null {
+  return lastFault;
 }
 
 /**
