@@ -85,10 +85,28 @@ afternoon and none of them announces itself:
 
 ### Getting a build onto somebody else's phone
 
-`bin/android --apk` produces a standalone APK to send. **Release, not debug**,
-and the distinction is the trap: a debug apk carries no JavaScript — it fetches
-the bundle from Metro on the building machine at launch, so to anybody else it
-is a blank or red screen with nothing naming the cause.
+`bin/android --apk` produces a standalone APK to send, and leaves it on the
+Desktop as `thefloor-<versionCode>.apk`. Gradle's own name is `app-release.apk`,
+four directories deep in a gitignored tree, and is what every other Expo project
+on the machine writes too; the number that would tell two of them apart is the
+one the recipient quotes back at you. It prebuilds first when `app.json` has
+changed since `android/` was generated from it, so the stale-configuration trap
+above cannot reach an artifact that has left the machine — `APK_DEST` puts it
+somewhere other than the Desktop.
+
+**That check is a hash of the whole file, and comparing version numbers instead
+is the version of it that looks sufficient and is not.** `versionCode` moves on
+nearly every build, so a field-wise check fires when it matters — but only if
+every `app.json` edit comes with a version bump, and the case where it does not
+is the Android one. An Android-only change (an icon, a permission, a plugin
+setting) has no reason to touch `ios.buildNumber`, `bin/upload-ios` is what
+bumps the pair, and there is no reason to run it for a change iOS does not
+have. So the versions match, the tree is stale, and the APK ships the old
+configuration.
+
+**Release, not debug**, and the distinction is the trap: a debug apk carries no
+JavaScript — it fetches the bundle from Metro on the building machine at launch,
+so to anybody else it is a blank or red screen with nothing naming the cause.
 
 Three things to know before sending one:
 
