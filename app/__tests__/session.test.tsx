@@ -451,13 +451,13 @@ describe('a window wide enough for two panes', () => {
     // The tier's switch carries the word "Contacts" whichever half is
     // selected, so the list is identified by `AddContact`, which only the list
     // itself draws.
-    expect(textOf(tree)).not.toContain('Add contact');
+    expect(textOf(tree)).not.toContain('Add a contact');
 
     pressButton(tree, 'Contacts');
 
     const shown = textOf(tree);
     // The tier's body is the contact list now...
-    expect(shown).toContain('Add contact');
+    expect(shown).toContain('Add a contact');
     // ...and the pane beside it is still there, holding what it held.
     expect(shown).toContain('Pick a conversation on the left');
 
@@ -465,7 +465,7 @@ describe('a window wide enough for two panes', () => {
     // the two lists are navigated between. There is no Home button anywhere
     // any more: Home is the frame both of them are inside.
     pressButton(tree, 'Channels');
-    expect(textOf(tree)).not.toContain('Add contact');
+    expect(textOf(tree)).not.toContain('Add a contact');
     expect(textOf(tree)).toContain('Pick a conversation on the left');
   });
 
@@ -477,7 +477,7 @@ describe('a window wide enough for two panes', () => {
     });
 
     pressButton(tree, 'Contacts');
-    expect(textOf(tree)).toContain('Add contact');
+    expect(textOf(tree)).toContain('Add a contact');
     // One pane, so there is no empty one beside it — the list is the screen.
     expect(textOf(tree)).not.toContain('Pick a conversation on the left');
   });

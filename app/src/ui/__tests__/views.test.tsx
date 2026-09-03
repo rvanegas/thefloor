@@ -3961,7 +3961,7 @@ describe('tapping a row', () => {
   });
 
   /**
-   * The row lives above the channel list, in the place *Add contact* has on
+   * The row lives above the channel list, in the place *Add a contact* has on
    * the tab beside it, and the list and its label are drawn only when there is
    * a channel in them — so the row has to sit outside that guard. Rendering it
    * inside would hide the only way to open a channel from the one account that
@@ -7290,8 +7290,8 @@ describe('Contacts', () => {
     // place that cannot afford something changing height for a reason nobody
     // asked about. Asserted on its collapsed label, which is rendered text —
     // the placeholder would not do, being a prop that `textOf` cannot see.
-    expect(textOf(tree)).toContain('Add contact');
-    expect(textOf(header)).not.toContain('Add contact');
+    expect(textOf(tree)).toContain('Add a contact');
+    expect(textOf(header)).not.toContain('Add a contact');
     act(() => header.unmount());
     act(() => tree.unmount());
   });
@@ -7434,9 +7434,9 @@ describe('Contacts', () => {
 
     // A line, not a form: reading the list is what somebody came for.
     expect(field()).toBeUndefined();
-    expect(findButton(tree, 'Add contact')).toBeDefined();
+    expect(findButton(tree, 'Add a contact')).toBeDefined();
 
-    act(() => findButton(tree, 'Add contact')!.props.onPress());
+    act(() => findButton(tree, 'Add a contact')!.props.onPress());
     expect(field()).toBeDefined();
     expect(findButton(tree, 'Send request')).toBeDefined();
     act(() => tree.unmount());
@@ -7445,7 +7445,7 @@ describe('Contacts', () => {
   it('sends the request, and folds away again on cancel', async () => {
     withContacts([]);
     const tree = open();
-    act(() => findButton(tree, 'Add contact')!.props.onPress());
+    act(() => findButton(tree, 'Add a contact')!.props.onPress());
     const field = tree.root.findAll(
       (n) => n.props?.placeholder === 'Search by email address'
     )[0];

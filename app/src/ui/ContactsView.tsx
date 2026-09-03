@@ -268,7 +268,7 @@ function AddContact() {
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Add contact"
+        accessibilityLabel="Add a contact"
         onPress={() => setOpen(true)}
         style={({ pressed }) => pressed && styles.rowPressed}
       >
@@ -276,7 +276,7 @@ function AddContact() {
           <View style={styles.addMark}>
             <Text style={styles.addMarkGlyph}>+</Text>
           </View>
-          <Text style={styles.addLabel}>Add contact</Text>
+          <Text style={styles.addLabel}>Add a contact</Text>
         </Card>
       </Pressable>
     );
