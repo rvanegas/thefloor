@@ -56,6 +56,41 @@ export function statedIdentities(state: ChannelState): UserId[] {
   return [...state.participants, ...Object.keys(state.guests ?? {})];
 }
 
+/**
+ * Everybody in this room who could be publishing audio: the whole roster,
+ * present or not, and only those guests holding the microphone.
+ *
+ * **The speaker axis of what the floor states, where `statedIdentities` is the
+ * listener axis.** The two were the same list until 2026-09-03, and the
+ * difference is a guest who is only listening. Their token carries
+ * `canPublish: false`, so there is no track of theirs for a claim to withhold
+ * from anybody, and every pair naming one as the speaker is a round trip to
+ * the media plane that can only come back empty.
+ *
+ * Which is why the narrowing is worth a function rather than a filter at the
+ * call site: silence is stated per *pair*, so the two axes multiply, and a
+ * listener on both of them grows the product on both sides. Bounded here —
+ * six participants and however many guests have been granted a microphone —
+ * it keeps a claim linear in the size of an audience instead of quadratic.
+ *
+ * **Members who have stepped out stay**, for the same reason
+ * `statedIdentities` keeps them: releasing a claim has to un-silence whoever
+ * walked out under it, and undoing a statement means naming the same pair
+ * again.
+ *
+ * This is what the reducer *permits*, not what the room is carrying. The
+ * distinction is the division of labour the floor already rests on — the
+ * transition is for latency and the reconciliation is for truth — so a grant
+ * this has not caught up with is `reconcileSilence`'s to correct, against a
+ * roster it measured rather than modelled.
+ */
+export function statedSpeakers(state: ChannelState): UserId[] {
+  const speaking = Object.entries(state.guests ?? {})
+    .filter(([, guest]) => guest.maySpeak)
+    .map(([id]) => id);
+  return [...state.participants, ...speaking];
+}
+
 /** Whether this id — member or guest — is in the room right now. */
 export function inRoom(state: ChannelState, id: UserId): boolean {
   return state.present.includes(id) || isGuest(state, id);

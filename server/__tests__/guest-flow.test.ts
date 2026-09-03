@@ -445,6 +445,64 @@ describe('the microphone', () => {
   });
 });
 
+describe('what a claim states about a guest', () => {
+  /** Media calls are fire-and-forget, so let the microtask queue drain. */
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it('never names a listening guest as the speaker', async () => {
+    // Silence is stated per pair, so the speaker list and the listener list
+    // multiply. A guest holding no microphone publishes nothing, so every pair
+    // naming them as the speaker is a round trip to the media plane whose only
+    // possible answer is an empty track list — and there is one such pair per
+    // listener, which is what made an audience cost a claim quadratically.
+    const { alice, channelId, admission } = await admitted();
+    media.silenceAttempts.length = 0;
+    media.subscriptions.length = 0;
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+
+    // Asserted against the attempts rather than the subscriptions, because a
+    // pair whose speaker publishes nothing leaves no subscription behind
+    // either way. The waste is the asking, so the asking is what is counted.
+    expect(
+      media.silenceAttempts.filter((a) => a.speaker === admission.guestId)
+    ).toEqual([]);
+    // And the claim still reached the media plane: this is a narrowing of who
+    // is worth naming, not of what a claim does.
+    expect(media.subscriptions.length).toBeGreaterThan(0);
+  });
+
+  it('names one who has been given a microphone', async () => {
+    const { alice, channelId, member, admission } = await admitted();
+    member.send({
+      type: 'channel.action',
+      channelId,
+      action: {
+        type: 'SET_GUEST_SPEECH',
+        guestId: admission.guestId,
+        maySpeak: true,
+      },
+    });
+    await member.next(
+      'channel',
+      (m) => m.view.channel.guests[admission.guestId]?.maySpeak === true
+    );
+    media.subscriptions.length = 0;
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+
+    // The guest can now be heard, so a claim by somebody else has to withhold
+    // them like anybody else — which is the case the narrowing must not break.
+    expect(
+      media.subscriptions.filter(
+        (s) => s.speaker === admission.guestId && s.silenced
+      ).length
+    ).toBeGreaterThan(0);
+  });
+});
+
 describe('a recording with a guest in it', () => {
   it('keeps their voice and their name, and gives them nothing', async () => {
     // The decision this implements: a recording is of the conversation, and a
