@@ -4,10 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Web Timeout
-
-An unattended webapp stepped into a channel should timeout without activity, just as a backgrounded app results in an implicit stepping out.
-
 ## UI Restyling
 
 Improve look and feel

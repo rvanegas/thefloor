@@ -8,6 +8,7 @@ import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { recordEvent } from './src/audio/diagnostics';
 import { liveChannelHere } from './src/state/live';
+import { useAttention } from './src/state/useAttention';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
@@ -173,6 +174,15 @@ function Root() {
    * for the reason above it.
    */
   useKnockNudge(live);
+
+  /**
+   * Stepped out of a channel nobody is attending, which is a browser's problem
+   * and not a phone's — `state/useAttention.ts` says why the native half of
+   * this is empty. Here with the two above because it reads the same standing
+   * and the same active speakers they do, and because what it ends is presence
+   * rather than a screen.
+   */
+  useAttention(live, me, audio.speaking);
 
   /**
    * Which screen you are on, in the audio log.

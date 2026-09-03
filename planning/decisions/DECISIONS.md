@@ -1740,3 +1740,82 @@ audio hook is a spike* — its two named gaps are a refused autoplay with no way
 out and nothing listening to what was published, and neither is a thing a clean
 session would have shown. A browser that grants the microphone and permits
 playback exercises exactly the paths that work.
+
+## An unattended tab steps itself out, and capture is not the predicate — 2026-09-03
+
+TASKS.md § *Web Timeout*, which asked for a webapp stepped into a channel to
+time out "just as a backgrounded app results in an implicit stepping out". The
+analogy is the useful half and it does not survive contact: **a phone has no
+such path.** iOS suspends the process about 0.3 seconds after backgrounding,
+the socket goes silent, the sweep notices, `DISCONNECT_GRACE_MS` lapses and
+`DISCONNECT_EXPIRED` takes the presence. Nothing decides anything; absence is
+inferred from a connection that stopped. A browser tab keeps its socket, its
+heartbeat, its timers and its audio for as long as the machine is awake — and
+`heartbeatTimeoutFor` puts a web client on the fast 5s cadence, so it proves
+itself alive indefinitely. There is nothing to infer from, so it has to be
+measured.
+
+**Absence is measured from the last audio activity, and your own voice is not
+part of it.** A microphone left open in an empty room hears traffic and hums.
+What counts is somebody *else* being audible, somebody *else* arriving — guests
+included — and this person's own hand on the page. Fifteen minutes without any
+of it and the tab steps itself out.
+
+**`anyMicrophoneOpen` is the predicate this looks like it wants and is the
+wrong question, which is worth writing down because it is the mistake anybody
+would make.** It asks whether anybody in the room *could* be heard, and holds
+steady through every silence deliberately, so a Bluetooth route does not move
+under the first syllable somebody says — `core/micNeeded.ts` argues that at
+length. Two abandoned tabs each make the other's microphone *needed*, so both
+read as capturing and neither would ever expire. Two unattended tabs staying
+alive is the exact case this exists to end, so capture cannot be the signal.
+There was no predicate for audio activity anywhere in the codebase and no
+GLOSSARY entry for one; `speaking.ts` is display smoothing, `idleMs` and
+`lastPresenceAt` are presence stamps, and `lastPresenceAt` reads as roughly
+*now* for as long as anybody is present because `STILL_HERE` refreshes it. The
+predicate is new, and it is called *attention*.
+
+**Audible is read as a state and never as an event.** `speaking.ts` already
+carried the trap: `ActiveSpeakersChanged` fires when the set *changes*, so an
+uninterrupted minute of speech produces one event and nothing after it, and a
+clock built from event timestamps would expire mid-sentence. The set the room
+last reported goes on being true until it reports another — so the clock is
+polled rather than subscribed to, and `useSessionAudio.web.ts` having no
+trailing hold, the one thing its spike header apologises for, costs nothing
+here.
+
+**It lands in Stepped out rather than Nearby**, an ordinary `STEP_OUT`
+identical to the button, so `core/` is untouched and no roster learns a new
+word. *Nearby* says somebody's connection ran out of grace and they are one
+notification away; a machine somebody walked away from is not that.
+
+**Which leaves the mobile browser with two exits, and that is the design rather
+than an inconsistency.** A backgrounded browser loses its socket and takes the
+phone's path — grace, `DISCONNECT_EXPIRED`, *Nearby*. A tab that survives
+fifteen minutes of audio and control inactivity is *Stepped out*. Which one
+happens is decided by whichever clock ran out first, and the two say different
+true things about what happened. `liveChannelHere` is what keeps them from
+racing: the socket dying clears the standing, so the clock arrives disarmed.
+
+**The window is `WAITING_WINDOW_MS`, reused rather than chosen.** Fifteen
+minutes is already this project's answer to how long an absence nobody chose
+goes on meaning something, and how long a tab keeps its seat unattended is the
+same question about the same person.
+
+**Two things deliberately not done.** An unattended tab in a channel somebody
+is *talking* in does not expire, because others' audio is evidence the room is
+in use and silent listening on a laptop is the ordinary way to use it — no
+outer bound on the hand. And `server/web/guest.ts` is untouched: an abandoned
+guest tab is arguably the likelier ghost, but nothing in this repository can
+test that file, and the clock is fifteen minutes of somebody's afternoon to
+walk.
+
+BACKLOG.md § *Presence follows the websocket, not the room* names the cause
+this is a symptom of, and this is a patch at its own site — knowingly, and it
+is the fourth. The clock and every rule about what resets it are pure, in
+`app/src/state/attention.ts`, tested exhaustively; the hook is listeners and an
+interval, and it is thin because nothing here can drive a browser. Wall clock
+throughout, never accumulated ticks, and expiry is checked *before* the look —
+a tab frozen for twenty minutes that wakes to find somebody mid-sentence
+observed none of those twenty minutes, and must not let a conversation it never
+heard excuse them.

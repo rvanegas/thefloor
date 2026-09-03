@@ -272,6 +272,15 @@ here; it has its own TASKS.md entry, "What a Restart Does to Last-Seen".
 restart drops it, along with `disconnectedAt`, the floor and any recording in
 flight.
 
+**Three events, still, and one of them can now be issued by a clock.** Since
+2026-09-03 a web client steps itself out after fifteen minutes in which nobody
+else was audible, nobody else arrived and nothing touched the page — an
+ordinary `STEP_OUT`, so this list does not grow and no roster learns a new
+word. It exists because a browser tab has no suspension to infer an absence
+from, which is the whole of what makes the phone's implicit step-out work. See
+GLOSSARY.md § *Attention*, and note that it is a *standing* that expires rather
+than a presence: a second device signed into the same account is unaffected.
+
 **Where the sources disagree.** The request's list flattens three different
 things that this file keeps apart:
 

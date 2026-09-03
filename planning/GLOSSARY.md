@@ -247,6 +247,11 @@ reach and one notification away. It is shown for fifteen minutes
 The distinction is one bit, and it is the difference between telling somebody
 to give up on a person and telling them to ping.
 
+A browser can produce either, and which one is not about the browser: a tab
+that outlasts its *attention* clock has stepped out, and one whose socket died
+first — a phone's, backgrounded — ran out of grace and is nearby. Whichever
+clock expired first is the one that describes what happened.
+
 ## Ping
 
 A notification sent to one person in a channel who is not there, or whose
@@ -268,6 +273,10 @@ most one channel at a time, and stepping into one steps you out of the last.
 **A dropped connection is not an absence.** A socket that dies and returns
 changes nothing; only staying gone past the grace period ends presence, and the
 roster distinguishes that case — see *Nearby*.
+
+**In a browser it can also end without anybody doing anything.** A tab nobody
+has attended for fifteen minutes steps itself out, there being no suspended
+process to infer an absence from — see *Attention*.
 
 ## Recording
 
@@ -341,6 +350,37 @@ confers nothing.
 ---
 
 # Part Two — words that exist only in the codebase
+
+## Attention
+
+The clock a **web** client keeps over its own *standing*, in
+`app/src/state/attention.ts`. Fifteen minutes without evidence that anybody is
+at the machine and it steps this device out of the channel it is standing in.
+
+It exists because a browser tab does not die. A phone that is put away loses
+the process in about a second and its presence about a minute later, and
+nothing decides anything — absence is inferred from a connection that stopped.
+A tab keeps its socket, its heartbeat and its audio for as long as the machine
+is awake, and the *heartbeat* is sent by a machine rather than by a person, so
+an abandoned laptop reads as *present* indefinitely.
+
+**Three things are evidence, and one conspicuous thing is not.** Somebody
+*other than you* being audible; somebody *other than you* arriving, guests
+included; and this person's own hand on the page — a click, a key, a touch, a
+scroll, the tab brought forward. **Your own voice is not**: a microphone left
+open in an empty room hears traffic and hums.
+
+**Capture is not activity**, which is why `anyMicrophoneOpen` is not this
+predicate however much it looks like it. That one asks whether anybody *could*
+be heard and holds steady through every silence on purpose. Two abandoned tabs
+each make the other's microphone needed, so both read as capturing and neither
+would ever expire.
+
+**It is a device's and not an account's**, like the *standing* it reads and
+unlike the *presence* it ends — see STATES.md. And its expiry is an ordinary
+`STEP_OUT`, identical to the button: nothing new appears on anybody's roster,
+and *Nearby* is not what it produces. Which of the two words a browser produces
+is decided by which clock ran out first — see *Nearby / Stepped out*.
 
 ## Card
 
