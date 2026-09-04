@@ -7,6 +7,11 @@ wording gets argued about before somebody pastes it in. Delete it once the
 listing carries this text, moving whatever the argument settled into
 `decisions/DECISIONS.md`.
 
+**PROPOSITION.md is the sibling to this file and holds the argument** — why
+the copy says what it says, where the evidence for it is, and the growth
+reasoning that decides how much the listing is even carrying. Read it first if
+you are about to rewrite rather than tweak.
+
 The current text below was read back from the public listing
 (`https://itunes.apple.com/lookup?id=6799628190`), which is the only copy
 outside App Store Connect and is worth re-reading rather than trusting this
