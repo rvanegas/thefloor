@@ -215,12 +215,6 @@ carries `drops`, `dropsRecovered` and `dropsExpired`, printed by `bin/health`.
 a box that has been up a while before proposing a change to it, and read the
 constant's own comment for what it is load-bearing for beyond a dot on a roster.
 
-## Two Devices In One Channel
-
-BUILT on both candidates, **never reproduced**, and the listen that would
-settle it has not happened. The sighting, the two mechanisms closed in response
-and the walk that verifies them are in TWO-DEVICES-WALK.md.
-
 ## Downloading From S3 Rather Than Through The Box
 
 DESIGNED, not built — the trigger is measurable load, and it has not arrived
@@ -284,7 +278,6 @@ Pairs with § *Review S3*, which is what would say what the stems actually cost.
 `bin/usage` cannot see them at all — the egress jobs write to the bucket on
 their own credential and never through this process, so the largest category of
 bytes is missing from every number it reports.
-
 
 ## Two Video Streams In A Channel
 
