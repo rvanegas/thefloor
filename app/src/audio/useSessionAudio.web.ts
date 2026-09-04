@@ -116,6 +116,13 @@ export function useSessionAudio(
   token: string | null,
   selfMuted: boolean,
   micNeeded: boolean,
+  /**
+   * Unused, and kept so the two hooks take the same arguments — `App.tsx`
+   * calls one name and metro decides which file that is, so a signature that
+   * drifted would be a type error on one platform and a silently shifted
+   * argument on the other. What it is *for* is the iOS audio session, and the
+   * connect effect below says why it must not be read here.
+   */
   hasAudio: boolean
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
@@ -148,8 +155,27 @@ export function useSessionAudio(
   }, []);
 
   // Connect, and rebuild whenever the room name or the generation changes.
+  //
+  // **`hasAudio` is not consulted here, and used to be, which is the
+  // 2026-09-04 fix.** This read `|| !hasAudio` and carried `hasAudio` in its
+  // dependencies, so the browser both refused to connect and tore down a live
+  // room whenever the channel reported no audio of its own. That is a
+  // session-category rule doing a connection's job: the native sibling gates on
+  // `mediaRoom`, `channelId` and `token` and nothing else, and spends
+  // `hasAudio` only on choosing `IDLE` against `CALL` — a distinction a browser
+  // does not have, which is how a value with no remaining purpose in this file
+  // came to decide the one thing it must not.
+  //
+  // What it cost was the whole of shared playback for one person. Alone in a
+  // channel `anyMicrophoneOpen` is false by design — `microphoneNeeded` has
+  // nothing to capture for — so the tab never joined the room, never subscribed
+  // to the `media:<channel>` participant the server publishes the track as, and
+  // played nothing, while the transport ran and the Play button stayed enabled
+  // because `canControlPlayback` rightly permits a lone member. A second person
+  // opening a microphone flipped the value and the sound arrived, which is what
+  // made a bug about a predicate look like a rule about company.
   useEffect(() => {
-    if (!mediaRoom || !channelId || !token || !hasAudio) {
+    if (!mediaRoom || !channelId || !token) {
       patch({ status: 'idle', message: null, speaking: [], failing: [] });
       return;
     }
@@ -259,7 +285,7 @@ export function useSessionAudio(
       void room.disconnect();
       roomRef.current = null;
     };
-  }, [mediaRoom, channelId, token, hasAudio, generation, patch]);
+  }, [mediaRoom, channelId, token, generation, patch]);
 
   // The microphone follows the intent, which is the native hook's three-state
   // model unchanged: released means unpublished, muted means published and
