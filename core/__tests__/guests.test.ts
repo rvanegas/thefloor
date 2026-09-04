@@ -9,13 +9,7 @@ import {
   reduce,
 } from '../channel';
 import { MAX_DISPLAY_NAME_LENGTH } from '../constants';
-import {
-  inRoom,
-  isGuest,
-  roomOccupants,
-  statedIdentities,
-  statedSpeakers,
-} from '../guests';
+import { inRoom, isGuest, roomOccupants } from '../guests';
 import {
   anyMicrophoneOpen,
   channelHasAudio,
@@ -379,46 +373,6 @@ describe('asking for the microphone', () => {
   it('is not something a member can do', () => {
     const state = withGuest();
     expect(act(state, { type: 'REQUEST_SPEECH', userId: ALICE })).toBe(state);
-  });
-});
-
-describe('the two axes a claim is stated on', () => {
-  it('leaves a listening guest off the speaker axis and on the listener one', () => {
-    // Silence is stated per pair, so these two lists multiply. A guest with no
-    // microphone belongs in only one of them: they have to be told to stop
-    // hearing whoever is silenced, and there is no track of theirs for anybody
-    // to be told to stop hearing.
-    const state = withGuest();
-    expect(statedIdentities(state)).toContain(DANA);
-    expect(statedSpeakers(state)).not.toContain(DANA);
-  });
-
-  it('puts a guest on it the moment they are granted a microphone', () => {
-    const granted = act(withGuest(), {
-      type: 'SET_GUEST_SPEECH',
-      userId: ALICE,
-      guestId: DANA,
-      maySpeak: true,
-    });
-    expect(statedSpeakers(granted)).toContain(DANA);
-
-    const withdrawn = act(granted, {
-      type: 'SET_GUEST_SPEECH',
-      userId: ALICE,
-      guestId: DANA,
-      maySpeak: false,
-    });
-    expect(statedSpeakers(withdrawn)).not.toContain(DANA);
-  });
-
-  it('keeps a member who has stepped out', () => {
-    // The narrowing is about guests and only about guests. Bob belongs to the
-    // channel and is not present, and he is exactly who a released claim has
-    // to un-silence — dropping him would leave his audio withheld from
-    // everybody still in the room with nothing later to say otherwise.
-    const state = withGuest();
-    expect(state.present).not.toContain(BOB);
-    expect(statedSpeakers(state)).toContain(BOB);
   });
 });
 

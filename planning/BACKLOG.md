@@ -152,48 +152,6 @@ follows is what is actually outstanding.
 
 ---
 
-## A floor claim costs the media plane a call per pair
-
-**Status:** narrowed on 2026-09-03, not solved. The reasoning, the arithmetic
-and the three remaining moves are in SILENCE-AT-SCALE.md; this is the pointer.
-
-Silence is enforced by unsubscribing listeners, so it is stated **per pair** —
-there is no "mute Bob" operation, and there cannot be one: both earlier
-attempts that acted on the speaker failed against the platform, which
-`server/src/media.ts` § `setSilenced` records. A claim therefore costs a
-product of two lists. Until 2026-09-03 both defaulted to `statedIdentities`, so
-a guest who was only listening appeared on the *speaker* axis too and an
-audience grew both sides of it; `core/guests.ts` § `statedSpeakers` now narrows
-the speaker axis to participants plus the guests holding a microphone. Six
-members and fifty listeners went from 3,080 pairs per transition to 440, and
-`silenceStated` — keyed per pair — from quadratic to linear with it.
-
-What is outstanding, cheapest first:
-
-- **`reconcileSilence` restates pairs that are still in flight.**
-  `stateSilence` clears a pair from `silenceStated` before it calls, so the
-  reconciliation 500ms later sees it as unstated and issues it again. A burst
-  that is slow to resolve provokes another burst, and the reason it was slow is
-  now worse. Invisible at 30 pairs, and the loop to watch at 440. The fix is
-  one condition and touches no interface — **the only item here worth doing
-  before there is evidence.**
-- **`setSilenced` fetches the same participant once per listener**, so 440
-  pairs is nearer 880 requests, fired in one burst with no concurrency limit of
-  ours.
-- **Batching by listener is the real answer and is deliberately not built.**
-  `updateSubscriptions` takes an array of tracks, and every listener's answer
-  to a claim has the same shape, so it is two calls per listener rather than
-  one per pair. It changes the `MediaServer` interface, the fake and the
-  signature bookkeeping — surface area in exchange for a scale that does not
-  exist yet.
-
-**None of it is measured**, and there is no counterpart to `bin/usage peak` for
-subscription statements. It is also bounded from the other end by a decision
-nobody has made: nothing caps concurrent guest seats, and a cap — or a listener
-role that is not a seat — would make the whole entry moot.
-
----
-
 ## Sessions cannot be listed, only ended wholesale
 
 **Status:** not started, and a gap opened deliberately on 2026-08-24 rather

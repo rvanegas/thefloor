@@ -575,23 +575,6 @@ export class MemoryMediaServer implements MediaServer {
     listener: string;
     silenced: boolean;
   }> = [];
-  /**
-   * Every pair `setSilenced` was *called* about, in order, including the ones
-   * that acted on nothing.
-   *
-   * Kept apart from `subscriptions` because the two answer different
-   * questions, and only this one can answer what a claim costs. A pair whose
-   * speaker publishes nothing returns early here exactly as it does against
-   * the real thing — after the round trip that discovered it — so it leaves no
-   * subscription behind and is invisible in that log. Which is precisely the
-   * work worth not doing: see `statedSpeakers`.
-   */
-  readonly silenceAttempts: Array<{
-    room: string;
-    speaker: string;
-    listener: string;
-    silenced: boolean;
-  }> = [];
   readonly recordings: Array<{
     room: string;
     identity: string;
@@ -694,7 +677,6 @@ export class MemoryMediaServer implements MediaServer {
     listener: string;
     silenced: boolean;
   }) {
-    this.silenceAttempts.push({ room, speaker, listener, silenced });
     this.known.add(`${room}/${speaker}`);
     this.known.add(`${room}/${listener}`);
     // Subscriptions are changed on the listener, so a listener who is not in

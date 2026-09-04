@@ -32,12 +32,7 @@ import {
   reduce,
 } from '../../core/channel';
 import { initialFloorState } from '../../core/floor';
-import {
-  inRoom,
-  roomOccupants,
-  statedIdentities,
-  statedSpeakers,
-} from '../../core/guests';
+import { inRoom, roomOccupants, statedIdentities } from '../../core/guests';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { initialPlaybackState } from '../../core/playback';
 import { initialRecordingState } from '../../core/recording';
@@ -2581,31 +2576,17 @@ export class ChannelRegistry {
    * `reconcileSilence`, which does. Every pair it does state is remembered, so
    * the reconciliation has something to compare against and does not restate
    * what already landed.
-   *
-   * **The two axes are different lists, and only one of them grows with an
-   * audience.** Every listener has to be told; only somebody who could be
-   * publishing is worth naming as the speaker. Defaulting both to
-   * `statedIdentities` made a claim state N² pairs where N counted guests who
-   * hold no microphone — each one a `getParticipant` round trip that exists to
-   * discover an empty track list. `statedSpeakers` is bounded by the roster
-   * plus the granted microphones, which makes this linear in the size of an
-   * audience. It cost nothing at six people and is the whole cost at fifty.
    */
   private assertSilence(
     state: ChannelState,
-    speakers: string[] = statedSpeakers(state)
+    speakers: string[] = statedIdentities(state)
   ): void {
     if (!this.media || state.status !== 'active') return;
-    // The whole room listens, guests included, which is the second of the three
-    // widenings the guest design named. A guest must be silenced when a member
-    // holds the floor — otherwise a claim silences everybody it knows about and
-    // nobody it does not — and must go on hearing whoever holds it, which is
-    // the direction that would fail as silence rather than as noise.
-    //
-    // Silencing a guest is a statement made about the guests who can be heard,
-    // though, which is why the speaker axis above is not this list: a guest
-    // with no microphone is already inaudible, and withholding a track that
-    // does not exist is not a weaker guarantee, it is the same one.
+    // The room in both directions, guests included, which is the second of the
+    // three widenings the guest design named. A guest must be silenced when a
+    // member holds the floor — otherwise a claim silences everybody it knows
+    // about and nobody it does not — and must go on hearing whoever holds it,
+    // which is the direction that would fail as silence rather than as noise.
     //
     // A party mute covers guests by the same argument and more simply: it
     // withholds everybody, so there is no exception to get wrong.
