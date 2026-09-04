@@ -30,10 +30,6 @@ urgent.
 
 Since there's no speaking, there must be another way.
 
-## App Description
-
-Consider UNINTERRUPTED.md to rewrite description of app. The idea is to reinvent voip, letting go, finally, of the logic of pre-internet telephony, adopting the logic of group text messaging, such as in telegram and whatsapp, and respecting preferences of today's younger generation for whom phone calls are rude, but discord rooms are okay.
-
 ## PIP Watch Party
 
 Small video in the corner.
