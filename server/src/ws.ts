@@ -273,6 +273,21 @@ export function registerWebsocket(deps: {
   preferences: NotificationPreferences;
   /** Where a guest's page should connect for audio. Absent without a media plane. */
   mediaUrl?: string;
+  /**
+   * How often the sweep below runs, in milliseconds.
+   *
+   * A real interval rather than anything derived from `now`, and so the one
+   * clock in this server that a test cannot step. Injected for exactly that:
+   * `now` decides *whether* a socket has been silent too long, this decides
+   * *how soon anyone asks*, and a test that steps the first still has to wait
+   * out the second in wall-clock seconds. The suite sets it small; nothing in
+   * production passes it.
+   *
+   * Do not read it as the silence budget — that is `heartbeatTimeoutFor`, and
+   * making them the same number would couple detection latency to the budget
+   * itself.
+   */
+  heartbeatIntervalMs?: number;
 }): void {
   const {
     fastify,
@@ -286,6 +301,7 @@ export function registerWebsocket(deps: {
     reachability,
     preferences,
     mediaUrl,
+    heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
   } = deps;
   const connections = new Set<Connection>();
   const guestConnections = new Set<GuestConnection>();
@@ -483,7 +499,7 @@ export function registerWebsocket(deps: {
         connection.socket.close(UNAUTHORIZED_CLOSE, 'Unauthorized');
       }
     }
-  }, HEARTBEAT_INTERVAL_MS);
+  }, heartbeatIntervalMs);
   sweep.unref?.();
   fastify.addHook('onClose', async () => clearInterval(sweep));
 

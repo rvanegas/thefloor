@@ -204,6 +204,17 @@ export interface BuildOptions {
    * four-way costs about two dollars. Unlimited accounts ignore it.
    */
   freeTranscriptMinutes?: number;
+  /**
+   * How often the websocket sweep looks for a socket that has gone silent.
+   *
+   * Defaults to `HEARTBEAT_INTERVAL_MS` and is set by nothing in production.
+   * It is here for the same reason `now` is, and does a different half of the
+   * job: `now` is what the sweep reads, this is how often it gets to read it.
+   * A test that injects a clock can move a connection past its budget in an
+   * instant and then has to wait real seconds for the next tick to notice —
+   * which cost `ws.test.ts` thirty-four of its thirty-eight seconds.
+   */
+  heartbeatIntervalMs?: number;
 }
 
 export interface App {
@@ -3099,6 +3110,7 @@ export function buildApp(options: BuildOptions = {}): App {
       reachability,
       preferences,
       mediaUrl: options.mediaUrl,
+      heartbeatIntervalMs: options.heartbeatIntervalMs,
     });
   });
 

@@ -3,6 +3,7 @@ import { buildApp, type App } from '../src/app';
 import {
   DISCONNECT_GRACE_MS,
   FAST_HEARTBEAT_BUILD,
+  HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_TIMEOUT_LEGACY_MS,
   HEARTBEAT_TIMEOUT_MS,
 } from '../../core/constants';
@@ -20,10 +21,68 @@ let app: App;
 let baseUrl: string;
 let clock = 1_700_000_000_000;
 
+/**
+ * How often this server's socket sweep runs, for these tests only.
+ *
+ * The sweep is the one clock here that `now` does not govern: `clock` decides
+ * whether a connection has been silent past its budget, and a real
+ * `setInterval` decides how soon anybody asks. So a test could step a socket
+ * past its timeout instantly and then had to wait out the production interval
+ * — two seconds — in wall-clock time, several times over, for the sweep to
+ * notice. That was thirty-one of this file's thirty-eight seconds.
+ *
+ * Short enough that `sweeps()` below is imperceptible, long enough that it is
+ * still an interval rather than a busy loop. **The budgets are untouched**:
+ * every `HEARTBEAT_TIMEOUT_MS` in this file is still the real constant, still
+ * crossed by moving `clock`, so what is being tested is unchanged and only the
+ * latency of noticing is compressed.
+ */
+const SWEEP_MS = 20;
+
+/**
+ * Waits for the sweep to have run, having already moved `clock` past whatever
+ * budget the test is crossing.
+ *
+ * Several periods rather than one: the step and the tick are unsynchronised,
+ * so a single period can be a sweep that read the clock a moment too early.
+ */
+const sweeps = () => new Promise((r) => setTimeout(r, SWEEP_MS * 5));
+
+/**
+ * The interval the next `buildApp` is given, so a block can opt out of the
+ * short one.
+ *
+ * Two blocks below move `clock` by an hour to stand in for an hour of a client
+ * pinging its way through, then ping once and expect the socket to still be
+ * there. Against a sweep running every `SWEEP_MS` that is a race and not a
+ * test: the jump puts the connection an hour past its silence budget, and
+ * whether it survives comes down to whether the ping reaches the server before
+ * the next tick. Held at the production interval instead, which is long enough
+ * that no sweep falls inside those tests at all — and they were never what the
+ * short one is for, since not one of them waits on a sweep.
+ */
+let sweepMs = SWEEP_MS;
+
+/**
+ * Keeps the sweep out of a block that jumps `clock` past the silence budget on
+ * purpose. Paired with `resumeSweep` in `afterAll`.
+ */
+const pauseSweep = () => {
+  sweepMs = HEARTBEAT_INTERVAL_MS;
+};
+const resumeSweep = () => {
+  sweepMs = SWEEP_MS;
+};
+
 beforeEach(async () => {
   clock = 1_700_000_000_000;
   // Inviting an address with no account needs a transport — see server.test.ts.
-  app = buildApp({ dbPath: ':memory:', mailer: new MemoryMailer(), now: () => clock });
+  app = buildApp({
+    dbPath: ':memory:',
+    mailer: new MemoryMailer(),
+    now: () => clock,
+    heartbeatIntervalMs: sweepMs,
+  });
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const address = app.fastify.server.address();
   if (typeof address === 'string' || address === null) throw new Error('no port');
@@ -578,7 +637,7 @@ describe('websocket', () => {
     // protocol level and pass either way, which is what it used to do.
     b.goDark();
     clock += HEARTBEAT_TIMEOUT_MS + 1_000;
-    await new Promise((r) => setTimeout(r, 6_500));
+    await sweeps();
 
     const channel = app.channels.get(channelId)!;
     expect(channel.disconnectedAt[bob.account.id]).toBeDefined();
@@ -586,7 +645,7 @@ describe('websocket', () => {
     expect(channel.present).toContain(bob.account.id);
     a.close();
     b.kill();
-  }, 15_000);
+  });
 
   it('keeps a dropped party in the channel, and takes back their floor', async () => {
     // Losing a socket is not leaving. Only staying gone past the grace period
@@ -663,20 +722,20 @@ describe('websocket', () => {
     old.goDark();
     // Past the current budget and well short of theirs.
     clock += HEARTBEAT_TIMEOUT_MS + 1_000;
-    await new Promise((r) => setTimeout(r, 4_000));
+    await sweeps();
     expect(
       app.channels.get(channelId)!.disconnectedAt[bob.account.id]
     ).toBeUndefined();
 
     // And past their own, which is where they are finally let go.
     clock += HEARTBEAT_TIMEOUT_LEGACY_MS;
-    await new Promise((r) => setTimeout(r, 4_000));
+    await sweeps();
     expect(
       app.channels.get(channelId)!.disconnectedAt[bob.account.id]
     ).toBeDefined();
     a.close();
     old.kill();
-  }, 20_000);
+  });
 
   it('runs the grace period from the last thing heard, not from noticing', async () => {
     // Detection costs a silence budget plus a sweep phase, and the grace period
@@ -695,7 +754,7 @@ describe('websocket', () => {
 
     b.goDark();
     clock += HEARTBEAT_TIMEOUT_MS + 1_000;
-    await new Promise((r) => setTimeout(r, 4_000));
+    await sweeps();
 
     const stamped = app.channels.get(channelId)!.disconnectedAt[bob.account.id];
     expect(stamped).toBeDefined();
@@ -705,7 +764,7 @@ describe('websocket', () => {
     expect(stamped).toBeLessThan(clock);
     a.close();
     b.kill();
-  }, 20_000);
+  });
 
   it('counts which way each lost connection went', async () => {
     // The measurement DISCONNECT_GRACE_MS has never had. Its justification —
@@ -900,7 +959,7 @@ describe('websocket', () => {
     // The lifted rule, asserted where it used to bite: a full sweep passes and
     // the first device is still connected and still answered. This is the
     // whole of what a second sign-in now costs.
-    await new Promise((r) => setTimeout(r, 6_500));
+    await sweeps();
     a.send({ type: 'ping' });
     await a.next('pong');
 
@@ -911,8 +970,9 @@ describe('websocket', () => {
       payload: {},
     });
 
-    // The sweep runs on a real interval, so this waits rather than steps.
-    await new Promise((r) => setTimeout(r, 6_500));
+    // The sweep runs on an interval rather than off `clock`, so this waits
+    // rather than steps — for `SWEEP_MS` now, not the production two seconds.
+    await sweeps();
 
     await expect(aClosed).resolves.toBe(4401);
     // Told why before being cut off, so the app has something to show.
@@ -928,7 +988,7 @@ describe('websocket', () => {
     await b.next('pong');
 
     b.close();
-  }, 30_000);
+  });
 
   /**
    * Several sessions for one account, which is what 2026-08-24 allowed. The
@@ -1326,6 +1386,11 @@ describe('websocket', () => {
   });
 
   describe('when somebody was last in the app', () => {
+    // See `sweepMs`: these jump the clock past the budget and expect the
+    // socket to live, which only the long interval makes deterministic.
+    beforeAll(pauseSweep);
+    afterAll(resumeSweep);
+
     /** What a contact of Bob's is told about Alice. */
     const aliceAsSeenByBob = (bobId: string, aliceId: string) =>
       app.accounts
@@ -1425,6 +1490,11 @@ describe('websocket', () => {
   });
 
   describe('whether somebody is in the app', () => {
+    // See `sweepMs`: these jump the clock past the budget and expect the
+    // socket to live, which only the long interval makes deterministic.
+    beforeAll(pauseSweep);
+    afterAll(resumeSweep);
+
     /** Alice's row in the most recent Home snapshot Bob's socket received. */
     const aliceOnBobsHome = (bob: Client, aliceId: string) => {
       const homes = bob.received.filter((m) => m.type === 'home');
@@ -1632,7 +1702,7 @@ describe('websocket', () => {
       a.close();
       b.close();
       c.close();
-    }, 20_000);
+    });
 
     it('is withheld from a request sent to an address', async () => {
       // Same reason the name and the time are: that row is an address, and
