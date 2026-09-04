@@ -68,8 +68,8 @@ plane's word for the audio underneath a channel and is a different thing.
 
 **One of Home's two lists**: the conversations you can walk into, in three
 sections — the ones somebody is in, the ones you have been asked into, and the
-rest — with your contact *requests* under them. The tab Home opens on, and `/`
-in a browser.
+rest — with your contact *requests* under them. The tab Home opens on, and
+`/channels` in a browser.
 
 The word had no user-facing life until 2026-09-01, the list having been called
 *Home*. It is the plural of *channel* and nothing more; what it contrasts with
@@ -104,6 +104,14 @@ what is underneath*, and above the width breakpoint there is nothing underneath
 — the list is beside rather than under. One word that is true in both layouts
 is what lets the handler be one line with no test of which layout is in force.
 
+**In a browser it is the only way off, and the Back button is not one.** Four
+of these screens have no *address* — a profile, a transcript, a channel's own
+settings, and which channel a channel screen is — so the browser's Back does
+not see them: pressing it leaves for the list, or leaves the site. Chosen on
+2026-09-04 rather than overlooked, and the alternative was giving those screens
+addresses, which would have meant putting ids in them. See
+decisions/DECISIONS.md § *An address names a place and never an id*.
+
 **The channel screen's own way off used to be two words and three cases** —
 *Home* on a phone, *Close* in the *detail* pane, and neither while you were
 present in the channel. All three collapsed into this one on 2026-09-01, when
@@ -135,6 +143,15 @@ member** for somebody reached from a roster who is none of yours. That last one
 is deliberately not *contact of a contact*: whoever invited them has them as a
 contact, but need not be a contact of *yours*, and nothing on the client can
 tell.
+
+## Contacts
+
+**The other of Home's two lists**: the same people indexed by name rather than
+by the room you talk to them in. `/contacts` in a browser.
+
+An entry of its own because the pair are peers, which the glossary said in the
+*Home* entry and then undercut by describing only one of them. Tapping a row
+here opens a *Contact* — the screen, which the code calls `ProfileView`.
 
 ## Floor, the
 
@@ -177,6 +194,14 @@ Not a list: it holds two of them — *Channels* and *Contacts* — with a switch
 between, and above that the room you are present in if there is one. Settings,
 *Chip in* and the *Leaderboard* are Home's rather than either list's, being
 about the application rather than about anybody you can reach.
+
+**Home has no address**, which follows from the same fact and took until
+2026-09-04 to reach the code. The two lists have one each — `/channels` and
+`/contacts` — and Home is the frame around both, so there is nothing left for a
+third address to name: whenever nothing is open, one of the two lists is what is
+showing. The `Screen` type called the pair `home` and `contacts` until then,
+which was the root-and-child asymmetry surviving one layer up from the boolean
+it had already been renamed out of.
 
 **It named the channel list until 2026-09-01**, when the two lists became peers
 inside it; passages elsewhere that say "Home" for a list of channels are from
@@ -350,6 +375,27 @@ confers nothing.
 ---
 
 # Part Two — words that exist only in the codebase
+
+## Address
+
+**What a URL says, in the two parts the app is actually in**: which list the
+tier is showing, and what is open over it. `/channels` and `/contacts` are the
+frames; `/channels/settings`, `/contacts/standings` and the rest hang off them.
+Eight paths, under the train's prefix, and never anything else.
+
+**An address names a place and never an id.** Not an account, not a channel,
+not a recording. So it can name Settings, Standings and Support — one of a kind
+each — and says nothing at all about a *channel* or a *Contact* screen, which
+would need an id to be told apart: those read as the tab they were opened over.
+
+**Every address restores**, which is what nesting bought. What the projection
+loses, it loses on the way out; nothing the app is handed can fail to be
+honoured, so the wiring has no repair step. The tab you were on is not
+something opening Settings costs you — it was, for three days, when the six
+screens were flat.
+
+Exists only on the web. Native has no addresses and wants none, and
+`useRoute.ts` is a no-op for exactly that reason.
 
 ## Attention
 

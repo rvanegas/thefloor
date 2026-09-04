@@ -17,6 +17,7 @@ import { describeChannel } from '../../../core/naming';
 import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
+import { leaveSeatChannel } from './handover';
 import { Button, Card, Empty, SectionLabel } from './components';
 import { colors, radius, spacing, type } from './theme';
 
@@ -213,7 +214,14 @@ export function ChannelsView({
    * browser, seats existing nowhere else.
    */
   const openSeat = (channelId: string) => {
-    globalThis.location?.assign(`/g/c/${encodeURIComponent(channelId)}`);
+    // **Which channel travels in `sessionStorage`, not in the path.** No
+    // address in this application carries an id, and the seat page is on this
+    // origin and this tab, which is what makes the walk possible at all — the
+    // same property its own seat has always relied on. Left rather than handed
+    // over, so a reload of `/g/seat` still knows which seat it is about. See
+    // `ui/handover.ts` and `server/web/guest.ts`.
+    leaveSeatChannel(channelId);
+    globalThis.location?.assign('/g/seat');
   };
 
   return (

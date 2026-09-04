@@ -1,32 +1,48 @@
-import { useEffect, useRef } from 'react';
-import {
-  navOf,
-  pathOf,
-  sameScreen,
-  screenOf,
-  screenOfPath,
-  wantsEntry,
-  type Nav,
-} from './webRoute';
+import { useCallback, useEffect, useRef } from 'react';
+import { addressOfPath, pathOf, type Address } from './webRoute';
 
 /**
  * Keeps the address bar and the screen saying the same thing.
  *
  * **In a browser the address is the navigation**, not a decoration on it: Back
- * is a button people press without thinking, a link is how a screen gets sent
- * to somebody, and a reload that lands somewhere else is a bug. The app had
- * none of that, because on a phone none of it exists — `App.tsx` routes with a
- * channel id and four booleans, which is right there and wrong here.
+ * is a button people press without thinking, and a reload that lands somewhere
+ * else is a bug. The app had none of that, because on a phone none of it
+ * exists.
  *
  * Deliberately thin. Everything that can be decided without a browser lives in
  * `webRoute.ts` and is tested; this is the plumbing that cannot be, so there is
  * as little of it as the job allows.
+ *
+ * **Nothing here normalises what it reads.** Every address restores — that is
+ * what nesting the named screens under the frame bought — so what the bar says
+ * and what the app then shows cannot come apart, and there is no repair step
+ * to get wrong. This file had one for a day, when a channel had an address it
+ * could not be reached at.
  */
 export function useRoute(
-  nav: Nav,
-  apply: (nav: Nav, intent?: { enter?: boolean }) => void,
+  address: Address,
+  apply: (address: Address) => void,
   ready: boolean
 ): void {
+  /**
+   * The path the bar is showing, as far as this hook is concerned.
+   *
+   * Written by the branch that reads *from* the browser as well as the one
+   * that writes to it, which is what stops the effect at the bottom pushing an
+   * entry for a change it did not cause. Back used to do exactly that: a
+   * `popstate` applied the address, the address changed, and the push fired on
+   * the way past — so pressing Back left a new entry on the stack and pressing
+   * it again went forwards. Fixed 2026-09-04.
+   */
+  const shown = useRef<string | null>(null);
+
+  /** Reads the bar and applies it, recording what it read. */
+  const adopt = useCallback(() => {
+    const wanted = addressOfPath(globalThis.location?.pathname ?? '');
+    shown.current = pathOf(wanted);
+    apply(wanted);
+  }, [apply]);
+
   /**
    * Whether the address has been read yet.
    *
@@ -44,66 +60,65 @@ export function useRoute(
   useEffect(() => {
     if (read.current || !ready) return;
     read.current = true;
-    const wanted = screenOfPath(globalThis.location?.pathname ?? '');
-    // Read before the address is rewritten below, which is what drops it: the
-    // intent belongs to the arrival and not to the room. See `wantsEntry`.
-    const enter = wantsEntry(globalThis.location?.search ?? '');
-    // Replaced rather than pushed: this is the entry the person arrived on,
-    // and pushing here would put a duplicate behind them so that Back went
-    // nowhere the first time they pressed it.
+    // The bare base is the one path every door forwards to and the one path
+    // `pathOf` never writes, so the entry the person arrived on is replaced
+    // with the address it means. Replaced rather than pushed: pushing would
+    // put a duplicate behind them so that Back went nowhere the first time
+    // they pressed it.
     try {
-      globalThis.history?.replaceState({}, '', pathOf(wanted));
+      globalThis.history?.replaceState(
+        {},
+        '',
+        pathOf(addressOfPath(globalThis.location?.pathname ?? ''))
+      );
     } catch {
       // A browser refusing history is one that simply has no addresses. The
       // app still works; it just does not say where it is.
     }
-    // **Applied even when the screen already matches, if entry was asked for.**
-    // Arriving at `/c/x?enter=1` while the app happens to be showing `/c/x`
-    // is not nothing to do — the step in is the whole of what was asked.
-    if (enter) apply(navOf(wanted), { enter: true });
-    else if (!sameScreen(wanted, screenOf(nav))) apply(navOf(wanted));
-  }, [ready, nav, apply]);
+    adopt();
+  }, [ready, adopt]);
 
   /**
    * Back and Forward, which is the half people actually notice.
    *
-   * Registered once and reading `apply` from a ref, because re-subscribing on
-   * every render would drop the listener between the removal and the add — a
-   * gap a `popstate` can land in, and one that is very hard to see because it
-   * only bites under a fast double-press.
+   * Registered once and reading through a ref, because re-subscribing on every
+   * render would drop the listener between the removal and the add — a gap a
+   * `popstate` can land in, and one that is very hard to see because it only
+   * bites under a fast double-press.
    */
-  const applyRef = useRef(apply);
-  applyRef.current = apply;
+  const adoptRef = useRef(adopt);
+  adoptRef.current = adopt;
 
   useEffect(() => {
     const onPop = () => {
-      applyRef.current(navOf(screenOfPath(globalThis.location?.pathname ?? '')));
+      if (!read.current) return;
+      adoptRef.current();
     };
     globalThis.addEventListener?.('popstate', onPop);
     return () => globalThis.removeEventListener?.('popstate', onPop);
   }, []);
 
   /**
-   * The screen changing under the address, which is every ordinary navigation
-   * — a tap on a channel, a Back button inside the app.
+   * The address changing under the bar, which is every ordinary navigation:
+   * switching tabs, opening Settings, closing it again.
    *
-   * Only after the address has been read, or the first render would push Home
-   * over whatever the person actually asked for.
+   * **A channel and a profile are not among them**, having no address — so
+   * opening one pushes nothing and Back does not close it. That is the cost of
+   * refusing ids, taken deliberately; the alternative was a path that named a
+   * channel it could not reopen. See GLOSSARY.md § *Close*.
+   *
+   * Only after the address has been read, or the first render would push the
+   * list over whatever the person actually asked for.
    */
-  const shown = useRef<string | null>(null);
   useEffect(() => {
     if (!read.current) return;
-    const path = pathOf(screenOf(nav));
+    const path = pathOf(address);
     if (shown.current === path) return;
-    // First time through, the address was just set by the read above; there is
-    // nothing to push and doing so would duplicate the entry.
-    const first = shown.current === null;
     shown.current = path;
-    if (first) return;
     try {
       globalThis.history?.pushState({}, '', path);
     } catch {
       // As above: no addresses, but everything else still works.
     }
-  }, [nav]);
+  }, [address]);
 }

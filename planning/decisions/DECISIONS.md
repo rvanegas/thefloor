@@ -1819,3 +1819,152 @@ throughout, never accumulated ticks, and expiry is checked *before* the look —
 a tab frozen for twenty minutes that wakes to find somebody mid-sentence
 observed none of those twenty minutes, and must not let a conversation it never
 heard excuse them.
+
+---
+
+## An address names a place and never an id — 2026-09-04
+
+Answers TASKS.md § *Addresses Inside A Screen*, and answers it **no** — then
+takes the rule the answer rests on and applies it to the one address that
+already broke it, and to the notification tap, which was the same thing wearing
+a different hat.
+
+The entry asked whether the screens a screen opens over itself — a profile, a
+transcript, a channel's own settings — should be addressable, and framed it as
+a choice between moving their state up into `App.tsx` or letting a screen
+contribute to the URL. Neither. **No address in this application carries an
+id**, so the question does not arise: those screens would need one.
+
+An id reaches this app from a snapshot or from a handover in `sessionStorage`,
+and from nothing else. The link you actually send a person is `/g/:token`,
+which was already the house style for anything handed to a human.
+
+### The shape: a frame, and what is open over it
+
+The address is two axes rather than one list of screens, which is the shape the
+application is already in — the tier always holds one of its two lists, and a
+detail is opened over it and closed again.
+
+| | |
+| --- | --- |
+| `/channels`, `/contacts` | the frame, nothing open |
+| `/channels/settings`, `/contacts/settings` | and likewise `standings`, `support` |
+
+Eight paths. **`home` is gone**: it named the Channels tab from when the
+channel list was the app's root and contacts a screen over it, which is the
+asymmetry `List` had been renamed out of on 2026-09-01 surviving one layer up.
+Whenever nothing is open one of the two lists is showing, so a third name for
+"one of them" said nothing.
+
+**The nesting is what makes every address restorable.** Flat screens could not
+say both things at once: `/settings` named what was open and lost which tab you
+had left behind, so a reload put you on Channels. That loss was written up as
+accepted for a day before this replaced it. Now the projection is lossy on the
+way out — a channel and a profile become the bare frame, because telling them
+apart needs an id — and **total on the way back**, so no part of the wiring
+normalises what it reads and there is no repair step to get wrong.
+
+An intermediate design gave a channel its own `/channel`, on the grounds that a
+distinct path is what makes the browser push a history entry, so Back would
+leave a channel for the list rather than the site. It was the only address that
+could not be arrived at, and needed an `arrivable()` to stop the bar claiming
+otherwise. **The argument for it was also wrong**: it leaned on Back
+interrupting a conversation, and presence is not navigation here — the
+connection follows the channel the server says you are present in, not the
+mounted screen, and the tier draws the live bar over both lists. There was no
+call to protect.
+
+**So Back does not close a channel or a profile**, both being unaddressed. That
+is the cost of refusing ids, and it is taken deliberately; GLOSSARY.md § *Close*
+says so where somebody meets it. Giving them Back without giving them addresses
+is possible — `pushState` does not require the URL to change — and is left
+undone rather than ruled out.
+
+### Navigating never changes server state
+
+**Back does not touch the server, and did before.** `applyNav` watched the
+channel an address named, and `popstate` was one of its callers — so pressing
+Back opened a subscription. Nothing in the new wiring does, and the reason is
+structural rather than careful: applying an address can only ever produce
+`none`, `settings`, `standings` or `support`, none of which talks to anybody.
+A channel is the one that would, since mounting `ChannelView` watches it, and
+no address can name a channel.
+
+The same instinct is already written into the code twice and was never stated
+as a rule: `ChannelView` deliberately does not unwatch on unmount, because
+*"leaving this screen is a separate decision from leaving the channel"*, and
+Close is deliberately not `leaveChannelView` for the same reason. Navigation is
+a client-side question, and presence, subscription and entry are not
+navigation. `webRoute.test.ts` asserts it, so an id creeping back into an
+address cannot bring the old behaviour with it silently.
+
+### Which layer owns the address, which was backwards
+
+`webRoute.ts` now imports `Detail` and `List` and owns the projection onto an
+`Address`. It read the other way for three days, with `detail.ts` importing the
+address types and a `Nav` in between them. The right way round is that what the
+app shows is the primary thing and what a URL can say about it is a view of
+that.
+
+`Nav` is gone with it. It was `App.tsx`'s state until `Detail` replaced it on
+2026-09-01, after which it described a shape nothing held, and `NOWHERE`'s five
+falsey fields were the fossil of the precedence chain `Detail` was written to
+remove.
+
+**And the reason `detail.ts` gave for a profile having no address was wrong,
+while its conclusion was right.** It argued that a link would put an id in the
+bar for somebody the account may no longer be a contact of by the time it was
+followed. That does not survive reading the route: absent and not-allowed both
+answer 404, identically and on purpose, so a stale profile link leaks nothing
+and fails no worse than a typo. The real reason is the general one above. A
+wrong reason with a right conclusion is the kind that gets cited.
+
+### A notification stops naming a room
+
+The payload still carries a `channelId` and **nothing reads it**. A tap used to
+watch that channel and open its screen; now it brings up the Channels tab with
+nothing open, where the Live section is the first thing on it.
+
+**A tap is not an instruction about which conversation you meant.** By the time
+a phone is picked up there may be more than one room with somebody in it, and
+choosing for somebody is worse than showing them. It also means **nothing steps
+anybody into a room on the strength of a notification** — the one remaining
+automatic entry is the guest who was audible in that room a second ago, which
+is a continuation rather than an arrival.
+
+It took the last id out of the app that came from neither a list nor a
+handover, which is why it belongs in this entry rather than its own.
+
+A payload naming no channel used to be refused, on the grounds that navigating
+to `undefined` is a channel screen for no channel. The hazard went with the
+navigation, so every tap now reports.
+
+### A Back bug, found on the way
+
+`useRoute` pushed a history entry on any address change **including one a
+`popstate` had just caused**, so pressing Back applied the address, the push
+fired on the way past, and a new entry landed on the stack — Back appeared to
+work and then went forwards. The branch that reads the address now records the
+path it settled on, which is what stops the push firing for a change it did not
+cause.
+
+### What travels instead: two `sessionStorage` records, not one
+
+Two walks have to name a channel across a page load. The guest page sending
+somebody into the app after they accept a contact request — `/open/c/<id>
+?enter=1`, now just `/open` — and the app walking out to the seat page,
+`/g/c/:channelId`, now `/g/seat`. Both are one tab on one origin, which is
+exactly what the guest page's own seat has always relied on.
+
+**`?enter=1` goes with them**, into the same record. Its own comment always
+called it a one-shot intent rather than part of the address; there it stops
+being on one at all. `openPage` loses its `path` parameter with the route that
+was its only non-empty caller.
+
+**Two keys rather than one, and one key was wrong in a way worth keeping.** An
+arrival is one-shot and is *taken*: leave it readable and the plain *Go to The
+Floor* link out of the guest page drops somebody into a channel they are a
+guest of and not a member of, which the server refuses. A seat page's channel
+is the opposite and is *left*: it has to survive a reload of `/g/seat`, which
+is precisely what the id in the old path guaranteed for free. Same carrier,
+opposite lifetimes.

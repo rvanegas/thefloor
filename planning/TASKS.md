@@ -8,24 +8,6 @@ and things to go and find out. There are more in BACKLOG.md.
 
 Improve look and feel
 
-## Addresses Inside A Screen
-
-`webRoute.ts` covers the six top-level places — Home, a channel, Settings, the
-standings, Support, Contacts — and not what those screens open over themselves:
-a profile, a transcript, a channel's own settings. So a person can reach all of
-them and simply cannot link to them, which on a phone is no loss and in a
-browser is half of what an address is for.
-
-The reason it is a decision rather than a task is that `App.tsx` deliberately
-does not own that state. `ContactsView` and `ChannelView` each hold the profile
-they opened, so that component does not have to know which screen a profile was
-reached from — and giving those addresses means either moving the state up,
-which that comment argues against, or letting a screen contribute to the URL.
-**The single-valued `Detail` changed the shape of this**, since a profile
-opened in a split now *is* held in `App.tsx`, which is one of the two things
-this entry said could not be assumed. Worth deciding once, and still not
-urgent.
-
 ## Keep Alive During Watch Party
 
 Since there's no speaking, there must be another way.

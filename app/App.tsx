@@ -27,15 +27,13 @@ import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
 import { useLayout } from './src/ui/layout';
 import { useRoute } from './src/ui/useRoute';
+import { channelOf, NO_DETAIL, type Detail, type List } from './src/ui/detail';
+import { takeHandover } from './src/ui/handover';
 import {
-  channelOf,
-  detailOfNav,
-  navOfDetail,
-  NO_DETAIL,
-  type Detail,
-  type List,
-} from './src/ui/detail';
-import type { Nav } from './src/ui/webRoute';
+  addressOf,
+  detailOfAddress,
+  type Address,
+} from './src/ui/webRoute';
 
 /**
  * Auth when signed out, and otherwise Home — the tier holding both lists of
@@ -248,38 +246,35 @@ function Root() {
   }, [movedChannel]);
 
   /**
-   * A tap on a notification, once there is somewhere to land.
+   * A tap on a notification, which shows the live rooms rather than one of
+   * them.
+   *
+   * **It named a channel and stepped you into it until 2026-09-04.** The
+   * payload still carries the channel — the server has not changed — but
+   * nothing reads it: a notification is not an instruction about which
+   * conversation you meant, and there may well be more than one room with
+   * somebody in it by the time a phone is picked up. So the tap brings the
+   * Channels tab up with nothing open, where the Live section is the first
+   * thing on it, and the choice is made by the person who was interrupted.
+   *
+   * That also took the last id out of the app that did not come from a list or
+   * a handover. See decisions/DECISIONS.md § *An address names a place and
+   * never an id*.
    *
    * Deferred until signed in and ready rather than acted on where it arrives:
    * a tap that launched the app is read while the stored token is still being
-   * restored, and navigating then would drop the person into an empty channel
-   * screen — or, signed out, behind the sign-in form.
-   *
-   * The channel is watched as well as shown, because arriving this way skips
-   * every path that would otherwise have subscribed to it.
+   * restored, and acting then would be undone by the effect below.
    */
-  const { pendingChannelId, clearPendingChannel, watchChannel } = app;
+  const { notificationTapped, clearNotificationTap } = app;
   useEffect(() => {
-    if (!pendingChannelId || !ready || !token) return;
-    watchChannel(pendingChannelId);
-    // Whatever was open closes, because this is an assignment: a tap on a
-    // notification means go to that conversation, and coming back to a
-    // settings screen you had left open would be a surprise.
-    //
-    // **This was five statements and once was four.** Standings was missed
-    // until 2026-08-31, invisibly — a channel outranked every one of them, so
-    // the tap did land on the conversation and only the way out was wrong,
-    // leading back to a screen nobody had opened since before the
-    // notification arrived. There is nothing to miss now; a value cannot be
-    // left set behind what is showing.
-    setDetail({ kind: 'channel', channelId: pendingChannelId });
-    // Which list Home is showing is not among them, so it is still said
-    // separately — and it is still said, because a tap that lands on a
-    // conversation should leave the channels beside it rather than a list
-    // somebody was scrolling before their phone buzzed.
+    if (!notificationTapped || !ready || !token) return;
+    // Whatever was open closes, because this is an assignment: a tap means
+    // come and look, and coming back to a settings screen somebody had left
+    // open would be a surprise.
+    setDetail(NO_DETAIL);
     setList('channels');
-    clearPendingChannel();
-  }, [pendingChannelId, ready, token, watchChannel, clearPendingChannel]);
+    clearNotificationTap();
+  }, [notificationTapped, ready, token, clearNotificationTap]);
 
   /**
    * Signing out closes every screen stacked over Home.
@@ -308,6 +303,37 @@ function Root() {
   }, [token]);
 
   /**
+   * A channel handed over by the document this tab was on a moment ago.
+   *
+   * One caller: a guest who has just accepted a contact request, been made a
+   * member, and been sent from the guest page into the app. **It travels in
+   * `sessionStorage` rather than in the address**, because no address in this
+   * app names a channel — see `ui/handover.ts`, and `webRoute.ts` for why.
+   *
+   * Deferred until signed in and ready for the reason the notification tap
+   * above is: the effect above clears every screen while there is no token and
+   * cannot tell a sign-out from a session still being read out of storage.
+   *
+   * **Taken rather than read**, which is what makes re-running this harmless:
+   * `app` changes identity often, so the effect fires more than once, and the
+   * record is gone after the first.
+   *
+   * `watchChannel` first, because arriving this way skips every path that
+   * would otherwise have subscribed — then `ENTER` if the walk meant to
+   * arrive, so the action lands on a snapshot the app is subscribed to.
+   */
+  const { watchChannel } = app;
+  useEffect(() => {
+    if (!ready || !token) return;
+    const handover = takeHandover();
+    if (!handover) return;
+    watchChannel(handover.channelId);
+    if (handover.enter) app.act(handover.channelId, { type: 'ENTER' });
+    setDetail({ kind: 'channel', channelId: handover.channelId });
+    setList('channels');
+  }, [ready, token, watchChannel, app]);
+
+  /**
    * The address bar, which on a phone does not exist and in a browser *is* the
    * navigation.
    *
@@ -315,36 +341,23 @@ function Root() {
    * this is called unconditionally rather than behind a platform test, a hook
    * that ran on one platform and not the other being a conditional hook.
    *
-   * `watchChannel` on the way in, because arriving by address skips every path
-   * that would otherwise have subscribed to the channel — the same thing the
-   * notification tap above has to do, for the same reason.
-   *
    * Gated on `ready && token`: the effect above clears every screen while
    * there is no token, and cannot tell a sign-out from a session still being
    * read out of storage. Applying an address before then is watching it be
    * wiped. See `useRoute.web.ts`.
    */
-  const applyNav = React.useCallback(
-    (next: Nav, intent?: { enter?: boolean }) => {
-      if (next.channelId) watchChannel(next.channelId);
-      // The address asked to arrive rather than to look — see `wantsEntry`,
-      // which is one caller: somebody who was in this room a second ago as a
-      // guest and has just been made a member of it. After `watchChannel`, so
-      // the snapshot this acts on is one the app is subscribed to.
-      if (intent?.enter && next.channelId) {
-        app.act(next.channelId, { type: 'ENTER' });
-      }
-      // One address names one place, so this is an assignment too — see
-      // `detailOfNav`, which reads the browser's own order of precedence out
-      // of `webRoute.ts` rather than restating it.
-      const arriving = detailOfNav(next);
-      setDetail(arriving.detail);
-      setList(arriving.list);
-    },
-    [watchChannel, app]
-  );
+  const applyAddress = React.useCallback((next: Address) => {
+    // An assignment, and one that always succeeds: every address restores, so
+    // there is nothing here to normalise or refuse. **No address names a
+    // channel**, so nothing here watches one — an arrival at a conversation is
+    // a tap on a list or a `takeHandover` above, both of which subscribe on
+    // their own account.
+    const arriving = detailOfAddress(next);
+    setDetail(arriving.detail);
+    setList(arriving.list);
+  }, []);
 
-  useRoute(navOfDetail(detail, list), applyNav, ready && !!token);
+  useRoute(addressOf(detail, list), applyAddress, ready && !!token);
 
   /**
    * Whether there is room for the list and a screen at once.

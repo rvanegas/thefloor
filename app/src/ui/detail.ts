@@ -19,12 +19,16 @@
  * property of the frame the whole application sits in rather than of anything
  * somebody opened. Opened things are what this type is for.
  *
- * Pure, and separated from `App.tsx` for the reason `webRoute.ts` is: the
- * mapping between this and an address is a table worth testing, and the
- * component around it is not reachable by any test in this repository.
+ * **The address is not this file's business**, since 2026-09-04. `webRoute.ts`
+ * imports these two types and owns the projection onto an address, which is
+ * the right way round: what the app shows is the primary thing, and what a URL
+ * can say about it is a view of that. It read the other way for three days and
+ * put a `Nav` between them.
+ *
+ * Pure, and separated from `App.tsx` because a value with this many cases is
+ * worth testing and the component around it is not reachable by any test in
+ * this repository.
  */
-import { NOWHERE, screenOf, type Nav } from './webRoute';
-
 export type Detail =
   | { kind: 'none' }
   | { kind: 'channel'; channelId: string }
@@ -46,71 +50,12 @@ export const NO_DETAIL: Detail = { kind: 'none' };
  * would name the tier that contains both, which is not what this chooses
  * between. See planning/decisions/DECISIONS.md § *The tier above both lists*.
  *
- * The address needs no new axis for it, which is the one place the iPad split
- * and the tier fit together rather than fight: `/` is the Channels tab and
- * `/contacts` the other, exactly as before, and `webRoute.ts` is untouched.
+ * **It is the first half of every address**, which is the shape the addresses
+ * took on 2026-09-04: `/channels` and `/contacts` are the two frames, and
+ * anything an address can name beyond them hangs off one of the two. Nothing
+ * here needs to know that; `webRoute.ts` does.
  */
 export type List = 'channels' | 'contacts';
-
-/**
- * The address state for what is open, which is `Nav` because the browser's
- * half of this was already written against it.
- *
- * **A profile has no address and never had one.** It is reached from a card in
- * a list rather than from a link, and giving it one would put an id in the bar
- * for a person the account may no longer be a contact of by the time somebody
- * follows it. So it maps to the same `Nav` as nothing at all, which is what
- * shipped before this type existed — the address then names the list beside
- * it, which is truthful and is what the other pane is showing.
- */
-export function navOfDetail(detail: Detail, list: List): Nav {
-  const base = { ...NOWHERE, contactsOpen: list === 'contacts' };
-  switch (detail.kind) {
-    case 'channel':
-      return { ...base, channelId: detail.channelId };
-    case 'settings':
-      return { ...base, settingsOpen: true };
-    case 'standings':
-      return { ...base, leaderboardOpen: true };
-    case 'support':
-      return { ...base, supportOpen: true };
-    case 'profile':
-    case 'none':
-      return base;
-  }
-}
-
-/**
- * What an address asks to be showing, and which list the tier is showing.
- *
- * `screenOf` rather than a second chain: the browser's order of precedence is
- * stated once, in the file that owns addresses, and this reads it. An address
- * only ever sets one flag anyway, so the order is a formality here — but a
- * second copy of it is how the two ends start to disagree.
- */
-export function detailOfNav(nav: Nav): {
-  detail: Detail;
-  list: List;
-} {
-  const screen = screenOf(nav);
-  switch (screen.kind) {
-    case 'channel':
-      return {
-        detail: { kind: 'channel', channelId: screen.channelId },
-        list: 'channels',
-      };
-    case 'settings':
-      return { detail: { kind: 'settings' }, list: 'channels' };
-    case 'standings':
-      return { detail: { kind: 'standings' }, list: 'channels' };
-    case 'support':
-      return { detail: { kind: 'support' }, list: 'channels' };
-    case 'contacts':
-      return { detail: NO_DETAIL, list: 'contacts' };
-    case 'home':
-      return { detail: NO_DETAIL, list: 'channels' };
-  }
-}
 
 /** The channel whose screen is showing, or none — read in four places. */
 export function channelOf(detail: Detail): string | null {

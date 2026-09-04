@@ -78,19 +78,25 @@ describe('/open', () => {
     expect(page.body).not.toContain('location.replace');
   });
 
-  it('carries a channel through to the train', async () => {
+  /**
+   * The door forwards to the train and nowhere inside it. It took a channel
+   * until 2026-09-04 — `/open/c/:id`, which set `?enter=1` on the way — and
+   * that route is gone with the ids: what it carried now travels in
+   * `sessionStorage`, written by the page that is leaving. See
+   * `app/src/ui/handover.ts`.
+   */
+  it('forwards to the train itself and names nothing inside it', async () => {
     await withTrains(['beta'], async () => {
-      const page = await open('/open/c/chan_abc');
-      expect(page.body).toContain('"/c/chan_abc"');
-      expect(page.body).toContain('href="/beta/c/chan_abc"');
+      const page = await open();
+      expect(page.body).toContain('href="/beta"');
+      expect(page.body).not.toContain('/c/');
     });
   });
 
-  it('escapes what it puts in the fallback link', async () => {
+  it('has no route that takes a channel any more', async () => {
     await withTrains(['beta'], async () => {
-      const page = await open(`/open/c/${encodeURIComponent('a"b')}`);
-      expect(page.body).not.toContain('href="/beta/c/a"b"');
-      expect(page.statusCode).toBe(200);
+      const page = await open('/open/c/chan_abc');
+      expect(page.statusCode).toBe(404);
     });
   });
 
@@ -117,18 +123,21 @@ describe('the landing page', () => {
 });
 
 describe('arriving rather than looking', () => {
-  it('forwards the one query it knows, and only that one', async () => {
+  /**
+   * The intent to step in used to ride the address as `?enter=1`, forwarded
+   * by this door. It rides `sessionStorage` now — its own comment always
+   * called it a one-shot intent rather than part of an address, and there it
+   * stops being on one at all.
+   *
+   * What is pinned here is that the door does not forward query: it is a
+   * hallway, and a door that passes arbitrary parameters along is a door
+   * somebody can push things through.
+   */
+  it('forwards no query at all', async () => {
     await withTrains(['beta'], async () => {
-      const asked = await open('/open/c/chan_abc?enter=1');
-      expect(asked.body).toContain('"/c/chan_abc?enter=1"');
-      expect(asked.body).toContain('href="/beta/c/chan_abc?enter=1"');
-
-      // Anything else is dropped rather than passed along: this is a hallway,
-      // and a door that forwards arbitrary query is a door somebody can push
-      // things through.
-      const smuggled = await open('/open/c/chan_abc?enter=yes&other=1');
-      expect(smuggled.body).toContain('"/c/chan_abc"');
-      expect(smuggled.body).not.toContain('other=1');
+      const page = await open('/open?enter=1&other=1');
+      expect(page.body).not.toContain('enter=1');
+      expect(page.body).not.toContain('other=1');
     });
   });
 });

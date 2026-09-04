@@ -61,7 +61,7 @@ export interface Trains {
  * `replace` rather than `assign`, so Back from the app does not bounce through
  * here and land where it started.
  */
-function script(available: string[], path: string): string {
+function script(available: string[]): string {
   return `
 <script>
 try {
@@ -69,23 +69,26 @@ try {
   var remembered = null;
   try { remembered = localStorage.getItem('thefloor.train'); } catch (e) {}
   var base = trains.indexOf(remembered) >= 0 ? remembered : trains[0];
-  if (base) location.replace(base + ${JSON.stringify(path)});
+  if (base) location.replace(base);
 } catch (e) {}
 </script>`;
 }
 
 /**
- * `/open`, and `/open/c/:id` for a particular channel.
+ * `/open`, the one door into whichever train this browser uses.
  *
- * `path` is what follows the train's prefix — `''` for the app's home, or
- * `/c/<id>`. Built by the caller rather than parsed here, so nothing in this
- * file has an opinion about the app's own routes; `webRoute.ts` owns those.
+ * **It forwards to the app and nowhere inside it.** This took a `path` until
+ * 2026-09-04, so that `/open/c/:id` could hand somebody to a particular
+ * channel — and that route is gone with the ids. What used to travel in it
+ * now travels in `sessionStorage`, which is a better carrier for the one
+ * caller it had: same tab, same origin, and nothing left in an address bar
+ * afterwards. See `app/src/ui/handover.ts`.
  */
-export function openPage(trains: Trains, path: string): string {
+export function openPage(trains: Trains): string {
   const body =
     trains.available.length > 0
       ? `<p>Opening The Floor…</p>
-<p class="muted"><a href="${escapeHtml(trains.available[0] + path)}">Continue</a>
+<p class="muted"><a href="${escapeHtml(trains.available[0])}">Continue</a>
 if this page does not move on by itself.</p>`
       : // Said plainly rather than redirected, and it is not an error: a box
         // serves the web app only once one has been deployed to it, and the
@@ -106,7 +109,7 @@ not looking at it. <a href="/">More about The Floor</a>.</p>`;
   body { font: 16px/1.5 system-ui, sans-serif; margin: 3rem auto; max-width: 32rem; padding: 0 1.25rem; }
   .muted { opacity: 0.7; }
 </style>
-${trains.available.length > 0 ? script(trains.available, path) : ''}
+${trains.available.length > 0 ? script(trains.available) : ''}
 </head>
 <body>
 ${body}

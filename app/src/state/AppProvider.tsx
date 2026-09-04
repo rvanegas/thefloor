@@ -366,8 +366,8 @@ interface AppValue extends AppState {
    * before there is anything to navigate — during a cold start the app is
    * still restoring its token when the response is read.
    */
-  pendingChannelId: string | null;
-  clearPendingChannel: () => void;
+  notificationTapped: boolean;
+  clearNotificationTap: () => void;
   /**
    * This build is below the floor the server still answers, so nothing it
    * does can be trusted to mean what the screens say it means.
@@ -457,7 +457,7 @@ export function useApp(): AppValue {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [pendingChannelId, setPendingChannelId] = useState<string | null>(null);
+  const [notificationTapped, setNotificationTapped] = useState(false);
   /**
    * Read from this device's cache before anything is drawn, so a chosen scheme
    * does not arrive as a flash of the other one, and overwritten by the
@@ -817,7 +817,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // A tap on a notification, from either direction it can arrive. Mounted once
   // and independent of sign-in state, because the tap that launched the app is
   // read before the stored token has been restored.
-  useEffect(() => onNotificationTap(setPendingChannelId), []);
+  useEffect(() => onNotificationTap(() => setNotificationTapped(true)), []);
 
   /**
    * Ships the audio log off the phone, for the one account that asked to see it.
@@ -1025,8 +1025,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       serverNow,
       expired: expiry.expired,
       updateUrl: expiry.updateUrl,
-      pendingChannelId,
-      clearPendingChannel: () => setPendingChannelId(null),
+      notificationTapped,
+      clearNotificationTap: () => setNotificationTapped(false),
 
       appearance,
       /*
@@ -1387,7 +1387,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       connect,
       realtime,
       tick,
-      pendingChannelId,
+      notificationTapped,
       appearance,
       tapToStepIn,
       controlCards,

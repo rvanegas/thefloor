@@ -43,15 +43,36 @@ const linkToken =
   document.body.dataset.link ?? params.get('link') ?? '';
 
 /**
- * The channel, when the page was reached from Home rather than from a link.
+ * The two places a channel is handed between documents on this origin.
  *
- * `GET /g/c/:channelId` puts it here and puts no link token in at all, there
- * being none to put: a seat outlives the link that made it. Nothing is handed
- * out with it — what gets anybody back into the room is the seat below, which
- * is still in this tab's `sessionStorage` because the walk to `/app` and back
- * never left the tab or the origin.
+ * `HANDOVER_KEY` is an arrival into the app, written here and **taken** there
+ * so it fires once. `SEAT_CHANNEL_KEY` is which channel a seat page is about,
+ * written by the app and **left**, so a reload of `/g/seat` can read it again
+ * — the case the id in the old path covered for free.
+ *
+ * Repeated from `app/src/ui/handover.ts` rather than imported, for the reason
+ * `TOKEN_KEY` below is repeated: nothing in the server may import from `app/`,
+ * so a comment at each end is the only link the two can have.
  */
-const pageChannelId = document.body.dataset.channel ?? '';
+const HANDOVER_KEY = 'thefloor.handover';
+const SEAT_CHANNEL_KEY = 'thefloor.seat.channel';
+
+/**
+ * The channel, when the page was reached from the app rather than from a link.
+ *
+ * **Left in `sessionStorage`, not named in the path.** `GET /g/seat` puts
+ * nothing in the page at all — it was `/g/c/:channelId` until 2026-09-04, and
+ * no address in this application carries an id any more. The carrier is the
+ * same one this page's own seat has always used, and works for the same
+ * reason: the walk from the app never left the tab or the origin.
+ */
+const pageChannelId = ((): string => {
+  try {
+    return sessionStorage.getItem(SEAT_CHANNEL_KEY) ?? '';
+  } catch {
+    return '';
+  }
+})();
 
 /**
  * Whether there is a web app on this box at all.
@@ -712,6 +733,24 @@ async function acceptAsk(askerId: string): Promise<void> {
   // Null when there is no web app on this box at all. Said rather than
   // navigated into: the seat is closed by now, so there is no room to stay in
   // and nothing to do but tell them what happened and where they already are.
+  // **Which channel travels with them, out of the address.** The app has no
+  // address that names a room, so the one thing this walk has to carry goes in
+  // the storage both documents share — with `enter`, because they were audible
+  // in there a second ago and being asked to step back in would be the app
+  // forgetting what it had just watched them do. Written before the navigation
+  // and taken by the app on boot; see `app/src/ui/handover.ts`.
+  if (answer.channelId) {
+    try {
+      sessionStorage.setItem(
+        HANDOVER_KEY,
+        JSON.stringify({ channelId: answer.channelId, enter: true })
+      );
+    } catch {
+      // Storage blocked. They land on the channel list, which is a place they
+      // are a member of the room from — a worse arrival, not a broken one.
+    }
+  }
+
   if (answer.url) {
     // `replace` rather than `assign`: the seat behind this page is closed, so
     // Back would return to a room that no longer exists and a socket that will

@@ -289,14 +289,14 @@ describe('a tap on a notification', () => {
     listen.mockReturnValue({ remove: jest.fn() });
   });
 
-  it('routes a tap that arrived while the app was running', async () => {
+  it('reports a tap that arrived while the app was running', async () => {
     const handle = jest.fn();
     onNotificationTap(handle);
     await settle();
 
     deliver({ channelId: 'chan_1', kind: 'pinged' });
 
-    expect(handle).toHaveBeenCalledWith('chan_1');
+    expect(handle).toHaveBeenCalled();
   });
 
   /**
@@ -304,14 +304,14 @@ describe('a tap on a notification', () => {
    * Without it the feature works when backgrounded and silently does nothing
    * when closed.
    */
-  it('routes the tap that launched the app, which no listener saw', async () => {
+  it('reports the tap that launched the app, which no listener saw', async () => {
     lastResponse.mockResolvedValue(response({ channelId: 'chan_2' }));
     const handle = jest.fn();
 
     onNotificationTap(handle);
     await settle();
 
-    expect(handle).toHaveBeenCalledWith('chan_2');
+    expect(handle).toHaveBeenCalled();
   });
 
   /** An icon launch. Nothing was tapped, so there is nowhere to be taken. */
@@ -324,11 +324,14 @@ describe('a tap on a notification', () => {
   });
 
   /**
-   * A payload from a build of the server this one predates, or one whose field
-   * is not a string. The only safe reading of a missing channel is to stay
-   * put: navigating to `undefined` is a channel screen for no channel.
+   * **The payload is not read at all, since 2026-09-04.** A tap used to have
+   * to name a channel, and one that named none was refused on the grounds that
+   * navigating to `undefined` is a channel screen for no channel. There is no
+   * navigation to a channel now — a tap shows the live rooms and the person
+   * chooses — so a payload from an older server, or one whose field is not a
+   * string, is a perfectly good tap.
    */
-  it('goes nowhere on a payload carrying no channel', async () => {
+  it('reports a tap whose payload names nothing', async () => {
     const handle = jest.fn();
     onNotificationTap(handle);
     await settle();
@@ -337,7 +340,7 @@ describe('a tap on a notification', () => {
     deliver({ channelId: 7 });
     deliver(undefined);
 
-    expect(handle).not.toHaveBeenCalled();
+    expect(handle).toHaveBeenCalledTimes(3);
   });
 
   /**

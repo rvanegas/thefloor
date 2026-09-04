@@ -984,13 +984,14 @@ export function buildApp(options: BuildOptions = {}): App {
     return {
       ok: true,
       channelId: result.channelId,
-      // `enter`, because they were audible in that room a second ago: landing
-      // outside it and being asked to step in would be the app forgetting what
-      // it had just watched them do. Carried through the door as a query so
-      // the app can act on it once and drop it — see `wantsEntry`.
-      url: result.channelId
-        ? `/open/c/${encodeURIComponent(result.channelId)}?enter=1`
-        : '/open',
+      // **The door and nothing else.** This named the channel and carried
+      // `?enter=1` until 2026-09-04; both now travel in this tab's
+      // `sessionStorage`, written by the page that is leaving and taken by the
+      // app when it boots. The reason they were audible in that room a second
+      // ago is unchanged — landing outside it and being asked to step in would
+      // be the app forgetting what it had just watched them do — but an
+      // address is no longer where this application says which room.
+      url: '/open',
     };
   });
 
@@ -1144,22 +1145,7 @@ export function buildApp(options: BuildOptions = {}): App {
   fastify.get('/open', async (_request, reply) => {
     reply.type('text/html; charset=utf-8');
     reply.header('cache-control', 'no-store');
-    return openPage({ available: await availableTrains() }, '');
-  });
-
-  fastify.get('/open/c/:channelId', async (request, reply) => {
-    const { channelId } = request.params as { channelId: string };
-    const { enter } = request.query as { enter?: string };
-    reply.type('text/html; charset=utf-8');
-    reply.header('cache-control', 'no-store');
-    return openPage(
-      { available: await availableTrains() },
-      // The one query this door forwards, and it is forwarded rather than
-      // interpreted: what it means is the app's business, and this is a
-      // hallway. `'1'` exactly, so the parameter cannot be used to smuggle
-      // anything else onto the end of the address.
-      `/c/${encodeURIComponent(channelId)}${enter === '1' ? '?enter=1' : ''}`
-    );
+    return openPage({ available: await availableTrains() });
   });
 
   /**
@@ -1306,27 +1292,29 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * The way back to a channel somebody is a guest of, from Home.
    *
-   * Addressed by channel rather than by link because a seat outlives the link
-   * that made it — `link_token` is nullable for exactly that reason — so the
-   * address a page can always be reached at is the one thing that does not go
-   * away.
+   * Reached rather than addressed, and that is the change of 2026-09-04. This
+   * was `/g/c/:channelId`; **no address in this application carries an id**,
+   * so which channel now travels in this tab's `sessionStorage`, written by
+   * the app immediately before it navigates. See `app/src/ui/handover.ts`.
+   *
+   * A seat outliving the link that made it — `link_token` is nullable for
+   * exactly that reason — is why this route exists at all rather than sending
+   * somebody back through `/g/:token`.
    *
    * **It hands out nothing, and needs no credential to.** The page it returns
    * is the same static document `/g/:token` is; what gets anybody into the
    * room is the seat in their own `sessionStorage`, which survives the walk to
-   * `/app` and back because it is one tab on one origin. Somebody arriving
-   * here without one is told to open the link they were sent, which is also
-   * the honest answer for a channel they have never been a guest of.
+   * the app and back because it is one tab on one origin — the same property
+   * the handover above relies on, and the reason the id never needed to be in
+   * the path. Somebody arriving here without a seat is told to open the link
+   * they were sent, which is also the honest answer for a channel they have
+   * never been a guest of.
    */
-  fastify.get('/g/c/:channelId', async (request, reply) => {
-    const { channelId } = request.params as { channelId: string };
+  fastify.get('/g/seat', async (_request, reply) => {
     const shell = await withAppBase((await guestShell(reply)) ?? '');
     if (!shell) return;
     reply.type('text/html; charset=utf-8');
-    return shell.replace(
-      'data-link=""',
-      `data-link="" data-channel="${escapeHtml(channelId)}"`
-    );
+    return shell;
   });
 
   /**

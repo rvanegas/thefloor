@@ -274,28 +274,28 @@ export async function registerIfGranted(
   }
 }
 
-/** The channel a notification points at, or null if it carries none. */
-export function channelOf(
-  response: Notifications.NotificationResponse | null
-): string | null {
-  const data = response?.notification.request.content.data as
-    | { channelId?: unknown }
-    | undefined;
-  return typeof data?.channelId === 'string' ? data.channelId : null;
-}
-
 /**
- * Where a tap should take you, from either direction it can arrive.
+ * That a notification was tapped, from either direction it can arrive.
  *
  * Two sources, and the second is the one that matters most here. The listener
  * catches a tap while the app is running; `getLastNotificationResponseAsync`
  * catches the tap that *launched* it, which no listener can have been present
  * for. Without that second call the feature works when backgrounded and
  * silently does nothing when closed — which is the case it exists for.
+ *
+ * **The payload is not read, since 2026-09-04.** It carries a `channelId` and
+ * this used to hand it up so the app could open that conversation. A tap is
+ * not an instruction about which room you meant — by the time a phone is
+ * picked up there may be several with somebody in them — so the app shows the
+ * live rooms and lets the person choose. Which also means a notification
+ * cannot carry somebody into a channel, and nothing in this application steps
+ * into a room without being told to twice.
+ *
+ * So every tap reports, including one whose payload names nothing. That used
+ * to be refused, on the grounds that navigating to `undefined` is a channel
+ * screen for no channel — a hazard that went with the navigation.
  */
-export function onNotificationTap(
-  handle: (channelId: string) => void
-): () => void {
+export function onNotificationTap(handle: () => void): () => void {
   let cancelled = false;
 
   // Caught rather than left to reject: this reads a payload the app did not
@@ -303,17 +303,13 @@ export function onNotificationTap(
   // rather than a missed notification.
   void Notifications.getLastNotificationResponseAsync()
     .then((response) => {
-      if (cancelled) return;
-      const channelId = channelOf(response);
-      if (channelId) handle(channelId);
+      if (cancelled || !response) return;
+      handle();
     })
     .catch(() => {});
 
   const subscription = Notifications.addNotificationResponseReceivedListener(
-    (response) => {
-      const channelId = channelOf(response);
-      if (channelId) handle(channelId);
-    }
+    () => handle()
   );
 
   return () => {

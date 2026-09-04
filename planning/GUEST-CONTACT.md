@@ -94,8 +94,10 @@ here, and it is the same shape of record, so it is the same shape of field.
    the track, awaited, and the navigation is a `replace`: the seat is closed,
    so Back would return to a room that is gone.
 
-   **And it arrives stepped in.** The address carries `?enter=1`, read once by
-   `wantsEntry` and dropped when the app rewrites the address. `tapToStepIn` is
+   **And it arrives stepped in.** The intent travels in this tab's
+   `sessionStorage`, written by this page and taken once by the app — it was
+   `?enter=1` on the address until 2026-09-04, when the ids and the query left
+   the addresses together; see `app/src/ui/handover.ts`. `tapToStepIn` is
    not consulted — that setting is about a list of rooms where a tap is as
    likely to be curiosity as intent, and somebody who was audible in this room
    a second ago is not curious about it.

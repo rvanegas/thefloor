@@ -7,84 +7,46 @@
  * lines that no test in this repository can reach. Getting the table right in
  * something testable leaves only the plumbing unproven.
  *
- * `App.tsx` routes with a channel id and four booleans, resolved in a fixed
- * order. That order is the model: it is what decides which screen is on top
- * when two are notionally open, and `screenOf` states it once rather than
- * letting the URL and the renderer each have an opinion.
- *
- * **Above the breakpoint the order resolves the detail pane, and nothing here
- * changed.** A wide window shows Home beside whatever you have open, and the
- * list is not a screen and has no address — you cannot navigate to it, it is
- * simply there. So the address still names exactly one screen, `/settings` is
- * still Settings, and Home is still the state with nothing set, which on an
- * iPad is a live list on the left and an empty pane on the right.
+ * **No address carries an id.** Not an account, not a channel, not a
+ * recording. An id reaches this app from a snapshot or from a handover in
+ * `sessionStorage`, never from a URL, and since 2026-09-04 not from a
+ * notification either. See decisions/DECISIONS.md § *An address names a place
+ * and never an id*.
  *
  * Web only. Native has no addresses and wants none.
  */
-
-export type Screen =
-  | { kind: 'home' }
-  | { kind: 'channel'; channelId: string }
-  | { kind: 'settings' }
-  | { kind: 'standings' }
-  | { kind: 'support' }
-  | { kind: 'contacts' };
-
-/** The navigation state `App.tsx` holds, as one value. */
-export interface Nav {
-  channelId: string | null;
-  settingsOpen: boolean;
-  leaderboardOpen: boolean;
-  supportOpen: boolean;
-  contactsOpen: boolean;
-}
-
-export const NOWHERE: Nav = {
-  channelId: null,
-  settingsOpen: false,
-  leaderboardOpen: false,
-  supportOpen: false,
-  contactsOpen: false,
-};
+import type { Detail, List } from './detail';
 
 /**
- * Which screen is showing, in `App.tsx`'s own order of precedence.
+ * The part of `Detail` an address can name.
  *
- * A channel beats everything because it comes first in the chain — and that is
- * not arbitrary: presence is not navigation, so the channel screen is the one
- * you are *in* while the others are things opened over Home. In a split, over
- * the detail pane; Home itself is never what this is choosing between.
+ * Three of the six, and the line between them is the id: settings, standings
+ * and support are one of a kind each, so naming them names them. A channel and
+ * a profile are one of many and would need an id to be told apart, so an
+ * address says nothing about them at all — a channel open over the Channels
+ * tab is `/channels`, the same as nothing open.
+ *
+ * That is a loss and it is the *only* one: everything this can say, it can say
+ * again on the way back. See `addressOf`.
  */
-export function screenOf(nav: Nav): Screen {
-  if (nav.channelId) return { kind: 'channel', channelId: nav.channelId };
-  if (nav.settingsOpen) return { kind: 'settings' };
-  if (nav.leaderboardOpen) return { kind: 'standings' };
-  if (nav.supportOpen) return { kind: 'support' };
-  if (nav.contactsOpen) return { kind: 'contacts' };
-  return { kind: 'home' };
-}
+export type Named = 'none' | 'settings' | 'standings' | 'support';
 
 /**
- * The state that shows a screen.
+ * Where you are, in the two parts the app is actually in.
  *
- * Exactly one flag is ever set, which is what makes this a round trip rather
- * than an approximation: `screenOf(navOf(s))` is `s` for every screen.
+ * **A frame and what is open over it**, which is the shape of the application
+ * rather than a route table somebody chose: the tier always holds one of its
+ * two lists — that is `list`, and it never goes away — and a detail is opened
+ * over it on a phone or beside it in a split, and closed again.
+ *
+ * It was six flat screens until 2026-09-04, with `home` for the Channels tab,
+ * and that shape could not say both things at once: `/settings` named what was
+ * open and lost which tab you had left behind, so reloading put you back on
+ * Channels. Two axes say both, and neither has to outrank the other.
  */
-export function navOf(screen: Screen): Nav {
-  switch (screen.kind) {
-    case 'channel':
-      return { ...NOWHERE, channelId: screen.channelId };
-    case 'settings':
-      return { ...NOWHERE, settingsOpen: true };
-    case 'standings':
-      return { ...NOWHERE, leaderboardOpen: true };
-    case 'support':
-      return { ...NOWHERE, supportOpen: true };
-    case 'contacts':
-      return { ...NOWHERE, contactsOpen: true };
-    case 'home':
-      return NOWHERE;
-  }
+export interface Address {
+  list: List;
+  named: Named;
 }
 
 /**
@@ -99,77 +61,110 @@ export function navOf(screen: Screen): Nav {
  */
 export const BASE = (process.env.EXPO_PUBLIC_BASE ?? '').replace(/\/$/, '');
 
-/** `/app/c/chan_abc`. Trailing slashes are never produced. */
-export function pathOf(screen: Screen): string {
-  switch (screen.kind) {
-    case 'channel':
-      return `${BASE}/c/${encodeURIComponent(screen.channelId)}`;
-    case 'settings':
-      return `${BASE}/settings`;
-    case 'standings':
-      return `${BASE}/standings`;
-    case 'support':
-      return `${BASE}/support`;
-    case 'contacts':
-      return `${BASE}/contacts`;
-    case 'home':
-      return BASE || '/';
-  }
+/**
+ * The one path each address has. Eight of them, and no trailing slashes.
+ *
+ * `/channels`, `/contacts`, and `/<either>/settings`, `/standings`,
+ * `/support`. The frame is always the first segment, including when something
+ * is open over it — which is the whole point of the nesting: the tab you were
+ * on is not something opening Settings should cost you.
+ */
+export function pathOf(address: Address): string {
+  const frame = `${BASE}/${address.list}`;
+  return address.named === 'none' ? frame : `${frame}/${address.named}`;
 }
 
 /**
- * The screen an address names, and **Home for anything unrecognised**.
+ * The address a path names, and **the channel list for anything else**.
  *
  * Deliberately forgiving. This runs against whatever somebody has in the
  * address bar — a truncated paste, a link from a version with different names,
  * a path the server's catch-all served the shell for — and none of those is
- * worth an error screen when Home is a correct and useful answer.
+ * worth an error screen when the list is a correct and useful answer.
+ *
+ * Two inputs are forgiven on purpose rather than by accident. **The bare base**
+ * — `/app`, or `/` on a dev server — is where every door forwards to (`/open`,
+ * the landing page, the signed-in redirect), and it means the Channels tab;
+ * `pathOf` never produces it, so it is an accepted input rather than half of a
+ * round trip. And **`/c/<id>`**, which is what a channel's address was until
+ * 2026-09-04: it lands on the list, which is where it would land even if it
+ * were parsed, nothing downstream being able to restore the id.
  */
-export function screenOfPath(path: string): Screen {
+export function addressOfPath(path: string): Address {
   const withoutQuery = path.split(/[?#]/)[0] ?? '';
   const rest = withoutQuery.startsWith(BASE)
     ? withoutQuery.slice(BASE.length)
     : withoutQuery;
   const parts = rest.split('/').filter(Boolean);
 
-  if (parts.length === 0) return { kind: 'home' };
-  if (parts[0] === 'c' && parts[1]) {
-    return { kind: 'channel', channelId: decodeURIComponent(parts[1]) };
+  const list: List | null =
+    parts[0] === 'channels' ? 'channels' : parts[0] === 'contacts' ? 'contacts' : null;
+  if (!list) return { list: 'channels', named: 'none' };
+
+  if (parts.length === 1) return { list, named: 'none' };
+  if (parts.length === 2) {
+    if (parts[1] === 'settings') return { list, named: 'settings' };
+    if (parts[1] === 'standings') return { list, named: 'standings' };
+    if (parts[1] === 'support') return { list, named: 'support' };
   }
-  if (parts.length === 1) {
-    if (parts[0] === 'settings') return { kind: 'settings' };
-    if (parts[0] === 'standings') return { kind: 'standings' };
-    if (parts[0] === 'support') return { kind: 'support' };
-    if (parts[0] === 'contacts') return { kind: 'contacts' };
-  }
-  return { kind: 'home' };
+  return { list, named: 'none' };
 }
 
 /**
- * Whether the address that opened this tab meant to *arrive*, not merely look.
+ * What an address can say about where you are, which is **less than this
+ * says** — and less in exactly one way.
  *
- * **A one-shot intent rather than part of the address**, which is why it is a
- * query parameter and why nothing in `pathOf` ever writes one. A channel's
- * address says which room; whether you walked into it is something that
- * happened once, and an address that kept saying so would step you back in
- * every time you pressed Back.
+ * The frame survives whole. What is open survives when it has a name, and
+ * becomes `'none'` when it would have needed an id: a channel and a profile
+ * read as the tab they were opened over, which is truthful and is what the
+ * other pane is showing.
  *
- * It exists for one caller: a guest who has just accepted a contact request
- * and been made a member. They were audible in that room a second ago, so
- * landing outside it and being asked to step in would be the app forgetting
- * what it had just watched them do. `tapToStepIn` is not consulted — that
- * setting is about a list of rooms where a tap is as likely to be curiosity as
- * intent, and this is not a tap on a list.
+ * **Why a profile has no address**, since this file used to argue it badly.
+ * The old reason was that a link would put an id in the bar for somebody the
+ * account may no longer be a contact of by the time it was followed. That does
+ * not survive reading the route: `GET /profiles/:id` answers 404 for a profile
+ * you may not read *and* for one that does not exist, identically and on
+ * purpose, so a stale link leaks nothing and fails no worse than a typo. The
+ * reason is the general one — an account id means nothing to a person, a
+ * profile is not somewhere you send anybody, and what you would send them is
+ * the channel.
  */
-export function wantsEntry(search: string): boolean {
-  return new URLSearchParams(search).get('enter') === '1';
+export function addressOf(detail: Detail, list: List): Address {
+  switch (detail.kind) {
+    case 'settings':
+      return { list, named: 'settings' };
+    case 'standings':
+      return { list, named: 'standings' };
+    case 'support':
+      return { list, named: 'support' };
+    case 'channel':
+    case 'profile':
+    case 'none':
+      return { list, named: 'none' };
+  }
 }
 
-/** Whether two screens are the same place, so history is not pushed twice. */
-export function sameScreen(a: Screen, b: Screen): boolean {
-  if (a.kind !== b.kind) return false;
-  if (a.kind === 'channel' && b.kind === 'channel') {
-    return a.channelId === b.channelId;
+/**
+ * What an address asks to be showing.
+ *
+ * **Every address restores**, which is the property the nesting bought and the
+ * reason nothing in the wiring has to normalise what it reads:
+ * `addressOf(detailOfAddress(a))` is `a` for all eight. The projection above
+ * is lossy on the way out and total on the way back, so an address is never
+ * something the app can be handed and fail to honour.
+ */
+export function detailOfAddress(address: Address): {
+  detail: Detail;
+  list: List;
+} {
+  switch (address.named) {
+    case 'settings':
+      return { detail: { kind: 'settings' }, list: address.list };
+    case 'standings':
+      return { detail: { kind: 'standings' }, list: address.list };
+    case 'support':
+      return { detail: { kind: 'support' }, list: address.list };
+    case 'none':
+      return { detail: { kind: 'none' }, list: address.list };
   }
-  return true;
 }

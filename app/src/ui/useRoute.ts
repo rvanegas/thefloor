@@ -1,4 +1,4 @@
-import type { Nav } from './webRoute';
+import type { Address } from './webRoute';
 
 /**
  * Addresses, on a platform that has none.
@@ -13,8 +13,8 @@ import type { Nav } from './webRoute';
  * other would be a conditional hook, which React forbids outright.
  */
 export function useRoute(
-  _nav: Nav,
-  _apply: (nav: Nav, intent?: { enter?: boolean }) => void,
+  _address: Address,
+  _apply: (address: Address) => void,
   _ready: boolean
 ): void {
   // Nothing. See above.

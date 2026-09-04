@@ -315,8 +315,10 @@ things that this file keeps apart:
   2026-08-22 the app can be in that state on purpose: with the Home setting
   "Tap a channel to step in" turned off, a tap opens the channel screen and
   dispatches no `ENTER`, so the screen offers **Step In** where it offers
-  **Step Out** to somebody present. A notification tap has always landed this
-  way. The microphone card and the knocks are hidden, because neither is true
+  **Step Out** to somebody present. A notification tap used to land this way
+  too; **since 2026-09-04 it lands on the channel list instead**, naming no
+  room at all, so the only way into a channel screen is a tap on a row. See
+  decisions/DECISIONS.md § *An address names a place and never an id*. The microphone card and the knocks are hidden, because neither is true
   of somebody outside the room.
 
   **This said the screen's other controls needed no special case, on the

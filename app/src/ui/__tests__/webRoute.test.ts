@@ -1,13 +1,10 @@
+import { NO_DETAIL, type Detail, type List } from '../detail';
 import {
-  navOf,
-  NOWHERE,
+  addressOf,
+  addressOfPath,
+  detailOfAddress,
   pathOf,
-  sameScreen,
-  screenOf,
-  screenOfPath,
-  wantsEntry,
-  type Nav,
-  type Screen,
+  type Address,
 } from '../webRoute';
 
 /**
@@ -19,171 +16,242 @@ import {
  * the only division of the problem that leaves anything proven at all.
  */
 
-const SCREENS: Screen[] = [
-  { kind: 'home' },
-  { kind: 'channel', channelId: 'chan_abc123' },
+const LISTS: List[] = ['channels', 'contacts'];
+
+const ADDRESSES: Address[] = LISTS.flatMap((list) =>
+  (['none', 'settings', 'standings', 'support'] as const).map((named) => ({
+    list,
+    named,
+  }))
+);
+
+/** Every kind, so a case added to `Detail` and forgotten here is visible. */
+const DETAILS: Detail[] = [
+  NO_DETAIL,
+  { kind: 'channel', channelId: 'chan_1' },
+  { kind: 'profile', id: 'acct_1', name: 'Ada' },
   { kind: 'settings' },
   { kind: 'standings' },
   { kind: 'support' },
-  { kind: 'contacts' },
 ];
 
-describe('screens and the state that shows them', () => {
+describe('addresses and their paths', () => {
   /**
-   * The property the whole thing rests on: an address becomes navigation state
-   * and that state names the same address again. Anything that breaks this
-   * makes the URL and the screen disagree, which is worse than having no URLs.
+   * The property the whole thing rests on. It is exact rather than
+   * approximate because no address carries an id: there is nothing a path
+   * could fail to give back.
    */
-  it('round-trips every screen through navigation state', () => {
-    for (const screen of SCREENS) {
-      expect(screenOf(navOf(screen))).toEqual(screen);
+  it('round-trips every address through its path', () => {
+    for (const address of ADDRESSES) {
+      expect(addressOfPath(pathOf(address))).toEqual(address);
     }
   });
 
-  it('round-trips every screen through its path', () => {
-    for (const screen of SCREENS) {
-      expect(screenOfPath(pathOf(screen))).toEqual(screen);
-    }
-  });
-
-  it('shows Home when nothing is open', () => {
-    expect(screenOf(NOWHERE)).toEqual({ kind: 'home' });
+  it('gives every address a different path', () => {
+    expect(new Set(ADDRESSES.map(pathOf)).size).toBe(ADDRESSES.length);
   });
 
   /**
-   * `App.tsx` returns for the channel before it returns for anything else, so
-   * a channel open behind Settings is still the channel. The precedence is the
-   * renderer's, and this is where it is written down — if the early returns
-   * are ever reordered, this fails rather than the URL quietly lying.
+   * The frame is the first segment even when something is open over it, which
+   * is what the nesting is for: the tab you were on is not something opening
+   * Settings should cost you.
    */
-  it('puts a channel ahead of every screen opened over Home', () => {
-    const nav: Nav = {
-      channelId: 'chan_abc123',
-      settingsOpen: true,
-      leaderboardOpen: true,
-      supportOpen: true,
-      contactsOpen: true,
-    };
-    expect(screenOf(nav)).toEqual({ kind: 'channel', channelId: 'chan_abc123' });
+  it('hangs what is open off the frame it was opened over', () => {
+    expect(pathOf({ list: 'channels', named: 'none' })).toBe('/channels');
+    expect(pathOf({ list: 'contacts', named: 'none' })).toBe('/contacts');
+    expect(pathOf({ list: 'channels', named: 'settings' })).toBe(
+      '/channels/settings'
+    );
+    expect(pathOf({ list: 'contacts', named: 'settings' })).toBe(
+      '/contacts/settings'
+    );
   });
 
-  it('orders the rest as the early returns do', () => {
-    expect(
-      screenOf({ ...NOWHERE, settingsOpen: true, leaderboardOpen: true })
-    ).toEqual({ kind: 'settings' });
-    expect(
-      screenOf({ ...NOWHERE, leaderboardOpen: true, supportOpen: true })
-    ).toEqual({ kind: 'standings' });
-    expect(
-      screenOf({ ...NOWHERE, supportOpen: true, contactsOpen: true })
-    ).toEqual({ kind: 'support' });
-  });
-
-  it('opens exactly one thing for any screen', () => {
-    for (const screen of SCREENS) {
-      const nav = navOf(screen);
-      const open = [
-        nav.settingsOpen,
-        nav.leaderboardOpen,
-        nav.supportOpen,
-        nav.contactsOpen,
-      ].filter(Boolean).length;
-      expect(open).toBeLessThanOrEqual(1);
-      if (screen.kind !== 'channel') expect(nav.channelId).toBeNull();
+  it('never produces a query or an id', () => {
+    for (const address of ADDRESSES) {
+      expect(pathOf(address)).toMatch(/^(\/[a-z]+){1,2}$/);
     }
   });
 });
 
-describe('reading an address', () => {
-  it('names the channel screen', () => {
-    expect(screenOfPath('/c/chan_abc123')).toEqual({
-      kind: 'channel',
-      channelId: 'chan_abc123',
+describe('reading a path', () => {
+  it('names each address', () => {
+    expect(addressOfPath('/contacts/standings')).toEqual({
+      list: 'contacts',
+      named: 'standings',
+    });
+    expect(addressOfPath('/channels/support')).toEqual({
+      list: 'channels',
+      named: 'support',
     });
   });
 
   it('ignores a query string and a fragment', () => {
-    expect(screenOfPath('/settings?from=home')).toEqual({ kind: 'settings' });
-    expect(screenOfPath('/contacts#top')).toEqual({ kind: 'contacts' });
+    expect(addressOfPath('/channels/settings?from=x')).toEqual({
+      list: 'channels',
+      named: 'settings',
+    });
+    expect(addressOfPath('/contacts#top')).toEqual({
+      list: 'contacts',
+      named: 'none',
+    });
   });
 
   it('reads a trailing slash as the same place', () => {
-    expect(screenOfPath('/settings/')).toEqual({ kind: 'settings' });
-    expect(screenOfPath('/')).toEqual({ kind: 'home' });
-    expect(screenOfPath('')).toEqual({ kind: 'home' });
+    expect(addressOfPath('/channels/settings/')).toEqual({
+      list: 'channels',
+      named: 'settings',
+    });
+  });
+
+  /**
+   * The bare base is what every door forwards to — `/open`, the landing page,
+   * the signed-in redirect — and it means the Channels tab. `pathOf` never
+   * produces it, so this is an accepted input rather than half of a round trip.
+   */
+  it('reads the bare base as the channel list', () => {
+    expect(addressOfPath('/')).toEqual({ list: 'channels', named: 'none' });
+    expect(addressOfPath('')).toEqual({ list: 'channels', named: 'none' });
   });
 
   /**
    * Forgiving on purpose. This runs against whatever is in the address bar —
    * a truncated paste, a link from a build with different names, a path the
-   * server's catch-all served the shell for — and Home is a correct and useful
-   * answer to all of them. An error screen would not be.
+   * server's catch-all served the shell for — and a list is a correct and
+   * useful answer to all of them. An error screen would not be.
    */
-  it('falls back to Home rather than failing', () => {
-    expect(screenOfPath('/nonsense')).toEqual({ kind: 'home' });
-    expect(screenOfPath('/settings/extra')).toEqual({ kind: 'home' });
-    // A channel route with no id is not a channel.
-    expect(screenOfPath('/c')).toEqual({ kind: 'home' });
-    expect(screenOfPath('/c/')).toEqual({ kind: 'home' });
+  it('falls back rather than failing', () => {
+    expect(addressOfPath('/nonsense')).toEqual({
+      list: 'channels',
+      named: 'none',
+    });
+    // A known frame with an unknown thing over it keeps the frame.
+    expect(addressOfPath('/contacts/nonsense')).toEqual({
+      list: 'contacts',
+      named: 'none',
+    });
+    expect(addressOfPath('/channels/settings/extra')).toEqual({
+      list: 'channels',
+      named: 'none',
+    });
   });
 
   /**
-   * Channel ids are opaque and this must not mangle one. They are
-   * `chan_` plus base62 today, but the encode/decode pair is what makes that
-   * an implementation detail rather than a constraint this file relies on.
+   * What a channel's address was until 2026-09-04. It lands on the list, which
+   * is where it would land even if it were parsed: nothing downstream can
+   * restore the id, so there is nothing for a special case to buy.
    */
-  it('carries an id that needed encoding, unchanged', () => {
-    const screen: Screen = { kind: 'channel', channelId: 'chan_a/b c' };
-    const path = pathOf(screen);
-    expect(path).not.toContain(' ');
-    expect(screenOfPath(path)).toEqual(screen);
-  });
-});
-
-describe('telling one place from another', () => {
-  it('separates different screens', () => {
-    expect(sameScreen({ kind: 'home' }, { kind: 'settings' })).toBe(false);
+  it('lands an address from before the ids went on the list', () => {
+    expect(addressOfPath('/c/chan_abc123')).toEqual({
+      list: 'channels',
+      named: 'none',
+    });
   });
 
-  it('separates two channels', () => {
-    expect(
-      sameScreen(
-        { kind: 'channel', channelId: 'a' },
-        { kind: 'channel', channelId: 'b' }
-      )
-    ).toBe(false);
-  });
-
-  it('recognises the same place', () => {
-    expect(sameScreen({ kind: 'support' }, { kind: 'support' })).toBe(true);
-    expect(
-      sameScreen(
-        { kind: 'channel', channelId: 'a' },
-        { kind: 'channel', channelId: 'a' }
-      )
-    ).toBe(true);
-  });
-});
-
-
-describe('arriving rather than looking', () => {
-  it('reads the one query that means step in', () => {
-    expect(wantsEntry('?enter=1')).toBe(true);
-    expect(wantsEntry('?enter=1&other=x')).toBe(true);
-    expect(wantsEntry('')).toBe(false);
-    expect(wantsEntry('?enter=0')).toBe(false);
-    // Not a truthiness test: only the value the server sends counts, so
-    // nothing else on an address can be read as an instruction to walk in.
-    expect(wantsEntry('?enter=yes')).toBe(false);
-    expect(wantsEntry('?enter')).toBe(false);
-  });
-
-  it('is never written into an address', () => {
-    // A one-shot intent, not a place. An address that kept saying it would
-    // step somebody back in every time they pressed Back.
-    for (const screen of SCREENS) {
-      expect(pathOf(screen)).not.toContain('enter');
-      expect(pathOf(screen)).not.toContain('?');
+  it('never reads an id out of anything', () => {
+    for (const path of [
+      '/c/chan_abc123',
+      '/channels/chan_abc123',
+      '/contacts/acct_1',
+      '/channels/settings/chan_1',
+    ]) {
+      expect(Object.keys(addressOfPath(path)).sort()).toEqual([
+        'list',
+        'named',
+      ]);
+      expect(pathOf(addressOfPath(path))).not.toContain('chan_');
+      expect(pathOf(addressOfPath(path))).not.toContain('acct_');
     }
+  });
+});
+
+describe('what an address can say about what is open', () => {
+  it('keeps the frame whatever is open over it', () => {
+    for (const detail of DETAILS) {
+      for (const list of LISTS) {
+        expect(addressOf(detail, list).list).toBe(list);
+      }
+    }
+  });
+
+  it('names the three screens that are one of a kind', () => {
+    expect(addressOf({ kind: 'settings' }, 'contacts')).toEqual({
+      list: 'contacts',
+      named: 'settings',
+    });
+    expect(addressOf({ kind: 'standings' }, 'channels')).toEqual({
+      list: 'channels',
+      named: 'standings',
+    });
+  });
+
+  /**
+   * The one loss, and the whole of it: a channel and a profile would need an
+   * id to be told apart, so an address says nothing about them — they read as
+   * the tab they were opened over, which is what the other pane is showing.
+   */
+  it('says nothing about the two that would need an id', () => {
+    expect(addressOf({ kind: 'channel', channelId: 'chan_1' }, 'channels')).toEqual(
+      { list: 'channels', named: 'none' }
+    );
+    expect(
+      addressOf({ kind: 'profile', id: 'acct_1', name: 'Ada' }, 'contacts')
+    ).toEqual({ list: 'contacts', named: 'none' });
+  });
+
+  it('drops every id, from any state the app can be in', () => {
+    for (const detail of DETAILS) {
+      for (const list of LISTS) {
+        const path = pathOf(addressOf(detail, list));
+        expect(path).not.toContain('chan_1');
+        expect(path).not.toContain('acct_1');
+      }
+    }
+  });
+});
+
+describe('what an address restores', () => {
+  /**
+   * **Every address restores**, which is what the nesting bought and why no
+   * part of the wiring has to normalise what it reads. The projection is lossy
+   * on the way out and total on the way back, so an address is never something
+   * the app can be handed and fail to honour.
+   */
+  it('round-trips every address through the state it names', () => {
+    for (const address of ADDRESSES) {
+      const { detail, list } = detailOfAddress(address);
+      expect(addressOf(detail, list)).toEqual(address);
+    }
+  });
+
+  /**
+   * **Navigating never changes server state**, and this is where that is
+   * decided rather than in the wiring: applying an address can only ever
+   * produce a detail that talks to nobody. A channel is the one that would —
+   * mounting `ChannelView` watches it, which opens a subscription — and no
+   * address can name one.
+   *
+   * It was not always so. `applyNav` watched the channel an address named, and
+   * `popstate` was one of its callers, so pressing Back subscribed you on the
+   * server. Pinned here because an id creeping back into an address would
+   * bring that with it, silently.
+   */
+  it('never restores anything that would talk to the server', () => {
+    for (const address of ADDRESSES) {
+      const { detail } = detailOfAddress(address);
+      expect(detail.kind).not.toBe('channel');
+      expect(detail.kind).not.toBe('profile');
+    }
+  });
+
+  it('restores the frame an address was written from', () => {
+    expect(detailOfAddress({ list: 'contacts', named: 'settings' })).toEqual({
+      detail: { kind: 'settings' },
+      list: 'contacts',
+    });
+    expect(detailOfAddress({ list: 'contacts', named: 'none' })).toEqual({
+      detail: NO_DETAIL,
+      list: 'contacts',
+    });
   });
 });

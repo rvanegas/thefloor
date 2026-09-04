@@ -666,17 +666,14 @@ describe('being asked to be a contact', () => {
       askerId: alice.account.id,
     });
     expect(answer.statusCode).toBe(200);
-    // The door rather than a train. Which bundle this browser should get is
-    // one question with one place that answers it — see open.test.ts — so this
-    // route names the destination and nothing else.
-    // The door rather than a train, and `enter` because they were audible in
-    // that room a second ago — arriving outside it would be the app forgetting
-    // what it had just watched them do.
-    expect(answer.json()).toEqual({
-      ok: true,
-      channelId,
-      url: `/open/c/${channelId}?enter=1`,
-    });
+    // **The door, and nothing about where inside the app to go.** Which bundle
+    // this browser should get is one question with one place that answers it —
+    // see open.test.ts. Which *room* used to be here too, as `/open/c/<id>`
+    // with `?enter=1` on the end; since 2026-09-04 no address in this
+    // application carries an id, so the channel is handed to the app in this
+    // tab's `sessionStorage` by the page that is leaving. It is still returned
+    // as `channelId`, which is what the guest page writes there.
+    expect(answer.json()).toEqual({ ok: true, channelId, url: '/open' });
 
     // Contacts, both ways, and the pair's own standing channel with them.
     expect(app.accounts.areContacts(alice.account.id, dana.account.id)).toBe(true);
