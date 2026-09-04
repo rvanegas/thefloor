@@ -175,20 +175,34 @@ affordance ping deserves.
 ### The habit the app has to teach
 
 There is an observed failure that is not a bug in anything. Somebody steps into
-an empty channel, pings, and **immediately backgrounds the app** — then waits,
-with the familiar low-grade alarm of somebody expecting a call. It works, in
-that a notification will come back. But it reproduces the exact posture the app
-exists to dissolve, and it is fragile in the way waiting for a call is fragile.
+an empty channel, pings, and then waits with the familiar low-grade alarm of
+somebody expecting a call — the posture telephony trained, transplanted whole
+into an app built to dissolve it.
 
-The pattern the app wants is the opposite, and takes one sentence to say: **you
-stepped in, so stay in.** The person you pinged does not call you back; they
-walk in and you are already there. Whoever arrives first waits, and waiting is
-cheap here precisely because nothing is ringing.
+**Backgrounding the app is not the mistake.** Somebody who walks away without
+stepping out is *nearby*: their presence lapses but they are known to be within
+reach and one notification away, which is a state the roster says out loud
+precisely so that the people still there know to ping rather than to give up.
+What the app asks of somebody who has pinged is not attention but
+**reachability** — that a banner would find them. Nothing about that requires
+the app in front of you, and demanding it would be the same error as the ring,
+one screen further along.
 
-*Direction.* Stepping into an empty channel is the moment to say it, and the
-moment the app currently says nothing. Instructional copy there — what happens
-next, and that the way to be found is to remain — is the cheapest available
-correction to the habit users import from telephony.
+**And stepping in costs less than answering a call does.** Walking into an
+empty channel does not seize the device: whatever was playing keeps playing,
+because there is nobody to hear yet and the app takes the audio only when
+somebody is actually there to be heard. That is non-interruption pointed at
+the person using the app rather than at the person being reached, and no
+telephone call has ever offered it — answering one stops your world by
+definition. You can step in, ping, and carry on with the podcast, and the
+channel is simply a door you have left open behind you.
+
+*Direction.* Stepping into an empty channel is the moment to say both halves,
+and the moment the app currently says nothing. Instructional copy there — that
+what happens next is a notification rather than a call, that leaving the app is
+fine and going unreachable is not, and that nothing here is going to interrupt
+what you were doing — is the cheapest available correction to the habit users
+import from telephony.
 
 ## Six, and what the guest tier is
 
