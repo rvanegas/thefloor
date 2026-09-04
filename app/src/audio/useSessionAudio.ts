@@ -29,6 +29,11 @@ import {
   type PlayoutReading,
 } from './playout';
 import {
+  REBIND_ATTEMPTS,
+  REBIND_COOLDOWN_MS,
+  rebindTracks,
+} from './rebind';
+import {
   NO_RECOVERY,
   onRouteObserved,
   type RecoveryState,
@@ -198,6 +203,23 @@ export interface SessionAudio {
    * argued, and a harness must not quietly apply the change it exists to test.
    */
   reconnect: () => void;
+  /**
+   * Drops and retakes every remote audio subscription, leaving the room, the
+   * socket and the session alone.
+   *
+   * **The recovery that is not a rebuild.** `reconnect` above is the one the
+   * freeze detector is forbidden to call, because a rebuild re-enters the
+   * failing case by construction; this produces the opposite state — a
+   * subscription arriving at a room that is already up — which is the only
+   * state a shared track has ever been observed to render in. See
+   * `audio/rebind.ts` for why that is expected to matter.
+   *
+   * Exposed for the same reason `reconnect` is: the panel needs to press it by
+   * hand, frozen and alone, before anything is wired to press it
+   * automatically. The automatic caller is the playout poll below, and it is
+   * gated separately.
+   */
+  resubscribe: () => void;
 }
 
 /**
@@ -530,6 +552,19 @@ async function applyFor(hasAudio: boolean): Promise<void> {
  *                  publish. Under either rule the two part company — a guest
  *                  without the microphone, and anybody self-muted, are audio
  *                  without being capture.
+ * @param recoverPlayout whether a track the detector reports frozen should be
+ *                  rebound automatically. **Off by default and passed
+ *                  `app.debug` by `App.tsx`**, which is the same gate the
+ *                  diagnostic panel and the shipped log are behind, and it is
+ *                  deliberate that this is the first thing behind that flag
+ *                  which *does* something rather than reporting. The freeze
+ *                  detector's own header warns that its false-positive rate
+ *                  against real data is unmeasured — a backgrounded app
+ *                  renders nothing on purpose — and this is the build where a
+ *                  false positive stops being a spurious line and starts being
+ *                  an action. One account first, then the flag widens to
+ *                  everybody by changing one argument here rather than by
+ *                  rewriting anything.
  */
 export function useSessionAudio(
   mediaRoom: string | null,
@@ -537,7 +572,8 @@ export function useSessionAudio(
   token: string | null,
   selfMuted: boolean,
   micNeeded: boolean,
-  hasAudio: boolean
+  hasAudio: boolean,
+  recoverPlayout = false
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -551,6 +587,7 @@ export function useSessionAudio(
     // Replaced below, once `setGeneration` exists to close over. Never called
     // in between: nothing renders before the hook returns.
     reconnect: () => {},
+    resubscribe: () => {},
   });
   const roomRef = useRef<Room | null>(null);
   /**
@@ -587,6 +624,15 @@ export function useSessionAudio(
   /** Same again: somebody else muting must not tear the room down. */
   const hasAudioRef = useRef(hasAudio);
   hasAudioRef.current = hasAudio;
+  /**
+   * A ref for the same reason the others are: the playout poll is keyed on the
+   * connection's status, and a flag arriving with `hello` a moment after the
+   * room came up must not restart the watches. The clocks are what the fault
+   * is measured against, and a gate that reset them would delete the
+   * measurement in order to enable the repair.
+   */
+  const recoverPlayoutRef = useRef(recoverPlayout);
+  recoverPlayoutRef.current = recoverPlayout;
 
   /**
    * What was last asked of the session, so that the effect below can tell an
@@ -1262,6 +1308,16 @@ export function useSessionAudio(
   useEffect(() => {
     if (state.status !== 'connected') return;
     let watches = initialPlayoutWatches();
+    /**
+     * What has been tried, by track sid, for the life of this connection.
+     *
+     * Alongside `watches` rather than in a ref, and that is the same lifetime
+     * argument the watches already make: both are statements about one
+     * connection, and a rebuild that starts a fresh room should start a fresh
+     * count. A ref would carry a spent budget across a reconnection and leave
+     * a track that could have been repaired unrepaired for the wrong reason.
+     */
+    const attempts = new Map<string, { count: number; at: number }>();
     let cancelled = false;
 
     const poll = async () => {
@@ -1290,10 +1346,55 @@ export function useSessionAudio(
         }
       }
       if (cancelled) return;
-      const { next, events } = onPlayoutReadings(watches, readings, Date.now());
+      const now = Date.now();
+      const { next, events, froze } = onPlayoutReadings(watches, readings, now);
       watches = next;
       for (const event of events) recordEvent(event);
+      if (recoverPlayoutRef.current) recover(froze, now);
     };
+
+    /**
+     * Rebinds the tracks whose freeze was reported this poll, within bounds.
+     *
+     * **Bounded three ways, and each bound is answering something that is not
+     * known rather than being defensive.** How often the detector is wrong is
+     * unmeasured, so an unbounded repair would be an unmeasured action on an
+     * unmeasured signal.
+     *
+     * *Per track and per connection*, because a room that is genuinely dead
+     * cannot be repaired by this and a repair that kept trying would be the
+     * reconnect loop `PLAYOUT.md` forbids, wearing a different hat. Three is
+     * enough for the case this is for — every recovery in the 2026-09-04 log
+     * arrived within about a second of one engine start — and small enough
+     * that a wrong theory costs three subscription updates rather than a
+     * conversation.
+     *
+     * *A cooldown*, so that a track which freezes, is rebound, renders for one
+     * poll and freezes again cannot spend its three attempts inside six
+     * seconds.
+     *
+     * *Only while the app is active*, which the poll already guarantees above
+     * and is restated nowhere: a backgrounded app renders nothing on purpose,
+     * and that is the false positive most likely to exist.
+     *
+     * Every attempt is logged whether or not it works, and the verdict is the
+     * `playout resumed` line the detector was already writing — the instrument
+     * that found the fault is the one that reports on the fix, which is the
+     * property that makes this measurable in the field at all.
+     */
+    function recover(froze: string[], now: number): void {
+      for (const sid of froze) {
+        const attempt = attempts.get(sid) ?? { count: 0, at: 0 };
+        if (attempt.count >= REBIND_ATTEMPTS) continue;
+        if (now - attempt.at < REBIND_COOLDOWN_MS) continue;
+        const acted = rebindTracks(roomRef.current, new Set([sid]));
+        if (acted.length === 0) continue;
+        attempts.set(sid, { count: attempt.count + 1, at: now });
+        for (const label of acted) {
+          recordEvent(`resub ${label} (attempt ${attempt.count + 1})`);
+        }
+      }
+    }
 
     const timer = setInterval(() => void poll(), PLAYOUT_POLL_MS);
     return () => {
@@ -1315,5 +1416,17 @@ export function useSessionAudio(
     setGeneration((g) => g + 1);
   };
 
-  return { ...state, reconnect };
+  /**
+   * Attached on the way out beside `reconnect`, and for its reason: neither is
+   * state, and holding either in state would make pressing a button a render
+   * that could re-run the effects it is trying not to disturb — which for this
+   * one is the whole point, since not disturbing the room is what
+   * distinguishes it from the button above it.
+   */
+  const resubscribe = () => {
+    const acted = rebindTracks(roomRef.current, null);
+    for (const label of acted) recordEvent(`resub ${label} (by hand)`);
+  };
+
+  return { ...state, reconnect, resubscribe };
 }

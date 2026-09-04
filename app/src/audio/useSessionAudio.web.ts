@@ -9,6 +9,7 @@ import {
   type RemoteTrack,
 } from 'livekit-client';
 import { api } from '../api/http';
+import { rebindTracks } from './rebind';
 
 /**
  * The browser's session audio, which is the native hook with the iOS half
@@ -78,6 +79,14 @@ export interface SessionAudio {
   micOpen: boolean;
   asked: AudioIntent | null;
   reconnect: () => void;
+  /**
+   * Structural parity with the native hook, which is what `ChannelView`'s
+   * imported type is checked against. Real rather than a stub, since the
+   * subscription it rebinds is the same livekit-client object on both
+   * platforms — but nothing here presses it: the panel that does is iOS-only,
+   * and the fault it repairs is an `AVAudioSession` one. See `audio/rebind.ts`.
+   */
+  resubscribe: () => void;
 }
 
 /** Mirrors the native file deliberately, so the two cannot drift. */
@@ -135,6 +144,7 @@ export function useSessionAudio(
     micOpen: false,
     asked: null,
     reconnect: () => {},
+    resubscribe: () => {},
   });
 
   const roomRef = useRef<Room | null>(null);
@@ -327,7 +337,11 @@ export function useSessionAudio(
     };
   }, [micNeeded, selfMuted, state.status, patch]);
 
-  return { ...state, reconnect };
+  const resubscribe = useCallback(() => {
+    rebindTracks(roomRef.current, null);
+  }, []);
+
+  return { ...state, reconnect, resubscribe };
 }
 
 /** Never throws, on the same reasoning as the native file's version. */

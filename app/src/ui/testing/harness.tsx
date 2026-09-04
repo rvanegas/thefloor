@@ -210,6 +210,7 @@ export const AUDIO = {
   // The probe harness's way back from a dead engine. Never pressed by these
   // tests: the panel it lives on is gated on `mockApp.debug`.
   reconnect: () => {},
+  resubscribe: () => {},
 };
 
 /** The same connection, with somebody audible on it. */

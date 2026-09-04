@@ -157,21 +157,36 @@ export function onPlayoutSample(
  * Note that dropping is keyed on the track being *absent from the readings*,
  * not on its samples being `null`: a track that is present but unreadable keeps
  * its clock, which is the distinction `onPlayoutSample` is built around.
+ *
+ * **`froze` is the edge and not the state**, added 2026-09-04 when something
+ * finally acted on this. It names the tracks whose freeze was reported *by
+ * this call* — the same moment that produces the `playout frozen` line, and
+ * never a track that was already frozen when the poll ran. A recovery driven
+ * by the state rather than the edge would fire again every two seconds for as
+ * long as the fault lasted, which is how a bounded repair becomes a loop. The
+ * caller still bounds it; this is what makes that bound easy to write.
+ *
+ * It is derived here rather than returned by `onPlayoutSample` because it is a
+ * fact about the transition between two watches, which is the pair this
+ * function is already holding. Parsing it back out of the event string would
+ * work and would tie a behaviour to the wording of a log line.
  */
 export function onPlayoutReadings(
   watches: PlayoutWatches,
   readings: PlayoutReading[],
   now: number
-): { next: PlayoutWatches; events: string[] } {
+): { next: PlayoutWatches; events: string[]; froze: string[] } {
   const next: PlayoutWatches = {};
   const events: string[] = [];
+  const froze: string[] = [];
 
   for (const reading of readings) {
     const watch = watches[reading.key] ?? initialPlayoutWatch(now);
     const step = onPlayoutSample(watch, reading.samples, now, reading.label);
     next[reading.key] = step.next;
     if (step.event) events.push(step.event);
+    if (!watch.reported && step.next.reported) froze.push(reading.key);
   }
 
-  return { next, events };
+  return { next, events, froze };
 }

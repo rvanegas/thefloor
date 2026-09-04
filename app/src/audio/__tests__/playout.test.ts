@@ -245,3 +245,104 @@ describe('one clock per track', () => {
     expect(after.events[0]).toContain('frozen');
   });
 });
+
+/**
+ * The edge the repair hangs off, added 2026-09-04 when something first acted
+ * on this file rather than logging it.
+ *
+ * `froze` has to name a track exactly once per freeze, on the same poll that
+ * writes the line. The whole of the bound on the repair rests on that: a
+ * caller handed the *state* instead would rebind every two seconds for as long
+ * as the fault lasted, which is the reconnect loop `PLAYOUT.md` forbids
+ * wearing a different hat.
+ */
+describe('naming the freeze that has just been reported', () => {
+  const media = { key: 'TR_media', label: 'media:chan_x' };
+  const person = { key: 'TR_person', label: 'acct_y' };
+
+  function started(at = t0) {
+    return onPlayoutReadings(
+      initialPlayoutWatches(),
+      [
+        { ...media, samples: 100 },
+        { ...person, samples: 100 },
+      ],
+      at
+    ).next;
+  }
+
+  it('says nothing while the count advances', () => {
+    const step = onPlayoutReadings(
+      started(),
+      [{ ...media, samples: 200 }],
+      t0 + 2_000
+    );
+    expect(step.froze).toEqual([]);
+  });
+
+  it('names the track on the poll that reports it, and only that one', () => {
+    const step = onPlayoutReadings(
+      started(),
+      [
+        { ...media, samples: 100 },
+        { ...person, samples: 500 },
+      ],
+      t0 + PLAYOUT_FREEZE_MS
+    );
+
+    expect(step.froze).toEqual(['TR_media']);
+    expect(step.events).toHaveLength(1);
+  });
+
+  it('does not name it again while it stays frozen', () => {
+    const frozen = onPlayoutReadings(
+      started(),
+      [{ ...media, samples: 100 }],
+      t0 + PLAYOUT_FREEZE_MS
+    );
+    expect(frozen.froze).toEqual(['TR_media']);
+
+    const still = onPlayoutReadings(
+      frozen.next,
+      [{ ...media, samples: 100 }],
+      t0 + 20_000
+    );
+    expect(still.froze).toEqual([]);
+    expect(still.events).toEqual([]);
+  });
+
+  it('names it again after it recovered and froze a second time', () => {
+    const frozen = onPlayoutReadings(
+      started(),
+      [{ ...media, samples: 100 }],
+      t0 + PLAYOUT_FREEZE_MS
+    );
+    const back = onPlayoutReadings(
+      frozen.next,
+      [{ ...media, samples: 101 }],
+      t0 + 12_000
+    );
+    expect(back.froze).toEqual([]);
+
+    const again = onPlayoutReadings(
+      back.next,
+      [{ ...media, samples: 101 }],
+      t0 + 12_000 + PLAYOUT_FREEZE_MS
+    );
+    expect(again.froze).toEqual(['TR_media']);
+  });
+
+  /**
+   * An absence of measurement is not a measurement of absence, and the repair
+   * must not be driven by one. A track that could not be read holds its clock,
+   * so it neither freezes nor is named here.
+   */
+  it('says nothing about a track it could not read', () => {
+    const step = onPlayoutReadings(
+      started(),
+      [{ ...media, samples: null }],
+      t0 + 60_000
+    );
+    expect(step.froze).toEqual([]);
+  });
+});

@@ -1356,6 +1356,7 @@ export function ChannelView({
                   asked={audio.asked}
                   steadyHeadset={app.steadyHeadset}
                   onReconnect={audio.reconnect}
+                  onResubscribe={audio.resubscribe}
                 />
               ) : null}
             </Card>
@@ -1427,6 +1428,7 @@ export function ChannelView({
                 asked={audio.asked}
                 steadyHeadset={app.steadyHeadset}
                 onReconnect={audio.reconnect}
+                onResubscribe={audio.resubscribe}
               />
             </Card>
           </>

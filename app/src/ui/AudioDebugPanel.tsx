@@ -49,6 +49,7 @@ export function AudioDebugPanel({
   asked,
   steadyHeadset,
   onReconnect,
+  onResubscribe,
 }: {
   asked: AudioIntent | null;
   /**
@@ -64,6 +65,13 @@ export function AudioDebugPanel({
   steadyHeadset: boolean;
   /** Tears the room down and builds a fresh one. See `SessionAudio.reconnect`. */
   onReconnect: () => void;
+  /**
+   * Drops and retakes the subscriptions, leaving the room standing. See
+   * `SessionAudio.resubscribe` — and note that it is not `onReconnect`'s
+   * smaller cousin but its opposite, since what it avoids doing is the thing
+   * that has never worked.
+   */
+  onResubscribe: () => void;
 }) {
   /**
    * Collapsed by default.
@@ -235,6 +243,23 @@ export function AudioDebugPanel({
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recover — so a kill costs no reinstall</Text>
+            {/*
+              First because it is the cheapest and the only one of the three
+              that is a candidate *fix* rather than a way out of a dead app.
+              The other two throw away something that is working — the session,
+              or the whole room — and the room is the one the shared-playback
+              freeze has never come back from, which is why the freeze detector
+              is forbidden to press it. This drops one subscription and takes
+              it again half a second later. See `audio/rebind.ts`.
+
+              Its purpose is a reading rather than a repair: frozen and alone,
+              press it, and whether the sound returns settles by ear whether the
+              receiver's binding is the mechanism — which is what decides
+              whether the automatic version behind `debug` is a fix or a
+              placebo. The `resub` line it writes and the `playout resumed` line
+              that may follow are the pair to read together.
+            */}
+            <Tap label="Re-subscribe the tracks" onPress={onResubscribe} />
             <Tap
               label="Restart audio session"
               onPress={() => void restartAudioSession(recordEvent)}

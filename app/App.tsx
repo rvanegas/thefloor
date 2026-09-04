@@ -154,7 +154,13 @@ function Root() {
     token,
     !!live?.selfMuted[me],
     micNeeded,
-    hasAudio
+    hasAudio,
+    // The same flag the panel and the shipped log are behind, and the first
+    // thing behind it that acts rather than reports. One account carries the
+    // automatic repair until its false-positive rate against real data is
+    // something better than unmeasured; widening it to everybody is this
+    // argument becoming `true`. See `useSessionAudio`'s `recoverPlayout`.
+    app.debug
   );
 
   /**
