@@ -75,6 +75,12 @@ export const REBIND_COOLDOWN_MS = 10_000;
 interface RebindablePublication {
   trackSid: string;
   setSubscribed(subscribed: boolean): void;
+  /**
+   * The SDK's own answer, read by `takeSubscriptions` and absent on the
+   * hand-built objects `rebindTracks`'s tests pass in — hence optional, and
+   * hence compared against `false` rather than trusted to be a boolean.
+   */
+  isSubscribed?: boolean;
 }
 
 interface RebindableParticipant {
@@ -170,4 +176,79 @@ export function rebindTracks(
   }
 
   return acted;
+}
+
+/**
+ * How long to let a room settle before taking its subscriptions.
+ *
+ * **The whole experiment is in this number being greater than zero.** With
+ * `autoSubscribe: false` the socket comes up subscribed to nothing, and this is
+ * the gap before the first subscription is asked for — so what is produced on
+ * purpose is the state that has always rendered, a subscription arriving at a
+ * room that is already up and an engine that is already running, rather than
+ * the one that never has.
+ *
+ * A second, because that is the shape of the evidence rather than a tuned
+ * value. The connections that render have had their track arrive seconds to
+ * tens of seconds after the socket; the ones that do not have it arrive inside
+ * the same tick. Anything comfortably clear of a tick tests the hypothesis, and
+ * a second is short enough that somebody stepping into a channel does not
+ * experience it as a fault.
+ */
+export const SUBSCRIBE_SETTLE_MS = 1_000;
+
+/**
+ * Subscribes to every remote audio track that is not subscribed already.
+ *
+ * The other half of `autoSubscribe: false`: with it off, nothing is subscribed
+ * by the server and every publication — those present at connect and those
+ * arriving later — has to be asked for. Both are asked for through here, and
+ * deliberately so, because the late arrival is the case that has always worked
+ * and there is no reason to give it a different path.
+ *
+ * @returns one label per track newly subscribed, `<identity> (<sid>)`, in the
+ *          order found. Empty when there was nothing to take, which is the
+ *          ordinary result of the second call onwards and is not an error.
+ *
+ * **Never throws**, for `rebindTracks`'s reasons: it is called from a timer and
+ * from an event, and a publication that has gone in between is ordinary.
+ */
+export function takeSubscriptions(room: RebindableRoom | null): string[] {
+  if (!room) return [];
+  const taken: string[] = [];
+
+  let participants: Iterable<RebindableParticipant>;
+  try {
+    participants = room.remoteParticipants.values();
+  } catch {
+    return [];
+  }
+
+  for (const participant of participants) {
+    let publications: Iterable<unknown>;
+    try {
+      publications = participant.audioTrackPublications.values();
+    } catch {
+      continue;
+    }
+    for (const candidate of publications) {
+      const publication = rebindable(candidate);
+      if (!publication) continue;
+      // Asked once. `isSubscribed` is the SDK's own answer and is false both
+      // for a publication never asked for and for one asked for and not yet
+      // delivered — so a second call while the first is in flight would ask
+      // again, which is harmless on the wire and would write a second log line
+      // claiming a subscription that was already taken. The line is the
+      // evidence here, so it must not double.
+      if (publication.isSubscribed !== false) continue;
+      try {
+        publication.setSubscribed(true);
+      } catch {
+        continue;
+      }
+      taken.push(`${participant.identity} (${publication.trackSid})`);
+    }
+  }
+
+  return taken;
 }

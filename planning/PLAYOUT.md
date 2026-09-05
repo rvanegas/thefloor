@@ -85,10 +85,21 @@ Each of these is measured, not reasoned. Several cost a build to establish.
 
 ---
 
-## What settled it: the microphone, read at the engine
+## The `rec` reading, and its refutation
 
-**Remote audio renders if and only if this device's own microphone is held
-open. `play=T rec=F` is playout enabled and rendering nothing.**
+> **Refuted 2026-09-05 as stated, and kept because the retraction is the
+> useful part.** The correlation below is real across 2026-09-04's fourteen
+> engine starts and it is not the mechanism: on 2026-09-05 at `00:13:13` a
+> track subscribed under `engine start play=T rec=F` rendered for eleven
+> seconds and was heard. So `rec=T` is **not necessary** for rendering, and the
+> "if and only if" was a claim fourteen samples could not support. What
+> survives is the weaker half — every `rec=T` start observed has *revived* a
+> frozen receiver — and the variable that does separate 2026-09-05's two cases
+> is the one this file had already named, `N audio already published`. See
+> *What 2026-09-05 added* below.
+
+**Claimed: remote audio renders if and only if this device's own microphone is
+held open. `play=T rec=F` is playout enabled and rendering nothing.**
 
 The 2026-09-04 evening log, from the build that shipped `audio/rebind.ts`, has
 fourteen engine starts and splits on that flag with no exceptions:
@@ -162,13 +173,45 @@ apparatus that produced the reading — but the automatic half is `false` in
 
 ---
 
-## The former hypothesis, superseded 2026-09-04
+## What 2026-09-05 added
 
-> Kept because its controlled test is real and its retraction is instructive:
-> the ordering is not the variable, and the section above says what is. The
-> connect-time correlation it rests on is explained by `rec`, since a
-> connection that subscribes late is also one whose engine has had time to
-> reach a `rec=T` start.
+**Two connections a minute apart, on one phone, alone, differing in the
+variable and in nothing else** — which is the same shape as build 94's test and
+comes out the same way:
+
+    00:13:02  room connected, 0 audio already published
+    00:13:13  sub + media:chan_98Zzahu8ox2n   (11s later)  → heard, no freeze
+    00:13:43  room connected, 1 audio already published
+    00:13:43  sub + media:chan_H90XCmha58Cs   (same tick)
+    00:13:51  playout frozen 6s
+
+Both ran under `engine start play=T rec=F`. The first rendered. That is what
+refutes the `rec` reading above, and it restores the connect-time ordering
+hypothesis, which had been demoted on the strength of the correlation it
+refutes.
+
+**The microphone pin never applied its treatment**, which is why the build that
+carried it settled nothing about `rec`. It produced `connect muted CALL` three
+times exactly as intended, and every one was followed by `engine start play=T
+rec=F`: `holdMicrophone` refuses to open a microphone that is shut — a rule,
+not an omission, because publish-then-mute puts a live microphone on the wire —
+so arriving from `released` it no-ops. The pin has been removed rather than
+switched off. It also violated the `muted` branch's stated assumption that a
+configuration cannot change on a mute, which is a trap to leave lying around.
+
+**The earpiece report is unexplained and left that way.** Every `route` line
+through that stretch reads `Speaker(Speaker)`, including while the output was
+heard from the earpiece. Either the reader reports the preference rather than
+the active port, or what was heard was `videoChat`'s voice-processing gain
+rather than a different port. Two readings, no instrument that separates them.
+
+---
+
+## The hypothesis this returns to
+
+> Demoted 2026-09-04 on the `rec` correlation and **restored 2026-09-05** when
+> that correlation was refuted. Its controlled test on build 94 stands, and
+> 00:13 above is a second one.
 
 **A track that is already published when the room connects gets subscribed
 before playout is ready, and never renders. A track that arrives afterwards
@@ -347,31 +390,26 @@ data.
 
 ## What to do next
 
-1. **Run the pinned build and read the result.** `App.tsx` passes `app.debug`
-   to `pinCallSession`, which produces `muted CALL` whenever anything is
-   subscribed. Alone with the pump, the track either renders — and the
-   correlation becomes a result — or it does not, and the flag was a
-   coincidence across fourteen samples. Either outcome is worth the build. The
-   line to look for is the absence of `playout frozen` entirely; the line that
-   would refute it is `playout frozen` beside an `engine start play=T rec=T`.
-2. **Find out why `play=T rec=F` renders nothing.** The open question once the
-   above confirms. It is about the WebRTC audio device module on iOS, not about
-   LiveKit, rooms or subscriptions, so `engineState.ts`'s readers and the unrun
-   bisection in `probe.ts` are the instruments that bear on it — with
-   `engineState.ts`'s own warning that reading the ADM has stopped the audio
+1. **Read the deferred-subscribe build.** `App.tsx` passes `app.debug` to
+   `deferSubscribe`, which connects with `autoSubscribe: false` and takes the
+   subscriptions a second later — item 3 below, finally built. The lines to
+   read are `subscribe deferred <identity> (<sid>)` about a second after
+   `room connected, N audio already published`, and then whether any `playout
+   frozen` follows. Re-entering a channel that already has the pump in it is
+   the case to exercise; it is the one that has never rendered.
+2. **If it renders, the ordering is the mechanism** and the fix is the shape
+   already in the build — but decide deliberately whether a second of silence
+   on every connection is the price, or whether the wait can key on something
+   real rather than a timer.
+3. **If it still freezes, ordering is dead too**, and what is left is the ADM
+   itself: `engineState.ts`'s readers and the unrun bisection in `probe.ts`,
+   with that file's own warning that reading the ADM has stopped the audio
    before.
-3. **Cost the workaround honestly if it comes to that.** Holding the microphone
-   whenever anything is subscribed would render, on this evidence, and would
-   pay a Bluetooth profile handover and a microphone-in-use indicator for a
-   channel nobody is speaking in. That is a real cost to weigh rather than a
-   detail, and it is a worse trade than a fix in the ADM.
 4. **Do not wire the freeze detector to any recovery that stops the engine.**
-   That now covers `reconnect()` and the subscription rebind both, and the rule
-   generalises: a recovery is only admissible if the engine it leaves behind was
-   started `rec=T`.
-5. **Re-read the log for `rec` before theorising about anything else here.**
-   Three hypotheses have now been retired in this file, and every one of them
-   was settled by a flag that was already being logged.
+   That covers `reconnect()` and the subscription rebind both.
+5. **Two hypotheses have now died here of being plausible**, and both died to a
+   flag that was already in the log. Read the log before theorising, and hold a
+   correlation to the number of samples it actually has.
 
 ---
 

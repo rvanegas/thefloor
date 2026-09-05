@@ -177,21 +177,25 @@ function Root() {
     // nothing. See `audio/rebind.ts` and `planning/PLAYOUT.md`.
     false,
     // **The experiment this build exists for, and the thing to take back out.**
-    // Produces `muted CALL` whenever anything is subscribed, so that being
-    // alone with the shared-playback pump holds the microphone and starts the
-    // engine `rec=T` instead of releasing it and starting `rec=F`. If the
-    // fourteen-sample split in `PLAYOUT.md` is the mechanism, the track renders
-    // and the correlation becomes a result; if it stays silent, the flag was a
-    // coincidence and the investigation restarts.
+    // Connects with `autoSubscribe: false` and takes the subscriptions a second
+    // later, so the subscription arrives at a room that is already up instead
+    // of on the same tick as the socket. That is the ordering PLAYOUT.md has
+    // wanted tested since build 92, and 2026-09-05's log put it back in front:
+    // the channel with `0 audio already published` rendered and the one with
+    // `1` froze, in the same minute on the same phone.
     //
-    // Note it is the *microphone* and not the category: `released CALL` is
-    // already `playAndRecord` and already starts `rec=F`, so pinning the
-    // session alone would have reproduced the fault under a new name.
+    // It replaces the microphone pin, which never applied its treatment —
+    // `holdMicrophone` refuses to open a shut microphone, so `muted CALL`
+    // produced `rec=F` every time and tested nothing. That reading is in
+    // PLAYOUT.md; the code is gone rather than left switched off, because a
+    // pin that also violated the `muted` branch's stated assumption is a trap
+    // to leave lying around.
     //
-    // `app.debug` because holding the microphone lights the system indicator
-    // and hands Bluetooth to HFP, and one phone answering a question must not
-    // charge that to everybody. Whichever way it comes out, this argument goes
-    // back to `false` and the derivation in `useSessionAudio` goes with it.
+    // `app.debug` because this is a real change to how every connection is
+    // made, and one account carries it first. Deliberately the only experiment
+    // in this build: `autoSubscribe: false` wants a build with nothing else in
+    // it, and two variables at once is the mistake this subsystem keeps
+    // re-teaching.
     app.debug
   );
 

@@ -1,4 +1,4 @@
-import { REBIND_GAP_MS, rebindTracks } from '../rebind';
+import { REBIND_GAP_MS, rebindTracks, takeSubscriptions } from '../rebind';
 
 /**
  * The recovery that leaves the room standing.
@@ -178,4 +178,100 @@ it('swallows a retake that arrives after the room has gone', () => {
 
   expect(() => clock.flush()).not.toThrow();
   expect(vanishing.calls).toBe(2);
+});
+
+/**
+ * The other half of `autoSubscribe: false`, added 2026-09-05.
+ *
+ * What is pinned here is mostly that it asks **once**. The log line is the
+ * evidence for the whole experiment — it is what says a subscription was taken
+ * a second after the socket rather than on it — so a second call that re-asked
+ * for a track already asked for would write a line claiming something that had
+ * already happened, which is the failure mode this investigation has been
+ * burned by twice.
+ */
+describe('taking deferred subscriptions', () => {
+  function publication(sid: string, isSubscribed: boolean | undefined) {
+    const asked: boolean[] = [];
+    return {
+      pub: {
+        trackSid: sid,
+        isSubscribed,
+        setSubscribed: (v: boolean) => asked.push(v),
+      },
+      asked,
+    };
+  }
+
+  function roomWith(pubs: unknown[]) {
+    return {
+      remoteParticipants: new Map([
+        [
+          'media',
+          {
+            identity: 'media:chan_x',
+            audioTrackPublications: new Map(
+              pubs.map((p, i) => [String(i), p])
+            ),
+          },
+        ],
+      ]),
+    };
+  }
+
+  it('subscribes a publication that is not subscribed, and names it', () => {
+    const a = publication('TR_a', false);
+    const taken = takeSubscriptions(roomWith([a.pub]));
+
+    expect(a.asked).toEqual([true]);
+    expect(taken).toEqual(['media:chan_x (TR_a)']);
+  });
+
+  it('leaves one that is already subscribed alone', () => {
+    const a = publication('TR_a', true);
+    const taken = takeSubscriptions(roomWith([a.pub]));
+
+    expect(a.asked).toEqual([]);
+    expect(taken).toEqual([]);
+  });
+
+  it('does not ask twice for the same track', () => {
+    // The SDK answers `false` until the track is actually delivered, so a
+    // second call while the first is in flight sees the same value. What stops
+    // the double line is the publication reporting its own state, which the
+    // second call reads after `setSubscribed` has set it.
+    const a = publication('TR_a', false);
+    const room = roomWith([a.pub]);
+
+    expect(takeSubscriptions(room)).toHaveLength(1);
+    a.pub.isSubscribed = true;
+    expect(takeSubscriptions(room)).toEqual([]);
+    expect(a.asked).toEqual([true]);
+  });
+
+  it('takes several tracks and names each', () => {
+    const a = publication('TR_a', false);
+    const b = publication('TR_b', false);
+    const taken = takeSubscriptions(roomWith([a.pub, b.pub]));
+
+    expect(taken).toEqual(['media:chan_x (TR_a)', 'media:chan_x (TR_b)']);
+  });
+
+  it('says nothing about a room that has gone', () => {
+    expect(takeSubscriptions(null)).toEqual([]);
+  });
+
+  it('carries on past a publication that throws', () => {
+    const bad = {
+      trackSid: 'TR_bad',
+      isSubscribed: false,
+      setSubscribed: () => {
+        throw new Error('gone');
+      },
+    };
+    const good = publication('TR_good', false);
+    const taken = takeSubscriptions(roomWith([bad, good.pub]));
+
+    expect(taken).toEqual(['media:chan_x (TR_good)']);
+  });
 });

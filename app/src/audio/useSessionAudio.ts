@@ -32,6 +32,8 @@ import {
   REBIND_ATTEMPTS,
   REBIND_COOLDOWN_MS,
   rebindTracks,
+  SUBSCRIBE_SETTLE_MS,
+  takeSubscriptions,
 } from './rebind';
 import {
   NO_RECOVERY,
@@ -541,7 +543,7 @@ async function applyFor(hasAudio: boolean): Promise<void> {
  * @param micNeeded whether anything is listening: somebody else present, or a
  *                  recording running. Told rather than worked out here — this
  *                  hook has never decided anything about who may speak.
- * @param hasAudioAsked whether the session should be a call. Computed by one of
+ * @param hasAudio  whether the session should be a call. Computed by one of
  *                  two rules in core/micNeeded.ts and selected by the
  *                  `steadyHeadset` setting — *is anybody present capturing*
  *                  by default, or *does this app have any audio at all* when
@@ -552,10 +554,11 @@ async function applyFor(hasAudio: boolean): Promise<void> {
  *                  publish. Under either rule the two part company — a guest
  *                  without the microphone, and anybody self-muted, are audio
  *                  without being capture.
- * @param pinCallSession whether to hold the microphone and the `CALL` session
- *                  whenever anything is subscribed, even alone. **An experiment rather
- *                  than a feature** — see the derivation of `hasAudio` in the
- *                  body, and remove both once it has answered.
+ * @param deferSubscribe whether to connect with `autoSubscribe: false` and take
+ *                  the subscriptions once the room is up, rather than letting
+ *                  them land on the same tick as the socket. **An experiment
+ *                  rather than a feature**, and the one PLAYOUT.md has been
+ *                  asking for since build 92 — see `takeSubscriptions`.
  * @param recoverPlayout whether a track the detector reports frozen should be
  *                  rebound automatically. **Off by default and passed
  *                  `app.debug` by `App.tsx`**, which is the same gate the
@@ -574,11 +577,11 @@ export function useSessionAudio(
   mediaRoom: string | null,
   channelId: string | null,
   token: string | null,
-  selfMutedAsked: boolean,
-  micNeededAsked: boolean,
-  hasAudioAsked: boolean,
+  selfMuted: boolean,
+  micNeeded: boolean,
+  hasAudio: boolean,
   recoverPlayout = false,
-  pinCallSession = false
+  deferSubscribe = false
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -611,54 +614,6 @@ export function useSessionAudio(
   const [generation, setGeneration] = useState(0);
   const attemptRef = useRef(0);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /**
-   * The experiment of 2026-09-04, and the only thing in this hook that is here
-   * to be *removed*.
-   *
-   * **What the log actually says.** Fourteen engine starts that evening split
-   * with no exceptions, and the variable is not the audio category: `released
-   * CALL` is `playAndRecord` and starts the engine `rec=F`, exactly as
-   * `released IDLE` does, and both freeze. Every one of the five `rec=T`
-   * starts follows `capturing`. So the engine's recording half follows **the
-   * microphone being open**, and the reading is that this device renders the
-   * shared-playback track only while its own microphone is held.
-   *
-   * That is what makes the fault a fault of being alone. Alone, nobody is
-   * speaking, the microphone is released, the engine restarts `rec=F`, and the
-   * pump plays to a device that will not render it. With company somebody is
-   * capturing, so the same subscription renders and nobody ever sees it.
-   *
-   * **So the state to produce is `muted CALL`**, which the log shows at
-   * `589173381` leaving the engine alone at `rec=T`: the session is
-   * `playAndRecord` and the device is *held* rather than captured —
-   * `holdMicrophone`, publishing nothing, transmitting nothing. Both halves are
-   * needed and neither is sufficient. `hasAudio` alone gives `released CALL`,
-   * which is `rec=F` and is the failing state under a different name; the
-   * microphone alone would try to hold a device under `playback`, which is a
-   * category that cannot record.
-   *
-   * **Keyed on there being something subscribed** rather than on being in a
-   * channel at all, so the session moves only where there is audio whose
-   * absence would be the finding. `othersAudible` is state rather than a ref
-   * because the effect that applies the session already depends on it.
-   *
-   * **Not shippable, and gated to one account for the reason the panel is.**
-   * Holding the microphone lights the system indicator and hands Bluetooth to
-   * HFP, which costs every listener sound quality to answer a question about
-   * one phone. `App.tsx` passes `app.debug`. Whatever the answer, that argument
-   * goes back to `false` and this block goes with it — a workaround that
-   * survives its experiment is how a diagnostic becomes a behaviour nobody
-   * chose.
-   */
-  const pinning = pinCallSession && state.othersAudible > 0;
-  const hasAudio = hasAudioAsked || pinning;
-  const micNeeded = micNeededAsked || pinning;
-  // Held, not captured: `intentFor` reads these two together, and `muted` is
-  // the arm that keeps the device without opening it. Left alone whenever the
-  // microphone was genuinely wanted, so this can only ever add a hold and never
-  // silence a real one.
-  const selfMuted = micNeededAsked ? selfMutedAsked : selfMutedAsked || pinning;
-
   /** Same reason as `micNeededRef`: read at connect, acted on below. */
   const selfMutedRef = useRef(selfMuted);
   selfMutedRef.current = selfMuted;
@@ -687,6 +642,14 @@ export function useSessionAudio(
    */
   const recoverPlayoutRef = useRef(recoverPlayout);
   recoverPlayoutRef.current = recoverPlayout;
+  /**
+   * Read at connect and never after, which is stricter than the others need to
+   * be and is the point: `autoSubscribe` is a connection option, so a flag that
+   * arrived mid-room could not be honoured anyway, and a ref makes that
+   * plain rather than leaving a dependency that looks live and is not.
+   */
+  const deferSubscribeRef = useRef(deferSubscribe);
+  deferSubscribeRef.current = deferSubscribe;
 
   /**
    * What was last asked of the session, so that the effect below can tell an
@@ -934,6 +897,20 @@ export function useSessionAudio(
       // same thing to the indicator.
       .on(RoomEvent.LocalTrackUnpublished, onTrackQuiet)
       .on(RoomEvent.TrackUnpublished, onTrackQuiet)
+      // **The other half of `autoSubscribe: false`.** With it off the server
+      // subscribes to nothing ever, not merely to nothing at connect, so a
+      // track published while we are sitting here has to be asked for too.
+      // This is the case that has always rendered — a subscription arriving at
+      // a room that is already up — and it keeps working by becoming explicit
+      // rather than by being special-cased. A no-op when the flag is off,
+      // where the server has already done it.
+      .on(RoomEvent.TrackPublished, () => {
+        if (!deferSubscribeRef.current) return;
+        const taken = takeSubscriptions(roomRef.current);
+        if (taken.length > 0) {
+          recordEvent(`subscribe published ${taken.join(', ')}`);
+        }
+      })
       // Nobody is speaking on a connection that is gone, and the last thing
       // heard would otherwise stay lit for as long as the screen is open. The
       // hold is dropped outright rather than allowed to run out: it is a
@@ -1058,7 +1035,27 @@ export function useSessionAudio(
         // Taking the session here makes it active before anything is published
         // or subscribed, which is the state remote playback needs.
         await AudioSession.startAudioSession();
-        await room.connect(credential.url, credential.token);
+        /**
+         * **The experiment of 2026-09-05, and the one PLAYOUT.md has been
+         * asking for since build 92.**
+         *
+         * With `autoSubscribe` left alone the server subscribes this client to
+         * everything already published, and the subscription therefore lands on
+         * the same tick as the socket — which is the arm of this fault that has
+         * never once rendered. Off, the socket comes up subscribed to nothing
+         * and `takeSubscriptions` asks a second later, producing on purpose the
+         * state that has always worked.
+         *
+         * Only the already-published case changes. A track published while we
+         * are connected was always a late subscription and always rendered;
+         * with this off it simply becomes an explicit one.
+         */
+        const defer = deferSubscribeRef.current;
+        await room.connect(
+          credential.url,
+          credential.token,
+          defer ? { autoSubscribe: false } : undefined
+        );
         if (cancelled) {
           await room.disconnect();
           return;
@@ -1091,6 +1088,22 @@ export function useSessionAudio(
         }
         attemptRef.current = 0;
         update({ status: 'connected', micOpen: intent === 'capturing' });
+
+        // The gap is the treatment, so it is a timer rather than an await: the
+        // connection is finished and usable now, and what is being deferred is
+        // only the asking. Guarded on `cancelled` for the ordinary reason a
+        // timer in this effect is — a channel left inside the second.
+        if (defer) {
+          setTimeout(() => {
+            if (cancelled) return;
+            const taken = takeSubscriptions(roomRef.current);
+            recordEvent(
+              taken.length === 0
+                ? 'subscribe deferred, nothing published yet'
+                : `subscribe deferred ${taken.join(', ')}`
+            );
+          }, SUBSCRIBE_SETTLE_MS);
+        }
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : String(error);
