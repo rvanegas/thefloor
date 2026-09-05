@@ -186,13 +186,29 @@ ended only because the app was reopened. The bound was exact — `silence stoppe
 And another app's audio kept playing throughout, which is the property the
 whole design was chosen for.
 
-**One thing the capture gets wrong, recorded so nobody chases it.** iOS names
-the assertion's category `SoloAmbientSound`, where `session.ts` sets `playback`
-with `mixWithOthers` — and the tool reports the category correctly elsewhere,
-`CALL` reading back as `PlayAndRecord_WithBluetooth_DefaultToSpeaker`. The
-label is wrong rather than the session: music playing in another app was
-directly observed to continue. Do not read that string as evidence the session
-was seized.
+**`SoloAmbientSound` in the capture was not a mislabel, and reading it as one
+cost a build.** iOS named the assertion's category `SoloAmbientSound` where
+`session.ts` sets `playback` with `mixWithOthers`, and because music in another
+app had been observed to keep playing, that was written off as a quirk of the
+tool. It was the category. `AVAudioPlayer.play()` activates the session, and on
+a **fresh launch** the category is still the process default — `soloAmbient`,
+which does not mix. The music test that passed had been run on an app that was
+already running and had configured the session on an earlier connect, so it
+never exercised the losing order.
+
+Build 146 duly stopped a podcast on step-in, with the field log reading
+`silence started` one line above `connect released IDLE`. **Fixed by ordering:
+`sessionConfigured` gates the keep-alive on this app having written a category
+at least once**, rather than by letting `modules/keep-alive` set one of its own
+— three writers already contend for that process-wide object and the last one
+wins, and a fourth that wrote only at startup would be the hardest to reason
+about. The silence log line now names the category it actually started under,
+so the next occurrence is one line rather than an afternoon.
+
+**The lesson worth more than the fix: a passing field test does not establish
+the property it appears to.** The music test was real, and it was run in the
+one state where the bug is invisible. When a measurement contradicts a label,
+the label is not automatically the thing that is wrong.
 
 **A reading trap that cost an hour here.** `/healthz`'s `drops` counters are
 cumulative and process-lifetime, so a trial read off them is only as good as

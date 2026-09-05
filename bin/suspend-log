@@ -599,9 +599,11 @@ function episodes(events) {
  * **That last sentence is still true and is why there are three cases again
  * from build 145.** `app/modules/keep-alive` makes audio flow — inaudibly, and
  * without changing the category — for as long as the session is `IDLE`, so the
- * empty channel now earns an assertion of its own. iOS labels it
- * `SoloAmbientSound` rather than naming the category the app set, which is a
- * quirk of the label: another app's audio goes on playing underneath it.
+ * empty channel now earns an assertion of its own, and it should be named for
+ * the category `session.ts` set. **`SoloAmbientSound` here means the silence
+ * started before that category was written** — the system default, which does
+ * not mix — and whatever else the phone was playing has been stopped. Build
+ * 146 shipped exactly that; 147 orders the two.
  */
 function describe(episode) {
   if (!episode.audioHeld) return 'no assertion';
@@ -758,10 +760,11 @@ function summarise(found) {
       'plays silence and holds an assertion, so `no assertion` there is a\n' +
       'regression rather than the expected reading. `PlayAndRecord…` is a\n' +
       'microphone actually capturing.\n\n' +
-      'Note the category iOS names for the silence is not the one the app set:\n' +
-      'it reads `SoloAmbientSound` where `session.ts` asks for playback with\n' +
-      'mixWithOthers. That label is wrong rather than the session — another\n' +
-      "app's audio was confirmed to keep playing underneath it on 2026-09-05.\n\n" +
+      '`SoloAmbientSound` against the silence is a *fault*, not a label quirk:\n' +
+      'it means the keep-alive activated the session before this app had\n' +
+      'written a category, and the system default does not mix — so whatever\n' +
+      'else the phone was playing was stopped. Build 146 shipped that and 147\n' +
+      'gates the silence on the category being written. Expect playback here.\n\n' +
       'What suspension costs is presence, and it is slower than it looks: the\n' +
       'server notices the silence within HEARTBEAT_TIMEOUT_MS, then `ws` spends\n' +
       'its 30-second closeTimeout waiting for a close frame from a frozen phone\n' +

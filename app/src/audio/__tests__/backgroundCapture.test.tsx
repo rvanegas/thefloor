@@ -243,6 +243,37 @@ describe('the silent keep-alive across a foreground', () => {
   });
 
   /**
+   * **Silence must never play before the category is written.**
+   *
+   * `AVAudioPlayer.play()` activates the session, and on a fresh launch the
+   * category is still `soloAmbient`, which does not mix — so silence started
+   * first stops whatever else the phone is playing, which is the one thing
+   * this feature exists not to do. Build 146 shipped exactly that: the field
+   * log read `silence started` on the line above `connect released IDLE`, and
+   * stepping into an empty channel killed a podcast.
+   *
+   * Asserted as an ordering over the log because that is how it presented and
+   * how anybody would recognise it again.
+   */
+  it('does not play until the session has been configured', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe audio={false} />);
+    });
+    await settle();
+
+    const lines = logged();
+    const configured = lines.findIndex((l) => l.startsWith('connect '));
+    const silence = lines.findIndex((l) => l.startsWith('silence started'));
+    expect(configured).toBeGreaterThanOrEqual(0);
+    expect(silence).toBeGreaterThan(configured);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
    * The first version armed the timer once, keyed on the channel, so a phone
    * that stayed in one quiet channel was suspendable for good after fifteen
    * minutes and a foreground did not bring it back.

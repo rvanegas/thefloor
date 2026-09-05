@@ -49,11 +49,15 @@ const native = load();
 /**
  * Starts the silent loop, so this process is not suspended while it waits.
  *
- * **Only call this where the session is `IDLE`.** Silence is inaudible and
- * mixes, so it costs another app's playback nothing and leaves a Bluetooth
- * headset on A2DP — but both of those are properties of the category it plays
- * under, not of the silence. Started under `CALL` it would buy nothing, there
- * being real audio to keep the process alive already.
+ * **Only call this where the session is `IDLE`, and only once the category has
+ * actually been written.** Silence is inaudible and mixes, so it costs another
+ * app's playback nothing and leaves a Bluetooth headset on A2DP — but both of
+ * those are properties of the category it plays under, not of the silence.
+ * Started under `CALL` it would buy nothing, there being real audio to keep the
+ * process alive already; started before this app has set any category at all it
+ * activates the system default, `soloAmbient`, which does **not** mix and stops
+ * whatever else the phone was playing. Build 146 shipped that and killed a
+ * podcast on step-in. `useSessionAudio`'s `sessionConfigured` is the gate.
  *
  * Idempotent: starting a loop that is already playing changes nothing.
  *

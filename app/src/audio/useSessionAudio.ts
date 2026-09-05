@@ -17,6 +17,7 @@ import {
 } from '@livekit/react-native';
 import {
   onRouteChange,
+  routeSnapshot,
   setAllowHapticsDuringRecording,
 } from '../../modules/audio-route';
 import { startCallService, stopCallService } from '../../modules/call-service';
@@ -686,6 +687,33 @@ export function useSessionAudio(
    * re-run when it changes: a foreground is the moment the deferred promotion
    * becomes possible, and nothing else would notice.
    */
+  /**
+   * Whether this app has written the audio session's category yet, in this
+   * process.
+   *
+   * **The keep-alive must not play before this is true, and 2026-09-05 build
+   * 146 is why.** `AVAudioPlayer.play()` activates the session, and on a fresh
+   * launch the category is still the process default — `soloAmbient`, which
+   * does not mix. So starting silence first activated a *non-mixing* session
+   * and stopped the music the whole feature exists not to touch: stepping into
+   * an empty channel killed a podcast, with the log reading `silence started`
+   * one line above `connect released IDLE`.
+   *
+   * It had worked in testing the day before because the app was already
+   * running and had configured the session on an earlier connect. A fresh
+   * launch is what loses the race, which is why it survived a field test.
+   *
+   * Fixed by ordering rather than by letting `modules/keep-alive` set a
+   * category of its own: three writers already contend for this process-wide
+   * object and the last one wins, and a fourth that only writes at startup
+   * would be the hardest of them to reason about. See `session.ts`.
+   *
+   * Monotonic on purpose — set once per connect and never cleared. A flag that
+   * went false on a reconnect would stop the silence during precisely the
+   * window a backgrounded phone needs it.
+   */
+  const [sessionConfigured, setSessionConfigured] = useState(false);
+
   const [foreground, setForeground] = useState(
     AppState.currentState === 'active'
   );
@@ -832,7 +860,10 @@ export function useSessionAudio(
    * minutes.
    */
   useEffect(() => {
-    if (!mediaRoom || hasAudio) return;
+    // `sessionConfigured` rather than merely being in a channel: playing
+    // before the category is written activates the system default, which does
+    // not mix and stops whatever else the phone was playing.
+    if (!mediaRoom || hasAudio || !sessionConfigured) return;
     let expired = false;
     let timer: ReturnType<typeof setTimeout>;
 
@@ -865,7 +896,18 @@ export function useSessionAudio(
       // Worth a line for the same reason the service's is: whether this
       // started is the difference between a presence that survives a locked
       // phone and one that does not, and nothing outside the app can tell.
-      recordEvent(`silence ${playing ? 'started' : 'unavailable'}`);
+      //
+      // **The category is read back and named**, because the one thing that
+      // can go wrong here is invisible otherwise: silence under a non-mixing
+      // category stops another app's audio, and the log would say `started`
+      // either way. A single read at an edge, not a poll — the thing
+      // `AudioDebugPanel` forbids is the once-a-second sampling, and this is
+      // the same one-shot use `routeRecovery` already makes.
+      const route = routeSnapshot();
+      recordEvent(
+        `silence ${playing ? 'started' : 'unavailable'}` +
+          (route?.category ? ` ${route.category}` : '')
+      );
     });
     arm();
 
@@ -873,7 +915,11 @@ export function useSessionAudio(
       if (next !== 'active') return;
       if (expired) {
         startSilence().then((playing) => {
-          recordEvent(`silence ${playing ? 'restarted' : 'unavailable'}`);
+          const route = routeSnapshot();
+          recordEvent(
+            `silence ${playing ? 'restarted' : 'unavailable'}` +
+              (route?.category ? ` ${route.category}` : '')
+          );
         });
       }
       arm();
@@ -886,7 +932,7 @@ export function useSessionAudio(
       recordEvent('silence stopped');
       stopSilence();
     };
-  }, [mediaRoom, hasAudio]);
+  }, [mediaRoom, hasAudio, sessionConfigured]);
 
   useEffect(() => {
     if (!mediaRoom || !channelIdRef.current || !token) return;
@@ -1213,6 +1259,8 @@ export function useSessionAudio(
           },
         });
         recordEvent(`connect ${intent} ${nameOf(sessionFor(anyAudio))}`);
+        // The keep-alive waits for this. See `sessionConfigured`.
+        setSessionConfigured(true);
 
         // Started explicitly, despite registerGlobals() also installing
         // automatic management. Leaving it to the automatic path alone meant
