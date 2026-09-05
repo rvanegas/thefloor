@@ -20,6 +20,8 @@ import {
   setAllowHapticsDuringRecording,
 } from '../../modules/audio-route';
 import { startCallService, stopCallService } from '../../modules/call-service';
+import { startSilence, stopSilence } from '../../modules/keep-alive';
+import { WAITING_WINDOW_MS } from '../../../core/constants';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
 import {
@@ -755,6 +757,66 @@ export function useSessionAudio(
       stopCallService();
     };
   }, [mediaRoom]);
+
+  /**
+   * Keeps this process alive while the channel has nothing in it to hear,
+   * which is iOS's half of what the service above does for Android.
+   *
+   * **Runs exactly where the session is `IDLE`, and that is the whole design.**
+   * `IDLE` is the configuration this app takes when no audio is flowing, and
+   * no audio flowing is precisely the condition under which iOS suspends a
+   * process holding the `audio` entitlement. The two have always described the
+   * same moment; until now only one of them acted on it. So the condition here
+   * is `hasAudio === false`, the same derived value `applyFor` is given, rather
+   * than a second rule that could drift from it.
+   *
+   * **Measured, not assumed.** A phone locked for five minutes alone in an
+   * empty channel came back `drops 2 (recovered 0, expired 2)`. Nothing
+   * recovered, so the socket did not merely go quiet — the process was gone,
+   * and everybody who stepped into that channel afterwards saw somebody who was
+   * not there and had to ping them back in.
+   *
+   * **Silence rather than the microphone**, which was the other way to buy the
+   * same liveness and costs a great deal more: holding a microphone open needs
+   * `playAndRecord`, which scopes the A2DP route away for the whole wait, lights
+   * the recording indicator, and publishes a track the meter has to be taught
+   * to ignore. Silence needs none of that because it changes no category —
+   * see `modules/keep-alive`.
+   *
+   * **Bounded by `WAITING_WINDOW_MS`**, which is not an arbitrary timeout: it
+   * is how long this app goes on describing somebody as *Nearby*, on the
+   * argument in that constant's own header that waiting is an intention and an
+   * intention has a shelf life. Holding a phone awake past the point where the
+   * app has stopped claiming anybody is expecting company would be spending
+   * battery on an eagerness nobody has. Past it the phone suspends and the
+   * roster reads exactly as it does today.
+   *
+   * Keyed on `[mediaRoom, hasAudio]`, so the clock restarts when the condition
+   * is newly entered rather than on every render — a channel that goes quiet
+   * again after a conversation is a fresh wait, and gets a fresh fifteen
+   * minutes.
+   */
+  useEffect(() => {
+    if (!mediaRoom || hasAudio) return;
+    let stopped = false;
+    startSilence().then((playing) => {
+      // Worth a line for the same reason the service's is: whether this
+      // started is the difference between a presence that survives a locked
+      // phone and one that does not, and nothing outside the app can tell.
+      recordEvent(`silence ${playing ? 'started' : 'unavailable'}`);
+    });
+    const expiry = setTimeout(() => {
+      stopped = true;
+      recordEvent('silence stopped (expired)');
+      stopSilence();
+    }, WAITING_WINDOW_MS);
+    return () => {
+      clearTimeout(expiry);
+      if (stopped) return;
+      recordEvent('silence stopped');
+      stopSilence();
+    };
+  }, [mediaRoom, hasAudio]);
 
   useEffect(() => {
     if (!mediaRoom || !channelIdRef.current || !token) return;

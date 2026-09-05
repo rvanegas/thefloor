@@ -5,11 +5,19 @@ import { Platform } from 'react-native';
  * app is not on screen.
  *
  * See `android/src/main/java/expo/modules/callservice/CallService.kt` for what
- * it does and why it has to exist at all. In short: iOS declares
- * `UIBackgroundModes: ["audio"]` and the system does the rest, and Android has
- * nothing of the sort — a process capturing audio with no visible foreground
- * component is killed, which on hardware presents as *the call drops when I
- * switch apps*.
+ * it does and why it has to exist at all. In short: Android has nothing like
+ * iOS's `UIBackgroundModes` — a process capturing audio with no visible
+ * foreground component is killed, which on hardware presents as *the call
+ * drops when I switch apps*.
+ *
+ * **This used to say that on iOS "the system does the rest", and that was
+ * measured false on 2026-09-05.** The entitlement keeps a process alive while
+ * it is *producing audio*, which a channel with nobody in it is not: a phone
+ * locked for five minutes alone in an empty channel came back
+ * `drops 2 (recovered 0, expired 2)`. `modules/keep-alive` is the iOS half of
+ * this same job, and the two platforms want the same thing for opposite
+ * reasons — Android a visible component so it may keep a process that is
+ * capturing, iOS audio so it may keep a process that has an entitlement.
  *
  * **Everything here is a no-op that answers `false` off Android**, on the same
  * reasoning as `modules/audio-route`: it is a *local* native module, so it is

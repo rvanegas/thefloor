@@ -736,6 +736,18 @@ anything is subscribed — see PLAYOUT.md — so a channel with anything to hear
 is asked for; what a headset actually experiences is HFP for the whole time
 there is audio, which is the cost that fix accepted deliberately.
 
+**`IDLE` also became the state in which this app plays silence — 2026-09-05.**
+Not audible silence and not a fourth configuration: `modules/keep-alive` loops
+an inaudible buffer under whatever category is already set, for exactly as long
+as `hasAudio` is false and this device is standing in a channel, bounded by
+`WAITING_WINDOW_MS`. It is here because the two facts turn out to be one fact —
+`IDLE` is what this app asks for when no audio is flowing, and no audio flowing
+is what lets iOS suspend the process and expire somebody's presence while they
+are still standing there. Measured at `drops 2 (recovered 0, expired 2)` after
+five minutes locked in an empty channel. It changes no category, so everything
+this section says about `playback`, `mixWithOthers` and the stereo route holds
+unchanged while it runs.
+
 **On a mic-less speaker the cue is a route change rather than a profile
 change, and it was nothing at all before build 65.** A Bluetooth *speaker*
 usually has no microphone, so there is no hands-free link to move to. While

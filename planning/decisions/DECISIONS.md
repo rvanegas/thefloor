@@ -78,6 +78,66 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## Silence, so a phone waiting alone is still there when somebody arrives — 2026-09-05
+
+**Stepping into an empty channel and pocketing the phone used to end the
+visit.** iOS suspends the process, the websocket dies with it, and sixty
+seconds later the grace period takes the person out of the room. Whoever
+finally arrives sees them as *Nearby* and has to ping them back in — and since
+each of them is doing the same thing to the other, two people can miss each
+other several times before they synchronise. `modules/keep-alive` now loops an
+inaudible buffer for as long as the session is `IDLE`, which gives the `audio`
+entitlement something to be true about and keeps the socket up.
+
+**`UIBackgroundModes: ["audio"]` was believed to cover this and does not.**
+`modules/call-service`'s header said in as many words that on iOS "the system
+does the rest". The entitlement keeps a process alive while it is *producing
+audio*; an empty channel produces none. TASKS.md § *Websocket Lost* had already
+reasoned its way to the same sentence about a phone call without noticing it
+applied with no phone call at all.
+
+**Measured before written, and the gate was real.** One phone, locked five
+minutes, alone in an empty channel: `bin/health` went from `0 0 0` to `drops 2
+(recovered 0, expired 2)`, and `bin/live` was empty. Zero recovered is the load-
+bearing number — the socket did not go quiet and come back, the process was
+gone. The plan said to stop and look elsewhere if it read `Present`.
+
+**Silence rather than holding the microphone open, which was the first design
+and is worse on every axis.** A held microphone needs `playAndRecord`, and
+`playAndRecord` is what scopes A2DP away — so that version would have paid the
+stereo route, for the whole wait, on a phone where nobody was saying anything.
+It also lights the recording indicator and publishes a track the meter has to
+be taught to ignore. Silence changes no category, so it costs no fidelity, no
+indicator and no metering. **And it dissolved its own hardest requirement**:
+the microphone version had to know whether another app was playing, because
+seizing the session would have stopped a podcast. Silence under `mixWithOthers`
+interrupts nobody, so the question stopped needing an answer — which is just as
+well, since `otherAudioPlaying` is readable only through `snapshot()` and
+polling that is the bug AudioDebugPanel.tsx forbids by name.
+
+**Bounded by `WAITING_WINDOW_MS` rather than by a number chosen here.** Fifteen
+minutes is how long the roster goes on calling somebody *Nearby*, on that
+constant's own argument that waiting is an intention with a shelf life. Past
+it, holding a phone awake would be spending battery on an eagerness the app has
+already stopped reporting, so the silence stops and the phone suspends exactly
+as it did before. The feature buys fifteen minutes of true presence and then
+gets out of the way.
+
+**Two things it does not do.** An interruption — a call, an alarm — stops the
+player, and nothing restarts it, so a cellular call suspends the app as before;
+TASKS.md § *Websocket Lost* stays open and now names the observer that would
+close it. And a continuously streaming A2DP link keeps a paired headset awake
+rather than letting it idle-sleep, which the fifteen-minute bound caps.
+
+**It is a patch at a symptom and BACKLOG.md § *Presence follows the websocket,
+not the room* is the cause.** That item observes that every symptom of the
+split has been patched at its own site; this is one more, entered knowingly,
+because the real fix touches the push window, the disconnect grace and the
+eviction path together. A presence that followed room membership would need
+none of this.
+
+---
+
 ## A `mic` minute means transmitting, not published — 2026-09-05
 
 **`meterRoom` now ignores a track its publisher has muted.** The poll asks
