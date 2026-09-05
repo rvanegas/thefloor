@@ -191,12 +191,12 @@ it('swallows a retake that arrives after the room has gone', () => {
  * burned by twice.
  */
 describe('taking deferred subscriptions', () => {
-  function publication(sid: string, isSubscribed: boolean | undefined) {
+  function publication(sid: string, isDesired: boolean | undefined) {
     const asked: boolean[] = [];
     return {
       pub: {
         trackSid: sid,
-        isSubscribed,
+        isDesired,
         setSubscribed: (v: boolean) => asked.push(v),
       },
       asked,
@@ -219,7 +219,7 @@ describe('taking deferred subscriptions', () => {
     };
   }
 
-  it('subscribes a publication that is not subscribed, and names it', () => {
+  it('subscribes a publication that has not been asked for, and names it', () => {
     const a = publication('TR_a', false);
     const taken = takeSubscriptions(roomWith([a.pub]));
 
@@ -227,7 +227,7 @@ describe('taking deferred subscriptions', () => {
     expect(taken).toEqual(['media:chan_x (TR_a)']);
   });
 
-  it('leaves one that is already subscribed alone', () => {
+  it('leaves one that has already been asked for alone', () => {
     const a = publication('TR_a', true);
     const taken = takeSubscriptions(roomWith([a.pub]));
 
@@ -235,16 +235,17 @@ describe('taking deferred subscriptions', () => {
     expect(taken).toEqual([]);
   });
 
-  it('does not ask twice for the same track', () => {
-    // The SDK answers `false` until the track is actually delivered, so a
-    // second call while the first is in flight sees the same value. What stops
-    // the double line is the publication reporting its own state, which the
-    // second call reads after `setSubscribed` has set it.
+  it('does not ask twice for a track still in flight', () => {
+    // **The case `isSubscribed` got wrong.** Delivery takes as long as it
+    // takes, and `isSubscribed` stays false throughout it — so a guard on that
+    // would re-ask on every call until the track landed, and write a line each
+    // time claiming a subscription already taken. `isDesired` flips the moment
+    // the asking happens, which is the thing that must not repeat.
     const a = publication('TR_a', false);
     const room = roomWith([a.pub]);
 
     expect(takeSubscriptions(room)).toHaveLength(1);
-    a.pub.isSubscribed = true;
+    a.pub.isDesired = true;
     expect(takeSubscriptions(room)).toEqual([]);
     expect(a.asked).toEqual([true]);
   });
@@ -264,7 +265,7 @@ describe('taking deferred subscriptions', () => {
   it('carries on past a publication that throws', () => {
     const bad = {
       trackSid: 'TR_bad',
-      isSubscribed: false,
+      isDesired: false,
       setSubscribed: () => {
         throw new Error('gone');
       },

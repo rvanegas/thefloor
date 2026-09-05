@@ -76,11 +76,21 @@ interface RebindablePublication {
   trackSid: string;
   setSubscribed(subscribed: boolean): void;
   /**
-   * The SDK's own answer, read by `takeSubscriptions` and absent on the
-   * hand-built objects `rebindTracks`'s tests pass in — hence optional, and
-   * hence compared against `false` rather than trusted to be a boolean.
+   * Whether this client has *asked* for the track — the SDK's `subscribed !==
+   * false` — as opposed to whether the track has arrived.
+   *
+   * **`isSubscribed` is the wrong one and was used here for a day.** It reads
+   * `this.track !== undefined` under the desired flag, so it stays false from
+   * the moment you ask until delivery completes: a guard on it would re-ask for
+   * every track still in flight each time `takeSubscriptions` ran, and write a
+   * second log line claiming a subscription that had already been taken. The
+   * line is the evidence for the whole ordering experiment, so it must not
+   * double.
+   *
+   * Optional because `rebindTracks`'s tests hand in plain objects, and hence
+   * compared against `false` rather than trusted to be a boolean.
    */
-  isSubscribed?: boolean;
+  isDesired?: boolean;
 }
 
 interface RebindableParticipant {
@@ -234,13 +244,10 @@ export function takeSubscriptions(room: RebindableRoom | null): string[] {
     for (const candidate of publications) {
       const publication = rebindable(candidate);
       if (!publication) continue;
-      // Asked once. `isSubscribed` is the SDK's own answer and is false both
-      // for a publication never asked for and for one asked for and not yet
-      // delivered — so a second call while the first is in flight would ask
-      // again, which is harmless on the wire and would write a second log line
-      // claiming a subscription that was already taken. The line is the
-      // evidence here, so it must not double.
-      if (publication.isSubscribed !== false) continue;
+      // Asked once, and `isDesired` rather than `isSubscribed` is what makes
+      // that true — see the field's own note. Delivery can take as long as it
+      // likes; what must not repeat is the asking.
+      if (publication.isDesired !== false) continue;
       try {
         publication.setSubscribed(true);
       } catch {
