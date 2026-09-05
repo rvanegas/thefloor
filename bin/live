@@ -25,13 +25,16 @@
 #
 # What this can and cannot tell you:
 #
-#   * **`mic` is an open microphone, not somebody speaking, and not the
-#     floor.** The poll asks LiveKit which participants publish an audio track;
-#     `MediaPlane.audioTracks` does not filter muted ones, so a self-muted
-#     person and a person silenced by somebody else's floor claim both still
-#     count here. Nothing in this system measures audio level, so "how long
-#     they have been speaking" is answerable only as "how long their microphone
-#     has been open".
+#   * **`mic` is a transmitting microphone, not somebody speaking, and not the
+#     floor.** The poll asks LiveKit which participants publish an audio track
+#     and, since 2026-09-05, ignores the ones they have muted — so a self-muted
+#     person does not count, and neither does a microphone held open by the
+#     playout fix. A person silenced by somebody else's floor claim *does*
+#     still count: their track is unmuted and carrying audio, and the floor
+#     withholds it by unsubscribing their listeners rather than by muting them.
+#     Nothing in this system measures audio level, so "how long they have been
+#     speaking" is answerable only as "how long their microphone has been
+#     transmitting".
 #   * **The floor is not recorded anywhere durable.** It dies with the process
 #     — a restart drops it — and the only floor history on disk is
 #     `recordings.floor_timeline`, written per recording run and only while one

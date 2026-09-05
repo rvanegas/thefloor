@@ -463,13 +463,19 @@ What is left is not this fault.
    module: `engineState.ts`'s readers and the unrun bisection in `probe.ts` are
    the instruments, with that file's own warning that reading the ADM has
    stopped the audio before.
-2. **The `mic` usage span now measures a held device rather than a
-   transmitting microphone.** A held track is muted but still published, so
-   `publishing` in `server/src/channels.ts` counts it and `bin/live` credits
-   the whole hold as an open microphone. Nothing functional depends on it —
-   `anyMicrophoneOpen` is gone and `channelHasAudio` never read the roster —
-   but a usage report read cold will overstate. Fix by filtering muted
-   publications, which is a server change and wants a deploy.
+2. ~~**The `mic` usage span now measures a held device rather than a
+   transmitting microphone.**~~ *Fixed 2026-09-05, and it needs a deploy to
+   take effect.* A held track is muted but still published, so `publishing` in
+   `server/src/channels.ts` counted it and `bin/live` credited the whole hold
+   as an open microphone. `MediaPlane.audioTracks` now carries each track's
+   `muted` flag — LiveKit was sending it and the map was discarding it — and
+   `meterRoom` ignores the muted ones. `reconcileSilence` reads the same roster
+   and deliberately does *not* filter: a mute is the publisher's own and
+   revocable, so a silence must cover a held track too.
+
+   **Until that deploy, every `mic` and `listen` figure from the hold's first
+   night overstates**, and no backfill is possible — the spans were written
+   from what the poll saw.
 3. **Do not wire the freeze detector to any recovery that stops the engine.**
    That covers `reconnect()` and the subscription rebind both.
 4. **Three hypotheses died here of being plausible**, and the one that held was

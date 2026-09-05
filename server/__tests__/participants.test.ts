@@ -474,6 +474,36 @@ describe('the silencing matrix with three people', () => {
     }
   });
 
+  /**
+   * The counterpart of the meter's rule, and the reason the roster carries
+   * mutedness rather than being filtered by it. `meterRoom` ignores a muted
+   * track because it carries no audio; silencing must *not*, because a mute is
+   * the publisher's own and revocable at any moment. A silence skipped over a
+   * held track would become audible the instant its owner unmuted, which is
+   * the build 34 bug arriving by a second road.
+   */
+  it('states a silence over a track its publisher has muted', async () => {
+    const { alice, bob, carol, channelId } = await trioAllPresent();
+    media.held.add(`${channelId}/${bob.account.id}`);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+    media.subscriptions.length = 0;
+
+    media.republish(channelId, bob.account.id);
+    clock += 500;
+    app.channels.tick();
+    await settle();
+
+    for (const listener of [alice.account.id, carol.account.id]) {
+      expect(media.subscriptions).toContainEqual({
+        room: channelId,
+        speaker: bob.account.id,
+        listener,
+        silenced: true,
+      });
+    }
+  });
+
   it('says nothing to a media plane that already agrees', async () => {
     const { alice, channelId } = await trioAllPresent();
     app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });

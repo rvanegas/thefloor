@@ -24,6 +24,19 @@ import {
 } from './playback';
 
 /**
+ * One audio track a participant has published, as the room reports it.
+ *
+ * **`muted` is the publisher's own statement about their track**, which is not
+ * the same thing as the floor silencing them: this server withholds somebody
+ * by unsubscribing their listeners, and a withheld speaker's track is not
+ * muted. So this reads *is this device sending audio*, and nothing else.
+ */
+export interface AudioTrack {
+  sid: string;
+  muted: boolean;
+}
+
+/**
  * The media plane. The spec calls the floor "a hard cut at the transport/mic
  * level — the silenced user's audio does not reach the other party at all",
  * which a client cannot be trusted to honour about itself: a modified one would
@@ -109,8 +122,17 @@ export interface MediaServer {
    * old statement does not cover and which is subscribed to by default. So the
    * server compares what it last stated against what the room is actually
    * carrying, once a tick, rather than trusting a call that succeeded once.
+   *
+   * **Carries mutedness since 2026-09-05, and the two readers want different
+   * halves of it.** `reconcileSilence` wants every track a participant has,
+   * muted or not, because silencing is a statement about a subscription and a
+   * muted track is still subscribed to. `meterRoom` wants only the ones
+   * actually carrying audio: a published-but-muted track costs no uplink and
+   * sends nobody a downlink, and counting it credits a silent device with an
+   * open microphone. That stopped being hypothetical when `holdForPlayout`
+   * began holding a muted microphone open for the length of a conversation.
    */
-  audioTracks(room: string): Promise<Map<string, string[]>>;
+  audioTracks(room: string): Promise<Map<string, AudioTrack[]>>;
 
   /** Tears the room down when the channel ends. */
   closeRoom(room: string): Promise<void>;
@@ -369,14 +391,14 @@ export class LiveKitMediaServer implements MediaServer {
     return audio;
   }
 
-  async audioTracks(room: string): Promise<Map<string, string[]>> {
-    const roster = new Map<string, string[]>();
+  async audioTracks(room: string): Promise<Map<string, AudioTrack[]>> {
+    const roster = new Map<string, AudioTrack[]>();
     for (const participant of await this.rooms.listParticipants(room)) {
       roster.set(
         participant.identity,
         participant.tracks
           .filter((track) => track.type === TrackType.AUDIO)
-          .map((track) => track.sid)
+          .map((track) => ({ sid: track.sid, muted: track.muted }))
       );
     }
     return roster;
@@ -609,6 +631,17 @@ export class MemoryMediaServer implements MediaServer {
    * who has joined the channel but not the room yet.
    */
   readonly unpublished = new Set<string>();
+  /**
+   * Identities (`room/identity`) publishing a track they have muted — the
+   * held-open microphone `holdForPlayout` produces on the client.
+   *
+   * **Not `muted` above, which is this fake's record of `setSilenced`.** The
+   * two are opposite ends of the same silence: `muted` is what the floor did
+   * *to* somebody by unsubscribing their listeners, and this is what a device
+   * decided about its own track. A held track is present in the roster and
+   * carries no audio; a silenced one carries audio nobody is subscribed to.
+   */
+  readonly held = new Set<string>();
   /** The current track id per `room/identity`, minted on first sight. */
   private trackIds = new Map<string, string>();
   private nextTrackId = 1;
@@ -706,13 +739,15 @@ export class MemoryMediaServer implements MediaServer {
    * ordinary state this application creates on purpose.
    */
   async audioTracks(room: string) {
-    const roster = new Map<string, string[]>();
+    const roster = new Map<string, AudioTrack[]>();
     for (const key of this.known) {
       if (!key.startsWith(`${room}/`)) continue;
       const identity = key.slice(room.length + 1);
       roster.set(
         identity,
-        this.unpublished.has(key) ? [] : [this.trackId(room, identity)]
+        this.unpublished.has(key)
+          ? []
+          : [{ sid: this.trackId(room, identity), muted: this.held.has(key) }]
       );
     }
     return roster;

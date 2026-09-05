@@ -170,6 +170,43 @@ describe('microphone minutes', () => {
     expect(minutesOf('mic', alice.id)).toBe(5 * 60_000);
   });
 
+  it('ignore a track its publisher has muted', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    await joinRoom(channelId, alice.id);
+    await joinRoom(channelId, bob.id);
+    // Bob holds his microphone rather than using it, which is what the playout
+    // fix does for as long as anything is subscribed. The track is in the room
+    // and carrying nothing.
+    media.held.add(`${channelId}/${bob.id}`);
+
+    app.channels.pollUsage();
+    await settle();
+    clock += 5 * 60_000;
+    app.channels.pollUsage();
+    await settle();
+
+    expect(minutesOf('mic', bob.id)).toBe(0);
+    expect(minutesOf('mic', alice.id)).toBe(5 * 60_000);
+  });
+
+  it('close when a live microphone is muted rather than unpublished', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    await joinRoom(channelId, alice.id);
+    await joinRoom(channelId, bob.id);
+
+    app.channels.pollUsage();
+    await settle();
+    expect(spans('mic')).toHaveLength(2);
+
+    clock += 60_000;
+    media.held.add(`${channelId}/${bob.id}`);
+    app.channels.pollUsage();
+    await settle();
+
+    const bobs = spans('mic').find((s) => s.account_id === bob.id)!;
+    expect(bobs.ended_at! - bobs.started_at).toBe(60_000);
+  });
+
   it('are not counted twice when a poll repeats itself', async () => {
     const { alice, channelId } = await channelOfTwo();
     await joinRoom(channelId, alice.id);
@@ -194,6 +231,25 @@ describe('listening minutes', () => {
     await settle();
 
     expect(spans('listen').map((s) => s.account_id).sort()).toEqual(
+      [alice.id, bob.id].sort()
+    );
+  });
+
+  it('are not opened for a room whose only other track is held', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    await joinRoom(channelId, alice.id);
+    await joinRoom(channelId, bob.id);
+    // A held track sends its listeners nothing, so Alice is downloading
+    // nothing even though Bob is in the room with her.
+    media.held.add(`${channelId}/${bob.id}`);
+
+    app.channels.pollUsage();
+    await settle();
+
+    expect(spans('listen').map((s) => s.account_id)).toEqual([bob.id]);
+    expect(spans('mic').map((s) => s.account_id)).toEqual([alice.id]);
+    // He is still a connection to the box, which is what `participant` counts.
+    expect(spans('participant').map((s) => s.account_id).sort()).toEqual(
       [alice.id, bob.id].sort()
     );
   });

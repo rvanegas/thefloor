@@ -1,6 +1,6 @@
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
-import { MemoryMediaServer } from '../src/media';
+import { AudioTrack, MemoryMediaServer } from '../src/media';
 
 /**
  * The floor is specified as a hard cut at the transport level. These assert
@@ -248,7 +248,7 @@ describe('the floor as an actual mute', () => {
         async setSilenced(): Promise<string[]> {
           throw new Error('livekit unreachable');
         },
-        async audioTracks(): Promise<Map<string, string[]>> {
+        async audioTracks(): Promise<Map<string, AudioTrack[]>> {
           throw new Error('livekit unreachable');
         },
         async setPublishAllowed() {},

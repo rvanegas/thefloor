@@ -78,6 +78,43 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## A `mic` minute means transmitting, not published — 2026-09-05
+
+**`meterRoom` now ignores a track its publisher has muted.** The poll asks
+LiveKit which participants are publishing audio; it counted every track in the
+roster, so a self-muted person was billed for an open microphone. That was
+tolerable while a muted track meant somebody had chosen not to speak for a
+moment. It stopped being tolerable the same day: `holdForPlayout` holds a muted
+microphone open for as long as anything is subscribed, so the commonest state
+in the app became one the meter read as a live microphone, and `bin/live`
+credited a silent listener with the whole length of a conversation.
+
+**The flag was always on the wire and the map was throwing it away.**
+`livekit.TrackInfo` carries `muted`, and `MediaPlane.audioTracks` mapped each
+track to its sid alone. Widening the map value to `{ sid, muted }` was the whole
+fix; nothing new is asked of LiveKit and the poll costs exactly what it did.
+
+**The two readers of that roster want opposite things, which is why the filter
+is at the call site rather than at the source.** `meterRoom` wants only tracks
+carrying audio — a held track costs no uplink and gives its listeners no
+downlink, so it must not open a `mic` span and must not count toward anybody's
+`listen`. `reconcileSilence` wants every track including the held ones, because
+a mute belongs to the publisher and is revocable in the time it takes to say a
+word: a silence that skipped a muted track would become audible the instant its
+owner unmuted, which is the build 34 bug arriving by a second road. Filtering
+inside `audioTracks` would have been one line and would have reintroduced it.
+
+**`participant` spans are unchanged and that is deliberate.** A held track is
+still a WebRTC connection, still costs the box what a person costs, and that
+kind answers load rather than attendance.
+
+**The numbers already written are wrong and stay wrong.** Spans are written
+from what the poll saw, so the hold's first night overstates `mic` and `listen`
+for everybody who was holding, and no backfill is possible. This wants a
+deploy; until it has one, `bin/usage minutes` read cold will overstate.
+
+---
+
 ## One audio-session rule, and a headset setting retired — 2026-09-05
 
 **`steadyHeadset` is gone and `channelHasAudio` is the only rule.** The setting

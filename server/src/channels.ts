@@ -2741,8 +2741,17 @@ export class ChannelRegistry {
     // state in `commit` — counting it here would double it, and under an
     // identity that is not an account.
     const media = playbackIdentity(state.id);
+    // **Muted tracks do not count, and that is the whole of what "publishing"
+    // means here.** A device that publishes and then mutes is holding a
+    // microphone rather than using one: it sends no uplink and gives its
+    // listeners no downlink, so counting it credits a silent person with an
+    // open microphone and bills the room for a stream nobody carries. The
+    // playout hold of 2026-09-05 made this ordinary rather than rare — it
+    // holds a muted track open for as long as anything is subscribed — and
+    // `bin/live` was reporting those holds as open microphones.
     const publishing = now.participants.filter(
-      (id) => id !== media && (roster.get(id)?.length ?? 0) > 0
+      (id) =>
+        id !== media && (roster.get(id) ?? []).some((track) => !track.muted)
     );
 
     const keep = new Set<string>();
@@ -2817,7 +2826,12 @@ export class ChannelRegistry {
     const stated = this.silenceStated.get(state.id) ?? new Map<string, string>();
     this.silenceStated.set(state.id, stated);
     for (const speaker of present) {
-      const tracks = roster.get(speaker) ?? [];
+      // Every track, muted ones included, unlike `meterRoom` above: silencing
+      // is a statement about a subscription, and a muted track is subscribed
+      // to exactly as an unmuted one is. Skipping the held ones would leave a
+      // speaker's listeners subscribed to a track that becomes audible the
+      // moment they unmute.
+      const tracks = (roster.get(speaker) ?? []).map((track) => track.sid);
       if (tracks.length === 0) continue;
       const silenced = isWithheld(state, speaker);
       const signature = silenceSignature(room, silenced, tracks);

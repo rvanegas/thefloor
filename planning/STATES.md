@@ -442,8 +442,14 @@ point. Do not collapse them.
 Since 2026-09-05 they part company in one more place: the playout fix holds the
 microphone open, muted, while anything is subscribed, so this device publishes
 a track it is not transmitting on. `micOpen` is false there and the SFU roster
-says otherwise — which is why `bin/live` credits a held device with an open
-microphone. See PLAYOUT.md.
+says a track exists — the two are both right, about different questions.
+
+**The meter now asks the second question and reads the answer correctly.**
+`MediaPlane.audioTracks` carries each track's `muted` flag and `meterRoom`
+counts only the unmuted, so a `mic` span means transmitting rather than
+published. The floor's own reader, `reconcileSilence`, still takes every track
+including the held ones, because a mute belongs to the publisher and can be
+revoked in the time it takes to say a word. See PLAYOUT.md.
 
 ---
 
