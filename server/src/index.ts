@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs';
 import { buildApp } from './app';
 import { ConsoleMailer, SesMailer, type Mailer } from './mail';
 import { LiveKitMediaServer, type MediaServer } from './media';
-import { ApnsPusher, ConsolePusher, type Pusher } from './push';
+import {
+  ApnsPusher,
+  ConsolePusher,
+  FcmPusher,
+  type Pusher,
+} from './push';
 import { deployed, MIN_SUPPORTED_BUILD } from './release';
 import { S3RecordingStore } from './storage';
 import {
@@ -123,6 +128,50 @@ const pusher: Pusher | undefined =
     : new ConsolePusher();
 
 /**
+ * The Android half, which is a second service and so a second credential.
+ *
+ * **One path rather than three variables**, because Google issues the whole
+ * thing as a single JSON file and splitting it across the environment is three
+ * chances to paste a PEM with its newlines eaten. It lives outside the tree for
+ * `bin/deploy`'s reason — see planning/CREDENTIALS.md — and the file is the
+ * unit that gets copied there.
+ *
+ * **Undefined is the working state until the credential exists**, not a
+ * failure. `createApp` falls back to `pusher` for Android addresses, so an
+ * Android device registering against a server with no Firebase project has its
+ * notifications printed by `ConsolePusher` rather than dropped silently. That
+ * is what makes the whole path — registration, platform routing, message
+ * composition — exercisable before anybody has opened the Firebase console.
+ *
+ * A malformed file is a different matter and throws on the spot. A server that
+ * started and then failed every Android send would be a worse outcome than one
+ * that refused to start with the parse error in front of somebody.
+ */
+const fcmServiceAccountPath = process.env.FCM_SERVICE_ACCOUNT_PATH;
+const androidPusher: Pusher | undefined = fcmServiceAccountPath
+  ? (() => {
+      const account = JSON.parse(
+        readFileSync(fcmServiceAccountPath, 'utf8')
+      ) as {
+        project_id?: string;
+        client_email?: string;
+        private_key?: string;
+      };
+      if (!account.project_id || !account.client_email || !account.private_key) {
+        throw new Error(
+          `${fcmServiceAccountPath} is not a Firebase service account: ` +
+            'project_id, client_email and private_key are all required'
+        );
+      }
+      return new FcmPusher({
+        projectId: account.project_id,
+        clientEmail: account.client_email,
+        privateKey: account.private_key,
+      });
+    })()
+  : undefined;
+
+/**
  * The one address App Review can sign in as. Both halves are required — an
  * address with no code, or a code with no address, configures nothing — so a
  * half-filled .env leaves every code random rather than leaving one account
@@ -232,6 +281,7 @@ const app = buildApp({
   mediaUrl: liveKitUrl,
   store,
   pusher,
+  androidPusher,
   transcription,
   transcribeUnlimitedIdentifier,
   freeTranscriptMinutes,

@@ -1737,3 +1737,166 @@ fails to load — but a fallback in a colour from nowhere in the design was
 worse than one that matches.
 
 ---
+
+---
+
+## Android push, built inert ahead of its credential — 2026-09-04
+
+Android had no notification delivery at all. It has all of it now except a
+Firebase project, and the whole path — sender, routing, channels, build wiring —
+runs today against `ConsolePusher` exactly as iOS does without `APNS_KEY_PATH`.
+That ordering is the first decision and the one the rest hang off: **the code
+was written before the credential existed rather than after**, so that creating
+the project is a configuration step somebody does once rather than a
+prerequisite for finding out whether any of this works.
+
+**A second sender, not a transport abstraction.** `server/src/push.ts` predicted
+this in its own header — *"Android will arrive later as a second implementation
+rather than a rewrite of the callers"* — and the prediction held.
+`ApnsPusher` and `FcmPusher` share the `Pusher` interface and `PushMessage` and
+nothing else, because nothing else is genuinely shared: transport,
+authentication, message shape and the meaning of every failure code all differ.
+A common base class would have carried one honest method and a great deal of
+`if (apns)`.
+
+**Hand-rolled against FCM v1, no `firebase-admin`.** This is the direct
+continuation of § *Direct APNs rather than Expo's push service* in the first
+volume: the argument that declined putting a third party in the path of every
+notification also declines a large dependency whose contribution here is to
+compose one JSON object and sign one JWT. Node 24 has `fetch`, so the server
+still carries no push dependency of any kind. The admitted cost is no HTTP/2
+multiplexing — twenty devices are twenty requests rather than twenty streams —
+which at this app's volume is not a number anybody will measure.
+
+The one real difference from APNs is worth stating because it changes the shape
+of the code: **APNs takes a JWT this server signs and uses it directly as the
+bearer; Google will not.** The assertion has to be exchanged at
+`oauth2.googleapis.com` for an access token, so there is a network call in the
+authentication path with no Apple counterpart. It is fetched once per `send`
+rather than once per address, and concurrent sends share one in-flight exchange
+— otherwise a fan-out to twenty devices on a cold cache opens twenty of them.
+
+**Routing above `Pusher`, not inside it.** `DeviceAddress` carries the
+`platform` the table has stored since it was written and previously discarded on
+the way out; `app.ts` groups by `(platform, alert)`; `createApp` takes an
+`androidPusher` beside `pusher`. The alternative — a router hidden behind the
+`Pusher` interface — was declined because it would make `MemoryPusher.sent`
+ambiguous about which service a notification reached, and that is precisely what
+those assertions exist to pin down. It would also have forced `send` to take
+addresses rather than tokens, rewriting every caller and test to avoid a seam
+that is one line where it is.
+
+**Three notification channels, and this is the deepest divergence from iOS in
+the feature.** iOS decides loudness per message: `sound` and
+`interruption-level` are payload keys, so one topic carries all three alerts.
+Android decides it per *channel*, fixed when the channel is created and owned by
+the user from then on — a later call cannot raise or lower it. So the only way
+to preserve what `alertFor` already decides was a channel per outcome, with the
+ids living in `core/notifications.ts` beside the alerts themselves, because a
+message naming a channel the app never created is dropped by Android in
+silence.
+
+`silent` is `DEFAULT` importance with the sound removed rather than `LOW`, which
+is the only row in that table needing an argument. `DEFAULT` alone makes a
+noise, which is the one thing `silent` promises not to do; `LOW` is right about
+the noise and wrong about the banner, and `silent` on iOS is exactly a banner
+without a sound.
+
+The cost, stated rather than discovered later: three channels are three rows in
+Android's system settings, each independently mutable by the person holding the
+phone, and **the server cannot see that they have changed one**. iOS has one
+such switch. Android has four.
+
+### Three ways this fails silently, each now pinned by a test
+
+None of these produces an error anywhere, which is why they are listed together
+rather than left in the diff.
+
+**`data` values are strings on FCM and booleans on APNs.** Google refuses a
+`data` block carrying a JSON boolean, so `reachesInApp` crosses as `"true"`.
+The app read it as `=== true`, which is false for every quoted value — so every
+Android notification would have looked like one that must not draw a banner, and
+a ping arriving over an open app would silently never appear, on one platform
+only, with nothing logged at either end. The reader now accepts both forms and
+still equality-tests rather than checking truthiness, because `"false"` is a
+truthy string and that is the second way to get this wrong.
+
+**`collapse_key` is only half of collapsing.** It discards messages still queued
+at Google; what replaces a notification already sitting in the tray is
+`android.notification.tag`. APNs's single `apns-collapse-id` does both jobs, so
+parity needs both fields carrying the same value, and both omitted together so
+that a ping still collapses with nothing. Sent with only the first, a channel's
+presence collapses in flight and stacks on the lock screen — the half-working
+state that looks fine until two arrivals land.
+
+**FCM's maximum `ttl` is four weeks and `PARTICIPATION_LIFETIME_MS` is thirty
+days.** Unclamped, every invitation to an Android device is rejected outright
+with `INVALID_ARGUMENT`. The constant stays thirty days, because that number is
+APNs-shaped — `apns-expiration` has no value meaning "keep trying", so a
+far-future date is the only way to say it — and the clamp belongs to the
+transport with the smaller ceiling rather than to the rule.
+
+### The pruning rule, which is the one whose cost is data
+
+`isDeadFcmToken` forgets a row on `404 UNREGISTERED` and on nothing else. Two
+refusals read like they belong and are excluded deliberately.
+
+`400 INVALID_ARGUMENT` is the dangerous one: FCM returns it for a malformed
+*message* as well as a malformed token, so the TTL bug above would have deleted
+every Android device in the database as its second act. `403
+SENDER_ID_MISMATCH` is a good token belonging to a different Firebase project —
+one wrong `google-services.json`, or the wrong service account on the box — and
+is the exact counterpart of the `BadDeviceToken` trap that § *Notifications, and
+why the server talks to Apple itself* recorded for APNs. Both keep the row, on
+the same judgement stated there: **a misconfiguration should cost delivery until
+it is fixed, not data.**
+
+### What has no counterpart, and is dropped rather than approximated
+
+`threadId` does not cross. `AndroidNotification` has no `group` field in FCM v1,
+and Android's grouping is client-side and per channel — which cannot express
+`ASKING_THREAD` at all, since the notifications it gathers now arrive on three
+different channels and nothing can group across them. Sending it as a group key
+would produce piles that split along loudness, which is worse than the flat list
+Android gives by default. `apns-topic` and `apns-push-type` likewise have
+nothing to map to: the app identity rides on the token and on the project the
+service account belongs to.
+
+And one absence that is a relief rather than a loss: **there is no
+sandbox/production split.** A single Firebase project serves debug and release
+builds alike, so the setting most likely to be wrong on the iOS side — the one
+that costs an afternoon and blames the token — simply does not exist here.
+
+### The build wiring could not be the documented way
+
+`expo.android.googleServicesFile` in `app.json` is how this is normally done and
+**would break every checkout without a Firebase project**: Expo's mod throws
+when the file it names is missing, so `expo prebuild` would fail rather than
+build without push. Since `app.json` is static and the condition is not, the
+condition moved into `app/plugins/with-google-services.js`, which sets the key
+only when the file exists and returns the config untouched otherwise. Both
+branches were verified against `expo config` before anything else was built on
+them.
+
+`bin/android`'s freshness stamp had to move with it. It hashed `app.json`, and
+the Firebase file appearing changes the generated tree *without* changing
+`app.json` — so a machine that had just been given the credential would have
+called its tree fresh and built an APK with no push in it, silently. The stamp
+now hashes both. That script's own header made the argument for why this
+matters: a stale configuration on somebody else's phone is not a mistake you get
+to notice.
+
+### What is not known
+
+Nobody has seen any of this work. `npm test` covers the message shape, the
+routing, the pruning rule and the channel creation, and covers none of the
+things only a handset can answer — above all whether expo-notifications honours
+`channel_id` from the FCM `notification` block, which is the assumption the
+three channels rest on. planning/ANDROID.md § *Push, which was the largest gap*
+carries the ordered list of what to check and why that one is first.
+
+
+1,902 lines, so no rollover. This entry closed its own volume in the branch
+that wrote it, and did not need to once master turned out to have rolled over
+first — two sessions reaching the 2,000-line rule within a day of each other,
+which the rule handles by being mechanical rather than by being coordinated.

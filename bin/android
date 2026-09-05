@@ -19,11 +19,13 @@
 # clean, and the apk still carried the default.
 #
 # That applies to the emulator loop, where you are the only casualty. `--apk`
-# and `--aab` do not wait to be asked: they hash `app.json`, compare it against
-# the hash stamped into `android/` when that tree was generated, and prebuild
-# themselves when the two differ. Those artifacts leave the machine, and a
-# stale configuration on somebody else's phone is not a mistake you get to
-# notice.
+# and `--aab` do not wait to be asked: they hash the build's configuration —
+# `app.json` and `google-services.json` together, see `config_hash` — compare it
+# against the hash stamped into `android/` when that tree was generated, and
+# prebuild themselves when the two differ. Those artifacts leave the machine,
+# and a stale configuration on somebody else's phone is not a mistake you get to
+# notice. Since 2026-09-04 that includes whether the build can receive a
+# notification at all, which is the half no version number would show.
 #
 # This exists because the Android dev loop is four environment facts that no
 # error message names. `expo run:android` on a machine missing any of them fails
@@ -69,9 +71,29 @@ SDK="$HOME/Library/Android/sdk"
 JDK17="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
 AVD=thefloor
 
-# What `app.json` looked like when `android/` was last generated from it. Inside
-# the generated tree, so that discarding the tree discards the claim.
+# What the build's configuration looked like when `android/` was last generated
+# from it. Inside the generated tree, so that discarding the tree discards the
+# claim.
 STAMP=app/android/.app.json.sha256
+
+# The inputs that decide what prebuild produces, hashed together.
+#
+# **`app.json` alone stopped being enough when push arrived.**
+# `google-services.json` appearing or disappearing changes the generated tree —
+# it adds the `com.google.gms.google-services` gradle plugin and copies the file
+# into `android/app/` — and it does so *without* `app.json` changing a byte,
+# because the key that names it is added conditionally by
+# `app/plugins/with-google-services.js` rather than written in. Hashing only
+# `app.json` would therefore call a tree fresh that has no Firebase in it, on a
+# machine that has just been given the credential, and the result is an APK
+# where notifications silently do not exist.
+#
+# `cat` of a missing file is the empty string here rather than an error, which
+# is the state every checkout is in until somebody creates the project.
+config_hash() {
+  cat app/app.json app/google-services.json 2>/dev/null |
+    shasum -a 256 | cut -d' ' -f1
+}
 
 # The API level is not a preference. `compileSdkVersion` comes from
 # expo-modules-core's gradle plugin, which defaults to 36 — so the platform must
@@ -239,7 +261,7 @@ boot_emulator() {
 # the thing it describes, because it is stored in it.
 ensure_fresh() {
   local want have
-  want=$(shasum -a 256 app/app.json | cut -d' ' -f1)
+  want=$(config_hash)
   have=$(cat "$STAMP" 2>/dev/null || true)
   [ "$want" = "$have" ] && return 0
 
@@ -387,7 +409,7 @@ prebuild() {
   # Written after the generator runs, not before: `--clean` wipes the directory
   # this lives in, so a stamp written first is a stamp that is deleted and then
   # missed. Missing reads as stale, which is the safe way round.
-  shasum -a 256 app/app.json | cut -d' ' -f1 > "$STAMP"
+  config_hash > "$STAMP"
 }
 
 run() {

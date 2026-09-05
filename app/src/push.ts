@@ -1,15 +1,25 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { ANDROID_CHANNEL_IDS } from '../../core/notifications';
 import { api } from './api/http';
 
 /**
  * Being reachable when the app is not running.
  *
- * The token asked for here is the **raw APNs device token**, not an Expo push
- * token: the server talks to Apple directly and signs its own provider JWTs,
- * so there is no Expo project id in the loop and nothing to configure in EAS.
- * `getExpoPushTokenAsync` is the other path and is deliberately not used.
+ * The token asked for here is the **raw device token** — an APNs one on iOS, an
+ * FCM registration token on Android — and never an Expo push token: the server
+ * talks to each service directly and holds each service's credential, so there
+ * is no Expo project id in the loop and nothing to configure in EAS.
+ * `getExpoPushTokenAsync` is the other path and is deliberately not used. See
+ * DECISIONS § *Direct APNs rather than Expo's push service*, whose reasoning —
+ * no third party in the path of every notification — is what made Android a
+ * second sender rather than a second configuration.
+ *
+ * **On Android the token is only minted once `google-services.json` is in the
+ * build.** Without it `getDevicePushTokenAsync` throws, which `claim`'s callers
+ * already read as "not registered" — so a build made without the file behaves
+ * exactly like a phone that refused permission, rather than crashing.
  */
 
 /**
@@ -122,7 +132,18 @@ function reachesInApp(notification: Notifications.Notification): boolean {
   const data = notification.request.content.data as
     | { reachesInApp?: unknown }
     | undefined;
-  return data?.reachesInApp === true;
+  // **Both forms, because the two services disagree about what a boolean is.**
+  // APNs carries the JSON payload through untouched, so this arrives as `true`.
+  // FCM's data block is `map<string, string>` — Google refuses a body with a
+  // boolean in it — so the same field arrives as `"true"`, and a strict test
+  // against `true` reads it as false. That failure is silent and total: every
+  // notification would look like one that must not draw a banner, so nothing
+  // would ever appear over the app on Android, with nothing logged anywhere.
+  //
+  // Still not `Boolean(...)` or a truthiness test. The safe reading of a
+  // missing field is the pre-field behaviour, per `dataOf` above, and the
+  // string `"false"` is truthy — which is the second way to get this wrong.
+  return data?.reachesInApp === true || data?.reachesInApp === 'true';
 }
 
 /**
@@ -193,8 +214,83 @@ function mayHoldToken(): boolean {
 async function claim(authToken: string): Promise<string> {
   const { data } = await Notifications.getDevicePushTokenAsync();
   const deviceToken = String(data);
-  await api.registerDevice(authToken, deviceToken, Platform.OS as 'ios');
+  // After the token and before the server has an address to send to, which is
+  // the only ordering that is provably ahead of the first arrival. It is also
+  // why this is here rather than beside `setNotificationHandler` at module
+  // scope: an install where Firebase is not configured never reaches this
+  // line, and so never leaves three channels in Android's settings that
+  // nothing will ever be delivered on.
+  await ensureChannels();
+  await api.registerDevice(
+    authToken,
+    deviceToken,
+    Platform.OS === 'android' ? 'android' : 'ios'
+  );
   return deviceToken;
+}
+
+/**
+ * Creates the three channels the server addresses its notifications to.
+ *
+ * **Android drops a notification naming a channel that does not exist**, with
+ * no error, nothing on screen and nothing in logcat worth finding — so this
+ * has to have run before the first one arrives, and the ids have to match what
+ * the server sends. They come from `ANDROID_CHANNEL_IDS` for that second
+ * reason: one table, imported by both ends, rather than two lists that agree
+ * until somebody edits one.
+ *
+ * **Importance is fixed at creation and belongs to the user afterwards.** A
+ * later call cannot raise or lower it — Android ignores the attempt, on the
+ * principle that a person who turned a channel down has said something an app
+ * may not overrule. So these three values are chosen once, and changing one
+ * later means a new channel id and an orphan left behind in Settings.
+ *
+ * `silent` is `DEFAULT` with the sound taken away rather than `LOW`, which is
+ * the only entry here that needs an argument. `DEFAULT` on its own makes a
+ * noise, which is the one thing `silent` promises it will not do; `LOW` would
+ * be right about the noise and wrong about everything else, since it also
+ * declines to show a banner — and `silent` on iOS is precisely a banner
+ * without a sound. So the importance carries the visibility and the sound is
+ * removed by hand.
+ *
+ * Never throws, on this module's contract: a phone with no channels still
+ * works for everything except notifications, and failing here would take
+ * sign-in down with it.
+ */
+async function ensureChannels(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync(
+      ANDROID_CHANNEL_IDS.audible,
+      {
+        name: 'Pings and invitations',
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: 'default',
+        enableVibrate: true,
+      }
+    );
+    await Notifications.setNotificationChannelAsync(
+      ANDROID_CHANNEL_IDS.silent,
+      {
+        name: 'Channel activity',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        sound: null,
+        enableVibrate: false,
+      }
+    );
+    await Notifications.setNotificationChannelAsync(
+      ANDROID_CHANNEL_IDS.passive,
+      {
+        name: 'Quiet updates',
+        importance: Notifications.AndroidImportance.LOW,
+        sound: null,
+        enableVibrate: false,
+      }
+    );
+  } catch {
+    // A build with no Firebase behind it, or a platform that has moved the
+    // API. Neither is worth a word to somebody signing in.
+  }
 }
 
 /**

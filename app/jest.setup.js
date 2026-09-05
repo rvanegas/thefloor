@@ -18,6 +18,10 @@ jest.mock('expo-notifications', () => ({
   })),
   requestPermissionsAsync: jest.fn(async () => ({ granted: false })),
   getDevicePushTokenAsync: jest.fn(async () => ({ type: 'ios', data: '' })),
+  // Android only in practice; a no-op here so the shared paths can call it
+  // unconditionally without every suite mocking the platform.
+  setNotificationChannelAsync: jest.fn(async () => null),
+  AndroidImportance: { LOW: 2, DEFAULT: 3, HIGH: 4 },
   getLastNotificationResponseAsync: jest.fn(async () => null),
   // Nothing on the lock screen by default, which is what a fresh install has.
   // The tests that sweep hand back their own list.

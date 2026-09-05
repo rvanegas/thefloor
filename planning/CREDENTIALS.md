@@ -1,7 +1,13 @@
 # Credentials
 
 The nine credentials this project holds, where each one lives, what it can do
-and what losing it costs. Split out of AGENTS.md on 2026-08-15, verbatim, when
+and what losing it costs. **Count the bullets rather than trusting this
+sentence**: it said nine while the list held eight from 2026-09-01, when the
+Android upload key was added and the numeral was not, until the Firebase
+service account made it true again on 2026-09-04. A number in prose and a list
+below it are two things to keep level, and the list is the one that is right —
+prefer adding an entry to renumbering the sentence. Split out of AGENTS.md on
+2026-08-15, verbatim, when
 that file reached its 650-line limit again — the same seam as RELEASING.md and
 for the same reason: it is loaded into every session before anybody types
 anything, and none of this is needed by somebody working on the server, the
@@ -204,6 +210,51 @@ Deliberately separate, so no single leak is worse than it has to be:
   Rotating it is cheap and non-destructive, like the Ko-fi token: generate
   another in their dashboard, replace the line, restart. Nothing already stored
   depends on it — the transcripts are here, not there.
+
+- **Firebase service account** — `FCM_SERVICE_ACCOUNT_PATH`, the JSON Google
+  issues under Project settings → Service accounts → Generate new private key.
+  The ninth, added 2026-09-04 with Android push. It is what lets the server
+  reach an Android device, and it is the APNs `.p8`'s counterpart rather than
+  its replacement: the two services are addressed separately and neither
+  credential can be used against the other.
+
+  **Scope it to `roles/firebaseMessaging.admin` and nothing wider.** The key
+  Google offers by default belongs to a service account that can be given far
+  more than sending, and this needs only sending. Somebody holding it can put a
+  notification on every Android install — which is unpleasant but bounded: it
+  reads nothing, and no conversation, recording or transcript is reachable with
+  it.
+
+  It lives in `~/.config/thefloor/fcm-service-account.json`, mode 600, and on
+  the box at the path `FCM_SERVICE_ACCOUNT_PATH` names — same location and same
+  reasoning as the two `.p8` keys and the upload keystore: `bin/deploy` rsyncs
+  with `--delete`, so a credential inside the tree is one a later deploy
+  removes. `fcm-service-account.json` is gitignored as a second line of
+  defence.
+
+  **Unlike the `.p8`s it can be reissued.** Losing it is a visit to the Cloud
+  console to mint another and delete the old, with no support ticket and
+  nothing permanently spent — which makes it the cheapest credential here to
+  rotate and the one least worth agonising over. Delete the old key when you
+  mint a new one; they accumulate silently otherwise.
+
+  **Absent is a working state**, marked `# env-push: optional` in
+  `server/.env.example` for AssemblyAI's reason. Without it the server prints
+  what it would have sent to an Android device instead of sending it, exactly
+  as it does for iOS without `APNS_KEY_PATH` — which is what let the whole
+  Android push path be built and tested before the Firebase project existed.
+
+  **There is no sandbox/production dimension**, and that is worth saying
+  because `APNS_ENV` trains you to look for one. One Firebase project serves
+  debug and release builds alike, so the single most error-prone setting on the
+  iOS side has no counterpart here.
+
+  Its build-side partner, **`app/google-services.json`**, is *not* a credential
+  and is not counted above. It ships inside every APK and is readable by
+  anybody who downloads the app. It is gitignored because it is per-project
+  build input no checkout should assume is present, and
+  `app/plugins/with-google-services.js` adds it to the build only when it
+  exists — so a tree without one still prebuilds, and simply has no push.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it

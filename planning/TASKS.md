@@ -94,8 +94,11 @@ whether a backgrounded call survives, and the three that were already waiting �
 echo, Bluetooth and wired routing, and an incoming phone call — none of which a
 working two-way call says anything about. Then audio focus.
 
-Push has no Android delivery at all and is the largest single item, outside
-that sequence. Getting onto Play is its own track and is blocked only on
+**Push was built on 2026-09-04**, ahead of the sequence above and ahead of the
+credential it needs: an FCM sender beside the APNs one, platform routing, and
+three notification channels, all inert until a Firebase project exists. What is
+left of it is that project and the same handset — nobody has watched a
+notification arrive. Getting onto Play is its own track and is blocked only on
 creating the Console account; ANDROID.md carries the signup checklist, the
 Data safety draft and what each remaining item would cost. Read it rather than
 re-deriving from this paragraph.

@@ -5,10 +5,15 @@
 and establish a dev simulator on the Mac. Both were done on 2026-09-01, along
 with the one piece of code that could not be deferred without shipping a known
 defect — the audio session — and the foreground service followed on 2026-09-03,
-once hardware had shown the defect it fixes. Everything else this file
+once hardware had shown the defect it fixes. **Push followed on 2026-09-04**,
+and is the first item here built entirely ahead of the thing it needs: it is
+complete and inert until a Firebase project exists. Everything else this file
 describes is unbuilt, and each item says what it would cost. When Android
 ships, what survives moves to
 `decisions/DECISIONS.md` and this file goes.
+
+**Three of the sections below now describe built work rather than gaps**, and
+each says so in its first line. Read the first line before the section.
 
 It replaces BACKLOG.md § *Android has never been built or run*, whose factual
 claims had gone stale — there is an `android/`, and a build has been attempted.
@@ -20,10 +25,13 @@ claims had gone stale — there is an `android/`, and a build has been attempted
 `bin/android` builds and installs the app on an emulator. `app/src/audio/`
 configures the Android audio session, which it did not before. **`app/modules/
 call-service/` keeps a channel alive off screen**, added 2026-09-03 and the
-second piece of Android-aware code this app has. There is an upload key and a
-signed bundle; there is no Play listing, no `eas.json`, no `bin/upload-android`,
-and **no Android build has ever been in anybody's hands** — `bin/upload-ios`
-remains the only release path this repository has.
+second piece of Android-aware code this app has. **Push exists end to end as of
+2026-09-04** — `FcmPusher`, platform routing, three notification channels — and
+sends nothing until somebody creates a Firebase project, by construction rather
+than by omission. There is an upload key and a signed bundle; there is no Play
+listing, no `eas.json`, no `bin/upload-android`, and **no Android build has ever
+been in anybody's hands** — `bin/upload-ios` remains the only release path this
+repository has.
 
 The premise BACKLOG.md wrote down still holds where it matters:
 
@@ -311,17 +319,26 @@ say before the questionnaire rather than during it.
 - **`/privacy` is Apple-shaped, and one of the two places is fixed.** The
   notification-token sentence said the token is discarded "when Apple reports
   it as" dead; it now names the device's notification service instead, which is
-  true today and stays true when there is a second one. **The other is
-  deliberately left**: "Apple delivers notifications", under *Who else can see
-  any of it*, is an accurate statement of what this server does right now and
-  naming Google beside it would be a claim about a path that does not exist.
-  That sentence is part of shipping FCM, not part of preparing for it.
+  true today and stays true when there is a second one. **The other was
+  deliberately left, and has since changed**: "Apple delivers notifications",
+  under *Who else can see any of it*, was accurate for as long as it was the
+  only path, and naming Google beside it would have been a claim about one that
+  did not exist. That sentence was held to be part of shipping FCM rather than
+  of preparing for it — and shipping happened on 2026-09-04, so it now reads
+  "Apple and Google deliver notifications, each to their own phones."
 
 #### What a tester will find missing
 
-Worth stating before anybody installs from the track: **no notifications at
-all**, because there is no FCM sender. That one is known and is not a bug
-report worth having.
+Worth stating before anybody installs from the track: **whether there are
+notifications at all depends on how the build was made.** Built without
+`app/google-services.json`, there are none — silently and by design, since the
+plugin leaves Firebase out entirely and the app reports itself unregistered
+exactly as a phone that refused permission would. Built with it, against a
+server holding the service account, they work. Neither case is a bug report
+worth having; what is worth asking a tester is which build they installed.
+
+That sentence said "no notifications at all, because there is no FCM sender"
+until 2026-09-04, and the sender is the half that stopped being true.
 
 **The backgrounding defect was the other half of this paragraph until
 2026-09-03**, and the foreground service that fixes it now exists. What is left
@@ -427,31 +444,137 @@ than a system sheet. So `ChannelSettingsView.tsx`'s "Audio output" card needs a
 
 ---
 
-## Push, which is the largest gap
+## Push, which was the largest gap
 
-`device_tokens` has carried a `platform` column accepting `'android'` since it
-was written, and that is the entire extent of the readiness.
+**Built 2026-09-04, and inert until somebody creates a Firebase project.** This
+section described a hole until that date; what is left is one credential and a
+handset, and the shape of what was built is below because the decisions in it
+are not recoverable from the diff.
 
-- `server/src/push.ts` is a hand-written **APNs HTTP/2 provider** — ES256
-  provider JWTs, `apns-topic`, `apns-collapse-id`, 410 pruning. None of it is a
-  transport abstraction; it is APNs specifically. FCM is a second sender
-  alongside it, not a parameter to this one.
-- `app/src/push.ts:196` registers with `Platform.OS as 'ios'` — a cast, so an
-  Android build would send `'android'` at runtime and reach a server with no
-  path for it.
-- **No notification channel.** Android 8+ requires `setNotificationChannelAsync`
-  before any notification can be shown; there is no call to it anywhere. Without
-  one, notifications are silently dropped — no error, nothing on screen.
-- **No `POST_NOTIFICATIONS` permission**, required to even ask from Android 13.
-- The tap-to-open-a-channel path (`channelOf`, `getLastNotificationResponseAsync`)
-  is the only deep link into this app, and it rides on the delivery that does not
-  exist.
+The whole path exists: `FcmPusher` in `server/src/push.ts`, platform routing
+through the fan-out, three notification channels on the client, and the build
+wiring that turns itself on when `google-services.json` appears. With no
+credential, an Android address is printed by `ConsolePusher` exactly as an iOS
+one is without `APNS_KEY_PATH` — so every part of it except Google's own
+acceptance is exercised by `npm test` today.
 
-Cost: a Firebase project, `google-services.json` in the build, an FCM v1 sender
-in `server/src/push.ts` with its own credential (a ninth, for CREDENTIALS.md),
-and a channel + permission on the client. It is the largest single item here and
-it is not on the critical path to a working dev loop, which is why it was
-deferred rather than started.
+### What was decided, and why
+
+- **A second sender rather than a transport abstraction.** `server/src/push.ts`
+  said this would happen before it did: *"Android will arrive later as a second
+  implementation rather than a rewrite of the callers."* `ApnsPusher` and
+  `FcmPusher` share the `Pusher` interface and `PushMessage` and nothing else,
+  because nothing else is genuinely shared — transport, authentication, message
+  shape and the meaning of every failure code all differ.
+- **Hand-rolled against FCM v1 with `fetch`, no `firebase-admin`.** The direct
+  continuation of DECISIONS § *Direct APNs rather than Expo's push service*:
+  the argument that declined a third party in the path of every notification
+  declines a large dependency to compose one JSON object and sign one JWT.
+  Node 24 has `fetch`, so the server still carries no push dependency at all.
+- **Routing happens above `Pusher`, not inside it.** `DeviceAddress` carries
+  `platform`, `app.ts` groups by `(platform, alert)`, and `createApp` takes an
+  `androidPusher` beside `pusher`. A router hidden behind the interface would
+  have made `MemoryPusher.sent` ambiguous about which service a notification
+  reached, which is the one thing those assertions exist to pin down.
+- **Three notification channels**, ids `passive` / `silent` / `audible`, from
+  `ANDROID_CHANNEL_IDS` in `core/notifications.ts` so both ends read one table.
+  This is the deepest divergence from iOS in the whole feature: **iOS decides
+  loudness per message, Android per channel**, and a channel's importance is
+  fixed when it is created and belongs to the user afterwards. So the three
+  values were chosen once and changing one later means a new channel id and an
+  orphan left in Settings.
+- **`silent` is `DEFAULT` importance with the sound removed**, not `LOW`.
+  `DEFAULT` alone makes a noise, which is the one thing `silent` promises not
+  to do; `LOW` would be right about the noise and wrong about the banner, and
+  `silent` on iOS is precisely a banner without a sound.
+- **The cost of three channels, stated plainly:** they are three rows in
+  Android's system settings, each of which a person can turn down *there*,
+  independently of the per-channel level this app offers. The server cannot see
+  that they have. iOS has one such switch; Android has four.
+
+### The three traps, each of which fails silently
+
+Worth naming separately because none of them produces an error anywhere, and
+each cost a test to pin rather than a debugging session on a handset.
+
+1. **`data` values are strings on FCM and booleans on APNs.** Google refuses a
+   `data` block carrying a JSON boolean, so `reachesInApp` arrives as `"true"`.
+   `app/src/push.ts` read it as `data?.reachesInApp === true`, which is `false`
+   for every quoted value — so every Android notification would have looked
+   like one that must not draw a banner, and a ping over an open app would
+   silently never appear on one platform only. The reader now accepts both, and
+   still equality-tests rather than truthiness, because `"false"` is truthy.
+2. **`collapse_key` is not the whole of collapsing.** It discards messages
+   still queued *at Google*; what replaces a notification already in the tray is
+   `android.notification.tag`. APNs's single `apns-collapse-id` does both jobs,
+   so parity needs both fields carrying the same value — and both omitted
+   together, so a ping still collapses with nothing. Sent with only the first,
+   presence stacks on the lock screen all evening while appearing to work.
+3. **FCM's maximum `ttl` is four weeks; `PARTICIPATION_LIFETIME_MS` is thirty
+   days.** Unclamped, *every invitation to an Android device is rejected* with
+   `INVALID_ARGUMENT` — and rejected identically to a malformed token. The
+   constant stays thirty days because that number is APNs-shaped and still right
+   for Apple; the clamp is the Android transport's business.
+
+And the trap that is not silent but is expensive: `INVALID_ARGUMENT` must
+**not** prune the row. FCM returns it for a malformed *message* as well as a
+malformed token, which means the TTL bug above would have deleted every Android
+device in the database as its second act. `isDeadFcmToken` forgets a row on
+`404 UNREGISTERED` and nothing else — same judgement as `isDeadToken`'s refusal
+to prune on `BadDeviceToken`, and `403 SENDER_ID_MISMATCH` is its exact
+counterpart: a good token from the wrong project.
+
+### What has no Android counterpart
+
+- **`threadId` is carried nowhere.** `AndroidNotification` has no `group` field
+  in FCM v1, and Android's grouping is client-side and per channel — which
+  cannot express `ASKING_THREAD`, since the notifications it gathers arrive on
+  three different channels. Dropped deliberately rather than approximated.
+- **`apns-topic` and `apns-push-type`** have nothing to map to: the app
+  identity is carried by the token and by the Firebase project the service
+  account belongs to.
+- **No sandbox/production split.** One project serves debug and release builds,
+  so the setting most likely to be wrong on iOS simply does not exist here.
+
+### The build wiring, which could not be the documented way
+
+`expo.android.googleServicesFile` in `app.json` is how this is normally done and
+**would break every checkout that has no Firebase project** — Expo's mod throws
+outright when the file it names is missing, so `expo prebuild` would fail rather
+than build without push. `app/plugins/with-google-services.js` sets the key only
+when `app/google-services.json` exists, and returns the config untouched
+otherwise. Both branches are verified.
+
+`bin/android`'s freshness stamp had to move with it: it hashed `app.json`, and
+the file appearing changes the generated tree *without* changing `app.json`.
+`config_hash` now covers both, so a machine that has just been given the
+credential correctly sees a stale tree.
+
+### What is left
+
+1. **A Firebase project**, and the two files it yields — `google-services.json`
+   into `app/`, the service-account JSON to `~/.config/thefloor/` and the box.
+   See CREDENTIALS.md § *Firebase service account*.
+2. **A handset.** Nothing below has been seen work, and a Mac cannot settle any
+   of it. In the order they are likely to be what is wrong:
+   - **That the notification appears at all** — the assumption a test cannot
+     reach is that expo-notifications honours `channel_id` from the FCM
+     `notification` block. If it does not, the message shape is what needs
+     revisiting, not the channels.
+   - The right channel, by turning one down in Settings and watching only that
+     kind go quiet.
+   - **A second arrival in one channel replaces the first** rather than
+     stacking. This is the `tag` half, and is the one assertion the unit test
+     cannot make.
+   - Two pings both survive.
+   - A ping while the app is foregrounded draws a banner — the string-versus-
+     boolean fix, on real data rather than a fixture.
+   - The tap-to-open-a-channel path, which is the only deep link into this app
+     and has never once run on Android.
+   - Uninstall, send again, and confirm the row is pruned on `UNREGISTERED`.
+   - Point the server at the wrong project once and confirm `SENDER_ID_MISMATCH`
+     prunes **nothing** — the one failure whose cost is data rather than
+     delivery.
 
 ## Background audio, which was where the work genuinely diverged
 
@@ -484,14 +607,25 @@ Four things about it that are decisions rather than mechanics:
   on the other, to whoever picks the phone up. The words live in
   `modules/call-service/index.ts` rather than in Kotlin, so that a reader of
   this app can find them.
-- **`POST_NOTIFICATIONS` is declared and never requested**, which is the one
-  loose end. From Android 13 an ungranted notification permission means the
-  notification is *not shown* — the service still runs and the call still
-  survives, so this is cosmetic rather than functional, but it leaves the user
-  with a microphone running and nothing on screen saying why. The permission
-  has to be in the manifest before it can ever be asked for, which is why it is
-  there now; asking belongs with the push work, which is the other reason to
-  ask and will prompt for it anyway.
+- **`POST_NOTIFICATIONS` is declared, and since 2026-09-04 it is asked for.**
+  From Android 13 an ungranted notification permission means the notification is
+  *not shown* — the service still runs and the call still survives, so this was
+  cosmetic rather than functional, but it left the user with a microphone
+  running and nothing on screen saying why.
+
+  This bullet said "declared and never requested" and predicted that asking
+  would arrive with the push work. It did, and with **no code of its own**:
+  `registerForPush` already called `requestPermissionsAsync` on a path that was
+  never platform-gated, so the Android 13 runtime prompt appears the first time
+  somebody signs in. The loose end closed by something else being built, which
+  is the pleasant version of a dependency.
+
+  One wart worth knowing rather than fixing: the prompt comes **before** the
+  token is minted, so a build with no `google-services.json` behind it asks for
+  notification permission and then quietly cannot register. Harmless, and the
+  alternative — asking only after a token exists — would mean the foreground
+  service's notification stays invisible on any build without Firebase, which is
+  the worse of the two.
 - **Everything answers `false` rather than throwing**, on the same contract
   `modules/audio-route` keeps: a channel with no service behind it still works
   for as long as the app is on screen, which is every case except the one this

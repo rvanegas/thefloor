@@ -61,6 +61,40 @@ export const NOTIFICATION_LEVELS: readonly NotificationLevel[] = [
 ];
 
 /**
+ * The Android notification channel each alert is delivered on.
+ *
+ * Here for this file's founding reason — both ends need it and must not
+ * disagree. The server names a channel in every message it sends; the app
+ * creates the channels. A message naming a channel the app never created is
+ * **dropped by Android silently**, with no error at either end, which is the
+ * failure this shared table exists to make impossible.
+ *
+ * **Three channels rather than one, because Android puts loudness on the
+ * channel and not on the message.** iOS decides per notification — `sound` and
+ * `interruption-level` are payload keys — so one APNs topic carries all three
+ * alerts. Android has no per-message equivalent: importance belongs to the
+ * channel, is fixed when the channel is created, and cannot be raised
+ * afterwards even by the app that made it. So the only way to preserve what
+ * `alertFor` decides is a channel per outcome.
+ *
+ * The cost is worth stating, because it is a real divergence rather than a
+ * detail: these are three separate rows in Android's system settings, and a
+ * person can turn any of them down *there*, independently of the per-channel
+ * level this app offers. The server cannot see that they have, so a
+ * notification suppressed that way is indistinguishable here from one
+ * delivered. iOS has one such switch; Android has four.
+ *
+ * The ids are the alert names because there is nothing to gain from a second
+ * vocabulary, and a mismatch between the two would be exactly the silent drop
+ * above.
+ */
+export const ANDROID_CHANNEL_IDS: Readonly<Record<NotificationAlert, string>> = {
+  passive: 'passive',
+  silent: 'silent',
+  audible: 'audible',
+};
+
+/**
  * How one notification arrives, for somebody who has set one level.
  *
  * The table is small enough to read and is deliberately written out rather

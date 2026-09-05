@@ -38,6 +38,18 @@ server/web/beta/
 *.p12
 *.key
 *.mobileprovision
+# The Firebase config the Android build reads to reach FCM. Ignored because it
+# is per-project build input that no checkout should assume is present — not
+# because it is secret: it ships inside every APK and is readable by anybody
+# who downloads the app. `plugins/with-google-services.js` adds it to the build
+# only when it exists, so a tree without one still prebuilds. The credential
+# that does need keeping is the server's service account; see
+# planning/CREDENTIALS.md.
+google-services.json
+# The other half of that pair, and this one *is* secret: it can send a
+# notification to every install. It lives in ~/.config/thefloor and on the box,
+# never here.
+fcm-service-account.json
 
 # Metro
 .metro-health-check*

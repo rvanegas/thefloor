@@ -295,12 +295,13 @@ the same server-side events would drive both.
 - **Nothing is notified but these two events.** A contact request, a request
   accepted, or somebody inviting you into a channel you are already a member of
   all still reach you in-app only.
-- **Android has no delivery at all.** `device_tokens` carries a `platform`
-  column and accepts `'android'`, but no FCM sender exists, `app/src/push.ts`
-  registers every token as `'ios'`, and there is no notification channel or
-  `POST_NOTIFICATIONS` permission. It is the largest single item in
-  planning/ANDROID.md, which is where the rest of it lives now that Android
-  builds.
+- **Android delivery was built on 2026-09-04** and is waiting on a Firebase
+  project rather than on code. `FcmPusher` sits beside `ApnsPusher`, the fan-out
+  routes by platform, and the client creates three notification channels; with
+  no credential every Android address falls to `ConsolePusher`, which is what
+  makes the whole path testable ahead of the thing it needs. This bullet said
+  there was no delivery at all until then. planning/ANDROID.md § *Push, which
+  was the largest gap* is where the rest of it lives.
 
 ---
 

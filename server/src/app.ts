@@ -102,10 +102,27 @@ export interface BuildOptions {
   /** Grace period before an ended channel's audio room is torn down. */
   roomCloseGraceMs?: number;
   /**
-   * Reaches a device whose app is not running. Without one, nothing is sent
-   * and the in-app path is all there is — which is what it was before push.
+   * Reaches an iOS device whose app is not running. Without one, nothing is
+   * sent and the in-app path is all there is — which is what it was before
+   * push.
    */
   pusher?: Pusher;
+  /**
+   * The same for Android, which is a different service and so a different
+   * sender.
+   *
+   * **Two options rather than one pusher that knows about platforms.** The
+   * choice is made here, above the interface, so that every existing caller
+   * and every existing test keeps a `Pusher` that means exactly one service.
+   * A router hiding behind `Pusher` would make `MemoryPusher.sent` ambiguous
+   * about which of the two a notification had reached, which is the one thing
+   * those assertions exist to pin down.
+   *
+   * Absent, Android addresses fall to `pusher` — which in development is the
+   * console, and is why the whole path can be exercised before the FCM
+   * credential exists.
+   */
+  androidPusher?: Pusher;
   now?: () => number;
   logger?: boolean;
   /**
@@ -296,6 +313,12 @@ export function buildApp(options: BuildOptions = {}): App {
   const devices = new Devices(db);
   const preferences = new NotificationPreferences(db);
   const pusher = options.pusher ?? new ConsolePusher(() => {});
+  // Falls back to the iOS sender rather than to a no-op, so that a server with
+  // no FCM credential still logs what it would have sent to an Android device
+  // instead of dropping it without a word.
+  const androidPusher = options.androidPusher ?? pusher;
+  const pusherFor = (platform: DevicePlatform): Pusher =>
+    platform === 'android' ? androidPusher : pusher;
   const pushNotifier = createPushNotifier();
 
   /** Nothing is suppressed for a ping; see the notifier below. */
@@ -326,7 +349,13 @@ export function buildApp(options: BuildOptions = {}): App {
     // case — nobody has touched the setting — is a single group again, which
     // is what this path did before levels existed.
     const levels = preferences.levelsFor(userIds, message.channelId);
-    const byAlert = new Map<NotificationAlert, string[]>();
+    // Keyed on the platform as well as the alert since 2026-09-04. The alert
+    // decides how loudly this lands; the platform decides which service is
+    // asked to land it, and an address sent to the wrong one is refused in a
+    // way indistinguishable from a stale row. Two recipients still share a
+    // request whenever they share both answers, which for a single-platform
+    // deployment is the same grouping this did before.
+    const byGroup = new Map<string, { platform: DevicePlatform; alert: NotificationAlert; tokens: string[] }>();
     let suppressed = 0;
     for (const [id, addresses] of devices.addressesByAccount(userIds)) {
       // Which of this person's devices are looking at a screen right now.
@@ -358,14 +387,21 @@ export function buildApp(options: BuildOptions = {}): App {
           suppressed += 1;
           continue;
         }
-        byAlert.set(alert, [...(byAlert.get(alert) ?? []), address.token]);
+        const key = `${address.platform}:${alert}`;
+        const group = byGroup.get(key) ?? {
+          platform: address.platform,
+          alert,
+          tokens: [],
+        };
+        group.tokens.push(address.token);
+        byGroup.set(key, group);
       }
     }
     // Logged even when nothing is sent, and with the reason it was not. The
     // two ways of sending nothing — everybody is already looking, and nobody
     // has registered a device — are indistinguishable from a delivery failure
     // otherwise, which is exactly the confusion this feature shipped with.
-    if (byAlert.size === 0) {
+    if (byGroup.size === 0) {
       fastify.log.info(
         {
           channelId: message.channelId,
@@ -377,8 +413,8 @@ export function buildApp(options: BuildOptions = {}): App {
       );
       return;
     }
-    for (const [alert, tokens] of byAlert) {
-      void pusher
+    for (const { platform, alert, tokens } of byGroup.values()) {
+      void pusherFor(platform)
         .send(tokens, message, alert)
         .then((results) => {
           for (const result of results) {
@@ -389,6 +425,9 @@ export function buildApp(options: BuildOptions = {}): App {
             {
               channelId: message.channelId,
               kind: message.kind,
+              // Named because the two services refuse things differently, and
+              // a bare status is ambiguous between them once both are live.
+              platform,
               alert,
               sent: results.length - failed.length,
               failed: failed.map((r) => ({

@@ -245,7 +245,8 @@ hands rather than something about you.</p>
 
 <h2>Who else can see any of it</h2>
 <p>Amazon Web Services stores the recordings and sends the sign-in emails. Apple
-delivers notifications. Ko-fi handles donations.${
+and Google deliver notifications, each to their own phones. Ko-fi handles
+donations.${
       provider ? ` ${provider} transcribes a recording when somebody asks it to.` : ''
     } None of them are given
 anything beyond what their job requires${

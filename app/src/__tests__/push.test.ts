@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 import { api } from '../api/http';
 import {
@@ -92,6 +93,31 @@ describe('a notification arriving while the app is open', () => {
     expect(bare.shouldShowBanner).toBe(false);
     const empty = await handler(notification(undefined));
     expect(empty.shouldShowBanner).toBe(false);
+  });
+
+  /**
+   * **The Android form of the same field.** FCM's data block is
+   * `map<string, string>` — Google refuses a body carrying a JSON boolean — so
+   * everything the server sends arrives quoted. Read strictly against `true`,
+   * every Android notification looks like one that must not draw a banner, and
+   * a ping over an open app silently stops appearing on one platform only.
+   */
+  it('interrupts for a ping whose flag arrived as a string', async () => {
+    const decision = await handler(
+      notification({ channelId: 'chan_1', reachesInApp: 'true' })
+    );
+    expect(decision.shouldShowBanner).toBe(true);
+  });
+
+  /**
+   * And the trap on the other side of that fix: `"false"` is a truthy string,
+   * so anything looser than an equality test reaches the wrong answer.
+   */
+  it('stays quiet when the string says false', async () => {
+    const decision = await handler(
+      notification({ channelId: 'chan_1', reachesInApp: 'false' })
+    );
+    expect(decision.shouldShowBanner).toBe(false);
   });
 });
 
@@ -203,6 +229,115 @@ describe('registering for push without asking', () => {
 
     await expect(registerIfGranted('auth')).resolves.toBe('apns-token');
     expect(registerDevice).toHaveBeenCalledWith('auth', 'apns-token', 'ios');
+  });
+
+  it('creates no Android channels on iOS', async () => {
+    permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+
+    await registerIfGranted('auth');
+    expect(Notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Android, where the platform is told the truth and the channels exist.
+   *
+   * `Platform.OS` is read at call time rather than captured at import, so
+   * moving it for the duration of a test is enough — and is what lets one
+   * suite cover a module that behaves differently on two platforms without a
+   * second jest project.
+   */
+  describe('on Android', () => {
+    const original = Platform.OS;
+
+    beforeEach(() => {
+      Object.defineProperty(Platform, 'OS', {
+        value: 'android',
+        configurable: true,
+      });
+      deviceToken.mockResolvedValue({ type: 'android', data: 'fcm-token' });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(Platform, 'OS', {
+        value: original,
+        configurable: true,
+      });
+    });
+
+    /**
+     * The cast this replaced said `'ios'` for every install. An Android build
+     * would have registered as an iPhone and had its notifications addressed
+     * to Apple, which refuses them in a way indistinguishable from a stale row.
+     */
+    it('registers as the platform it actually is', async () => {
+      permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+
+      await expect(registerIfGranted('auth')).resolves.toBe('fcm-token');
+      expect(registerDevice).toHaveBeenCalledWith(
+        'auth',
+        'fcm-token',
+        'android'
+      );
+    });
+
+    /**
+     * All three, and before the server is told where to send. A notification
+     * naming a channel that does not exist is dropped by Android with nothing
+     * logged at either end, so the ordering is the whole of the guarantee.
+     */
+    it('creates the three channels before registering the address', async () => {
+      permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+      const channels = Notifications.setNotificationChannelAsync as jest.Mock;
+
+      await registerIfGranted('auth');
+
+      expect(channels.mock.calls.map((call) => call[0]).sort()).toEqual([
+        'audible',
+        'passive',
+        'silent',
+      ]);
+      expect(channels.mock.invocationCallOrder[0]).toBeLessThan(
+        registerDevice.mock.invocationCallOrder[0]
+      );
+    });
+
+    /**
+     * `silent` is DEFAULT importance with the sound removed, which is the one
+     * row in the table that needs an argument: DEFAULT alone makes a noise,
+     * and LOW would also decline to show the banner that `silent` promises.
+     */
+    it('gives each channel the importance its name claims', async () => {
+      permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+      const channels = Notifications.setNotificationChannelAsync as jest.Mock;
+
+      await registerIfGranted('auth');
+      const byId = Object.fromEntries(
+        channels.mock.calls.map((call) => [call[0], call[1]])
+      );
+
+      expect(byId.audible.importance).toBe(
+        Notifications.AndroidImportance.HIGH
+      );
+      expect(byId.audible.sound).toBe('default');
+      expect(byId.silent.importance).toBe(
+        Notifications.AndroidImportance.DEFAULT
+      );
+      expect(byId.silent.sound).toBeNull();
+      expect(byId.passive.importance).toBe(Notifications.AndroidImportance.LOW);
+    });
+
+    /**
+     * A build with no `google-services.json` behind it, which is every Android
+     * build until the Firebase project exists. It must look like a phone that
+     * declined notifications, not like a crash on sign-in.
+     */
+    it('reports not registered when no token can be minted', async () => {
+      permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+      deviceToken.mockRejectedValueOnce(new Error('no Firebase app'));
+
+      await expect(registerIfGranted('auth')).resolves.toBeNull();
+      expect(registerDevice).not.toHaveBeenCalled();
+    });
   });
 
   /**

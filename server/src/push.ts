@@ -2,6 +2,7 @@ import { connect, constants, type ClientHttp2Session } from 'node:http2';
 import { createPrivateKey, sign, type KeyObject } from 'node:crypto';
 
 import { PRESENCE_LIFETIME_MS } from '../../core/constants';
+import { ANDROID_CHANNEL_IDS } from '../../core/notifications';
 import type {
   NotificationAlert,
   NotificationKind,
@@ -739,6 +740,378 @@ export function mintProviderToken(
 
 function base64url(value: string): string {
   return Buffer.from(value).toString('base64url');
+}
+
+export interface FcmPusherOptions {
+  /** The Firebase project the app belongs to, which names the send endpoint. */
+  projectId: string;
+  /** The service account's address, which is the JWT's issuer and subject. */
+  clientEmail: string;
+  /** Its PEM private key, as it appears in the downloaded JSON. */
+  privateKey: string;
+}
+
+/** Where an access token is exchanged for, and what is sent through. */
+const FCM_TOKEN_HOST = 'https://oauth2.googleapis.com/token';
+const FCM_SEND_HOST = 'https://fcm.googleapis.com';
+
+/** The one scope this needs. Narrow deliberately; it can only send. */
+const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
+
+/**
+ * Google issues an hour, and this refreshes at fifty minutes on `JWT_TTL_MS`'s
+ * reasoning — clear of the expiry, and not so often that the exchange shows up
+ * in the cost of sending.
+ */
+const FCM_TOKEN_TTL_MS = 50 * 60 * 1000;
+
+/**
+ * The longest `ttl` FCM accepts: four weeks, in seconds.
+ *
+ * **`PARTICIPATION_LIFETIME_MS` is thirty days and so exceeds it**, which is
+ * not an oversight in either place. Thirty days is an APNs-shaped number —
+ * chosen because `apns-expiration` has no value meaning "keep trying" and a
+ * far-future date is the only way to say it — and it stays thirty days because
+ * that reasoning is still right for Apple. Google simply has a smaller
+ * ceiling, so the clamp is this transport's business rather than a reason to
+ * move the constant.
+ *
+ * Unclamped this is not a quiet loss of two days: FCM rejects the whole
+ * message with `INVALID_ARGUMENT`, so **every invitation to an Android device
+ * would fail**, and it would fail identically to a malformed token.
+ */
+const FCM_MAX_TTL_SECONDS = 4 * 7 * 24 * 60 * 60;
+
+/**
+ * The second sender, for Android.
+ *
+ * **A sibling of `ApnsPusher` rather than a generalisation of it**, which is
+ * what this file said would happen when it was written: "Android will arrive
+ * later as a second implementation rather than a rewrite of the callers." The
+ * two share the `Pusher` interface and `PushMessage` and nothing else, because
+ * almost nothing else *is* shared — the transport, the authentication, the
+ * message shape and the meaning of every failure code all differ. A common
+ * base class would have one honest method on it and a great deal of
+ * `if (apns)`.
+ *
+ * **The authentication is the difference worth knowing before reading the
+ * code.** APNs takes a JWT this server signs and uses it directly as the
+ * bearer: no round trip, and the key never leaves the process. Google will not
+ * take a self-signed assertion as a credential — it must be exchanged at
+ * `oauth2.googleapis.com` for an access token, which is what the send then
+ * carries. So there is a network call in the authentication path that has no
+ * APNs counterpart, and it is cached for the same reason APNs's JWT is: to
+ * keep it off the per-notification path.
+ *
+ * `fetch` rather than a client library, on the same reasoning that produced a
+ * hand-written APNs provider — see DECISIONS § *Direct APNs rather than Expo's
+ * push service*. `firebase-admin` would bring a large dependency to compose a
+ * JSON object and sign a JWT, and its `sendEach` is a client-side loop over
+ * exactly the request made below, since FCM v1 has no multicast.
+ */
+export class FcmPusher implements Pusher {
+  private privateKey: KeyObject;
+  private accessToken: { token: string; mintedAt: number } | null = null;
+  private pending: Promise<string> | null = null;
+
+  constructor(
+    private options: FcmPusherOptions,
+    private now: () => number = Date.now,
+    /** Injected so the tests can watch what would go to Google. */
+    private fetchImpl: typeof fetch = fetch
+  ) {
+    // Service-account JSON carries the newlines escaped. A key that arrives
+    // through an environment variable has usually lost them a second time,
+    // and `createPrivateKey` rejects it with nothing that names the cause.
+    this.privateKey = createPrivateKey(options.privateKey.replace(/\\n/g, '\n'));
+  }
+
+  async send(
+    tokens: string[],
+    message: PushMessage,
+    alert: NotificationAlert
+  ): Promise<PushResult[]> {
+    if (tokens.length === 0) return [];
+    // **Once, before the fan-out, rather than inside it.** APNs has nothing
+    // here — its bearer is minted locally — but this one is a network call,
+    // and asking for it per address would open a second exchange for every
+    // device the first send is still waiting on.
+    //
+    // A failure here is not a failure of any address, so it reports the same
+    // shape a transport error does and prunes nothing: this is exactly the
+    // case where a bad credential must not be mistaken for dead tokens.
+    let bearer: string;
+    try {
+      bearer = await this.authToken();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      return tokens.map((token) => ({
+        token,
+        status: 0,
+        error: reason,
+        dead: false,
+      }));
+    }
+    return Promise.all(
+      tokens.map((token) => this.sendOne(bearer, token, message, alert))
+    );
+  }
+
+  private async sendOne(
+    bearer: string,
+    token: string,
+    message: PushMessage,
+    alert: NotificationAlert
+  ): Promise<PushResult> {
+    try {
+      const response = await this.fetchImpl(
+        `${FCM_SEND_HOST}/v1/projects/${this.options.projectId}/messages:send`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${bearer}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: fcmMessage(token, message, alert),
+          }),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        }
+      );
+      const status = response.status;
+      if (status === 200) return { token, status, dead: false };
+      const reason = await readFcmError(response);
+      return { token, status, reason, dead: isDeadFcmToken(status, reason) };
+    } catch (error) {
+      // A transport failure says nothing about the token, so the row stays.
+      return {
+        token,
+        status: 0,
+        error: error instanceof Error ? error.message : String(error),
+        dead: false,
+      };
+    }
+  }
+
+  /**
+   * The access token, exchanged at most every fifty minutes.
+   *
+   * **Concurrent callers share one exchange.** Two channels announcing
+   * themselves at the same moment on a cold cache would otherwise each open
+   * their own, and Google would answer both — burning a round trip and
+   * leaving whichever landed second as the cached one. The in-flight promise
+   * is cleared on settle, so a failure is retried by the next send rather
+   * than remembered.
+   */
+  private authToken(): Promise<string> {
+    const now = this.now();
+    if (this.accessToken && now - this.accessToken.mintedAt < FCM_TOKEN_TTL_MS) {
+      return Promise.resolve(this.accessToken.token);
+    }
+    if (this.pending) return this.pending;
+    const exchange = this.exchange(now).finally(() => {
+      if (this.pending === exchange) this.pending = null;
+    });
+    this.pending = exchange;
+    return exchange;
+  }
+
+  private async exchange(now: number): Promise<string> {
+    const assertion = mintServiceAccountAssertion(
+      this.privateKey,
+      this.options.clientEmail,
+      now
+    );
+    const response = await this.fetchImpl(FCM_TOKEN_HOST, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }).toString(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      // Deliberately not cached, so the next send retries rather than
+      // inheriting a failure for fifty minutes.
+      throw new Error(`FCM token exchange failed: ${response.status}`);
+    }
+    const body = (await response.json()) as { access_token?: string };
+    if (!body.access_token) throw new Error('FCM token exchange returned no token');
+    this.accessToken = { token: body.access_token, mintedAt: now };
+    return body.access_token;
+  }
+}
+
+/**
+ * The v1 message body, which is the whole of the mapping from what this server
+ * knows to what Google accepts.
+ *
+ * Exported for the test that reads it, on `apns-headers.test.ts`'s reasoning:
+ * this is composed below the line every other test stops at, and two of the
+ * decisions in it are silent when wrong.
+ *
+ * **Everything in `data` crosses as a string, and that is Google's rule rather
+ * than a choice here.** FCM's `data` is `map<string, string>` and it refuses a
+ * body with anything else in it, so `reachesInApp` — a boolean on the APNs
+ * side — arrives at the app as `"true"`. The app reads both forms; see
+ * `reachesInApp` in the app's push.ts, which is where getting this wrong shows
+ * up, and shows up as every in-app banner silently not appearing.
+ */
+export function fcmMessage(
+  token: string,
+  message: PushMessage,
+  alert: NotificationAlert
+): Record<string, unknown> {
+  return {
+    token,
+    notification: { title: message.title, body: message.body },
+    android: {
+      // The same rule as `apns-priority`, including the exception. `normal`
+      // lets Android hold a message to batch it with the next radio wake,
+      // which is the honest setting for news somebody asked to arrive quietly
+      // — and never right for a ping, whatever level it arrives at, because
+      // deferred delivery against a running expiry loses it outright rather
+      // than quieting it. See the `apns-priority` comment for the long form.
+      priority:
+        alert === 'passive' && message.kind !== 'pinged' ? 'normal' : 'high',
+      // Omitted when the message replaces nothing, as the APNs header is, and
+      // for the identical reason: a ping carries words somebody chose and no
+      // later one is entitled to destroy it.
+      ...(message.collapseKey === null
+        ? {}
+        : { collapse_key: message.collapseKey }),
+      // Google takes a duration string rather than a deadline. Seconds, and
+      // `0s` means deliver-now-or-discard, which is a value nothing here asks
+      // for — every lifetime in this file is minutes at least.
+      ttl: `${Math.min(
+        Math.floor(message.lifetimeMs / 1000),
+        FCM_MAX_TTL_SECONDS
+      )}s`,
+      notification: {
+        // Which of the three channels, and so how loudly this lands. The one
+        // key on Android that carries what `sound` and `interruption-level`
+        // carry on iOS.
+        channel_id: ANDROID_CHANNEL_IDS[alert],
+        // **The second half of collapsing, and the half that does the work
+        // somebody watching the lock screen would notice.** `collapse_key`
+        // above only discards messages still queued *at Google*; it has no
+        // effect on a notification already sitting in the tray. What replaces
+        // one already shown is the notification's tag. APNs's single
+        // `apns-collapse-id` does both jobs, so parity needs both fields, and
+        // the two must carry the same value or a channel's presence would
+        // stack on screen while collapsing in flight — which is the confusing
+        // half-working state rather than an outright bug.
+        //
+        // Omitted with its partner, so that a ping still collapses with
+        // nothing.
+        ...(message.collapseKey === null ? {} : { tag: message.collapseKey }),
+      },
+    },
+    data: {
+      channelId: message.channelId,
+      reachesInApp: String(message.reachesInApp),
+      alert,
+      kind: message.kind,
+    },
+    // **`threadId` has no counterpart and is deliberately dropped.** Android
+    // groups by an explicit `group` key under a single channel, which is not
+    // the seam `ASKING_THREAD` uses — that one gathers across every channel,
+    // and the notifications it gathers arrive on three different Android
+    // channels, which cannot be grouped together. Sending it as a group key
+    // would produce piles that split along loudness, which is worse than the
+    // flat list Android gives by default.
+  };
+}
+
+/**
+ * Google's refusal, as a short string for the log.
+ *
+ * The error body is a nested object where APNs answered with one word, so this
+ * reaches for the machine-readable code and falls back to the status rather
+ * than logging a paragraph per failed address.
+ */
+async function readFcmError(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.json()) as {
+      error?: {
+        status?: string;
+        message?: string;
+        details?: Array<{ errorCode?: string }>;
+      };
+    };
+    return (
+      body.error?.details?.find((detail) => detail.errorCode)?.errorCode ??
+      body.error?.status ??
+      body.error?.message
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether Google's answer means this address should be forgotten.
+ *
+ * **A second function rather than a wider `isDeadToken`**, because the two
+ * services disagree about what their codes mean and a shared predicate would
+ * have to be right about both at once. APNs says gone with 410; FCM says it
+ * with `UNREGISTERED`, which arrives as a 404.
+ *
+ * **`UNREGISTERED` and nothing else**, on exactly `isDeadToken`'s judgement
+ * that a misconfiguration should cost delivery until it is fixed, not data.
+ * Three refusals read like they belong here and are each excluded for a
+ * reason:
+ *
+ * - **`400 INVALID_ARGUMENT`** is the closest analogue of `BadDeviceToken`,
+ *   and is the one that would have done real damage. FCM returns it for a
+ *   malformed token *and* for a malformed **message** — the `ttl` ceiling
+ *   above is precisely how this server would earn it — so pruning on it means
+ *   a bug in our own JSON deletes other people's device rows. The failure
+ *   would present as every Android user quietly becoming unreachable, caused
+ *   by a constant.
+ * - **`403 SENDER_ID_MISMATCH`** is a good token belonging to a different
+ *   Firebase project: one wrong `google-services.json` in a build, or the
+ *   wrong service account on the box. It is this transport's version of the
+ *   sandbox/production trap `isDeadToken`'s comment was written about, and
+ *   pruning on it would forget every Android device at once.
+ * - **`401`, and `403 THIRD_PARTY_AUTH_ERROR`** are the server's credential
+ *   being wrong, and say nothing whatever about the address.
+ *
+ * `429` and the `5xx`s are retryable and keep the row by falling through.
+ */
+export function isDeadFcmToken(status: number, reason?: string): boolean {
+  return status === 404 && reason === 'UNREGISTERED';
+}
+
+/**
+ * The assertion Google exchanges for an access token.
+ *
+ * RS256 against the service account's key, where APNs uses ES256 against a
+ * `.p8` — and with none of `mintProviderToken`'s DER trap, since RSA signatures
+ * have one encoding. The claims are Google's required set: the scope being
+ * asked for, the token endpoint as the audience, and an hour's life, which is
+ * the longest it accepts.
+ */
+export function mintServiceAccountAssertion(
+  key: KeyObject,
+  clientEmail: string,
+  now: number
+): string {
+  const issued = Math.floor(now / 1000);
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claims = base64url(
+    JSON.stringify({
+      iss: clientEmail,
+      sub: clientEmail,
+      scope: FCM_SCOPE,
+      aud: FCM_TOKEN_HOST,
+      iat: issued,
+      exp: issued + 3600,
+    })
+  );
+  const signature = sign('sha256', Buffer.from(`${header}.${claims}`), key);
+  return `${header}.${claims}.${signature.toString('base64url')}`;
 }
 
 /** Prints what would have been sent. For local work without an APNs key. */

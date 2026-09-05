@@ -9,10 +9,19 @@ export type DevicePlatform = 'ios' | 'android';
  * one registered by a client that sent no credential — both of which the
  * caller reads as "cannot tell", and answers with the person-level test it
  * used for everybody until 2026-08-24.
+ *
+ * **`platform` is here because an address is only reachable through the
+ * service that issued it.** The column has been stored since the table was
+ * written and discarded on the way out for as long, which was harmless while
+ * every address was an APNs one. It stops being harmless the moment a second
+ * sender exists: a token handed to the wrong service is not a delivery
+ * failure that logs something, it is a `BadDeviceToken` indistinguishable
+ * from a stale row, and pruning would then delete the working address.
  */
 export interface DeviceAddress {
   token: string;
   sessionHash: string | null;
+  platform: DevicePlatform;
 }
 
 /**
@@ -118,18 +127,23 @@ export class Devices {
     const placeholders = accountIds.map(() => '?').join(', ');
     const rows = this.db
       .prepare(
-        `SELECT account_id, token, session_hash FROM device_tokens
+        `SELECT account_id, token, session_hash, platform FROM device_tokens
          WHERE account_id IN (${placeholders})`
       )
       .all(...accountIds) as Array<{
       account_id: string;
       token: string;
       session_hash: string | null;
+      platform: DevicePlatform;
     }>;
     for (const row of rows) {
       byAccount.set(row.account_id, [
         ...(byAccount.get(row.account_id) ?? []),
-        { token: row.token, sessionHash: row.session_hash },
+        {
+          token: row.token,
+          sessionHash: row.session_hash,
+          platform: row.platform,
+        },
       ]);
     }
     return byAccount;
