@@ -543,7 +543,7 @@ async function applyFor(hasAudio: boolean): Promise<void> {
  * @param micNeeded whether anything is listening: somebody else present, or a
  *                  recording running. Told rather than worked out here — this
  *                  hook has never decided anything about who may speak.
- * @param hasAudio  whether the session should be a call. Computed by one of
+ * @param hasAudioAsked whether the session should be a call. Computed by one of
  *                  two rules in core/micNeeded.ts and selected by the
  *                  `steadyHeadset` setting — *is anybody present capturing*
  *                  by default, or *does this app have any audio at all* when
@@ -554,6 +554,11 @@ async function applyFor(hasAudio: boolean): Promise<void> {
  *                  publish. Under either rule the two part company — a guest
  *                  without the microphone, and anybody self-muted, are audio
  *                  without being capture.
+ * @param holdForPlayout whether to hold the microphone open, muted, for as
+ *                  long as anything is subscribed, so that the engine is never
+ *                  restarted underneath a receiver that is rendering. See the
+ *                  derivation of `holding` in the body for the isolation that
+ *                  justifies it and the cost it accepts.
  * @param deferSubscribe whether to connect with `autoSubscribe: false` and take
  *                  the subscriptions once the room is up, rather than letting
  *                  them land on the same tick as the socket. **An experiment
@@ -577,11 +582,12 @@ export function useSessionAudio(
   mediaRoom: string | null,
   channelId: string | null,
   token: string | null,
-  selfMuted: boolean,
-  micNeeded: boolean,
-  hasAudio: boolean,
+  selfMutedAsked: boolean,
+  micNeededAsked: boolean,
+  hasAudioAsked: boolean,
   recoverPlayout = false,
-  deferSubscribe = false
+  deferSubscribe = false,
+  holdForPlayout = false
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -614,6 +620,55 @@ export function useSessionAudio(
   const [generation, setGeneration] = useState(0);
   const attemptRef = useRef(0);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Holding the device open so the engine is never restarted underneath a
+   * receiver that is rendering.
+   *
+   * **The fault this exists for, isolated 2026-09-05 with two phones.** A
+   * shared track that had been playing for minutes stopped the instant the
+   * other person stepped out, twice, with no connect and no re-subscription:
+   * the microphone was released, the engine restarted `play=T rec=F`, and the
+   * receiver went silent within six seconds. She stepped back in, the engine
+   * restarted `rec=T`, and it resumed within one. The same pair ran again with
+   * `steadyHeadset` on, which held the session in `CALL` throughout — the route
+   * never left `PlayAndRecord` and there was no `categoryChange` — and it froze
+   * exactly the same way. So the audio category is not the variable and the
+   * microphone is: with it open the track renders, with it released the track
+   * dies, in the same session either way.
+   *
+   * What this does is refuse the release. `intentFor` reads the two flags
+   * together and `muted` is the arm that keeps the device without transmitting
+   * — `holdMicrophone`, which mutes the published track rather than
+   * unpublishing it — so the engine is never asked to stop and the receiver is
+   * never orphaned.
+   *
+   * **Keyed on `othersAudible`, which counts the pump.** Anything subscribed is
+   * something whose silence would be the fault, and nothing subscribed is
+   * nothing to protect — so an empty channel still releases the device and
+   * still lights no indicator.
+   *
+   * **`hasAudio` is pinned alongside, and that is load-bearing rather than
+   * tidy.** The `muted` branch below deliberately does not re-state the
+   * configuration, on the stated ground that a mute cannot move it. Pinning
+   * `hasAudio` is what keeps that true here: without it a hold taken as the
+   * last person leaves would ask for `muted` under `IDLE`, which is `playback`,
+   * a category that cannot record — a contradiction the branch would carry
+   * silently. An earlier version of this pin missed exactly that.
+   *
+   * **The cost is chosen rather than incurred.** Holding the device means
+   * `playAndRecord`, which means a Bluetooth headset on HFP — mono, not A2DP —
+   * and a lit microphone indicator for as long as anything is playing. That is
+   * the trade this project accepted on 2026-09-05: HFP for media playback
+   * under all conditions. It is scoped to a subscribed track rather than to
+   * being in a channel, so an idle channel is unaffected.
+   */
+  const holding = holdForPlayout && state.othersAudible > 0;
+  const hasAudio = hasAudioAsked || holding;
+  const micNeeded = micNeededAsked || holding;
+  // Held, not captured. Left alone whenever the microphone was genuinely
+  // wanted, so this can only ever add a hold and never silence a real one.
+  const selfMuted = micNeededAsked ? selfMutedAsked : selfMutedAsked || holding;
+
   /** Same reason as `micNeededRef`: read at connect, acted on below. */
   const selfMutedRef = useRef(selfMuted);
   selfMutedRef.current = selfMuted;

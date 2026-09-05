@@ -85,6 +85,68 @@ Each of these is measured, not reasoned. Several cost a build to establish.
 
 ---
 
+## Settled: the microphone, isolated with two phones
+
+**A receiver renders for as long as this device's microphone is held open, and
+stops when the engine is restarted underneath it.** Isolated 2026-09-05 with a
+second person, on build 142, and this is the first claim in this file that rests
+on holding a variable fixed rather than on a correlation.
+
+**Run one**, `steadyHeadset` off:
+
+    01:13:04  sub - acct_…            she steps out
+    01:13:04  released IDLE
+    01:13:04  engine start play=T rec=F
+    01:13:12  playout frozen 6s — media:chan_H90XCmha58Cs
+    01:14:29  capturing CALL          she steps back in
+    01:14:29  engine start play=T rec=T
+    01:14:30  playout resumed after 84s
+
+and again at `01:15:18` → `01:16:43`, identically, 84 seconds both times. **No
+connect and no re-subscription** — the media track was subscribed throughout.
+
+**Run two**, `steadyHeadset` on, which switches `hasAudio` to a rule that counts
+shared playback and so holds the session in `CALL`:
+
+    01:24:04  released CALL           she steps out
+    01:24:05  engine start play=T rec=F
+    01:24:12  playout frozen 6s
+    01:26:18  capturing CALL
+    01:26:19  playout resumed after 133s
+
+The route stayed `PlayAndRecord/VideoChat` throughout and there is no
+`categoryChange` line. So the category was held constant and the fault happened
+anyway:
+
+| state | category | microphone | result |
+| --- | --- | --- | --- |
+| `released IDLE` | `playback` | released | frozen |
+| `released CALL` | `playAndRecord` | released | frozen |
+| `capturing CALL` | `playAndRecord` | open | renders |
+
+The category varies and the outcome does not. The microphone varies and the
+outcome follows it. **`released CALL` is the row that settles it**, and it is
+the row no earlier run had.
+
+**There are two ways into this fault and they need different fixes.** This one
+has no connect in it at all, so the deferred subscribe below cannot touch it —
+there is no subscription to reorder. Conversely a hold cannot help a connection
+that has never published a microphone. Both are needed and neither is redundant.
+
+**The decision, taken 2026-09-05:** HFP rather than A2DP for media playback
+under all conditions. Holding the device means `playAndRecord`, which on a
+Bluetooth headset means the mono two-way profile and a lit microphone
+indicator for as long as anything is subscribed. That is now a chosen cost
+rather than an open question, and it is what makes the hold shippable. It is
+scoped to a subscribed track rather than to being in a channel, so an idle
+channel still releases the device.
+
+**What is still not known is why.** `play=T` says playout is enabled in both
+rows that froze. Something below that does not run the render side once
+recording stops. That remains a question about the audio device module.
+
+---
+
 ## The `rec` reading, and its refutation
 
 > **Refuted 2026-09-05 as stated, and kept because the retraction is the

@@ -196,6 +196,19 @@ function Root() {
     // in this build: `autoSubscribe: false` wants a build with nothing else in
     // it, and two variables at once is the mistake this subsystem keeps
     // re-teaching.
+    app.debug,
+    // **The microphone hold, isolated on 2026-09-05 and gated to one account
+    // first like everything else here.** Two phones, twice: a shared track that
+    // had played for minutes stopped the instant the other person stepped out,
+    // and came back when she stepped in. Run again with `steadyHeadset` on, so
+    // the session stayed `CALL` and the route never left `PlayAndRecord`, it
+    // froze identically — which rules the audio category out and leaves the
+    // microphone.
+    //
+    // The cost is the one accepted the same day: HFP rather than A2DP for media
+    // playback under all conditions, and a lit microphone indicator while
+    // anything is subscribed. Widening it to everybody is this argument
+    // becoming `true`.
     app.debug
   );
 
