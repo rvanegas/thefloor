@@ -1426,6 +1426,16 @@ export function useSessionAudio(
   const resubscribe = () => {
     const acted = rebindTracks(roomRef.current, null);
     for (const label of acted) recordEvent(`resub ${label} (by hand)`);
+    // **A button that did nothing has to say so.** Without this line the log is
+    // identical whether the press rebound every track or found none to rebind,
+    // and the first time somebody pressed it in the field — 2026-09-04, frozen
+    // and alone — that ambiguity was the whole finding: the sound did not come
+    // back, and nothing recorded said whether the repair had been tried and
+    // failed or never happened at all. Those two readings send the next build
+    // in opposite directions, so the silent case is the one worth writing down.
+    if (acted.length === 0) {
+      recordEvent('resub found nothing subscribed (by hand)');
+    }
   };
 
   return { ...state, reconnect, resubscribe };
