@@ -24,7 +24,7 @@ const mockApp = {
   ready: true,
   token: 'token' as string | null,
   me: { id: 'acct_me', displayName: 'Me' },
-  home: null,
+  home: null as unknown,
   channelViews: {} as Record<string, unknown>,
   /**
    * Which channel this *device* is standing in — the narrowing App.tsx puts on
@@ -109,6 +109,9 @@ jest.mock('../src/audio/useSessionAudio', () => ({
     mutedByServer: false,
     othersAudible: 0,
     speaking: [],
+    // Nobody's connection is in trouble. Empty rather than absent because
+    // ChannelView reads it per participant, and this file renders that screen.
+    failing: [],
     micOpen: true,
     }
   ),
@@ -407,6 +410,80 @@ describe('a window wide enough for two panes', () => {
     pressButton(tree, 'Channels');
     expect(textOf(tree)).not.toContain('Add a contact');
     expect(textOf(tree)).toContain('Pick a conversation on the left');
+  });
+
+  /**
+   * The bar and the LIVE row are two renderings of one conversation, and in a
+   * split with that conversation open there should be neither.
+   *
+   * The bar has always gone: what it says — you are somewhere else, tap to go
+   * back — is false with the channel on screen a hairline away. The row is not
+   * a sentence and stayed, which left the channel drawn twice, once in the
+   * pane and once hoisted under a heading offering to open what was open. So
+   * `App` passes `liveChannelId` separately from `liveChannel`: which channel
+   * the list leaves out is not the same question as whether the bar is drawn.
+   */
+  it('shows the live channel neither as a bar nor as a row when it is the pane', () => {
+    const CHANNEL = 'chan_live';
+    // Built by the reducer rather than by hand: this one is rendered as a
+    // whole screen, which reads far more of the state than the roster blobs
+    // elsewhere in this file do.
+    const channel = {
+      ...createChannel({
+        id: CHANNEL,
+        initiator: 'acct_me',
+        invitees: ['acct_2'],
+        now: NOW,
+        present: ['acct_me', 'acct_2'],
+      }),
+      name: 'Book club',
+    };
+    mockApp.channelViews = {
+      [CHANNEL]: {
+        channel,
+        participants: [
+          { id: 'acct_me', displayName: 'Me' },
+          { id: 'acct_2', displayName: 'Dana Chu' },
+        ],
+        recordings: [],
+        serverNow: NOW,
+      },
+    };
+    mockApp.standingIn = CHANNEL;
+    // The server sends every channel you belong to, the one you are in
+    // included — so without the filter there is a row to draw.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: CHANNEL,
+          name: 'Book club',
+          others: [{ id: 'acct_2', displayName: 'Dana Chu' }],
+          presentCount: 2,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    // With nothing in the pane the bar is the rendering, and it is the way in.
+    expect(textOf(tree)).toContain('tap to go back');
+    pressButton(tree, 'Book club');
+
+    const shown = textOf(tree).replace(/\s+/g, ' ');
+    expect(shown).not.toContain('tap to go back');
+    // Once — in the pane. Not again in the tier under a heading.
+    expect(shown.match(/Book club/g)).toHaveLength(1);
+    expect(shown).not.toContain('Live');
+
+    act(() => tree.unmount());
   });
 
   it('keeps the contact list the whole of the tier below the breakpoint', () => {

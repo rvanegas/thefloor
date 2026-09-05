@@ -50,6 +50,7 @@ export function HomeView({
   onOpenLeaderboard,
   onOpenProfile,
   liveChannel = null,
+  liveChannelId,
   onReturnToChannel = () => {},
 }: {
   /** Which of the two lists is in the body. See `List` in `ui/detail.ts`. */
@@ -92,6 +93,19 @@ export function HomeView({
     /** Muted by your own choice — not the floor, which is a different thing. */
     muted: boolean;
   } | null;
+  /**
+   * Which channel you are present in, for the list below to leave out —
+   * which is *not* the same question as whether the bar is drawn, and was
+   * the same prop until 2026-09-04.
+   *
+   * The bar is suppressed when the channel is the pane next door, because
+   * what it says is false there. The list's row is not a sentence and stays
+   * true, but it is still a second rendering of the conversation already on
+   * screen, offering to open what is open — so it goes as well. Absent means
+   * *whatever the bar is showing*, which is what every caller but `App.tsx`
+   * wants and what this was before the two came apart.
+   */
+  liveChannelId?: string | null;
   onReturnToChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
@@ -267,8 +281,9 @@ export function HomeView({
         <ChannelsView
           onEnterChannel={onEnterChannel}
           // The bar above and a row down here are two renderings of one
-          // channel, so exactly one of them appears.
-          liveChannelId={liveChannel?.channelId ?? null}
+          // channel, so at most one of them appears — and sometimes neither,
+          // when the conversation itself is the pane next door. See the prop.
+          liveChannelId={liveChannelId ?? liveChannel?.channelId ?? null}
         />
       ) : (
         <ContactsView onEnterChannel={onEnterChannel} onOpenProfile={openProfile} />

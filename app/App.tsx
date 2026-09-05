@@ -557,6 +557,14 @@ function Root() {
             }
           : null
       }
+      // And the list leaves it out whether or not the bar is drawn, which is
+      // why this is passed separately rather than read off `liveChannel`. The
+      // argument that takes the bar away in a split takes the row away too: a
+      // LIVE row is a way to open a channel, and the channel is already open
+      // in the pane beside it. Suppressing one and not the other left the
+      // conversation on screen twice, hoisted under a heading that offered to
+      // take you where you were.
+      liveChannelId={live?.id ?? null}
       onReturnToChannel={enterChannel}
     />
   );

@@ -722,6 +722,40 @@ describe('Home while still in a channel', () => {
     act(() => tree.unmount());
   });
 
+  it('lists it nowhere when the conversation is the pane next door', () => {
+    // The split case, where the bar is suppressed because what it says — you
+    // are somewhere else, tap to go back — is false with the channel on screen
+    // a hairline away. The LIVE row is not a sentence and so stays true, but
+    // it is still a second rendering of the conversation already open,
+    // offering to open it; suppressing one and not the other put the channel
+    // on screen twice, hoisted under a heading. So `liveChannelId` arrives
+    // without a `liveChannel`, and neither is drawn.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_1',
+          name: 'Book club',
+          others: [{ id: 'acct_2', displayName: 'Dana Chu' }],
+          presentCount: 2,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(
+      <HomeView {...homeNav} liveChannel={null} liveChannelId="sess_1" />
+    );
+    const text = textOf(tree).replace(/\s+/g, ' ');
+    expect(text).not.toContain('tap to go back');
+    expect(text).not.toContain('Book club');
+    // And the heading goes with the only row that was under it.
+    expect(text).not.toContain('Live');
+    act(() => tree.unmount());
+  });
+
   it('lists a channel the server thinks you are in when this app is not', () => {
     // The reinstall case, and the invariant that answers it: a channel you
     // belong to is reachable from Home whatever the server believes about your
