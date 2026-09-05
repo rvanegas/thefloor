@@ -218,12 +218,21 @@ Deliberately separate, so no single leak is worse than it has to be:
   its replacement: the two services are addressed separately and neither
   credential can be used against the other.
 
-  **Scope it to `roles/firebaseMessaging.admin` and nothing wider.** The key
-  Google offers by default belongs to a service account that can be given far
-  more than sending, and this needs only sending. Somebody holding it can put a
-  notification on every Android install — which is unpleasant but bounded: it
-  reads nothing, and no conversation, recording or transcript is reachable with
-  it.
+  **Scope it to *Firebase Cloud Messaging API Admin*
+  (`roles/firebasemessaging.admin`) and nothing wider**, which takes a detour
+  through Google Cloud IAM rather than the Firebase console. Firebase's own
+  *Generate new private key* button issues a key for the
+  `firebase-adminsdk-…` account, which carries the Firebase Admin SDK service
+  agent role and can do a great deal more than send a notification. Making a
+  fresh service account with the messaging role and generating the key against
+  *that* is the tighter path and is what this entry describes; the Firebase
+  button is the quicker one and is a wider credential.
+
+  Either way what somebody holding it can do is put a notification on every
+  Android install — unpleasant but bounded: it reads nothing, and no
+  conversation, recording or transcript is reachable with it. The narrow role
+  is what keeps that sentence true if the account is ever granted something
+  else by a future hand.
 
   It lives in `~/.config/thefloor/fcm-service-account.json`, mode 600, and on
   the box at the path `FCM_SERVICE_ACCOUNT_PATH` names — same location and same

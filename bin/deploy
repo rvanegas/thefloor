@@ -168,7 +168,7 @@ rsync -az --delete -e "$SSH" \
   --exclude '/server/web/stable/' --exclude '/server/web/beta/' \
   --include '.env.example' --exclude '.env*' \
   --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
-  --exclude '*.p8' \
+  --exclude '*.p8' --exclude 'fcm-service-account.json' \
   ./ "$HOST:/home/ubuntu/thefloor/"
 
 # Gone from here the moment it has landed there. It is a fact about one box,
