@@ -181,13 +181,53 @@ if (missing.length) {
 //
 // So: every directory under app/modules is a module somebody wrote by hand and
 // meant to ship. Each one must have come out of the autolinker.
+//
+// **Unless it says it is not an iOS module**, added 2026-09-04. The rule above
+// took "written by hand" to imply "ships on both platforms", which was true of
+// every local module until `call-service` arrived on 09-03 — Android-only by
+// design, since what it exists for is keeping a channel alive off screen and
+// iOS answers that a different way. It has no `ios/` directory because it is
+// not meant to have one, the iOS autolinker rightly never mentions it, and this
+// check read that silence as the build-61 failure. It blocked two uploads
+// before anybody read the message past its first line: 137 was bumped and never
+// tagged for exactly this reason.
+//
+// **Read off the module's own `expo-module.config.json` rather than a list of
+// names here.** A name allowlist would be a second place stating which
+// platforms a module targets, and the two would disagree the first time one was
+// given an iOS half — quietly, and in the direction that ships a broken build,
+// which is the direction this check exists to refuse. Asking the module keeps
+// one answer: add `ios` to its `platforms` and it is guarded again, with
+// nothing here to remember to change.
+//
+// **The build-61 case is untouched.** That failure was a *missing podspec* on a
+// module that declared iOS, and a module which declares iOS — or declares
+// nothing, or whose config cannot be read — is still required to have come out
+// of the autolinker. What is waved through is only a module that has said, in a
+// committed file, that it does not belong here.
 const localDir = 'app/modules';
+const targetsIos = (name) => {
+  try {
+    const config = JSON.parse(
+      fs.readFileSync(`${localDir}/${name}/expo-module.config.json`, 'utf8')
+    );
+    // An absent `platforms` means "wherever it is used", which is the
+    // permissive reading and therefore the one that keeps the guard on.
+    return !Array.isArray(config.platforms) || config.platforms.includes('ios');
+  } catch {
+    // Unreadable or absent config. A module this script cannot understand is
+    // not one it may wave through — the whole point is to fail loudly here
+    // rather than silently on a tester's phone.
+    return true;
+  }
+};
 if (fs.existsSync(localDir)) {
   const linked = new Set(modules.map((m) => m.packageName));
   const unlinked = fs
     .readdirSync(localDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
+    .filter(targetsIos)
     .filter((name) => !linked.has(name));
   if (unlinked.length) {
     console.error('✗ local modules present on disk but not autolinked:');
