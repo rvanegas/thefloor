@@ -26,11 +26,34 @@ const path = require('node:path');
  * per-project build configuration that should not be assumed present, not to
  * protect it. The thing that must be kept is the *server's* service account;
  * see planning/CREDENTIALS.md.
+ *
+ * **Two locations, and `~/.config/thefloor` is the one to use.** A copy in
+ * `app/` wins if it is there, which is what a one-off experiment wants — but
+ * `app/` is inside the tree, and this project does most of its work in
+ * worktrees that are created and deleted freely. A build input that lives
+ * there has to be re-downloaded every time one is thrown away, which is the
+ * papercut `~/.config/thefloor` exists to prevent: it is where `livekit.env`,
+ * `server.env`, the `.p8` keys and the upload keystore all live, on
+ * `bin/provision-livekit`'s founding principle that a credential is authored
+ * once, outside any tree, where it can be backed up and diffed. This one is not
+ * a credential, but it is exactly as annoying to lose.
+ *
+ * `THEFLOOR_GOOGLE_SERVICES` overrides both, for a second Firebase project.
  */
+const HOME_COPY = path.join(
+  process.env.HOME ?? '',
+  '.config/thefloor/google-services.json'
+);
+
 module.exports = function withGoogleServices(config) {
   const projectRoot = config._internal?.projectRoot ?? process.cwd();
-  const file = path.join(projectRoot, 'google-services.json');
-  if (!fs.existsSync(file)) return config;
+  const candidates = [
+    process.env.THEFLOOR_GOOGLE_SERVICES,
+    path.join(projectRoot, 'google-services.json'),
+    HOME_COPY,
+  ].filter(Boolean);
+  const file = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!file) return config;
   return {
     ...config,
     android: { ...config.android, googleServicesFile: file },

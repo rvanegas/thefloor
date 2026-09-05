@@ -280,12 +280,19 @@ Deliberately separate, so no single leak is worse than it has to be:
   debug and release builds alike, so the single most error-prone setting on the
   iOS side has no counterpart here.
 
-  Its build-side partner, **`app/google-services.json`**, is *not* a credential
-  and is not counted above. It ships inside every APK and is readable by
-  anybody who downloads the app. It is gitignored because it is per-project
-  build input no checkout should assume is present, and
-  `app/plugins/with-google-services.js` adds it to the build only when it
-  exists — so a tree without one still prebuilds, and simply has no push.
+  Its build-side partner, **`google-services.json`**, is *not* a credential and
+  is not counted above. It ships inside every APK and is readable by anybody who
+  downloads the app. `app/plugins/with-google-services.js` adds it to the build
+  only when it exists — so a tree without one still prebuilds, and simply has no
+  push.
+
+  **It lives in `~/.config/thefloor/` all the same**, for a reason that has
+  nothing to do with secrecy: `app/` is inside the tree, most work here happens
+  in worktrees, and a build input kept there is re-downloaded every time one is
+  deleted. The plugin prefers `app/google-services.json` when it is there, falls
+  back to the home copy, and takes `THEFLOOR_GOOGLE_SERVICES` over both. Both
+  filenames are gitignored anyway — the pattern was added on the branch that
+  built this, so a checkout of an older `master` does **not** ignore it.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it
