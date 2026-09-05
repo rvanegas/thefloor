@@ -228,11 +228,28 @@ Deliberately separate, so no single leak is worse than it has to be:
   *that* is the tighter path and is what this entry describes; the Firebase
   button is the quicker one and is a wider credential.
 
-  Either way what somebody holding it can do is put a notification on every
-  Android install — unpleasant but bounded: it reads nothing, and no
-  conversation, recording or transcript is reachable with it. The narrow role
-  is what keeps that sentence true if the account is ever granted something
-  else by a future hand.
+  **What it can do alone is very little, and it is worth being exact rather
+  than alarming.** `messages:send` takes exactly one target — a token, a topic,
+  or a condition. There is no API that lists a project's registration tokens,
+  and this app never calls `subscribeToTopic`, so no device belongs to any
+  topic and a topic send reaches nobody. The key by itself therefore reaches
+  **zero devices**. It becomes a way to notify people only when paired with the
+  token list, which is `device_tokens` in SQLite on the box — and somebody
+  holding that has a worse problem to report than notifications.
+
+  It is **write-only** in every case: no conversation, recording, transcript or
+  contact is reachable with it. The unpleasant version of the paired leak is
+  not volume but authenticity — notifications carrying this app's name and
+  icon, saying something a person would believe, tapping through into the real
+  app.
+
+  **So the argument for the narrow role is drift, not blast radius.** The wide
+  `firebase-adminsdk` key's reach is bounded today only because this Firebase
+  project holds nothing but messaging — no Firestore, no Storage, no Firebase
+  Auth. Add any of them to the same project later and that key silently gains
+  reach over it, with nothing about the key changing to say so. The messaging
+  role cannot acquire scope that way. That is the reason to spend the three
+  minutes in IAM, and it is a better one than the risk as it stands.
 
   It lives in `~/.config/thefloor/fcm-service-account.json`, mode 600, and on
   the box at the path `FCM_SERVICE_ACCOUNT_PATH` names — same location and same
