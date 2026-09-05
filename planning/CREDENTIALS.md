@@ -218,15 +218,20 @@ Deliberately separate, so no single leak is worse than it has to be:
   its replacement: the two services are addressed separately and neither
   credential can be used against the other.
 
-  **Scope it to *Firebase Cloud Messaging API Admin*
-  (`roles/firebasemessaging.admin`) and nothing wider**, which takes a detour
-  through Google Cloud IAM rather than the Firebase console. Firebase's own
-  *Generate new private key* button issues a key for the
-  `firebase-adminsdk-…` account, which carries the Firebase Admin SDK service
-  agent role and can do a great deal more than send a notification. Making a
-  fresh service account with the messaging role and generating the key against
-  *that* is the tighter path and is what this entry describes; the Firebase
-  button is the quicker one and is a wider credential.
+  **This is the wide key, deliberately, and the narrow one is owed.** It came
+  from the Firebase console's *Generate new private key*, so it belongs to the
+  `firebase-adminsdk-…` account and carries the Firebase Admin SDK service
+  agent role — considerably more than sending. The narrow alternative is a
+  service account made in Google Cloud IAM holding *Firebase Cloud Messaging
+  API Admin* (`roles/firebasemessaging.admin`) and nothing else.
+
+  What makes the wide one acceptable is a **condition rather than a judgement**:
+  that role's reach is bounded by what the project contains, and this project
+  contains only Cloud Messaging. Add a second Firebase service to it and the
+  deployed key silently gains reach over that too, with nothing changing to say
+  so. So the narrowing is owed before the second service rather than on a
+  schedule — BACKLOG.md § *The FCM credential is the wide one* carries the
+  trigger and the swap, which is a file replacement and a restart.
 
   **What it can do alone is very little, and it is worth being exact rather
   than alarming.** `messages:send` takes exactly one target — a token, a topic,
