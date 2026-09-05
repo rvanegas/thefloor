@@ -22,9 +22,18 @@
 // session is `CALL`, and an empty one, where `core/micNeeded.ts` closes the
 // microphone and the session is `IDLE`: an audio assertion with no audio
 // flowing is the kind iOS takes back. The 2026-08-08 investigation measured
-// six minutes with no suspension and a second person in the room; the empty
-// case has never been measured. See DECISIONS-2026-08-07-to-2026-08-13.md
-// § "Backgrounded audio was ruled out".
+// six minutes with no suspension and a second person in the room. See
+// DECISIONS-2026-08-07-to-2026-08-13.md § "Backgrounded audio was ruled out".
+//
+// **The empty case was measured on 2026-09-05, and then fixed.** This tool
+// measured it: alone in a channel, backgrounded, `audio: no assertion` and
+// **suspended after 1.1s** — four times over, 0.3s to 1.1s. Build 145 plays
+// silence for as long as the session is `IDLE` (`app/modules/keep-alive`), and
+// the same phone in the same state then held an assertion and ran the whole
+// four-minute lock without being suspended. So the question this file was
+// written to settle is settled, and what it now measures is whether the fix is
+// still working — which is a thing to check after any change to the audio
+// session, and the reason it stays.
 //
 // **The three cases fall out of the log rather than needing to be set up.**
 // Every audio assertion iOS grants names the category it was granted for, so
@@ -578,14 +587,21 @@ function episodes(events) {
 /**
  * Which case an episode is, in the words iOS itself uses.
  *
- * There are two of these rather than the three the header promises, and
- * finding that out is the result rather than a shortcoming of the reading.
- * `IDLE` — `playback` with `mixWithOthers` and nothing actually playing — is
+ * There were two of these rather than the three the header promises, and
+ * finding that out was the result rather than a shortcoming of the reading.
+ * `IDLE` — `playback` with `mixWithOthers` and nothing actually playing — was
  * granted **no background-audio assertion at all**, so a phone sitting alone
- * in a channel is indistinguishable here from one sitting on Home with no
- * channel open, and is suspended just as fast. The device log cannot separate
- * them because at this level there is nothing to separate: the only thing that
- * buys background time is audio actually flowing.
+ * in a channel was indistinguishable here from one sitting on Home with no
+ * channel open, and was suspended just as fast. The device log could not
+ * separate them because at that level there was nothing to separate: the only
+ * thing that buys background time is audio actually flowing.
+ *
+ * **That last sentence is still true and is why there are three cases again
+ * from build 145.** `app/modules/keep-alive` makes audio flow — inaudibly, and
+ * without changing the category — for as long as the session is `IDLE`, so the
+ * empty channel now earns an assertion of its own. iOS labels it
+ * `SoloAmbientSound` rather than naming the category the app set, which is a
+ * quirk of the label: another app's audio goes on playing underneath it.
  */
 function describe(episode) {
   if (!episode.audioHeld) return 'no assertion';
@@ -736,10 +752,16 @@ function summarise(found) {
   }
 
   process.stdout.write(
-    '`no assertion` covers two situations that look identical from here and are\n' +
-      'suspended alike: not in a channel, and alone in one. An IDLE session holds\n' +
-      'nothing, so nothing keeps the process up. `PlayAndRecord…` is a microphone\n' +
-      'actually capturing, which does.\n\n' +
+    '`no assertion` means nothing is keeping this process up, and on a build\n' +
+      'before 145 it covered being alone in a channel as well as not being in\n' +
+      'one — an IDLE session held nothing. Since 145 a phone alone in a channel\n' +
+      'plays silence and holds an assertion, so `no assertion` there is a\n' +
+      'regression rather than the expected reading. `PlayAndRecord…` is a\n' +
+      'microphone actually capturing.\n\n' +
+      'Note the category iOS names for the silence is not the one the app set:\n' +
+      'it reads `SoloAmbientSound` where `session.ts` asks for playback with\n' +
+      'mixWithOthers. That label is wrong rather than the session — another\n' +
+      "app's audio was confirmed to keep playing underneath it on 2026-09-05.\n\n" +
       'What suspension costs is presence, and it is slower than it looks: the\n' +
       'server notices the silence within HEARTBEAT_TIMEOUT_MS, then `ws` spends\n' +
       'its 30-second closeTimeout waiting for a close frame from a frozen phone\n' +

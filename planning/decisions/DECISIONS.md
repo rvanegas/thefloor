@@ -123,6 +123,32 @@ already stopped reporting, so the silence stops and the phone suspends exactly
 as it did before. The feature buys fifteen minutes of true presence and then
 gets out of the way.
 
+**Confirmed in the field the same night, by `bin/suspend-log` against a cabled
+phone.** Alone in a channel on build 144: `audio: no assertion`, **suspended
+after 1.1s** — four such episodes, 0.3s to 1.1s. The same phone on 145, same
+state: an assertion held, **never suspended, ran the whole 4m 48s lock** and
+ended only because the app was reopened. The bound was exact — `silence stopped
+(expired)` at 15m 00s after entering the channel, suspended five seconds later.
+And another app's audio kept playing throughout, which is the property the
+whole design was chosen for.
+
+**One thing the capture gets wrong, recorded so nobody chases it.** iOS names
+the assertion's category `SoloAmbientSound`, where `session.ts` sets `playback`
+with `mixWithOthers` — and the tool reports the category correctly elsewhere,
+`CALL` reading back as `PlayAndRecord_WithBluetooth_DefaultToSpeaker`. The
+label is wrong rather than the session: music playing in another app was
+directly observed to continue. Do not read that string as evidence the session
+was seized.
+
+**A reading trap that cost an hour here.** `/healthz`'s `drops` counters are
+cumulative and process-lifetime, so a trial read off them is only as good as
+what else happened in between. This session read `drops 2 → 6` across the
+verification trial and concluded the fix had failed; the capture then showed
+the trial episode never suspended at all, and the two expirations belonged to
+backgroundings at 12:50 and 12:53, before 145 was installed. **`bin/health` can
+say something went wrong and cannot say what did it.** `bin/suspend-log` is the
+instrument that attributes.
+
 **Two things it does not do.** An interruption — a call, an alarm — stops the
 player, and nothing restarts it, so a cellular call suspends the app as before;
 TASKS.md § *Websocket Lost* stays open and now names the observer that would
