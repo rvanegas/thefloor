@@ -155,12 +155,27 @@ function Root() {
     !!live?.selfMuted[me],
     micNeeded,
     hasAudio,
-    // The same flag the panel and the shipped log are behind, and the first
-    // thing behind it that acts rather than reports. One account carries the
-    // automatic repair until its false-positive rate against real data is
-    // something better than unmeasured; widening it to everybody is this
-    // argument becoming `true`. See `useSessionAudio`'s `recoverPlayout`.
-    app.debug
+    // **Was `app.debug`, and is `false` since the measurement came back.** The
+    // automatic rebind ran three times on 2026-09-04 — twice on its own, once
+    // by hand — and every one of them reached the SFU, produced a `sub -` and
+    // a `sub +`, and left the track silent. Playout came back each time about
+    // a second later, when the engine restarted with recording enabled, and
+    // never otherwise.
+    //
+    // It could not have worked. Dropping the only remote subscription stops
+    // the engine, and the retake restarts it — with `rec=F`, because the
+    // condition this fires under is being alone with the shared-playback
+    // track, so `hasAudio` is false. `rec=F` is the state that renders
+    // nothing. The repair recreated the fault, which is the objection that
+    // kept the detector away from `reconnect()`, and it applies here for the
+    // same reason and was missed.
+    //
+    // Left wired rather than deleted: the call, the button and the bounds are
+    // the apparatus that produced this reading, and the next hypothesis will
+    // want them. Turning it back on is this argument becoming `app.debug`
+    // again — but do not, until something explains why `rec=F` renders
+    // nothing. See `audio/rebind.ts` and `planning/PLAYOUT.md`.
+    false
   );
 
   /**

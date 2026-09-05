@@ -85,7 +85,78 @@ Each of these is measured, not reasoned. Several cost a build to establish.
 
 ---
 
-## The current hypothesis
+## What settled it: the engine's `rec` flag
+
+**Remote audio renders if and only if the engine was last started with
+recording enabled. `play=T rec=F` is playout enabled and rendering nothing.**
+
+The 2026-09-04 evening log, from the build that shipped `audio/rebind.ts`, has
+fourteen engine starts and splits on that flag with no exceptions:
+
+| engine start | outcome |
+| --- | --- |
+| `879266 play=T rec=F` | froze, reported at `885735` |
+| `886399 play=T rec=F` — rebind retake, attempt 1 | no resume |
+| `892645 play=T rec=T` | **resumed** at `893740`, +1.1s |
+| `910255 play=T rec=F` | froze, reported at `917829` |
+| `918522 play=T rec=F` — rebind retake, attempt 2 | no resume |
+| `105743 play=T rec=T` | **resumed** at `106812`, +1.1s |
+| `507181 play=T rec=F` | froze, reported at `514032` |
+| `514671 play=T rec=F` — rebind retake, automatic | no resume |
+| `523147 play=T rec=F` — rebind retake, by hand | no resume |
+| `576205 play=T rec=T` | **resumed** at `576333`, +0.1s |
+
+Every freeze follows a `rec=F` start; every recovery follows a `rec=T` start.
+The two `rec=F` starts at connect — `099822` and `945854` — are superseded
+inside 100ms by a `rec=T` start, which is why they never froze, and they are
+the reason the flag was invisible until something forced a `rec=F` start to
+stand on its own.
+
+**That is why the fault is only ever reported when alone.** `hasAudio` false
+means the session is `playback`, which means the engine is started `rec=F`,
+which renders nothing — and being alone with the shared-playback pump is
+exactly the state where the only thing to hear is a track this device will not
+play. With somebody else in the channel the session is `playAndRecord`, the
+engine is `rec=T`, and the same subscription renders.
+
+**What is not yet known is why.** `play=T` says the ADM believes playout is
+enabled. Something below that — the VoiceProcessingIO unit initialised without
+an input, most likely — does not run the render side. That question is now the
+whole investigation, and it is a question about the audio device module rather
+than about rooms, subscriptions or ordering.
+
+---
+
+## Retired: rebinding the subscription
+
+`audio/rebind.ts` shipped on 2026-09-04 to test the idea that a receiver binds
+to the playout instance live when it attaches, so a fresh receiver would have
+nothing stale to be bound to. It was tried three times that evening — twice
+automatically, once by hand — and every attempt reached the SFU, produced a
+`sub -` and a matching `sub +` about 350ms later, and left the track silent.
+
+**It could not have worked, for the reason `reconnect()` was ruled out.**
+Dropping the only remote subscription stops the engine outright — the log shows
+`engine stop play=F rec=F` between the `resub` line and the `sub -` — and the
+retake restarts it. Alone, that restart is `rec=F`, which is the state that
+renders nothing. The repair reconstructed the fault. The standing rule against
+wiring the detector to a rebuild was right and was applied too narrowly: what
+it forbids is any recovery that re-enters the failing state, and dropping a
+subscription is one of those whenever it is the last one.
+
+The call, the panel button and the bounds are left in place — they are the
+apparatus that produced the reading — but the automatic half is `false` in
+`App.tsx` rather than `app.debug`. Do not turn it back on.
+
+---
+
+## The former hypothesis, superseded 2026-09-04
+
+> Kept because its controlled test is real and its retraction is instructive:
+> the ordering is not the variable, and the section above says what is. The
+> connect-time correlation it rests on is explained by `rec`, since a
+> connection that subscribes late is also one whose engine has had time to
+> reach a `rec=T` start.
 
 **A track that is already published when the room connects gets subscribed
 before playout is ready, and never renders. A track that arrives afterwards
@@ -264,35 +335,24 @@ data.
 
 ## What to do next
 
-1. **Measure again on build 95, now that the detector reads per track.** Every
-   reading taken while somebody else was present was taken through the sum and
-   is worth nothing; the whole with-company half of this investigation is
-   unmeasured rather than clean. The first question the new log can answer that
-   the old one could not is whether the shared-playback track freezes in a
-   `CALL` session too, unheard because a voice is arriving over the top of it.
-2. **Tell the two candidate mechanisms apart, by ear, before writing either
-   fix.** Frozen and alone, rewrite the session without leaving `playback`
-   (`IDLE` ↔ `LISTENING`, which differ only in `mixWithOthers`). If the track
-   resumes, the operative thing is the engine restarting under a live
-   subscription, and the fix costs no sound quality. If only `playAndRecord`
-   revives it, the category is the variable and `autoSubscribe: false` is the
-   way, because it avoids the freeze rather than paying HFP to escape it.
-3. **Then** try `autoSubscribe: false` at connect with an explicit subscribe
-   after activation. Still a real behaviour change, still wants its own build
-   with nothing else in it.
-4. **Do not wire the freeze detector to `reconnect()`** on the strength of
-   anything currently known.
-5. **The bisection in `probe.ts` is still unrun.** It was *started* on build 94
-   at 18:18 — all nine readers fired and returned — but in a `CALL` session,
-   which is the one condition where the fault does not show and, before build
-   95, could not have been seen if it did. That run establishes nothing. Run it
-   alone.
-
-**And the standing rule this subsystem keeps re-teaching:** measure before
-writing code. `engineState.ts`'s own header records three mechanisms reasoned
-from source, three builds, no change. This day added four more wrong readings,
-every one of them plausible, every one of them settled by an instrument rather
-than by an argument.
+1. **Find out why `play=T rec=F` renders nothing.** This is the only open
+   question. It is a question about the WebRTC audio device module on iOS, not
+   about LiveKit, rooms or subscriptions, so `engineState.ts`'s readers and the
+   unrun bisection in `probe.ts` are the instruments that bear on it — with
+   `engineState.ts`'s own warning that reading the ADM has stopped the audio
+   before.
+2. **Consider the cheap workaround before the real fix**, and cost it honestly:
+   keeping the session in `playAndRecord` whenever anything is subscribed would
+   make the engine start `rec=T` and, on this evidence, would render. It pays a
+   Bluetooth profile handover and a microphone-in-use indicator for a channel
+   nobody is speaking in, which is a real cost to weigh rather than a detail.
+3. **Do not wire the freeze detector to any recovery that stops the engine.**
+   That now covers `reconnect()` and the subscription rebind both, and the rule
+   generalises: a recovery is only admissible if the engine it leaves behind was
+   started `rec=T`.
+4. **Re-read the log for `rec` before theorising about anything else here.**
+   Three hypotheses have now been retired in this file, and every one of them
+   was settled by a flag that was already being logged.
 
 ---
 
