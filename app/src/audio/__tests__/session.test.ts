@@ -18,13 +18,11 @@ describe('sessionFor', () => {
    * It took two — whether anybody was capturing, and how much was audible —
    * and chose between three configurations. `LISTENING` had been unreachable
    * since build 90, so the second argument decided nothing, and what was left
-   * was already a single boolean. Two rules now compute that boolean and the
-   * `steadyHeadset` setting picks between them; this module is handed the
-   * answer and does not know which asked the question.
-   *
-   * `anyMicrophoneOpen` and `channelHasAudio` in core/micNeeded.ts are the two,
-   * and the argument between them lives there. This file is only about what the
-   * two configurations are and that the second writer is told the same thing.
+   * was already a single boolean. `channelHasAudio` in core/micNeeded.ts
+   * computes it — there were two rules and a setting picking between them until
+   * 2026-09-05 — and this module is handed the answer without knowing how it
+   * was reached. This file is only about what the two configurations are and
+   * that the second writer is told the same thing.
    */
   it('mixes when the rule says there is no audio', () => {
     expect(sessionFor(false)).toBe(IDLE);
@@ -95,18 +93,18 @@ describe('policyFor', () => {
   );
 
   /**
-   * **`recording` is `CALL` unconditionally, and whether that is safe depends
-   * on which rule computed the argument.**
+   * **`recording` is `CALL` unconditionally, and since 2026-09-05 that is safe
+   * by construction.**
    *
    * It rests on *the observer reads this only while this device is capturing,
-   * and our capturing implies the session is a call* — which self-mute
-   * falsifies under the default rule, `intentFor` holding the device open
-   * while `anyMicrophoneOpen` excludes the self-muted. That is STATES.md
-   * disagreement 11, still open, and the leading suspect in "The Foreground
-   * Interruption". Under `steadyHeadset` it closes: the engine can only be
-   * recording where `microphoneNeeded` was true, and every case that makes it
-   * true — somebody else in the room, a recording running — makes
-   * `channelHasAudio` true as well.
+   * and our capturing implies the session is a call*. Self-mute used to
+   * falsify it: under the old default rule `intentFor` held the device open
+   * while `anyMicrophoneOpen` excluded the self-muted, which is STATES.md
+   * disagreement 11 and the leading suspect in "The Foreground Interruption".
+   * It closes with the rule change — the engine can only be recording where
+   * `microphoneNeeded` was true, and every case that makes it true makes
+   * `channelHasAudio` true as well — and the hold closes the other direction
+   * by pinning `hasAudio` wherever it keeps the device open.
    *
    * This file cannot tell the two apart, taking a boolean rather than a
    * channel, which is why the assertion here is only that the value is

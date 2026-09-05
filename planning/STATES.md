@@ -63,16 +63,15 @@ kept apart from it.** `Party-Muted` below withholds the whole room for a watch
 party and writes nothing here, so clearing it restores each person's own mute
 as they set it. A control that folded the two together could not do that.
 
-**Where the sources disagree.** *One person's self-mute is an input to
-everybody's audio session — under the default rule, and only under it.* Since
-2026-08-18 the session has been chosen from `anyMicrophoneOpen`
-(`core/micNeeded.ts`) — a question about the whole channel that excludes the
-self-muted — while `micOpen` remains a question about you. So your session can
-be a call while your own microphone is shut, which is not a bug and is what
-stops a Bluetooth route being lost. **`channelHasAudio`, which the
-`steadyHeadset` setting selects instead, does not consult `selfMuted` at all**,
-so on a phone with that on, nobody's mute moves anybody's session. See `Audio
-Session Configuration`.
+**Where the sources disagree.** *Your session can be a call while your own
+microphone is shut.* `micOpen` is a question about you; the session is chosen
+from `channelHasAudio` (`core/micNeeded.ts`), a question about the whole
+channel. That is not a bug and is what stops a Bluetooth route being lost.
+**Nobody's self-mute moves anybody's session**, `channelHasAudio` not consulting
+`selfMuted` at all. Until 2026-09-05 a second rule, `anyMicrophoneOpen`, did
+consult it, and one person's mute moving everybody's session was the largest
+single claim this file had to make; that rule and the setting that selected it
+are gone. See `Audio Session Configuration`.
 
 ---
 
@@ -175,8 +174,8 @@ it true for builds that predate the rule and go on publishing, and the app's
 half is what stops the microphone hearing the video at all, which is the
 problem the feature exists for.
 
-That second half has a consequence which falls out rather than being arranged:
-`anyMicrophoneOpen` is false for the whole room while it holds, so every
+That second half has a consequence which is arranged rather than falling out:
+`channelHasAudio` asks the withhold first, ahead of the occupants, so every
 audio session goes to its high-quality configuration for the length of the
 film — and back to the call one at each pause, which is the existing mono/stereo
 cue arriving for a new reason and saying exactly what it always said: somebody
@@ -433,12 +432,18 @@ anything to capture *for*. See `Party-Muted`. `App.tsx` widens it with `recordin
 server state arrives a round trip after the tap and that round trip is when a
 short run recorded nothing at all.
 
-**Where the sources disagree.** **There are now two senses of this state and
-they are both wanted.** `micOpen` decides whether *we publish*.
-`anyMicrophoneOpen` (`core/micNeeded.ts:65`) decides what configuration *everyone's
-session is in*. They part company in exactly one case — self-muted while
-somebody else is still talking — and that case is the whole point. Do not
-collapse them.
+**Where the sources disagree.** **There are two senses of this state and they
+are both wanted.** `micOpen` decides whether *we publish*. `channelHasAudio`
+(`core/micNeeded.ts`) decides what configuration *everyone's session is in*.
+They part company wherever somebody is present without capturing — self-muted,
+a guest without the microphone, anybody merely listening — and that is the
+point. Do not collapse them.
+
+Since 2026-09-05 they part company in one more place: the playout fix holds the
+microphone open, muted, while anything is subscribed, so this device publishes
+a track it is not transmitting on. `micOpen` is false there and the SFU roster
+says otherwise — which is why `bin/live` credits a held device with an open
+microphone. See PLAYOUT.md.
 
 ---
 
@@ -573,10 +578,10 @@ The twelfth, absent from the request's list, and the one the audio items all
 turn on.
 
 **Name in source.** `IDLE` and `CALL` in `app/src/audio/session.ts`, chosen by
-`sessionFor` from a single boolean — which **one of two rules** in
-`core/micNeeded.ts` computes, `anyMicrophoneOpen` or `channelHasAudio`.
-`App.tsx` is the only caller of either and picks between them on the
-`steadyHeadset` setting, off by default.
+`sessionFor` from a single boolean, which `channelHasAudio` in
+`core/micNeeded.ts` computes. `App.tsx` is its only caller. There were two
+rules and a `steadyHeadset` setting picking between them from 2026-08-27 to
+2026-09-05; that header says why there is one now.
 
 **These are our names, not Apple's, and they are requests rather than states.**
 Each is an `AppleAudioConfiguration` bundling three AVAudioSession settings — a
@@ -657,94 +662,73 @@ Three settings carry all the behaviour:
 - **`videoChat`** — switches on the system echo canceller. See
   POSTMORTEM-echo.md before touching it.
 
-**Conditions.** `sessionFor(hasAudio)`: `CALL` when the rule in force says
-there is audio, `IDLE` when it says there is not. The two rules:
+**Conditions.** `sessionFor(hasAudio)`: `CALL` when `channelHasAudio` says
+there is audio, `IDLE` when it says there is not.
 
-- **`anyMicrophoneOpen(channel)` — the default**, and what has shipped since
-  2026-08-18. *Is anybody present capturing*:
-  `microphoneNeeded(channel, id) && !selfMuted[id]` over the room's occupants.
-- **`channelHasAudio(channel, me)` — when `steadyHeadset` is on.** *Does this
-  app have any audio at all*, in four tests asked in this order: a withholding
-  watch party is `false`, anybody else in the room is `true`, a recording
-  running is `true`, and a playback track loaded (`status !== 'idle'`, which
-  includes paused) is `true`.
+**`channelHasAudio(channel, me)`** asks *does this app have any audio at all*,
+in four tests in this order: a withholding watch party is `false`, anybody else
+in the room is `true`, a recording running is `true`, and a playback track
+loaded (`status !== 'idle'`, which includes paused) is `true`.
 
-**A second rule arrived on 2026-08-27, and it is a setting rather than a
-replacement.** The default rests on a premise that had never been written down:
+It drops the fidelity question entirely and asks an ownership one: does this app
+want the audio system, or should it hand it back? The premise it replaced was
 that a room with no open microphone has somebody in it who wants the stereo
 route. Exactly one claimant on that stereo survives examination — **another
 app.** Voices are already degraded by the codec, and shared playback is not
 trying to be a media player, so its quality should not depend on whether
-somebody is talking over it. The second rule drops the fidelity question
-entirely and asks an ownership one: does this app want the audio system, or
-should it hand it back?
+somebody is talking over it.
 
-**It is a setting because the answer is a trade rather than a fact.** What is
-being weighed is sound quality while the room is quiet against a link that does
-not move under the first word somebody says, and which is worth more depends on
-the headset and the person. See decisions/DECISIONS.md § *Hands-free only*.
+| Situation | Session |
+| --- | --- |
+| Not in a channel | none |
+| Alone, nothing running | `IDLE` |
+| Alone, recording | `CALL` |
+| Alone, a track loaded or playing | `CALL` |
+| Others present, anybody unmuted | `CALL` |
+| Others present, I am muted, they are not | `CALL` |
+| Others present, **everybody** muted | `CALL` |
+| Watch party, while the video plays | `IDLE` |
 
-| Situation | Default | `steadyHeadset` |
-| --- | --- | --- |
-| Not in a channel | none | none |
-| Alone, nothing running | `IDLE` | `IDLE` |
-| Alone, recording | `CALL` | `CALL` |
-| Alone, a track loaded or playing | `IDLE` | **`CALL`** |
-| Others present, anybody unmuted | `CALL` | `CALL` |
-| Others present, I am muted, they are not | `CALL` | `CALL` |
-| Others present, **everybody** muted | `IDLE` | **`CALL`** |
-| Watch party, while the video plays | `IDLE` | `IDLE` |
+**All present muted is `CALL`, and that is the row to understand.** A muted room
+is not a silenced room, it is a live room that happens to be quiet. Every mute
+is unilateral and instant — `canSetSelfMute` refuses only the muting — so
+handing the route back there would hand it back on a state anybody can leave in
+the time it takes to start a sentence, and the profile handover would land on
+that sentence's first syllable.
 
-Two rows differ. **All present muted** is the one that matters: a muted room is
-not a silenced room, it is a live room that happens to be quiet. Every mute is
-unilateral and instant — `canSetSelfMute` refuses only the muting — so handing
-the route back there hands it back on a state anybody can leave in the time it
-takes to start a sentence, and the profile handover then lands on that
-sentence's first syllable. **Alone with a track** is the other, and under
-`steadyHeadset` the session takes the route from the moment the track is
-*loaded* rather than when it is heard: the category write then happens before
-anything is published, instead of at the moment the track arrives and the
-engine starts.
+**Alone with a track is `CALL` from the moment the track is *loaded*** rather
+than when it is heard, so the category write happens before anything is
+published instead of at the moment the track arrives and the engine starts.
 
-Every other row is identical, which is worth knowing before reading a symptom
-as evidence about the setting.
-
-**The watch-party row agrees under both rules, and for different reasons.**
-Under the default it falls out: no microphone is open. Under `steadyHeadset` it
-is the one answer that is *arranged* rather than falling out — the withhold is
+**The watch-party row is arranged rather than falling out.** The withhold is
 asked ahead of the occupants, who are present throughout. The Floor carries no
 video, each person's own player follows a transport clock, so the film is
 coming out of another app and every voice is withheld while it plays. This app
-has nothing to play and nothing to capture, and the claimant on the route is
-the player.
+has nothing to play and nothing to capture, and the claimant on the route is the
+player.
 
-**Self-mute is an input to the audio session only under the default rule.**
-That default is the largest single claim this file has to make, and has been
-since 2026-08-18: `anyMicrophoneOpen` excludes the self-muted, so one person's
-mute moves everybody's session. Nothing in `channelHasAudio` consults
-`selfMuted` at all — which is why the 2026-08-19 route loss stays fixed under
-both, by two different arguments. The default keeps the session a call because
-somebody else is still capturing; the other because somebody else is still
-*there*.
+**Self-mute is not an input to the audio session.** Nothing in
+`channelHasAudio` consults `selfMuted`, and the 2026-08-19 route loss stays
+fixed because somebody else is still *there* rather than because somebody else
+is still capturing.
 
-**The transition is audible, and that is a feature — but it now says one of two
-things.** Crossing the boundary is a Bluetooth profile switch, stereo to mono
-and back, and what it means depends on the setting:
+**The transition is audible and that is a feature.** Crossing the boundary is a
+Bluetooth profile switch, stereo to mono and back:
 
-| | Drop to mono | Bloom to stereo |
-| --- | --- | --- |
-| Default | somebody's microphone is open | nobody's is, including yours |
-| `steadyHeadset` | somebody has arrived, or a track is loaded | the room is empty, or the track is cleared, or the film has started |
+| Drop to mono | Bloom to stereo |
+| --- | --- |
+| somebody has arrived, or a track is loaded | the room is empty, or the track is cleared, or the film has started |
 
-The second is coarser and follows the room's shape rather than its mute states,
-so it does not fire on everybody happening to be muted at once — a state nobody
-announces and nobody chose. Both agree on the crossing that carries the
-meaning: somebody walking in, and the last person leaving.
+It follows the room's shape rather than its mute states, so it does not fire on
+everybody happening to be muted at once — a state nobody announces and nobody
+chose.
 
-**Which means the cue is no longer the same cue for everybody**, and that is
-the honest cost of making this a setting. A reading of the route is now a
-reading of the route *and* a reading of a preference, and neither the code nor
-the screen says which. It is one more reason not to reason from the route.
+**Since 2026-09-05 the boundary is crossed far less often than this table
+suggests.** The playout fix holds the microphone open, muted, for as long as
+anything is subscribed — see PLAYOUT.md — so a channel with anything to hear is
+`playAndRecord` and stays there. The rows above still describe what `sessionFor`
+is asked for; what a headset actually experiences is HFP for the whole time
+there is audio, which is the cost that fix accepted deliberately.
 
 **On a mic-less speaker the cue is a route change rather than a profile
 change, and it was nothing at all before build 65.** A Bluetooth *speaker*
@@ -843,15 +827,15 @@ those are open in a way that reads like closure and is not — **3 and 7 are ope
 by design**, 3 because the one case the two names differ in is deliberate and 7
 because `orderChannels` already consults `presentCount`. Both are written down
 here precisely so that a later reading does not "simplify" them; neither is
-waiting on work. The ones actually waiting are **1, 4 and 11**, and none is
+waiting on work. The ones actually waiting are **1 and 4**, and neither is
 urgent.
 
-**3 and 11 were briefly written up as closed on 2026-08-27 and are not.** The
-work that would have closed them — replacing `anyMicrophoneOpen` outright —
-became a setting instead, so the function is still here and still the default.
-Both entries now carry what changes when `steadyHeadset` is on, which is a
-different and more useful thing for them to say: each names a disagreement that
-one of the two rules has and the other does not.
+**3 and 11 were written up as closed on 2026-08-27, were not, and are now.**
+The work that would have closed them — replacing `anyMicrophoneOpen` outright —
+became a setting instead, so for nine days the function was still here and still
+the default. On 2026-09-05 the setting and the rule were both removed and
+`channelHasAudio` became the only rule, which closes both by construction rather
+than by argument.
 
 **9 was the live one and closed on 2026-08-21**, on a device, after six builds.
 It is worth reading even though it is closed: it is the longest-running wrong
@@ -886,13 +870,10 @@ lifted an entry elsewhere.
 2. **`SessionAudio.status` and `ChannelState.disconnectedAt` are both "audio
    connected"** and are unrelated connections. *Closed 2026-08-18* by the
    reconnect path and the `'reconnecting'` status, but the naming stands.
-3. **`micOpen` and `anyMicrophoneOpen` are both "mic open"** and differ in
-   exactly one case, deliberately. Open by design; documented above so it is
-   not "simplified". **The collision is a property of the default rule only**:
-   `channelHasAudio`, the alternative, is not a question about microphones at
-   all, so under `steadyHeadset` there is nothing here to confuse. That is not
-   an argument for the setting — it is a note that a reader chasing this
-   entry's symptom should check which rule the phone was on.
+3. **`micOpen` and `anyMicrophoneOpen` were both "mic open"** and differed in
+   exactly one case, deliberately. *Closed 2026-09-05*, by deletion rather than
+   by argument: `anyMicrophoneOpen` is gone, and `channelHasAudio` is not a
+   question about microphones at all, so the two names no longer collide.
    **A third sense arrived 2026-08-20 and is the one to watch**:
    the *device* can be open while `micOpen` is false, which is precisely what a
    self-mute now is. `micOpen` answers "is anything going out", the device
@@ -900,10 +881,10 @@ lifted an entry elsewhere.
    orange indicator, which this app deliberately does not second-guess.
 4. **The audible mono/stereo transition is designed behaviour with nothing in
    the code calling it so** — until this file. Open: it is one refactor away
-   from being deleted as a blemish. **And since 2026-08-27 it means two
-   different things depending on a setting**, which is worse for this entry
-   rather than better: under `steadyHeadset` the drop to mono says the room is
-   not empty rather than that somebody's microphone is open. Fewer crossings, a
+   from being deleted as a blemish. **Since 2026-09-05 it means one thing
+   again**, the setting that gave it two having gone: the drop to mono says the
+   room is not empty, or a track is loaded, rather than that somebody's
+   microphone is open. Fewer crossings, a
    coarser claim, and nothing in the code calls either of them a signal — so a
    reading of the route is now a reading of a preference too, and the entry
    stays open for that reason as much as the original one.
@@ -970,45 +951,38 @@ lifted an entry elsewhere.
    this subsystem, it is the shape every bug in it has taken — the build 17
    echo, the build 19 headphone fallback, the build 65 mic-less speaker. What
    changed is that the next one is readable rather than audible.
-11. **"Capturing" means one thing to the audio engine and another to
-   `anyMicrophoneOpen`, and `policyFor` assumes they agree.** *Open, found
-   2026-08-21, and since 2026-08-27 it is **a disagreement the default rule has
-   and the alternative does not**.* Under `steadyHeadset`, `channelHasAudio` is
-   true in every case that can leave the engine recording — somebody else in
-   the room, or a recording running, which are exactly the two things that make
-   `microphoneNeeded` true — so the unconditional `recording: CALL` is safe by
-   construction and there is nothing left to disagree about.
+11. **"Capturing" meant one thing to the audio engine and another to
+   `anyMicrophoneOpen`, and `policyFor` assumed they agreed.** *Found
+   2026-08-21, closed 2026-09-05.*
 
-   **That makes the setting an experiment on this entry, and not a fix for
-   it.** *The Foreground Interruption* still says to measure at the foreground
-   before touching code, and nobody has. What the setting buys is a controlled
-   comparison rather than an answer: run the recipe with it off and with it on,
-   on the same phone in the same sitting. If the interruption follows the
-   setting, this disagreement was the cause; if it happens under both,
-   activation itself and WebRTC's defaults are what is left — and note the
-   recipe's everybody-muted step means something different in each case, since
-   under `steadyHeadset` the interruption there is the intended behaviour.
-   **Alone in a channel is the step that means the same thing under both**,
-   and it is the one to trust.
+   `session.ts` hands the native observer `recording: CALL` unconditionally, on
+   the argument that the observer reads that value only while this device is
+   capturing and *our capturing implies the session is a call*. Self-mute used
+   to falsify the implication: `intentFor` returns `muted`, which holds the
+   device open deliberately — `applyFor`'s header says the engine never leaves
+   the recording state — while `anyMicrophoneOpen` excluded self-muted people by
+   construction. So with everybody present muted the engine was recording, the
+   rule said there was no audio, and the two writers wanted different categories
+   for the same moment.
 
-   `session.ts` hands the native observer `recording: CALL`
-   unconditionally, on the argument that the observer reads that value only
-   while this device is capturing and *our capturing implies `anyMicOpen`*.
-   Self-mute falsifies the implication: `intentFor` returns `muted`, which
-   holds the device open deliberately — `applyFor`'s header says the engine
-   never leaves the recording state — while `anyMicrophoneOpen` excludes
-   self-muted people by construction. So with everybody present muted the
-   engine is recording, `anyMicOpen` is false, and the two writers want
-   different categories for the same moment.
+   **It closes from both ends.** `channelHasAudio` is true in every case that
+   can leave the engine recording — somebody else in the room, or a recording
+   running, which are exactly the two things that make `microphoneNeeded` true.
+   And the playout hold added the same day pins `hasAudio` wherever it keeps the
+   device open, so the session is a call for exactly as long as the device is
+   held. There is no longer a state in which this device records under
+   `playback`.
 
-   That is the leading explanation for the symptom in TASKS.md § *The
-   Foreground Interruption*: everybody muted
-   should be `IDLE` with `mixWithOthers` and another app's audio should keep
-   playing, and it is interrupted instead. **Not yet confirmed** — the
-   interruption appears at a foreground, which is also an activation and a room
-   rebuild, so WebRTC's own defaults and activation itself are still live
-   candidates. Disagreement 10's panel is what tells them apart, and the entry
-   says how.
+   **This was the leading explanation for TASKS.md § *The Foreground
+   Interruption*, and closing it does not close that.** Everybody muted should
+   have been `IDLE` with `mixWithOthers` and another app's audio should have
+   kept playing; it was interrupted instead. That symptom now has one fewer
+   candidate and is **still unmeasured** — the interruption appears at a
+   foreground, which is also an activation and a room rebuild, so WebRTC's own
+   defaults and activation itself are what remain. Note also that the recipe's
+   everybody-muted step no longer produces `IDLE` at all, so the recipe needs
+   rewriting before it can be run again. Disagreement 10's panel is what tells
+   the remaining candidates apart.
 
 12. **Presence is an account's and standing is a device's, and the screen
    asked the wrong one.** *Closed 2026-08-31.* `ChannelState.present` names

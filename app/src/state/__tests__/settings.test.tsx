@@ -9,10 +9,11 @@ import { AppProvider, useApp } from '../AppProvider';
  *
  * The scheme, the tap and the control cards follow the account: the server
  * states them, every device this account holds is told, and this one applies
- * what it is told.
- * `steadyHeadset` does not, and the last case here is what keeps that true —
- * it is about the headset in somebody's ears, and the phone is where the
- * headset is.
+ * what it is told. **All of them do, since 2026-09-05.** There used to be one
+ * that did not — `steadyHeadset`, about the headset in somebody's ears rather
+ * than about the person — and two cases here guarded it: that signing out kept
+ * it, and that it was never sent to the server. Both went with the setting.
+ * If a phone-scoped setting is added back, they are the shape to restore.
  *
  * The gap these are really about is the cold start. A launch has to draw
  * something before the socket has said hello, so the provider keeps this
@@ -75,8 +76,7 @@ function Settings() {
   return (
     <Text>
       {app.appearance}/{app.tapToStepIn ? 'tap' : 'open'}/
-      {app.controlCards ? 'cards' : 'bare'}/
-      {app.steadyHeadset ? 'steady' : 'switching'}
+      {app.controlCards ? 'cards' : 'bare'}
     </Text>
   );
 }
@@ -225,26 +225,12 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({ appearance: 'dark', tapToStepIn: false, controlCards: false })
     );
-    await act(async () => latest!.setSteadyHeadset(true));
-
     await act(async () => {
       await latest!.signOut();
     });
-    expect(textOf(tree)).toContain('system/tap/cards/steady');
+    expect(textOf(tree)).toContain('system/tap/cards');
     expect(mockStored['thefloor.appearance']).toBeUndefined();
     expect(mockStored['thefloor.tapToStepIn']).toBeUndefined();
     expect(mockStored['thefloor.controlCards']).toBeUndefined();
-    // The phone still has the same headset in front of it as it did a moment
-    // ago, and nobody has said otherwise.
-    expect(mockStored['thefloor.steadyHeadset']).toBe('true');
-  });
-
-  it('never sends the headset setting to the server', async () => {
-    await mount();
-    await act(async () =>
-      hello({ appearance: 'system', tapToStepIn: true, controlCards: true })
-    );
-    await act(async () => latest!.setSteadyHeadset(true));
-    expect(mockSaved).toEqual([]);
   });
 });

@@ -28,13 +28,15 @@ import type { ColorSchemePreference } from './appearance';
  * the account on 2026-08-31 — that write is sent behind the tap rather than
  * waited on. See `AppProvider`.
  *
- * **Two scopes on one screen, which is the thing to know before editing it.**
- * The scheme, the tap and the control cards belong to the person and follow
- * them onto the next phone; keeping the headset connection steady belongs to
- * this phone, because
- * what it trades is a property of the headset. The Headphones card says so in
- * as many words, since a screen where some settings sync and others do not is
- * only honest if it admits which is which.
+ * **One scope, since 2026-09-05.** The scheme, the tap and the control cards
+ * all belong to the person and follow them onto the next phone. There used to
+ * be a second scope here — *Headphones → Keep the connection steady* was the
+ * phone's rather than the person's, because what it traded was a property of
+ * the headset in your ears — and the card admitted so in as many words. It went
+ * when the playout fix made its choice unreachable; see `channelHasAudio` in
+ * core/micNeeded.ts. If a phone-scoped setting is ever added back, say so on
+ * the card again: a screen where some settings sync and others do not is only
+ * honest if it admits which is which.
  *
  * One of the two settings screens, one per scope, each reached from the screen
  * whose scope it is: this one from Home, ChannelSettingsView from a channel.
@@ -240,55 +242,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           silenced microphone is still being recorded, and that you are in this
           channel on another device.
         </Text>
-      </Card>
-
-      {/*
-        Second because it is the other setting that changes what the app
-        *does* rather than how it looks, and it is below the tap because far
-        fewer people will have a reason to touch it: it only means anything to
-        somebody wearing Bluetooth headphones who has noticed the switch.
-
-        Worded in what is audible rather than in what is true. The mechanism is
-        a Bluetooth profile handover between A2DP and the hands-free link, and
-        naming either would put a word in front of somebody that tells them
-        nothing about which answer they want. What they can hear is that the
-        sound changes, and that the first word after it sometimes suffers.
-      */}
-      <SectionLabel>Headphones</SectionLabel>
-      <Card style={styles.stack}>
-        <Text style={type.heading}>Keep the connection steady</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, 'On'],
-              [false, 'Off'],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={app.steadyHeadset === value ? 'primary' : 'default'}
-              onPress={() => app.setSteadyHeadset(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>
-          Bluetooth headphones sound better when nobody is talking, and have to
-          switch when somebody starts. On, they stay on the talking connection
-          for as long as you are in a channel — quieter sound throughout, and
-          nothing switches under the first word. Off, the sound improves
-          whenever the room goes quiet and switches back when it does not.
-        </Text>
-        {/*
-          Said out loud because the other two stopped being true of it on
-          2026-08-31. The scheme and the tap follow the account and turn up on
-          the next phone; this one does not, since what it trades is a property
-          of the headset rather than of the person wearing it. A screen where
-          two settings sync and one does not, silently, is a screen that has
-          lied to somebody by the time they notice.
-        */}
-        <Text style={type.muted}>Kept on this phone, not on your account.</Text>
       </Card>
 
       <SectionLabel>Appearance</SectionLabel>

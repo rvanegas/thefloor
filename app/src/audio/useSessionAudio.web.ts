@@ -177,8 +177,9 @@ export function useSessionAudio(
   // came to decide the one thing it must not.
   //
   // What it cost was the whole of shared playback for one person. Alone in a
-  // channel `anyMicrophoneOpen` is false by design — `microphoneNeeded` has
-  // nothing to capture for — so the tab never joined the room, never subscribed
+  // channel the old `anyMicrophoneOpen` rule was false by design —
+  // `microphoneNeeded` has nothing to capture for — so the tab never joined the
+  // room, never subscribed
   // to the `media:<channel>` participant the server publishes the track as, and
   // played nothing, while the transport ran and the Play button stayed enabled
   // because `canControlPlayback` rightly permits a lone member. A second person

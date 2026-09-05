@@ -22,8 +22,8 @@ import { WAITING_WINDOW_MS } from '../../../core/constants';
  * somebody *else* being audible, somebody *else* arriving, and this person's
  * own hand on the page.
  *
- * **Capture is not activity, which is why `anyMicrophoneOpen` is not this.**
- * That predicate asks whether anybody in the room *could* be heard, and holds
+ * **Capture is not activity, which is why the audio-session rule is not this.**
+ * `channelHasAudio` asks whether anybody in the room *could* be heard, and holds
  * steady through every silence on purpose, so the Bluetooth route does not
  * move under the first syllable somebody says. Two abandoned tabs each make
  * the other's microphone needed, so both read as capturing and neither would

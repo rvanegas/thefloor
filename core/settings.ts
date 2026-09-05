@@ -8,15 +8,18 @@
  * anything at all, and a second table of defaults in the client is one that
  * can disagree with what the account actually holds.
  *
- * **Three of the four settings on the Home settings screen are here, and the
- * fourth deliberately is not.** Appearance, the tap and the control cards are
- * about the person: somebody who has chosen dark has chosen it, and signing in
- * on a second phone to find it light is the app forgetting something it was
- * told. `steadyHeadset`
- * is about the hardware in somebody's ears — the same person with AirPods on a
- * walk and a Bluetooth speaker on a desk may reasonably want opposite answers —
- * so it stays on the device, in the app's own storage, and never crosses this
- * wire. See `app/src/state/AppProvider.tsx`.
+ * **Every setting on the Home settings screen is here, since 2026-09-05.**
+ * Appearance, the tap and the control cards are about the person: somebody who
+ * has chosen dark has chosen it, and signing in on a second phone to find it
+ * light is the app forgetting something it was told.
+ *
+ * There was a fourth that deliberately was not — `steadyHeadset`, about the
+ * hardware in somebody's ears rather than about the person, kept in the app's
+ * own storage and never crossing this wire. It went when the playout fix made
+ * its choice unreachable; see `channelHasAudio` in micNeeded.ts. **If a
+ * device-scoped setting is added back, keep it out of here for that reason and
+ * say so on the settings card**, since a screen where some settings follow the
+ * account and others do not is only honest if it admits which is which.
  */
 
 /**

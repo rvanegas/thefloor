@@ -92,7 +92,7 @@ stops when the engine is restarted underneath it.** Isolated 2026-09-05 with a
 second person, on build 142, and this is the first claim in this file that rests
 on holding a variable fixed rather than on a correlation.
 
-**Run one**, `steadyHeadset` off:
+**Run one**, with the session free to drop to `playback`:
 
     01:13:04  sub - acct_…            she steps out
     01:13:04  released IDLE
@@ -105,8 +105,8 @@ on holding a variable fixed rather than on a correlation.
 and again at `01:15:18` → `01:16:43`, identically, 84 seconds both times. **No
 connect and no re-subscription** — the media track was subscribed throughout.
 
-**Run two**, `steadyHeadset` on, which switches `hasAudio` to a rule that counts
-shared playback and so holds the session in `CALL`:
+**Run two**, with the session held in `CALL` throughout by the rule that counts
+shared playback — then the `steadyHeadset` setting, now the only rule:
 
     01:24:04  released CALL           she steps out
     01:24:05  engine start play=T rec=F
@@ -452,26 +452,31 @@ data.
 
 ## What to do next
 
-1. **Read the deferred-subscribe build.** `App.tsx` passes `app.debug` to
-   `deferSubscribe`, which connects with `autoSubscribe: false` and takes the
-   subscriptions a second later — item 3 below, finally built. The lines to
-   read are `subscribe deferred <identity> (<sid>)` about a second after
-   `room connected, N audio already published`, and then whether any `playout
-   frozen` follows. Re-entering a channel that already has the pump in it is
-   the case to exercise; it is the one that has never rendered.
-2. **If it renders, the ordering is the mechanism** and the fix is the shape
-   already in the build — but decide deliberately whether a second of silence
-   on every connection is the price, or whether the wait can key on something
-   real rather than a timer.
-3. **If it still freezes, ordering is dead too**, and what is left is the ADM
-   itself: `engineState.ts`'s readers and the unrun bisection in `probe.ts`,
-   with that file's own warning that reading the ADM has stopped the audio
-   before.
-4. **Do not wire the freeze detector to any recovery that stops the engine.**
+Both fixes were confirmed on 2026-09-05 and widened to everybody the same
+night, `bin/live` showing one person online and so nobody to stage them for.
+What is left is not this fault.
+
+1. **Find out why `play=T rec=F` renders nothing.** The hold is a workaround
+   with a chosen cost, not an explanation. `play=T` says playout is enabled in
+   both rows that froze, and something below that does not run the render side
+   once recording stops. That is a question about the WebRTC audio device
+   module: `engineState.ts`'s readers and the unrun bisection in `probe.ts` are
+   the instruments, with that file's own warning that reading the ADM has
+   stopped the audio before.
+2. **The `mic` usage span now measures a held device rather than a
+   transmitting microphone.** A held track is muted but still published, so
+   `publishing` in `server/src/channels.ts` counts it and `bin/live` credits
+   the whole hold as an open microphone. Nothing functional depends on it —
+   `anyMicrophoneOpen` is gone and `channelHasAudio` never read the roster —
+   but a usage report read cold will overstate. Fix by filtering muted
+   publications, which is a server change and wants a deploy.
+3. **Do not wire the freeze detector to any recovery that stops the engine.**
    That covers `reconnect()` and the subscription rebind both.
-5. **Two hypotheses have now died here of being plausible**, and both died to a
-   flag that was already in the log. Read the log before theorising, and hold a
-   correlation to the number of samples it actually has.
+4. **Three hypotheses died here of being plausible**, and the one that held was
+   the first to hold a variable fixed — `released CALL`, the row that isolated
+   the microphone from the category. Two phones produced it in ninety seconds
+   after three builds of single-armed tests had not. Reach for the second
+   person earlier.
 
 ---
 

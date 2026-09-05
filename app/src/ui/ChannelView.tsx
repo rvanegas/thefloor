@@ -1354,7 +1354,6 @@ export function ChannelView({
               {app.debug && Platform.OS !== 'web' ? (
                 <AudioDebugPanel
                   asked={audio.asked}
-                  steadyHeadset={app.steadyHeadset}
                   onReconnect={audio.reconnect}
                   onResubscribe={audio.resubscribe}
                 />
@@ -1426,7 +1425,6 @@ export function ChannelView({
               <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
               <AudioDebugPanel
                 asked={audio.asked}
-                steadyHeadset={app.steadyHeadset}
                 onReconnect={audio.reconnect}
                 onResubscribe={audio.resubscribe}
               />

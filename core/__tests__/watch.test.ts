@@ -1,7 +1,6 @@
 import { DISCONNECT_GRACE_MS, FLOOR_CLAIM_MS } from '../constants';
 import { parseYouTubeUrl, watchPositionMs } from '../watch';
 import {
-  anyMicrophoneOpen,
   channelHasAudio,
   microphoneNeeded,
 } from '../micNeeded';
@@ -427,15 +426,11 @@ describe('muting the room', () => {
     expect(microphoneNeeded(s, A)).toBe(false);
     expect(microphoneNeeded(s, B)).toBe(false);
     // Which takes every audio session out of its call configuration for the
-    // length of the film — **under both rules**, and this is the one row where
-    // `steadyHeadset` changes nothing.
-    //
-    // For the default rule it falls out: no microphone is open. For the other
-    // it is the one answer that is arranged rather than falling out, the
-    // withhold being asked first, ahead of the occupants who are present
-    // throughout. The Floor carries no video, so the film is coming out of
-    // another app, and that app is the claimant this configuration exists for.
-    expect(anyMicrophoneOpen(s)).toBe(false);
+    // length of the film. This is the one answer here that is arranged rather
+    // than falling out: the withhold is asked first, ahead of the occupants who
+    // are present throughout. The Floor carries no video, so the film is coming
+    // out of another app, and that app is the claimant this configuration
+    // exists for.
     expect(channelHasAudio(s, A)).toBe(false);
   });
 

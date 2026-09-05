@@ -86,12 +86,12 @@ function reading(patch: Partial<AudioDiagnostic> = {}): AudioDiagnostic {
  * not been into Settings is on, and because none of the rows below it depend
  * on the value — the one that does is tested by name.
  */
-function rows(d: AudioDiagnostic, steadyHeadset = false) {
-  return diagnosticSections(d, steadyHeadset).flatMap((section) => section.rows);
+function rows(d: AudioDiagnostic) {
+  return diagnosticSections(d).flatMap((section) => section.rows);
 }
 
-function row(d: AudioDiagnostic, label: string, steadyHeadset = false) {
-  const found = rows(d, steadyHeadset).find((r) => r.label === label);
+function row(d: AudioDiagnostic, label: string) {
+  const found = rows(d).find((r) => r.label === label);
   if (!found) throw new Error(`no row labelled ${label}`);
   return found;
 }
@@ -302,34 +302,6 @@ describe('the engine', () => {
   });
 });
 
-/**
- * Which of the two audio-session rules produced everything else in the dump.
- *
- * **The whole value of this row is comparative**, which is why it is tested
- * for presence in both states rather than for one. HF-ONLY-WALK.md asks for
- * the same step run twice under the two settings, and a pair of readings that
- * does not say which rule made each of them is not a pair — it is two
- * readings of an unknown. The setting is persisted per phone and defaults off,
- * so the value is not recoverable from the build number either.
- */
-describe('the audio-session rule in force', () => {
-  it('is stated, in both states, rather than only when it is on', () => {
-    expect(row(reading(), 'steady headset', false).value).toBe('F');
-    expect(row(reading(), 'steady headset', true).value).toBe('T');
-  });
-
-  /**
-   * A reading taken before anything connected is still evidence about a phone,
-   * and this is the row that says whose phone it is behaving as. `appRows`
-   * returns early with `intent: none` in that case, which is exactly where a
-   * row like this gets dropped by accident.
-   */
-  it('survives there being no connection to describe', () => {
-    const disconnected = reading({ asked: null });
-    expect(row(disconnected, 'steady headset', true).value).toBe('T');
-    expect(row(disconnected, 'intent').value).toContain('none');
-  });
-});
 
 describe('shortName', () => {
   it('trims iOS’s spelling to the SDK’s', () => {
@@ -395,32 +367,33 @@ describe('the event log', () => {
   });
 });
 
+/**
+ * `appRows` returns early when there is no connection, which is the shape that
+ * used to drop a row by accident — the rule row lived above that early return
+ * for exactly this reason. The row is gone with the setting, but the early
+ * return is not, so the case stays pinned.
+ */
+it('describes a reading taken before anything connected', () => {
+  const disconnected = reading({ asked: null });
+  expect(row(disconnected, 'intent').value).toContain('none');
+});
+
 describe('the copyable text', () => {
   beforeEach(() => resetDiagnostics());
 
   it('stamps the build and the time, which is what a pasted dump is asked first', () => {
-    const text = diagnosticText(reading(), [], 66, false);
+    const text = diagnosticText(reading(), [], 66);
     expect(text).toContain('build 66');
     expect(text).toContain(new Date(1_700_000_000_000).toISOString());
   });
 
-  /**
-   * The line a pasted dump is read from, and the second question asked of one
-   * since 2026-08-28: not just which binary, but which of the two rules it was
-   * running. Two pastes of the same walk step differ in nothing else.
-   */
-  it('stamps the rule beside the build, so two pastes can be told apart', () => {
-    expect(diagnosticText(reading(), [], 66, true)).toContain('steady headset on');
-    expect(diagnosticText(reading(), [], 66, false)).toContain('steady headset off');
-  });
-
   // Never a blank where a fact should be — the same rule the rows follow.
   it('says the build is unknown rather than leaving a gap', () => {
-    expect(diagnosticText(reading(), [], null, false)).toContain('build unknown');
+    expect(diagnosticText(reading(), [], null)).toContain('build unknown');
   });
 
   it('carries both halves of the comparison', () => {
-    const text = diagnosticText(reading(), [], 66, false);
+    const text = diagnosticText(reading(), [], 66);
     expect(text).toContain('playAndRecord/videoChat');
     expect(text).toContain('Session — asked vs actual');
   });
@@ -431,7 +404,7 @@ describe('the copyable text', () => {
    * the information somebody is copying the panel in order to share.
    */
   it('marks alarms, colour being the one thing text cannot carry', () => {
-    const agreed = diagnosticText(reading(), [], 66, false);
+    const agreed = diagnosticText(reading(), [], 66);
     expect(agreed).not.toContain('<<');
 
     const diverged = diagnosticText(
@@ -439,8 +412,7 @@ describe('the copyable text', () => {
         route: { ...ROUTE_CALL, category: 'AVAudioSessionCategoryPlayback' },
       }),
       [],
-      66,
-      false
+      66
     );
     const marked = diverged
       .split('\n')
@@ -461,8 +433,7 @@ describe('the copyable text', () => {
         route: { ...ROUTE_CALL, allowsHapticsDuringRecording: false },
       }),
       [],
-      66,
-      false
+      66
     );
     const marked = text
       .split('\n')
@@ -474,12 +445,12 @@ describe('the copyable text', () => {
   it('includes the log, newest last', () => {
     recordEvent('first');
     recordEvent('second');
-    const text = diagnosticText(reading(), diagnosticEvents(), 66, false);
+    const text = diagnosticText(reading(), diagnosticEvents(), 66);
     expect(text.indexOf('first')).toBeLessThan(text.indexOf('second'));
   });
 
   it('says an empty log is empty rather than omitting the section', () => {
-    const text = diagnosticText(reading(), [], 66, false);
+    const text = diagnosticText(reading(), [], 66);
     expect(text).toContain('Log — newest last');
     expect(text).toContain('nothing recorded yet');
   });

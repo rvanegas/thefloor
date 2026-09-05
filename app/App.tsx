@@ -18,11 +18,7 @@ import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { NoDetailView, Panes } from './src/ui/Panes';
-import {
-  anyMicrophoneOpen,
-  channelHasAudio,
-  microphoneNeeded,
-} from '../core/micNeeded';
+import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
 import { useLayout } from './src/ui/layout';
@@ -140,9 +136,7 @@ function Root() {
   // Same round-trip caveat as `micNeeded` above, and the same answer either
   // way: a recording asked for and not yet confirmed is audio here too.
   const hasAudio =
-    !!live &&
-    ((app.steadyHeadset ? channelHasAudio(live, me) : anyMicrophoneOpen(live)) ||
-      app.recordingAsked === live.id);
+    !!live && (channelHasAudio(live, me) || app.recordingAsked === live.id);
 
   const audio = useSessionAudio(
     // Keyed on the audio rather than on the channel, which are no longer the
@@ -155,61 +149,32 @@ function Root() {
     !!live?.selfMuted[me],
     micNeeded,
     hasAudio,
-    // **Was `app.debug`, and is `false` since the measurement came back.** The
-    // automatic rebind ran three times on 2026-09-04 — twice on its own, once
-    // by hand — and every one of them reached the SFU, produced a `sub -` and
-    // a `sub +`, and left the track silent. Playout came back each time about
-    // a second later, when the engine restarted with recording enabled, and
-    // never otherwise.
-    //
-    // It could not have worked. Dropping the only remote subscription stops
-    // the engine, and the retake restarts it — with `rec=F`, because the
-    // condition this fires under is being alone with the shared-playback
-    // track, so `hasAudio` is false. `rec=F` is the state that renders
-    // nothing. The repair recreated the fault, which is the objection that
-    // kept the detector away from `reconnect()`, and it applies here for the
-    // same reason and was missed.
-    //
-    // Left wired rather than deleted: the call, the button and the bounds are
-    // the apparatus that produced this reading, and the next hypothesis will
-    // want them. Turning it back on is this argument becoming `app.debug`
-    // again — but do not, until something explains why `rec=F` renders
-    // nothing. See `audio/rebind.ts` and `planning/PLAYOUT.md`.
+    // **`false`, and staying that way.** The automatic rebind ran three times
+    // on 2026-09-04 and every one of them reached the SFU, produced a `sub -`
+    // and a `sub +`, and left the track silent. It could not have worked:
+    // dropping the only remote subscription stops the engine, and the retake
+    // restarts it in the state that renders nothing — the repair reconstructed
+    // the fault. Left wired because it is the apparatus that produced the
+    // reading. See `audio/rebind.ts` and `planning/PLAYOUT.md`.
     false,
-    // **The experiment this build exists for, and the thing to take back out.**
-    // Connects with `autoSubscribe: false` and takes the subscriptions a second
-    // later, so the subscription arrives at a room that is already up instead
-    // of on the same tick as the socket. That is the ordering PLAYOUT.md has
-    // wanted tested since build 92, and 2026-09-05's log put it back in front:
-    // the channel with `0 audio already published` rendered and the one with
-    // `1` froze, in the same minute on the same phone.
+    // **Both fixes, and both now on for everybody.** They answer the two ways
+    // into the same fault and neither is redundant: `deferSubscribe` connects
+    // with `autoSubscribe: false` and takes the subscriptions a second later,
+    // so they arrive at a room that is already up rather than on the same tick
+    // as the socket; `holdForPlayout` holds the microphone open, muted, while
+    // anything is subscribed, so the engine is never restarted underneath a
+    // receiver that is rendering.
     //
-    // It replaces the microphone pin, which never applied its treatment —
-    // `holdMicrophone` refuses to open a shut microphone, so `muted CALL`
-    // produced `rec=F` every time and tested nothing. That reading is in
-    // PLAYOUT.md; the code is gone rather than left switched off, because a
-    // pin that also violated the `muted` branch's stated assumption is a trap
-    // to leave lying around.
+    // Widened from `app.debug` on 2026-09-05, the night both were confirmed —
+    // the first by five re-entries that had always frozen and did not, the
+    // second by two phones and a step-out that had frozen minutes earlier under
+    // the previous build. `bin/live` said one person was online, so there was
+    // nobody to stage it for.
     //
-    // `app.debug` because this is a real change to how every connection is
-    // made, and one account carries it first. Deliberately the only experiment
-    // in this build: `autoSubscribe: false` wants a build with nothing else in
-    // it, and two variables at once is the mistake this subsystem keeps
-    // re-teaching.
-    app.debug,
-    // **The microphone hold, isolated on 2026-09-05 and gated to one account
-    // first like everything else here.** Two phones, twice: a shared track that
-    // had played for minutes stopped the instant the other person stepped out,
-    // and came back when she stepped in. Run again with `steadyHeadset` on, so
-    // the session stayed `CALL` and the route never left `PlayAndRecord`, it
-    // froze identically — which rules the audio category out and leaves the
-    // microphone.
-    //
-    // The cost is the one accepted the same day: HFP rather than A2DP for media
-    // playback under all conditions, and a lit microphone indicator while
-    // anything is subscribed. Widening it to everybody is this argument
-    // becoming `true`.
-    app.debug
+    // The cost is chosen: HFP rather than A2DP for media playback under all
+    // conditions, and a lit microphone indicator while anything is subscribed.
+    true,
+    true
   );
 
   /**
@@ -256,31 +221,6 @@ function Root() {
   useEffect(() => {
     recordEvent(channelId ? 'screen channel' : 'screen home');
   }, [channelId]);
-
-  /**
-   * Which audio-session rule is in force, in the audio log.
-   *
-   * Instrumentation only, and next to the marker above for the same reason:
-   * the log is the one instrument that shows *ordering*, and flipping this
-   * setting mid-channel is a session write with no other cause. Without a line
-   * for it the log shows a configuration changing while nothing in the channel
-   * changed, which is the shape of every bug this subsystem has had — so the
-   * instrument would be manufacturing a false alarm out of somebody's thumb.
-   *
-   * **Fires on mount as well as on change**, which is deliberate and is the
-   * more important half: HF-ONLY-WALK.md § *What you need* asks for every case
-   * to be run twice under the two rules, and two logs that do not say which
-   * rule produced them cannot be compared at all. The setting is persisted per
-   * phone, so the mount line is often the only one there will be.
-   *
-   * `App.tsx` rather than `AppProvider`, with the other instrumentation, and
-   * for the reason `core/micNeeded.ts` gives: this is the one place either
-   * rule is chosen between, and a marker written anywhere else would be
-   * claiming something it does not see.
-   */
-  useEffect(() => {
-    recordEvent(`steady headset ${app.steadyHeadset ? 'on' : 'off'}`);
-  }, [app.steadyHeadset]);
 
   /**
    * Follow a conversation that has changed channels.

@@ -96,9 +96,9 @@ export interface RecoveryStep {
  *                  receiver is only ever an eligible output under
  *                  `playAndRecord`, so under `IDLE` — category `playback` —
  *                  there is nothing here to correct and the episode resets.
- *                  That also means this never fights the other session rule:
- *                  with `steadyHeadset` off and nobody capturing, this does
- *                  nothing at all.
+ *                  Since 2026-09-05 that case is rarer than it was: the
+ *                  session is `CALL` whenever this app has any audio, so
+ *                  `IDLE` now means a channel with nothing in it to hear.
  */
 export function onRouteObserved(
   state: RecoveryState,

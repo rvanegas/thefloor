@@ -115,10 +115,10 @@ export function runProbe(probe: Probe, record: (text: string) => void): void {
  * It is also the BACKLOG fallback for the edge where a session already active
  * has to become exclusive, made pressable: if this reliably restores sound,
  * the recovery in `useSessionAudio` is the fix and the mechanism matters less
- * than it looks. That edge is rarer on a phone with `steadyHeadset` on, since
- * `channelHasAudio` is true from the moment a track is loaded rather than from
- * the moment one is heard — but it is not gone under either rule: the first
- * person arriving in a channel somebody was sitting alone in still crosses it.
+ * than it looks. That edge is rare since 2026-09-05, `channelHasAudio` being
+ * true from the moment a track is loaded rather than from the moment one is
+ * heard — but it is not gone: the first person arriving in a channel somebody
+ * was sitting alone in with nothing playing still crosses it.
  */
 export async function restartAudioSession(
   record: (text: string) => void

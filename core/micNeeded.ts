@@ -60,28 +60,40 @@ export function microphoneNeeded(
  * what decides the audio session's configuration, and is a question about this
  * app rather than about who is talking.
  *
- * **One of two rules, and the one that is off by default.** `anyMicrophoneOpen`
- * below is the other, and `AppValue.steadyHeadset` picks between them at the
- * single call site in `App.tsx`. Both feed the same `sessionFor(hasAudio)`,
- * which is what makes a setting possible at all: with `LISTENING` unreachable
- * since build 90, each rule was already just one boolean, so what is being
- * switched is a predicate rather than a code path.
+ * **The only rule, since 2026-09-05.** There were two, and `AppValue
+ * .steadyHeadset` picked between them: this one, and `anyMicrophoneOpen`,
+ * which asked *is anybody capturing* and chose the high-fidelity `playback`
+ * session whenever nobody was. That setting and that rule are both gone, and
+ * the reason is not that the argument for the other one was refuted. It is
+ * that the choice stopped existing.
  *
- * **It is a user setting rather than a build flag, and that is a claim about
- * the answer.** The two rules trade the same thing in opposite directions —
- * sound quality while the room is quiet, against a link that does not move
- * under the first word somebody says — and which of those is worth more
- * depends on the headset, the room and the person. A build flag would have
- * asserted that one of them is simply right. This does not, and the setting
- * may well outlive planning/HF-ONLY-WALK.md rather than being resolved by it.
+ * The playout fix of 2026-09-05 holds the microphone open, muted, for as long
+ * as anything is subscribed — see `useSessionAudio`'s `holdForPlayout` and
+ * PLAYOUT.md for the isolation that forced it. That makes the session
+ * `playAndRecord` whenever there is anything to hear, so the high-fidelity
+ * route the other rule existed to protect is no longer reachable in any
+ * channel that has audio in it. The two predicates then differ only when
+ * nothing is subscribed, which is when nothing can be heard, and a setting
+ * that cannot change what anybody hears is not a setting.
  *
- * It also lets one device hear both rules on the same route in one sitting,
- * which is a comparison this subsystem has never once been able to make.
+ * planning/HF-ONLY-WALK.md was the device check that was going to decide
+ * between them on fidelity grounds. It was never run and has been deleted; the
+ * question it was to answer is moot rather than settled, and that distinction
+ * is worth keeping — nobody established that stereo-while-quiet was not worth
+ * having. It stopped being on offer.
  *
- * **The change is the question rather than the answer.** `anyMicrophoneOpen`
- * asks *is anybody capturing*, and chooses the high-fidelity `playback` session
- * whenever nobody is. Its premise is that a room with no open microphone wants
- * stereo. Only
+ * **This one is kept rather than the other for a mechanical reason as well as
+ * a semantic one.** `hasAudio` is read at connect, from channel state, before
+ * anything is subscribed. Under `anyMicrophoneOpen` a channel would come up
+ * `IDLE`, the subscription would land a moment later, the hold would make
+ * `hasAudio` true, and the session would be rewritten to `CALL` — an engine
+ * transition immediately after every connect, which is the collision build 90
+ * was written to remove and the exact class of event that orphans a receiver.
+ * This rule is already right at connect and nothing moves.
+ *
+ * **The change is the question rather than the answer.** The rule this
+ * replaced asked *is anybody capturing*, and its premise was that a room with
+ * no open microphone wants stereo. Only
  * one claimant on that stereo turned out to be real: **another app's audio.**
  * Voices are already degraded by the codec, and shared playback is not trying
  * to be a media player — its quality should not depend on whether somebody is
@@ -140,58 +152,3 @@ export function channelHasAudio(channel: ChannelState, me: UserId): boolean {
   return channel.playback.status !== 'idle';
 }
 
-/**
- * Whether *anybody* present has an open microphone — the **default** rule for
- * the audio session's configuration, and the one that has shipped since
- * 2026-08-18.
- *
- * **The alternative is `channelHasAudio` above**, chosen when
- * `AppValue.steadyHeadset` is on, and the header there says why there are two.
- * Everything below is the argument for this one, which is unchanged and still
- * stands on its own terms — what the other rule disputes is not any step of it
- * but the premise underneath: that somebody in a quiet room wants the stereo
- * route badly enough to pay a profile handover when the quiet ends.
- *
- * The reasoning is about Bluetooth, and it is physical rather than a
- * preference. A headset cannot carry a microphone and high-quality stereo at
- * the same time: A2DP is one-way and full-bandwidth, HFP is two-way and mono,
- * and they are different link types, so asking for capture *is* asking iOS to
- * tear one down and bring the other up. `CALL` is the only configuration that
- * is `playAndRecord`, so every crossing of that boundary costs a profile
- * handover, and the route can be — and was — lost inside one.
- *
- * Keying it on your own microphone made self-muting mid-conversation cross that
- * boundary, which dropped a tester's headphones to the phone speaker until they
- * unmuted again. But the answer is not to stop crossing it: there are two
- * situations where high quality is genuinely wanted, and they are the same
- * situation — nobody is talking, so what matters is either another app's audio
- * or the channel's own playback. Whether anyone's microphone is open
- * distinguishes exactly that, and nothing else has to be consulted. No timer,
- * no threshold, and no special case for playback.
- *
- * **Asked about microphones rather than about `selfMuted` directly**, which
- * matters for one case and would otherwise be a regression rather than a fix.
- * Alone in a channel and unmuted, "everybody present is muted" is false — so a
- * literal reading takes the session as a call and silences the music somebody
- * is sitting alone listening to, which is precisely what `IDLE` exists to
- * prevent. Being alone already closes the microphone above, so asking the
- * question this way gets that case right without naming it.
- *
- * Note the consequences, both deliberate. One person's self-mute is now an
- * input to *everybody's* audio session — see planning/STATES.md, where it is
- * the single largest thing that document has to say. And the crossing is
- * audible, which is a feature and not a blemish: a drop to mono says somebody's
- * microphone is open in this channel, and a bloom back to stereo says nobody's
- * is, including yours. Do not pin `CALL` on and do not debounce the transition;
- * both read as obvious cleanups and both delete the cue.
- */
-export function anyMicrophoneOpen(channel: ChannelState): boolean {
-  // Guests included, and for the reason the whole rule exists: what decides
-  // the audio session is whether anybody in this room is capturing, and a
-  // guest who has been given the microphone is somebody in this room who is
-  // capturing. A member listening to a guest speak wants the same call-shaped
-  // session they would want listening to a member.
-  return roomOccupants(channel).some(
-    (id) => microphoneNeeded(channel, id) && !channel.selfMuted[id]
-  );
-}

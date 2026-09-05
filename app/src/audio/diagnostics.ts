@@ -220,10 +220,7 @@ export function muteModeName(mode: number): string {
  * either noticed or missed, and it is short enough to look obviously right
  * while being wrong.
  */
-export function diagnosticSections(
-  d: AudioDiagnostic,
-  steadyHeadset: boolean
-): DiagnosticSection[] {
+export function diagnosticSections(d: AudioDiagnostic): DiagnosticSection[] {
   const { asked, engine, route, routeFault } = d;
 
   return [
@@ -234,7 +231,7 @@ export function diagnosticSections(
     { title: 'Route', rows: routeRows(route, routeFault) },
     { title: 'Engine', rows: engineRows(engine) },
     { title: 'Other apps', rows: otherAudioRows(route) },
-    { title: 'App', rows: appRows(asked, steadyHeadset) },
+    { title: 'App', rows: appRows(asked) },
   ];
 }
 
@@ -416,18 +413,13 @@ function otherAudioRows(route: RouteSnapshot | null): DiagnosticRow[] {
   ];
 }
 
-function appRows(
-  asked: AudioIntent | null,
-  steadyHeadset: boolean
-): DiagnosticRow[] {
-  // Stated even when there is no connection, because "which rule was in force"
-  // is a question asked of the whole dump rather than of the session — and a
-  // reading taken before anything connected is still evidence about a phone
-  // whose setting somebody wants to know.
-  const rule: DiagnosticRow = { label: 'steady headset', value: flag(steadyHeadset) };
-  if (!asked) return [rule, { label: 'intent', value: 'none — not connected' }];
+function appRows(asked: AudioIntent | null): DiagnosticRow[] {
+  // There used to be a `steady headset` row here, naming which of the two
+  // audio-session rules was in force. There is only one rule now — see
+  // `channelHasAudio` in core/micNeeded.ts — so the row would report a constant
+  // and take a line of a paste somebody is reading on a phone.
+  if (!asked) return [{ label: 'intent', value: 'none — not connected' }];
   return [
-    rule,
     { label: 'intent', value: asked.intent },
     {
       // What the hook was told, echoed back by it rather than recomputed here.
@@ -469,26 +461,25 @@ function appRows(
  * plain text cannot carry. Without that the copy would lose exactly the
  * information the panel exists to show.
  *
- * **And stamped with the audio-session rule, on the same line as the build**,
- * added 2026-08-28 for the paired runs HF-ONLY-WALK.md § *What you need*
- * asks for. Two pastes of the same case under the two settings are otherwise
- * byte-indistinguishable in their provenance, which makes a pair of them
- * worthless a week later — and a pair is the whole reason the alternative rule
- * shipped as a setting rather than as a branch. It is in the rows as well; the
- * header is so that the first line answers it without scrolling.
+ * **It used to be stamped with the audio-session rule too**, added 2026-08-28
+ * so that two pastes of the same case under the two settings were not
+ * byte-indistinguishable in their provenance. There is one rule since
+ * 2026-09-05 and the stamp would report a constant, so it is gone from the
+ * header and from the rows alike. If a second rule is ever added back, this is
+ * the line to put it on: the value of it was that the first line answered
+ * *which binary and which rule* without scrolling.
  */
 export function diagnosticText(
   d: AudioDiagnostic,
   events: DiagnosticEvent[],
-  build: number | null,
-  steadyHeadset: boolean
+  build: number | null
 ): string {
   const lines: string[] = [
     `The Floor — audio diagnostics`,
-    `build ${build ?? 'unknown'} · steady headset ${steadyHeadset ? 'on' : 'off'} · ${new Date(d.at).toISOString()}`,
+    `build ${build ?? 'unknown'} · ${new Date(d.at).toISOString()}`,
   ];
 
-  for (const section of diagnosticSections(d, steadyHeadset)) {
+  for (const section of diagnosticSections(d)) {
     lines.push('', section.title);
     for (const row of section.rows) {
       // Padded so the values line up in a monospaced paste, the same reason

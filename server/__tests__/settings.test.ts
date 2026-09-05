@@ -175,15 +175,20 @@ describe('the settings that follow the account', () => {
   });
 
   /**
-   * The headset setting is the phone's, and this is where that stops being a
-   * comment and starts being enforced. A field nobody validates is a field
-   * that gets stored the first time somebody's client sends it.
+   * A field nobody validates is a field that gets stored the first time
+   * somebody's client sends it, so the account's settings are the ones named
+   * here and nothing else.
+   *
+   * This guarded a real key until 2026-09-05: `steadyHeadset` was the phone's
+   * rather than the person's, and this is where that stopped being a comment
+   * and started being enforced. The setting is gone and the guard is not — an
+   * unknown key is the general case and was always what this tested.
    */
-  it('takes no notice of a setting that belongs to the device', async () => {
+  it('takes no notice of a key it does not know', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
     const response = await save(alice.token, {
       appearance: 'dark',
-      steadyHeadset: true,
+      somethingTheDeviceKeeps: true,
     });
     expect(response.statusCode).toBe(200);
     expect(Object.keys(response.json()).sort()).toEqual([

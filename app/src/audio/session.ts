@@ -148,18 +148,16 @@ export const CALL: AppleAudioConfiguration = {
  * A function with a test rather than a condition inline, on the same reasoning
  * as `microphoneNeeded`: this is the rule that decides whether somebody else's
  * music stops, and it is short enough to look obviously right while being
- * wrong in either direction. It is one boolean now, and **which boolean is a
- * user setting** — see `channelHasAudio` and `anyMicrophoneOpen` in
- * core/micNeeded.ts, and `App.tsx`, which is the only place either is called.
+ * wrong in either direction. It is one boolean now — see `channelHasAudio` in
+ * core/micNeeded.ts, and `App.tsx`, which is the only place it is called.
  *
- * @param hasAudio whether the session should be a call, computed by one of two
- *                 rules in core/micNeeded.ts and selected by the
- *                 `steadyHeadset` setting: `anyMicrophoneOpen` — is anybody
- *                 present capturing — by default, or `channelHasAudio` — does
- *                 this app have any audio at all — when it is on. This module
- *                 deliberately does not know which; it is handed a boolean,
- *                 and the argument about which boolean lives where it is
- *                 computed.
+ * @param hasAudio whether the session should be a call, computed by
+ *                 `channelHasAudio` in core/micNeeded.ts — does this app have
+ *                 any audio at all. There were two rules and a setting picking
+ *                 between them until 2026-09-05; that header says why there is
+ *                 one now. This module deliberately does not know how the
+ *                 boolean was reached; it is handed one, and the argument
+ *                 about it lives where it is computed.
  */
 export function sessionFor(hasAudio: boolean): AppleAudioConfiguration {
   return hasAudio ? CALL : IDLE;
@@ -175,19 +173,22 @@ export function sessionFor(hasAudio: boolean): AppleAudioConfiguration {
  * is what makes the two writers say the same thing, which is the invariant
  * `__tests__/session.test.ts` pins.
  *
- * **`recording: CALL` is unconditional, and whether that is safe now depends on
- * a setting.** It rests on *the observer reads it only while this device is
- * capturing, and our capturing implies the session is a call* — an implication
- * self-mute falsifies under the default rule, since `intentFor` returns `muted`
- * and holds the device open while `anyMicrophoneOpen` excludes the self-muted.
- * That is STATES.md disagreement 11 and the leading suspect in "The Foreground
- * Interruption", and **it is still open**, because the default has not changed.
+ * **`recording: CALL` is unconditional, and as of 2026-09-05 that is safe by
+ * construction.** It rests on *the observer reads it only while this device is
+ * capturing, and our capturing implies the session is a call*. That
+ * implication used to be falsifiable: under the old default rule
+ * `anyMicrophoneOpen` excluded the self-muted while `intentFor` returned
+ * `muted` and held the device open, so the engine could be recording under a
+ * session that was not a call. That is STATES.md disagreement 11 and the
+ * leading suspect in "The Foreground Interruption".
  *
- * With `steadyHeadset` on it closes by construction: the engine can only be
- * recording where `microphoneNeeded` was true, which means somebody else is in
- * the room or a recording is running, and `channelHasAudio` returns true for
- * both. So the setting is also an experiment on that disagreement, and the two
- * halves of the walk are worth reading against each other.
+ * **It closes with the rule change.** The engine can only be recording where
+ * `microphoneNeeded` was true, which means somebody else is in the room or a
+ * recording is running, and `channelHasAudio` returns true for both. The hold
+ * added the same day closes the other direction: where it keeps the device open
+ * it pins `hasAudio` alongside, so the session is a call for exactly as long as
+ * the device is held. There is no longer a state in which this device records
+ * under `playback`.
  *
  * **Push it before the transition, never after.** The observer reads whatever
  * is stored when the engine moves, so a policy pushed after

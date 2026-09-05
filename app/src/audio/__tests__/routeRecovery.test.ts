@@ -85,9 +85,9 @@ describe('a route that has fallen to the earpiece', () => {
 
 describe('a route this rule has no business touching', () => {
   /**
-   * The receiver is only ever an eligible output under `playAndRecord`, so
-   * with `steadyHeadset` off and nobody capturing — session `IDLE`, category
-   * `playback` — there is nothing here to correct. Writing the session anyway
+   * The receiver is only ever an eligible output under `playAndRecord`, so in a
+   * channel with nothing to hear — session `IDLE`, category `playback` — there
+   * is nothing here to correct. Writing the session anyway
    * would make this a second owner of a configuration the hook above already
    * owns, which is the contention `useSessionAudio` is explicit about avoiding.
    */
