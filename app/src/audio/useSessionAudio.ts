@@ -541,7 +541,7 @@ async function applyFor(hasAudio: boolean): Promise<void> {
  * @param micNeeded whether anything is listening: somebody else present, or a
  *                  recording running. Told rather than worked out here — this
  *                  hook has never decided anything about who may speak.
- * @param hasAudio  whether the session should be a call. Computed by one of
+ * @param hasAudioAsked whether the session should be a call. Computed by one of
  *                  two rules in core/micNeeded.ts and selected by the
  *                  `steadyHeadset` setting — *is anybody present capturing*
  *                  by default, or *does this app have any audio at all* when
@@ -552,6 +552,10 @@ async function applyFor(hasAudio: boolean): Promise<void> {
  *                  publish. Under either rule the two part company — a guest
  *                  without the microphone, and anybody self-muted, are audio
  *                  without being capture.
+ * @param pinCallSession whether to hold the microphone and the `CALL` session
+ *                  whenever anything is subscribed, even alone. **An experiment rather
+ *                  than a feature** — see the derivation of `hasAudio` in the
+ *                  body, and remove both once it has answered.
  * @param recoverPlayout whether a track the detector reports frozen should be
  *                  rebound automatically. **Off by default and passed
  *                  `app.debug` by `App.tsx`**, which is the same gate the
@@ -570,10 +574,11 @@ export function useSessionAudio(
   mediaRoom: string | null,
   channelId: string | null,
   token: string | null,
-  selfMuted: boolean,
-  micNeeded: boolean,
-  hasAudio: boolean,
-  recoverPlayout = false
+  selfMutedAsked: boolean,
+  micNeededAsked: boolean,
+  hasAudioAsked: boolean,
+  recoverPlayout = false,
+  pinCallSession = false
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -606,6 +611,54 @@ export function useSessionAudio(
   const [generation, setGeneration] = useState(0);
   const attemptRef = useRef(0);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The experiment of 2026-09-04, and the only thing in this hook that is here
+   * to be *removed*.
+   *
+   * **What the log actually says.** Fourteen engine starts that evening split
+   * with no exceptions, and the variable is not the audio category: `released
+   * CALL` is `playAndRecord` and starts the engine `rec=F`, exactly as
+   * `released IDLE` does, and both freeze. Every one of the five `rec=T`
+   * starts follows `capturing`. So the engine's recording half follows **the
+   * microphone being open**, and the reading is that this device renders the
+   * shared-playback track only while its own microphone is held.
+   *
+   * That is what makes the fault a fault of being alone. Alone, nobody is
+   * speaking, the microphone is released, the engine restarts `rec=F`, and the
+   * pump plays to a device that will not render it. With company somebody is
+   * capturing, so the same subscription renders and nobody ever sees it.
+   *
+   * **So the state to produce is `muted CALL`**, which the log shows at
+   * `589173381` leaving the engine alone at `rec=T`: the session is
+   * `playAndRecord` and the device is *held* rather than captured —
+   * `holdMicrophone`, publishing nothing, transmitting nothing. Both halves are
+   * needed and neither is sufficient. `hasAudio` alone gives `released CALL`,
+   * which is `rec=F` and is the failing state under a different name; the
+   * microphone alone would try to hold a device under `playback`, which is a
+   * category that cannot record.
+   *
+   * **Keyed on there being something subscribed** rather than on being in a
+   * channel at all, so the session moves only where there is audio whose
+   * absence would be the finding. `othersAudible` is state rather than a ref
+   * because the effect that applies the session already depends on it.
+   *
+   * **Not shippable, and gated to one account for the reason the panel is.**
+   * Holding the microphone lights the system indicator and hands Bluetooth to
+   * HFP, which costs every listener sound quality to answer a question about
+   * one phone. `App.tsx` passes `app.debug`. Whatever the answer, that argument
+   * goes back to `false` and this block goes with it — a workaround that
+   * survives its experiment is how a diagnostic becomes a behaviour nobody
+   * chose.
+   */
+  const pinning = pinCallSession && state.othersAudible > 0;
+  const hasAudio = hasAudioAsked || pinning;
+  const micNeeded = micNeededAsked || pinning;
+  // Held, not captured: `intentFor` reads these two together, and `muted` is
+  // the arm that keeps the device without opening it. Left alone whenever the
+  // microphone was genuinely wanted, so this can only ever add a hold and never
+  // silence a real one.
+  const selfMuted = micNeededAsked ? selfMutedAsked : selfMutedAsked || pinning;
+
   /** Same reason as `micNeededRef`: read at connect, acted on below. */
   const selfMutedRef = useRef(selfMuted);
   selfMutedRef.current = selfMuted;
@@ -620,6 +673,7 @@ export function useSessionAudio(
   /** Read at connect, like the others: a move must not re-run the effect. */
   const channelIdRef = useRef(channelId);
   channelIdRef.current = channelId;
+
 
   /** Same again: somebody else muting must not tear the room down. */
   const hasAudioRef = useRef(hasAudio);

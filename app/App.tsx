@@ -175,7 +175,24 @@ function Root() {
     // want them. Turning it back on is this argument becoming `app.debug`
     // again — but do not, until something explains why `rec=F` renders
     // nothing. See `audio/rebind.ts` and `planning/PLAYOUT.md`.
-    false
+    false,
+    // **The experiment this build exists for, and the thing to take back out.**
+    // Produces `muted CALL` whenever anything is subscribed, so that being
+    // alone with the shared-playback pump holds the microphone and starts the
+    // engine `rec=T` instead of releasing it and starting `rec=F`. If the
+    // fourteen-sample split in `PLAYOUT.md` is the mechanism, the track renders
+    // and the correlation becomes a result; if it stays silent, the flag was a
+    // coincidence and the investigation restarts.
+    //
+    // Note it is the *microphone* and not the category: `released CALL` is
+    // already `playAndRecord` and already starts `rec=F`, so pinning the
+    // session alone would have reproduced the fault under a new name.
+    //
+    // `app.debug` because holding the microphone lights the system indicator
+    // and hands Bluetooth to HFP, and one phone answering a question must not
+    // charge that to everybody. Whichever way it comes out, this argument goes
+    // back to `false` and the derivation in `useSessionAudio` goes with it.
+    app.debug
   );
 
   /**

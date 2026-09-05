@@ -85,10 +85,10 @@ Each of these is measured, not reasoned. Several cost a build to establish.
 
 ---
 
-## What settled it: the engine's `rec` flag
+## What settled it: the microphone, read at the engine
 
-**Remote audio renders if and only if the engine was last started with
-recording enabled. `play=T rec=F` is playout enabled and rendering nothing.**
+**Remote audio renders if and only if this device's own microphone is held
+open. `play=T rec=F` is playout enabled and rendering nothing.**
 
 The 2026-09-04 evening log, from the build that shipped `audio/rebind.ts`, has
 fourteen engine starts and splits on that flag with no exceptions:
@@ -112,12 +112,24 @@ inside 100ms by a `rec=T` start, which is why they never froze, and they are
 the reason the flag was invisible until something forced a `rec=F` start to
 stand on its own.
 
-**That is why the fault is only ever reported when alone.** `hasAudio` false
-means the session is `playback`, which means the engine is started `rec=F`,
-which renders nothing — and being alone with the shared-playback pump is
-exactly the state where the only thing to hear is a track this device will not
-play. With somebody else in the channel the session is `playAndRecord`, the
-engine is `rec=T`, and the same subscription renders.
+**`rec` follows the microphone, not the audio category, and the difference is
+the whole finding.** It is tempting to read the table as `playback` versus
+`playAndRecord` and reach for the category. The log refuses that: `879099` and
+`910089` are both `released CALL`, which *is* `playAndRecord`, and both start
+the engine `rec=F` and both freeze. All five `rec=T` starts follow `capturing`.
+So the operative state is the microphone being held open, and the category is
+only the thing that has to permit it.
+
+**That is why the fault is only ever reported when alone.** Alone, nobody is
+speaking, so the microphone is released, the engine restarts `rec=F`, and the
+pump plays to a device that will not render it. With company somebody is
+capturing, the engine is `rec=T`, and the same subscription renders — which is
+also why every reading taken with company looked healthy.
+
+**A held microphone is enough; it need not be capturing.** `589173381` shows
+`muted CALL` leaving the engine alone at `rec=T` — `holdMicrophone` keeps the
+device without transmitting, because `stopMicTrackOnMute` is false. That is the
+cheap arm of the experiment and the shape any workaround would take.
 
 **What is not yet known is why.** `play=T` says the ADM believes playout is
 enabled. Something below that — the VoiceProcessingIO unit initialised without
@@ -335,22 +347,29 @@ data.
 
 ## What to do next
 
-1. **Find out why `play=T rec=F` renders nothing.** This is the only open
-   question. It is a question about the WebRTC audio device module on iOS, not
-   about LiveKit, rooms or subscriptions, so `engineState.ts`'s readers and the
-   unrun bisection in `probe.ts` are the instruments that bear on it — with
+1. **Run the pinned build and read the result.** `App.tsx` passes `app.debug`
+   to `pinCallSession`, which produces `muted CALL` whenever anything is
+   subscribed. Alone with the pump, the track either renders — and the
+   correlation becomes a result — or it does not, and the flag was a
+   coincidence across fourteen samples. Either outcome is worth the build. The
+   line to look for is the absence of `playout frozen` entirely; the line that
+   would refute it is `playout frozen` beside an `engine start play=T rec=T`.
+2. **Find out why `play=T rec=F` renders nothing.** The open question once the
+   above confirms. It is about the WebRTC audio device module on iOS, not about
+   LiveKit, rooms or subscriptions, so `engineState.ts`'s readers and the unrun
+   bisection in `probe.ts` are the instruments that bear on it — with
    `engineState.ts`'s own warning that reading the ADM has stopped the audio
    before.
-2. **Consider the cheap workaround before the real fix**, and cost it honestly:
-   keeping the session in `playAndRecord` whenever anything is subscribed would
-   make the engine start `rec=T` and, on this evidence, would render. It pays a
-   Bluetooth profile handover and a microphone-in-use indicator for a channel
-   nobody is speaking in, which is a real cost to weigh rather than a detail.
-3. **Do not wire the freeze detector to any recovery that stops the engine.**
+3. **Cost the workaround honestly if it comes to that.** Holding the microphone
+   whenever anything is subscribed would render, on this evidence, and would
+   pay a Bluetooth profile handover and a microphone-in-use indicator for a
+   channel nobody is speaking in. That is a real cost to weigh rather than a
+   detail, and it is a worse trade than a fix in the ADM.
+4. **Do not wire the freeze detector to any recovery that stops the engine.**
    That now covers `reconnect()` and the subscription rebind both, and the rule
    generalises: a recovery is only admissible if the engine it leaves behind was
    started `rec=T`.
-4. **Re-read the log for `rec` before theorising about anything else here.**
+5. **Re-read the log for `rec` before theorising about anything else here.**
    Three hypotheses have now been retired in this file, and every one of them
    was settled by a flag that was already being logged.
 
