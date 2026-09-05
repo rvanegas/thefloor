@@ -616,6 +616,32 @@ is exactly what an installed build meets between its release and the next
 deploy. Absent and null are routinely different answers, and several fields
 document what each of theirs means.
 
+## Pump
+
+`PlaybackPump` in `server/src/playback.ts` — the thing that *produces* shared
+playback, as distinct from *publishing*, which is how any track reaches a room.
+It decodes one file with ffmpeg and emits a continuous stream of 10ms frames to
+two sinks: the room, so both parties hear it, and, while recording, an encoder,
+so the recording is the same bytes that were heard rather than a re-render.
+
+**It emits silence as diligently as sound** — "decoded audio while playing,
+silence otherwise" — and that is the property to know. For the recording it
+keeps a paused track occupying its real duration instead of collapsing to
+nothing. For diagnosis it is what makes *playout* readable at all: because
+frames keep arriving while a track is paused, a stalled sample count means this
+device has stopped rendering rather than that nobody pressed play. A pump that
+went quiet by sending nothing would make a broken client and a quiet channel
+the same reading.
+
+In the room it appears as an ordinary remote participant under the identity
+**`media:chan_<channel id>`**, which is the name it goes by in the audio log —
+`sub + media:chan_H90XCmha58Cs`, `playout frozen … media:chan_…`. So *pump* is
+the server-side component and `media:chan_…` is its face inside a LiveKit room;
+they are one thing named from two sides. It is not a person and holds no seat.
+
+See PLAYOUT.md, whose whole investigation is about this participant's track
+failing to render on a device that is subscribed to it.
+
 ## Reconcile / restate
 
 `reconcileSilence` — comparing what was stated to the media plane against what
