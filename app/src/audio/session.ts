@@ -164,6 +164,23 @@ export function sessionFor(hasAudio: boolean): AppleAudioConfiguration {
 }
 
 /**
+ * **What the caller passes is not always `channelHasAudio` — since 2026-09-05
+ * it may be false in a channel that plainly has audio.** A backgrounded app is
+ * granted playback by `UIBackgroundModes` and is refused a microphone, so
+ * `useSessionAudio` withholds the promotion to `CALL` until the foreground and
+ * asks for `IDLE` meanwhile. That is not a lie about the channel: `IDLE` is
+ * `playback`, which renders a remote voice perfectly well, and the alternative
+ * — asking for a category iOS will not grant — silently costs the playout too.
+ * The rule is about the *transition*: a session already `CALL` is never
+ * demoted for being backgrounded, because iOS lets capture continue.
+ *
+ * This module is still handed one boolean and still does not know how it was
+ * reached. The note is here because the boolean's name stopped matching the
+ * question, and a reader comparing this against `channelHasAudio` would
+ * otherwise find them disagreeing and assume a bug.
+ */
+
+/**
  * The same answer, shaped for the native observer.
  *
  * **The observer is a second writer of this session and it cannot be argued

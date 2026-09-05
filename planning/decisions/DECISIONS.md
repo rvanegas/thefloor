@@ -78,6 +78,60 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## A backgrounded app may keep a call session and may not start one — 2026-09-05
+
+**Found by the keep-alive rather than caused by it.** With the phone locked and
+alone in a channel, somebody stepped in and spoke. The app stayed present — the
+silence did its job — and heard nothing for four minutes, until it was opened.
+
+**The log said it worked.** `capturing CALL` is written before anything is
+attempted, and the promise chain that follows carried `.catch(() => {})`. The
+only evidence of failure was an absence: the route observer, recording other
+events in the same seconds, never reported a `categoryChange`. iOS had refused
+the session and said so to nobody.
+
+**`UIBackgroundModes: ["audio"]` grants playback, never a new microphone.**
+Opening one from the background is what CallKit and PushKit are for, and
+BACKLOG.md § *Notifications do not ring* already records that this app has
+neither.
+
+**The refusal was about capture and the cost fell on playout**, because
+`sessionFor` answers one question for both jobs: audio present ⇒
+`playAndRecord`. Denied the category, WebRTC's engine never started, and a
+track subscribed two seconds earlier rendered into nothing. `playback` would
+have carried that voice perfectly well — the silent keep-alive was playing
+under it throughout the same window, which is the proof that nothing was wrong
+with *playing* in the background.
+
+**So the promotion is deferred, not the state demoted.** A backgrounded app
+with audio takes `IDLE` and hears the person; it takes `CALL` at the
+foreground, when iOS will grant it. A session already `CALL` is left alone,
+because backgrounding a live conversation is the ordinary case — switching apps
+mid-sentence — and iOS permits capture to continue. Demoting there would cut
+somebody's microphone every time they checked a message.
+
+**This is `LISTENING` returning in effect and not in name.** That third
+configuration was deleted at build 90 for interrupting other apps, which was a
+property of it lacking `mixWithOthers` rather than of listening. `IDLE` has
+`mixWithOthers` and is the listening configuration already, so nothing new is
+defined.
+
+**The consequence, stated rather than discovered later: you cannot start
+transmitting from a locked phone.** Somebody who arrives hears nothing from you
+until you pick it up. That was already true — iOS was refusing all along. What
+changes is that the app stops pretending otherwise, and you hear them meanwhile.
+
+**Two repairs came with it.** The empty `.catch` now records the failure, which
+is the smallest change here and the one that would have saved the afternoon.
+And the keep-alive's fifteen-minute timer is re-armed at every foreground: keyed
+on `[mediaRoom, hasAudio]` it fired once and never again while somebody stayed
+in one quiet channel, so a phone became suspendable for good — observed as
+silence expiring at 13:37 and the same channel still going without it at 14:41.
+Re-arming on a foreground also matches `isWaiting`, which measures its window
+from the last thing heard rather than from arrival.
+
+---
+
 ## Silence, so a phone waiting alone is still there when somebody arrives — 2026-09-05
 
 **Stepping into an empty channel and pocketing the phone used to end the

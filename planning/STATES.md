@@ -736,6 +736,21 @@ anything is subscribed — see PLAYOUT.md — so a channel with anything to hear
 is asked for; what a headset actually experiences is HFP for the whole time
 there is audio, which is the cost that fix accepted deliberately.
 
+**The table above is what is *asked for*, and from 2026-09-05 a backgrounded
+app asks for less.** iOS grants a backgrounded process playback and refuses it
+a microphone, so `useSessionAudio` withholds the promotion to `CALL` until the
+foreground and takes `IDLE` meanwhile. Every row saying `CALL` therefore reads
+`IDLE` while the app is off screen *and was not already in a call* — the
+transition is what is forbidden, not the state, so backgrounding a live
+conversation changes nothing.
+
+This costs nothing that was ever available. Measured the same night: asking for
+`playAndRecord` from the background is refused silently, the engine never
+starts, and a subscribed track renders into nothing until the app is opened.
+Asking for `IDLE` instead means an arriving voice is *heard*, since `playback`
+renders remote audio; what is genuinely lost is transmitting, which was never
+on offer. See `useSessionAudio.ts` and DECISIONS.
+
 **`IDLE` also became the state in which this app plays silence — 2026-09-05.**
 Not audible silence and not a fourth configuration: `modules/keep-alive` loops
 an inaudible buffer under whatever category is already set, for exactly as long

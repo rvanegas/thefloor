@@ -45,6 +45,7 @@ import {
 import {
   ANDROID_OUTPUTS,
   androidSessionFor,
+  CALL,
   nameOf,
   policyFor,
   sessionFor,
@@ -670,6 +671,31 @@ export function useSessionAudio(
   // wanted, so this can only ever add a hold and never silence a real one.
   const selfMuted = micNeededAsked ? selfMutedAsked : selfMutedAsked || holding;
 
+  /**
+   * Whether this app is on screen, which is the difference iOS draws between
+   * *may keep capturing* and *may not start*.
+   *
+   * `UIBackgroundModes: ["audio"]` grants a backgrounded process the right to
+   * go on playing, and no right at all to open a microphone — that is what
+   * CallKit and PushKit are for, and BACKLOG.md § *Notifications do not ring*
+   * records that this app has neither. So a session that is already
+   * `playAndRecord` survives being backgrounded, and one that asks to become
+   * `playAndRecord` from the background is refused.
+   *
+   * Its own state rather than a ref, because the apply effect below has to
+   * re-run when it changes: a foreground is the moment the deferred promotion
+   * becomes possible, and nothing else would notice.
+   */
+  const [foreground, setForeground] = useState(
+    AppState.currentState === 'active'
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) =>
+      setForeground(next === 'active')
+    );
+    return () => subscription.remove();
+  }, []);
+
   /** Same reason as `micNeededRef`: read at connect, acted on below. */
   const selfMutedRef = useRef(selfMuted);
   selfMutedRef.current = selfMuted;
@@ -725,6 +751,15 @@ export function useSessionAudio(
     intent: MicIntent;
     config: AppleAudioConfiguration;
   } | null>(null);
+
+  /**
+   * Whether a call session is currently being withheld because the app is in
+   * the background. Its own record, because the deferral is invisible in
+   * everything else: the session was `IDLE` and stays `IDLE`, so `appliedRef`
+   * does not move and the line below is deduped away — leaving the log silent
+   * about the most surprising thing the app just did.
+   */
+  const deferredRef = useRef(false);
 
   /**
    * Keeps Android's foreground service up for as long as this app is in a
@@ -798,21 +833,56 @@ export function useSessionAudio(
    */
   useEffect(() => {
     if (!mediaRoom || hasAudio) return;
-    let stopped = false;
+    let expired = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    /**
+     * Start the fifteen minutes over.
+     *
+     * **Re-armed at every foreground, which the first version did not do.**
+     * Keyed on `[mediaRoom, hasAudio]`, the timer fired once and the effect
+     * never re-ran while somebody stayed in the same quiet channel — so the
+     * phone became suspendable for good, and a foreground did not bring it
+     * back. Observed on 2026-09-05: silence expired at 13:37 and the same
+     * channel was still going without it at 14:41.
+     *
+     * Restarting on a foreground is also the right rule rather than merely the
+     * fix. `WAITING_WINDOW_MS` is how long the roster goes on calling somebody
+     * nearby, and `isWaiting` measures that from the last thing heard rather
+     * than from arrival — so picking the phone up renews the claim there too.
+     */
+    const arm = () => {
+      expired = false;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        expired = true;
+        recordEvent('silence stopped (expired)');
+        stopSilence();
+      }, WAITING_WINDOW_MS);
+    };
+
     startSilence().then((playing) => {
       // Worth a line for the same reason the service's is: whether this
       // started is the difference between a presence that survives a locked
       // phone and one that does not, and nothing outside the app can tell.
       recordEvent(`silence ${playing ? 'started' : 'unavailable'}`);
     });
-    const expiry = setTimeout(() => {
-      stopped = true;
-      recordEvent('silence stopped (expired)');
-      stopSilence();
-    }, WAITING_WINDOW_MS);
+    arm();
+
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      if (expired) {
+        startSilence().then((playing) => {
+          recordEvent(`silence ${playing ? 'restarted' : 'unavailable'}`);
+        });
+      }
+      arm();
+    });
+
     return () => {
-      clearTimeout(expiry);
-      if (stopped) return;
+      subscription.remove();
+      clearTimeout(timer);
+      if (expired) return;
       recordEvent('silence stopped');
       stopSilence();
     };
@@ -1322,11 +1392,47 @@ export function useSessionAudio(
   useEffect(() => {
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-    const intent = intentFor(micNeeded, selfMuted);
+    const wanted = intentFor(micNeeded, selfMuted);
+
+    /**
+     * **A backgrounded app may keep a call session and may not start one.**
+     *
+     * Measured 2026-09-05, on the first build that stayed alive long enough
+     * to try. Somebody arrived while this phone was locked; the app asked for
+     * `CALL`, and the route observer — recording other events in the same
+     * seconds — never reported a `categoryChange`. iOS had refused, the engine
+     * never started, and the track that had been subscribed two seconds
+     * earlier rendered into nothing until the app was brought forward four
+     * minutes later.
+     *
+     * **The refusal is about the microphone and the cost fell on the
+     * speaker.** `sessionFor` answers one question for both jobs, so being
+     * denied capture denied playout as well — and `playback` renders a remote
+     * voice perfectly well in the background, as the silent keep-alive playing
+     * under it throughout that same window demonstrates.
+     *
+     * So a promotion is deferred rather than attempted: stay `IDLE`, hear the
+     * person, and take the call session at the foreground, which is the moment
+     * iOS will actually grant it. **Only the promotion.** A session already
+     * `CALL` is left alone, because backgrounding one that is capturing is the
+     * ordinary case — switching apps mid-conversation — and iOS permits it.
+     */
+    const inCall = appliedRef.current?.config === CALL;
+    const deferring = hasAudio && !foreground && !inCall;
+    const intent = deferring ? 'released' : wanted;
     // `micNeeded` decides whether we publish; `hasAudio` decides what the
     // session is. Only the second may move the audio category, which is the
     // boundary a Bluetooth profile handover sits on.
-    const config = sessionFor(hasAudio);
+    const audible = deferring ? false : hasAudio;
+    const config = sessionFor(audible);
+
+    // On its own edge, ahead of the dedupe below, for the reason `deferredRef`
+    // gives. Only the deferral is recorded: coming out of one always moves the
+    // configuration, so the `capturing CALL` that follows says it already.
+    if (deferring !== deferredRef.current) {
+      deferredRef.current = deferring;
+      if (deferring) recordEvent('capture deferred (backgrounded)');
+    }
 
     // Identity comparison, which holds because `sessionFor` returns the module
     // constants themselves. Without this, a track arriving while the
@@ -1352,11 +1458,11 @@ export function useSessionAudio(
               asked: {
                 selfMuted,
                 micNeeded,
-                hasAudio,
+                hasAudio: audible,
                 othersAudible: s.othersAudible,
                 intent,
                 session: config,
-                playout: policyFor(hasAudio).playout,
+                playout: policyFor(audible).playout,
               },
             }
       );
@@ -1372,11 +1478,11 @@ export function useSessionAudio(
       asked: {
         selfMuted,
         micNeeded,
-        hasAudio,
+        hasAudio: audible,
         othersAudible: s.othersAudible,
         intent,
         session: config,
-        playout: policyFor(hasAudio).playout,
+        playout: policyFor(audible).playout,
       },
     }));
     recordEvent(`${intent} ${nameOf(config)}`);
@@ -1386,7 +1492,7 @@ export function useSessionAudio(
     // is about to cause. With somebody else in the room the playout value is
     // `CALL`, so the engine dropping to playout-only on a self-mute moves
     // nothing: the category holds and the Bluetooth route is not handed over.
-    pushPolicy(hasAudio);
+    pushPolicy(audible);
 
     // Order matters and is opposite in the two directions: the session must
     // already be a call before capture starts, and must stay one until capture
@@ -1399,7 +1505,7 @@ export function useSessionAudio(
     // itself audio. That is why this branch does not re-state the
     // configuration at all.
     (intent === 'capturing'
-      ? applyFor(hasAudio).then(() =>
+      ? applyFor(audible).then(() =>
           room.localParticipant.setMicrophoneEnabled(true)
         )
       : intent === 'muted'
@@ -1410,13 +1516,35 @@ export function useSessionAudio(
             // if this app has nothing left to play either. That is the edge
             // where somebody's music is let back in — the last person leaving
             // a channel, or a shared track coming to rest.
-            .then(() => applyFor(hasAudio))
-    ).catch(() => {});
+            .then(() => applyFor(audible))
+    ).catch((error: unknown) => {
+      // **Not swallowed, since 2026-09-05.** This chain is where iOS refuses a
+      // category it will not grant, and the empty catch that used to be here
+      // made the refusal invisible: the log said `capturing CALL` — written
+      // above, before anything is attempted — and then nothing at all. The
+      // only evidence left was a route-change line that never came, and an
+      // afternoon went into inferring what one line would have said.
+      recordEvent(
+        `${intent} ${nameOf(config)} failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    });
     const transmitting = intent === 'capturing';
     setState((s) =>
       s.micOpen === transmitting ? s : { ...s, micOpen: transmitting }
     );
-  }, [selfMuted, micNeeded, hasAudio, state.status, state.othersAudible]);
+  }, [
+    selfMuted,
+    micNeeded,
+    hasAudio,
+    // The foreground is what turns a deferred promotion into an attempted one,
+    // so it has to wake this effect. It is also the only dependency here that
+    // changes without anything about the channel changing.
+    foreground,
+    state.status,
+    state.othersAudible,
+  ]);
 
   /**
    * Puts the output back on the loudspeaker when iOS has dropped it to the
