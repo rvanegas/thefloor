@@ -50,6 +50,7 @@ import {
   nameOf,
   policyFor,
   sessionFor,
+  type SessionWant,
 } from './session';
 import {
   NOBODY_SPEAKING,
@@ -304,11 +305,11 @@ async function applyConfiguration(
  * `adb logcat` against `AudioManager` is the substitute, which is why
  * planning/ANDROID.md names it.
  */
-async function applyAndroidConfiguration(hasAudio: boolean): Promise<void> {
+async function applyAndroidConfiguration(want: SessionWant): Promise<void> {
   if (Platform.OS !== 'android') return;
   await AudioSession.configureAudio({
     android: {
-      audioTypeOptions: androidSessionFor(hasAudio),
+      audioTypeOptions: androidSessionFor(want),
       preferredOutputList: [...ANDROID_OUTPUTS],
     },
   }).catch(() => {});
@@ -365,16 +366,13 @@ async function applyAndroidConfiguration(hasAudio: boolean): Promise<void> {
  * the observer writes from native code, so **a TestFlight build serves** — only
  * the `[audio]` lines below need a development build.
  */
-function trace(
-  config: AppleAudioConfiguration,
-  hasAudio: boolean
-): void {
+function trace(config: AppleAudioConfiguration, want: SessionWant): void {
   if (!__DEV__) return;
   // eslint-disable-next-line no-console
   console.log(
     `[audio] ${nameOf(config)}`,
     JSON.stringify({
-      hasAudio,
+      want,
       category: config.audioCategory,
       options: config.audioCategoryOptions,
       mode: config.audioMode,
@@ -393,7 +391,27 @@ function trace(
  * Cheap enough to call on every edge: natively it is a single atomic property
  * assignment, and it touches neither the session nor the engine.
  */
-function pushPolicy(hasAudio: boolean): void {
+/**
+ * Which session this app wants, from the two facts that decide it.
+ *
+ * **`waiting` is the default and `idle` is the exception**, which is the whole
+ * of the 2026-09-05 change. Standing in a quiet channel used to hand the audio
+ * system back; it now holds the call route, so that an arriving voice does not
+ * need a route handed over at the one moment iOS refuses to hand one — see
+ * `WAITING` in session.ts. The only thing that still hands back is a watch
+ * party withholding for its film, where the claimant on the route is somebody
+ * else's player and there is nothing to wait for.
+ *
+ * @param hasAudio whether there is audio to hear, already adjusted for what
+ *                 iOS will grant: false while a promotion is deferred.
+ * @param handBack `isPartyMuted` — this app should not have the audio system.
+ */
+function wantFor(hasAudio: boolean, handBack: boolean): SessionWant {
+  if (hasAudio) return 'call';
+  return handBack ? 'idle' : 'waiting';
+}
+
+function pushPolicy(want: SessionWant): void {
   // **Android has no counterpart and is not missing one**, which is worth
   // stating because every other `Platform.OS !== 'ios'` guard in this
   // directory marks something Android still owes. This one does not: the
@@ -405,7 +423,7 @@ function pushPolicy(hasAudio: boolean): void {
   // agree with, and a branch added to this function would be agreeing with
   // nothing. See src/audio/session.ts and planning/STATES.md.
   if (Platform.OS !== 'ios') return;
-  setupIOSAudioManagement(true, policyFor(hasAudio));
+  setupIOSAudioManagement(true, policyFor(want));
 }
 
 /**
@@ -521,16 +539,16 @@ async function releaseMicrophone(room: Room): Promise<void> {
  * than about what has finished subscribing, which is what took the write off
  * the engine's start. See core/micNeeded.ts.
  */
-async function applyFor(hasAudio: boolean): Promise<void> {
-  const config = sessionFor(hasAudio);
-  trace(config, hasAudio);
+async function applyFor(want: SessionWant): Promise<void> {
+  const config = sessionFor(want);
+  trace(config, want);
   await applyConfiguration(config);
   // Each half is a no-op off its own platform, so both are stated
   // unconditionally and the branch lives in one place rather than at every
   // call site. `trace` above names the *state* — IDLE or CALL — which is the
   // one thing the two platforms genuinely share, so the development log line
   // reads the same on both.
-  await applyAndroidConfiguration(hasAudio);
+  await applyAndroidConfiguration(want);
 }
 
 /**
@@ -590,7 +608,8 @@ export function useSessionAudio(
   hasAudioAsked: boolean,
   recoverPlayout = false,
   deferSubscribe = false,
-  holdForPlayout = false
+  holdForPlayout = false,
+  handBack = false
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -712,6 +731,14 @@ export function useSessionAudio(
    * went false on a reconnect would stop the silence during precisely the
    * window a backgrounded phone needs it.
    */
+  /**
+   * Read at connect for the same reason the others are: a watch party starting
+   * or stopping its film must not tear the room down and rebuild it. The apply
+   * effect below is what acts on a change.
+   */
+  const handBackRef = useRef(handBack);
+  handBackRef.current = handBack;
+
   const [sessionConfigured, setSessionConfigured] = useState(false);
 
   const [foreground, setForeground] = useState(
@@ -1244,9 +1271,10 @@ export function useSessionAudio(
         // for a channel with somebody in it, so the configuration this
         // connection needs is the one it is given, before anything is active.
         const anyAudio = hasAudioRef.current;
-        pushPolicy(anyAudio);
-        await applyFor(anyAudio);
-        appliedRef.current = { intent, config: sessionFor(anyAudio) };
+        const anyWant = wantFor(anyAudio, handBackRef.current);
+        pushPolicy(anyWant);
+        await applyFor(anyWant);
+        appliedRef.current = { intent, config: sessionFor(anyWant) };
         update({
           asked: {
             selfMuted: selfMutedRef.current,
@@ -1254,11 +1282,11 @@ export function useSessionAudio(
             hasAudio: anyAudio,
             othersAudible: 0,
             intent,
-            session: sessionFor(anyAudio),
-            playout: policyFor(anyAudio).playout,
+            session: sessionFor(anyWant),
+            playout: policyFor(anyWant).playout,
           },
         });
-        recordEvent(`connect ${intent} ${nameOf(sessionFor(anyAudio))}`);
+        recordEvent(`connect ${intent} ${nameOf(sessionFor(anyWant))}`);
         // The keep-alive waits for this. See `sessionConfigured`.
         setSessionConfigured(true);
 
@@ -1374,8 +1402,10 @@ export function useSessionAudio(
       // connection last needed. Leaving `CALL` behind is the live hazard:
       // disconnecting while somebody was still talking would arm the observer
       // to take `playAndRecord` — exclusive, and mono on a Bluetooth route —
-      // at some later transition with no channel to justify it.
-      pushPolicy(false);
+      // at some later transition with no channel to justify it. `idle` rather
+      // than `waiting`: this teardown is leaving the channel, and there is
+      // nothing left to hold a route for.
+      pushPolicy('idle');
     };
   }, [mediaRoom, token, generation]);
 
@@ -1472,7 +1502,8 @@ export function useSessionAudio(
     // session is. Only the second may move the audio category, which is the
     // boundary a Bluetooth profile handover sits on.
     const audible = deferring ? false : hasAudio;
-    const config = sessionFor(audible);
+    const want = wantFor(audible, handBack);
+    const config = sessionFor(want);
 
     // On its own edge, ahead of the dedupe below, for the reason `deferredRef`
     // gives. Only the deferral is recorded: coming out of one always moves the
@@ -1510,7 +1541,7 @@ export function useSessionAudio(
                 othersAudible: s.othersAudible,
                 intent,
                 session: config,
-                playout: policyFor(audible).playout,
+                playout: policyFor(want).playout,
               },
             }
       );
@@ -1530,7 +1561,7 @@ export function useSessionAudio(
         othersAudible: s.othersAudible,
         intent,
         session: config,
-        playout: policyFor(audible).playout,
+        playout: policyFor(want).playout,
       },
     }));
     recordEvent(`${intent} ${nameOf(config)}`);
@@ -1540,7 +1571,7 @@ export function useSessionAudio(
     // is about to cause. With somebody else in the room the playout value is
     // `CALL`, so the engine dropping to playout-only on a self-mute moves
     // nothing: the category holds and the Bluetooth route is not handed over.
-    pushPolicy(audible);
+    pushPolicy(want);
 
     // Order matters and is opposite in the two directions: the session must
     // already be a call before capture starts, and must stay one until capture
@@ -1553,7 +1584,7 @@ export function useSessionAudio(
     // itself audio. That is why this branch does not re-state the
     // configuration at all.
     (intent === 'capturing'
-      ? applyFor(audible).then(() =>
+      ? applyFor(want).then(() =>
           room.localParticipant.setMicrophoneEnabled(true)
         )
       : intent === 'muted'
@@ -1564,7 +1595,7 @@ export function useSessionAudio(
             // if this app has nothing left to play either. That is the edge
             // where somebody's music is let back in — the last person leaving
             // a channel, or a shared track coming to rest.
-            .then(() => applyFor(audible))
+            .then(() => applyFor(want))
     ).catch((error: unknown) => {
       // **Not swallowed, since 2026-09-05.** This chain is where iOS refuses a
       // category it will not grant, and the empty catch that used to be here
@@ -1632,7 +1663,7 @@ export function useSessionAudio(
       // `sessionFor(true)` rather than the constant, so this cannot drift from
       // what the rest of the hook means by a call. It is only reached when
       // `wantsCall` was true, so the two are the same object by construction.
-      if (step.reassert) void applyConfiguration(sessionFor(true));
+      if (step.reassert) void applyConfiguration(sessionFor('call'));
     });
   }, [state.status]);
 

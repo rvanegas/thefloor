@@ -736,20 +736,32 @@ anything is subscribed — see PLAYOUT.md — so a channel with anything to hear
 is asked for; what a headset actually experiences is HFP for the whole time
 there is audio, which is the cost that fix accepted deliberately.
 
-**The table above is what is *asked for*, and from 2026-09-05 a backgrounded
-app asks for less.** iOS grants a backgrounded process playback and refuses it
-a microphone, so `useSessionAudio` withholds the promotion to `CALL` until the
-foreground and takes `IDLE` meanwhile. Every row saying `CALL` therefore reads
-`IDLE` while the app is off screen *and was not already in a call* — the
-transition is what is forbidden, not the state, so backgrounding a live
-conversation changes nothing.
+**There are three configurations again from 2026-09-05, and the table above
+describes two of them.** A quiet channel is no longer `IDLE`: it is `WAITING`,
+which is `CALL`'s category, mode and route list with `mixWithOthers` added. So
+standing in an empty channel takes the hands-free route immediately — mono, 24
+kHz, another app's music still playing through it — rather than holding A2DP
+and handing it over later.
 
-This costs nothing that was ever available. Measured the same night: asking for
-`playAndRecord` from the background is refused silently, the engine never
-starts, and a subscribed track renders into nothing until the app is opened.
-Asking for `IDLE` instead means an arriving voice is *heard*, since `playback`
-renders remote audio; what is genuinely lost is transmitting, which was never
-on offer. See `useSessionAudio.ts` and DECISIONS.
+**The reason is that "later" is not available.** iOS grants a backgrounded
+process playback and refuses it a microphone, so the promotion to
+`playAndRecord` cannot be made once the phone is in a pocket, which is exactly
+when somebody arrives. Taking the route up front, while the app is on screen,
+is the only moment it can be taken — and it means an arriving voice appears on
+the call volume rail with no handover, rather than at media volume with a jolt.
+Asked for at the prompt, in those terms.
+
+**`IDLE` survives for one case: a watch party withholding for its film.**
+There the claimant on the route is somebody else's player and there is nobody
+to wait for, so the audio system is handed back entirely. `isPartyMuted` is the
+test, passed in from `App.tsx`.
+
+**The promotion to `CALL` is still deferred while backgrounded**, and now costs
+nothing audible: `WAITING` is already `playAndRecord`, so the deferral moves no
+route and withholds only the microphone. Every row saying `CALL` reads
+`WAITING` while the app is off screen *and was not already in a call* — the
+transition is what is forbidden, not the state. What is genuinely lost is
+transmitting, which iOS never offered. See `useSessionAudio.ts` and DECISIONS.
 
 **`IDLE` also became the state in which this app plays silence — 2026-09-05.**
 Not audible silence and not a fourth configuration: `modules/keep-alive` loops

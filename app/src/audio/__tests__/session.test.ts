@@ -8,6 +8,7 @@ import {
   IDLE,
   policyFor,
   sessionFor,
+  WAITING,
 } from '../session';
 
 describe('sessionFor', () => {
@@ -24,12 +25,35 @@ describe('sessionFor', () => {
    * was reached. This file is only about what the two configurations are and
    * that the second writer is told the same thing.
    */
-  it('mixes when the rule says there is no audio', () => {
-    expect(sessionFor(false)).toBe(IDLE);
+  it('hands back only where this app should not have the audio', () => {
+    expect(sessionFor('idle')).toBe(IDLE);
   });
 
-  it('is a call when it says there is', () => {
-    expect(sessionFor(true)).toBe(CALL);
+  it('is a call when there is somebody to hear', () => {
+    expect(sessionFor('call')).toBe(CALL);
+  });
+
+  /**
+   * The 2026-09-05 third case. A quiet channel no longer hands the audio
+   * system back: it holds the call route so that an arrival does not need one
+   * handed over in the background, where iOS refuses.
+   */
+  it('waits on the call route while a channel is quiet', () => {
+    expect(sessionFor('waiting')).toBe(WAITING);
+  });
+
+  /**
+   * The property the promotion depends on. When the wait ends, `mixWithOthers`
+   * is the *only* thing that changes — so no route moves at the moment
+   * somebody starts talking, which is the whole reason to wait on this route
+   * rather than on `playback`.
+   */
+  it('differs from a call in exactly one option', () => {
+    expect(WAITING.audioCategory).toBe(CALL.audioCategory);
+    expect(WAITING.audioMode).toBe(CALL.audioMode);
+    expect(new Set(WAITING.audioCategoryOptions)).toEqual(
+      new Set([...(CALL.audioCategoryOptions ?? []), 'mixWithOthers'])
+    );
   });
 });
 
@@ -85,10 +109,10 @@ describe('policyFor', () => {
   // there is no input on which the observer is told something other than what
   // we would apply ourselves, so this is exhaustive rather than a sample: a
   // licensed exception is precisely what went wrong.
-  it.each([[false], [true]])(
-    'tells the observer what we would apply (hasAudio=%s)',
-    (hasAudio) => {
-      expect(policyFor(hasAudio).playout).toBe(sessionFor(hasAudio));
+  it.each([['idle'], ['waiting'], ['call']] as const)(
+    'tells the observer what we would apply (want=%s)',
+    (want) => {
+      expect(policyFor(want).playout).toBe(sessionFor(want));
     }
   );
 
@@ -110,9 +134,12 @@ describe('policyFor', () => {
    * channel, which is why the assertion here is only that the value is
    * constant. `core/__tests__/micNeeded.test.ts` is where the difference is.
    */
-  it.each([[false], [true]])('records as a call (hasAudio=%s)', (hasAudio) => {
-    expect(policyFor(hasAudio).recording).toBe(CALL);
-  });
+  it.each([['idle'], ['waiting'], ['call']] as const)(
+    'records as a call (want=%s)',
+    (want) => {
+      expect(policyFor(want).recording).toBe(CALL);
+    }
+  );
 
   // The 2026-08-19 bug, stated as the case that reported it: self-muted while
   // the other person is still talking. They are in the room, so there is
@@ -120,14 +147,14 @@ describe('policyFor', () => {
   // playout-only is the call — the category does not move, and neither does
   // the Bluetooth profile. It no longer needs a rule of its own to say so.
   it('keeps the session a call across a self-mute with somebody there', () => {
-    expect(policyFor(true).playout).toBe(CALL);
+    expect(policyFor('call').playout).toBe(CALL);
   });
 
   // And the case the old constant was chosen to protect, which now falls out
   // rather than being licensed: alone in an empty channel, an observer firing
   // on any transition writes the mixing value and nobody's music stops.
   it('mixes when this app has nothing of its own to play', () => {
-    expect(policyFor(false).playout).toBe(IDLE);
+    expect(policyFor('idle').playout).toBe(IDLE);
   });
 });
 
@@ -142,11 +169,11 @@ describe('the same two states on Android', () => {
    * state would pass every other test in this file and is exactly what this
    * catches.
    */
-  it.each([[false], [true]])(
-    'moves with the same boolean as the Apple half (hasAudio=%s)',
-    (hasAudio) => {
-      const apple = sessionFor(hasAudio) === CALL;
-      const android = androidSessionFor(hasAudio) === ANDROID_CALL;
+  it.each([['idle'], ['waiting'], ['call']] as const)(
+    'moves with the same answer as the Apple half (want=%s)',
+    (want) => {
+      const apple = sessionFor(want) === CALL;
+      const android = androidSessionFor(want) === ANDROID_CALL;
       expect(android).toBe(apple);
     }
   );
@@ -180,8 +207,8 @@ describe('the same two states on Android', () => {
   // in. The jest mock supplies two distinct literals for this reason.
   it('has two distinct configurations', () => {
     expect(ANDROID_IDLE).not.toBe(ANDROID_CALL);
-    expect(androidNameOf(androidSessionFor(true))).toBe('CALL');
-    expect(androidNameOf(androidSessionFor(false))).toBe('IDLE');
+    expect(androidNameOf(androidSessionFor('call'))).toBe('CALL');
+    expect(androidNameOf(androidSessionFor('idle'))).toBe('IDLE');
   });
 
   /**

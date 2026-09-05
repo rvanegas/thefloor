@@ -18,6 +18,7 @@ import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { NoDetailView, Panes } from './src/ui/Panes';
+import { isPartyMuted } from '../core/channel';
 import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
@@ -174,7 +175,13 @@ function Root() {
     // The cost is chosen: HFP rather than A2DP for media playback under all
     // conditions, and a lit microphone indicator while anything is subscribed.
     true,
-    true
+    true,
+    // **The one case that still hands the audio system back.** A watch party
+    // withholding for its film has a claimant on the route that is not this
+    // app — everybody's own player — and nothing to wait for, since the people
+    // are already here. Every other quiet channel now holds the call route
+    // instead of handing it back; see `WAITING` in audio/session.ts.
+    !!live && isPartyMuted(live)
   );
 
   /**

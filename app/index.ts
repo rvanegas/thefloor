@@ -38,7 +38,7 @@ registerGlobals();
 // is what keeps the observer's answer equal to ours rather than merely close to
 // it. It is written as a call rather than a constant so the two can never drift
 // apart in maintenance. See src/audio/session.ts.
-setupIOSAudioManagement(true, policyFor(false));
+setupIOSAudioManagement(true, policyFor('idle'));
 
 // How the engine *mutes* is a third writer of this session, and it is set here
 // for the same reason the policy above is: it is process-wide, it is read at a

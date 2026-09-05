@@ -2,7 +2,7 @@ import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { setupIOSAudioManagement } from '@livekit/react-native';
 import { useSessionAudio } from '../useSessionAudio';
-import { CALL, IDLE } from '../session';
+import { CALL, IDLE, WAITING } from '../session';
 
 /**
  * The microphone has three states and only one of them transmits, and the
@@ -127,10 +127,12 @@ function Probe({
   selfMuted,
   micNeeded = true,
   hasAudio = true,
+  handBack = false,
 }: {
   selfMuted: boolean;
   micNeeded?: boolean;
   hasAudio?: boolean;
+  handBack?: boolean;
 }) {
   useSessionAudio(
     'room-1',
@@ -138,7 +140,11 @@ function Probe({
     'auth-token',
     selfMuted,
     micNeeded,
-    hasAudio
+    hasAudio,
+    false,
+    false,
+    false,
+    handBack
   );
   return null;
 }
@@ -293,7 +299,7 @@ describe('releasing the microphone', () => {
     });
   });
 
-  it('hands the session back to a closed configuration afterwards', async () => {
+  it('waits on the call route afterwards, still mixing', async () => {
     const tree = await connected();
 
     await act(async () => {
@@ -303,8 +309,38 @@ describe('releasing the microphone', () => {
     });
     await settle();
 
-    // Nobody capturing and nothing audible: the mixing configuration, so
-    // another app's music is let back in.
+    // **This asserted `IDLE` until 2026-09-05, and the change is deliberate.**
+    // Nobody capturing and nothing audible is now a *wait* rather than a
+    // hand-back: the route is held so that an arriving voice does not need one
+    // handed over in the background, where iOS refuses. Another app's music is
+    // still let back in — `WAITING` keeps `mixWithOthers` — it is simply let
+    // back in over the hands-free route rather than A2DP.
+    expect(lastPolicy().playout).toBe(WAITING);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * The one case that still hands back. A watch party withholding for its film
+   * has a claimant on the route that is not this app, and nobody to wait for.
+   */
+  it('hands back entirely for a watch party withholding', async () => {
+    const tree = await connected();
+
+    await act(async () => {
+      tree.update(
+        <Probe
+          selfMuted={false}
+          micNeeded={false}
+          hasAudio={false}
+          handBack={true}
+        />
+      );
+    });
+    await settle();
+
     expect(lastPolicy().playout).toBe(IDLE);
 
     await act(async () => {

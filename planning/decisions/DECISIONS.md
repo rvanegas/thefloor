@@ -78,6 +78,50 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## Waiting takes the hands-free route up front, because it cannot be taken later — 2026-09-05
+
+**A quiet channel is no longer `IDLE`.** `WAITING` is `CALL`'s category, mode
+and eligibility list with `mixWithOthers` added, and it is what this app holds
+while standing in a channel with nothing in it yet. So the wait is spent on the
+hands-free route — mono, 24 kHz — with another app's music still playing
+through it.
+
+**Asked for at the prompt, and the reasoning is about volume rather than
+fidelity.** Under `playback` an arriving voice appears on the *media* volume
+rail with no warning, which is jarring, and on a speaker it is worse. The
+alternative — hold A2DP and switch to hands-free when somebody arrives — was
+considered and is **impossible**: iOS refuses `playAndRecord` from the
+background, which is the refusal documented in the entry below, and an arrival
+is precisely when the phone is in a pocket. There is exactly one moment the
+route can be taken, and it is at step-in while the app is on screen. So it is
+taken then and held.
+
+**Two things fall out that were not the reason for doing it.** The deferred
+promotion to `CALL` now costs nothing audible — `WAITING` is already
+`playAndRecord`, so withholding the microphone moves no route and the arriving
+voice is simply rendered. And `mixWithOthers` is the only thing that changes on
+promotion, so nothing is handed over at the moment somebody starts talking.
+
+**The cost is stated and was accepted before it was built:** media playback is
+mono at 24 kHz for the whole wait, capped at `WAITING_WINDOW_MS`. Applied
+whatever the route, rather than only when a Bluetooth device is connected —
+the simpler rule, chosen at the prompt over the one that reads the route back.
+
+**`IDLE` survives for one case**, and it is the case it was always best at: a
+watch party withholding for its film, where the claimant on the route is
+somebody else's player and there is nobody to wait for. `isPartyMuted` is the
+test, and `App.tsx` passes it in — the third input the hook now takes.
+
+**One risk carried knowingly.** `WAITING` is `playAndRecord` with nothing
+capturing, and the 2026-09-05 device capture measured a non-capturing
+`playAndRecord` session being suspended in seven seconds. The silence is what
+keeps it alive — audio flowing is what buys background time, not the category —
+so `modules/keep-alive` moved from a convenience to a load-bearing part of this
+design, and a build where it fails to start now loses the wait entirely rather
+than merely shortening it.
+
+---
+
 ## A backgrounded app may keep a call session and may not start one — 2026-09-05
 
 **Found by the keep-alive rather than caused by it.** With the phone locked and
