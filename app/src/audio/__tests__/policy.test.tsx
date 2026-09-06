@@ -16,6 +16,7 @@ jest.mock('../../../modules/audio-route', () => ({
   routeSnapshot: jest.fn(() => null),
   routeFault: jest.fn(() => null),
   onRouteChange: jest.fn(() => () => {}),
+  onOtherAudio: jest.fn(() => () => {}),
   setAllowHapticsDuringRecording: jest.fn(async () => true),
   routeLine: jest.fn(() => ''),
 }));

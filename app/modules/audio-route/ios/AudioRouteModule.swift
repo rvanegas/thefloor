@@ -53,11 +53,22 @@ import ExpoModulesCore
  */
 public class AudioRouteModule: Module {
   private var observer: NSObjectProtocol?
+  /**
+   Separate from `observer` because it watches a different notification and
+   must be removed independently. Added 2026-09-06 to *measure* rather than to
+   decide: `isOtherAudioPlaying`, the only reading available until now, answered
+   false with music plainly playing once this app's own session was active, and
+   on a headset it flipped with every foreground. A design cannot branch on
+   that. This notification claims to fire when another app's primary audio
+   starts and stops, and the build carrying it exists to find out whether it
+   does.
+   */
+  private var hintObserver: NSObjectProtocol?
 
   public func definition() -> ModuleDefinition {
     Name("AudioRoute")
 
-    Events("onRouteChange")
+    Events("onRouteChange", "onOtherAudio")
 
     // Synchronous on purpose. Callers take it either side of a transition and
     // compare, and an await between the two samples is exactly how the
@@ -130,12 +141,46 @@ public class AudioRouteModule: Module {
         payload["reason"] = Self.reasonName(raw)
         self.sendEvent("onRouteChange", payload)
       }
+
+      /**
+       Another app's primary audio starting or stopping.
+
+       **Both readings are sent alongside the edge, deliberately.** The point of
+       this event is not only that it fired but whether the two polled flags
+       agree with it at the same instant — that comparison is the measurement,
+       and taking it here rather than in JavaScript means no scheduling sits
+       between the notification and the values it is being compared against.
+       */
+      self.hintObserver = NotificationCenter.default.addObserver(
+        forName: AVAudioSession.silenceSecondaryAudioHintNotification,
+        object: nil,
+        queue: .main
+      ) { [weak self] notification in
+        guard let self else { return }
+        let raw =
+          notification.userInfo?[AVAudioSessionSilenceSecondaryAudioHintTypeKey]
+          as? UInt
+        let session = AVAudioSession.sharedInstance()
+        self.sendEvent(
+          "onOtherAudio",
+          [
+            "began": raw
+              == AVAudioSession.SilenceSecondaryAudioHintType.begin.rawValue,
+            "otherAudioPlaying": session.isOtherAudioPlaying,
+            "secondaryAudioHint": session.secondaryAudioShouldBeSilencedHint,
+          ]
+        )
+      }
     }
 
     OnStopObserving {
       if let observer = self.observer {
         NotificationCenter.default.removeObserver(observer)
         self.observer = nil
+      }
+      if let hintObserver = self.hintObserver {
+        NotificationCenter.default.removeObserver(hintObserver)
+        self.hintObserver = nil
       }
     }
   }

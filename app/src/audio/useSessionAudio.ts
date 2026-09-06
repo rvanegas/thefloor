@@ -16,6 +16,7 @@ import {
   type AppleAudioConfiguration,
 } from '@livekit/react-native';
 import {
+  onOtherAudio,
   onRouteChange,
   routeSnapshot,
   setAllowHapticsDuringRecording,
@@ -851,6 +852,38 @@ export function useSessionAudio(
    * about the most surprising thing the app just did.
    */
   const deferredRef = useRef(false);
+
+  /**
+   * Records another app's audio starting and stopping, and changes nothing.
+   *
+   * **A measurement, not a mechanism.** The design that would branch on this
+   * is not built: `wantFor` still reads the polled `otherAudioPlaying`, which
+   * is exactly what this exists to indict. That flag answered false with music
+   * plainly playing once our own session was active, and on a Bluetooth
+   * headset it flipped with every foreground — so build 149 dragged the route
+   * between HFP and A2DP on each app-state change, audibly, in the middle of
+   * somebody's music.
+   *
+   * What the log shows is each edge with both polled flags sampled natively at
+   * the same instant. Three things are being asked at once: does the
+   * notification fire at all, does it fire while backgrounded — which is where
+   * a design would need it — and how far the poll disagrees with it.
+   *
+   * Unconditional and outside the connection, because the question is about
+   * the phone rather than about a room, and an edge that arrives while nothing
+   * is connected is as much of an answer as one that does not.
+   */
+  useEffect(
+    () =>
+      onOtherAudio((event) => {
+        recordEvent(
+          `other audio ${event.began ? 'began' : 'ended'}` +
+            ` (playing=${event.otherAudioPlaying ? 'T' : 'F'}` +
+            ` hint=${event.secondaryAudioHint ? 'T' : 'F'})`
+        );
+      }),
+    []
+  );
 
   /**
    * Keeps Android's foreground service up for as long as this app is in a

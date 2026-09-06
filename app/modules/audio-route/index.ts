@@ -65,6 +65,26 @@ export interface RouteSnapshot {
   reason?: string;
 }
 
+/**
+ * Another app's primary audio starting or stopping, with both polled flags
+ * sampled natively at the same instant.
+ *
+ * The comparison is the point. `otherAudioPlaying` is the only reading this
+ * app had until 2026-09-06 and it cannot carry a decision: it answered false
+ * with music plainly playing once our own session was active, and on a
+ * Bluetooth headset it flipped with every foreground, dragging the route
+ * between HFP and A2DP each time. Whether this notification is steadier is
+ * what the build carrying it exists to find out.
+ */
+export interface OtherAudioEvent {
+  /** True when another app's primary audio *started*. */
+  began: boolean;
+  /** `AVAudioSession.isOtherAudioPlaying`, at the moment of the edge. */
+  otherAudioPlaying: boolean;
+  /** `secondaryAudioShouldBeSilencedHint`, at the same moment. */
+  secondaryAudioHint: boolean;
+}
+
 interface NativeAudioRoute {
   snapshot(): RouteSnapshot;
   setAllowHapticsDuringRecording(allow: boolean): Promise<boolean>;
@@ -72,6 +92,10 @@ interface NativeAudioRoute {
   addListener(
     event: 'onRouteChange',
     listener: (payload: RouteSnapshot) => void
+  ): { remove(): void };
+  addListener(
+    event: 'onOtherAudio',
+    listener: (event: OtherAudioEvent) => void
   ): { remove(): void };
 }
 
@@ -219,6 +243,22 @@ export function onRouteChange(
 ): () => void {
   try {
     const sub = native?.addListener('onRouteChange', listener);
+    return () => sub?.remove();
+  } catch {
+    return () => {};
+  }
+}
+
+/**
+ * Subscribes to another app's audio starting and stopping.
+ *
+ * @returns an unsubscribe function, which is a no-op when there is no module.
+ */
+export function onOtherAudio(
+  listener: (event: OtherAudioEvent) => void
+): () => void {
+  try {
+    const sub = native?.addListener('onOtherAudio', listener);
     return () => sub?.remove();
   } catch {
     return () => {};
