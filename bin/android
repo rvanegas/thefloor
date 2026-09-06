@@ -88,10 +88,28 @@ STAMP=app/android/.app.json.sha256
 # machine that has just been given the credential, and the result is an APK
 # where notifications silently do not exist.
 #
+# **It has to resolve the file the same way the plugin does**, which is the part
+# that is easy to get wrong and was wrong for a day: the plugin prefers
+# `app/google-services.json` but falls back to `~/.config/thefloor`, and hashing
+# only the in-tree path means a machine that gains the credential in its home
+# directory sees no change, calls the tree fresh, and builds an APK with no push
+# in it — silently, which is the whole failure this stamp exists to prevent.
+#
 # `cat` of a missing file is the empty string here rather than an error, which
 # is the state every checkout is in until somebody creates the project.
+google_services_file() {
+  local candidate
+  for candidate in \
+    "${THEFLOOR_GOOGLE_SERVICES:-}" \
+    app/google-services.json \
+    "$HOME/.config/thefloor/google-services.json"
+  do
+    [ -n "$candidate" ] && [ -f "$candidate" ] && { echo "$candidate"; return; }
+  done
+}
+
 config_hash() {
-  cat app/app.json app/google-services.json 2>/dev/null |
+  cat app/app.json $(google_services_file) 2>/dev/null |
     shasum -a 256 | cut -d' ' -f1
 }
 
