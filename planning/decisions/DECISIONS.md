@@ -146,13 +146,33 @@ unambiguously secondary audio, with the other app's audio paused and resumed.
 The observer is kept as the record of that negative result: it costs one log
 line at an edge that never comes, and it is cheaper to keep than to rediscover.
 
-**What survives.** The timing rule the whole area rests on is untouched: iOS
-grants a backgrounded process playback and refuses it a microphone, so the
-session a voice arrives under is fixed before the phone is locked. And the
-polled flag is *sound while the app is active* — which is the only moment the
-decision has to be made. A wait that keeps the microphone open, decided at
-step-in and held for the visit, is therefore still possible; it is designed and
-not yet built.
+**What survives, and is built in the same change.** The timing rule the whole
+area rests on is untouched: iOS grants a backgrounded process playback and
+refuses it a microphone, so the session a voice arrives under is fixed before
+the phone is locked. And the polled flag is *sound while the app is active* —
+which is the only moment the decision has to be made. So the wait that keeps a
+microphone open is decided at step-in and held for the visit.
+
+**The silent wait.** A quiet channel with nothing else playing asks for `CALL`
+and opens the microphone, unmuted, at step-in. An arriving voice is then heard
+*and answerable* without touching the phone, which is the capability this whole
+area exists for. It needs no keep-alive of its own: capturing holds the process
+up by itself, measured at 22m 30s backgrounded with zero drops on 2026-09-06,
+against about a second for a session with nothing flowing.
+
+**Never asked is not nothing playing.** `otherAudioPlaying` is read only while
+the app is active, so a launch straight into the background has had no honest
+moment — and takes no microphone rather than assuming silence and stopping
+audio it never looked for.
+
+**And presence had to be bounded before this could ship.** A held microphone
+keeps a pocketed phone alive indefinitely, so `useAttention` stopped being an
+empty stub on iOS: the same rules the web has used since 2026-08-22, with the
+foreground as the only thing a phone can offer as a hand. It is the client half
+of the pair whose server half is Rule A — one retires a device that is not
+attending, the other a room in which nothing at all is happening, and neither
+can see what the other sees. The keep-alive's own fifteen-minute timer is gone
+with it: one clock, living with the rule about presence.
 
 **Accepted at the prompt, in advance of building it:** during such a wait,
 starting another app's audio will not work — it will play for a fraction of a

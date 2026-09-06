@@ -24,6 +24,16 @@ jest.mock('../../../modules/keep-alive', () => ({
   stopSilence: jest.fn(async () => true),
 }));
 
+/**
+ * **These waits are the ones that do not hold a microphone.** From 2026-09-06 a
+ * quiet channel opens one and is kept alive by capturing, so the silence never
+ * starts there. It starts in the other two cases: another app is playing, or —
+ * as here, where `AppState.currentState` is not `active` under jest — this app
+ * has never had an honest moment to ask, and will not take a microphone on an
+ * assumption. Both are `IDLE` with nothing flowing, which earns no background
+ * assertion at all and is suspended in about a second.
+ */
+
 interface FakeRoom {
   handlers: Record<string, ((...args: unknown[]) => void)[]>;
   fire(event: string, ...args: unknown[]): void;
@@ -198,11 +208,14 @@ describe('the silent keep-alive', () => {
   });
 
   /**
-   * The bound. Past `WAITING_WINDOW_MS` the app has itself stopped calling this
-   * person Nearby, so holding their phone awake would be spending battery on an
-   * intention the roster has already retired.
+   * **The window is no longer here, and that is the point of this test.** This
+   * effect used to stop itself after `WAITING_WINDOW_MS` and re-arm on each
+   * foreground. `useAttention` now ends the visit at that same window by
+   * stepping out, which stops this by taking `mediaRoom` away — one clock
+   * rather than two that have to be kept equal, and the clock that decides
+   * lives with the rule about presence rather than with the keep-alive.
    */
-  it('gives up after the window the roster stops calling somebody nearby', async () => {
+  it('runs for as long as the visit does, with no window of its own', async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(<Probe room="room-1" hasAudio={false} />);
@@ -211,20 +224,20 @@ describe('the silent keep-alive', () => {
     expect(started).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS - 1);
+      jest.advanceTimersByTime(WAITING_WINDOW_MS * 2);
     });
     expect(stopped).not.toHaveBeenCalled();
 
+    // Stepping out is what ends it.
     await act(async () => {
-      jest.advanceTimersByTime(1);
+      tree.update(<Probe room={null} hasAudio={false} />);
     });
+    await settle();
     expect(stopped).toHaveBeenCalledTimes(1);
 
-    // And it does not stop twice on the way out, having already given up.
     await act(async () => {
       tree.unmount();
     });
-    expect(stopped).toHaveBeenCalledTimes(1);
   });
 
   /**

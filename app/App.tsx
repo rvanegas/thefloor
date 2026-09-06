@@ -201,11 +201,16 @@ function Root() {
   useKnockNudge(live);
 
   /**
-   * Stepped out of a channel nobody is attending, which is a browser's problem
-   * and not a phone's — `state/useAttention.ts` says why the native half of
-   * this is empty. Here with the two above because it reads the same standing
-   * and the same active speakers they do, and because what it ends is presence
-   * rather than a screen.
+   * Stepped out of a channel nobody is attending — **on both platforms since
+   * 2026-09-06**, where the native half used to be an empty stub on the
+   * argument that a pocketed phone loses its process anyway. This project
+   * spent two builds making that false on purpose: a held microphone keeps a
+   * backgrounded process alive, so a phone can now hold a channel open with
+   * nobody near it. `state/useAttention.ts` carries the whole reasoning.
+   *
+   * Here with the two above because it reads the same standing and the same
+   * active speakers they do, and because what it ends is presence rather than
+   * a screen.
    */
   useAttention(live, me, audio.speaking);
 

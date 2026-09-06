@@ -692,11 +692,84 @@ export function useSessionAudio(
    * under all conditions. It is scoped to a subscribed track rather than to
    * being in a channel, so an idle channel is unaffected.
    */
+  const [foreground, setForeground] = useState(
+    AppState.currentState === 'active'
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) =>
+      setForeground(next === 'active')
+    );
+    return () => subscription.remove();
+  }, []);
+
+  /**
+   * Whether another app was playing when we last had the right to ask.
+   *
+   * **`isOtherAudioPlaying` does not report other apps.** It reads true only
+   * while *this* app is the active one — a fact about our own foreground state
+   * wearing somebody else's name, measured 2026-09-06. Asking it on every
+   * app-state change is what made build 150 flip configuration five times in
+   * thirty seconds, dragging a headset between HFP and A2DP and killing a
+   * podcast a fraction of a second after its play button.
+   *
+   * So it is asked only while the app is active — at step-in and at each
+   * foreground — and the answer is **held** in between. That is not a
+   * workaround for the flag being poor: the decision it feeds can only be
+   * acted on before the phone is locked anyway, because iOS will not grant a
+   * backgrounded app a microphone it did not already have. The one moment the
+   * answer matters is the one moment it is sound.
+   *
+   * `silenceSecondaryAudioHintNotification` would have made this an event
+   * rather than a reading. It was shipped in build 150 and never fired once;
+   * see the observer in this file for the conditions it was given.
+   *
+   * **`null` means never asked, and it is not the same as `false`.** An app
+   * launched straight into the background has had no honest moment, and
+   * assuming silence there would take a microphone and could stop audio we
+   * never looked for. Only a *read* answer opens one.
+   */
+  const [otherAudio, setOtherAudio] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!foreground) return;
+    setOtherAudio(routeSnapshot()?.otherAudioPlaying === true);
+  }, [foreground, mediaRoom]);
+
   const holding = holdForPlayout && state.othersAudible > 0;
-  const hasAudio = hasAudioAsked || holding;
-  const micNeeded = micNeededAsked || holding;
+
+  /**
+   * Whether this is a *silent wait*: standing in a quiet channel with nothing
+   * else playing on the phone, waiting for somebody to arrive.
+   *
+   * **It opens the microphone, and that is the only way the wait can work.**
+   * iOS will not grant a backgrounded app a *new* microphone — measured on
+   * build 146, where a request from a pocketed phone produced no category
+   * change and no engine start for four minutes — but it lets one that is
+   * already capturing carry on. So the microphone an arriving voice is
+   * answered with has to be open before the phone is locked, or it never is.
+   *
+   * Capturing also keeps the process alive by itself: 22m 30s backgrounded
+   * with zero drops, measured 2026-09-06, against about a second for a session
+   * with nothing flowing. The wait needs no silence.
+   *
+   * **`waitingElsewhere` is why this can be false.** A quiet channel with
+   * another app playing hands the audio system back instead, because a
+   * call-shaped session stops that app — see `session.ts` on the configuration
+   * that was deleted for it. The cost, accepted at the prompt: starting audio
+   * *during* a silent wait will not work until The Floor is next foregrounded,
+   * and nothing in iOS will tell us it happened.
+   */
+  const waitingAlone =
+    !!mediaRoom && !hasAudioAsked && !handBack && otherAudio === false;
+
+  const hasAudio = hasAudioAsked || holding || waitingAlone;
+  const micNeeded = micNeededAsked || holding || waitingAlone;
   // Held, not captured. Left alone whenever the microphone was genuinely
   // wanted, so this can only ever add a hold and never silence a real one.
+  //
+  // A silent wait is *not* muted: it is open and live, so somebody arriving
+  // hears the room from their first instant with no unmute step to fail. That
+  // was chosen at the prompt over muted-with-auto-unmute, against the cost of
+  // continuous upload and `mic` minutes accruing in an empty channel.
   const selfMuted = micNeededAsked ? selfMutedAsked : selfMutedAsked || holding;
 
   /**
@@ -749,15 +822,6 @@ export function useSessionAudio(
 
   const [sessionConfigured, setSessionConfigured] = useState(false);
 
-  const [foreground, setForeground] = useState(
-    AppState.currentState === 'active'
-  );
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (next) =>
-      setForeground(next === 'active')
-    );
-    return () => subscription.remove();
-  }, []);
 
   /** Same reason as `micNeededRef`: read at connect, acted on below. */
   const selfMutedRef = useRef(selfMuted);
@@ -934,75 +998,35 @@ export function useSessionAudio(
     // `sessionConfigured` rather than merely being in a channel: playing
     // before the category is written activates the system default, which does
     // not mix and stops whatever else the phone was playing.
+    //
+    // **`hasAudio` false is now specifically the *accompanied* wait** — quiet
+    // channel, another app playing, session `IDLE`. A silent wait holds a
+    // microphone instead, and capturing keeps the process alive by itself, so
+    // this is the other branch's keep-alive alone.
     if (!mediaRoom || hasAudio || !sessionConfigured) return;
-    let expired = false;
-    let timer: ReturnType<typeof setTimeout>;
-
-    /**
-     * Start the fifteen minutes over.
-     *
-     * **Re-armed at every foreground, which the first version did not do.**
-     * Keyed on `[mediaRoom, hasAudio]`, the timer fired once and the effect
-     * never re-ran while somebody stayed in the same quiet channel — so the
-     * phone became suspendable for good, and a foreground did not bring it
-     * back. Observed on 2026-09-05: silence expired at 13:37 and the same
-     * channel was still going without it at 14:41.
-     *
-     * Restarting on a foreground is also the right rule rather than merely the
-     * fix. `WAITING_WINDOW_MS` is how long the roster goes on calling somebody
-     * nearby, and `isWaiting` measures that from the last thing heard rather
-     * than from arrival — so picking the phone up renews the claim there too.
-     */
-    const arm = () => {
-      expired = false;
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        expired = true;
-        recordEvent('silence stopped (expired)');
-        stopSilence();
-      }, WAITING_WINDOW_MS);
-    };
 
     startSilence().then((playing) => {
       // Worth a line for the same reason the service's is: whether this
       // started is the difference between a presence that survives a locked
       // phone and one that does not, and nothing outside the app can tell.
-      //
-      // **The category is read back and named**, because the one thing that
-      // can go wrong here is invisible otherwise: silence under a non-mixing
-      // category stops another app's audio, and the log would say `started`
-      // either way. A single read at an edge, not a poll — the thing
-      // `AudioDebugPanel` forbids is the once-a-second sampling, and this is
-      // the same one-shot use `routeRecovery` already makes.
+      // The category is named because silence under a non-mixing one stops
+      // another app's audio, and the log would say `started` either way.
       const route = routeSnapshot();
       recordEvent(
         `silence ${playing ? 'started' : 'unavailable'}` +
           (route?.category ? ` ${route.category}` : '')
       );
     });
-    arm();
-
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') return;
-      if (expired) {
-        startSilence().then((playing) => {
-          const route = routeSnapshot();
-          recordEvent(
-            `silence ${playing ? 'restarted' : 'unavailable'}` +
-              (route?.category ? ` ${route.category}` : '')
-          );
-        });
-      }
-      arm();
-    });
 
     return () => {
-      subscription.remove();
-      clearTimeout(timer);
-      if (expired) return;
       recordEvent('silence stopped');
       stopSilence();
     };
+    // **No window of its own, since 2026-09-06.** It used to stop itself after
+    // `WAITING_WINDOW_MS` and re-arm on each foreground. `useAttention` now
+    // ends the visit at that same window by stepping out, which stops this by
+    // taking `mediaRoom` away — one clock rather than two that have to be kept
+    // equal.
   }, [mediaRoom, hasAudio, sessionConfigured]);
 
   useEffect(() => {

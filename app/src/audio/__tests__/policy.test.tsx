@@ -263,19 +263,35 @@ describe('a self-mute', () => {
   });
 });
 
+/**
+ * **Every case here now reaches the release through `handBack`**, and that is
+ * a change of route rather than of subject. From 2026-09-06 a quiet channel
+ * with nothing else playing *holds* the microphone open, so "nobody needs it"
+ * is no longer a state in which the device is let go — see `waitingAlone` in
+ * `useSessionAudio.ts`. What still lets go is this app having no business with
+ * the audio system at all, which is the watch-party withhold.
+ *
+ * The property under test is unchanged: releasing unpublishes rather than
+ * merely stopping, and it happens from a self-mute as well as from capturing.
+ */
 describe('releasing the microphone', () => {
   beforeEach(() => {
     locals.length = 0;
     setup.mockClear();
   });
 
-  it('happens when nobody needs it, from capturing', async () => {
+  it('happens when this app should have no audio, from capturing', async () => {
     const tree = await connected();
     const local = locals[0];
 
     await act(async () => {
       tree.update(
-        <Probe selfMuted={false} micNeeded={false} hasAudio={false} />
+        <Probe
+          selfMuted={false}
+          micNeeded={false}
+          hasAudio={false}
+          handBack={true}
+        />
       );
     });
     await settle();
@@ -293,11 +309,11 @@ describe('releasing the microphone', () => {
   });
 
   it('happens from a self-mute too, which muting again cannot do', async () => {
-    // The transition the obvious implementation misses: self-muted, then the
-    // last other person leaves. The track is already muted, so flipping
-    // `stopOnMute` back on and muting a second time returns early and the
-    // device is never let go — the session would hand back to `playback` with
-    // the input still running.
+    // The transition the obvious implementation misses: self-muted, then this
+    // app loses any business with the audio system. The track is already
+    // muted, so flipping `stopOnMute` back on and muting a second time returns
+    // early and the device is never let go — the session would hand back to
+    // `playback` with the input still running.
     const tree = await connected();
     const local = locals[0];
 
@@ -309,33 +325,13 @@ describe('releasing the microphone', () => {
 
     await act(async () => {
       tree.update(
-        <Probe selfMuted micNeeded={false} hasAudio={false} />
+        <Probe selfMuted micNeeded={false} hasAudio={false} handBack={true} />
       );
     });
     await settle();
 
     expect(local.published).toBeNull();
     expect(local.unpublishTrack).toHaveBeenCalledWith(expect.anything(), true);
-
-    await act(async () => {
-      tree.unmount();
-    });
-  });
-
-  it('hands the session back afterwards', async () => {
-    const tree = await connected();
-
-    await act(async () => {
-      tree.update(
-        <Probe selfMuted={false} micNeeded={false} hasAudio={false} />
-      );
-    });
-    await settle();
-
-    // Nobody capturing and nothing audible: the mixing configuration, so
-    // another app's music is let back in. This asserted `WAITING` for one day
-    // — see session.test.ts on why that configuration is gone.
-    expect(lastPolicy().playout).toBe(IDLE);
 
     await act(async () => {
       tree.unmount();

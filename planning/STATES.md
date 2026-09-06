@@ -763,12 +763,20 @@ paused and resumed. Re-asking the flag on every app-state change is what made
 build 150 flip configuration five times in thirty seconds, dragging a headset
 between HFP and A2DP.
 
-**What survives is the timing rule.** iOS grants a backgrounded process
-playback and refuses it a microphone, so the session a voice arrives under is
-fixed before the phone is locked. A wait that keeps a microphone open — asking
-for `CALL` in a silent channel, so an arrival can be heard *and answered*
-without touching the phone — is therefore decided at step-in, from a flag that
-is sound only while the app is active. That wait is designed and not yet built.
+**What survives is the timing rule, and it is what the silent wait is built
+on.** iOS grants a backgrounded process playback and refuses it a microphone,
+so the session a voice arrives under is fixed before the phone is locked. So a
+quiet channel with nothing else playing asks for `CALL` and **opens the
+microphone at step-in** — `waitingAlone` in `useSessionAudio.ts`. An arrival is
+then heard and can be answered without touching the phone, and capturing keeps
+the process alive by itself: 22m 30s measured, against about a second for a
+session with nothing flowing.
+
+The decision is made from `otherAudioPlaying`, read **only while the app is
+active** and held in between, because that is both the only moment the flag is
+honest and the only moment the decision can be acted on. Never having asked is
+not the same as *nothing playing*: an app that has had no such moment does not
+open a microphone on an assumption.
 
 **The promotion to `CALL` is still deferred while backgrounded.** Every row
 saying `CALL` reads `IDLE` while the app is off screen *and was not already in
