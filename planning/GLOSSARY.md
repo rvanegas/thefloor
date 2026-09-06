@@ -68,8 +68,9 @@ plane's word for the audio underneath a channel and is a different thing.
 
 **One of Home's two lists**: the conversations you can walk into, in three
 sections — the ones somebody is in, the ones you have been asked into, and the
-rest — with your contact *requests* under them. The tab Home opens on, and
-`/channels` in a browser.
+rest. Nothing else: contact *requests* were drawn under them until 2026-09-05
+and are in *Contacts* now, with the form that sends one. The tab Home opens
+on, and `/channels` in a browser.
 
 The word had no user-facing life until 2026-09-01, the list having been called
 *Home*. It is the plural of *channel* and nothing more; what it contrasts with
@@ -152,6 +153,12 @@ by the room you talk to them in. `/contacts` in a browser.
 An entry of its own because the pair are peers, which the glossary said in the
 *Home* entry and then undercut by describing only one of them. Tapping a row
 here opens a *Contact* — the screen, which the code calls `ProfileView`.
+
+Contact *requests* are here too, since 2026-09-05, in a section above the
+people: asking and being asked are one subject, and a request is not a
+channel. A request row is the one row on this list that opens nobody — an
+outgoing one is an address rather than a person — so it carries Accept,
+Decline or Withdraw on itself.
 
 ## Floor, the
 

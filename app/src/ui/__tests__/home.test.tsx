@@ -56,7 +56,7 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
-  it('renders the channels and the requests from a snapshot', () => {
+  it('renders the channels from a snapshot, and no contact of any kind', () => {
     mockApp.home = {
       invites: [
         {
@@ -75,10 +75,11 @@ describe('Home', () => {
           lastActiveAt: NOW,
         },
       ],
+      // No contact of any status is drawn by this list. An accepted one is a
+      // channel and appears above as that; a request is the contacts tab's,
+      // since 2026-09-05.
       contacts: [
         { account: { id: 'acct_p', displayName: 'Priya Raman' }, status: 'incoming' },
-        // An accepted contact is a channel now, and appears in the list above
-        // rather than in a list of its own. Nothing on this screen draws it.
         { account: { id: 'acct_q', displayName: 'Quinn Ito' }, status: 'accepted' },
       ],
       recordings: [],
@@ -89,8 +90,7 @@ describe('Home', () => {
     expect(text).toContain('tap to join');
     expect(text).toContain('Miro Okafor');
     expect(text).toContain('1 present');
-    expect(text).toContain('Priya Raman');
-    expect(text).toContain('Accept');
+    expect(text).not.toContain('Priya Raman');
     expect(text).not.toContain('Quinn Ito');
     act(() => tree.unmount());
   });
@@ -479,30 +479,6 @@ describe('Home', () => {
       asked.mockRestore();
       act(() => tree.unmount());
     });
-  });
-
-  it('lists an invite to a stranger like any other sent request', () => {
-    // Outgoing requests carry no account id and show the address rather than a
-    // name, so one to somebody who has not signed up is indistinguishable.
-    mockApp.home = {
-      invites: [],
-      rejoinable: [],
-      contacts: [
-        { account: { id: '', displayName: 'nobody@example.com' }, status: 'outgoing' },
-        { account: { id: '', displayName: 'real@example.com' }, status: 'outgoing' },
-      ],
-      recordings: [],
-    };
-
-    const tree = render(<HomeView {...homeNav} />);
-    const text = textOf(tree);
-    expect(text).toContain('nobody@example.com');
-    expect(text).toContain('real@example.com');
-    expect(text).toContain('Sent');
-    // Neither offers a channel, and neither can be accepted.
-    expect(findButton(tree, 'Start channel')).toBeUndefined();
-    expect(findButton(tree, 'Accept')).toBeUndefined();
-    act(() => tree.unmount());
   });
 
   it('says so when the connection is down', () => {

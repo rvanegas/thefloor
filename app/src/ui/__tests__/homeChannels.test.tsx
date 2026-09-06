@@ -322,30 +322,6 @@ describe('tapping a row', () => {
         n.props.accessibilityLabel.startsWith(prefix)
     )[0];
 
-  it('leaves a sent request alone, there being no account behind it yet', () => {
-    // `displayName` holds the address for these rows, and there is no person
-    // behind it to open — which is the point of the row carrying no id. A
-    // request is listed and answered, and is not a target.
-    mockApp.home = {
-      invites: [],
-      rejoinable: [],
-      contacts: [
-        {
-          account: { id: '', displayName: 'nobody@example.com' },
-          status: 'outgoing',
-        },
-      ],
-      recordings: [],
-    };
-    const tree = render(
-      <HomeView {...homeNav} />
-    );
-
-    expect(textOf(tree)).toContain('nobody@example.com');
-    expect(pressableFor(tree, 'nobody@example.com')).toBeUndefined();
-    act(() => tree.unmount());
-  });
-
   it('steps into a channel from anywhere on its row, there being no button', () => {
     const onEnterChannel = jest.fn();
     mockApp.home = {

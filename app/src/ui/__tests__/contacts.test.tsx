@@ -231,10 +231,11 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
-  it('lists people you are contacts with, and not requests', () => {
-    // Requests stay in the channel list, where they were drawn when it was
-    // Home: they are not contacts yet, and answering one is something to do
-    // rather than somebody to look up.
+  it('draws requests above the people, and not among them', () => {
+    // Requests are here rather than in the channel list, since 2026-09-05:
+    // they are not channels, and what answering one produces is a row in this
+    // list. They keep their own section, above yours and above the contacts,
+    // being the only thing on either tab with something outstanding.
     withContacts([
       { id: 'a', displayName: 'Dana Chu', status: 'accepted' },
       { id: 'b', displayName: 'Pat Ito', status: 'incoming' },
@@ -243,8 +244,73 @@ describe('Contacts', () => {
     const tree = open();
     const text = textOf(tree);
     expect(text).toContain('Dana Chu');
-    expect(text).not.toContain('Pat Ito');
-    expect(text).not.toContain('someone@example.com');
+    expect(text).toContain('Pat Ito');
+    expect(text).toContain('Wants to be a contact');
+    expect(text).toContain('someone@example.com');
+    expect(text).toContain('Sent');
+    // Above the contacts, and not sorted in with them: an incoming request is
+    // not somebody you know yet.
+    expect(text.indexOf('Pat Ito')).toBeLessThan(text.indexOf('Dana Chu'));
+    expect(text.indexOf('Requests')).toBeLessThan(text.indexOf('Your contacts'));
+    act(() => tree.unmount());
+  });
+
+  it('answers an incoming request from the row', () => {
+    withContacts([{ id: 'b', displayName: 'Pat Ito', status: 'incoming' }]);
+    const tree = open();
+    act(() => findButton(tree, 'Accept')!.props.onPress());
+    expect(mockApp.acceptContact).toHaveBeenCalledWith('b');
+    act(() => findButton(tree, 'Decline')!.props.onPress());
+    expect(mockApp.declineContact).toHaveBeenCalledWith('b');
+    act(() => tree.unmount());
+  });
+
+  it('withdraws an outgoing request by the address, there being no id', async () => {
+    withContacts([
+      { id: '', displayName: 'someone@example.com', status: 'outgoing' },
+    ]);
+    const tree = open();
+    // Awaited: the press returns a promise, and an `act` given one without an
+    // await leaves the renderer mid-scope for every test after it.
+    await act(async () => {
+      await findButton(tree, 'Withdraw')!.props.onPress();
+    });
+    expect(mockApp.withdrawContact).toHaveBeenCalledWith('someone@example.com');
+    // Nothing to accept: an outgoing request is an address, and whether
+    // anybody is behind it is what the server withholds.
+    expect(findButton(tree, 'Accept')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('lists an invite to a stranger like any other sent request', () => {
+    // Outgoing requests carry no account id and show the address rather than a
+    // name, so one to somebody who has not signed up is indistinguishable.
+    withContacts([
+      { id: '', displayName: 'nobody@example.com', status: 'outgoing' },
+      { id: '', displayName: 'real@example.com', status: 'outgoing' },
+    ]);
+    const tree = open();
+    const text = textOf(tree);
+    expect(text).toContain('nobody@example.com');
+    expect(text).toContain('real@example.com');
+    expect(text).toContain('Sent');
+    expect(findButton(tree, 'Accept')).toBeUndefined();
+    // And no person behind either to open: a request is listed and answered,
+    // and is not a target the way a contact's row is.
+    const pressable = tree.root.findAll(
+      (n) =>
+        n.props?.accessibilityRole === 'button' &&
+        typeof n.props?.accessibilityLabel === 'string' &&
+        n.props.accessibilityLabel.startsWith('nobody@example.com')
+    )[0];
+    expect(pressable).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('draws no request section when there is nothing outstanding', () => {
+    withContacts([{ id: 'a', displayName: 'Dana Chu', status: 'accepted' }]);
+    const tree = open();
+    expect(textOf(tree)).not.toContain('Requests');
     act(() => tree.unmount());
   });
 

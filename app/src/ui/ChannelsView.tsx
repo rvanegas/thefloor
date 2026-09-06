@@ -7,25 +7,20 @@ import {
   Text,
   View,
 } from 'react-native';
-import type {
-  ContactView,
-  InviteView,
-  RejoinableView,
-} from '../../../core/protocol';
+import type { InviteView, RejoinableView } from '../../../core/protocol';
 import { WAITING_WINDOW_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
 import { leaveSeatChannel } from './handover';
-import { Button, Card, Empty, SectionLabel } from './components';
+import { Card, Empty, SectionLabel } from './components';
 import { colors, radius, spacing, type } from './theme';
 
 /**
  * The channels, as the body of the Channels tab — one of the two lists the
- * tier holds. Three sections of them, the ones somebody is in, the ones you
- * have been asked into and the rest, and then the contact requests that have
- * not turned into either yet.
+ * tier holds. Three sections of them, and nothing else: the ones somebody is
+ * in, the ones you have been asked into, and the rest.
  *
  * **A body rather than a screen, since 2026-09-01.** It was `HomeView`, and it
  * was the root of the app: a header with the title and two buttons, a live
@@ -51,13 +46,14 @@ import { colors, radius, spacing, type } from './theme';
  * idleness cannot stand in for, a room nobody has been in for a week saying
  * nothing about whether its other member is holding a phone.
  *
- * What stays here is requests, and where they belong is not settled. They are
- * not contacts yet, they are the one thing in this list that cannot be a
- * channel, and answering one is something to do rather than somebody to look
- * up — but the tab they are in is now a claim, where before it was the only
- * screen there was. HOME.md left the question open deliberately; they are here
- * because that is where they have always been drawn, not because it was
- * answered.
+ * **Contact requests are not here either, since 2026-09-05**, and that is the
+ * last thing to leave. They were drawn here for as long as this was the only
+ * screen there was, and stayed after the split for no better reason: they are
+ * not channels, and a list of channels that also carried them was answering a
+ * question it had not been asked. The tab is a claim now rather than a
+ * default, so where a request belongs is where the person it would make you
+ * would go — `ContactsView`, which is also where you send one from, so asking
+ * and being asked are finally in one place.
  *
  * Everything here is a server snapshot. Nothing is computed locally except
  * which section a channel belongs in, which is a display question.
@@ -149,12 +145,6 @@ export function ChannelsView({
   const rest = cards
     .filter((card) => !isLive(card) && card.kind === 'member')
     .sort(byIdleness);
-
-  // Everything that is not yet a contact, and so is not yet a channel. The
-  // accepted ones are in the lists above, as the channels they now come with.
-  const requests = (home?.contacts ?? []).filter(
-    (entry) => entry.status !== 'accepted'
-  );
 
   const showOffline = useOfflineNotice(app.status);
 
@@ -360,32 +350,6 @@ export function ChannelsView({
           </View>
         </>
       ) : null}
-
-      {/*
-        Requests, which are the one part of the old contact list that cannot be
-        a channel: there is nobody to talk to until they are answered. Drawn
-        only when there are any, so an account with nothing outstanding sees a
-        list of channels and nothing else.
-      */}
-      {requests.length > 0 ? (
-        <>
-          <SectionLabel>Requests</SectionLabel>
-          <View style={styles.list}>
-            {requests.map((entry) => (
-              <RequestRow
-                // An outgoing request carries no account id — deliberately, so
-                // that one sent to an address without an account is
-                // indistinguishable from one sent to a user. Its identity is
-                // the address, which is what `displayName` holds for these rows
-                // and is unique: there cannot be two requests to one address.
-                key={entry.account.id || `sent:${entry.account.displayName}`}
-                entry={entry}
-              />
-            ))}
-          </View>
-        </>
-      ) : null}
-
     </>
   );
 }
@@ -785,65 +749,6 @@ function StartChannelRow({ onPress }: { onPress: () => void }) {
   );
 }
 
-/**
- * A contact request, incoming or outgoing — the one part of the old contact
- * list that cannot be expressed as a channel, there being nobody to talk to
- * until it is answered.
- *
- * No profile behind it and no availability on it, both deliberately. An
- * outgoing request is an address rather than a person: whether anybody is
- * behind it is exactly what must not be revealed, which is why the server
- * withholds the id and the name.
- */
-function RequestRow({ entry }: { entry: ContactView }) {
-  const app = useApp();
-  const { account, status } = entry;
-  return (
-    <Card style={styles.row}>
-      <View style={styles.rowMain}>
-        <Text style={type.body}>{account.displayName}</Text>
-        <Text style={type.muted}>
-          {status === 'incoming' ? 'Wants to be a contact' : 'Pending'}
-        </Text>
-      </View>
-      {status === 'incoming' ? (
-        <View style={styles.rowActions}>
-          <Button
-            label="Accept"
-            variant="primary"
-            onPress={() => app.acceptContact(account.id)}
-          />
-          <Button
-            label="Decline"
-            variant="ghost"
-            onPress={() => app.declineContact(account.id)}
-          />
-        </View>
-      ) : (
-        <View style={styles.rowActions}>
-          <Text style={styles.pendingTag}>Sent</Text>
-          {/*
-            Identified by the address, which is what displayName holds for
-            outgoing rows — these have no account id to cancel by, on purpose.
-          */}
-          <Button
-            label="Withdraw"
-            variant="ghost"
-            onPress={() =>
-              app.withdrawContact(account.displayName).catch((e) => {
-                Alert.alert(
-                  'Could not withdraw',
-                  e instanceof Error ? e.message : String(e)
-                );
-              })
-            }
-          />
-        </View>
-      )}
-    </Card>
-  );
-}
-
 const styles = StyleSheet.create({
   offline: {
     backgroundColor: colors.surface,
@@ -872,7 +777,6 @@ const styles = StyleSheet.create({
    * they were the greyest thing on the screen.
    */
   described: { ...type.body, fontStyle: 'italic' },
-  rowActions: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
   /**
    * Not `row`, which spreads its children apart to put a control on the end.
    * Here the mark and the label are one phrase and belong together on the
@@ -906,7 +810,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   startLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
-  pendingTag: { ...type.muted, color: colors.textFaint },
   /** An invitation somebody is waiting in, which is worth shouting about. */
   invite: {
     backgroundColor: colors.floorDim,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ContactView as Contact } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
@@ -35,10 +35,15 @@ import { colors, spacing, type } from './theme';
  * on the screen about the pair, and the reason to read a line saying three
  * people are in one of them is to go there. See ProfileView.
  *
- * Requests stay in the channel list, where they were drawn when it was Home.
- * They are not contacts yet, and answering one is a thing to do rather than
- * somebody to look up — but which tab they belong in is a question the tier
- * reopened and did not settle. See `ChannelsView`.
+ * **Requests are here, since 2026-09-05**, and not in the channel list where
+ * they were drawn back when it was the whole app. They are not contacts yet,
+ * which is what kept them out — but they are not channels either, and being
+ * neither is not a reason to file them under the one they are further from.
+ * A request is a person who is about to be in this list or is not: answering
+ * one adds a row below, withdrawing one takes it off the screen, and the form
+ * that sends one is at the top of this same list. They sit above *You* and
+ * above the contacts because they are the only thing on either tab with
+ * something outstanding to do about it.
  *
  * You are a card of your own, since 2026-08-29, under the add-contact row
  * rather than above it, and under a section label reading *You* since
@@ -78,9 +83,40 @@ export function ContactsView({
     .filter((entry) => entry.status === 'accepted')
     .sort(byAvailability);
 
+  // Everybody who is not a contact yet, in either direction. The accepted ones
+  // are the list below; these are the ones there is still something to do
+  // about.
+  const requests = (app.home?.contacts ?? []).filter(
+    (entry) => entry.status !== 'accepted'
+  );
+
   return (
     <>
       <AddContact />
+
+      {/*
+        Requests, drawn only when there are any — an account with nothing
+        outstanding sees the people it knows and nothing else, which is what
+        this list is for the rest of the time.
+      */}
+      {requests.length > 0 ? (
+        <>
+          <SectionLabel>Requests</SectionLabel>
+          <View style={[styles.list, styles.requests]}>
+            {requests.map((entry) => (
+              <RequestRow
+                // An outgoing request carries no account id — deliberately, so
+                // that one sent to an address without an account is
+                // indistinguishable from one sent to a user. Its identity is
+                // the address, which is what `displayName` holds for these rows
+                // and is unique: there cannot be two requests to one address.
+                key={entry.account.id || `sent:${entry.account.displayName}`}
+                entry={entry}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
 
       {/*
         You, in a section of your own rather than outside every section.
@@ -222,6 +258,65 @@ function ContactRow({
 }
 
 /**
+ * A contact request, incoming or outgoing — a row for somebody who is not in
+ * the list above yet, and may never be.
+ *
+ * No profile behind it and no availability on it, both deliberately. An
+ * outgoing request is an address rather than a person: whether anybody is
+ * behind it is exactly what must not be revealed, which is why the server
+ * withholds the id and the name. So this is the one row here that does not
+ * open anybody, and it carries its actions on itself instead.
+ */
+function RequestRow({ entry }: { entry: Contact }) {
+  const app = useApp();
+  const { account, status } = entry;
+  return (
+    <Card style={styles.requestRow}>
+      <View style={styles.rowMain}>
+        <Text style={type.body}>{account.displayName}</Text>
+        <Text style={type.muted}>
+          {status === 'incoming' ? 'Wants to be a contact' : 'Pending'}
+        </Text>
+      </View>
+      {status === 'incoming' ? (
+        <View style={styles.rowActions}>
+          <Button
+            label="Accept"
+            variant="primary"
+            onPress={() => app.acceptContact(account.id)}
+          />
+          <Button
+            label="Decline"
+            variant="ghost"
+            onPress={() => app.declineContact(account.id)}
+          />
+        </View>
+      ) : (
+        <View style={styles.rowActions}>
+          <Text style={styles.pendingTag}>Sent</Text>
+          {/*
+            Identified by the address, which is what displayName holds for
+            outgoing rows — these have no account id to cancel by, on purpose.
+          */}
+          <Button
+            label="Withdraw"
+            variant="ghost"
+            onPress={() =>
+              app.withdrawContact(account.displayName).catch((e) => {
+                Alert.alert(
+                  'Could not withdraw',
+                  e instanceof Error ? e.message : String(e)
+                );
+              })
+            }
+          />
+        </View>
+      )}
+    </Card>
+  );
+}
+
+/**
  * Asking somebody to be a contact, folded away until it is wanted.
  *
  * It was a permanent field at the foot of Home. At the top of a list of people
@@ -328,7 +423,21 @@ function AddContact() {
 
 const styles = StyleSheet.create({
   list: { gap: spacing(1) },
+  /** The gap a section label below would otherwise sit straight on top of. */
+  requests: { marginBottom: spacing(0.5) },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing(1.5) },
+  /**
+   * A contact's row packs its one line to the left; this one has controls on
+   * the end, so it spreads instead.
+   */
+  requestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing(1.5),
+  },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
+  pendingTag: { ...type.muted, color: colors.textFaint },
   rowMain: { flex: 1, gap: 2 },
   rowPressed: { opacity: 0.7 },
   /**

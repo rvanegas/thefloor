@@ -86,6 +86,7 @@ export const mockApp = {
   requestContact: jest.fn(),
   acceptContact: jest.fn(),
   declineContact: jest.fn(),
+  withdrawContact: jest.fn(async () => {}),
   startChannel: jest.fn(),
   // Answers for whoever is asked about, as the server does — a mock that
   // returns one person regardless would hide a component reading the wrong id.
