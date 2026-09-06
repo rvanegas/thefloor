@@ -114,6 +114,50 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## A hold with nothing to hold — 2026-09-06
+
+**`connect muted CALL` is a state that should not exist.** The `muted` intent
+means *leave the device exactly as it is* — still open if open, and
+deliberately **not opened if shut**, because publishing a track and muting it a
+moment later leaves a live microphone on the wire for two awaits. That is the
+right rule for what it was written for on 2026-08-20: a device held across
+somebody's self-mute.
+
+**A connection has no device by definition.** It is a new `Room` with nothing
+published, so at connect the intent expresses nothing and `holdMicrophone`
+returns having done nothing. Observed in the field: the call session was taken,
+no microphone was ever opened, nothing was capturing, and a silent wait that
+should have held presence lapsed to *Nearby* with nothing on screen to say why.
+It read as flaky — a force-quit "fixed" it — which is what an ordering bug
+looks like from outside.
+
+**Nobody had touched a mute.** `selfMuted` in the hook is derived: when a track
+is subscribed and the microphone is not otherwise needed, `holdForPlayout`
+forces `muted` to preserve a device that is rendering. So *somebody else's
+track lingering after they stopped being present* was enough to produce it, on
+a connection that had published nothing.
+
+**Only a hold that nobody asked for is overridden**, and that distinction is
+the whole of the fix. A `muted` intent arising from an actual self-mute is left
+alone: the person said they did not want to transmit, and the cost — no device,
+so nothing keeps them alive, so they lapse — is theirs to have chosen. What is
+overridden is the *forced* hold, which exists to preserve a device and
+therefore has nothing to say when there is none.
+
+**Fixed at the apply site rather than at `holding`.** Conditioning the hold on
+whether a device exists would make the 2026-09-05 freeze fix depend on state
+its own effect sets, which is a loop worth avoiding in the one mechanism that
+stopped playout freezing. The override leaves the hold untouched for the case
+it was built for.
+
+**Left alone knowingly:** a genuine self-mute at connect still logs `muted`
+where `released` would describe it exactly. The outcome is identical — nothing
+is published — and the `muted` branch is the only one that does not re-state
+the audio configuration, so collapsing it would add a session write to a path
+that has none.
+
+---
+
 ## The other-audio flag is honest only before our own session — 2026-09-06
 
 **Build 153 took a *silent* wait with music plainly playing**, held a

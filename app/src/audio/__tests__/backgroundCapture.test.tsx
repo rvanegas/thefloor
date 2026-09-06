@@ -336,6 +336,64 @@ describe('a device with no microphone', () => {
   });
 });
 
+describe('a hold with nothing to hold', () => {
+  beforeEach(reset);
+  afterEach(() => jest.useRealTimers());
+
+  /** As `App.tsx` calls it: the playout hold is on. */
+  function Holding({ audio }: { audio: boolean }) {
+    useSessionAudio(
+      'room-1',
+      'chan-1',
+      'auth-token',
+      false,
+      audio,
+      audio,
+      false,
+      true,
+      true
+    );
+    return null;
+  }
+
+  /**
+   * **Observed as `connect muted CALL` on 2026-09-06.** A track is subscribed
+   * and the microphone is not otherwise needed, so `holdForPlayout` forces the
+   * `muted` intent — which means *keep the device you have*. On a fresh
+   * connection there is none, `holdMicrophone` returns having done nothing,
+   * and a silent wait that should have held presence lapsed to *Nearby*.
+   *
+   * The hold exists to preserve a device. With none to preserve it must fall
+   * through to what the channel wants, which here is a microphone.
+   */
+  it('opens a microphone rather than holding nothing', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Holding audio={false} />);
+    });
+    await settle();
+
+    // Somebody else's track, with nobody present — the shape that forces the
+    // hold on a connection that has published nothing.
+    await act(async () => {
+      mockRooms[0].fire(
+        'trackSubscribed',
+        { kind: 'audio' },
+        {},
+        { identity: 'acct_them' }
+      );
+    });
+    await settle();
+
+    expect(micOf()).toHaveBeenCalledWith(true);
+    expect(logged().some((l) => l.includes('muted CALL'))).toBe(false);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+});
+
 describe('capture against the foreground', () => {
   beforeEach(reset);
   afterEach(() => jest.useRealTimers());

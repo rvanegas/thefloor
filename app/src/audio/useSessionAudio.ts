@@ -1620,7 +1620,39 @@ export function useSessionAudio(
   useEffect(() => {
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-    const wanted = intentFor(micNeeded, selfMuted);
+    const asked = intentFor(micNeeded, selfMuted);
+
+    /**
+     * **A hold with nothing to hold, resolved rather than obeyed.**
+     *
+     * `muted` means *leave the device exactly as it is* — still open if it was
+     * open, and deliberately **not opened if it was shut**, because publishing
+     * a track and muting it a moment later leaves a live microphone on the
+     * wire for two awaits. That is the right rule for the case it was written
+     * for: a device that is genuinely open, held across somebody's self-mute.
+     *
+     * At a **fresh connection there is no device**, so the intent expresses
+     * nothing and `holdMicrophone` returns having done nothing. Observed
+     * 2026-09-06 as `connect muted CALL`: the call session was taken, no
+     * microphone was ever opened, nothing was capturing, and a silent wait
+     * that should have held presence lapsed to *Nearby* with nothing on screen
+     * to say why.
+     *
+     * **Only a hold that nobody asked for is overridden.** A `muted` intent
+     * that came from an actual self-mute is left alone — the person said they
+     * did not want to transmit, and the cost of honouring that is that their
+     * wait cannot hold presence. What is overridden is the intent
+     * `holdForPlayout` forces when a track is subscribed and the microphone is
+     * not otherwise needed: that exists to *preserve* a device, so with none to
+     * preserve it should fall through to what the channel actually wants.
+     */
+    const heldOnly = !selfMutedAsked && holding;
+    const wanted: MicIntent =
+      asked === 'muted' && heldOnly && !micTrack(room)
+        ? micNeeded
+          ? 'capturing'
+          : 'released'
+        : asked;
 
     /**
      * **A backgrounded app may keep a call session and may not start one.**
