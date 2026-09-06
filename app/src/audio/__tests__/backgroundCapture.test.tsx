@@ -4,6 +4,7 @@ import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { useSessionAudio } from '../useSessionAudio';
 import { drainEvents, resetDiagnostics } from '../diagnostics';
 import { startSilence, stopSilence } from '../../../modules/keep-alive';
+import { routeSnapshot } from '../../../modules/audio-route';
 import { WAITING_WINDOW_MS } from '../../../../core/constants';
 
 /**
@@ -174,6 +175,9 @@ const logged = () => drainEvents().map((e) => e.text);
 
 const reset = () => {
   mockRooms.length = 0;
+  (routeSnapshot as jest.Mock).mockImplementation(() => ({
+    otherAudioPlaying: mockRoute.otherAudioPlaying,
+  }));
   mockRoute.otherAudioPlaying = false;
   mockEngine.inputAvailable = true;
   captureAppState();
@@ -223,6 +227,38 @@ describe('the silent wait', () => {
 
     expect(logged().some((l) => l.includes('IDLE'))).toBe(true);
     expect(micOf()).not.toHaveBeenCalledWith(true);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * **The reading is taken once and not overturned by a later one.**
+   *
+   * Build 153 asked again on the tick that connects, and the connect path
+   * activates this app's own session — after which iOS reports no other audio.
+   * So a step-in with music plainly playing took the *silent* wait, held a
+   * microphone, and stayed present when its owner expected to lapse. The flag
+   * is honest before our session is in play and not after, so the second
+   * answer here is the dishonest one and must not be consulted.
+   */
+  it('keeps the first answer when a later one would disagree', async () => {
+    let asked = 0;
+    (routeSnapshot as jest.Mock).mockImplementation(() => ({
+      // True the first time, false ever after — the shape of the field
+      // failure, where our own session made the second reading a lie.
+      otherAudioPlaying: asked++ === 0,
+    }));
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe audio={false} />);
+    });
+    await settle();
+
+    expect(micOf()).not.toHaveBeenCalledWith(true);
+    expect(logged().some((l) => l.includes('other audio T'))).toBe(true);
 
     await act(async () => {
       tree.unmount();

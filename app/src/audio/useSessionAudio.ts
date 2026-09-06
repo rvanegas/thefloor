@@ -729,12 +729,19 @@ export function useSessionAudio(
    * thirty seconds, dragging a headset between HFP and A2DP and killing a
    * podcast a fraction of a second after its play button.
    *
-   * So it is asked only while the app is active — at step-in and at each
-   * foreground — and the answer is **held** in between. That is not a
-   * workaround for the flag being poor: the decision it feeds can only be
-   * acted on before the phone is locked anyway, because iOS will not grant a
-   * backgrounded app a microphone it did not already have. The one moment the
-   * answer matters is the one moment it is sound.
+   * **Asked on the foreground and never on the tick that connects**, which is
+   * narrower than it first shipped and the narrowing was measured. Keyed on
+   * `mediaRoom` as well, the read fired on the same tick as the connection —
+   * and the connect path activates our own session, after which iOS reports no
+   * other audio. Build 153 duly took a *silent* wait with music plainly
+   * playing, held a microphone, and stayed present while its owner expected to
+   * lapse. So the flag is not honest "while the app is active"; it is honest
+   * **before this app's own session is in play**, and the only reliable moment
+   * to ask is a foreground with no connection being made.
+   *
+   * The answer is **held** in between, which costs nothing: the decision it
+   * feeds can only be acted on before the phone is locked anyway, because iOS
+   * will not grant a backgrounded app a microphone it did not already have.
    *
    * `silenceSecondaryAudioHintNotification` would have made this an event
    * rather than a reading. It was shipped in build 150 and never fired once;
@@ -748,8 +755,14 @@ export function useSessionAudio(
   const [otherAudio, setOtherAudio] = useState<boolean | null>(null);
   useEffect(() => {
     if (!foreground) return;
-    setOtherAudio(routeSnapshot()?.otherAudioPlaying === true);
-  }, [foreground, mediaRoom]);
+    const playing = routeSnapshot()?.otherAudioPlaying === true;
+    // **Logged because every diagnosis that cost more than one build was one
+    // where the app did not record what it believed.** This value decides
+    // which wait somebody gets, and it was previously legible only two steps
+    // downstream, from which session was chosen.
+    recordEvent(`other audio ${playing ? 'T' : 'F'} (asked)`);
+    setOtherAudio(playing);
+  }, [foreground]);
 
   /**
    * Whether there is a microphone to open — see `SessionAudio.inputAvailable`

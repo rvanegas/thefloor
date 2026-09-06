@@ -114,6 +114,41 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## The other-audio flag is honest only before our own session — 2026-09-06
+
+**Build 153 took a *silent* wait with music plainly playing**, held a
+microphone, and stayed present while its owner expected to lapse to *Nearby*.
+The log: `connect capturing CALL` at the step-in, and the app still processing
+a subscription eighty-five seconds after being backgrounded, because capturing
+keeps a process alive.
+
+**The reading was taken on the tick that connects.** It was keyed on
+`[foreground, mediaRoom]`, so entering a channel fired it — and the connect
+path activates this app's own audio session, after which iOS reports no other
+audio. The answer was false, the branch went to the silent wait, and everything
+downstream followed correctly from a wrong premise.
+
+**So the earlier conclusion was too generous and is corrected here.**
+`isOtherAudioPlaying` was said to be honest *while the app is active*. It is
+honest **before this app's own session is in play**. Those coincide at a
+foreground with no connection being made, and nowhere else. The read is now
+keyed on `[foreground]` alone.
+
+**And it is logged.** `other audio T/F (asked)`, at the moment it decides.
+Every diagnosis tonight that cost more than one build was one where the app did
+not record what it believed — this value was previously legible only two steps
+downstream, inferred from which session got chosen. One line ends that.
+
+**A caution for anyone who reads a roster during a trial.** The same evening,
+"still shows me as present" was read as a presence bug when the server had
+nobody present at all: the observing client's snapshot was stale. A watcher who
+is a member but not *present* may not be in the emit audience — `roomOccupants`
+is what builds it — so a watching device can show a roster minutes out of date.
+Unconfirmed, and worth confirming before anybody trusts a second screen as an
+instrument.
+
+---
+
 ## An accompanied wait gives up presence, and ducking went with it — 2026-09-06
 
 **Being heard without being able to answer is worse than being absent.** With
