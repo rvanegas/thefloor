@@ -1257,6 +1257,49 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * A Mac mini has no built-in microphone, and this app publishes nothing
+   * without one — asking WebRTC to capture from a device that does not exist
+   * dereferences null inside `AVFAudio` and takes the process with it. So the
+   * control has to say what is true: muted, and no way to change it. Offering
+   * an Unmute that the reducer would accept and nobody would hear is the one
+   * outcome worse than the crash being fixed.
+   */
+  it('reads muted and refuses the control when there is no microphone', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={{ ...AUDIO, inputAvailable: false }}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const footer = footerOf(tree);
+
+    // Labelled for the state it is in, not for the action it cannot offer.
+    expect(textOf(footer)).toContain('Unmute');
+    expect(findButton(footer, 'Unmute')!.props.accessibilityState.disabled).toBe(
+      true
+    );
+
+    act(() => footer.unmount());
+  });
+
+  it('leaves the control alone when there is one', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    const footer = footerOf(tree);
+
+    expect(findButton(footer, 'Mute')!.props.accessibilityState.disabled).toBe(
+      false
+    );
+
+    act(() => footer.unmount());
+  });
+
   it('greys what the reducer would refuse, and never the way out', () => {
     // Outside the room. The mute is not yours — the microphone is shut and
     // muting it changes nothing anybody can hear — and the floor wants

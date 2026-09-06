@@ -565,7 +565,17 @@ export function ChannelView({
   const theyHoldFloor = channel.floor.holder !== null && !iHoldFloor;
   const holderName = nameOf(channel.floor.holder);
   const iAmSilenced = isSilenced(channel.floor, me);
-  const iAmSelfMuted = !!channel.selfMuted[me];
+  /**
+   * **No microphone is the same as muted, as far as the interface goes.**
+   * A Mac mini has no built-in input, and this app publishes nothing without
+   * one — see `SessionAudio.inputAvailable`, and the crash that made it
+   * necessary. Saying "your microphone is open" there would be false, and
+   * offering a Mute button that does nothing would be worse: the reducer would
+   * accept the mute, the screen would change, and not one thing about what
+   * anybody hears would move.
+   */
+  const noInput = audio.inputAvailable === false;
+  const iAmSelfMuted = noInput || !!channel.selfMuted[me];
   const claimable = canClaimFloor(channel, me, now);
   const cooldown = cooldownRemainingMs(channel.floor, channel.present, me, now);
   const claimRemaining = floorRemainingMs(channel.floor, now);
@@ -933,11 +943,21 @@ export function ChannelView({
       <View style={styles.footerInner}>
       <FooterAction
         label={iAmSelfMuted ? 'Unmute' : 'Mute'}
-        hint={iAmSelfMuted ? 'Your microphone is muted' : 'Your microphone is open'}
+        hint={
+          noInput
+            ? 'This device has no microphone'
+            : iAmSelfMuted
+              ? 'Your microphone is muted'
+              : 'Your microphone is open'
+        }
         icon={(color) => <MicIcon color={color} muted={iAmSelfMuted} />}
         // The same guard the card's button uses. Holding the floor is holding
-        // it open to speak, and the reducer refuses the mute either way.
-        disabled={!iAmPresent || !canSetSelfMute(channel, me, !iAmSelfMuted)}
+        // it open to speak, and the reducer refuses the mute either way. A
+        // device with no input is disabled on top of that: there is nothing to
+        // unmute, and the control would otherwise promise one.
+        disabled={
+          noInput || !iAmPresent || !canSetSelfMute(channel, me, !iAmSelfMuted)
+        }
         // Being force-muted by somebody else's claim is not the same state as
         // muting yourself, and it is the one worth colouring: the microphone
         // is shut and you did not shut it.
@@ -1299,12 +1319,15 @@ export function ChannelView({
                 label={iAmSelfMuted ? 'Unmute yourself' : 'Mute yourself'}
                 // Holding the floor is holding it open to speak. The reducer
                 // refuses the mute either way; disabling the control is what stops
-                // the two disagreeing on screen.
-                disabled={!canSetSelfMute(channel, me, !iAmSelfMuted)}
+                // the two disagreeing on screen. Same for a device with no
+                // microphone, where there is nothing to unmute at all.
+                disabled={noInput || !canSetSelfMute(channel, me, !iAmSelfMuted)}
                 onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
               />
               <Text style={type.muted}>
-                {iAmSilenced
+                {noInput
+                  ? 'This device has no microphone, so nothing is published. You can still hear everybody.'
+                  : iAmSilenced
                   ? `Silenced by ${holderName}'s floor claim.`
                   : iHoldFloor
                     ? 'Open while you hold the floor — release it to mute yourself.'

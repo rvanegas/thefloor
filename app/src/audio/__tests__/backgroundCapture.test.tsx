@@ -37,6 +37,12 @@ import { WAITING_WINDOW_MS } from '../../../../core/constants';
  */
 const mockRoute = { otherAudioPlaying: false };
 
+const mockEngine = { inputAvailable: true };
+
+jest.mock('../engineState', () => ({
+  engineSnapshot: jest.fn(() => ({ inputAvailable: mockEngine.inputAvailable })),
+}));
+
 jest.mock('../../../modules/audio-route', () => ({
   routeSnapshot: jest.fn(() => ({
     otherAudioPlaying: mockRoute.otherAudioPlaying,
@@ -169,6 +175,7 @@ const logged = () => drainEvents().map((e) => e.text);
 const reset = () => {
   mockRooms.length = 0;
   mockRoute.otherAudioPlaying = false;
+  mockEngine.inputAvailable = true;
   captureAppState();
   (startSilence as jest.Mock).mockClear();
   (stopSilence as jest.Mock).mockClear();
@@ -236,6 +243,55 @@ describe('the silent wait', () => {
     });
     await settle();
 
+    expect(micOf()).not.toHaveBeenCalledWith(true);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+});
+
+describe('a device with no microphone', () => {
+  beforeEach(reset);
+  afterEach(() => jest.useRealTimers());
+
+  /**
+   * A Mac mini has none. Asking WebRTC's audio device module to capture from a
+   * device that does not exist dereferences null inside `AVFAudio` and takes
+   * the process with it — five identical crashes on 2026-09-06, App Store
+   * build 127. Nothing is published, so the branch that calls
+   * `setMicrophoneEnabled(true)` is never reached.
+   */
+  it('publishes nothing, alone in a channel', async () => {
+    mockEngine.inputAvailable = false;
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe audio={false} />);
+    });
+    await settle();
+
+    expect(micOf()).not.toHaveBeenCalledWith(true);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * **And it still hears.** The session is a call because there is audio to
+   * hear; only the microphone is withheld. A machine with no input can listen,
+   * it simply cannot speak — which is the difference between this and refusing
+   * to connect.
+   */
+  it('still takes the call session when somebody is there', async () => {
+    mockEngine.inputAvailable = false;
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe audio={true} />);
+    });
+    await settle();
+
+    expect(logged().some((l) => l.includes('CALL'))).toBe(true);
     expect(micOf()).not.toHaveBeenCalledWith(true);
 
     await act(async () => {

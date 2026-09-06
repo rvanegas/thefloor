@@ -114,6 +114,41 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## No microphone is a state, not a failure — 2026-09-06
+
+**A Mac mini has no built-in input, and asking WebRTC to capture from a device
+that does not exist kills the process.** Five identical crashes, App Store build
+127, `EXC_BAD_ACCESS` / `KERN_INVALID_ADDRESS at 0x20`, a null dereference
+inside `AVFAudio` reached from the audio device module's worker thread.
+Connecting AirPods to the same machine made it work.
+
+**Pre-existing, and this project was about to make it constant.** On 127 the
+Mac only opens a microphone when somebody else is present, which is why it took
+a shared channel and twenty-four builds to find. The silent wait makes
+`micNeeded` true whenever somebody is *alone* in a channel — so without this,
+build 151 would have turned "crashes when there is company" into "crashes on
+stepping into anything".
+
+**The rule, stated at the prompt: if no input is available, publish nothing,
+show the mute status as muted, and disable the control.** All three parts
+matter. Publishing nothing is what avoids the crash. Reading *muted* is what
+makes the screen true — "your microphone is open" would be a lie. And disabling
+the control is what stops the interface offering an Unmute that the reducer
+would happily accept and nobody would ever hear.
+
+**It listens.** `hasAudio` is untouched, so the session still goes to `CALL`
+and everybody else is still heard. A machine with no microphone can take part
+in a conversation without speaking, which is a good deal better than refusing
+to connect.
+
+**`inputAvailable` is read at the same edges as the other-audio flag** — at
+step-in and each foreground — and is mirrored into `SessionAudio` so the
+interface reads the same fact the audio path acts on. **Unreadable counts as
+available**, because the only place the engine cannot be read is off iOS, where
+none of this applies; the sole way to be told *no* is for the engine to say so.
+
+---
+
 ## The third audio configuration, deleted a day after it arrived — 2026-09-06
 
 **`WAITING` was `CALL` plus `mixWithOthers`**, shipped on 2026-09-05 so a quiet

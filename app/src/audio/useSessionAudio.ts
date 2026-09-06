@@ -26,6 +26,7 @@ import { startSilence, stopSilence } from '../../modules/keep-alive';
 import { WAITING_WINDOW_MS } from '../../../core/constants';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
+import { engineSnapshot } from './engineState';
 import {
   initialPlayoutWatches,
   onPlayoutReadings,
@@ -178,6 +179,21 @@ export interface SessionAudio {
    * says the microphone is open when it is not.
    */
   micOpen: boolean;
+  /**
+   * Whether this device has a microphone at all.
+   *
+   * **False is a real state and not a failure to read it.** A Mac mini has no
+   * built-in input, and asking WebRTC's audio device module to capture from a
+   * device that does not exist dereferences null inside `AVFAudio` and takes
+   * the process with it — five identical crashes on 2026-09-06, App Store
+   * build 127, `KERN_INVALID_ADDRESS at 0x20`. Plugging in AirPods fixed it.
+   *
+   * So nothing is published without one, and the interface says so: the mute
+   * control reads muted and is disabled, which is the truth rather than a
+   * consolation. Unreadable counts as *available* — the module is absent only
+   * off iOS, where none of this applies.
+   */
+  inputAvailable: boolean;
   /**
    * What this hook last asked of the audio session, or null before it has
    * asked anything.
@@ -627,6 +643,7 @@ export function useSessionAudio(
     speaking: [],
     failing: [],
     micOpen: false,
+    inputAvailable: true,
     asked: null,
     // Replaced below, once `setGeneration` exists to close over. Never called
     // in between: nothing renders before the hook returns.
@@ -734,6 +751,26 @@ export function useSessionAudio(
     setOtherAudio(routeSnapshot()?.otherAudioPlaying === true);
   }, [foreground, mediaRoom]);
 
+  /**
+   * Whether there is a microphone to open — see `SessionAudio.inputAvailable`
+   * for the crash that makes this necessary rather than tidy.
+   *
+   * Read at the same edges as the flag above, and for a related reason: a
+   * device can appear or vanish while the app runs, and plugging in a headset
+   * is something somebody does while looking at the phone. Unreadable is taken
+   * as available, so the only way to be told *no* is for the engine to say so.
+   */
+  const [inputAvailable, setInputAvailable] = useState(true);
+  useEffect(() => {
+    if (!foreground) return;
+    const engine = engineSnapshot();
+    const available = engine ? engine.inputAvailable : true;
+    setInputAvailable(available);
+    // Mirrored into the state the interface reads, so the mute control can say
+    // what is true rather than offering an action that cannot happen.
+    setState((s) => (s.inputAvailable === available ? s : { ...s, inputAvailable: available }));
+  }, [foreground, mediaRoom]);
+
   const holding = holdForPlayout && state.othersAudible > 0;
 
   /**
@@ -759,10 +796,20 @@ export function useSessionAudio(
    * and nothing in iOS will tell us it happened.
    */
   const waitingAlone =
-    !!mediaRoom && !hasAudioAsked && !handBack && otherAudio === false;
+    inputAvailable &&
+    !!mediaRoom &&
+    !hasAudioAsked &&
+    !handBack &&
+    otherAudio === false;
 
   const hasAudio = hasAudioAsked || holding || waitingAlone;
-  const micNeeded = micNeededAsked || holding || waitingAlone;
+  // **Never true without a microphone to open.** `intentFor` collapses to
+  // `released`, so nothing is published and the capturing branch — the one
+  // that calls `setMicrophoneEnabled(true)` and crashes an input-less device
+  // inside `AVFAudio` — is never reached. The session still goes to `CALL`
+  // through `hasAudio`, so somebody else is still *heard*: a machine with no
+  // microphone can listen, it simply cannot speak.
+  const micNeeded = (micNeededAsked || holding || waitingAlone) && inputAvailable;
   // Held, not captured. Left alone whenever the microphone was genuinely
   // wanted, so this can only ever add a hold and never silence a real one.
   //

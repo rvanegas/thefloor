@@ -204,6 +204,9 @@ export const AUDIO = {
   speaking: [] as string[],
   failing: [] as string[],
   micOpen: true,
+  // A microphone exists, which is the ordinary case and the one every view
+  // test means. `channel.test.tsx` is where the other one is rendered.
+  inputAvailable: true,
   // Nothing has been asked of the audio session, which is what a view test
   // renders against: the diagnostic panel is gated on `mockApp.debug` and is
   // absent from every case here but its own.
