@@ -695,7 +695,7 @@ expiry, pushed out on every sign of life. `ChannelState.guests` is the volatile
 half and means *present*; the seat is what lets somebody come back. See *seat*
 in Part One.
 
-## Session want — `call`, `idle`, `ducked`
+## Session want — `call`, `idle`
 
 The three answers to *what is this app asking iOS for*, named by `SessionWant`
 in `app/src/audio/session.ts` and decided in one place, `wantFor` in
@@ -719,12 +719,12 @@ Asked for when this app should take nothing — a *watch party* withholding for
 its film — and for an **accompanied wait**, where somebody steps into a channel
 while their phone is already playing something.
 
-**`ducked`** is `idle` plus `duckOthers`, and differs in nothing else: same
-category, same mode, same route. Asked for during an accompanied wait **while
-somebody is actually audible**, so a voice is heard over the other app rather
-than lost in it. Not before — the keep-alive silence plays for the whole wait,
-and ducking unconditionally would quiet somebody's music for fifteen minutes to
-make room for nothing.
+**An accompanied wait gives up presence.** The phone is not kept awake, so it
+suspends, its presence lapses, and the roster reads *Nearby* — the arrival
+notification does the work. That was decided after the alternative was built
+and tried: staying awake meant the arrival could be *heard* but not answered,
+since iOS grants a backgrounded app no microphone, and being talked to with no
+way to reply is worse than being absent.
 
 **Which wait you get is decided at step-in**, from whether another app was
 playing at that moment, and re-decided only when the app is brought forward.
@@ -732,12 +732,14 @@ playing at that moment, and re-decided only when the app is brought forward.
 reports our own foreground state rather than anybody else's audio — and that is
 also the only moment the decision can be acted on.
 
-**A fourth value existed for one day.** `WAITING` was `call` plus
+**Two other values have existed and gone.** `WAITING` was `call` plus
 `mixWithOthers`, meant to hold the hands-free route through a quiet channel. It
 was deleted on 2026-09-06: a call-shaped session stops another app's audio
 whether or not it mixes, so the option bought nothing and the category cost
 everything. A reader who finds it in an older document is reading about
-something that no longer exists.
+something that no longer exists. `ducked` was `idle` plus `duckOthers`, and
+lasted about an hour: it could only be reached from a state this app then
+stopped keeping alive, so nothing could ever have reached it.
 
 `sessionFor` turns a want into the configuration; `policyFor` hands the same
 answer to the SDK's native observer, which is a second writer that re-applies a

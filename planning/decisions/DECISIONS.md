@@ -114,6 +114,49 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## An accompanied wait gives up presence, and ducking went with it — 2026-09-06
+
+**Being heard without being able to answer is worse than being absent.** With
+music playing and the phone backgrounded, the ducking below worked exactly as
+built: the arriving voice carried over the music and was easy to understand.
+And it could not be answered, because iOS grants a backgrounded app no
+microphone. The other person talks to somebody who cannot reply and has no way
+to learn that. Reported from the field in those terms, and it decided the
+question.
+
+**So the accompanied wait is no longer kept alive.** The phone suspends, its
+presence lapses after about 105 seconds, the roster reads *Nearby*, and the
+arrival notification does the work it was always for. Which is where this
+started: the ping-pong that opened the whole investigation.
+
+**And that made ducking unreachable, an hour after it shipped.** `DUCKED` fired
+only when the app was alive, backgrounded, with another app playing and
+somebody audible — exactly the state now allowed to suspend. In the foreground
+an arrival makes `hasAudio` true and takes `CALL`, which stops the music
+outright. Both are removed rather than left as code nothing can reach. The
+experiment is worth its hour: it established that ducking works and is cheap,
+which is a fact this project can now spend rather than rediscover.
+
+**The silent wait is untouched** — microphone held from step-in, kept alive by
+capturing, heard *and answerable* on a locked phone. That is the half that
+works, and the asymmetry above is precisely what it does not have.
+
+**A bug found by being disbelieved.** Asked how one could ever be backgrounded
+with music playing while stepped in, the answer turned out to be *start the
+music first*. Pressed on why stepping in had once stopped the music anyway, the
+teardown proved to be at fault: leaving a channel called `pushPolicy('idle')`,
+which only tells the SDK's observer what to use next, and **never wrote the
+session back**. `stopAudioSession` does not clear the category either. So a
+phone that had been in a call sat on the Home screen holding `playAndRecord`
+with no channel behind it, and the next thing to make a sound met a call
+session — music started there died instantly, and a wait that should have been
+*accompanied* stopped the music it was meant to leave alone. The route log
+showed `PlayAndRecord/VideoChat` against `screen home`, a state that should not
+exist. `applyFor('idle')` on teardown closes it, and it explains why the same
+test gave different answers depending on whether the app had been force-quit.
+
+---
+
 ## The other app is turned down rather than talked over — 2026-09-06
 
 **An accompanied wait now ducks.** Standing in a channel with music playing,

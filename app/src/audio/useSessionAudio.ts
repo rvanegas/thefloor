@@ -431,18 +431,8 @@ function trace(config: AppleAudioConfiguration, want: SessionWant): void {
  *                 iOS will grant: false while a promotion is deferred.
  * @param handBack `isPartyMuted` — this app should not have the audio system.
  */
-function wantFor(
-  hasAudio: boolean,
-  handBack: boolean,
-  audibleOthers: number
-): SessionWant {
-  if (hasAudio && !handBack) return 'call';
-  // **Ducked only while there is a voice to hear over the other app.** The
-  // keep-alive silence plays for the whole of an accompanied wait, so ducking
-  // unconditionally would quiet somebody's music for fifteen minutes to make
-  // room for nothing. A watch party reaches `idle` with nothing subscribed —
-  // withholding unsubscribes listeners — so a film is never ducked either.
-  return audibleOthers > 0 ? 'ducked' : 'idle';
+function wantFor(hasAudio: boolean, handBack: boolean): SessionWant {
+  return hasAudio && !handBack ? 'call' : 'idle';
 }
 
 function pushPolicy(want: SessionWant): void {
@@ -1056,11 +1046,24 @@ export function useSessionAudio(
     // before the category is written activates the system default, which does
     // not mix and stops whatever else the phone was playing.
     //
-    // **`hasAudio` false is now specifically the *accompanied* wait** — quiet
-    // channel, another app playing, session `IDLE`. A silent wait holds a
-    // microphone instead, and capturing keeps the process alive by itself, so
-    // this is the other branch's keep-alive alone.
-    if (!mediaRoom || hasAudio || !sessionConfigured) return;
+    // **Not while another app is playing** — the accompanied wait gives up
+    // presence, decided 2026-09-06 after the field trial that produced it.
+    // Staying alive there bought a state worse than absence: the arrival was
+    // heard, ducked nicely over the music, and **could not be answered**,
+    // because iOS grants a backgrounded app no microphone. So the other person
+    // talks to somebody who cannot reply and has no way to learn that. Better
+    // to suspend, lapse to *Nearby*, and let the arrival notification do the
+    // work it was always for.
+    //
+    // What is left keeping a phone up is a watch party — deliberately left
+    // alone, being an experiment due its own review — and the case where this
+    // app has never had an honest moment to ask.
+    //
+    // A silent wait is not here at all: it holds a microphone, and capturing
+    // keeps the process alive by itself.
+    if (!mediaRoom || hasAudio || otherAudio === true || !sessionConfigured) {
+      return;
+    }
 
     startSilence().then((playing) => {
       // Worth a line for the same reason the service's is: whether this
@@ -1084,7 +1087,7 @@ export function useSessionAudio(
     // ends the visit at that same window by stepping out, which stops this by
     // taking `mediaRoom` away — one clock rather than two that have to be kept
     // equal.
-  }, [mediaRoom, hasAudio, sessionConfigured]);
+  }, [mediaRoom, hasAudio, otherAudio, sessionConfigured]);
 
   useEffect(() => {
     if (!mediaRoom || !channelIdRef.current || !token) return;
@@ -1396,8 +1399,7 @@ export function useSessionAudio(
         // for a channel with somebody in it, so the configuration this
         // connection needs is the one it is given, before anything is active.
         const anyAudio = hasAudioRef.current;
-        // Nothing is subscribed at connect, so this can only be `call` or `idle`.
-        const anyWant = wantFor(anyAudio, handBackRef.current, 0);
+        const anyWant = wantFor(anyAudio, handBackRef.current);
         pushPolicy(anyWant);
         await applyFor(anyWant);
         appliedRef.current = { intent, config: sessionFor(anyWant) };
@@ -1528,10 +1530,19 @@ export function useSessionAudio(
       // connection last needed. Leaving `CALL` behind is the live hazard:
       // disconnecting while somebody was still talking would arm the observer
       // to take `playAndRecord` — exclusive, and mono on a Bluetooth route —
-      // at some later transition with no channel to justify it. `idle` rather
-      // than `waiting`: this teardown is leaving the channel, and there is
-      // nothing left to hold a route for.
+      // at some later transition with no channel to justify it.
       pushPolicy('idle');
+      // **And the session itself, which this used to leave behind — fixed
+      // 2026-09-06.** Pushing the policy only tells the *observer* what to use
+      // next; nothing wrote the category back, and `stopAudioSession` does not
+      // clear it. So leaving a channel left the process holding
+      // `playAndRecord` with no channel behind it, and the next thing to make
+      // a sound on that phone met a call session: observed as music started on
+      // the Home screen dying instantly, and as a wait that should have been
+      // *accompanied* stopping the music it was meant to leave alone. The
+      // route log showed `PlayAndRecord/VideoChat` on `screen home`, which is
+      // a state that should not exist.
+      void applyFor('idle');
     };
   }, [mediaRoom, token, generation]);
 
@@ -1628,7 +1639,7 @@ export function useSessionAudio(
     // session is. Only the second may move the audio category, which is the
     // boundary a Bluetooth profile handover sits on.
     const audible = deferring ? false : hasAudio;
-    const want = wantFor(audible, handBack, state.othersAudible);
+    const want = wantFor(audible, handBack);
     const config = sessionFor(want);
 
     // On its own edge, ahead of the dedupe below, for the reason `deferredRef`

@@ -5,7 +5,6 @@ import {
   androidNameOf,
   androidSessionFor,
   CALL,
-  DUCKED,
   IDLE,
   policyFor,
   sessionFor,
@@ -33,23 +32,9 @@ describe('sessionFor', () => {
     expect(sessionFor('call')).toBe(CALL);
   });
 
-  it('offers exactly three configurations', () => {
-    expect(
-      new Set([sessionFor('call'), sessionFor('idle'), sessionFor('ducked')])
-    ).toEqual(new Set([CALL, IDLE, DUCKED]));
-  });
-
-  /**
-   * **Ducking must stay in the `playback` family**, which is the whole reason
-   * it is a variant of `IDLE` rather than of `CALL`. It changes how loud the
-   * other app is and nothing else: no category, no mode, no route, so a
-   * Bluetooth headset keeps A2DP through it.
-   */
-  it('ducks by adding one option to the quiet configuration', () => {
-    expect(DUCKED.audioCategory).toBe(IDLE.audioCategory);
-    expect(DUCKED.audioMode).toBe(IDLE.audioMode);
-    expect(new Set(DUCKED.audioCategoryOptions)).toEqual(
-      new Set([...(IDLE.audioCategoryOptions ?? []), 'duckOthers'])
+  it('offers exactly two configurations', () => {
+    expect(new Set([sessionFor('call'), sessionFor('idle')])).toEqual(
+      new Set([CALL, IDLE])
     );
   });
 
@@ -59,10 +44,13 @@ describe('sessionFor', () => {
    * shipped 2026-09-05 and deleted 2026-09-06: a call-shaped session stops
    * another app's audio whether or not it mixes, so the option bought nothing
    * and the category cost everything.
+   *
+   * `DUCKED` came and went the same day for a different reason — it was
+   * reachable only from a state this app stopped keeping alive, so nothing
+   * could ever have reached it. See DECISIONS.
    */
-  it('keeps every quiet configuration out of playAndRecord', () => {
+  it('keeps the quiet configuration out of playAndRecord', () => {
     expect(IDLE.audioCategory).toBe('playback');
-    expect(DUCKED.audioCategory).toBe('playback');
   });
 });
 
@@ -118,7 +106,7 @@ describe('policyFor', () => {
   // there is no input on which the observer is told something other than what
   // we would apply ourselves, so this is exhaustive rather than a sample: a
   // licensed exception is precisely what went wrong.
-  it.each([['idle'], ['ducked'], ['call']] as const)(
+  it.each([['idle'], ['call']] as const)(
     'tells the observer what we would apply (want=%s)',
     (want) => {
       expect(policyFor(want).playout).toBe(sessionFor(want));
@@ -143,7 +131,7 @@ describe('policyFor', () => {
    * channel, which is why the assertion here is only that the value is
    * constant. `core/__tests__/micNeeded.test.ts` is where the difference is.
    */
-  it.each([['idle'], ['ducked'], ['call']] as const)(
+  it.each([['idle'], ['call']] as const)(
     'records as a call (want=%s)',
     (want) => {
       expect(policyFor(want).recording).toBe(CALL);
@@ -178,7 +166,7 @@ describe('the same two states on Android', () => {
    * state would pass every other test in this file and is exactly what this
    * catches.
    */
-  it.each([['idle'], ['ducked'], ['call']] as const)(
+  it.each([['idle'], ['call']] as const)(
     'moves with the same answer as the Apple half (want=%s)',
     (want) => {
       const apple = sessionFor(want) === CALL;

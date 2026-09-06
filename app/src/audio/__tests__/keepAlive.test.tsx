@@ -1,7 +1,9 @@
 import React from 'react';
+import { AppState } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { useSessionAudio } from '../useSessionAudio';
 import { startSilence, stopSilence } from '../../../modules/keep-alive';
+import { routeSnapshot } from '../../../modules/audio-route';
 import { WAITING_WINDOW_MS } from '../../../../core/constants';
 
 /**
@@ -18,6 +20,15 @@ import { WAITING_WINDOW_MS } from '../../../../core/constants';
  * `modules/keep-alive` answers `false` off iOS, so under jest the real thing
  * does nothing. It is mocked so the calls can be counted.
  */
+
+jest.mock('../../../modules/audio-route', () => ({
+  routeSnapshot: jest.fn(() => null),
+  routeFault: jest.fn(() => null),
+  onRouteChange: jest.fn(() => () => {}),
+  onOtherAudio: jest.fn(() => () => {}),
+  setAllowHapticsDuringRecording: jest.fn(async () => true),
+  routeLine: jest.fn(() => ''),
+}));
 
 jest.mock('../../../modules/keep-alive', () => ({
   startSilence: jest.fn(async () => true),
@@ -122,6 +133,8 @@ const stopped = stopSilence as jest.Mock;
 
 describe('the silent keep-alive', () => {
   beforeEach(() => {
+    (AppState as unknown as { currentState: string }).currentState =
+      'background';
     mockRooms.length = 0;
     started.mockClear();
     stopped.mockClear();
@@ -146,6 +159,37 @@ describe('the silent keep-alive', () => {
       tree.unmount();
     });
     expect(stopped).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **The accompanied wait gives up presence — 2026-09-06.** Staying alive
+   * there bought a state worse than absence: the arrival was heard, ducked
+   * over the music, and could not be answered, because iOS grants a
+   * backgrounded app no microphone. So the phone suspends, lapses to *Nearby*,
+   * and the arrival notification does the work it was always for.
+   */
+  it('does not play while another app is playing', async () => {
+    // Active, because the flag is only read while this app is on screen.
+    (AppState as unknown as { currentState: string }).currentState = 'active';
+    (routeSnapshot as jest.Mock).mockReturnValue({ otherAudioPlaying: true });
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe room="room-1" hasAudio={false} />);
+    });
+    await settle();
+
+    // Settled state rather than call count: the flag is read in an effect, so
+    // the very first render has not asked yet and silence starts for one tick
+    // before being stopped. Inaudible, under `playback`, and gone before
+    // anything could hear it — what matters is that it is not running.
+    expect(stopped.mock.calls.length).toBeGreaterThanOrEqual(
+      started.mock.calls.length
+    );
+
+    (routeSnapshot as jest.Mock).mockReturnValue(null);
+    await act(async () => {
+      tree.unmount();
+    });
   });
 
   it('does not play where there is real audio to keep the process alive', async () => {

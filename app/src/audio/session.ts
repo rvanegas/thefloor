@@ -142,33 +142,6 @@ export const CALL: AppleAudioConfiguration = {
 };
 
 /**
- * `IDLE` with the other app turned down, for the moment somebody is heard
- * while a wait is accompanied.
- *
- * **The one difference from `IDLE` is `duckOthers`**, so it stays `playback`:
- * no route moves, a Bluetooth headset keeps A2DP, and the music keeps playing.
- * It is simply quieter for as long as there is a voice to hear over it.
- *
- * **Only while somebody is actually audible.** The keep-alive silence plays
- * continuously through an accompanied wait, and a permanently ducked session
- * would quiet somebody's music for fifteen minutes to make room for nothing.
- *
- * **It weakens P1 deliberately, and the weakening was made at the prompt.**
- * Continuity was stated as *a voice is heard exactly as it will be heard once
- * the conversation runs*; foregrounding from here stops the music and takes
- * `CALL`, so something does change. The ruling was that continuity is about
- * what the ear experiences rather than which category produced it, and that
- * "speaker, mixed with ducked music" is continuous enough with "speaker".
- * The alternative on the table was hearing nothing at all until the phone was
- * picked up, which is what the unweakened principle required.
- */
-export const DUCKED: AppleAudioConfiguration = {
-  audioCategory: 'playback',
-  audioCategoryOptions: ['mixWithOthers', 'duckOthers'],
-  audioMode: 'spokenAudio',
-};
-
-/**
  * Which session this app wants.
  *
  * - `call` — there is audio: somebody is being heard, or this device is
@@ -176,8 +149,6 @@ export const DUCKED: AppleAudioConfiguration = {
  * - `idle` — this app should not have the audio system: not in a channel, in a
  *   watch party whose film is playing elsewhere, or waiting while another app
  *   is playing.
- * - `ducked` — `idle`, but somebody is audible over the other app, so the
- *   other app is turned down rather than talked over.
  *
  * **A third value existed for one day and is gone.** `WAITING` was `CALL` plus
  * `mixWithOthers`, meant to hold the hands-free route through a quiet channel
@@ -189,7 +160,7 @@ export const DUCKED: AppleAudioConfiguration = {
  * call route and lets another app play, so the choice is which one to have —
  * and that choice is made once, at step-in, from `otherAudioPlaying`.
  */
-export type SessionWant = 'call' | 'idle' | 'ducked';
+export type SessionWant = 'call' | 'idle';
 
 /**
  * Which of the three the session should be in.
@@ -208,8 +179,7 @@ export type SessionWant = 'call' | 'idle' | 'ducked';
  *             computed.
  */
 export function sessionFor(want: SessionWant): AppleAudioConfiguration {
-  if (want === 'call') return CALL;
-  return want === 'ducked' ? DUCKED : IDLE;
+  return want === 'call' ? CALL : IDLE;
 }
 
 /**
@@ -287,7 +257,6 @@ export function policyFor(want: SessionWant): IOSAudioSessionPolicy {
  */
 export function nameOf(config: AppleAudioConfiguration): string {
   if (config === CALL) return 'CALL';
-  if (config === DUCKED) return 'DUCKED';
   if (config === IDLE) return 'IDLE';
   return 'unknown';
 }

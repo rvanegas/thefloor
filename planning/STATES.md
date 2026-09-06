@@ -783,13 +783,13 @@ saying `CALL` reads `IDLE` while the app is off screen *and was not already in
 a call* — the transition is what is forbidden, not the state. What is genuinely
 lost is transmitting, which iOS never offered.
 
-**And an accompanied wait ducks while somebody is audible.** `DUCKED` is `IDLE`
-plus `duckOthers` and nothing else, so the category, the mode and the route are
-untouched and a headset keeps A2DP. It is asked for only while a voice is
-actually there to hear: the keep-alive silence plays for the whole wait, and
-ducking unconditionally would quiet somebody's music for fifteen minutes for
-nothing. Reported from the field before it existed as a voice *"barely
-audible"* against the music it was competing with.
+**And an accompanied wait gives up presence.** The phone is not held awake, so
+it suspends, presence lapses, and the roster reads *Nearby* while the arrival
+notification does the work. The alternative was built and tried: ducking the
+other app so the arriving voice carried. It worked — and produced a state worse
+than absence, because iOS grants a backgrounded app no microphone, so the
+arrival could be **heard but not answered**. Somebody talking to a person who
+cannot reply, and cannot know they cannot, is the asymmetry that decided it.
 
 **`IDLE` also became the state in which this app plays silence — 2026-09-05.**
 Not audible silence and not a fourth configuration: `modules/keep-alive` loops
