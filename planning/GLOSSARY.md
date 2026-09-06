@@ -351,6 +351,11 @@ Stepping out clears it; losing your connection does not. A phone that dropped
 out for a minute must not come back with a live microphone its owner had
 deliberately closed.
 
+**It is a statement about transmission, not about being here.** Muting yourself
+must not cost you presence — you are still in the room, still listening, still
+somebody others can talk to. Three other things in the code are also called
+"mute" and only this one is yours; *mute* in Part Two separates them.
+
 ## Step in / Step out
 
 Entering and leaving a conversation without leaving the channel. See *present*.
@@ -605,6 +610,48 @@ The single file a finished recording becomes, made from its *stems*. A mix
 cannot be un-mixed, which is why the floor is applied at encode time and why
 speaker identification between participants is never asked of the transcription
 provider — we know whose voice is whose by construction.
+
+## Mute (four things, one word)
+
+**The word does four jobs and only the first is the user's.** They are
+routinely confused in conversation about this code, and two builds on
+2026-09-06 went astray on the confusion, so they are separated here.
+
+**1. Self-mute — the act.** `channel.selfMuted[userId]`, set by the Mute
+control, cleared by stepping out and *not* by losing a connection. A statement
+about transmission and nothing else: it does not affect the *floor*, and it has
+never meant "I am leaving". See *self-mute* in Part One.
+
+**2. What the footer icon shows — the appearance.** Not the same set. The icon
+reads muted when you self-muted, **and** when the device has no microphone at
+all (`SessionAudio.inputAvailable` false, as on a Mac mini), and it is coloured
+differently again when somebody else's floor claim is *silencing* you. So the
+icon means **"you are not being heard"**, which has three causes, only one of
+which you chose. A reader who takes the icon as a view of `selfMuted` will be
+wrong about two of them.
+
+**3. `MicIntent = 'muted'` — the instruction to the device.** In
+`useSessionAudio.ts`, one of three: `capturing`, `muted`, `released`. It means
+**keep the device exactly as it is** — still open if it was open, and
+deliberately *not opened if it was shut*, because publishing a track and muting
+it a moment later leaves a live microphone on the wire for two awaits. It is
+**not** a user concept: `holdForPlayout` forces it whenever a remote track is
+subscribed and the microphone is not otherwise needed, so it appears with
+nobody having muted anything. Its own hazard is that it says nothing useful
+when there is no device — see DECISIONS § *A hold with nothing to hold*.
+
+**4. Track mute — what the room reports.** LiveKit's `TrackInfo.muted`, carried
+through `MediaPlane.audioTracks` since 2026-09-05. A published-but-muted track
+is present in the roster and carries no audio, which is what lets `meterRoom`
+count *transmitting* microphones rather than existing ones, and what lets Rule A
+tell a defunct room from a busy one. Below it sits a fifth, unused as of this
+writing: `AudioDeviceModule.setMicrophoneMuted`, which mutes at the device
+rather than at the track.
+
+**None of these is *silenced*.** That is the floor withholding you from
+everybody else, done by unsubscribing listeners rather than by muting anything
+— which is why a watch party's tracks stay unmuted through a film, and why the
+floor does not register in sense 4 at all. See *silenced*.
 
 ## Participant
 
