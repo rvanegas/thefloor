@@ -284,6 +284,15 @@ that outlasts its *attention* clock has stepped out, and one whose socket died
 first — a phone's, backgrounded — ran out of grace and is nearby. Whichever
 clock expired first is the one that describes what happened.
 
+**A third way out exists from 2026-09-06 and reads as *Stepped out*.** A room
+in which nothing is published unmuted and no media is playing for the same
+fifteen minutes retires everybody in it — see `Exit` in `core/channel.ts`,
+whose three rows are the whole difference between the ways of leaving. It
+reads as stepped out rather than nearby deliberately: *Nearby* is the rung
+above, so a person retired **for** inattention arriving there would restart the
+claim that expiring was meant to end. Nobody is told to ping somebody the room
+has just given up on.
+
 ## Ping
 
 A notification sent to one person in a channel who is not there, or whose

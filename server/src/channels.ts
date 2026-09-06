@@ -8,6 +8,7 @@ import {
   MAX_CHANNEL_PARTICIPANTS,
   MAX_PING_TEXT_LENGTH,
   MAX_RECORDING_NAME_LENGTH,
+  WAITING_WINDOW_MS,
 } from '../../core/constants';
 import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
@@ -502,6 +503,21 @@ export class ChannelRegistry {
    * notification, which is not worth a column.
    */
   private lastAnnouncedAt = new Map<string, number>();
+  /**
+   * When each channel last had anything in it, keyed by channel — or absent
+   * while it does.
+   *
+   * **"Anything" is a track somebody is actually sending, not a track that
+   * exists.** `meterRoom`'s `publishing` excludes muted publications, which is
+   * what makes this measurable at all: a pocketed phone holds a microphone
+   * open and muted, so a roster that counted it would find every ghost room
+   * busy. That distinction only became available on 2026-09-05, when
+   * `MediaPlane.audioTracks` began carrying `TrackInfo.muted`.
+   *
+   * In memory like `lastAnnouncedAt`, and a restart resetting it costs at most
+   * one more attention window before a defunct room is retired.
+   */
+  private quietSince = new Map<string, number>();
   /**
    * Who last stepped into each channel, and when.
    *
@@ -2333,6 +2349,63 @@ export class ChannelRegistry {
     }
   }
 
+  /**
+   * Retires a channel nobody is attending — **Rule A**, 2026-09-06.
+   *
+   * A room into which nothing is published unmuted, and in which no media is
+   * playing, for `WAITING_WINDOW_MS`, steps everybody out. What it is really
+   * measuring is a room that has stopped being a room: nothing is going in and
+   * nothing is coming out, so describing it as occupied is a claim about
+   * people that nothing supports.
+   *
+   * **It exists because presence stopped meaning responsiveness.** A held
+   * microphone keeps a pocketed phone's process alive — `holdForPlayout` since
+   * build 143, deliberately since 145 — so a channel can read as occupied by
+   * people who are nowhere near it. That is not merely untidy: `announceActive`
+   * notifies only *absent* participants and fires only on the empty-to-occupied
+   * edge, so **an occupied ghost room swallows every arrival notification
+   * anybody in it would otherwise have received.** Emptying it restores the
+   * edge, which is the point of the rule rather than a side effect.
+   *
+   * **The watch party is safe by mechanism rather than by exception**, which
+   * is worth knowing before somebody adds one. Withholding is done by
+   * unsubscribing listeners, never by muting speakers, so tracks stay unmuted
+   * for the length of a film and `publishing` is never empty. The pump is
+   * excluded by identity above and would otherwise defeat this from the other
+   * side: it publishes continuously, silence included, so *is anything
+   * playing* has to be asked of `playback.status` and not of the roster.
+   *
+   * **A stuck member in a room somebody else is holding open is left alone.**
+   * The room is not misrepresented while a real person is in it, and they may
+   * yet wake up — which one did, on 2026-09-06, while this was being designed.
+   */
+  private considerRetiring(state: ChannelState, publishing: number): void {
+    const at = this.now();
+    const quiet = publishing === 0 && state.playback.status !== 'playing';
+    if (!quiet) {
+      this.quietSince.delete(state.id);
+      return;
+    }
+    const since = this.quietSince.get(state.id);
+    if (since === undefined) {
+      this.quietSince.set(state.id, at);
+      return;
+    }
+    if (at - since < WAITING_WINDOW_MS) return;
+    // Cleared before acting rather than after: the retirement empties the
+    // room, `pollUsage` then stops metering it, and an entry left behind would
+    // retire the next visit the instant it went quiet.
+    this.quietSince.delete(state.id);
+
+    let next = state;
+    for (const userId of roomOccupants(state)) {
+      next = reduce(next, { type: 'ATTENTION_EXPIRED', userId }, at);
+    }
+    if (next === state) return;
+    this.commit(state, next);
+    this.emit([state.id]);
+  }
+
   private announceKey(channelId: string, userId: string): string {
     return `${channelId}:${userId}`;
   }
@@ -2753,6 +2826,11 @@ export class ChannelRegistry {
       (id) =>
         id !== media && (roster.get(id) ?? []).some((track) => !track.muted)
     );
+
+    // Asked here rather than on its own timer because the answer is the same
+    // `publishing` the meter just computed, and a second reader of the roster
+    // could disagree with this one.
+    this.considerRetiring(now, publishing.length);
 
     const keep = new Set<string>();
 

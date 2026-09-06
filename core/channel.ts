@@ -1134,7 +1134,10 @@ export function reduce(
       return stepOut(state, action.userId, now);
 
     case 'DISCONNECT_EXPIRED':
-      return stepOut(state, action.userId, now, { chosen: false });
+      return stepOut(state, action.userId, now, { exit: 'dropped' });
+
+    case 'ATTENTION_EXPIRED':
+      return stepOut(state, action.userId, now, { exit: 'inattentive' });
 
     case 'ANSWER_KNOCK': {
       if (!canAnswerKnock(state, action.userId)) return state;
@@ -1510,8 +1513,8 @@ function tick(state: ChannelState, now: number): ChannelState {
   // Someone gone past the grace period has left. Handled before the floor
   // expiry so their claim is released by the leave itself, as any other
   // departure would release it. Not STEP_OUT: that is the departure somebody
-  // chose, and `chosen` decides which clocks are stamped — `lastPresentAt` and
-  // `waiting`. Nothing else now distinguishes the two.
+  // chose, and the `Exit` kind decides which clocks are stamped —
+  // `lastPresentAt` and `waiting`. Nothing else distinguishes them.
   for (const [userId, since] of Object.entries(next.disconnectedAt)) {
     if (since !== undefined && now - since >= DISCONNECT_GRACE_MS) {
       next = reduce(next, { type: 'DISCONNECT_EXPIRED', userId }, now);
@@ -1545,14 +1548,14 @@ function tick(state: ChannelState, now: number): ChannelState {
 /**
  * Gives up presence without giving up membership.
  *
- * Shared by the tap, by a grace period running out, and by LEAVE_CHANNEL,
- * which is what stops those three drifting apart.
+ * Shared by the tap, by a grace period running out, by the attention window
+ * running out, and by LEAVE_CHANNEL, which is what stops them drifting apart.
  *
- * `chosen` is the one thing the three do not share, and it is now about
- * clocks alone. A tap happens at the moment somebody decides it does; a grace
- * period running out happens DISCONNECT_GRACE_MS *after* the last thing
- * anybody heard, and stamping `lastPresentAt` then would record a presence
- * that was already over — see below, where the difference is the whole of it.
+ * The `Exit` kind is the one thing they do not share, and it is about clocks
+ * alone. A tap happens at the moment somebody decides it does; a grace period
+ * running out happens DISCONNECT_GRACE_MS *after* the last thing anybody
+ * heard, and stamping `lastPresentAt` then would record a presence that was
+ * already over — see `Exit`, where the whole difference is a three-row table.
  *
  * It used to carry the self-mute too: a tap cleared it and a lost connection
  * kept it, on the reasoning that the client re-enters by itself and clearing
@@ -1564,11 +1567,31 @@ function tick(state: ChannelState, now: number): ChannelState {
  * planning/decisions/DECISIONS-2026-08-20-to-2026-08-21.md § *Every departure clears the
  * self-mute, and the microphone is not the reason why*.
  */
+/**
+ * The three ways somebody stops being present, which differ in exactly two
+ * fields and were a single boolean until 2026-09-06.
+ *
+ * | | `lastPresentAt` | `waiting` |
+ * | --- | --- | --- |
+ * | `chosen` — a tap | stamped now | cleared |
+ * | `dropped` — the grace period ran out | left alone | added |
+ * | `inattentive` — the attention window ran out | left alone | cleared |
+ *
+ * **`inattentive` is why this stopped being a boolean.** It matches neither
+ * existing row: nobody chose it, so stamping `lastPresentAt` would claim they
+ * were here until this moment — the same lie the `dropped` row exists to
+ * avoid — but it must not put them in `waiting` either, because *Nearby* is
+ * the rung **above** this one. Somebody retired for fifteen minutes of
+ * inattention reading as "nearby for 0s" would restart the very claim that
+ * expiring was supposed to end.
+ */
+type Exit = 'chosen' | 'dropped' | 'inattentive';
+
 function stepOut(
   state: ChannelState,
   userId: UserId,
   now: number,
-  { chosen = true }: { chosen?: boolean } = {}
+  { exit = 'chosen' }: { exit?: Exit } = {}
 ): ChannelState {
   // A guest's departure is the same event and a different removal: they are
   // not in `present` and never were, and there is no membership for them to
@@ -1602,17 +1625,19 @@ function stepOut(
       // later, and `idleMs` reads it — so every dropped connection reported
       // itself a minute less idle than it was, for ever, from a stamp made at
       // a moment nobody was there.
-      lastPresentAt: chosen
-        ? { ...state.lastPresentAt, [userId]: now }
-        : state.lastPresentAt,
+      lastPresentAt:
+        exit === 'chosen'
+          ? { ...state.lastPresentAt, [userId]: now }
+          : state.lastPresentAt,
       // The same distinction, kept rather than merely acted on. A tap is a
       // departure and clears any earlier wait; a grace period running out is
       // not one, and is the whole reason this exists.
-      waiting: chosen
-        ? state.waiting.filter((id) => id !== userId)
-        : state.waiting.includes(userId)
-          ? state.waiting
-          : [...state.waiting, userId],
+      waiting:
+        exit === 'dropped'
+          ? state.waiting.includes(userId)
+            ? state.waiting
+            : [...state.waiting, userId]
+          : state.waiting.filter((id) => id !== userId),
       // A departing floor-holder's claim is force-released, exactly as if
       // released voluntarily. Dropped connections take this same path.
       floor:

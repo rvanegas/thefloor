@@ -285,7 +285,14 @@ things that this file keeps apart:
 
 - **Membership** — `participants`. Changed only by `INVITE` and
   `LEAVE_CHANNEL`. Survives everything.
-- **Presence** — `present`. Whether you are in the room now.
+- **Presence** — `present`. Whether you are in the room now — and, since
+  2026-09-06, a claim about *responsiveness* rather than about a live socket.
+  A keep-alive holds a pocketed phone's process open, so presence stopped
+  meaning anybody was near it; `considerRetiring` in `server/src/channels.ts`
+  gives that meaning back by emptying a room in which nothing is published
+  unmuted and no media plays for `WAITING_WINDOW_MS`. It has to: `announceActive`
+  fires only on the empty-to-occupied edge, so a room held occupied by ghosts
+  silently swallows every arrival notification anybody in it would have had.
 - **Connectivity** — `disconnectedAt`. Whether your socket is up. A socket that
   drops and returns changes nothing about presence; only outlasting
   `DISCONNECT_GRACE_MS` does.

@@ -114,6 +114,71 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## A room nobody is attending is retired, because presence means responsiveness — 2026-09-06
+
+**Presence had quietly stopped meaning anybody was there.** `holdForPlayout`
+holds a microphone open and muted, and an open microphone is capturing, and
+capturing keeps a backgrounded process alive — so from build 143 a pocketed
+phone could hold a channel open indefinitely. Build 145 made it deliberate. The
+native `useAttention` stub had ruled the state out in as many words: *"There is
+no state in which an iOS app is holding a channel that nobody is near, so there
+is nothing here to measure."* Our own work voided that premise and nothing
+noticed.
+
+**The cost was not untidiness, it was silence.** `announceActive` notifies only
+*absent* participants and fires only on the empty-to-occupied edge. A room held
+occupied by ghosts can never produce that edge again, so **every arrival into
+it notifies nobody** — not the ghosts, and not the people who would have come.
+Found live on 2026-09-06 in a channel that had read as occupied for
+twenty-four minutes with one real speaker in it. The keep-alive was suppressing
+the notifications it existed to make unnecessary: the feature was eating itself.
+
+**Rule A.** A channel in which nothing is published unmuted, and no media is
+playing, for `WAITING_WINDOW_MS`, steps everybody out. Two things make it
+expressible at all, and neither existed a day earlier:
+
+- **`publishing` excludes muted tracks**, which needed `TrackInfo.muted`
+  carried through `MediaPlane.audioTracks` — landed the previous afternoon for
+  metering. Without it a held microphone and an open one are the same fact, and
+  every ghost room looks busy.
+- **"No media playing" is asked of `playback.status`, not of the roster.** The
+  pump publishes continuously, silence included, so a roster test would find
+  every channel occupied by its own shared track.
+
+**The watch party is safe by mechanism rather than by exception**, which is
+worth knowing before somebody adds one. Withholding is done by unsubscribing
+listeners and never by muting speakers, so tracks stay unmuted for the length
+of a film and the predicate cannot fire. That was argued at the prompt from the
+per-speaker/imposed distinction; the implementation gives the same answer for a
+simpler reason.
+
+**A stuck member in a room somebody else is holding open is left alone,
+deliberately.** The room is not misrepresented while a real person is in it,
+and they may yet wake — one did, mid-conversation, while this was being
+designed.
+
+**`Exit` replaced a boolean, and the third row is why.** A departure differs
+only in whether `lastPresentAt` is stamped and whether `waiting` gains the
+person. `chosen` stamps and clears; `dropped` neither stamps nor clears;
+**`inattentive` does not stamp but does clear** — because *Nearby* is the rung
+above this one, and somebody retired for fifteen minutes of inattention
+arriving there as "nearby for 0s" would restart the claim that expiring was
+meant to end. Nobody should be told to ping a person the room has just given up
+on.
+
+**Accepted at the prompt:** the forced exit runs `settleEmpty`, which ends a
+running recording — leaving at most a bounded fifteen-minute silent tail, since
+the pump records silence at its true duration — and revokes guest links
+permanently.
+
+**What this does not do.** It is a mitigation of BACKLOG.md § *Presence follows
+the websocket, not the room*, not a fix: presence still derives from a socket,
+and this retires the worst consequence rather than the cause. Rule B — a
+backgrounded member retiring themselves — is the client half and is not in this
+change.
+
+---
+
 ## Waiting takes the hands-free route up front, because it cannot be taken later — 2026-09-05
 
 **A quiet channel is no longer `IDLE`.** `WAITING` is `CALL`'s category, mode

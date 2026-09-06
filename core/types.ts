@@ -784,6 +784,24 @@ export type ChannelAction =
    */
   | { type: 'DISCONNECT_EXPIRED'; userId: UserId }
   /**
+   * Somebody retired for inattention: the room published nothing unmuted and
+   * played no media for the attention window, so it is defunct and everybody
+   * in it is stepped out.
+   *
+   * **A statement about the room, applied to each person in it** — which is
+   * what separates it from `DISCONNECT_EXPIRED`, a statement about one
+   * connection. Nobody here lost anything; they simply stopped being a reason
+   * for the channel to be described as occupied.
+   *
+   * It exists because presence is supposed to mean *responsiveness*, and a
+   * keep-alive that holds a pocketed phone awake for fifteen minutes makes it
+   * stop meaning that. A room of such phones reads as occupied, and
+   * `announceActive` fires only on the empty-to-occupied edge — so an occupied
+   * ghost room silently swallows every arrival notification anybody would have
+   * received. See planning/decisions.
+   */
+  | { type: 'ATTENTION_EXPIRED'; userId: UserId }
+  /**
    * Advances time-driven transitions: floor expiry, a track reaching its end,
    * and a dropped connection outlasting the grace period. Nothing here ends a
    * channel — only its last member leaving does that.
