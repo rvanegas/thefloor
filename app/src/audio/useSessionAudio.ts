@@ -431,8 +431,18 @@ function trace(config: AppleAudioConfiguration, want: SessionWant): void {
  *                 iOS will grant: false while a promotion is deferred.
  * @param handBack `isPartyMuted` — this app should not have the audio system.
  */
-function wantFor(hasAudio: boolean, handBack: boolean): SessionWant {
-  return hasAudio && !handBack ? 'call' : 'idle';
+function wantFor(
+  hasAudio: boolean,
+  handBack: boolean,
+  audibleOthers: number
+): SessionWant {
+  if (hasAudio && !handBack) return 'call';
+  // **Ducked only while there is a voice to hear over the other app.** The
+  // keep-alive silence plays for the whole of an accompanied wait, so ducking
+  // unconditionally would quiet somebody's music for fifteen minutes to make
+  // room for nothing. A watch party reaches `idle` with nothing subscribed —
+  // withholding unsubscribes listeners — so a film is never ducked either.
+  return audibleOthers > 0 ? 'ducked' : 'idle';
 }
 
 function pushPolicy(want: SessionWant): void {
@@ -1386,7 +1396,8 @@ export function useSessionAudio(
         // for a channel with somebody in it, so the configuration this
         // connection needs is the one it is given, before anything is active.
         const anyAudio = hasAudioRef.current;
-        const anyWant = wantFor(anyAudio, handBackRef.current);
+        // Nothing is subscribed at connect, so this can only be `call` or `idle`.
+        const anyWant = wantFor(anyAudio, handBackRef.current, 0);
         pushPolicy(anyWant);
         await applyFor(anyWant);
         appliedRef.current = { intent, config: sessionFor(anyWant) };
@@ -1617,7 +1628,7 @@ export function useSessionAudio(
     // session is. Only the second may move the audio category, which is the
     // boundary a Bluetooth profile handover sits on.
     const audible = deferring ? false : hasAudio;
-    const want = wantFor(audible, handBack);
+    const want = wantFor(audible, handBack, state.othersAudible);
     const config = sessionFor(want);
 
     // On its own edge, ahead of the dedupe below, for the reason `deferredRef`

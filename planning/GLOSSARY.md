@@ -695,7 +695,7 @@ expiry, pushed out on every sign of life. `ChannelState.guests` is the volatile
 half and means *present*; the seat is what lets somebody come back. See *seat*
 in Part One.
 
-## Session want — `call`, `waiting`, `idle`
+## Session want — `call`, `idle`, `ducked`
 
 The three answers to *what is this app asking iOS for*, named by `SessionWant`
 in `app/src/audio/session.ts` and decided in one place, `wantFor` in
@@ -704,34 +704,40 @@ shows `asked` against `actual` precisely because they can differ, and most of
 this system's audio history is that gap.
 
 **`call`** is `playAndRecord` / `videoChat` with `allowBluetooth`,
-`allowAirPlay` and `defaultToSpeaker`. It carries no `mixWithOthers`, so it is
+`allowAirPlay` and `defaultToSpeaker`. No `mixWithOthers`, so it is
 **exclusive**: taking it stops another app's audio. It is the only one under
 which this device may transmit, and on a Bluetooth headset it is the hands-free
-profile — mono, 24 kHz. Asked for when there is something to hear *and* capture
-is attainable: foregrounded, or already in a call, since iOS refuses a
-backgrounded app a new microphone.
+profile — mono, 24 kHz. Asked for whenever there is audio to hear, *and* for a
+**silent wait**: standing in a quiet channel with nothing else playing, where
+the microphone is opened at step-in so an arrival can be heard and answered
+without touching the phone. That is only possible up front — iOS refuses a
+backgrounded app a microphone it did not already have.
 
-**`waiting`** is `call` plus `mixWithOthers`, and differs from it in that one
-option and nothing else. That is deliberate rather than economical: promoting a
-wait into a call then moves no route, so nothing is handed over at the moment
-somebody starts talking. It takes the hands-free *route* without taking the
-audio *system*. Asked for while standing in a channel with nothing to hear,
-nothing to hand back to, and **no other app playing** — see *waiting* below for
-why that last condition is load-bearing.
+**`idle`** is `playback` / `spokenAudio` / `mixWithOthers`, and **hands the
+audio system back**: stereo A2DP on a headset, another app's audio untouched.
+Asked for when this app should take nothing — a *watch party* withholding for
+its film — and for an **accompanied wait**, where somebody steps into a channel
+while their phone is already playing something.
 
-**`idle`** is `playback` / `spokenAudio` / `mixWithOthers`, and is the only one
-that **hands the audio system back**: stereo A2DP on a headset, another app's
-audio untouched. It still renders remote voices, which is what makes it usable
-when somebody arrives while the phone is locked. Asked for when there is
-nothing to hear and either this app should take nothing at all — a *watch
-party* withholding for its film — or another app is already playing.
+**`ducked`** is `idle` plus `duckOthers`, and differs in nothing else: same
+category, same mode, same route. Asked for during an accompanied wait **while
+somebody is actually audible**, so a voice is heard over the other app rather
+than lost in it. Not before — the keep-alive silence plays for the whole wait,
+and ducking unconditionally would quiet somebody's music for fifteen minutes to
+make room for nothing.
 
-**Why `waiting` is conditional.** Taking a call-shaped session alongside a
-playing media app moves *that app's* output to the receiver, observed 2026-09-05
-with this app's own route reading `Speaker(Speaker)` and every option it asked
-for in force. Nothing in the configuration was wrong, so nothing in the
-configuration could fix it: the remedy is not to take one. `otherAudioPlaying`
-is the test.
+**Which wait you get is decided at step-in**, from whether another app was
+playing at that moment, and re-decided only when the app is brought forward.
+`isOtherAudioPlaying` tells the truth only while this app is active — it
+reports our own foreground state rather than anybody else's audio — and that is
+also the only moment the decision can be acted on.
+
+**A fourth value existed for one day.** `WAITING` was `call` plus
+`mixWithOthers`, meant to hold the hands-free route through a quiet channel. It
+was deleted on 2026-09-06: a call-shaped session stops another app's audio
+whether or not it mixes, so the option bought nothing and the category cost
+everything. A reader who finds it in an older document is reading about
+something that no longer exists.
 
 `sessionFor` turns a want into the configuration; `policyFor` hands the same
 answer to the SDK's native observer, which is a second writer that re-applies a

@@ -300,6 +300,70 @@ describe('a device with no microphone', () => {
   });
 });
 
+describe('ducking the other app', () => {
+  beforeEach(reset);
+  afterEach(() => jest.useRealTimers());
+
+  /** Somebody else's audio track arriving in the room. */
+  const somebodyAudible = async (i = 0) => {
+    await act(async () => {
+      mockRooms[i].fire(
+        'trackSubscribed',
+        { kind: 'audio' },
+        {},
+        { identity: 'acct_them' }
+      );
+    });
+    await settle();
+  };
+
+  /**
+   * The accompanied wait's whole difficulty: a voice at full music volume is
+   * barely discernible from the music. Ducking is chosen over withholding the
+   * arrival entirely — see `DUCKED` in session.ts for the weakening of P1 that
+   * licensed it.
+   */
+  it('ducks once somebody is audible over the other app', async () => {
+    mockRoute.otherAudioPlaying = true;
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe audio={false} />);
+    });
+    await settle();
+    expect(logged().some((l) => l.includes('DUCKED'))).toBe(false);
+
+    await somebodyAudible();
+
+    expect(logged().some((l) => l.includes('DUCKED'))).toBe(true);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * **And not before.** The keep-alive silence plays for the whole of an
+   * accompanied wait, so ducking unconditionally would quiet somebody's music
+   * for fifteen minutes to make room for nothing.
+   */
+  it('leaves the other app alone while nobody is audible', async () => {
+    mockRoute.otherAudioPlaying = true;
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe audio={false} />);
+    });
+    await settle();
+
+    const lines = logged();
+    expect(lines.some((l) => l.includes('IDLE'))).toBe(true);
+    expect(lines.some((l) => l.includes('DUCKED'))).toBe(false);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+});
+
 describe('capture against the foreground', () => {
   beforeEach(reset);
   afterEach(() => jest.useRealTimers());

@@ -114,6 +114,43 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## The other app is turned down rather than talked over — 2026-09-06
+
+**An accompanied wait now ducks.** Standing in a channel with music playing,
+backgrounded, somebody steps in and speaks: until this change you heard them at
+full music volume, which in the field was *"barely audible"* — the voice and the
+music competing on equal terms. `DUCKED` is `IDLE` plus `duckOthers`, applied
+**only while somebody is actually audible**, because the keep-alive silence
+plays for the whole wait and a permanent duck would quiet somebody's music for
+fifteen minutes to make room for nothing.
+
+**It stays in the `playback` family**, which is the point of building it as a
+variant of `IDLE` rather than of `CALL`: no category change, no mode change, no
+route change, so a Bluetooth headset keeps A2DP through it. The only thing that
+moves is how loud the other app is.
+
+**The alternative was hearing nothing**, and it was the standing ruling until
+now. P4 said an arrival in the accompanied wait is not rendered until the app is
+foregrounded, on the grounds that hearing it under `playback` guarantees a
+change of character when the conversation actually starts. That is P1, and P1 is
+what this weakens.
+
+**P1 was weakened at the prompt, and the weakening is the interesting part.** It
+had been stated as *a voice is heard exactly as it will be heard once the
+conversation runs*. The ruling: **continuity is about what the ear experiences,
+not about which category produced it** — "speaker, mixed with ducked music" is
+continuous enough with "speaker". On that reading the principle survives and the
+implementation changes; on the old reading the only conforming behaviour was
+silence. Worth recording because P1 in its strict form is what cost builds 146
+through 150, and a later reader should know it was retired by argument rather
+than by being forgotten.
+
+**What is not built, deliberately:** the withholding P4 asked for. There is no
+`deferSubscribe` on an accompanied arrival any more, because the arrival is now
+meant to be heard.
+
+---
+
 ## No microphone is a state, not a failure — 2026-09-06
 
 **A Mac mini has no built-in input, and asking WebRTC to capture from a device
