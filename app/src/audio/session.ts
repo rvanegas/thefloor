@@ -6,18 +6,16 @@ import type {
 } from '@livekit/react-native';
 
 /**
- * The three states the iOS audio session is ever in, and the single place they
+ * The two states the iOS audio session is ever in, and the single place they
  * are written down.
  *
- * **It was three, then two from 2026-08-27, and three again from 2026-09-05 —
- * and the two thirds are not the same idea.** The old one, `LISTENING`, was
- * `IDLE` without `mixWithOthers`, and it was deleted for interrupting another
- * app's audio when shared playback started. The new one, `WAITING`, is `CALL`
- * *with* `mixWithOthers`, and exists for the opposite reason: to take the
- * hands-free route early, while the app is on screen and iOS will grant it,
- * so that an arriving voice never needs a route handed over from the
- * background — where iOS refuses. A reader who finds "the third state" in an
- * older document is reading about the other one.
+ * **Two third states have been tried and both were deleted, for opposite
+ * reasons.** `LISTENING` was `IDLE` without `mixWithOthers` and went at build
+ * 90 for interrupting other apps. `WAITING` was `CALL` *with* `mixWithOthers`
+ * and went a day after it arrived, on 2026-09-06 — for interrupting other apps
+ * anyway, because the exclusion turns out to follow from the *category* rather
+ * than from that option. A reader who finds "the third state" in an older
+ * document should check which one it means; neither exists.
  *
  * Three different writers can configure this session: this app, the SDK's
  * native policy observer on every audio-engine transition, and WebRTC itself
@@ -144,68 +142,25 @@ export const CALL: AppleAudioConfiguration = {
 };
 
 /**
- * What the session asks for while waiting alone in a channel for somebody to
- * arrive — `CALL`'s route with `IDLE`'s manners.
+ * Which session this app wants.
  *
- * **Category and mode are `CALL`'s exactly, and the eligibility list is
- * identical**, which is the point rather than a coincidence: promoting this to
- * `CALL` when the wait ends changes `mixWithOthers` and nothing else, so no
- * route moves and nothing is handed over at the moment somebody starts
- * talking. A headset that was HFP stays HFP.
+ * - `call` — there is audio: somebody is being heard, or this device is
+ *   capturing, or it is waiting with the microphone held open.
+ * - `idle` — this app should not have the audio system: not in a channel, in a
+ *   watch party whose film is playing elsewhere, or waiting while another app
+ *   is playing.
  *
- * **Which means the wait is spent in mono at 24 kHz, deliberately** — and only
- * when no other app is playing. Asked for at the prompt on 2026-09-05, after
- * the alternative had been built and measured: waiting under `playback` keeps
- * A2DP and full-quality music, but then an arriving voice appears on the
- * *media* volume rail with no warning, which is jarring, and the handover to
- * hands-free cannot be done later because iOS refuses `playAndRecord` from the
- * background. So the route is taken up front, while the app is still on screen
- * and iOS will grant it, and held.
- *
- * **It is taken only into silence, and that condition is not a refinement — it
- * is what makes this safe.** Taking a call-shaped session alongside a playing
- * media app moved *that app's* output to the receiver, observed with YouTube
- * Music on build 147 while our own route read `Speaker(Speaker)` and every
- * option we asked for was in force. Nothing in this configuration could have
- * prevented it, because nothing in this configuration was wrong. So
- * `wantFor` asks `otherAudioPlaying` first and hands back to `IDLE` when
- * anything else is playing; this is reached only when there is nothing to
- * relocate.
- *
- * **`mixWithOthers` is what `CALL` will not have and this must.** A wait is
- * not a conversation: somebody standing in an empty channel with a podcast on
- * has not asked this app to take the audio system, and the entire feature
- * exists so that waiting costs them nothing they would notice. When the wait
- * ends and this becomes `CALL`, the podcast stops — by then there is a person
- * talking, which is the exclusivity `CALL` was given on 2026-08-16.
+ * **A third value existed for one day and is gone.** `WAITING` was `CALL` plus
+ * `mixWithOthers`, meant to hold the hands-free route through a quiet channel
+ * so that an arrival never needed a handover. It was deleted on 2026-09-06 for
+ * a reason that had nothing to do with the route: **a call-shaped session
+ * alongside a playing media app stops that app**, `mixWithOthers` or not, which
+ * was measured three times and finally with a podcast dying a fraction of a
+ * second after the play button. There is no configuration that both holds the
+ * call route and lets another app play, so the choice is which one to have —
+ * and that choice is made once, at step-in, from `otherAudioPlaying`.
  */
-export const WAITING: AppleAudioConfiguration = {
-  audioCategory: 'playAndRecord',
-  audioCategoryOptions: [
-    'allowBluetooth',
-    'allowAirPlay',
-    'defaultToSpeaker',
-    'mixWithOthers',
-  ],
-  audioMode: 'videoChat',
-};
-
-/**
- * Which session this app wants, in the three cases there are.
- *
- * - `call` — somebody is being heard or this device is capturing.
- * - `waiting` — standing in a channel with nothing in it yet, holding the call
- *   route so an arrival does not have to hand one over.
- * - `idle` — this app should not have the audio system: not in a channel, or
- *   in a watch party whose film is playing out of somebody else's player.
- *
- * **There were three of these until build 90 and two until 2026-09-05.** The
- * old third, `LISTENING`, was `IDLE` without `mixWithOthers` and was deleted
- * for interrupting other apps. This one is the opposite shape — `CALL` *with*
- * `mixWithOthers` — and exists for the opposite reason: not to seize the audio
- * system, but to take a route early so that taking it late is never needed.
- */
-export type SessionWant = 'call' | 'waiting' | 'idle';
+export type SessionWant = 'call' | 'idle';
 
 /**
  * Which of the three the session should be in.
@@ -224,20 +179,23 @@ export type SessionWant = 'call' | 'waiting' | 'idle';
  *             computed.
  */
 export function sessionFor(want: SessionWant): AppleAudioConfiguration {
-  if (want === 'call') return CALL;
-  return want === 'waiting' ? WAITING : IDLE;
+  return want === 'call' ? CALL : IDLE;
 }
 
 /**
- * **`want` is not `channelHasAudio` — it may say `waiting` in a channel that
- * plainly has audio.** A backgrounded app is granted playback by
- * `UIBackgroundModes` and refused a microphone, so `useSessionAudio` withholds
- * the promotion to `call` until the foreground. `WAITING` is what it holds
- * meanwhile, and because that is already `playAndRecord` the deferral costs
- * nothing audible: the route does not move, the voice is rendered, and only
- * the microphone waits. The rule is about the *transition* — a session already
- * `CALL` is never demoted for being backgrounded, because iOS lets capture
- * continue.
+ * **`want` is not `channelHasAudio`, and the difference is deliberate.** A
+ * backgrounded app is granted playback by `UIBackgroundModes` and refused a
+ * microphone, so `useSessionAudio` withholds the promotion to `call` until the
+ * foreground and asks for `idle` meanwhile.
+ *
+ * **And it is decided only while the app is active.** `isOtherAudioPlaying`,
+ * which the choice depends on, reports true only while this app is the active
+ * one — it describes our own foreground state rather than anybody else's audio,
+ * measured 2026-09-06. Re-asking it on every app-state change is what made
+ * build 150 flip between configurations five times in thirty seconds, dragging
+ * a headset between HFP and A2DP and killing a podcast on the way. So the
+ * question is asked at step-in and at each foreground, where the answer is
+ * sound, and the last answer is held in between.
  *
  * The note is here because a reader comparing this against `channelHasAudio`
  * would otherwise find them disagreeing and assume a bug.
@@ -299,7 +257,6 @@ export function policyFor(want: SessionWant): IOSAudioSessionPolicy {
  */
 export function nameOf(config: AppleAudioConfiguration): string {
   if (config === CALL) return 'CALL';
-  if (config === WAITING) return 'WAITING';
   if (config === IDLE) return 'IDLE';
   return 'unknown';
 }

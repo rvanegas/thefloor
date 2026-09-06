@@ -8,7 +8,6 @@ import {
   IDLE,
   policyFor,
   sessionFor,
-  WAITING,
 } from '../session';
 
 describe('sessionFor', () => {
@@ -34,25 +33,16 @@ describe('sessionFor', () => {
   });
 
   /**
-   * The 2026-09-05 third case. A quiet channel no longer hands the audio
-   * system back: it holds the call route so that an arrival does not need one
-   * handed over in the background, where iOS refuses.
+   * **There are two configurations and a third must not come back without an
+   * answer to this.** `WAITING` was `CALL` plus `mixWithOthers`, shipped
+   * 2026-09-05 and deleted 2026-09-06: a call-shaped session stops another
+   * app's audio whether or not it mixes, so the option bought nothing and the
+   * category cost everything. Anything reintroducing a `playAndRecord` variant
+   * for a *quiet* channel is proposing that experiment again.
    */
-  it('waits on the call route while a channel is quiet', () => {
-    expect(sessionFor('waiting')).toBe(WAITING);
-  });
-
-  /**
-   * The property the promotion depends on. When the wait ends, `mixWithOthers`
-   * is the *only* thing that changes — so no route moves at the moment
-   * somebody starts talking, which is the whole reason to wait on this route
-   * rather than on `playback`.
-   */
-  it('differs from a call in exactly one option', () => {
-    expect(WAITING.audioCategory).toBe(CALL.audioCategory);
-    expect(WAITING.audioMode).toBe(CALL.audioMode);
-    expect(new Set(WAITING.audioCategoryOptions)).toEqual(
-      new Set([...(CALL.audioCategoryOptions ?? []), 'mixWithOthers'])
+  it('offers exactly two configurations', () => {
+    expect(new Set([sessionFor('call'), sessionFor('idle')])).toEqual(
+      new Set([CALL, IDLE])
     );
   });
 });
@@ -109,7 +99,7 @@ describe('policyFor', () => {
   // there is no input on which the observer is told something other than what
   // we would apply ourselves, so this is exhaustive rather than a sample: a
   // licensed exception is precisely what went wrong.
-  it.each([['idle'], ['waiting'], ['call']] as const)(
+  it.each([['idle'], ['call']] as const)(
     'tells the observer what we would apply (want=%s)',
     (want) => {
       expect(policyFor(want).playout).toBe(sessionFor(want));
@@ -134,7 +124,7 @@ describe('policyFor', () => {
    * channel, which is why the assertion here is only that the value is
    * constant. `core/__tests__/micNeeded.test.ts` is where the difference is.
    */
-  it.each([['idle'], ['waiting'], ['call']] as const)(
+  it.each([['idle'], ['call']] as const)(
     'records as a call (want=%s)',
     (want) => {
       expect(policyFor(want).recording).toBe(CALL);
@@ -169,7 +159,7 @@ describe('the same two states on Android', () => {
    * state would pass every other test in this file and is exactly what this
    * catches.
    */
-  it.each([['idle'], ['waiting'], ['call']] as const)(
+  it.each([['idle'], ['call']] as const)(
     'moves with the same answer as the Apple half (want=%s)',
     (want) => {
       const apple = sessionFor(want) === CALL;

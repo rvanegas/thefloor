@@ -49,14 +49,13 @@ const native = load();
 /**
  * Starts the silent loop, so this process is not suspended while it waits.
  *
- * **Only call this while waiting — the session `WAITING` or `IDLE` — and only
- * once this app has actually written a category.**
+ * **Only call this while waiting — the session `IDLE` — and only once this app
+ * has actually written a category.**
  *
  * The silence itself is inaudible and mixes, so it costs another app's
  * playback nothing. Everything else about how it sounds belongs to the
  * category it plays under, not to it: under `IDLE` a Bluetooth headset stays
- * on A2DP, and under `WAITING` it is already hands-free, which is that
- * configuration's whole point rather than a side effect of this.
+ * on A2DP.
  *
  * Started under `CALL` it would buy nothing, there being real audio keeping
  * the process alive already. **Started before any category is set it activates
@@ -64,10 +63,14 @@ const native = load();
  * else the phone was playing** — build 146 shipped that and killed a podcast
  * on step-in. `useSessionAudio`'s `sessionConfigured` is the gate.
  *
- * **Under `WAITING` this is load-bearing rather than belt-and-braces.** That
- * configuration is `playAndRecord` and nothing is capturing, and a
- * non-capturing `playAndRecord` session was measured being suspended in seven
- * seconds. What buys background time is audio flowing, which is this.
+ * **This is the only thing holding an `IDLE` wait up.** A session with nothing
+ * flowing through it earns no background assertion at all and is suspended in
+ * about a second — measured seven times. What buys background time is audio
+ * actually flowing, which is this.
+ *
+ * The wait that keeps a *microphone* open needs none of it: capturing holds a
+ * process up by itself, measured at 22m 30s on 2026-09-06. When that wait is
+ * built, this is for the other branch only.
  *
  * Idempotent: starting a loop that is already playing changes nothing.
  *

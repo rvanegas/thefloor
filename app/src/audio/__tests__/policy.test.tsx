@@ -2,8 +2,7 @@ import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { setupIOSAudioManagement } from '@livekit/react-native';
 import { useSessionAudio } from '../useSessionAudio';
-import { CALL, IDLE, WAITING } from '../session';
-import { routeSnapshot } from '../../../modules/audio-route';
+import { CALL, IDLE } from '../session';
 
 /**
  * `modules/audio-route` answers `null` off a linked iOS build, so under jest
@@ -21,9 +20,12 @@ jest.mock('../../../modules/audio-route', () => ({
   routeLine: jest.fn(() => ''),
 }));
 
-const snapshot = routeSnapshot as jest.Mock;
-const playingElsewhere = (playing: boolean) =>
-  snapshot.mockReturnValue(playing ? { otherAudioPlaying: true } : null);
+/**
+ * The other-audio branch these once drove is gone — a quiet channel hands the
+ * session back whatever else is playing. It comes back with the microphone
+ * hold, and the mock is kept because `useSessionAudio` reads a snapshot when
+ * the keep-alive starts and would otherwise reach the real module.
+ */
 
 /**
  * The microphone has three states and only one of them transmits, and the
@@ -320,8 +322,7 @@ describe('releasing the microphone', () => {
     });
   });
 
-  it('waits on the call route afterwards, still mixing', async () => {
-    playingElsewhere(false);
+  it('hands the session back afterwards', async () => {
     const tree = await connected();
 
     await act(async () => {
@@ -331,13 +332,10 @@ describe('releasing the microphone', () => {
     });
     await settle();
 
-    // **This asserted `IDLE` until 2026-09-05, and the change is deliberate.**
-    // Nobody capturing and nothing audible is now a *wait* rather than a
-    // hand-back: the route is held so that an arriving voice does not need one
-    // handed over in the background, where iOS refuses. Another app's music is
-    // still let back in — `WAITING` keeps `mixWithOthers` — it is simply let
-    // back in over the hands-free route rather than A2DP.
-    expect(lastPolicy().playout).toBe(WAITING);
+    // Nobody capturing and nothing audible: the mixing configuration, so
+    // another app's music is let back in. This asserted `WAITING` for one day
+    // — see session.test.ts on why that configuration is gone.
+    expect(lastPolicy().playout).toBe(IDLE);
 
     await act(async () => {
       tree.unmount();
@@ -348,30 +346,6 @@ describe('releasing the microphone', () => {
    * The one case that still hands back. A watch party withholding for its film
    * has a claimant on the route that is not this app, and nobody to wait for.
    */
-  /**
-   * The second of the two cases. Another app playing means the wait is spent
-   * on `playback` exactly as it was before `WAITING` existed — the keep-alive
-   * and the background deferral carry the feature there instead.
-   */
-  it('hands back while another app is playing, rather than waiting', async () => {
-    playingElsewhere(true);
-    const tree = await connected();
-
-    await act(async () => {
-      tree.update(
-        <Probe selfMuted={false} micNeeded={false} hasAudio={false} />
-      );
-    });
-    await settle();
-
-    expect(lastPolicy().playout).toBe(IDLE);
-
-    playingElsewhere(false);
-    await act(async () => {
-      tree.unmount();
-    });
-  });
-
   it('hands back entirely for a watch party withholding', async () => {
     const tree = await connected();
 

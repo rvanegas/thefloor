@@ -393,59 +393,30 @@ function trace(config: AppleAudioConfiguration, want: SessionWant): void {
  * assignment, and it touches neither the session nor the engine.
  */
 /**
- * Which session this app wants, from the three facts that decide it.
+ * Which session this app wants, from the two facts that decide it.
  *
- * **A quiet channel waits on the call route — unless another app is playing,
- * in which case it hands back exactly as it did before.** Two cases, asked for
- * at the prompt on 2026-09-05 after the unconditional version was tried and
- * measured:
+ * **A quiet channel hands the audio system back**, whatever else is happening
+ * on the phone. That is a narrowing, made 2026-09-06 after a third
+ * configuration lasted one day: `WAITING` held the hands-free route through a
+ * wait so that an arrival needed no handover, and a call-shaped session turns
+ * out to stop another app's audio whether or not it carries `mixWithOthers`.
+ * A podcast died a fraction of a second after the play button, three builds
+ * running.
  *
- * - *Nothing else playing.* Hold the hands-free route for the wait, so that an
- *   arriving voice needs no handover at the one moment iOS refuses to give one
- *   — see `WAITING` in session.ts. Safe by construction here: the harm that
- *   version did needs another app's audio to do it to, and there is none.
- * - *Something else playing.* `IDLE`, A2DP, that app untouched. Taking a
- *   call-shaped session alongside a media app moved **its** output to the
- *   receiver — observed with YouTube Music on build 147, with our own route
- *   reading `Speaker` throughout, so nothing in our configuration could have
- *   fixed it. The keep-alive and the background deferral carry the feature
- *   here instead: the silence holds the process up and an arriving voice is
- *   rendered under `playback`, which was measured working.
+ * **The wait that keeps a microphone open is not built yet**, and when it is,
+ * it enters here: the third case is *silent channel, nothing else playing*,
+ * which asks for `call` so an arrival can be heard and answered without
+ * touching the phone. It needs `otherAudioPlaying`, which is only sound while
+ * this app is active — so it will be read at step-in and at each foreground
+ * and held in between, never re-asked from the background. Until then this
+ * function does not ask at all.
  *
- * **The gap, stated rather than hidden.** There is no notification when
- * another app *starts*, so this is answered at the edges we already act on —
- * connecting, foregrounding, a route change. Starting music while already
- * waiting on the hands-free route will relocate it until the next of those.
- * `AVAudioSession.silenceSecondaryAudioHintNotification` is the event that
- * closes this and is not yet wired up.
- *
- * @param hasAudio   whether there is audio to hear, already adjusted for what
- *                   iOS will grant: false while a promotion is deferred.
- * @param handBack   `isPartyMuted` — this app should not have the audio system.
- * @param otherAudio whether another app is producing sound right now.
+ * @param hasAudio whether there is audio to hear, already adjusted for what
+ *                 iOS will grant: false while a promotion is deferred.
+ * @param handBack `isPartyMuted` — this app should not have the audio system.
  */
-function wantFor(
-  hasAudio: boolean,
-  handBack: boolean,
-  otherAudio: boolean
-): SessionWant {
-  if (hasAudio) return 'call';
-  return handBack || otherAudio ? 'idle' : 'waiting';
-}
-
-/**
- * Whether another app is producing sound right now, as far as iOS will say.
- *
- * A single read at an edge, which is the use `routeRecovery` already makes of
- * this module and is not what `AudioDebugPanel` forbids — that is the
- * once-a-second poll, which was itself the fault it was introduced to find.
- *
- * **False when the module is absent**, which is Android, the web and jest. On
- * those, `wantFor` falls through to whatever the other two inputs say, and
- * `WAITING` is an iOS answer to an iOS refusal in any case.
- */
-function otherAudioPlaying(): boolean {
-  return routeSnapshot()?.otherAudioPlaying === true;
+function wantFor(hasAudio: boolean, handBack: boolean): SessionWant {
+  return hasAudio && !handBack ? 'call' : 'idle';
 }
 
 function pushPolicy(want: SessionWant): void {
@@ -856,18 +827,22 @@ export function useSessionAudio(
   /**
    * Records another app's audio starting and stopping, and changes nothing.
    *
-   * **A measurement, not a mechanism.** The design that would branch on this
-   * is not built: `wantFor` still reads the polled `otherAudioPlaying`, which
-   * is exactly what this exists to indict. That flag answered false with music
-   * plainly playing once our own session was active, and on a Bluetooth
-   * headset it flipped with every foreground — so build 149 dragged the route
-   * between HFP and A2DP on each app-state change, audibly, in the middle of
-   * somebody's music.
+   * **A measurement whose result is already in, kept as the record of it.** On
+   * 2026-09-06 this observer was shipped in build 150 and fired **not once** —
+   * with the app foregrounded, in a channel, playing silence as unambiguously
+   * secondary audio, while a podcast was paused and resumed from Control
+   * Centre. `silenceSecondaryAudioHintNotification` does not report this
+   * transition, so nothing can branch on it.
    *
-   * What the log shows is each edge with both polled flags sampled natively at
-   * the same instant. Three things are being asked at once: does the
-   * notification fire at all, does it fire while backgrounded — which is where
-   * a design would need it — and how far the poll disagrees with it.
+   * The same run showed what the polled flag really tracks: `isOtherAudioPlaying`
+   * reads true only while this app is *active*. It describes our own foreground
+   * state, not anybody else's audio — which is why build 150 flipped
+   * configuration five times in thirty seconds and killed the podcast a
+   * fraction of a second after the play button.
+   *
+   * Left in place because a negative result that is easy to re-derive is
+   * cheaper to keep than to rediscover, and because it costs one log line at
+   * an edge that never comes.
    *
    * Unconditional and outside the connection, because the question is about
    * the phone rather than about a room, and an edge that arrives while nothing
@@ -1340,7 +1315,7 @@ export function useSessionAudio(
         // for a channel with somebody in it, so the configuration this
         // connection needs is the one it is given, before anything is active.
         const anyAudio = hasAudioRef.current;
-        const anyWant = wantFor(anyAudio, handBackRef.current, otherAudioPlaying());
+        const anyWant = wantFor(anyAudio, handBackRef.current);
         pushPolicy(anyWant);
         await applyFor(anyWant);
         appliedRef.current = { intent, config: sessionFor(anyWant) };
@@ -1571,7 +1546,7 @@ export function useSessionAudio(
     // session is. Only the second may move the audio category, which is the
     // boundary a Bluetooth profile handover sits on.
     const audible = deferring ? false : hasAudio;
-    const want = wantFor(audible, handBack, otherAudioPlaying());
+    const want = wantFor(audible, handBack);
     const config = sessionFor(want);
 
     // On its own edge, ahead of the dedupe below, for the reason `deferredRef`

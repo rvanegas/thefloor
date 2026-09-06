@@ -743,48 +743,45 @@ anything is subscribed — see PLAYOUT.md — so a channel with anything to hear
 is asked for; what a headset actually experiences is HFP for the whole time
 there is audio, which is the cost that fix accepted deliberately.
 
-**There are three configurations again from 2026-09-05, and the table above
-describes two of them.** A quiet channel is `WAITING` — `CALL`'s category, mode
-and route list with `mixWithOthers` added — **when nothing else is playing**,
-and `IDLE` when something is. So stepping into an empty channel takes the
-hands-free route immediately if the phone is otherwise silent, and leaves
-another app's audio strictly alone if it is not.
+**A third configuration existed for one day and is gone — 2026-09-06.**
+`WAITING` was `CALL`'s category, mode and route list with `mixWithOthers`
+added, meant to hold the hands-free route through a quiet channel so that an
+arriving voice needed no handover. It was deleted for a reason that has nothing
+to do with routes: **a call-shaped session stops another app's audio whether or
+not it carries `mixWithOthers`.** Measured three builds running, finally with a
+podcast dying a fraction of a second after the play button. So a quiet channel
+asks for `IDLE`, whatever else the phone is doing, and the table above is again
+the whole story.
 
-**The second case is not a nicety.** Taking a call-shaped session alongside a
-playing media app moved *that app's* output to the receiver — observed with
-YouTube Music, with this app's own route reading `Speaker(Speaker)` and every
-option it asked for in force, so nothing in the configuration could have
-prevented it. `otherAudioPlaying` from `modules/audio-route` is the test, read
-at the edges this app already acts on. There is no notification when another
-app *starts*, so music begun mid-wait relocates until the next foreground;
-`silenceSecondaryAudioHintNotification` is the event that would close that and
-is not wired up.
+**The branch it was chosen by cannot be built as it stood.**
+`isOtherAudioPlaying` reads true only while this app is *active* — it describes
+our own foreground state rather than anybody else's audio — and
+`silenceSecondaryAudioHintNotification`, the event that would have replaced it,
+was shipped in build 150 and **never fired**, with the app foregrounded, in a
+channel, playing silence as unambiguously secondary audio while a podcast was
+paused and resumed. Re-asking the flag on every app-state change is what made
+build 150 flip configuration five times in thirty seconds, dragging a headset
+between HFP and A2DP.
 
-**The reason is that "later" is not available.** iOS grants a backgrounded
-process playback and refuses it a microphone, so the promotion to
-`playAndRecord` cannot be made once the phone is in a pocket, which is exactly
-when somebody arrives. Taking the route up front, while the app is on screen,
-is the only moment it can be taken — and it means an arriving voice appears on
-the call volume rail with no handover, rather than at media volume with a jolt.
-Asked for at the prompt, in those terms.
+**What survives is the timing rule.** iOS grants a backgrounded process
+playback and refuses it a microphone, so the session a voice arrives under is
+fixed before the phone is locked. A wait that keeps a microphone open — asking
+for `CALL` in a silent channel, so an arrival can be heard *and answered*
+without touching the phone — is therefore decided at step-in, from a flag that
+is sound only while the app is active. That wait is designed and not yet built.
 
-**`IDLE` survives for one case: a watch party withholding for its film.**
-There the claimant on the route is somebody else's player and there is nobody
-to wait for, so the audio system is handed back entirely. `isPartyMuted` is the
-test, passed in from `App.tsx`.
-
-**The promotion to `CALL` is still deferred while backgrounded**, and now costs
-nothing audible: `WAITING` is already `playAndRecord`, so the deferral moves no
-route and withholds only the microphone. Every row saying `CALL` reads
-`WAITING` while the app is off screen *and was not already in a call* — the
-transition is what is forbidden, not the state. What is genuinely lost is
-transmitting, which iOS never offered. See `useSessionAudio.ts` and DECISIONS.
+**The promotion to `CALL` is still deferred while backgrounded.** Every row
+saying `CALL` reads `IDLE` while the app is off screen *and was not already in
+a call* — the transition is what is forbidden, not the state. What is genuinely
+lost is transmitting, which iOS never offered.
 
 **`IDLE` also became the state in which this app plays silence — 2026-09-05.**
 Not audible silence and not a fourth configuration: `modules/keep-alive` loops
 an inaudible buffer under whatever category is already set, for exactly as long
 as `hasAudio` is false and this device is standing in a channel, bounded by
-`WAITING_WINDOW_MS`. It is here because the two facts turn out to be one fact —
+`WAITING_WINDOW_MS`. It is the only thing holding such a wait up: a session
+with nothing flowing earns no background assertion at all and is suspended in
+about a second, measured seven times. It is here because the two facts turn out to be one fact —
 `IDLE` is what this app asks for when no audio is flowing, and no audio flowing
 is what lets iOS suspend the process and expire somebody's presence while they
 are still standing there. Measured at `drops 2 (recovered 0, expired 2)` after

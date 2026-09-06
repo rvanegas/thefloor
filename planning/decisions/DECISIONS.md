@@ -114,6 +114,56 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## The third audio configuration, deleted a day after it arrived — 2026-09-06
+
+**`WAITING` was `CALL` plus `mixWithOthers`**, shipped on 2026-09-05 so a quiet
+channel could hold the hands-free route and an arriving voice would need no
+handover at the one moment iOS refuses to give one. It is gone, and the reason
+is one sentence: **a call-shaped session stops another app's audio whether or
+not it carries `mixWithOthers`.** The option bought nothing; the category cost
+everything.
+
+**It took three builds to see, because the failure kept arriving in disguise.**
+147 relocated YouTube Music to the earpiece — with our own route reading
+`Speaker(Speaker)` and every option we asked for in force, so nothing in the
+configuration could have been wrong. 148 and 149 flipped between `WAITING` and
+`IDLE` on a Bluetooth headset, dragging it between HFP and A2DP. 150 finally
+made it unmistakable: a podcast resumed from Control Centre played for a
+fraction of a second and stopped.
+
+**The branch it was chosen by cannot be built as it stood, and that is the more
+useful finding.** `isOtherAudioPlaying` does not report other apps. It reads
+true only while *this* app is the active one — a fact about our own foreground
+state wearing somebody else's name. Build 150's log shows it flipping with
+every `app inactive`, which is what pulling down Control Centre produces, and
+that is precisely how the podcast came to be killed by the act of reaching for
+its play button.
+
+**The event that would have replaced it does not exist.**
+`AVAudioSession.silenceSecondaryAudioHintNotification` was observed in build
+150 and **never fired** — foregrounded, in a channel, playing silence as
+unambiguously secondary audio, with the other app's audio paused and resumed.
+The observer is kept as the record of that negative result: it costs one log
+line at an edge that never comes, and it is cheaper to keep than to rediscover.
+
+**What survives.** The timing rule the whole area rests on is untouched: iOS
+grants a backgrounded process playback and refuses it a microphone, so the
+session a voice arrives under is fixed before the phone is locked. And the
+polled flag is *sound while the app is active* — which is the only moment the
+decision has to be made. A wait that keeps the microphone open, decided at
+step-in and held for the visit, is therefore still possible; it is designed and
+not yet built.
+
+**Accepted at the prompt, in advance of building it:** during such a wait,
+starting another app's audio will not work — it will play for a fraction of a
+second and stop — until The Floor is next foregrounded, and it will not resume
+by itself. Nothing in iOS will tell us it happened; the only candidate event
+has now been tested and does not fire. The app cannot detect or repair this,
+only avoid creating it, and the fifteen-minute attention window bounds how long
+it can last.
+
+---
+
 ## A room nobody is attending is retired, because presence means responsiveness — 2026-09-06
 
 **Presence had quietly stopped meaning anybody was there.** `holdForPlayout`
