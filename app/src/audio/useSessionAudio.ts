@@ -392,23 +392,59 @@ function trace(config: AppleAudioConfiguration, want: SessionWant): void {
  * assignment, and it touches neither the session nor the engine.
  */
 /**
- * Which session this app wants, from the two facts that decide it.
+ * Which session this app wants, from the three facts that decide it.
  *
- * **`waiting` is the default and `idle` is the exception**, which is the whole
- * of the 2026-09-05 change. Standing in a quiet channel used to hand the audio
- * system back; it now holds the call route, so that an arriving voice does not
- * need a route handed over at the one moment iOS refuses to hand one — see
- * `WAITING` in session.ts. The only thing that still hands back is a watch
- * party withholding for its film, where the claimant on the route is somebody
- * else's player and there is nothing to wait for.
+ * **A quiet channel waits on the call route — unless another app is playing,
+ * in which case it hands back exactly as it did before.** Two cases, asked for
+ * at the prompt on 2026-09-05 after the unconditional version was tried and
+ * measured:
  *
- * @param hasAudio whether there is audio to hear, already adjusted for what
- *                 iOS will grant: false while a promotion is deferred.
- * @param handBack `isPartyMuted` — this app should not have the audio system.
+ * - *Nothing else playing.* Hold the hands-free route for the wait, so that an
+ *   arriving voice needs no handover at the one moment iOS refuses to give one
+ *   — see `WAITING` in session.ts. Safe by construction here: the harm that
+ *   version did needs another app's audio to do it to, and there is none.
+ * - *Something else playing.* `IDLE`, A2DP, that app untouched. Taking a
+ *   call-shaped session alongside a media app moved **its** output to the
+ *   receiver — observed with YouTube Music on build 147, with our own route
+ *   reading `Speaker` throughout, so nothing in our configuration could have
+ *   fixed it. The keep-alive and the background deferral carry the feature
+ *   here instead: the silence holds the process up and an arriving voice is
+ *   rendered under `playback`, which was measured working.
+ *
+ * **The gap, stated rather than hidden.** There is no notification when
+ * another app *starts*, so this is answered at the edges we already act on —
+ * connecting, foregrounding, a route change. Starting music while already
+ * waiting on the hands-free route will relocate it until the next of those.
+ * `AVAudioSession.silenceSecondaryAudioHintNotification` is the event that
+ * closes this and is not yet wired up.
+ *
+ * @param hasAudio   whether there is audio to hear, already adjusted for what
+ *                   iOS will grant: false while a promotion is deferred.
+ * @param handBack   `isPartyMuted` — this app should not have the audio system.
+ * @param otherAudio whether another app is producing sound right now.
  */
-function wantFor(hasAudio: boolean, handBack: boolean): SessionWant {
+function wantFor(
+  hasAudio: boolean,
+  handBack: boolean,
+  otherAudio: boolean
+): SessionWant {
   if (hasAudio) return 'call';
-  return handBack ? 'idle' : 'waiting';
+  return handBack || otherAudio ? 'idle' : 'waiting';
+}
+
+/**
+ * Whether another app is producing sound right now, as far as iOS will say.
+ *
+ * A single read at an edge, which is the use `routeRecovery` already makes of
+ * this module and is not what `AudioDebugPanel` forbids — that is the
+ * once-a-second poll, which was itself the fault it was introduced to find.
+ *
+ * **False when the module is absent**, which is Android, the web and jest. On
+ * those, `wantFor` falls through to whatever the other two inputs say, and
+ * `WAITING` is an iOS answer to an iOS refusal in any case.
+ */
+function otherAudioPlaying(): boolean {
+  return routeSnapshot()?.otherAudioPlaying === true;
 }
 
 function pushPolicy(want: SessionWant): void {
@@ -1271,7 +1307,7 @@ export function useSessionAudio(
         // for a channel with somebody in it, so the configuration this
         // connection needs is the one it is given, before anything is active.
         const anyAudio = hasAudioRef.current;
-        const anyWant = wantFor(anyAudio, handBackRef.current);
+        const anyWant = wantFor(anyAudio, handBackRef.current, otherAudioPlaying());
         pushPolicy(anyWant);
         await applyFor(anyWant);
         appliedRef.current = { intent, config: sessionFor(anyWant) };
@@ -1502,7 +1538,7 @@ export function useSessionAudio(
     // session is. Only the second may move the audio category, which is the
     // boundary a Bluetooth profile handover sits on.
     const audible = deferring ? false : hasAudio;
-    const want = wantFor(audible, handBack);
+    const want = wantFor(audible, handBack, otherAudioPlaying());
     const config = sessionFor(want);
 
     // On its own edge, ahead of the dedupe below, for the reason `deferredRef`

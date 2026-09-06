@@ -3,6 +3,26 @@ import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { setupIOSAudioManagement } from '@livekit/react-native';
 import { useSessionAudio } from '../useSessionAudio';
 import { CALL, IDLE, WAITING } from '../session';
+import { routeSnapshot } from '../../../modules/audio-route';
+
+/**
+ * `modules/audio-route` answers `null` off a linked iOS build, so under jest
+ * `otherAudioPlaying` is false and the waiting case is the default. It is
+ * mocked so the *other* case can be reached, which is the one that exists
+ * because taking a call-shaped session alongside a playing media app relocated
+ * that app's output on build 147.
+ */
+jest.mock('../../../modules/audio-route', () => ({
+  routeSnapshot: jest.fn(() => null),
+  routeFault: jest.fn(() => null),
+  onRouteChange: jest.fn(() => () => {}),
+  setAllowHapticsDuringRecording: jest.fn(async () => true),
+  routeLine: jest.fn(() => ''),
+}));
+
+const snapshot = routeSnapshot as jest.Mock;
+const playingElsewhere = (playing: boolean) =>
+  snapshot.mockReturnValue(playing ? { otherAudioPlaying: true } : null);
 
 /**
  * The microphone has three states and only one of them transmits, and the
@@ -300,6 +320,7 @@ describe('releasing the microphone', () => {
   });
 
   it('waits on the call route afterwards, still mixing', async () => {
+    playingElsewhere(false);
     const tree = await connected();
 
     await act(async () => {
@@ -326,6 +347,30 @@ describe('releasing the microphone', () => {
    * The one case that still hands back. A watch party withholding for its film
    * has a claimant on the route that is not this app, and nobody to wait for.
    */
+  /**
+   * The second of the two cases. Another app playing means the wait is spent
+   * on `playback` exactly as it was before `WAITING` existed — the keep-alive
+   * and the background deferral carry the feature there instead.
+   */
+  it('hands back while another app is playing, rather than waiting', async () => {
+    playingElsewhere(true);
+    const tree = await connected();
+
+    await act(async () => {
+      tree.update(
+        <Probe selfMuted={false} micNeeded={false} hasAudio={false} />
+      );
+    });
+    await settle();
+
+    expect(lastPolicy().playout).toBe(IDLE);
+
+    playingElsewhere(false);
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
   it('hands back entirely for a watch party withholding', async () => {
     const tree = await connected();
 

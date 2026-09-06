@@ -737,11 +737,21 @@ is asked for; what a headset actually experiences is HFP for the whole time
 there is audio, which is the cost that fix accepted deliberately.
 
 **There are three configurations again from 2026-09-05, and the table above
-describes two of them.** A quiet channel is no longer `IDLE`: it is `WAITING`,
-which is `CALL`'s category, mode and route list with `mixWithOthers` added. So
-standing in an empty channel takes the hands-free route immediately — mono, 24
-kHz, another app's music still playing through it — rather than holding A2DP
-and handing it over later.
+describes two of them.** A quiet channel is `WAITING` — `CALL`'s category, mode
+and route list with `mixWithOthers` added — **when nothing else is playing**,
+and `IDLE` when something is. So stepping into an empty channel takes the
+hands-free route immediately if the phone is otherwise silent, and leaves
+another app's audio strictly alone if it is not.
+
+**The second case is not a nicety.** Taking a call-shaped session alongside a
+playing media app moved *that app's* output to the receiver — observed with
+YouTube Music, with this app's own route reading `Speaker(Speaker)` and every
+option it asked for in force, so nothing in the configuration could have
+prevented it. `otherAudioPlaying` from `modules/audio-route` is the test, read
+at the edges this app already acts on. There is no notification when another
+app *starts*, so music begun mid-wait relocates until the next foreground;
+`silenceSecondaryAudioHintNotification` is the event that would close that and
+is not wired up.
 
 **The reason is that "later" is not available.** iOS grants a backgrounded
 process playback and refuses it a microphone, so the promotion to

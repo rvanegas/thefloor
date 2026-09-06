@@ -103,9 +103,38 @@ voice is simply rendered. And `mixWithOthers` is the only thing that changes on
 promotion, so nothing is handed over at the moment somebody starts talking.
 
 **The cost is stated and was accepted before it was built:** media playback is
-mono at 24 kHz for the whole wait, capped at `WAITING_WINDOW_MS`. Applied
-whatever the route, rather than only when a Bluetooth device is connected —
-the simpler rule, chosen at the prompt over the one that reads the route back.
+mono at 24 kHz for the whole wait, capped at `WAITING_WINDOW_MS`.
+
+**It was applied unconditionally for one build, and that was wrong — corrected
+the same evening.** Build 147 took the hands-free route whatever else the phone
+was doing, and with YouTube Music playing, stepping into a channel moved *that
+app's* audio to the receiver. The diagnostic panel is what settled it and what
+refuted the obvious explanation: this app's own route read `Speaker(Speaker)`
+at 48 kHz with `defaultToSpeaker` among the options actually in force. Nothing
+about the configuration was wrong, so no change to the configuration could have
+helped. **A call-shaped session alongside a media app relocates the media
+app**, and the only remedy is not to take one.
+
+So there are two cases, asked for at the prompt in those terms:
+
+- **Nothing else playing** — hold the hands-free route. Safe by construction:
+  the harm needs another app's audio to do it to.
+- **Something else playing** — `IDLE`, A2DP, that app untouched, exactly as
+  before `WAITING` existed. The keep-alive and the background deferral carry
+  the feature there, and both were measured working under `playback`.
+
+`otherAudioPlaying` from `modules/audio-route` is the test. **It is read at the
+edges this app already acts on — connecting, foregrounding, a route change —
+because there is no notification when another app starts**, so music begun
+mid-wait relocates until the next of those.
+`AVAudioSession.silenceSecondaryAudioHintNotification` is the event that closes
+it and is deliberately left for its own change rather than bundled here.
+
+**Two conclusions were reached by being wrong first**, which is worth the line:
+the earlier reasoning that other-app detection was unnecessary held only while
+waiting stayed on `playback`, and the reasoning that it was impractical rested
+on needing a continuous poll — where a read at an edge, which `routeRecovery`
+already does, turns out to be enough for every case but one.
 
 **`IDLE` survives for one case**, and it is the case it was always best at: a
 watch party withholding for its film, where the claimant on the route is

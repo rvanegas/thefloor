@@ -153,13 +153,24 @@ export const CALL: AppleAudioConfiguration = {
  * route moves and nothing is handed over at the moment somebody starts
  * talking. A headset that was HFP stays HFP.
  *
- * **Which means the wait is spent in mono at 24 kHz, deliberately.** Asked for
- * at the prompt on 2026-09-05, after the alternative had been built and
- * measured: waiting under `playback` keeps A2DP and full-quality music, but
- * then an arriving voice appears on the *media* volume rail with no warning,
- * which is jarring, and the handover to HFP cannot be done later because iOS
- * refuses `playAndRecord` from the background. So the route is taken up front,
- * while the app is still on screen and iOS will grant it, and held.
+ * **Which means the wait is spent in mono at 24 kHz, deliberately** — and only
+ * when no other app is playing. Asked for at the prompt on 2026-09-05, after
+ * the alternative had been built and measured: waiting under `playback` keeps
+ * A2DP and full-quality music, but then an arriving voice appears on the
+ * *media* volume rail with no warning, which is jarring, and the handover to
+ * hands-free cannot be done later because iOS refuses `playAndRecord` from the
+ * background. So the route is taken up front, while the app is still on screen
+ * and iOS will grant it, and held.
+ *
+ * **It is taken only into silence, and that condition is not a refinement — it
+ * is what makes this safe.** Taking a call-shaped session alongside a playing
+ * media app moved *that app's* output to the receiver, observed with YouTube
+ * Music on build 147 while our own route read `Speaker(Speaker)` and every
+ * option we asked for was in force. Nothing in this configuration could have
+ * prevented it, because nothing in this configuration was wrong. So
+ * `wantFor` asks `otherAudioPlaying` first and hands back to `IDLE` when
+ * anything else is playing; this is reached only when there is nothing to
+ * relocate.
  *
  * **`mixWithOthers` is what `CALL` will not have and this must.** A wait is
  * not a conversation: somebody standing in an empty channel with a podcast on
