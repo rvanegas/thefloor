@@ -32,13 +32,18 @@ is named after and the glossary's first user-facing word.
 
 ## Subtitle (30 characters)
 
-> Group voice that never rings
+> Group voice on your own time
 
-Twenty-eight characters. **The subtitle is where pillar two goes**, because it
-is the one claim a person cannot discover from screenshots and the one that
-separates this from every other voice app in the store. *Group voice* does the
-categorising in two words so the description does not have to open by
-explaining what kind of thing this is.
+Twenty-eight characters, and **the positive form of the same claim** — see
+§ *Saying it forwards* below for why every negation in this listing was turned
+around on 2026-09-07. *Never rings* named the relief and left the reader to
+work out what they were being offered; *on your own time* is the offer.
+
+**The subtitle is where pillar two goes**, because it is the one claim a person
+cannot discover from screenshots and the one that separates this from every
+other voice app in the store. *Group voice* does the categorising in two words
+so the description does not have to open by explaining what kind of thing this
+is.
 
 DESCRIPTION.md declined to propose a subtitle because it could not read the
 current one — the lookup API does not return it and it is not in the repo. That
@@ -49,7 +54,8 @@ doing here, the description's first line is doing that work twice.
 ## Promotional text (170 characters)
 
 > It's a group chat, but voice. A channel is a place you drop into rather than
-> a call you answer, and nothing about it rings — you come when you can.
+> a call you answer: you arrive when it suits you, and whoever is there is
+> there.
 
 **This field is the recommender's sentence**, and it is the one to get right,
 because it changes without a review and because it is the form the proposition
@@ -58,18 +64,16 @@ rings you."* The rest is that sentence with its two consequences spelled out.
 
 ## Description
 
-> The Floor is for talking with people you already know. Nothing about it
-> rings.
+> The Floor is for talking with people you already know. It waits for you.
 >
 > A channel is a place rather than a call. It holds up to six people, keeps its
 > name and its recordings between conversations, and is still there tomorrow.
-> Nobody has to answer it; you drop in, and whoever is there is there — the way
+> You drop in when you feel like it, and whoever is there is there — the way
 > you drop into a group thread, except that you are talking.
 >
-> When somebody wants you, you get a notification, the ordinary kind. It does
-> not override your ringer, it does not break a Focus mode, and it does not
-> demand an answer in the next four seconds. You come when you can, or you
-> don't.
+> When somebody wants you, you get a notification, the ordinary kind, and it
+> waits in line with all the others. Your ringer stays yours, your Focus mode
+> holds, and the answer keeps until you have a moment for it.
 >
 > You can see where everybody is before you say anything. The list says which
 > channels have somebody in them right now, and how long ago somebody was last
@@ -91,10 +95,70 @@ rings you."* The rest is that sentence with its two consequences spelled out.
 > together, export it, or delete it — anyone in the channel can, not only
 > whoever started it.
 >
-> Nobody can reach you unless you have both agreed. Somebody sends you a link
-> that seats exactly one person, or asks you by name — either way it takes two
-> decisions rather than one. There is no feed, no directory, no strangers, and
-> nothing to scroll. No advertising, no analytics.
+> Everything in The Floor is your people and the rooms you share with them.
+> Everybody here is somebody you both agreed to — they accepted a request from
+> you, you accepted theirs, or they opened a link you sent that seats exactly
+> one person.
+>
+> A conversation passes through and is gone; what is kept is what somebody
+> chose to record. The only thing measured is how many minutes the server
+> carried for you, so that it can be paid for. It is free, there is no
+> advertising, and it is the same app whether or not you ever chip in.
+
+### Saying it forwards
+
+**Adopted 2026-09-07, at the prompt: the copy was true and framed backwards.**
+Almost every claim this listing makes was made by subtraction — *never rings*,
+*does not override your ringer*, *no feed, no directory, no strangers*. Each
+was accurate, and each asked the reader to do the last step themselves: you
+named the thing they are spared and left them to work out what they get.
+
+**Negation is persuasive exactly once**, when it names a pain the reader
+already feels, and it is weak everywhere else, because a product defined by
+what it is not is one the reader cannot picture. So every negation was tried
+forwards, and the rule that came out of it is: **say what happens instead.**
+A ringtone that does not fire is a notification that waits in line. A ringer
+that is not overridden is a ringer that stays yours. An absent feed is a
+screen holding your people and the rooms you share with them.
+
+- **Opening line.** *Nothing about it rings* → *It waits for you*, which is
+  the same fact told from the app's side rather than the telephone's, and is
+  the shortest sentence here. **The alternative considered was
+  *It runs at your pace***, rejected as vaguer; if *waits* ever reads as a
+  progress bar in context, that is the fallback.
+- **Third paragraph, which was three negations in a row.** *Does not override
+  your ringer, does not break a Focus mode, does not demand an answer in the
+  next four seconds* → a notification that **waits in line with all the
+  others**, a ringer that **stays yours**, a Focus mode that **holds**. Same
+  three facts, same order, nothing dropped.
+- **Second paragraph.** *Nobody has to answer it* → *you drop in when you feel
+  like it*. The obligation was the thing being denied, so the positive is the
+  freedom that replaces it.
+- **The last paragraph became two, and is the biggest change.** *No feed, no
+  directory, no strangers, nothing to scroll* was four denials describing an
+  app the reader cannot see. Forwards, it is an inventory: everything in it is
+  your people and the rooms you share with them, and everybody in it agreed
+  twice. The second paragraph does the same for the data — a conversation
+  passes through and is gone, what is kept is what somebody recorded, and the
+  one measurement is the minutes the server carried, which is what pays for
+  it. Every clause is checkable against `privacy.ts`, which is where the
+  inventory came from rather than from invention.
+
+**One negation is kept, deliberately, and it is the last clause in the
+listing: *there is no advertising*.** This is the case the rule above exempts.
+Advertising's absence *is* the claim — there is no forward form of it that a
+reader will believe, since every app that carries ads would also describe
+itself as holding your people — and it answers the question the free price
+raises, which is what the catch is. It is placed last so the copy arrives at
+it rather than opening with it, and it is followed by the answer: it is free,
+and it is the same app whether or not you ever chip in, which is true of the
+donation link in Settings and is stated in `support.ts`.
+
+**Do not restore *no analytics*.** It is doing the same job as the sentence
+before it, in the reader's mind if not in a lawyer's, and two denials in a row
+is the register this revision was for. The full inventory is on `/privacy`,
+which is linked from the listing, and it is more convincing there because it
+is specific.
 
 ### What changed on 2026-09-07, and why
 
@@ -131,7 +195,7 @@ was aimed at.
   published unmuted, so two people present with open microphones and nothing to
   say are never retired, and *speaking* would promise a room that dies while
   they are still in it.
-- **The last paragraph says how agreeing happens.** An invite link seats
+- **The closing paragraphs say how agreeing happens.** An invite link seats
   exactly one person and makes the pair contacts outright. This is a feature
   and the rule below says features stay out — the exception is that it is the
   *mechanism of a claim the paragraph already makes*, and it is the sentence
@@ -178,7 +242,9 @@ placement and the argument for it are unchanged.
   since 2026-09-07, against the waiting rules in `server/src/channels.ts` and
   the session want in the app's audio layer. The invite link was on this list
   when the list was written on 2026-09-03 and shipped on 2026-09-06; it is now
-  the last paragraph's second sentence, for the reason given above.
+  in the eighth paragraph, for the reason given above — it was the last
+  paragraph's second sentence until § *Saying it forwards*, later the same day,
+  split the closing paragraph in two.
 - **Guests, watch party, transcripts, the clipboard, iPad and usernames.** All
   shipped, all absent. A listing that lists everything reads as a feature
   comparison, which is the ground this app loses on; the manual is where the
