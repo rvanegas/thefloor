@@ -858,6 +858,21 @@ every user the HFP cost while leaving them the freeze it pays for.
 
 ## The deploy history
 
+### 2026-09-06 — `e9b40d1` → `52cf864`
+
+Usernames, which is the first schema change to reach the box in a while: a
+`username` column on `accounts` and a `UNIQUE ... COLLATE NOCASE` index over
+it, both made by the migration at boot, and `POST /me` learning a field. Health
+came back on the sha that was sent, `oldestBuild` 56 against a floor of 51 with
+no silent builds.
+
+**Additive in both directions, so nothing needed sequencing.** An installed
+build sends no `username` and is sent none — the field is absent from a profile
+that has none, which is every account at this moment — so the standing rule
+about teaching the server first has nothing to bite on. What follows is an
+upload, and the phones that take it are the only ones that will ever see the
+field.
+
 ### 2026-09-02 — `2844534` → `2d9e00f`
 
 App-only again, and this one is worth saying so about twice over: everything
