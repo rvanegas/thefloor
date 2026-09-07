@@ -48,6 +48,7 @@ about rather than the file — this is eighty-seven kilobytes.
 - Per-speaker volume
 - Interaction with phonecalls
 - `HomeView.recordings` outlived its screen
+- `mediaRoom` is the channel id everywhere, and the reason it stays has expired
 - The output picker is on probation
 - Nobody has heard the `IDLE` → `LISTENING` edge on a device
 - The engine stops under a healthy room, and nothing in the app restarts it
@@ -634,6 +635,62 @@ Once nobody is on 20, the field goes: `homeFor` stops calling `recordingsFor`,
 and `RecordingView` leaves `HomeView` in `core/protocol.ts`. What must *not* go
 with it is `recordingsFor` itself — the export and playback endpoints both read
 it, and it is the one place the access rule is written down.
+
+---
+
+## `mediaRoom` is the channel id everywhere, and the reason it stays has expired
+
+`ChannelState.mediaRoom` is the LiveKit room a channel's audio flows through.
+Its own comment says the field could in principle go, and gives the reason it
+does not: rows written while conversations moved between channels are still on
+disk, where a destination inherited the room name so it would not change under
+a live connection and the channel left behind took a fresh one. Restoring
+either as its own id would put whoever walks in now into a room somebody else
+is still holding tokens for.
+
+**That is no longer true of this database.** Of 74 channel rows, 57 carry a
+`mediaRoom` equal to `id`, 17 predate the field and are defaulted to `row.id`
+by `revive`, and **none differ**. Nor can one appear: `mediaRoom` is written in
+exactly one place, `createChannel`'s `params.mediaRoom ?? id`; nothing in
+production passes `params.mediaRoom`; and no reducer case reassigns it. The
+only non-default in the tree is a fixture, `core/__tests__/participants.test.ts`.
+
+**The client half is inert and can be done at any time.** Every reference in
+`app/src/audio/useSessionAudio.ts` is an effect dependency, a `!!mediaRoom`
+presence guard, or a comment — the hook never names a room in a request, the
+join credential being fetched against `channelId`. So it takes two parameters
+that are always equal, keys one effect on both and another on one alone, and
+carries a comment explaining a distinction that no longer exists. Collapsing
+them to a single identifier touches no wire and no server.
+
+**The server half is the same gate as `HomeView.recordings` above.**
+`protocol.ts` sends `channel: ChannelState` whole, so `mediaRoom` is a wire
+field and `App.tsx` reads `live.mediaRoom`. A server that stops emitting it
+hands every installed build `undefined`, which fails `!!mediaRoom` and leaves
+the app connected to no audio at all — silently, which is the shape the
+two-step exists to prevent.
+
+**So the number: if the client collapse ships in build *N*, the field may be
+deleted once `MIN_SUPPORTED_BUILD` >= *N*.** Build 157 is already uploaded, so
+*N* is 158 at the earliest. The floor is 51 today and the oldest install
+reporting is 56. **Do not raise the floor for this** — raising it ends sessions
+on phones rather than merely licensing a deletion. Wait until it has passed *N*
+for its own reasons, then delete.
+
+What goes when it does: the field from `ChannelState` and `durableOf`, the
+`durable.mediaRoom ?? row.id` default in `revive`, about twenty mechanical
+`state.mediaRoom` → `state.id` substitutions in `server/src/channels.ts`, and
+the fixture. Two staleness guards read `now.mediaRoom !== room` and become
+vacuous — but their `!now` and `status !== 'active'` halves must stay, since a
+channel can still end under an async media call.
+
+The storage half is not gated: `revive` already defaults an absent `mediaRoom`
+to `row.id`, so old rows are safe whatever happens to the field.
+
+One argument for keeping it, recorded rather than endorsed: a separate room
+name is the natural mechanism if a wedged LiveKit room ever needs rebuilding
+under a live channel. Speculative, and today the field buys nothing while
+costing a wire field, a duplicated parameter and a misleading comment.
 
 ---
 
