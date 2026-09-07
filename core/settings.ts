@@ -74,6 +74,29 @@ export interface AccountSettings {
    * the same reasoning as the tap. See `app/src/ui/ChannelView.tsx`.
    */
   controlCards: boolean;
+  /**
+   * Whether the experimental parts of the app are visible and usable at all.
+   *
+   * Unset, which is the default, this app is what it has always been: a
+   * channel is voices, a clipboard, a shared track and a recording. Set, two
+   * more things appear — transcripts on recordings, and the watch party — and
+   * the controls that begin them start working.
+   *
+   * **It is a gate rather than a preference**, which is why it reads the other
+   * way round from everything above it. The other three change how something
+   * already yours behaves; this one decides whether something exists for you,
+   * and off is the answer for anyone who has not asked. That is also why it is
+   * enforced at both ends: the app withholds the surfaces, and the server
+   * refuses the two actions that begin one of these features — starting a
+   * watch party and asking for a transcript, the second of which spends money
+   * at a third party. A hidden control and a refused action must not disagree,
+   * and here the refusal is the one that matters.
+   *
+   * It follows the person rather than the phone on the plainest reading of
+   * the three above: having asked to see the unfinished parts of an app is
+   * something you asked, not something a handset knows.
+   */
+  labs: boolean;
 }
 
 /**
@@ -86,9 +109,14 @@ export interface AccountSettings {
  * they are where a refused control says why it is refused — which is the
  * thing somebody has to have read before they can reasonably choose to stop
  * being shown it.
+ *
+ * Labs defaults off because that is what the word means. Everything behind it
+ * is unfinished by admission, and an experimental feature that arrives without
+ * being asked for is not experimental — it has shipped.
  */
 export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   appearance: 'system',
   tapToStepIn: true,
   controlCards: true,
+  labs: false,
 };

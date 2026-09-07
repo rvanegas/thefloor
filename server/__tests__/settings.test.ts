@@ -5,12 +5,13 @@ import { DEFAULT_ACCOUNT_SETTINGS } from '../../core/settings';
 /**
  * The settings that belong to a person rather than to a phone.
  *
- * Three of the four on the Home settings screen: the colour scheme, whether a
- * tap on a channel steps into it, and whether the channel screen repeats its
- * footer's controls as cards. The fourth — holding the hands-free link
- * steady — is about the headset somebody is wearing and never reaches this
- * server at all, which is what the last test here is for: it is easy to add a
- * field to a route and hard to notice one that has quietly been let in.
+ * All four on the Home settings screen: the colour scheme, whether a tap on a
+ * channel steps into it, whether the channel screen repeats its footer's
+ * controls as cards, and whether the experimental features are visible at
+ * all. There was a fifth — holding the hands-free link steady — which was
+ * about the headset somebody was wearing and never reached this server, and
+ * the last test here is what survives it: it is easy to add a field to a
+ * route and hard to notice one that has quietly been let in.
  *
  * The socket half is in ws.test.ts, where the client that can read a push
  * already lives.
@@ -74,6 +75,7 @@ describe('the settings that follow the account', () => {
       appearance: 'dark',
       tapToStepIn: true,
       controlCards: true,
+      labs: false,
     });
   });
 
@@ -90,6 +92,7 @@ describe('the settings that follow the account', () => {
       appearance: 'light',
       tapToStepIn: false,
       controlCards: true,
+      labs: false,
     });
 
     await save(alice.token, { tapToStepIn: true, controlCards: false });
@@ -97,6 +100,7 @@ describe('the settings that follow the account', () => {
       appearance: 'light',
       tapToStepIn: true,
       controlCards: false,
+      labs: false,
     });
 
     await save(alice.token, { appearance: 'dark' });
@@ -104,6 +108,7 @@ describe('the settings that follow the account', () => {
       appearance: 'dark',
       tapToStepIn: true,
       controlCards: false,
+      labs: false,
     });
   });
 
@@ -156,6 +161,36 @@ describe('the settings that follow the account', () => {
     expect(app.accounts.settings(alice.account.id).controlCards).toBe(true);
   });
 
+  it('refuses a Labs setting that is not a yes or a no', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    const response = await save(alice.token, { labs: 'on' });
+    expect(response.statusCode).toBe(400);
+    expect(app.accounts.settings(alice.account.id).labs).toBe(false);
+  });
+
+  /**
+   * The one setting on this screen that defaults off, so null and 0 mean the
+   * same thing where the two above have null and 1 meaning it. Worth its own
+   * test for that reason: a default read the wrong way round would put the
+   * experimental features in front of every account that has never opened
+   * this screen, which is all of them.
+   */
+  it('leaves Labs off until somebody asks for it, and remembers that they did', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    expect(app.accounts.settings(alice.account.id).labs).toBe(false);
+    expect(app.accounts.byId(alice.account.id)!.labs).toBeNull();
+
+    await save(alice.token, { labs: true });
+    expect(app.accounts.settings(alice.account.id).labs).toBe(true);
+    expect(app.accounts.byId(alice.account.id)!.labs).toBe(1);
+
+    await save(alice.token, { labs: false });
+    expect(app.accounts.settings(alice.account.id).labs).toBe(false);
+    // Stored as a choice rather than reverted to null, for the reason the
+    // test above gives about the other three.
+    expect(app.accounts.byId(alice.account.id)!.labs).toBe(0);
+  });
+
   it('is nobody else’s', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
     const bob = await signIn('user2@example.com', 'Bob');
@@ -194,6 +229,7 @@ describe('the settings that follow the account', () => {
     expect(Object.keys(response.json()).sort()).toEqual([
       'appearance',
       'controlCards',
+      'labs',
       'tapToStepIn',
     ]);
   });

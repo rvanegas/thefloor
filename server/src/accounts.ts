@@ -387,6 +387,7 @@ export class Accounts {
         row.control_cards === null
           ? DEFAULT_ACCOUNT_SETTINGS.controlCards
           : row.control_cards === 1,
+      labs: row.labs === null ? DEFAULT_ACCOUNT_SETTINGS.labs : row.labs === 1,
     };
   }
 
@@ -426,6 +427,11 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET control_cards = ? WHERE id = ?')
         .run(changes.controlCards ? 1 : 0, accountId);
+    }
+    if (changes.labs !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET labs = ? WHERE id = ?')
+        .run(changes.labs ? 1 : 0, accountId);
     }
     return this.settings(accountId);
   }

@@ -167,6 +167,14 @@ export const mockApp = {
   setControlCards: jest.fn((value: boolean) => {
     mockApp.controlCards = value;
   }),
+  // Off, which is what every account has until somebody asks. The tests about
+  // the watch party turn it on, in as many words, which is the point: a screen
+  // that draws a watch card without it would be a screen no ordinary account
+  // ever sees.
+  labs: false,
+  setLabs: jest.fn((value: boolean) => {
+    mockApp.labs = value;
+  }),
 };
 
 // The views are rendered without a native audio stack: @livekit/react-native
@@ -407,6 +415,7 @@ export function resetHarness(): void {
   mockApp.appearance = 'system';
   mockApp.tapToStepIn = true;
   mockApp.controlCards = true;
+  mockApp.labs = false;
   mockApp.debug = false;
   uploads.length = 0;
   uploads.length = 0;

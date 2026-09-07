@@ -317,6 +317,10 @@ describe('Channel', () => {
         { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],
     };
+    // The watch party is behind Labs, and this test is about what an
+    // empty channel refuses rather than about the gate. See `labs` in
+    // core/settings.ts.
+    mockApp.labs = true;
     showChannel(
       channelOf((c) =>
         reduce(
@@ -966,6 +970,9 @@ describe('Channel', () => {
     // and this test is what noticed each time. The three audio sections are
     // contiguous on purpose, which is the constraint most easily broken by
     // adding a section in the obvious place.
+    // Labs on, so the order under test is the whole screen rather than
+    // the screen minus its experimental section.
+    mockApp.labs = true;
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"

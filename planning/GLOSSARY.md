@@ -230,6 +230,20 @@ shown to everybody present, settled by one member answering. It buzzes the
 phones of people in the room, since a knock is a question addressed to whoever
 is in the channel rather than to whoever has the screen open.
 
+## Labs
+
+**A setting on Home that decides whether the unfinished parts of the app exist
+for you.** Off for everybody until they turn it on, and it belongs to the
+account rather than to the phone. Two things are behind it today: *transcripts*
+and the *watch party*.
+
+It is a gate, not a preference: with it off the sections are not on the screen
+at all — no greyed buttons, no empty cards. And it is only about you. Somebody
+in your channel who has turned it on can start a watch party you never asked to
+see; you get the card for it while it is running, because your own player is
+following it, and you can stop it. What Labs decides is whether *you* can begin
+one. See `labs` in core/settings.ts.
+
 ## Leaderboard
 
 The invitation standings: who is here because of whom. Visible only to accounts
@@ -365,6 +379,9 @@ from Home when you take it.
 
 ## Transcript
 
+Behind *Labs*, since 2026-09-06: without it, a recording shows no transcript
+and no way to ask for one.
+
 Text made from a recording, on request, by a third-party provider named on the
 screen that asks. Everybody gets one free; asking sends everybody's audio out,
 so who asked is always shown.
@@ -399,6 +416,10 @@ label is only ever drawn where the provider heard more than one voice in audio
 this system assumed was one.
 
 ## Watch party
+
+Behind *Labs*, since 2026-09-06, on the starting side only: anybody in a
+channel can stop, pause and seek a party that is already running, whoever
+started it.
 
 A YouTube video everybody watches on their own screens, in step. Nothing about
 it is fetched, published, recorded or stored here: it is a link, and each

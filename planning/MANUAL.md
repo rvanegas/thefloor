@@ -166,6 +166,10 @@ it — anybody in the channel can play it, rename it, export it or delete it, an
 it carries the same name for everybody. Deleting a channel deletes its
 recordings.
 
+The next two are **behind Labs**, a switch in Settings that is off until you
+turn it on. They are unfinished and may change or go away, which is what the
+switch is admitting; turning it on affects only what *you* see.
+
 **A transcript** can be made from a recording on request. It goes to a
 third-party provider, named on the screen that asks; asking sends everybody's
 audio out, so who asked is always shown. Everybody gets one free.

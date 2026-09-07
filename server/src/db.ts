@@ -126,6 +126,13 @@ export interface AccountRow {
    */
   control_cards: number | null;
   /**
+   * Whether this account has asked to see the experimental features: 1 for
+   * yes, 0 for no, null for never having said. The default is *off*, so null
+   * and 0 mean the same thing today — the same argument as the two above,
+   * pointing the other way. See `labs` in core/settings.ts.
+   */
+  labs: number | null;
+  /**
    * The name this person chose for themselves, without its at, or null when
    * they have chosen none — which is everybody until they do, a username being
    * optional and, for now, decorative.
@@ -404,6 +411,9 @@ CREATE TABLE IF NOT EXISTS accounts (
   appearance     TEXT,
   tap_to_step_in INTEGER,
   control_cards  INTEGER,
+  -- Whether the experimental features are visible to this account, null until
+  -- somebody says. Off is the default here, unlike the two above.
+  labs           INTEGER,
   -- The name this person chose for themselves, without its at, and null until
   -- they choose one — which most never will, it being optional and doing
   -- nothing yet. Stored as typed; uniqueness is judged folded, by the
@@ -1316,6 +1326,11 @@ function migrate(db: Db): void {
   // survives columns being added on different days.
   if (!accountColumns.some((c) => c.name === 'control_cards')) {
     db.exec('ALTER TABLE accounts ADD COLUMN control_cards INTEGER');
+  }
+  // One column, one guard, for the reason the comment above gives — this one
+  // arrived on 2026-09-06, days after both of them.
+  if (!accountColumns.some((c) => c.name === 'labs')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN labs INTEGER');
   }
   if (!accountColumns.some((c) => c.name === 'free_transcript_id')) {
     db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_id TEXT');

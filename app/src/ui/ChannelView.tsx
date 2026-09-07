@@ -1534,332 +1534,350 @@ export function ChannelView({
         </Card>
 
         {/*
-          Watching, which is deliberately not a second kind of shared audio.
-          Nothing about the video travels through The Floor — everybody's own
-          player shows it, with its own sound, and what this card drives is a
-          clock. That is why it refuses recordings and why the audio card below
-          empties when this one fills.
-        */}
-        <SectionLabel>Watch together</SectionLabel>
-        <Card style={styles.stack}>
-          {watch.failure ? (
-            <Text style={styles.warning}>
-              The watch party stopped — {watch.failure}
-            </Text>
-          ) : null}
-          {watchError ? <Text style={styles.warning}>{watchError}</Text> : null}
-          {watchNote ? <Text style={type.muted}>{watchNote}</Text> : null}
+          Behind Labs, and the one experimental surface the app has to withhold
+          for itself: a recording's transcript vanishes because the server stops
+          sending the field, but a party is channel state and arrives on every
+          snapshot whether anybody asked for the feature or not.
 
-          {party ? (
-            <>
-              <Text style={type.heading} numberOfLines={1}>
-                {party.url}
-              </Text>
-              {party.durationMs ? (
+          `|| party` is not a leak in that gate. Somebody who never asked for
+          watch parties can still be sitting in a channel where one is running —
+          their own player is being driven by it and the recording controls are
+          refusing them because of it — and a card explaining that, with a Stop
+          on it, is the only honest thing to draw. What Labs decides is whether
+          you can *begin* one, which is what the server enforces; see `dispatch`
+          in server/src/channels.ts.
+        */}
+        {app.labs || party ? (
+          <>
+            {/*
+              Watching, which is deliberately not a second kind of shared audio.
+              Nothing about the video travels through The Floor — everybody's own
+              player shows it, with its own sound, and what this card drives is a
+              clock. That is why it refuses recordings and why the audio card below
+              empties when this one fills.
+            */}
+            <SectionLabel>Watch together</SectionLabel>
+            <Card style={styles.stack}>
+              {watch.failure ? (
+                <Text style={styles.warning}>
+                  The watch party stopped — {watch.failure}
+                </Text>
+              ) : null}
+              {watchError ? <Text style={styles.warning}>{watchError}</Text> : null}
+              {watchNote ? <Text style={type.muted}>{watchNote}</Text> : null}
+
+              {party ? (
                 <>
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${Math.min(
-                            100,
-                            (watchAt / Math.max(1, party.durationMs)) * 100
-                          )}%`,
-                        },
-                      ]}
+                  <Text style={type.heading} numberOfLines={1}>
+                    {party.url}
+                  </Text>
+                  {party.durationMs ? (
+                    <>
+                      <View style={styles.progressTrack}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
+                              width: `${Math.min(
+                                100,
+                                (watchAt / Math.max(1, party.durationMs)) * 100
+                              )}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <View style={styles.progressLabels}>
+                        <Text style={styles.progressTime}>
+                          {formatDuration(watchAt)}
+                        </Text>
+                        <Text style={styles.progressTime}>
+                          {formatDuration(party.durationMs)}
+                        </Text>
+                      </View>
+                    </>
+                  ) : (
+                    // No bar until a screen has said how long the video is —
+                    // nothing here asks YouTube anything, so until then the only
+                    // honest thing to show is how far in everybody is.
+                    <Text style={styles.progressTime}>
+                      {formatDuration(watchAt)} in
+                    </Text>
+                  )}
+
+                  <View style={styles.buttonRow}>
+                    <Button
+                      label="−15s"
+                      style={styles.flexButton}
+                      disabled={!mayControlWatch}
+                      onPress={() =>
+                        act({ type: 'WATCH_SEEK', positionMs: watchAt - SKIP_MS })
+                      }
+                    />
+                    <Button
+                      label={watch.status === 'playing' ? 'Pause' : 'Play'}
+                      variant="primary"
+                      style={styles.flexButton}
+                      disabled={!mayControlWatch}
+                      onPress={() =>
+                        act({
+                          type:
+                            watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
+                        })
+                      }
+                    />
+                    <Button
+                      label="+15s"
+                      style={styles.flexButton}
+                      disabled={!mayControlWatch}
+                      onPress={() =>
+                        act({ type: 'WATCH_SEEK', positionMs: watchAt + SKIP_MS })
+                      }
                     />
                   </View>
-                  <View style={styles.progressLabels}>
-                    <Text style={styles.progressTime}>
-                      {formatDuration(watchAt)}
-                    </Text>
-                    <Text style={styles.progressTime}>
-                      {formatDuration(party.durationMs)}
-                    </Text>
+
+                  {/*
+                    Muting the room, which is a different act from muting yourself
+                    and says so. Watching something together is mostly not talking,
+                    and every open microphone in a party is one pointed at
+                    somebody's screen — so this is the remedy for the bleed as well
+                    as for the noise.
+
+                    It restores nothing when cleared: each person's own mute is
+                    theirs and comes back exactly as they left it. See
+                    `WatchState.mutedAll`.
+                  */}
+                  <Button
+                    label={muteRequested ? 'Unmute the room' : 'Mute the room'}
+                    sublabel={
+                      muteRequested
+                        ? 'Everyone can speak again; your own mute is unchanged'
+                        : 'Quiet while the video plays; pause to talk'
+                    }
+                    disabled={!mayControlWatch}
+                    onPress={() =>
+                      act({ type: 'SET_WATCH_MUTE', muted: !muteRequested })
+                    }
+                  />
+
+                  {/*
+                    Changing what is on without stopping first.
+
+                    Without it the only route from one video to the next is Stop
+                    and start again, which empties the card, drops the followers to
+                    "Nothing is playing", and makes a continuous evening read as
+                    two unrelated ones. `START_WATCH` already replaces a party in
+                    place — this is the interface catching up with what the reducer
+                    could always do.
+                  */}
+                  {changing ? (
+                    <>
+                      <Field
+                        value={watchUrl}
+                        onChangeText={setWatchUrl}
+                        placeholder="Paste a YouTube link"
+                        autoFocus
+                        editable={mayStartWatch}
+                      />
+                      <View style={styles.buttonRow}>
+                        <Button
+                          label="Watch this instead"
+                          variant="primary"
+                          style={styles.flexButton}
+                          disabled={!mayStartWatch || !pastedIsLink}
+                          onPress={() => {
+                            act({ type: 'START_WATCH', url: watchUrl.trim() });
+                            setWatchUrl('');
+                            setChanging(false);
+                          }}
+                        />
+                        <Button
+                          label="Cancel"
+                          variant="ghost"
+                          style={styles.flexButton}
+                          onPress={() => {
+                            setWatchUrl('');
+                            setChanging(false);
+                          }}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <View style={styles.buttonRow}>
+                      <Button
+                        label="Change video"
+                        style={styles.flexButton}
+                        disabled={!mayStartWatch}
+                        onPress={() => setChanging(true)}
+                      />
+                      <Button
+                        label="Stop"
+                        variant="ghost"
+                        style={styles.flexButton}
+                        disabled={!mayControlWatch}
+                        onPress={() => act({ type: 'STOP_WATCH' })}
+                      />
+                    </View>
+                  )}
+
+                  {/*
+                    Two links and they are not the same kind of thing, which is why
+                    the labels name which is which rather than both saying "Copy".
+
+                    **The video's** is public: a YouTube URL anybody may hold, and
+                    the one to send to somebody who is not in this channel at all.
+                    **The screen's** is a credential — the token rides in its
+                    fragment and follows this channel for six hours — and is for
+                    another device belonging to somebody already here.
+
+                    Copying rather than sharing, both of them, because the share
+                    sheet is for sending to a person and a clipboard is for putting
+                    somewhere: a note, a browser on the desk, the other half of a
+                    conversation happening elsewhere. `shareWatchLink` is still
+                    below for the sending case.
+                  */}
+                  <View style={styles.buttonRow}>
+                    <Button
+                      label={copyLabel('video', 'Copy video link')}
+                      style={styles.flexButton}
+                      onPress={() => void copyVideoLink()}
+                    />
+                    <Button
+                      label={
+                        linking
+                          ? 'Making a link…'
+                          : copyLabel('screen', 'Copy screen link')
+                      }
+                      style={styles.flexButton}
+                      disabled={linking || !mayOpenWatchScreen}
+                      onPress={() => void copyScreenLink()}
+                    />
                   </View>
+
+                  <Button
+                    label={linking ? 'Making a link…' : 'Watch on another screen'}
+                    variant="ghost"
+                    disabled={linking || !mayOpenWatchScreen}
+                    onPress={shareWatchLink}
+                  />
+
+                  {/*
+                    "Open on this phone" was here and is gone as of 2026-08-23. It
+                    handed the video to the device's own YouTube app at the right
+                    second, and could correct nothing after that — a player outside
+                    this app runs on its own clock, so it drifted from the party
+                    from the moment it started. It was the one control here that
+                    did not follow the channel.
+
+                    What replaced it is "Copy video link" above: the same link, on
+                    the clipboard, for whoever actually wants to open it somewhere
+                    else. That is the honest version of the same act — it does not
+                    imply the party goes with it.
+                  */}
                 </>
               ) : (
-                // No bar until a screen has said how long the video is —
-                // nothing here asks YouTube anything, so until then the only
-                // honest thing to show is how far in everybody is.
-                <Text style={styles.progressTime}>
-                  {formatDuration(watchAt)} in
-                </Text>
-              )}
-
-              <View style={styles.buttonRow}>
-                <Button
-                  label="−15s"
-                  style={styles.flexButton}
-                  disabled={!mayControlWatch}
-                  onPress={() =>
-                    act({ type: 'WATCH_SEEK', positionMs: watchAt - SKIP_MS })
-                  }
-                />
-                <Button
-                  label={watch.status === 'playing' ? 'Pause' : 'Play'}
-                  variant="primary"
-                  style={styles.flexButton}
-                  disabled={!mayControlWatch}
-                  onPress={() =>
-                    act({
-                      type:
-                        watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
-                    })
-                  }
-                />
-                <Button
-                  label="+15s"
-                  style={styles.flexButton}
-                  disabled={!mayControlWatch}
-                  onPress={() =>
-                    act({ type: 'WATCH_SEEK', positionMs: watchAt + SKIP_MS })
-                  }
-                />
-              </View>
-
-              {/*
-                Muting the room, which is a different act from muting yourself
-                and says so. Watching something together is mostly not talking,
-                and every open microphone in a party is one pointed at
-                somebody's screen — so this is the remedy for the bleed as well
-                as for the noise.
-
-                It restores nothing when cleared: each person's own mute is
-                theirs and comes back exactly as they left it. See
-                `WatchState.mutedAll`.
-              */}
-              <Button
-                label={muteRequested ? 'Unmute the room' : 'Mute the room'}
-                sublabel={
-                  muteRequested
-                    ? 'Everyone can speak again; your own mute is unchanged'
-                    : 'Quiet while the video plays; pause to talk'
-                }
-                disabled={!mayControlWatch}
-                onPress={() =>
-                  act({ type: 'SET_WATCH_MUTE', muted: !muteRequested })
-                }
-              />
-
-              {/*
-                Changing what is on without stopping first.
-
-                Without it the only route from one video to the next is Stop
-                and start again, which empties the card, drops the followers to
-                "Nothing is playing", and makes a continuous evening read as
-                two unrelated ones. `START_WATCH` already replaces a party in
-                place — this is the interface catching up with what the reducer
-                could always do.
-              */}
-              {changing ? (
                 <>
                   <Field
                     value={watchUrl}
                     onChangeText={setWatchUrl}
                     placeholder="Paste a YouTube link"
-                    autoFocus
                     editable={mayStartWatch}
                   />
-                  <View style={styles.buttonRow}>
-                    <Button
-                      label="Watch this instead"
-                      variant="primary"
-                      style={styles.flexButton}
-                      disabled={!mayStartWatch || !pastedIsLink}
-                      onPress={() => {
-                        act({ type: 'START_WATCH', url: watchUrl.trim() });
-                        setWatchUrl('');
-                        setChanging(false);
-                      }}
-                    />
-                    <Button
-                      label="Cancel"
-                      variant="ghost"
-                      style={styles.flexButton}
-                      onPress={() => {
-                        setWatchUrl('');
-                        setChanging(false);
-                      }}
-                    />
-                  </View>
-                </>
-              ) : (
-                <View style={styles.buttonRow}>
                   <Button
-                    label="Change video"
-                    style={styles.flexButton}
-                    disabled={!mayStartWatch}
-                    onPress={() => setChanging(true)}
+                    label="Watch something together"
+                    variant="primary"
+                    disabled={!mayStartWatch || !pastedIsLink}
+                    onPress={() => {
+                      act({ type: 'START_WATCH', url: watchUrl.trim() });
+                      setWatchUrl('');
+                    }}
                   />
                   <Button
-                    label="Stop"
+                    label={linking ? 'Making a link…' : 'Watch on another screen'}
+                    sublabel="A page for a laptop or a tablet, which follows this channel"
                     variant="ghost"
-                    style={styles.flexButton}
-                    disabled={!mayControlWatch}
-                    onPress={() => act({ type: 'STOP_WATCH' })}
+                    disabled={linking || !mayOpenWatchScreen}
+                    onPress={shareWatchLink}
                   />
-                </View>
+                </>
               )}
 
               {/*
-                Two links and they are not the same kind of thing, which is why
-                the labels name which is which rather than both saying "Copy".
+                Why the room is quiet, or why it is not.
 
-                **The video's** is public: a YouTube URL anybody may hold, and
-                the one to send to somebody who is not in this channel at all.
-                **The screen's** is a credential — the token rides in its
-                fragment and follows this channel for six hours — and is for
-                another device belonging to somebody already here.
-
-                Copying rather than sharing, both of them, because the share
-                sheet is for sending to a person and a clipboard is for putting
-                somewhere: a note, a browser on the desk, the other half of a
-                conversation happening elsewhere. `shareWatchLink` is still
-                below for the sending case.
+                The headphone advice used to be the third branch here and is gone
+                as of 2026-08-23. It warned about a leak — a microphone hearing its
+                owner's own screen and sending the video back into the channel — at
+                a time when an unmuted room was the norm. Muting is the default
+                now, so the leak is prevented rather than advised against, and
+                whoever deliberately unmutes is the last person who needs telling.
+                The reasoning it carried is DECISIONS.md § *A watch party leaks into
+                the channel through the microphone*, which is where it belongs: the
+                constraint is still true, it is just no longer news.
               */}
-              <View style={styles.buttonRow}>
-                <Button
-                  label={copyLabel('video', 'Copy video link')}
-                  style={styles.flexButton}
-                  onPress={() => void copyVideoLink()}
-                />
-                <Button
-                  label={
-                    linking
-                      ? 'Making a link…'
-                      : copyLabel('screen', 'Copy screen link')
-                  }
-                  style={styles.flexButton}
-                  disabled={linking || !mayOpenWatchScreen}
-                  onPress={() => void copyScreenLink()}
-                />
-              </View>
+              {party ? (
+                partyMuted ? (
+                  // A room that has stopped carrying voices is otherwise
+                  // indistinguishable from a room where nobody is talking, so it
+                  // says which, and how to get out of it.
+                  <Text style={type.muted}>
+                    <Text style={styles.emphasis}>The room is muted.</Text> No
+                    microphone is open, so nothing leaks in from anybody's screen.
+                    Pause the video to talk.
+                  </Text>
+                ) : muteRequested ? (
+                  // Muted, but paused — so everybody has their voice back without
+                  // having asked for it. Said because the silence *returning* on
+                  // the next tap of Play would otherwise be the surprise: this is
+                  // the one moment somebody learns the rule.
+                  <Text style={type.muted}>
+                    <Text style={styles.emphasis}>Paused, so you can talk.</Text>{' '}
+                    The room goes quiet again when the video resumes.
+                  </Text>
+                ) : (
+                  // Explicitly unmuted, which is a choice somebody made against the
+                  // default. Said plainly rather than left silent, because it is
+                  // the state in which the channel behaves least like the rest of
+                  // the watch party.
+                  <Text style={type.muted}>
+                    <Text style={styles.emphasis}>The room is unmuted.</Text>{' '}
+                    Everybody can be heard, including whatever their own screen is
+                    playing.
+                  </Text>
+                )
+              ) : null}
 
-              <Button
-                label={linking ? 'Making a link…' : 'Watch on another screen'}
-                variant="ghost"
-                disabled={linking || !mayOpenWatchScreen}
-                onPress={shareWatchLink}
-              />
-
-              {/*
-                "Open on this phone" was here and is gone as of 2026-08-23. It
-                handed the video to the device's own YouTube app at the right
-                second, and could correct nothing after that — a player outside
-                this app runs on its own clock, so it drifted from the party
-                from the moment it started. It was the one control here that
-                did not follow the channel.
-
-                What replaced it is "Copy video link" above: the same link, on
-                the clipboard, for whoever actually wants to open it somewhere
-                else. That is the honest version of the same act — it does not
-                imply the party goes with it.
-              */}
-            </>
-          ) : (
-            <>
-              <Field
-                value={watchUrl}
-                onChangeText={setWatchUrl}
-                placeholder="Paste a YouTube link"
-                editable={mayStartWatch}
-              />
-              <Button
-                label="Watch something together"
-                variant="primary"
-                disabled={!mayStartWatch || !pastedIsLink}
-                onPress={() => {
-                  act({ type: 'START_WATCH', url: watchUrl.trim() });
-                  setWatchUrl('');
-                }}
-              />
-              <Button
-                label={linking ? 'Making a link…' : 'Watch on another screen'}
-                sublabel="A page for a laptop or a tablet, which follows this channel"
-                variant="ghost"
-                disabled={linking || !mayOpenWatchScreen}
-                onPress={shareWatchLink}
-              />
-            </>
-          )}
-
-          {/*
-            Why the room is quiet, or why it is not.
-
-            The headphone advice used to be the third branch here and is gone
-            as of 2026-08-23. It warned about a leak — a microphone hearing its
-            owner's own screen and sending the video back into the channel — at
-            a time when an unmuted room was the norm. Muting is the default
-            now, so the leak is prevented rather than advised against, and
-            whoever deliberately unmutes is the last person who needs telling.
-            The reasoning it carried is DECISIONS.md § *A watch party leaks into
-            the channel through the microphone*, which is where it belongs: the
-            constraint is still true, it is just no longer news.
-          */}
-          {party ? (
-            partyMuted ? (
-              // A room that has stopped carrying voices is otherwise
-              // indistinguishable from a room where nobody is talking, so it
-              // says which, and how to get out of it.
               <Text style={type.muted}>
-                <Text style={styles.emphasis}>The room is muted.</Text> No
-                microphone is open, so nothing leaks in from anybody's screen.
-                Pause the video to talk.
+                {!mayOpenWatchScreen
+                  ? // First, because it outranks the rest: somebody outside a
+                    // conversation that is going on has no use for being told whose
+                    // floor it is or that a recording is running. It is also the
+                    // only reason here that greys the second screen as well as
+                    // everything else.
+                    'Step in to start a watch party. What everybody is watching is for whoever is here.'
+                  : recordingLive
+                    ? // Said out loud rather than left as a dead button. The two are
+                      // exclusive because the video's sound never reaches The Floor,
+                      // so a recording made alongside one would be missing the thing
+                      // everybody was reacting to.
+                      'Stop the recording first — a watch party is not recorded.'
+                    : theyHoldFloor
+                      ? `${holderName} has the floor, so they decide what plays.`
+                      : iHoldFloor
+                        ? 'You have the floor — only you can change what plays.'
+                        : !mayStartWatch
+                          ? // The empty channel, from outside it. Starting asks
+                            // presence and the transport does not, so Stop is live
+                            // beside a greyed Change video — see `canStartWatch`.
+                            party
+                            ? 'Step in to put something else on. What is here you can still stop.'
+                            : 'Step in to start a watch party. A screen for one you can open from here.'
+                          : party
+                            ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
+                            : 'Open the link on a laptop or a tablet and it follows the channel. Recording is off while a party is on.'}
               </Text>
-            ) : muteRequested ? (
-              // Muted, but paused — so everybody has their voice back without
-              // having asked for it. Said because the silence *returning* on
-              // the next tap of Play would otherwise be the surprise: this is
-              // the one moment somebody learns the rule.
-              <Text style={type.muted}>
-                <Text style={styles.emphasis}>Paused, so you can talk.</Text>{' '}
-                The room goes quiet again when the video resumes.
-              </Text>
-            ) : (
-              // Explicitly unmuted, which is a choice somebody made against the
-              // default. Said plainly rather than left silent, because it is
-              // the state in which the channel behaves least like the rest of
-              // the watch party.
-              <Text style={type.muted}>
-                <Text style={styles.emphasis}>The room is unmuted.</Text>{' '}
-                Everybody can be heard, including whatever their own screen is
-                playing.
-              </Text>
-            )
-          ) : null}
-
-          <Text style={type.muted}>
-            {!mayOpenWatchScreen
-              ? // First, because it outranks the rest: somebody outside a
-                // conversation that is going on has no use for being told whose
-                // floor it is or that a recording is running. It is also the
-                // only reason here that greys the second screen as well as
-                // everything else.
-                'Step in to start a watch party. What everybody is watching is for whoever is here.'
-              : recordingLive
-                ? // Said out loud rather than left as a dead button. The two are
-                  // exclusive because the video's sound never reaches The Floor,
-                  // so a recording made alongside one would be missing the thing
-                  // everybody was reacting to.
-                  'Stop the recording first — a watch party is not recorded.'
-                : theyHoldFloor
-                  ? `${holderName} has the floor, so they decide what plays.`
-                  : iHoldFloor
-                    ? 'You have the floor — only you can change what plays.'
-                    : !mayStartWatch
-                      ? // The empty channel, from outside it. Starting asks
-                        // presence and the transport does not, so Stop is live
-                        // beside a greyed Change video — see `canStartWatch`.
-                        party
-                        ? 'Step in to put something else on. What is here you can still stop.'
-                        : 'Step in to start a watch party. A screen for one you can open from here.'
-                      : party
-                        ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
-                        : 'Open the link on a laptop or a tablet and it follows the channel. Recording is off while a party is on.'}
-          </Text>
-        </Card>
+            </Card>
+          </>
+        ) : null}
 
         <SectionLabel>Shared audio</SectionLabel>
         <Card style={styles.stack}>

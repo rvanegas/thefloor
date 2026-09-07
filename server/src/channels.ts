@@ -971,6 +971,20 @@ export class ChannelRegistry {
     // which is the whole reason `parseYouTubeUrl` is in core: a greyed-out
     // control and a refused action cannot disagree about what a link is.
     if (action.type === 'START_WATCH') {
+      // The watch party is behind Labs, and this is where that is enforced.
+      // Only starting one: whoever is in a channel where a party is already
+      // running can stop it, pause it and seek it whatever they have asked to
+      // see, because the alternative is a room full of people who can hear
+      // that something is driving their players and cannot reach it. Beginning
+      // is the act that puts an experimental feature in front of everybody
+      // else, so beginning is what is gated. See `labs` in core/settings.ts.
+      if (!this.accounts.settings(userId).labs) {
+        return {
+          ok: false,
+          error: 'Watch parties are a Labs feature. Turn Labs on in Settings.',
+          code: 'forbidden',
+        };
+      }
       const url = (action as { url?: unknown }).url;
       const parsed = typeof url === 'string' ? parseYouTubeUrl(url) : null;
       if (!parsed) {

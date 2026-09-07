@@ -1,6 +1,7 @@
 import React from 'react';
 import renderer, {
   act,
+  type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
 import { HomeView } from '../HomeView';
@@ -280,6 +281,78 @@ describe('the control-cards setting', () => {
       ) as { backgroundColor?: unknown };
     expect(cardStyleOf('Off').backgroundColor).not.toBe(
       cardStyleOf('On').backgroundColor
+    );
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * The gate over the experimental features.
+ *
+ * What the screen owes is the same three things every other setting here owes
+ * — both answers, a mark on the one in force, and reporting a change upward —
+ * plus one this one owes and the others do not: naming what appears. A switch
+ * labelled only "experimental features" is one whose effect nobody can find
+ * afterwards. What it *does* is asserted on the channel screen, which is where
+ * the two features live.
+ */
+describe('the Labs setting', () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  /** The third On/Off pair: the tap, then the cards, then this. */
+  const labsButton = (tree: ReactTestRenderer, label: string) =>
+    tree.root
+      .findAll(
+        (n) =>
+          n.props?.accessibilityRole === 'button' &&
+          typeof n.props.onPress === 'function'
+      )
+      .filter((n) => labelOf(n).includes(label))[2];
+
+  it('names the two things it turns on', async () => {
+    const tree = await openSettings();
+    const text = textOf(tree);
+    expect(text).toContain('Show experimental features');
+    expect(text).toContain('transcripts');
+    expect(text).toContain('watching a video together');
+    // And that it is nobody else's business, which is the question anybody
+    // sharing a channel asks next.
+    expect(text).toContain('not to anybody else');
+    act(() => tree.unmount());
+  });
+
+  it('reports a change rather than keeping it', async () => {
+    const tree = await openSettings();
+    act(() => labsButton(tree, 'On').props.onPress());
+    expect(mockApp.setLabs).toHaveBeenCalledWith(true);
+    expect(mockApp.setControlCards).not.toHaveBeenCalled();
+    expect(mockApp.setTapToStepIn).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Which one is marked rather than merely that they differ, because the
+   * default is the whole point of this setting: an account that has never
+   * asked has to see Off in force. The tap's On is the yardstick — it is in
+   * force by default too, so the two carry the same mark.
+   */
+  it('marks Off in force for somebody who has never asked', async () => {
+    const tree = await openSettings();
+    const styleFor = (node: ReactTestInstance) =>
+      StyleSheet.flatten(node.props.style({ pressed: false })) as {
+        backgroundColor?: unknown;
+      };
+    expect(styleFor(labsButton(tree, 'Off')).backgroundColor).not.toBe(
+      styleFor(labsButton(tree, 'On')).backgroundColor
+    );
+    expect(styleFor(labsButton(tree, 'Off')).backgroundColor).toBe(
+      styleFor(findButton(tree, 'On')!).backgroundColor
     );
     act(() => tree.unmount());
   });

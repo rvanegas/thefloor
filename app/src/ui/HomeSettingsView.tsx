@@ -244,6 +244,51 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         </Text>
       </Card>
 
+      {/*
+        Under the two settings about how channels behave and above appearance,
+        which is where it belongs by subject rather than by importance: it is
+        the third thing on this screen that changes the app, and the two above
+        it are the ones somebody actually came here for. Not at the bottom
+        beside the account, which is where a screen puts what it is slightly
+        ashamed of — this is opt-in and unfinished, not dangerous, and the card
+        says which.
+      */}
+      <SectionLabel>Labs</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>Show experimental features</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, 'On'],
+              [false, 'Off'],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={app.labs === value ? 'primary' : 'default'}
+              onPress={() => app.setLabs(value)}
+            />
+          ))}
+        </View>
+        {/*
+          Named rather than described, because the whole point of the switch is
+          that somebody can tell afterwards what appeared. "Experimental
+          features" alone is a setting whose effect nobody can find.
+        */}
+        <Text style={type.muted}>
+          Off, which is where everybody starts. On, two unfinished things
+          appear: transcripts of your recordings, and watching a video together
+          in a channel. They can change or go away.
+        </Text>
+        <Text style={type.muted}>
+          It follows your account rather than this phone, and it is only about
+          you — turning it on shows these to you, not to anybody else in your
+          channels.
+        </Text>
+      </Card>
+
       <SectionLabel>Appearance</SectionLabel>
       <Card style={styles.stack}>
         <View style={styles.choices}>

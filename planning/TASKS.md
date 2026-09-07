@@ -8,10 +8,6 @@ and things to go and find out. There are more in BACKLOG.md.
 
 Look has changed.
 
-## Labs Setting
-
-Add a setting cleared by default, such that if set, experimental features are visible and enabled. These include transcripts, and the watch party.
-
 ## Rule B
 
 If a user steps into an empty channel and backgrounds the app in CALL mode, then he is forcibly stepped out after 15m. Does this rule apply to users who after others have left, finds himself in a newly empty channel while app is backgrounded?

@@ -50,7 +50,12 @@ jest.mock('../../api/http', () => ({
     signOut: jest.fn(async () => {}),
     saveSettings: jest.fn(async (_token: string, changes: Record<string, unknown>) => {
       mockSaved.push(changes);
-      return { appearance: 'system', tapToStepIn: true, controlCards: true };
+      return {
+        appearance: 'system',
+        tapToStepIn: true,
+        controlCards: true,
+        labs: false,
+      };
     }),
   },
 }));
@@ -76,7 +81,7 @@ function Settings() {
   return (
     <Text>
       {app.appearance}/{app.tapToStepIn ? 'tap' : 'open'}/
-      {app.controlCards ? 'cards' : 'bare'}
+      {app.controlCards ? 'cards' : 'bare'}/{app.labs ? 'labs' : 'plain'}
     </Text>
   );
 }
@@ -99,6 +104,7 @@ function hello(settings: {
   appearance: 'light' | 'dark' | 'system';
   tapToStepIn: boolean;
   controlCards: boolean;
+  labs: boolean;
 } | null): void {
   handlers.onHello?.(
     { id: 'acct_me', displayName: 'Me' },
@@ -148,18 +154,26 @@ describe('the settings that follow the account', () => {
     mockStored['thefloor.appearance'] = 'light';
     mockStored['thefloor.tapToStepIn'] = 'true';
     mockStored['thefloor.controlCards'] = 'false';
+    // Read as 'true' rather than 'false', this one defaulting off.
+    mockStored['thefloor.labs'] = 'true';
     const tree = await mount();
     // The cache first, which is the whole of what a cold start has.
-    expect(textOf(tree)).toContain('light/tap/bare');
+    expect(textOf(tree)).toContain('light/tap/bare/labs');
 
     await act(async () =>
-      hello({ appearance: 'dark', tapToStepIn: false, controlCards: true })
+      hello({
+        appearance: 'dark',
+        tapToStepIn: false,
+        controlCards: true,
+        labs: false,
+      })
     );
-    expect(textOf(tree)).toContain('dark/open/cards');
+    expect(textOf(tree)).toContain('dark/open/cards/plain');
     // And written through, so the next cold start starts from the right one.
     expect(mockStored['thefloor.appearance']).toBe('dark');
     expect(mockStored['thefloor.tapToStepIn']).toBe('false');
     expect(mockStored['thefloor.controlCards']).toBe('true');
+    expect(mockStored['thefloor.labs']).toBe('false');
   });
 
   /**
@@ -176,16 +190,22 @@ describe('the settings that follow the account', () => {
   it('follows a change made on another device', async () => {
     const tree = await mount();
     await act(async () =>
-      hello({ appearance: 'system', tapToStepIn: true, controlCards: true })
+      hello({
+        appearance: 'system',
+        tapToStepIn: true,
+        controlCards: true,
+        labs: false,
+      })
     );
     await act(async () =>
       handlers.onSettings?.({
         appearance: 'light',
         tapToStepIn: false,
         controlCards: false,
+        labs: true,
       })
     );
-    expect(textOf(tree)).toContain('light/open/bare');
+    expect(textOf(tree)).toContain('light/open/bare/labs');
   });
 
   /**
@@ -195,7 +215,12 @@ describe('the settings that follow the account', () => {
   it('applies a choice at once and tells the server which one changed', async () => {
     const tree = await mount();
     await act(async () =>
-      hello({ appearance: 'system', tapToStepIn: true, controlCards: true })
+      hello({
+        appearance: 'system',
+        tapToStepIn: true,
+        controlCards: true,
+        labs: false,
+      })
     );
 
     await act(async () => latest!.setAppearance('dark'));
@@ -213,6 +238,15 @@ describe('the settings that follow the account', () => {
       { tapToStepIn: false },
       { controlCards: false },
     ]);
+
+    await act(async () => latest!.setLabs(true));
+    expect(textOf(tree)).toContain('dark/open/bare/labs');
+    expect(mockSaved).toEqual([
+      { appearance: 'dark' },
+      { tapToStepIn: false },
+      { controlCards: false },
+      { labs: true },
+    ]);
   });
 
   /**
@@ -223,14 +257,20 @@ describe('the settings that follow the account', () => {
   it('forgets them at sign-out, and leaves the headset alone', async () => {
     const tree = await mount();
     await act(async () =>
-      hello({ appearance: 'dark', tapToStepIn: false, controlCards: false })
+      hello({
+        appearance: 'dark',
+        tapToStepIn: false,
+        controlCards: false,
+        labs: true,
+      })
     );
     await act(async () => {
       await latest!.signOut();
     });
-    expect(textOf(tree)).toContain('system/tap/cards');
+    expect(textOf(tree)).toContain('system/tap/cards/plain');
     expect(mockStored['thefloor.appearance']).toBeUndefined();
     expect(mockStored['thefloor.tapToStepIn']).toBeUndefined();
     expect(mockStored['thefloor.controlCards']).toBeUndefined();
+    expect(mockStored['thefloor.labs']).toBeUndefined();
   });
 });

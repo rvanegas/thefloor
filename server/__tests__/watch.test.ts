@@ -127,6 +127,13 @@ class Client {
   }
 }
 
+/**
+ * Signs somebody in with Labs already on, the watch party being behind it.
+ *
+ * The file is about what a party does once it exists; starting one is refused
+ * without Labs, and the test that asserts that turns it back off. See `labs`
+ * in core/settings.ts.
+ */
 async function signIn(identifier: string, displayName: string) {
   const code = app.accounts.issueCode(identifier, clock)!;
   const verified = await app.fastify.inject({
@@ -134,10 +141,12 @@ async function signIn(identifier: string, displayName: string) {
     url: '/auth/verify',
     payload: { identifier, code, displayName },
   });
-  return verified.json() as {
+  const account = verified.json() as {
     token: string;
     account: { id: string; displayName: string };
   };
+  app.accounts.updateSettings(account.account.id, { labs: true });
+  return account;
 }
 
 async function channelOfTwo() {
@@ -470,6 +479,45 @@ describe('a watch-scoped socket', () => {
     await page.next('pong');
     expect(app.channels.get(channelId)?.present).not.toContain(alice.account.id);
     page.close();
+  });
+});
+
+describe('the Labs gate', () => {
+  /**
+   * Starting is what puts an experimental feature on everybody else's screen,
+   * so starting is what is refused. Only starting: the tests below all act as
+   * accounts that asked for Labs, and the transport is deliberately left
+   * open to everybody in a channel where a party is already running — see
+   * `dispatch` in src/channels.ts and `labs` in core/settings.ts.
+   */
+  it('refuses a party to somebody who has not turned Labs on', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    app.accounts.updateSettings(alice.account.id, { labs: false });
+
+    const refused = app.channels.dispatch(channelId, alice.account.id, {
+      type: 'START_WATCH',
+      url: URL,
+    } as never);
+    expect(refused.ok).toBe(false);
+    expect((refused as { error: string }).error).toMatch(/Labs/);
+    expect(app.channels.get(channelId)!.watch.party).toBeNull();
+  });
+
+  it('lets the rest of the channel stop one that is already running', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'START_WATCH',
+      url: URL,
+    } as never);
+    // Bob never asked for any of this, and is now in a channel driving his
+    // own player. Stopping it is the one thing he must be able to do.
+    app.accounts.updateSettings(bob.account.id, { labs: false });
+
+    const stopped = app.channels.dispatch(channelId, bob.account.id, {
+      type: 'STOP_WATCH',
+    } as never);
+    expect(stopped.ok).toBe(true);
+    expect(app.channels.get(channelId)!.watch.party).toBeNull();
   });
 });
 

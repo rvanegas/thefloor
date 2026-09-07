@@ -314,6 +314,7 @@ describe('websocket', () => {
       appearance: 'system',
       tapToStepIn: true,
       controlCards: true,
+      labs: false,
     });
     client.close();
 
@@ -321,7 +322,12 @@ describe('websocket', () => {
       method: 'POST',
       url: '/me/settings',
       headers: auth(token),
-      payload: { appearance: 'dark', tapToStepIn: false, controlCards: false },
+      payload: {
+        appearance: 'dark',
+        tapToStepIn: false,
+        controlCards: false,
+        labs: true,
+      },
     });
     const later = new Client(token, baseUrl);
     await later.open();
@@ -329,6 +335,7 @@ describe('websocket', () => {
       appearance: 'dark',
       tapToStepIn: false,
       controlCards: false,
+      labs: true,
     });
     later.close();
   });
@@ -370,6 +377,7 @@ describe('websocket', () => {
         appearance: 'dark',
         tapToStepIn: true,
         controlCards: true,
+        labs: false,
       });
     }
     expect(bobs.received.some((m) => m.type === 'settings')).toBe(false);

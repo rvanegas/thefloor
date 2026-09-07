@@ -76,6 +76,17 @@ const TAP_TO_STEP_IN_KEY = 'thefloor.tapToStepIn';
  */
 const CONTROL_CARDS_KEY = 'thefloor.controlCards';
 
+/**
+ * Whether the experimental features are visible to this account, cached from
+ * the account the way the two keys above are.
+ *
+ * Read the other way round — only `'true'` turns it on — because the default
+ * is off. That is what makes a missing key, a key from a build that never
+ * wrote one and a value nobody recognises all mean "not asked for", which is
+ * the honest reading of every one of them.
+ */
+const LABS_KEY = 'thefloor.labs';
+
 /** SecureStore has no web implementation; the browser is only used for checks. */
 const storage = {
   async get(key: string): Promise<string | null> {
@@ -416,6 +427,21 @@ interface AppValue extends AppState {
    */
   controlCards: boolean;
   setControlCards: (value: boolean) => void;
+  /**
+   * Whether this account has asked to see the experimental features.
+   *
+   * Off by default, and unlike the three above it hides things rather than
+   * rearranging them: with it off there is no watch party card on a channel
+   * screen and no transcript anywhere. The transcripts half is not read from
+   * here at all — the server withholds each recording's `transcript` field
+   * from a viewer without Labs, and the app already draws nothing when that
+   * field is absent, which is how a server with no transcription key has
+   * always been handled. What this value drives in the app is the watch party,
+   * whose state travels on the channel snapshot and so cannot be withheld the
+   * same way. See `ChannelView` and `labs` in core/settings.ts.
+   */
+  labs: boolean;
+  setLabs: (value: boolean) => void;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -479,6 +505,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
   /**
+   * Read the same way and at the same moment, and tested for `'true'` rather
+   * than `'false'` because this one defaults off. The gap it covers is a
+   * channel screen drawing without its watch card for the first frames after a
+   * cold start, which is the harmless direction: something appearing is a
+   * better surprise than a control vanishing under a thumb.
+   */
+  const [labs, setLabsState] = useState(DEFAULT_ACCOUNT_SETTINGS.labs);
+  useEffect(() => {
+    void (async () => {
+      if ((await storage.get(LABS_KEY)) === 'true') setLabsState(true);
+    })();
+  }, []);
+  /**
    * Takes the account's settings as the server states them, whichever device
    * caused them to change.
    *
@@ -501,6 +540,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.set(TAP_TO_STEP_IN_KEY, settings.tapToStepIn ? 'true' : 'false');
     setControlCardsState(settings.controlCards);
     void storage.set(CONTROL_CARDS_KEY, settings.controlCards ? 'true' : 'false');
+    setLabsState(settings.labs);
+    void storage.set(LABS_KEY, settings.labs ? 'true' : 'false');
   }, []);
   /**
    * Puts the settings back to what somebody who has never signed in sees, and
@@ -519,6 +560,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.remove(TAP_TO_STEP_IN_KEY);
     setControlCardsState(DEFAULT_ACCOUNT_SETTINGS.controlCards);
     void storage.remove(CONTROL_CARDS_KEY);
+    setLabsState(DEFAULT_ACCOUNT_SETTINGS.labs);
+    void storage.remove(LABS_KEY);
   }, []);
   /**
    * The address this install is registered at, kept so sign-out can hand it
@@ -1027,6 +1070,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
+      labs,
+      setLabs: (value) => {
+        setLabsState(value);
+        void storage.set(LABS_KEY, value ? 'true' : 'false');
+        if (state.token) {
+          void api.saveSettings(state.token, { labs: value }).catch(() => {});
+        }
+      },
+
       requestCode: async (identifier) => {
         await api.requestCode(identifier);
       },
@@ -1332,6 +1384,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       appearance,
       tapToStepIn,
       controlCards,
+      labs,
       forgetSettings,
       expiry,
     ]

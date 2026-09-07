@@ -72,6 +72,14 @@ function markUnlimited(id: string) {
     .run(id);
 }
 
+/**
+ * Signs somebody in with Labs already on, transcripts being behind it.
+ *
+ * Every test in this file is about who may ask for a transcript, what it
+ * costs and what comes back, and none of them is about the gate — so the gate
+ * is opened here rather than in forty places. `labsOff` below is the one test
+ * that leaves it shut. See `labs` in core/settings.ts.
+ */
 const signIn = async (identifier: string, displayName: string) => {
   const code = app.accounts.issueCode(identifier, clock)!;
   const res = await app.fastify.inject({
@@ -79,7 +87,9 @@ const signIn = async (identifier: string, displayName: string) => {
     url: '/auth/verify',
     payload: { identifier, code, displayName },
   });
-  return res.json() as { token: string; account: { id: string } };
+  const account = res.json() as { token: string; account: { id: string } };
+  app.accounts.updateSettings(account.account.id, { labs: true });
+  return account;
 };
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -256,6 +266,39 @@ describe('asking for one', () => {
     expect(again.statusCode).toBe(409);
     expect(again.json().error).toMatch(/already has a transcript/i);
   }, 60_000);
+
+  /**
+   * The Labs gate, and it is checked before everything else this route
+   * checks: somebody who never asked for the experimental features is not
+   * told they have spent their one free use, and nothing is sent to the
+   * provider. The app withholds the button, so reaching here at all means a
+   * client that predates the gate or one asking directly — which is exactly
+   * the case a refusal exists for, transcription being the one thing in this
+   * app that spends money per use.
+   */
+  it('refuses somebody who has not turned Labs on, and spends nothing', async () => {
+    const { alice } = await room();
+    app.accounts.updateSettings(alice.account.id, { labs: false });
+
+    const answered = await ask(alice.token);
+    expect(answered.statusCode).toBe(403);
+    expect(answered.json().error).toMatch(/Labs/);
+    expect(provider.submitted).toHaveLength(0);
+    // And the field goes with it, which is what takes the button off the
+    // screen — the app draws nothing for a recording with no transcript
+    // field, the same way it does against a server with no provider.
+    const home = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(alice.token),
+    });
+    expect(home.statusCode).toBe(200);
+    const listed = (home.json() as {
+      recordings: Array<Record<string, unknown>>;
+    }).recordings;
+    expect(listed).toHaveLength(1);
+    expect(listed[0].transcript).toBeUndefined();
+  });
 
   it('tells a stranger the recording does not exist', async () => {
     await room();
