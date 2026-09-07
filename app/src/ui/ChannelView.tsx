@@ -33,7 +33,9 @@ import {
   canControlPlayback,
   canPauseRecording,
   canResumeRecording,
+  canMuteOther,
   canSetSelfMute,
+  mutableAt,
   canStartRecording,
   canLoadTrack,
   canStartWatch,
@@ -406,11 +408,11 @@ export function ChannelView({
         pingableAt={view.pingableAt?.[viewing.id] ?? null}
         // Their microphone, offered only where the favour means something:
         // somebody else, in the room, with you in it too. Those are the same
-        // three conditions `canSetSelfMute` checks, and they are repeated here
-        // rather than left to it because the guard's answer is *whether the
-        // toggle is refused*, and this is *whether there is a toggle at all* —
-        // absent for somebody who has stepped out, disabled for somebody
-        // holding the floor.
+        // conditions `canMuteOther` checks, and they are asked again here
+        // because the guard's answer is *whether the toggle is refused* and
+        // this is *whether there is a toggle at all* — absent for somebody who
+        // has stepped out, drawn and disabled for the two refusals that are
+        // facts about them worth reading.
         mic={
           // `iAmPresent` itself is declared below this early return, so its
           // two halves are written out: the reducer thinks you are here, and
@@ -424,12 +426,17 @@ export function ChannelView({
                 // Asked about the toggle this would actually send, so the
                 // button is disabled exactly when pressing it would do
                 // nothing.
-                mayChange: canSetSelfMute(
+                mayChange: canMuteOther(
                   channel,
                   me,
+                  viewing.id,
                   !(channel.selfMuted[viewing.id] ?? false),
-                  viewing.id
+                  now
                 ),
+                // Only for the wording. `mayChange` above has already taken
+                // this into account; this is what lets the screen say how long
+                // is left instead of leaving a dead button unexplained.
+                mutableAt: mutableAt(channel, viewing.id, now),
               }
             : null
         }

@@ -1292,8 +1292,13 @@ describe('somebody else’s microphone, from their profile', () => {
   const buttonFor = (tree: ReactTestRenderer, label: string) =>
     tree.root.findAll((n) => n.props?.label === label)[0];
 
+  type Mic = { muted: boolean; mayChange: boolean; mutableAt: number | null };
+
+  /** Open, mutable, nobody having just unmuted themselves. */
+  const open: Mic = { muted: false, mayChange: true, mutableAt: null };
+
   const renderProfile = async (
-    mic: { muted: boolean; mayChange: boolean } | null,
+    mic: Mic | null,
     onSetMute?: (muted: boolean) => void
   ) => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
@@ -1314,10 +1319,7 @@ describe('somebody else’s microphone, from their profile', () => {
 
   it('offers to mute somebody whose microphone is open', async () => {
     const sent: boolean[] = [];
-    const tree = await renderProfile(
-      { muted: false, mayChange: true },
-      (muted) => sent.push(muted)
-    );
+    const tree = await renderProfile(open, (muted) => sent.push(muted));
 
     expect(textOf(tree)).toContain('Their microphone');
     act(() => buttonFor(tree, 'Mute them').props.onPress());
@@ -1328,7 +1330,7 @@ describe('somebody else’s microphone, from their profile', () => {
   it('offers to open one that is closed, which is the half worth having', async () => {
     const sent: boolean[] = [];
     const tree = await renderProfile(
-      { muted: true, mayChange: true },
+      { ...open, muted: true },
       (muted) => sent.push(muted)
     );
 
@@ -1354,10 +1356,43 @@ describe('somebody else’s microphone, from their profile', () => {
    * and an absence here would look like the control had never existed.
    */
   it('draws the floor-holder’s refusal instead of hiding the control', async () => {
-    const tree = await renderProfile({ muted: false, mayChange: false }, () => {});
+    const tree = await renderProfile({ ...open, mayChange: false }, () => {});
 
     expect(buttonFor(tree, 'Mute them').props.disabled).toBe(true);
     expect(textOf(tree)).toContain('They have the floor');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The other refusal, and the one that has to say when. A minute is short
+   * enough that "not now" without "how long" would read as broken.
+   */
+  it('says how long is left after somebody has unmuted themselves', async () => {
+    const tree = await renderProfile(
+      { ...open, mayChange: false, mutableAt: NOW + 40_000 },
+      () => {}
+    );
+
+    expect(buttonFor(tree, 'Mute them').props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('They have just unmuted themselves.');
+    // `duration` is dayjs's relative time, which has no interest in precision
+    // under a minute — and neither has this sentence, the whole window being
+    // one minute long. It is reassurance that the control will come back, not
+    // a timer.
+    expect(textOf(tree)).toContain('You can mute them again in a few seconds.');
+    // And not the other refusal's sentence, the two being different facts.
+    expect(textOf(tree)).not.toContain('They have the floor');
+    act(() => tree.unmount());
+  });
+
+  it('goes back to the ordinary control once the minute has passed', async () => {
+    const tree = await renderProfile(
+      { ...open, mutableAt: NOW - 1_000 },
+      () => {}
+    );
+
+    expect(buttonFor(tree, 'Mute them').props.disabled).toBe(false);
+    expect(textOf(tree)).not.toContain('They have just unmuted themselves.');
     act(() => tree.unmount());
   });
 });

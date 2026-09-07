@@ -4534,6 +4534,9 @@ export class ChannelRegistry {
       everPresent: durable.everPresent ?? [],
       floor: initialFloorState(),
       selfMuted: Object.fromEntries(participants.map((id) => [id, false])),
+      // Nobody comes back mid-unmute either. The window is scoped to a visit
+      // and no visit survived the restart, so there is nothing to carry.
+      selfUnmutedAt: {},
       recording: initialRecordingState(),
       lastRecording: durable.lastRecording ?? null,
       playback: initialPlaybackState(),

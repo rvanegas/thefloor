@@ -492,9 +492,12 @@ somebody others can talk to. Three other things in the code are also called
 channel may close or open the microphone of anybody else in it, from that
 person's profile — the favour among people who invited each other into a room:
 a dog is barking, or somebody is talking to nobody with their microphone shut.
-A guest can be the object of it and cannot perform it, and nobody can mute the
-floor-holder, on their own behalf or anybody's. `canSetSelfMute` is the whole
-policy and argues each clause.
+A guest can be the object of it and cannot perform it, nobody can mute the
+floor-holder, and nobody can mute somebody who has unmuted themselves in the
+last minute — that last being what stops the favour becoming a loop, where a
+person unmutes to speak and is shut again each time. `canMuteOther` is the
+whole policy and argues each clause; `canSetSelfMute` is the self case and is
+unchanged.
 
 **So the name is now narrower than the thing, deliberately, and this is the
 disagreement to know about.** *Self* was accurate when the only hand was your

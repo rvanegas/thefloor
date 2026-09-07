@@ -1,6 +1,7 @@
 import {
   FLOOR_CLAIM_MS,
   FLOOR_CLAIM_DELAY_STEP_MS,
+  SELF_UNMUTE_GRACE_MS,
 } from '../constants';
 import {
   claimDelayMs,
@@ -12,7 +13,9 @@ import {
   canClaimFloor,
   canDeleteChannel,
   canLeaveChannel,
+  canMuteOther,
   canSetSelfMute,
+  mutableAt,
   createChannel,
   reduce,
 } from '../channel';
@@ -186,7 +189,7 @@ describe('the floor and self-mute', () => {
  *
  * The favour among friends: a member in the room may close or open the
  * microphone of anybody else in it, from their profile. What is worth testing
- * is not that it works — one line of the reducer does that — but the three
+ * is not that it works — one line of the reducer does that — but the four
  * clauses that narrow it, since each is the difference between a favour and a
  * thing nobody would want in a channel.
  */
@@ -214,7 +217,7 @@ describe('muting somebody else', () => {
 
   it('refuses somebody who has stepped out of the room', () => {
     let s = reduce(joined(), { type: 'STEP_OUT', userId: A }, T0);
-    expect(canSetSelfMute(s, A, true, B)).toBe(false);
+    expect(canMuteOther(s, A, B, true, T0)).toBe(false);
     s = reduce(s, mute(A, B), T0 + 1_000);
     expect(s.selfMuted[B]).toBe(false);
   });
@@ -223,26 +226,131 @@ describe('muting somebody else', () => {
     // Nothing to reach: stepping out clears the mute, so a write here would
     // be a key the next step-in discards.
     let s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0);
-    expect(canSetSelfMute(s, A, true, B)).toBe(false);
+    expect(canMuteOther(s, A, B, true, T0)).toBe(false);
     s = reduce(s, mute(A, B), T0 + 1_000);
     expect(s.selfMuted[B]).toBeFalsy();
   });
 
   it('refuses the floor-holder, whoever is asking', () => {
     // The clause is about the target. A holder muted on their behalf is the
-    // same silent room as one who muted themselves.
+    // same silent room as one who muted themselves, and a claim is a request
+    // to be heard that everybody else is already honouring.
     const s = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
-    expect(canSetSelfMute(s, B, true, A)).toBe(false);
+    expect(canMuteOther(s, B, A, true, T0 + 1_000)).toBe(false);
     expect(reduce(s, mute(B, A), T0 + 1_000).selfMuted[A]).toBe(false);
     // Unmuting a holder is allowed, as it always is, and does nothing.
-    expect(canSetSelfMute(s, B, false, A)).toBe(true);
+    expect(canMuteOther(s, B, A, false, T0 + 1_000)).toBe(true);
   });
 
   it('still lets anybody mute themselves by naming themselves', () => {
     // `target` equal to the actor is the footer's action with a field on it,
-    // and must not pick up the presence clauses the other case adds.
+    // and must not pick up the clauses the favour adds.
     const s = reduce(joined(), mute(B, B), T0);
     expect(s.selfMuted[B]).toBe(true);
+  });
+});
+
+/**
+ * The minute somebody's own unmute buys them, added 2026-09-07.
+ *
+ * The failure mode the favour has is being done to somebody who is about to
+ * speak — and worse, done again the moment they undo it, which is a person
+ * unmuting into a control that shuts them each time. Unmuting yourself is the
+ * plainest statement there is that you want to be heard, so it stands for a
+ * minute against anybody else reaching for the control.
+ */
+describe('a self-unmute holds off everybody else', () => {
+  const mute = (by: string, target: string, muted = true): ChannelAction => ({
+    type: 'SET_SELF_MUTE',
+    userId: by,
+    muted,
+    target,
+  });
+
+  /** B muted, then unmuted by their own hand at `at`. */
+  const bJustUnmuted = (at = T0 + 1_000): ChannelState =>
+    apply(joined(), [
+      [{ type: 'SET_SELF_MUTE', userId: B, muted: true }, T0],
+      [{ type: 'SET_SELF_MUTE', userId: B, muted: false }, at],
+    ]);
+
+  it('refuses the mute for a minute after they unmuted themselves', () => {
+    const s = bJustUnmuted();
+    expect(canMuteOther(s, A, B, true, T0 + 2_000)).toBe(false);
+    expect(reduce(s, mute(A, B), T0 + 2_000).selfMuted[B]).toBe(false);
+  });
+
+  it('allows it again once the minute has passed', () => {
+    const s = bJustUnmuted();
+    const after = T0 + 1_000 + SELF_UNMUTE_GRACE_MS;
+    expect(canMuteOther(s, A, B, true, after)).toBe(true);
+    expect(reduce(s, mute(A, B), after).selfMuted[B]).toBe(true);
+  });
+
+  it('closes the loop it exists to close', () => {
+    // Muted by A, unmuted by themselves, and A cannot simply do it again —
+    // which is the whole point. Without this clause the pair can repeat for
+    // as long as one of them cares to.
+    let s = reduce(joined(), mute(A, B), T0);
+    expect(s.selfMuted[B]).toBe(true);
+    s = reduce(s, { type: 'SET_SELF_MUTE', userId: B, muted: false }, T0 + 500);
+    expect(s.selfMuted[B]).toBe(false);
+    s = reduce(s, mute(A, B), T0 + 600);
+    expect(s.selfMuted[B]).toBe(false);
+  });
+
+  it('does not stop them muting themselves inside their own window', () => {
+    // The window is a lock on everybody else, not on the person. Correcting an
+    // unmute you did not mean is the ordinary use of it.
+    const s = bJustUnmuted();
+    const next = reduce(
+      s,
+      { type: 'SET_SELF_MUTE', userId: B, muted: true },
+      T0 + 2_000
+    );
+    expect(next.selfMuted[B]).toBe(true);
+  });
+
+  it('is not bought for somebody by another member’s unmute', () => {
+    // Otherwise anybody could manufacture a protection window over a person
+    // who never asked for one — unmute them, and they are now unmutable.
+    let s = reduce(joined(), { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0);
+    s = reduce(s, mute(A, B, false), T0 + 1_000);
+    expect(s.selfMuted[B]).toBe(false);
+    expect(canMuteOther(s, A, B, true, T0 + 2_000)).toBe(true);
+  });
+
+  it('never blocks unmuting, which is the direction it has no quarrel with', () => {
+    const s = bJustUnmuted();
+    expect(canMuteOther(s, A, B, false, T0 + 2_000)).toBe(true);
+  });
+
+  it('does not survive a step out, the window being scoped to the visit', () => {
+    let s = bJustUnmuted();
+    s = reduce(s, { type: 'STEP_OUT', userId: B }, T0 + 2_000);
+    s = reduce(s, { type: 'ENTER', userId: B }, T0 + 3_000);
+    expect(s.selfUnmutedAt[B]).toBeUndefined();
+    expect(canMuteOther(s, A, B, true, T0 + 4_000)).toBe(true);
+  });
+
+  it('is not stamped by the unmute a claim performs', () => {
+    // Claiming clears the claimant's mute, and that is the floor's doing
+    // rather than a statement made with the mute control. While they hold it
+    // they cannot be muted at all; on release they are an ordinary member.
+    let s = reduce(joined(), { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0);
+    s = reduce(s, { type: 'CLAIM_FLOOR', userId: B }, T0 + 1_000);
+    expect(s.selfMuted[B]).toBe(false);
+    s = reduce(s, { type: 'RELEASE_FLOOR', userId: B }, T0 + 2_000);
+    expect(canMuteOther(s, A, B, true, T0 + 3_000)).toBe(true);
+  });
+
+  it('says when the wait is over, for the screen to say so', () => {
+    const s = bJustUnmuted();
+    expect(mutableAt(s, B, T0 + 2_000)).toBe(T0 + 1_000 + SELF_UNMUTE_GRACE_MS);
+    // Null once it has passed, and for somebody who never unmuted at all —
+    // the two cases the screen draws identically.
+    expect(mutableAt(s, B, T0 + 1_000 + SELF_UNMUTE_GRACE_MS)).toBeNull();
+    expect(mutableAt(s, A, T0 + 2_000)).toBeNull();
   });
 });
 

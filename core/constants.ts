@@ -157,6 +157,30 @@ export const MAX_PING_TEXT_LENGTH = 100;
 export const DISCONNECT_GRACE_MS = 60_000;
 
 /**
+ * How long somebody who has just unmuted themselves cannot be muted by anybody
+ * else.
+ *
+ * Muting a person in the room with you is a favour, and the favour has one
+ * failure mode: it is done to somebody who is about to speak. Unmuting
+ * yourself is the plainest statement there is that you want to be heard, so
+ * for a minute afterwards it stands, and the control on your profile refuses
+ * anybody who reaches for it. See `canMuteOther`.
+ *
+ * **A minute, matching FLOOR_CLAIM_MS rather than deriving from it.** The two
+ * are the same length for the same underlying reason — it is about how long
+ * somebody's intention to speak is worth honouring before it goes stale — but
+ * a claim is a lock on the whole channel and this is a lock on one control, so
+ * they are free to move apart. Long enough to say a sentence, short enough
+ * that somebody who unmuted by accident and then walked away is not protected
+ * for the rest of the conversation.
+ *
+ * **It does not restrict the person themselves.** Muting yourself is
+ * unilateral and stays that way, and doing it inside your own window is the
+ * ordinary way to correct an unmute you did not mean.
+ */
+export const SELF_UNMUTE_GRACE_MS = 60_000;
+
+/**
  * How long somebody whose connection expired goes on being described as
  * waiting, rather than as having stepped out.
  *

@@ -65,13 +65,23 @@ allowed.
 **Not necessarily your own, since 2026-09-07.** `SET_SELF_MUTE` carries an
 optional `target`, absent meaning the sender, and anybody present may name
 anybody else in the room — the control is on that person's profile, and the
-footer still sends the field-less form. Three clauses narrow it and they are
-all in `canSetSelfMute`: both ends in the room with the actor present, a guest
-may only name themselves, and the floor-holder clause above is about the
-*target* rather than the actor. **The name `selfMuted` is now narrower than
-what it holds**, kept because it is a field of `ChannelState` and therefore on
-the wire; GLOSSARY.md § *Self-mute* is where that disagreement is written
-down. **Cleared by every departure**, inside `stepOut` itself, which
+footer still sends the field-less form. **Two guards, not one**: `canSetSelfMute`
+is the self case and stays as it was, `canMuteOther` is the favour and carries
+its four clauses — both ends in the room with the actor present, a guest may
+only name themselves, nobody may mute the floor-holder (delegated to
+`canSetSelfMute` for the target, so the rule has one home), and nobody may mute
+somebody within `SELF_UNMUTE_GRACE_MS` of that person's own unmute.
+
+**The last clause has state behind it**: `selfUnmutedAt`, written only when
+somebody unmutes *themselves* — not when another member unmutes them, and not
+by the claimant's automatic unmute on `CLAIM_FLOOR`. Scoped to the visit
+exactly as `selfMuted` is, cleared in `stepOut` and removed on
+`LEAVE_CHANNEL`. It closes the loop the favour would otherwise leave open, of a
+person unmuting into a control that shuts them each time.
+
+**The name `selfMuted` is now narrower than what it holds**, kept because it is
+a field of `ChannelState` and therefore on the wire; GLOSSARY.md § *Self-mute*
+is where that disagreement is written down. **Cleared by every departure**, inside `stepOut` itself, which
 `STEP_OUT`, `DISCONNECT_EXPIRED`, `LEAVE_CHANNEL` and `DELETE_CHANNEL` all pass
 through. Also cleared on `CLAIM_FLOOR` (nobody claims the floor in order to
 stay silent), and set false for an invitee on `INVITE`. Removed entirely on

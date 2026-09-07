@@ -208,11 +208,22 @@ export function ProfileView({
    * control that is present and refuses reads worse than one that is honestly
    * not there.
    *
-   * `mayChange` rather than a reason, because there is exactly one reason and
-   * it is a fact about them that this screen already has: they hold the floor.
-   * The sentence is written below, where the rest of this screen's words are.
+   * `mayChange` is the guard's whole answer and is what disables the button.
+   * `mutableAt` separates the two reasons it can be false, and exists only for
+   * the wording: a minute that is running out is a wait worth stating as a
+   * length, where holding the floor is a fact about them. The sentences are
+   * written below, where the rest of this screen's words are.
    */
-  mic?: { muted: boolean; mayChange: boolean } | null;
+  mic?: {
+    muted: boolean;
+    mayChange: boolean;
+    /**
+     * When they may next be muted by somebody else, or null for now — they
+     * have just unmuted themselves, and that stands for a minute. The shape
+     * `pingableAt` has, for the same reason.
+     */
+    mutableAt: number | null;
+  } | null;
   /**
    * Closes or opens their microphone, for them. Supplied alongside `mic`.
    *
@@ -843,6 +854,16 @@ export function ProfileView({
       : null;
 
   /**
+   * How long until this person can be muted by somebody else again, or null
+   * when that is now. The same computation the ping window gets, against the
+   * server's clock rather than the device's.
+   */
+  const muteWait =
+    mic && mic.mutableAt !== null && mic.mutableAt > app.serverNow()
+      ? mic.mutableAt - app.serverNow()
+      : null;
+
+  /**
    * The ping card, brought wholly into view when the keyboard opens over it.
    *
    * Held while the composer is showing rather than while the field has focus:
@@ -1110,11 +1131,17 @@ export function ProfileView({
               onPress={() => onSetMute(!mic.muted)}
             />
             <Text style={type.muted}>
-              {!mic.mayChange
-                ? 'They have the floor, so their microphone stays open until they release it.'
-                : mic.muted
-                  ? 'Muted. Opening it again is something they can do too, from their own footer.'
-                  : 'Open. Closing it does not tell them why — say so out loud as well.'}
+              {muteWait !== null
+                ? // Said as a length, and said before they press rather than
+                  // after — the same treatment the ping window gets, and for
+                  // the same reason: a control that refuses without saying
+                  // when teaches nothing.
+                  `They have just unmuted themselves. You can mute them again in ${duration(muteWait)}.`
+                : !mic.mayChange
+                  ? 'They have the floor, so their microphone stays open until they release it.'
+                  : mic.muted
+                    ? 'Muted. Opening it again is something they can do too, from their own footer.'
+                    : 'Open. Closing it does not tell them why — say so out loud as well.'}
             </Text>
           </Card>
         </>

@@ -10,8 +10,8 @@ that turned into and the three or four places it could have gone wrong.
 `SET_SELF_MUTE` gained an optional `target`, on both the reducer's action and
 the wire's. Absent means the sender, which is what the footer sends and what
 every build before this one sends, so the change is additive at both ends.
-`canSetSelfMute` gained a fourth parameter defaulting to the actor, so every
-caller that predates it asks exactly what it used to ask.
+`canSetSelfMute` kept its signature and its meaning — the self case — and the
+favour became a second guard, `canMuteOther`.
 
 The control is a card on `ProfileView`, above Ping, drawn only when the caller
 supplies a `mic`. `ChannelView` supplies one for somebody who is not you, who
@@ -19,7 +19,14 @@ is present, while you are present too. That is the same shape `onPing` already
 had, and for the same reason: an affordance that is present and refuses reads
 worse than one that is honestly absent.
 
-## The three clauses, and why each is there
+**Two guards rather than one with a defaulted parameter.** It was one function
+for part of an afternoon and that was wrong: the favour's clauses arrived as
+defaults, so a caller that did not know to pass an argument got the permissive
+answer silently. The clock the fourth clause needs made it obvious — a `now`
+that defaults is a `now` that is skipped. Two acts, two predicates, and the
+reducer branches on whether `target` is the sender.
+
+## The four clauses, and why each is there
 
 - **Both ends in the room, and the actor present.** Not a rule about
   permission but about there being anything to do: `selfMuted` is cleared on
@@ -36,13 +43,35 @@ worse than one that is honestly absent.
 - **The floor clause is about the target.** It exists so the one voice the room
   is listening to is not a muted one, and who is doing the muting has no
   bearing on that. So you cannot mute the holder on their behalf either, and
-  the answer they get is the answer you get: release the floor.
+  the answer they get is the answer you get: release the floor. Delegated to
+  `canSetSelfMute` for the target rather than restated, so the rule has one
+  home: whatever somebody may not do to their own microphone, nobody else may
+  do to it either.
+- **Nor somebody who has just unmuted themselves.** Added the same day, and it
+  is the clause that makes the rest of this safe. The failure mode the favour
+  has is being done to somebody who is about to speak — and worse, done again
+  the moment they undo it, which is a person unmuting into a control that shuts
+  them each time. That is bullying with a friendly name on it, and nothing else
+  in the design prevented it. Unmuting yourself is the plainest statement there
+  is that you want to be heard, so for `SELF_UNMUTE_GRACE_MS` — a minute — it
+  stands.
+
+  The state behind it is `selfUnmutedAt`, and the interesting half is what does
+  *not* write to it. An unmute performed **for** somebody by another member is
+  not their statement, and stamping it would let anybody manufacture a
+  protection window over a person who never asked for one. The claimant's
+  automatic unmute on `CLAIM_FLOOR` does not stamp it either: a holder cannot
+  be muted at all while they hold, and on release they are an ordinary member
+  who has not touched the control. It is scoped to the visit exactly as
+  `selfMuted` is, since a minute-long window has no meaning carried across a
+  step-out that reset the microphone anyway.
 
 ## What was decided against
 
 **Asking permission.** Opening somebody else's microphone opens it — no prompt
 on their phone, nothing to accept. That is a real cost and it was taken
-knowingly. A channel here is people who invited each other; the alternative is
+knowingly. What bounds it is the self-unmute clause above: the cost is one
+mute, because undoing it buys a minute nobody can take back. A channel here is people who invited each other; the alternative is
 an ask, an answer and a wait, which is slower than saying "you're muted" out
 loud, which is what everybody does today and what this is meant to replace.
 The person muted sees it in the same footer that shows their own mute and

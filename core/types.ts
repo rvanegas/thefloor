@@ -456,6 +456,27 @@ export interface ChannelState {
    * *may* speak, and this decides whether they are.
    */
   selfMuted: Record<UserId, boolean>;
+  /**
+   * When each person last unmuted **themselves**, for the ones who have since
+   * this visit began. Absent means they have not.
+   *
+   * Read by one thing — `canMuteOther`, which refuses to let anybody else mute
+   * somebody inside `SELF_UNMUTE_GRACE_MS` of this stamp. Unmuting yourself is
+   * the plainest statement there is that you want to be heard, and this is how
+   * long that statement stands against a second hand reaching for the control.
+   *
+   * **Written only by the person it is about.** An unmute performed *for*
+   * somebody by another member does not stamp it: it is not their statement,
+   * and treating it as one would let anybody manufacture a protection window
+   * over somebody else. Nor does the claimant's automatic unmute on
+   * `CLAIM_FLOOR` — a holder is already unmutable while they hold, and on
+   * release they are an ordinary member again who has not touched the control.
+   *
+   * Scoped to the visit exactly as `selfMuted` is: cleared on every departure,
+   * removed outright when membership goes. A minute-long window has no meaning
+   * carried across a step-out that reset the microphone anyway.
+   */
+  selfUnmutedAt: Record<UserId, number>;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;

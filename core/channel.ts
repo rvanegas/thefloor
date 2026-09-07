@@ -5,6 +5,7 @@ import {
   MAX_DISPLAY_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
+  SELF_UNMUTE_GRACE_MS,
   WAITING_WINDOW_MS,
 } from './constants';
 import {
@@ -125,6 +126,7 @@ export function createChannel(params: {
     knocks: [],
     floor: initialFloorState(),
     selfMuted: Object.fromEntries(participants.map((p) => [p, false])),
+    selfUnmutedAt: {},
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
@@ -436,33 +438,58 @@ export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
  * holds the floor, but it is theirs to set, and it is what they will be left
  * with when the claim ends.
  *
- * **`target` is whose microphone this is about, and since 2026-09-07 it need
- * not be the actor's.** Anybody present may close or open somebody else's, from
- * their profile — a room here is people who invited each other, and the thing
- * it is for is the favour: somebody's dog is barking, somebody left themselves
- * muted and is talking to nobody. Defaulted to `userId`, so every caller that
- * predates the fourth parameter asks exactly what it used to ask.
+ * **This is the self case only.** Muting somebody else is `canMuteOther`,
+ * which is a different act with different conditions and deliberately a
+ * different function — the two were one function with a defaulted parameter
+ * for part of an afternoon, and the trouble with that shape is that the
+ * favour's clauses arrive as defaults, which is exactly how a clock ends up
+ * being skipped by a caller that did not know to pass one.
+ */
+export function canSetSelfMute(
+  state: ChannelState,
+  userId: UserId,
+  muted: boolean
+): boolean {
+  // Only muting is refused. Unmuting is always allowed, and is a no-op for a
+  // holder who is already unmuted.
+  return !muted || state.floor.holder !== userId;
+}
+
+/**
+ * Whether one person may close or open **somebody else's** microphone.
  *
- * Three clauses narrow it, and they are the whole of the policy:
+ * The favour among people who invited each other into a room: a dog is
+ * barking, or somebody is talking to nobody with their microphone shut. Added
+ * 2026-09-07, and narrowed the same day by the clause that makes it safe.
  *
- * - **Both ends have to be in the room, and the actor has to be present.** A
- *   mute is a statement about a conversation, so it is made by somebody in the
- *   conversation about somebody in it. A member who has stepped out has no
- *   business reaching into a room they left, and there is nothing to reach:
- *   `selfMuted` is cleared on the way out, so setting it for somebody absent
- *   writes a key that the next step-in discards. `inRoom` at the target end
- *   rather than `isPresent`, so a guest can be the object of the favour the
- *   same as anybody — they are in the room and they are audible.
- * - **A guest may not do it to anybody else.** `GUEST_ACTIONS` lets a guest
- *   send `SET_SELF_MUTE`, and that permission was written when the action
- *   could only ever be about themselves. Widening the action must not widen
- *   what a stranger admitted through a link may reach, so the narrowing is
- *   stated here rather than left implied by a set that no longer says it.
- * - **The floor clause is about the target, not the actor.** It exists so that
- *   the one voice the room is listening to is not a muted one; who is doing
- *   the muting has no bearing on that. So you cannot mute the holder on their
- *   behalf either, and the answer is the same one they get — release the
- *   floor.
+ * Four clauses, and each refuses a different way of getting this wrong:
+ *
+ * - **Both ends in the room, and the actor present.** Not a rule about
+ *   permission but about there being anything to do: `selfMuted` is cleared on
+ *   the way out, so muting somebody who has stepped out writes a key their
+ *   next step-in discards. `inRoom` at the target end rather than `isPresent`,
+ *   so a guest can be the object of the favour — they are in the room and they
+ *   are audible, which is the whole of what qualifies anybody.
+ * - **A guest may not do it to anybody else.** `GUEST_ACTIONS` names
+ *   `SET_SELF_MUTE`, and that entry was written when the action could only
+ *   ever be about the sender. Stated here rather than left to be inferred from
+ *   a set that no longer says which sense it meant.
+ * - **Nobody may mute the floor-holder.** Delegated to `canSetSelfMute` rather
+ *   than restated, so the rule has one home: whatever somebody may not do to
+ *   their own microphone, nobody else may do to it either. A claim is a
+ *   request to be heard that the whole room is already honouring, and reaching
+ *   past it would silence the one voice everybody is listening to.
+ * - **Nor somebody who has just unmuted themselves.** The failure mode this
+ *   whole feature has is the favour done to somebody who is about to speak,
+ *   and worse, done again the moment they undo it — a person unmuting into a
+ *   control that shuts them each time, which is bullying with a friendly name
+ *   on it. Unmuting yourself is the plainest statement there is that you want
+ *   to be heard, so for SELF_UNMUTE_GRACE_MS it stands and this refuses.
+ *
+ * **The last two bind the muting direction only.** Unmuting somebody is never
+ * refused for either reason: opening the microphone of a person who has just
+ * asked to be heard, or who holds the floor, is a no-op in the first case and
+ * agrees with them in the second.
  *
  * **What this deliberately does not do is ask permission.** Opening somebody
  * else's microphone is opening it, with no prompt on their phone and nothing
@@ -470,21 +497,60 @@ export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
  * they can close it again in one tap. That is a real cost, and it is the trade
  * this feature is: a channel is not a public room, and the alternative — an
  * ask, an answer, and a wait — is slower than saying "you're muted" out loud,
- * which is what everybody does today.
+ * which is what everybody does today. The clause above is what stops that
+ * trade being open-ended: the cost is bounded at one mute, because undoing it
+ * buys a minute nobody can take back.
  */
-export function canSetSelfMute(
+export function canMuteOther(
+  state: ChannelState,
+  actorId: UserId,
+  targetId: UserId,
+  muted: boolean,
+  now: number
+): boolean {
+  // Naming yourself is self-mute, and answered by the rules for it. Here so
+  // that a caller which has not separated the two cannot get a different
+  // answer from this function than the reducer gives.
+  if (actorId === targetId) return canSetSelfMute(state, actorId, muted);
+  if (isGuest(state, actorId)) return false;
+  if (!isPresent(state, actorId) || !inRoom(state, targetId)) return false;
+  // Everything they may not do to their own microphone, nobody may do to it.
+  if (!canSetSelfMute(state, targetId, muted)) return false;
+  return !muted || !hasJustUnmutedThemselves(state, targetId, now);
+}
+
+/**
+ * Whether somebody's own unmute is still standing.
+ *
+ * Separate from the guard because the screen asks it too, in order to say how
+ * long is left rather than merely that the button is dead — a disabled control
+ * with no sentence under it is the thing this codebase keeps apologising for.
+ */
+export function hasJustUnmutedThemselves(
   state: ChannelState,
   userId: UserId,
-  muted: boolean,
-  target: UserId = userId
+  now: number
 ): boolean {
-  if (target !== userId) {
-    if (isGuest(state, userId)) return false;
-    if (!isPresent(state, userId) || !inRoom(state, target)) return false;
-  }
-  // Only muting is refused. Unmuting is always allowed, and is a no-op for a
-  // holder who is already unmuted.
-  return !muted || state.floor.holder !== target;
+  const at = state.selfUnmutedAt[userId];
+  return at !== undefined && now - at < SELF_UNMUTE_GRACE_MS;
+}
+
+/**
+ * When somebody may next be muted by anybody else, or null when that is now.
+ *
+ * The shape `pingableAt` already has, and for the same reason: a control that
+ * is refused is worth replacing with the wait, and the wait is a length rather
+ * than a fact about the past.
+ */
+export function mutableAt(
+  state: ChannelState,
+  userId: UserId,
+  now: number
+): number | null {
+  const at = state.selfUnmutedAt[userId];
+  if (at === undefined) return null;
+  const until = at + SELF_UNMUTE_GRACE_MS;
+  return until > now ? until : null;
 }
 
 /**
@@ -1346,6 +1412,12 @@ export function reduce(
         ...gone,
         participants,
         selfMuted,
+        // Removed outright rather than merely cleared, as `selfMuted` is:
+        // membership is gone, so there is no visit for the window to be
+        // scoped to. `stepOut` above has already run, so in practice this is
+        // removing a key that is not there — stated anyway, so that the two
+        // maps keyed by the same people go the same way.
+        selfUnmutedAt: without(gone.selfUnmutedAt, action.userId),
         invitedBy,
         everPresent: gone.everPresent.filter((id) => id !== action.userId),
         // Dropped for tidiness rather than necessity: claimDelayMs ranks only
@@ -1414,21 +1486,31 @@ export function reduce(
     }
 
     case 'SET_SELF_MUTE': {
-      // Unilateral, unlimited, and with no bearing on floor eligibility —
-      // except that the floor-holder may not be muted, by themselves or by
-      // anybody else.
-      //
       // `target` absent means the actor, which is what every client sent
       // before the field existed and what the footer still sends. Read once
-      // and used for both the guard and the write, so a bad target cannot be
-      // authorised as one person and written as another.
+      // and used for the guard, the write and the stamp, so a bad target
+      // cannot be authorised as one person and written as another.
       const target = action.target ?? action.userId;
-      if (!canSetSelfMute(state, action.userId, action.muted, target)) {
-        return state;
-      }
+      const isSelf = target === action.userId;
+      // Two acts, two guards. Muting yourself is unilateral; muting somebody
+      // else is a favour with four conditions, one of which needs the clock —
+      // which is the reason these are not one function.
+      const allowed = isSelf
+        ? canSetSelfMute(state, action.userId, action.muted)
+        : canMuteOther(state, action.userId, target, action.muted, now);
+      if (!allowed) return state;
       return {
         ...state,
         selfMuted: { ...state.selfMuted, [target]: action.muted },
+        // **Stamped only when they did it themselves.** This is what buys the
+        // minute in which nobody else may mute them, so it has to be their
+        // own statement — an unmute performed *for* somebody by another member
+        // would otherwise let anybody manufacture a protection window over a
+        // person who never asked for one.
+        selfUnmutedAt:
+          isSelf && !action.muted
+            ? { ...state.selfUnmutedAt, [target]: now }
+            : state.selfUnmutedAt,
       };
     }
 
@@ -1724,6 +1806,12 @@ function stepOut(
       // which stays shut until somebody else is present or a recording you
       // started is running. DECISIONS.md carries the case that was traded away.
       selfMuted: { ...state.selfMuted, [userId]: false },
+      // And the window their own unmute bought, for the same reason and on the
+      // same scope: it is a statement about a conversation they are no longer
+      // in. Left behind, somebody who stepped out and back inside a minute
+      // would return protected by an unmute that the step-in had already
+      // undone.
+      selfUnmutedAt: without(state.selfUnmutedAt, userId),
     },
     now
   );
@@ -1753,6 +1841,7 @@ function guestGone(
     ...state,
     guests,
     selfMuted: without(state.selfMuted, guestId),
+    selfUnmutedAt: without(state.selfUnmutedAt, guestId),
     disconnectedAt: without(state.disconnectedAt, guestId),
     lastActiveAt: now,
     floor:
