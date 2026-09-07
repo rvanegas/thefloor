@@ -5,6 +5,7 @@
     "moduleResolution": "nodenext",
     "lib": ["ES2022"],
     "strict": true,
+    "isolatedModules": true,
     "noEmit": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
