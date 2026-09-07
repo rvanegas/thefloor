@@ -73,9 +73,13 @@ rings you."* The rest is that sentence with its two consequences spelled out.
 >
 > You can see where everybody is before you say anything. The list says which
 > channels have somebody in them right now, and how long ago somebody was last
-> in the others. If a channel is empty, step in anyway and ping whoever you
-> wanted — they get a notification saying you are there, and you can carry on
-> with whatever you were doing until they arrive.
+> in the others — and a channel nobody is using empties itself after a quarter
+> of an hour, so one that says somebody is there means it.
+>
+> If a channel is empty, step in anyway and ping whoever you wanted: they get a
+> notification saying you are there. Then put the phone down. When they arrive
+> you hear them, and you can answer, with the screen off and the phone still in
+> your pocket.
 >
 > Conversation is open — everyone can speak. When one person needs to be heard
 > properly, they take the floor, and every other microphone stays quiet until
@@ -87,10 +91,58 @@ rings you."* The rest is that sentence with its two consequences spelled out.
 > together, export it, or delete it — anyone in the channel can, not only
 > whoever started it.
 >
-> Nobody can reach you unless you have both agreed. There is no feed, no
-> directory, no strangers, and nothing to scroll. No advertising, no analytics.
+> Nobody can reach you unless you have both agreed. Somebody sends you a link
+> that seats exactly one person, or asks you by name — either way it takes two
+> decisions rather than one. There is no feed, no directory, no strangers, and
+> nothing to scroll. No advertising, no analytics.
+
+### What changed on 2026-09-07, and why
+
+**Revised against the work of 2026-09-05 and 2026-09-06**, which was almost
+all about what happens to somebody who is *not* in a conversation — the
+subject of the fourth paragraph, which is the one the draft of 2026-09-03 had
+added. So the paragraph that most needed checking is the one the week's code
+was aimed at.
+
+- **The fourth paragraph became two.** The draft answered *a message survives
+  the recipient's absence and a room does not* once, by showing you where
+  people are. The app now answers it twice, and the second answer is the
+  stronger: presence tells you whether to bother, and the ping-and-wait makes
+  waiting cost nothing. Two answers, two paragraphs, in that order.
+- **"You can carry on with whatever you were doing until they arrive" is
+  gone**, because it stopped being true in the one case a reader would test
+  it in. An accompanied wait — something else playing — is no longer held
+  alive: presence lapses, the roster reads Nearby, and the arrival
+  notification does the work instead. A listing may not promise the case the
+  code deliberately declined.
+- **What replaced it is better and is newly true.** A quiet channel opens the
+  microphone unmuted at step-in and holds it, so an arriving voice is heard
+  *and can be answered* with the phone locked and pocketed. No telephone call
+  offers that, and it is not visible in a screenshot. It shipped over builds
+  145–159; before that the sentence would have been a lie.
+- **The list saying *Live* now means it.** A channel publishing nothing
+  unmuted for fifteen minutes steps everybody out, which was fixing a bug —
+  rooms held occupied by pocketed ghosts, into which every arrival notified
+  nobody. The clause is in the listing because it is the reason to trust the
+  paragraph it sits in, and because it bounds the wait the next paragraph
+  invites: a reader who expects to hold a channel all afternoon should not
+  learn otherwise from the app. **It says *nobody is using* where the release
+  notes say *nobody is speaking***, deliberately: the rule is that nothing is
+  published unmuted, so two people present with open microphones and nothing to
+  say are never retired, and *speaking* would promise a room that dies while
+  they are still in it.
+- **The last paragraph says how agreeing happens.** An invite link seats
+  exactly one person and makes the pair contacts outright. This is a feature
+  and the rule below says features stay out — the exception is that it is the
+  *mechanism of a claim the paragraph already makes*, and it is the sentence
+  the recommender needs, since what they will actually do is send their link.
+  One sentence, no `@name`, no thirty days, no pin.
 
 ### What changed from DESCRIPTION.md's proposal
+
+**Kept for the argument, which still holds; the wording it describes is one
+revision behind the text above.** Where the two disagree, the section before
+this one is later.
 
 **One new paragraph, the fourth, and nothing else is touched.** That draft
 carried the three pillars; the proposition names a fourth thing the copy has to
@@ -107,6 +159,8 @@ person being reached, and no telephone call has ever offered it.
 
 It is placed fourth, immediately after notifications, because the two are one
 argument — the notification is what comes back, and the ping is what sends it.
+It is now two paragraphs, fourth and fifth, for the reason given above; the
+placement and the argument for it are unchanged.
 
 ### What is deliberately not in it
 
@@ -118,13 +172,21 @@ argument — the notification is what comes back, and the ping is what sends it.
 - **Discord, or any other app by name.** It invites a 4.1 rejection and reads
   as positioning rather than describing. "Nothing rings" is the same sentence
   to the audience that would have understood the comparison.
-- **Anything unshipped.** No open channels, no personal invite link, no
-  alarm-by-permission. Every sentence above is checkable against `push.ts`,
-  `support.ts`, `core/constants.ts` or the floor rules in `core/`.
-- **Guests, watch party, transcripts and the clipboard.** All shipped, all
-  absent. A listing that lists everything reads as a feature comparison, which
-  is the ground this app loses on; the manual is where the rest lives, and
-  MANUAL.md is that.
+- **Anything unshipped.** No open channels and no alarm-by-permission. Every
+  sentence above is checkable against `push.ts`, `support.ts`,
+  `core/constants.ts`, `core/channel.ts` or the floor rules in `core/` — and,
+  since 2026-09-07, against the waiting rules in `server/src/channels.ts` and
+  the session want in the app's audio layer. The invite link was on this list
+  when the list was written on 2026-09-03 and shipped on 2026-09-06; it is now
+  the last paragraph's second sentence, for the reason given above.
+- **Guests, watch party, transcripts, the clipboard, iPad and usernames.** All
+  shipped, all absent. A listing that lists everything reads as a feature
+  comparison, which is the ground this app loses on; the manual is where the
+  rest lives, and MANUAL.md is that. **iPad and the username are the two that
+  will be argued for again** — the first because the store already states it in
+  the compatibility panel without spending a sentence, and the second because
+  most people will never have one and the invite-link sentence does not need
+  it.
 
 ## Keywords (100 characters, comma-separated, no spaces)
 
@@ -143,10 +205,14 @@ in the body.
 
 ## What's New (version 1.3.2)
 
-Left to whoever cuts the train, and it is a release-time decision like the
-version string. **The one standing rule** is that release notes are not
-re-engagement copy — they say what changed for somebody already using the app,
-and they never say that a channel misses you.
+**Written, and it is not here.** `planning/submissions/whats-new-1.3.2.txt` is
+the text, composed from `released..master`, and `bin/submit-ios --whats-new`
+is what sends it — this file argues the standing copy and that one carries a
+train. Composing it stays a release-time decision, like the version string.
+
+**The one standing rule** is that release notes are not re-engagement copy —
+they say what changed for somebody already using the app, and they never say
+that a channel misses you.
 
 ## Category
 
