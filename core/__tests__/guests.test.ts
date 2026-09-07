@@ -272,6 +272,50 @@ describe('the microphone', () => {
   });
 });
 
+/**
+ * Muting somebody else, from either side of the room, added 2026-09-07.
+ *
+ * `GUEST_ACTIONS` names `SET_SELF_MUTE`, and it was written when that action
+ * could only ever be about the sender. Widening the action must not widen what
+ * somebody admitted through a link may reach, so the two directions are
+ * separated here rather than left to be inferred from a set that no longer
+ * says which one it meant.
+ */
+describe('muting somebody else, with a guest in the room', () => {
+  it('lets a member close a guest’s microphone', () => {
+    // A guest is in the room and is audible, so they are as much the object of
+    // the favour as anybody — which is why the guard asks `inRoom` at the
+    // target end rather than `isPresent`.
+    const state = act(withGuest({ maySpeak: true }), {
+      type: 'SET_SELF_MUTE',
+      userId: ALICE,
+      muted: true,
+      target: DANA,
+    });
+    expect(state.selfMuted[DANA]).toBe(true);
+  });
+
+  it('refuses a guest who names anybody but themselves', () => {
+    const state = act(withGuest({ maySpeak: true }), {
+      type: 'SET_SELF_MUTE',
+      userId: DANA,
+      muted: true,
+      target: ALICE,
+    });
+    expect(state.selfMuted[ALICE]).toBe(false);
+  });
+
+  it('still lets a guest mute themselves', () => {
+    const state = act(withGuest({ maySpeak: true }), {
+      type: 'SET_SELF_MUTE',
+      userId: DANA,
+      muted: true,
+      target: DANA,
+    });
+    expect(state.selfMuted[DANA]).toBe(true);
+  });
+});
+
 describe('managing a guest', () => {
   it('grants and withdraws the microphone without ejecting anybody', () => {
     const state = withGuest();

@@ -435,15 +435,56 @@ export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
  * The silenced are *not* covered: their mute does nothing while somebody else
  * holds the floor, but it is theirs to set, and it is what they will be left
  * with when the claim ends.
+ *
+ * **`target` is whose microphone this is about, and since 2026-09-07 it need
+ * not be the actor's.** Anybody present may close or open somebody else's, from
+ * their profile — a room here is people who invited each other, and the thing
+ * it is for is the favour: somebody's dog is barking, somebody left themselves
+ * muted and is talking to nobody. Defaulted to `userId`, so every caller that
+ * predates the fourth parameter asks exactly what it used to ask.
+ *
+ * Three clauses narrow it, and they are the whole of the policy:
+ *
+ * - **Both ends have to be in the room, and the actor has to be present.** A
+ *   mute is a statement about a conversation, so it is made by somebody in the
+ *   conversation about somebody in it. A member who has stepped out has no
+ *   business reaching into a room they left, and there is nothing to reach:
+ *   `selfMuted` is cleared on the way out, so setting it for somebody absent
+ *   writes a key that the next step-in discards. `inRoom` at the target end
+ *   rather than `isPresent`, so a guest can be the object of the favour the
+ *   same as anybody — they are in the room and they are audible.
+ * - **A guest may not do it to anybody else.** `GUEST_ACTIONS` lets a guest
+ *   send `SET_SELF_MUTE`, and that permission was written when the action
+ *   could only ever be about themselves. Widening the action must not widen
+ *   what a stranger admitted through a link may reach, so the narrowing is
+ *   stated here rather than left implied by a set that no longer says it.
+ * - **The floor clause is about the target, not the actor.** It exists so that
+ *   the one voice the room is listening to is not a muted one; who is doing
+ *   the muting has no bearing on that. So you cannot mute the holder on their
+ *   behalf either, and the answer is the same one they get — release the
+ *   floor.
+ *
+ * **What this deliberately does not do is ask permission.** Opening somebody
+ * else's microphone is opening it, with no prompt on their phone and nothing
+ * to accept; they see it in the same footer that shows their own mute, and
+ * they can close it again in one tap. That is a real cost, and it is the trade
+ * this feature is: a channel is not a public room, and the alternative — an
+ * ask, an answer, and a wait — is slower than saying "you're muted" out loud,
+ * which is what everybody does today.
  */
 export function canSetSelfMute(
   state: ChannelState,
   userId: UserId,
-  muted: boolean
+  muted: boolean,
+  target: UserId = userId
 ): boolean {
+  if (target !== userId) {
+    if (isGuest(state, userId)) return false;
+    if (!isPresent(state, userId) || !inRoom(state, target)) return false;
+  }
   // Only muting is refused. Unmuting is always allowed, and is a no-op for a
   // holder who is already unmuted.
-  return !muted || state.floor.holder !== userId;
+  return !muted || state.floor.holder !== target;
 }
 
 /**
@@ -1372,14 +1413,24 @@ export function reduce(
       return { ...state, floor: releaseFloor(state.floor, now) };
     }
 
-    case 'SET_SELF_MUTE':
+    case 'SET_SELF_MUTE': {
       // Unilateral, unlimited, and with no bearing on floor eligibility —
-      // except that the floor-holder may not mute themselves.
-      if (!canSetSelfMute(state, action.userId, action.muted)) return state;
+      // except that the floor-holder may not be muted, by themselves or by
+      // anybody else.
+      //
+      // `target` absent means the actor, which is what every client sent
+      // before the field existed and what the footer still sends. Read once
+      // and used for both the guard and the write, so a bad target cannot be
+      // authorised as one person and written as another.
+      const target = action.target ?? action.userId;
+      if (!canSetSelfMute(state, action.userId, action.muted, target)) {
+        return state;
+      }
       return {
         ...state,
-        selfMuted: { ...state.selfMuted, [action.userId]: action.muted },
+        selfMuted: { ...state.selfMuted, [target]: action.muted },
       };
+    }
 
     case 'START_RECORDING': {
       if (!canStartRecording(state, action.userId)) return state;

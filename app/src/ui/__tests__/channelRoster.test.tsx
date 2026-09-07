@@ -1278,3 +1278,86 @@ describe('a channel screen without the repeated cards', () => {
  * mark on the one in force, and reporting a change upward. What the choice
  * does is asserted on the channel screen above.
  */
+
+/**
+ * Closing and opening somebody else's microphone, from their profile.
+ *
+ * The section is `ProfileView`'s and the policy is `canSetSelfMute`'s; what is
+ * left to assert here is the seam between them — that the caller's `mic` is
+ * what decides whether there is a control at all, that the button sends the
+ * toggle the label promises, and that the one refusal is drawn as a disabled
+ * button with a sentence rather than as an absence.
+ */
+describe('somebody else’s microphone, from their profile', () => {
+  const buttonFor = (tree: ReactTestRenderer, label: string) =>
+    tree.root.findAll((n) => n.props?.label === label)[0];
+
+  const renderProfile = async (
+    mic: { muted: boolean; mayChange: boolean } | null,
+    onSetMute?: (muted: boolean) => void
+  ) => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ProfileView
+          accountId={THEM}
+          fallbackName="Dana Chu"
+          onBack={() => {}}
+          mic={mic}
+          onSetMute={onSetMute}
+        />
+      );
+    });
+    return tree;
+  };
+
+  it('offers to mute somebody whose microphone is open', async () => {
+    const sent: boolean[] = [];
+    const tree = await renderProfile(
+      { muted: false, mayChange: true },
+      (muted) => sent.push(muted)
+    );
+
+    expect(textOf(tree)).toContain('Their microphone');
+    act(() => buttonFor(tree, 'Mute them').props.onPress());
+    expect(sent).toEqual([true]);
+    act(() => tree.unmount());
+  });
+
+  it('offers to open one that is closed, which is the half worth having', async () => {
+    const sent: boolean[] = [];
+    const tree = await renderProfile(
+      { muted: true, mayChange: true },
+      (muted) => sent.push(muted)
+    );
+
+    act(() => buttonFor(tree, 'Unmute them').props.onPress());
+    expect(sent).toEqual([false]);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Absent rather than disabled, the same rule the ping section follows: from
+   * Contacts, or about somebody who has stepped out, the question does not
+   * arise and the screen says nothing about it.
+   */
+  it('says nothing at all where the caller offers no microphone', async () => {
+    const tree = await renderProfile(null, () => {});
+    expect(textOf(tree)).not.toContain('Their microphone');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The one refusal is the other way round — drawn, and disabled. Somebody
+   * holding the floor is a fact about them worth reading on their own card,
+   * and an absence here would look like the control had never existed.
+   */
+  it('draws the floor-holder’s refusal instead of hiding the control', async () => {
+    const tree = await renderProfile({ muted: false, mayChange: false }, () => {});
+
+    expect(buttonFor(tree, 'Mute them').props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('They have the floor');
+    act(() => tree.unmount());
+  });
+});

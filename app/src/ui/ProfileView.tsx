@@ -141,6 +141,8 @@ export function ProfileView({
   onEnterChannel,
   onPing,
   pingableAt = null,
+  mic = null,
+  onSetMute,
   onRemoved,
   beginEditing = false,
 }: {
@@ -195,6 +197,30 @@ export function ProfileView({
    * from, or null when that is now. Only meaningful alongside `onPing`.
    */
   pingableAt?: number | null;
+  /**
+   * Their microphone, as the channel this card was opened from sees it —
+   * `muted` being `channel.selfMuted[them]`, and `mayChange` the reducer's own
+   * answer for the toggle this would send.
+   *
+   * Null, and the section is absent, wherever the question does not arise:
+   * from Contacts, about yourself, and about somebody who is not in the room.
+   * The same rule the ping section follows and for the same reason — a
+   * control that is present and refuses reads worse than one that is honestly
+   * not there.
+   *
+   * `mayChange` rather than a reason, because there is exactly one reason and
+   * it is a fact about them that this screen already has: they hold the floor.
+   * The sentence is written below, where the rest of this screen's words are.
+   */
+  mic?: { muted: boolean; mayChange: boolean } | null;
+  /**
+   * Closes or opens their microphone, for them. Supplied alongside `mic`.
+   *
+   * Nothing is awaited and nothing is confirmed: this is a channel action, so
+   * the answer arrives as the next snapshot and the button's own label is what
+   * changes. A spinner here would be showing a wait that is already over.
+   */
+  onSetMute?: (muted: boolean) => void;
   /**
    * What to do when this person stops being a contact, which takes with it
    * every channel that held only the two of you — possibly the one this screen
@@ -1053,6 +1079,46 @@ export function ProfileView({
           ) : null}
         </View>
       )}
+
+      {/*
+        Their microphone, which anybody in the room with them may close or
+        open. See `canSetSelfMute`, which is where the policy is and what
+        `mayChange` is an answer from.
+
+        **Here rather than on the roster card, deliberately.** Muting somebody
+        else is a favour and not a moderation tool, and a tap that reaches it
+        from a list of faces is one that gets made by accident and made
+        casually. A profile is a screen you went to about a person; the extra
+        tap is the whole of the ceremony this needs, and it puts the control
+        next to their name rather than next to four other people's.
+
+        Above Ping, and never beside it: the two sections are about opposite
+        situations — somebody in the room, and somebody missing from it — so
+        the pair is mutually exclusive in practice rather than by a rule. Both
+        are things to do, and things to do stay at the top.
+      */}
+      {mic && onSetMute ? (
+        <>
+          <SectionLabel>Their microphone</SectionLabel>
+          <Card style={styles.stack}>
+            <Button
+              label={mic.muted ? 'Unmute them' : 'Mute them'}
+              // The reducer refuses this either way; disabling is what stops
+              // the button and the refusal disagreeing on screen, which is the
+              // rule the footer's own mute follows.
+              disabled={!mic.mayChange}
+              onPress={() => onSetMute(!mic.muted)}
+            />
+            <Text style={type.muted}>
+              {!mic.mayChange
+                ? 'They have the floor, so their microphone stays open until they release it.'
+                : mic.muted
+                  ? 'Muted. Opening it again is something they can do too, from their own footer.'
+                  : 'Open. Closing it does not tell them why — say so out loud as well.'}
+            </Text>
+          </Card>
+        </>
+      ) : null}
 
       {/*
         Somebody who belongs to this channel and is not in it. The one

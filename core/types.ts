@@ -593,7 +593,13 @@ export type ChannelAction =
   | { type: 'SET_DESCRIPTION'; userId: UserId; description: string }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
-  | { type: 'SET_SELF_MUTE'; userId: UserId; muted: boolean }
+  /**
+   * Closes or opens a microphone. `userId` is who is asking; `target` is whose
+   * microphone, and defaults to the asker — which is every use of this action
+   * before 2026-09-07 and still most of them. See `canSetSelfMute` for who may
+   * name somebody else.
+   */
+  | { type: 'SET_SELF_MUTE'; userId: UserId; muted: boolean; target?: UserId }
   /** `runId` is minted by the server; a client cannot name one. */
   | { type: 'START_RECORDING'; userId: UserId; runId: string }
   | { type: 'PAUSE_RECORDING'; userId: UserId }

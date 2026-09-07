@@ -404,6 +404,38 @@ export function ChannelView({
         // offered, pressed and rejected teaches nothing that saying so up
         // front does not.
         pingableAt={view.pingableAt?.[viewing.id] ?? null}
+        // Their microphone, offered only where the favour means something:
+        // somebody else, in the room, with you in it too. Those are the same
+        // three conditions `canSetSelfMute` checks, and they are repeated here
+        // rather than left to it because the guard's answer is *whether the
+        // toggle is refused*, and this is *whether there is a toggle at all* —
+        // absent for somebody who has stepped out, disabled for somebody
+        // holding the floor.
+        mic={
+          // `iAmPresent` itself is declared below this early return, so its
+          // two halves are written out: the reducer thinks you are here, and
+          // this device is the one standing in the channel.
+          viewing.id !== me &&
+          isPresent(channel, me) &&
+          app.standingIn === channelId &&
+          channel.present.includes(viewing.id)
+            ? {
+                muted: channel.selfMuted[viewing.id] ?? false,
+                // Asked about the toggle this would actually send, so the
+                // button is disabled exactly when pressing it would do
+                // nothing.
+                mayChange: canSetSelfMute(
+                  channel,
+                  me,
+                  !(channel.selfMuted[viewing.id] ?? false),
+                  viewing.id
+                ),
+              }
+            : null
+        }
+        onSetMute={(muted) =>
+          act({ type: 'SET_SELF_MUTE', muted, target: viewing.id })
+        }
         // Removing a contact leaves every channel that held only the two of
         // you, and this screen is reached from inside one — which, for a
         // one-to-one channel, is exactly the channel that has just gone. So

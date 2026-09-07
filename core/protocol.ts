@@ -882,7 +882,20 @@ export type ClientAction =
   | { type: 'SET_DESCRIPTION'; description: string }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
-  | { type: 'SET_SELF_MUTE'; muted: boolean }
+  /**
+   * Whose microphone is `target`, absent meaning your own — the server fills
+   * the actor in either way, so this is the one field that distinguishes the
+   * favour from the footer.
+   *
+   * **Optional in the type, and not optional in the deploy order.** A server
+   * that predates the field drops it and mutes the sender instead — the wrong
+   * person, silently, which is worse than a refusal. So this is the ordinary
+   * two-step in AGENTS.md read the usual way round: the server learns the
+   * field first and a build that sends it ships after, never before. Nothing
+   * enforces that, because nothing can; the app cannot ask a server what it
+   * understands.
+   */
+  | { type: 'SET_SELF_MUTE'; muted: boolean; target?: string }
   | { type: 'START_RECORDING' }
   | { type: 'PAUSE_RECORDING' }
   | { type: 'RESUME_RECORDING' }

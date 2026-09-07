@@ -59,7 +59,7 @@ caused; the list carries the meaning.
 - **Present** — In a channel, able to hear and be heard, right now
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
-- **Self-mute** — Your own microphone, closed by you
+- **Self-mute** — A microphone closed by hand rather than by the floor: usually your own, and since 2026-09-07 anybody's, by anybody in the room
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name somebody chooses for themselves, unique across everybody, written with an `@`. Optional, and most people have none
@@ -475,18 +475,34 @@ lets a guest come back.
 
 ## Self-mute
 
-Your own microphone, closed by you. It is separate from the *floor* and costs
-you nothing — it never affects whether you may claim, and a claim does not
-change it.
+A microphone closed by hand rather than by the *floor*. It is separate from the
+floor and costs nothing — it never affects whether somebody may claim, and a
+claim does not change it.
 
 Stepping out clears it; losing your connection does not. A phone that dropped
 out for a minute must not come back with a live microphone its owner had
 deliberately closed.
 
-**It is a statement about transmission, not about being here.** Muting yourself
+**It is a statement about transmission, not about being here.** Being muted
 must not cost you presence — you are still in the room, still listening, still
 somebody others can talk to. Three other things in the code are also called
-"mute" and only this one is yours; *mute* in Part Two separates them.
+"mute" and only this one is a person's; *mute* in Part Two separates them.
+
+**Since 2026-09-07 it is not necessarily your own hand.** Anybody present in a
+channel may close or open the microphone of anybody else in it, from that
+person's profile — the favour among people who invited each other into a room:
+a dog is barking, or somebody is talking to nobody with their microphone shut.
+A guest can be the object of it and cannot perform it, and nobody can mute the
+floor-holder, on their own behalf or anybody's. `canSetSelfMute` is the whole
+policy and argues each clause.
+
+**So the name is now narrower than the thing, deliberately, and this is the
+disagreement to know about.** *Self* was accurate when the only hand was your
+own. It survives because `selfMuted` is a field of `ChannelState`, which goes
+over the wire in every channel snapshot: renaming it is a wire change, owed the
+two-step every wire change is owed, for a word rather than a behaviour. Read it
+as "muted by hand" and it is right; read it as "only by yourself" and it is a
+year out of date.
 
 ## Step in / Step out
 
@@ -779,7 +795,10 @@ routinely confused in conversation about this code, and two builds on
 **1. Self-mute — the act.** `channel.selfMuted[userId]`, set by the Mute
 control, cleared by stepping out and *not* by losing a connection. A statement
 about transmission and nothing else: it does not affect the *floor*, and it has
-never meant "I am leaving". See *self-mute* in Part One.
+never meant "I am leaving". **The one of the four a person performs, which is
+not the same as the one a person performs *on themselves*** — since 2026-09-07
+anybody in the room may set anybody else's, from their profile, and the entry
+in Part One says why the name did not follow. See *self-mute*.
 
 **2. What the footer icon shows — the appearance.** Not the same set. The icon
 reads muted when you self-muted, **and** when the device has no microphone at

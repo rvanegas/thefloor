@@ -181,6 +181,71 @@ describe('the floor and self-mute', () => {
   });
 });
 
+/**
+ * Muting somebody else, added 2026-09-07.
+ *
+ * The favour among friends: a member in the room may close or open the
+ * microphone of anybody else in it, from their profile. What is worth testing
+ * is not that it works — one line of the reducer does that — but the three
+ * clauses that narrow it, since each is the difference between a favour and a
+ * thing nobody would want in a channel.
+ */
+describe('muting somebody else', () => {
+  const mute = (by: string, target: string, muted = true): ChannelAction => ({
+    type: 'SET_SELF_MUTE',
+    userId: by,
+    muted,
+    target,
+  });
+
+  it('lets one present member close another’s microphone', () => {
+    const s = reduce(joined(), mute(A, B), T0);
+    expect(s.selfMuted[B]).toBe(true);
+    // And the actor’s own is untouched, which is the mistake a reducer that
+    // read `action.userId` for the write would make.
+    expect(s.selfMuted[A]).toBe(false);
+  });
+
+  it('lets them open it again, which is the half that matters', () => {
+    let s = reduce(joined(), mute(B, B), T0);
+    s = reduce(s, mute(A, B, false), T0 + 1_000);
+    expect(s.selfMuted[B]).toBe(false);
+  });
+
+  it('refuses somebody who has stepped out of the room', () => {
+    let s = reduce(joined(), { type: 'STEP_OUT', userId: A }, T0);
+    expect(canSetSelfMute(s, A, true, B)).toBe(false);
+    s = reduce(s, mute(A, B), T0 + 1_000);
+    expect(s.selfMuted[B]).toBe(false);
+  });
+
+  it('refuses a target who is not in the room', () => {
+    // Nothing to reach: stepping out clears the mute, so a write here would
+    // be a key the next step-in discards.
+    let s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0);
+    expect(canSetSelfMute(s, A, true, B)).toBe(false);
+    s = reduce(s, mute(A, B), T0 + 1_000);
+    expect(s.selfMuted[B]).toBeFalsy();
+  });
+
+  it('refuses the floor-holder, whoever is asking', () => {
+    // The clause is about the target. A holder muted on their behalf is the
+    // same silent room as one who muted themselves.
+    const s = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
+    expect(canSetSelfMute(s, B, true, A)).toBe(false);
+    expect(reduce(s, mute(B, A), T0 + 1_000).selfMuted[A]).toBe(false);
+    // Unmuting a holder is allowed, as it always is, and does nothing.
+    expect(canSetSelfMute(s, B, false, A)).toBe(true);
+  });
+
+  it('still lets anybody mute themselves by naming themselves', () => {
+    // `target` equal to the actor is the footer's action with a field on it,
+    // and must not pick up the presence clauses the other case adds.
+    const s = reduce(joined(), mute(B, B), T0);
+    expect(s.selfMuted[B]).toBe(true);
+  });
+});
+
 describe('presence gating', () => {
   it('disables the claim control while a user is alone', () => {
     const alone = newSession();

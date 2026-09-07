@@ -58,9 +58,20 @@ total map over participants. Written by `SET_SELF_MUTE`, guarded by
 (`ChannelView.tsx:205`), passed to `useSessionAudio` as `selfMuted`.
 
 **Conditions.** Unilateral and unlimited, with one exception: `canSetSelfMute`
-refuses only *muting*, and only to the floor-holder — a muted holder is the one
+refuses only *muting*, and only for the floor-holder — a muted holder is the one
 configuration in which the whole channel is inaudible. Unmuting is always
-allowed. **Cleared by every departure**, inside `stepOut` itself, which
+allowed.
+
+**Not necessarily your own, since 2026-09-07.** `SET_SELF_MUTE` carries an
+optional `target`, absent meaning the sender, and anybody present may name
+anybody else in the room — the control is on that person's profile, and the
+footer still sends the field-less form. Three clauses narrow it and they are
+all in `canSetSelfMute`: both ends in the room with the actor present, a guest
+may only name themselves, and the floor-holder clause above is about the
+*target* rather than the actor. **The name `selfMuted` is now narrower than
+what it holds**, kept because it is a field of `ChannelState` and therefore on
+the wire; GLOSSARY.md § *Self-mute* is where that disagreement is written
+down. **Cleared by every departure**, inside `stepOut` itself, which
 `STEP_OUT`, `DISCONNECT_EXPIRED`, `LEAVE_CHANNEL` and `DELETE_CHANNEL` all pass
 through. Also cleared on `CLAIM_FLOOR` (nobody claims the floor in order to
 stay silent), and set false for an invitee on `INVITE`. Removed entirely on
