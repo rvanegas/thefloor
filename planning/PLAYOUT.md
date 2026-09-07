@@ -2,7 +2,7 @@
 
 **Temporary, and open.** This is one unresolved investigation gathered in one
 place so it can be picked up cold. When it closes, the reasoning that survives
-goes to `decisions/DECISIONS.md` and this file is deleted; the outstanding half
+goes to `decisions/` and this file is deleted; the outstanding half
 lives in `BACKLOG.md` § *The engine stops under a healthy room*, which is the
 entry to update, not this one. Written 2026-08-24, after a day that produced
 six builds, two retracted diagnoses and one bug that was the diagnostic itself.
@@ -501,7 +501,7 @@ What is left is not this fault.
 | the server-side pump and its heartbeat | `server/src/playback.ts` |
 
 Related reading: `BACKLOG.md` § *The engine stops under a healthy room* (the
-live entry), `decisions/DECISIONS.md` § *A channel that cannot be heard, and
+live entry), `decisions/` § *A channel that cannot be heard, and
 nothing that could tell* (the server-side half, which was a real defect and not
 this bug), `POSTMORTEM-echo.md` (the audio session's three writers),
 `STATES.md` disagreements 1, 4, 5, 8 and 11.

@@ -122,7 +122,7 @@ re-deriving from this paragraph.
 ## Payments Upgrade
 
 Voluntary donations shipped on 2026-08-14 — a Ko-fi link, external, unlocking
-nothing. See decisions/DECISIONS.md for why it is not in-app purchase. What is
+nothing. See decisions/ for why it is not in-app purchase. What is
 left:
 
 - **`bin/import-donations`**, reconciling a Ko-fi CSV export into the
@@ -220,7 +220,7 @@ can ever be true. STATES.md disagreement 1 is where the answer belongs.
 
 **The websocket half is answered and acted on — 2026-08-27.** The timeline,
 what was wrong with it and what was changed are in
-`decisions/DECISIONS.md` § *Talking into a void, which had three causes and one
+`decisions/` § *Talking into a void, which had three causes and one
 of them was politeness*; the states themselves are in STATES.md §
 *Claimed Floor* and § *Audio Connected*. Worst case from a phone going quiet to
 the room being told is now ~17s rather than ~47s, a claim is released as soon as
@@ -333,7 +333,7 @@ A channel that can carry video, capped at **two publishers at once** — not six
 and not a per-person toggle that six people can happen to turn on. The cap is
 the feature, and the number two is chosen rather than incidental: see below.
 
-**Start by reading `decisions/DECISIONS.md` § *The Floor carries no video*.**
+**Start by reading `decisions/` § *The Floor carries no video*.**
 That decision is deliberate and load-bearing, and AGENTS.md singles it out as
 the one people misread. This entry is not a claim it was wrong; it is a request
 to price what changing it would cost and to say plainly which parts of it still

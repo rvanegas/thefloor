@@ -3,7 +3,7 @@
 **Temporary.** This is the account of one sighting, the two mechanisms that
 were closed in response to it, and the device walk that would settle whether
 either of them was the thing anybody actually heard. Delete it once the walk
-has been done, moving what survives into `decisions/DECISIONS.md`. It was
+has been done, moving what survives into `decisions/`. It was
 TASKS.md § *Two Devices In One Channel* until 2026-09-02, when the entry there
 narrowed to a line pointing here.
 

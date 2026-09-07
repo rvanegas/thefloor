@@ -3,7 +3,7 @@
 **Temporary, and undecided.** This is a design for an addition to TASKS.md
 § *Publishable Recordings*, written 2026-08-27 from an exploration and not from
 a line of code. When the work ships it is deleted, and whatever survives goes to
-`decisions/DECISIONS.md`. Nothing here has been built.
+`decisions/`. Nothing here has been built.
 
 **It is an addition to that task rather than a reading of it.** The entry asks
 for a page at `thefloor.rvanegas.co` where anyone can listen to selected

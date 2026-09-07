@@ -14,7 +14,7 @@ everything below was measured on one afternoon with audio down.
 
 **The direction has since reversed, and that is the first thing to know.**
 Later the same day the media plane moved off LiveKit Cloud and onto this box —
-see `decisions/DECISIONS.md`. The sentence this migration rested on, *a micro
+see `decisions/`. The sentence this migration rested on, *a micro
 fits because LiveKit carries the media*, is no longer true of anything. Any
 future move is a move **upward**, and the sizing section below is marked
 accordingly: the measurements stand as history, the conclusion does not.
@@ -140,7 +140,7 @@ Two failure modes are worth telling apart:
   below, plus `bin/provision-livekit`.
 - *A deploy audibly interrupting a live call, or an OOM taking a conversation
   and a recording in flight with it.* Then the answer is a **second $7 box**
-  for the media plane, not a larger single one. `decisions/DECISIONS.md` argues
+  for the media plane, not a larger single one. `decisions/` argues
   this at length and it is the reason `bin/provision-livekit` is a separate
   script: splitting is a new box, an A record for `livekit.rvanegas.co`, and
   `LIVEKIT_URL` in `server/.env`. No code, no migration, no wire change.

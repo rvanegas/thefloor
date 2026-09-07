@@ -4,7 +4,7 @@
 holds the listing, which lives in App Store Connect, so this is where the
 wording is argued about before somebody pastes it in. Delete it once the
 listing carries this text, moving whatever the argument settled into
-`decisions/DECISIONS.md`.
+`decisions/`.
 
 **Derived from PROPOSITION.md**, on 2026-09-03, along with MANUAL.md and
 ROADMAP.md — the same argument aimed at three audiences. This one is aimed at

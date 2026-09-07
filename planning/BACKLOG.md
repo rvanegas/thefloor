@@ -2,7 +2,7 @@
 
 Everything known and not done: work deliberately deferred, defects found and
 left, behaviour nobody has tested. Every entry here is outstanding — if it has
-shipped, it has moved to decisions/DECISIONS.md, and if it is about how to
+shipped, it has moved to decisions/, and if it is about how to
 operate the thing, it is in AGENTS.md.
 
 Ordered roughly by size: the substantial pieces first, then individual defects.
@@ -12,7 +12,7 @@ audits and open questions, at a paragraph each, which is a different question
 from work that is specified and pending. One of them large enough to need a
 design gets a file of its own, and that file is where it lives while it is
 being designed and built, until it ships and whatever survives moves to
-decisions/DECISIONS.md. **decisions/DECISIONS.md** holds what was built and
+decisions/. **decisions/** holds what was built and
 why, including the choices that were considered and declined — several of which
 read like missing features until you find the reasoning.
 
@@ -84,14 +84,14 @@ about rather than the file — this is eighty-seven kilobytes.
 **Partly done as of 2026-08-23**, and the heading here used to read "Nobody has
 watched anything", which stopped being true the first time somebody did. The
 verdict was *mostly works*, and the one thing it found is recorded in
-decisions/DECISIONS.md § *A watch party leaks into the channel through the
+decisions/ § *A watch party leaks into the channel through the
 microphone* — not a defect but a property of the design, now said in the
 interface rather than fixed, because no code can fix it.
 
 What the first pass did **not** cover, and what is still outstanding: steps 2
 through 6 below, and in particular step 1's ten minutes. Drift over time is the
 thing `WATCH_DRIFT_MS` was chosen to buy and the only one a clock and a pair of
-eyes can check. The reasoning for the feature is decisions/DECISIONS.md § *The
+eyes can check. The reasoning for the feature is decisions/ § *The
 Floor carries no video, and that is the whole watch party*. Two phones in one
 channel, a desktop browser open on each:
 
@@ -172,7 +172,7 @@ somebody watching a screen rather than by anything automated:
 4. **A rewind killed the picture and the sound**, six days later, because a
    correction assumed the last one had landed: a seek into an unbuffered
    stretch takes longer than the tolerance it was correcting, so the next tick
-   seeked again and cancelled the fetch. decisions/DECISIONS.md § *A rewind
+   seeked again and cancelled the fetch. decisions/ § *A rewind
    that ate itself*.
 
 Each is a one-line fix and each was invisible to the suite. What would catch
@@ -217,7 +217,7 @@ follows is what is actually outstanding.
 
 **Status:** not started, and a gap opened deliberately on 2026-08-24 rather
 than one that was always there. Several sessions per account became ordinary
-that day — see decisions/DECISIONS.md § *Several sessions, one voice* — and
+that day — see decisions/ § *Several sessions, one voice* — and
 what replaced the old "signing in elsewhere ends everything else" rule is
 `/auth/sign-out-others`, which ends every session but the caller's.
 
@@ -254,7 +254,7 @@ the obstacle it was.
 ## Why one phone could not hold a socket is diagnosed, not observed
 
 **Status:** the consequences are fixed; the cause is inferred. See
-decisions/DECISIONS.md § *A tap that waits ten seconds, and the socket that was
+decisions/ § *A tap that waits ten seconds, and the socket that was
 nobody's*.
 
 On 2026-08-24 the box showed one session opening `/ws` 448 times in six hours
@@ -285,7 +285,7 @@ ten seconds, so an action either just makes it or is dropped without a word.
 
 **Status:** not started. This is what survives the 2026-08 backgrounding
 investigation, which is otherwise closed — see
-decisions/DECISIONS-2026-08-07-to-2026-08-13.md for what that settled and how
+decisions/archive/DECISIONS-2026-08-07-to-2026-08-13.md for what that settled and how
 to instrument a phone if it ever needs doing again.
 
 Presence is derived from the app's websocket; participation is what happens in
@@ -362,7 +362,7 @@ was no `android/` directory when it was written and there is one now.
 ## Notifications do not ring — they are alerts
 
 **Status:** the alert shipped 2026-08-10 (see
-decisions/DECISIONS-2026-08-07-to-2026-08-13.md). This is what was deliberately
+decisions/archive/DECISIONS-2026-08-07-to-2026-08-13.md). This is what was deliberately
 left out of it.
 
 A notification arrives, sits on the lock screen, and opens the app into the
@@ -375,7 +375,7 @@ UI, and nothing wakes the app before the tap.
 - **PushKit** to wake a closed app, which in turn requires **CallKit** — Apple
   requires a PushKit VoIP push to report an incoming call, and will terminate
   an app that takes one without doing so. Note CallKit was ruled out for
-  background *audio* (see decisions/DECISIONS-2026-08-07-to-2026-08-13.md);
+  background *audio* (see decisions/archive/DECISIONS-2026-08-07-to-2026-08-13.md);
   this is the other thing it is for, and here it would be the right tool.
 - `voip` in `UIBackgroundModes`, removed before the first TestFlight build
   because it did nothing, becomes load bearing again.
@@ -559,7 +559,7 @@ Delivery sits behind the `Mailer` interface in `server/src/mail.ts`.
    shape and then narrowed back to `isEmailAddress` on 2026-08-15 for exactly
    this reason. `isPhoneNumber` and `isPlausibleIdentifier` are still in
    `mail.ts`, unreachable, waiting for this — see
-   decisions/DECISIONS-2026-08-13-to-2026-08-15.md.
+   decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md.
 3. Phone number normalisation to E.164. Absent today, and it matters:
    `+1 555 000 0001` and `+15550000001` would otherwise be different accounts,
    and contact search is an exact string match.
@@ -689,7 +689,7 @@ talk — while an empty channel still leaves it alone, which is the half that is
 certainly right. **The fallback is written down and deliberately not adopted
 yet**: bracket that one edge with `stopAudioSession()` then
 `startAudioSession()`, which costs a brief gap in playout and is safe there
-because the microphone is closed. See `decisions/DECISIONS.md`, "The audio
+because the microphone is closed. See `decisions/`, "The audio
 session has three states".
 
 Also unconfirmed on hardware, and cheap to check at the same time: that a
@@ -719,7 +719,7 @@ podcast running.
 
 **The open half of TASKS § *Stepping Back In*, which is why that entry has gone
 from TASKS and this is here instead.** The server half shipped on 2026-08-24 —
-decisions/DECISIONS.md § *A channel that cannot be heard, and nothing that
+decisions/ § *A channel that cannot be heard, and nothing that
 could tell* — and the bisection it existed to run came back within the hour,
 against build 87, pointing at the phone.
 
@@ -1271,7 +1271,7 @@ Two gaps, and one tool closes both:
   address lands with `account_id` and `matched_by` null. This is the *expected*
   case rather than a failure — deliberately, since the alternative was guessing
   from who last opened the app, which credits the wrong person undetectably
-  (see decisions/DECISIONS-2026-08-13-to-2026-08-15.md).
+  (see decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md).
 - **Deliveries missed entirely.** Rare enough not to engineer against on its
   own: the window is the few seconds of a deploy's restart, which at any
   plausible rate of donations and deploys is a fraction of a percent. It was
@@ -1299,7 +1299,7 @@ privileged surface in a server that has none, for a job done a few times a year.
 
 ## Inviting a stranger now sends mail, and nothing bounds how much
 
-Built 2026-08-15 — see decisions/DECISIONS-2026-08-13-to-2026-08-15.md.
+Built 2026-08-15 — see decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md.
 `POST /contacts/request` sends an email to
 any address that has no account, and two things about it are outstanding.
 
@@ -1325,7 +1325,7 @@ any address that has no account, and two things about it are outstanding.
 ## The second demo account has no credential left
 
 **Status:** not started, and not urgent until that account has to be signed in
-as or torn down. Found 2026-08-24; see decisions/DECISIONS.md § *The demo
+as or torn down. Found 2026-08-24; see decisions/ § *The demo
 account's tokens keep dying*.
 
 Every token in `~/.config/thefloor/demo-account.txt` was found revoked. For
@@ -1406,7 +1406,7 @@ learnt the expensive way and paid for in a defect, and the web app has neither:
   track with an `AnalyserNode`, four samples a second, and raises `#mic-trouble`
   after eight seconds below the floor — because on the web every step of the
   audio path can succeed and still produce silence, and there is no event for
-  it. decisions/DECISIONS-2026-08-21-to-2026-08-23.md § *A granted microphone
+  it. decisions/archive/DECISIONS-2026-08-21-to-2026-08-23.md § *A granted microphone
   is not a working one, inside somebody else's browser* is why it exists. The
   web app opens the same microphone through the same library and has no
   equivalent, so the failure that motivated the guest page's detector is
@@ -1438,7 +1438,7 @@ What a browser user must do is reload. The screen needs a web variant, which is
 the smallest of the pieces here: the copy and the button, gated the way
 `AudioDebugPanel` already gates itself on the platform. It was named as
 required in WEB.md § *Required elsewhere* and did not get built before that
-file was retired into decisions/DECISIONS.md § *The web app is a versioned
+file was retired into decisions/ § *The web app is a versioned
 client*.
 
 Worth knowing that it is unreachable today and will stay so for a while: the
@@ -1454,7 +1454,7 @@ That is the whole of the advice, and it is a public page that `/app` and
 `/beta` link to.
 
 The web app **deliberately has none** — the reasoning is
-decisions/DECISIONS.md § *The web app is a secondary interface*, where a
+decisions/ § *The web app is a secondary interface*, where a
 secondary interface has no business waking anybody and the phone is already
 there to do it. But nothing says so anywhere a browser user will look, so what
 that section currently does is send them hunting for a setting that does not
@@ -1486,7 +1486,7 @@ where you are.
 
 Almost certainly worth doing, and what held it back is gone: it should follow
 rather than precede somebody actually looking at the split, and somebody did on
-2026-09-02 — decisions/DECISIONS.md § *The split and the web app have both been
+2026-09-02 — decisions/ § *The split and the web app have both been
 looked at*. What remains is only that it touches `ChannelsView`'s list
 rendering, which is the busiest surface in the app.
 
@@ -1613,7 +1613,7 @@ commits record them.
     correct on a paused transport whatever the player was doing, and the
     ordering is the care it needs — correcting before pausing sends the player
     somewhere it is about to be stopped at. Noted 2026-08-29 while fixing the
-    seek storm two lines away, decisions/DECISIONS.md § *A rewind that ate
+    seek storm two lines away, decisions/ § *A rewind that ate
     itself*, and kept separate from it because a fix that is not what was
     reported is a fix nobody has watched.
     `server/src/watch-page.ts`.
@@ -1643,7 +1643,7 @@ No assertions exist for these. Ordered by how likely they are to be wrong.
    does not say, so it was decided: every departure clears it, in `stepOut`
    itself rather than case by case, and `connectivity.test.ts` now asserts both
    that and the half that did not change — a mute survives a reconnection
-   inside the grace period. decisions/DECISIONS.md § *Every departure clears
+   inside the grace period. decisions/ § *Every departure clears
    the self-mute, and the microphone is not the reason why*.
 7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
    reducer returns early on non-active channels — but untested.

@@ -1,87 +1,6 @@
-# Decisions
+# The deploy history
 
-What was built, why it was built that way, and what it cost to find out. Also
-what was considered and deliberately not built, which is the half most likely to
-be mistaken for an oversight.
-
-This is history rather than work. Nothing here is outstanding; see BACKLOG.md
-for that. It is kept because the reasoning is the expensive part and it does not
-survive anywhere else — a commit message is read once, by whoever is already
-looking at the diff, and never again by the person about to make the same
-mistake.
-
-**This is the live volume. New decisions are appended here.** Earlier ones are
-in dated volumes, which are closed and are never edited again:
-
-| Volume | Covers | Ends at |
-| --- | --- | --- |
-| `DECISIONS-2026-08-07-to-2026-08-13.md` | the first decisions through self-hosting the media | the media server moving off LiveKit Cloud |
-| `DECISIONS-2026-08-13-to-2026-08-15.md` | self-hosted media through the first App Review submission | the first build going to review |
-| `DECISIONS-2026-08-16-to-2026-08-19.md` | the first App Review submission through the first public release | 1.0.0 approved and build 51 released |
-| `DECISIONS-2026-08-20-to-2026-08-21.md` | the presence measurements and the whole of the AirPods tone | nothing — closed by rollover |
-| `DECISIONS-2026-08-21-to-2026-08-23.md` | the notification levels, the two push stacks, and the ping | nothing — closed by rollover |
-| `DECISIONS-2026-08-23-to-2026-08-24.md` | the whole watch party, the profile, and several sessions per account | nothing — closed by rollover |
-| `DECISIONS-2026-08-24-to-2026-08-27.md` | the audio nobody could hear, the notification levels, and the heartbeat | nothing — closed by rollover |
-| `DECISIONS-2026-08-28-to-2026-08-31.md` | the walk, the profile becoming a screen, and a token ceasing to be a device | nothing — closed by rollover |
-| `DECISIONS-2026-08-31-to-2026-08-31.md` | fourteen entries written on one day, from the two halves of the channel screen to the profile naming a room | nothing — closed by rollover |
-| `DECISIONS-2026-08-31-to-2026-09-04.md` | the iPad's two panes, the web app as a versioned client, and the address that names a place | nothing — closed by rollover |
-| `DECISIONS-2026-09-04-to-2026-09-06.md` | Android push built inert, the whole of the audio-session consolidation, and usernames | nothing — closed by rollover |
-| `DECISIONS.md` — this file | 2026-09-06 onward | live |
-
-**Keep every volume under 2,000 lines.** A plain read stops there and says so,
-but the notice is easy to miss in a file that reads like an archive, and what
-gets dropped is the tail — the newest and most likely to matter.
-
-**So roll over rather than look for a seam: if the entry you are about to write
-would take this file past 2,000 lines, close it first and make that entry the
-first of the new volume.** Rename this file
-`DECISIONS-<first date>-to-<last date>.md`, give it the closed-volume header the
-others carry, start a fresh `DECISIONS.md` with this preamble and the two
-running records below, and add a row above.
-
-The rule is mechanical on purpose, adopted 2026-08-21. The first three volumes
-were cut at seams that meant something — the media leaving LiveKit Cloud, the
-first submission, the first public release — and that was worth doing while the
-seams were obvious. Hunting for one under a line-count deadline is a different
-activity: it turns a filing decision into an argument about what an epoch is,
-in the middle of whatever work raised the question. A boundary that means
-nothing and costs nothing beats a considered one that arrives late, and the
-volumes closed this way say so in their own headers so nobody reads meaning
-into where they stop.
-
-Two sections here are exceptions to the chronology and stay in the live volume
-however old they get, because they are single running records rather than dated
-entries: `## The deploy history`, which is newest-first and grows at the top,
-and `## The Android adaptive icon`, which describes something still unshipped.
-
-**On vocabulary.** What this project used to call a session is now a channel,
-renamed on 2026-08-10 when it stopped being a short-lived conversation and became
-a permanent place. Historical passages below still name types and files as they
-were at the time — `SessionView`, `SessionState` — and those are now
-`ChannelView` and `ChannelState`. Two other things in this codebase are also
-called sessions and are unrelated: the auth session behind a bearer token, and
-LiveKit's `AudioSession`. Neither was renamed.
-
-**And `bin/release-ios` is now `bin/upload-ios`**, renamed 2026-08-21 when
-*release* was split into five non-overlapping verbs — land, deploy, upload,
-submit, release. Passages below and in the closed volumes name the old script
-and use *release* loosely for what is now *upload* or *submit*; read them as
-written for the time. See § *Five verbs, because release was doing the work of
-three*.
-
-**And a channel is never called a room.** The word belongs to Clubhouse, and a
-product that borrows a competitor's vocabulary invites the comparison it should
-be avoiding. The media layer does use it — `closeRoom`, `setSilenced({ room })`,
-`issueToken({ room, identity })`, `new Room(...)` in the app — because it is
-LiveKit's own term for a LiveKit thing, and none of it reaches a screen. The
-test is whether a user could ever read the word: in the code it is the media
-plane's vocabulary; in the interface it does not exist.
-
----
-
-## The deploy history
-
-### 2026-09-06 — `e9b40d1` → `52cf864`
+## 2026-09-06 — `e9b40d1` → `52cf864`
 
 Usernames, which is the first schema change to reach the box in a while: a
 `username` column on `accounts` and a `UNIQUE ... COLLATE NOCASE` index over
@@ -96,7 +15,7 @@ about teaching the server first has nothing to bite on. What follows is an
 upload, and the phones that take it are the only ones that will ever see the
 field.
 
-### 2026-09-02 — `2844534` → `2d9e00f`
+## 2026-09-02 — `2844534` → `2d9e00f`
 
 App-only again, and this one is worth saying so about twice over: everything
 in it is `app/`, `planning/`, or a test, so the box gained no behaviour and the
@@ -116,7 +35,7 @@ not from the server tree, so `/beta` stays broken until it is cut again from a
 ref that has this commit. `/app` was never affected, `released` predating the
 break.
 
-### 2026-08-29 — `41be02f` → `2844534`
+## 2026-08-29 — `41be02f` → `2844534`
 
 Two commits, both app-only: the Email card moved up beside Ping on a profile,
 and "Signed in as" moved off Home to Contact settings. **Nothing in `server/`
@@ -134,7 +53,7 @@ with the checkout the build came from.
 `MIN_SUPPORTED_BUILD` is untouched at 51. The drop counters read zero, which is
 what a just-restarted box says.
 
-### 2026-08-27 — `92fc306` → `41be02f`
+## 2026-08-27 — `92fc306` → `41be02f`
 
 Two commits: the two-second heartbeat with its per-build silence budget, and
 the threshold correction that stopped it sweeping the installed population. The
@@ -170,7 +89,7 @@ them.
 a just-restarted box should say and is the reason they are worth reading only
 off one that has been up a while.
 
-### 2026-08-27 — `c7537d7` → `92fc306`
+## 2026-08-27 — `c7537d7` → `92fc306`
 
 Four commits: the sweep's `terminate`, the floor released on `DISCONNECTED`, the
 `/healthz` counters, and the DECISIONS and TASKS.md landing edits. The reasoning
@@ -202,7 +121,7 @@ silent builds, so `MIN_SUPPORTED_BUILD` is untouched at 51 and nothing was
 expired by this. The new line reads `drops 0 (recovered 0, expired 0)`, as a
 just-restarted box should.
 
-### 2026-08-26 — `a4491cf` → `c7537d7`
+## 2026-08-26 — `a4491cf` → `c7537d7`
 
 Four commits: the revert of `bab713e`, the two that replaced it, and the
 working tree's pending TASKS.md edits folded into the landing. The server's half
@@ -231,7 +150,7 @@ window, so there was nothing to preserve.
 silent builds, so `MIN_SUPPORTED_BUILD` is untouched at 51 and nothing was
 expired by this.
 
-### 2026-08-25 — `ef0d0a2` → `d1794b7`
+## 2026-08-25 — `ef0d0a2` → `d1794b7`
 
 Two commits, one of them the build 98 bump. The server's half is
 `transcript_voices` and the route that writes it: somebody who was in the room
@@ -250,7 +169,7 @@ route ignores the new `voices` field on the transcript read — it is optional
 and nothing renders it — and never calls the PUT, so the two-step here is the
 ordinary one rather than a break: server first, client after.
 
-### 2026-08-25 — `3d13362` → `ef0d0a2`
+## 2026-08-25 — `3d13362` → `ef0d0a2`
 
 Two commits, one of them the iOS build bump. The server's half is the naming
 and grouping of transcript lines: a stem the provider gave more than one
@@ -271,7 +190,7 @@ of the transcripts feature, six phases of it — and nothing here records how it
 got there. Whatever ran between those two shas was deployed without an entry.
 The measurement is `bin/health`, and it was the only thing that knew.
 
-### 2026-08-24 — `3c5f771` → `901bdd1`
+## 2026-08-24 — `3c5f771` → `901bdd1`
 
 Nine commits, of which two are the server's: `displaceOtherSessions` now fires
 on `STEP_OUT` and `LEAVE_CHANNEL` as well as `ENTER`. The rest is the app's
@@ -295,7 +214,7 @@ which is the order that cannot be wrong.
 Nothing to watch on the way in: presence survives a restart, and the added
 sends are to sessions that were about to be told something anyway.
 
-### 2026-08-24 — `29266a5` → `af41969`
+## 2026-08-24 — `29266a5` → `af41969`
 
 The playback heartbeat, plus `b167172` — another session's contact-removal work,
 which had landed on `master` between the two deploys and rode along as any
@@ -324,7 +243,7 @@ Nothing to watch on the way in: the stall check runs on the existing tick, the
 heartbeat is a number the pump already had the information for, and a channel
 with no track loaded has no playback session to check.
 
-### 2026-08-24 — `b37879a` → `29266a5`
+## 2026-08-24 — `b37879a` → `29266a5`
 
 The backfill the entry below says was on a branch, plus the build 87 bump that
 `bin/upload-ios` committed on its way past.
@@ -355,7 +274,7 @@ a backfill, not just after** — the assertion that made this one legitimate is
 about what the source column meant at the moment it was copied, and no test can
 know that.
 
-### 2026-08-24 — `5515f16` → `b37879a`
+## 2026-08-24 — `5515f16` → `b37879a`
 
 Twelve commits, of which the two that matter are several sessions per account
 and the per-device facts that had to follow it. See § *Several sessions, one
@@ -404,7 +323,7 @@ Nothing else was observed to change. Nobody was connected — the most recent
 `accounts.last_seen_at` was 135 minutes old when the box came back, which is
 also why the stamping path is proven by tests here and not yet by production.
 
-### 2026-08-23 — `0afaa1f` → `5515f16`
+## 2026-08-23 — `0afaa1f` → `5515f16`
 
 **The first deploy that ships no server code at all.** The three commits are
 `bin/health`, the AGENTS.md rewrite that stopped it carrying a sha, and the
@@ -435,7 +354,7 @@ out at 21:28 local — the service active, and the startup line reporting
 revived, and the `requested room does not exist` burst was exactly 26, one per
 revived channel, same shape as the deploy below.
 
-### 2026-08-23 — `be96c46` → `0afaa1f`
+## 2026-08-23 — `be96c46` → `0afaa1f`
 
 A profile now says when the person has been in each channel you share, and
 carries an address either of you may show the other. The fifth deploy that day,
@@ -465,7 +384,7 @@ release. Which is why it could be checked with `curl`.
 `deployed.json` reads `2026-08-24` because the box stamps UTC and this went out
 at 20:45 local; the dates in this repository are local.
 
-### 2026-08-23 — `6dd3735` → `d76908e`
+## 2026-08-23 — `6dd3735` → `d76908e`
 
 The watch party's mute now follows the transport, holding while the video plays
 and lifting on a pause. **Four deploys went out that day** and the three before
@@ -497,7 +416,7 @@ deploy and moved its predecessor here as each new one landed. That stopped on
 answers the same question against the box. Entries now come straight here. See
 § *The most recent deploy is not documentation*.
 
-### 2026-08-23 — `4fb597c` → `6dd3735`
+## 2026-08-23 — `4fb597c` → `6dd3735`
 
 The headphone advice and the watch party's mute-all. **Three deploys went out
 that day** before this one — the watch party itself, the follower page's
@@ -522,7 +441,7 @@ after it made the mute follow play and pause. No installed build ever had the
 first behaviour — mute-all landed after `build/81` was tagged — so nothing in
 anybody's hands was ever governed by it.
 
-### 2026-08-23 — `5645ada` → `4fb597c`
+## 2026-08-23 — `5645ada` → `4fb597c`
 
 Three commits: the follower page's full-screen control, and the two from the
 build-81 upload — `expo.version` to 1.3.0 and the build number itself. Only the
@@ -537,7 +456,7 @@ revived, and the served page at `/watch/:id` actually carrying the button, one
 `requestFullscreen`, two `fullscreenchange` listeners and — the guard that
 matters — `controls: 0` still in place.
 
-### 2026-08-23 — `306dc5f` → `5645ada`
+## 2026-08-23 — `306dc5f` → `5645ada`
 
 The watch party, and eight commits of 1.2.0 submission text that had landed
 over the preceding day. **A deploy carries whatever has landed**, again: the
@@ -557,7 +476,7 @@ A build-80 client reconnected within a second of the restart, which is presence
 recovery working across a deploy — the thing recorded as half-observed on
 2026-08-19.
 
-### 2026-08-23 — `0d5476c` → `306dc5f`
+## 2026-08-23 — `0d5476c` → `306dc5f`
 
 Most recently on 2026-08-23, `0d5476c` → `306dc5f`, which is nineteen commits
 rather than one: the notification levels, the two push stacks, the phone
@@ -579,7 +498,7 @@ the service active. A burst of `requested room does not exist` from `closeRoom`
 at startup is **not** new — one at each of the last seven restarts, `restore()`
 closing LiveKit rooms that went with the old process.
 
-### 2026-08-22 — `8ef2615` → `0d5476c`
+## 2026-08-22 — `8ef2615` → `0d5476c`
 
 Most recently on 2026-08-22, `8ef2615` → `0d5476c`, which fixes nothing and
 says something: a guest whose link opened inside Telegram was prompted for the
@@ -598,7 +517,7 @@ Verified against production afterwards: `/healthz` on `0d5476c`; the served
 bundle containing `TelegramWebviewProxy` and the page containing `embedded`,
 `mic-trouble` and `copy-link-button`.
 
-### 2026-08-22 — `24a3920` → `8ef2615`
+## 2026-08-22 — `24a3920` → `8ef2615`
 
 Most recently on 2026-08-22, `24a3920` → `8ef2615`, carrying the two defects
 the first real guest link found. **The interesting one is that subscribing is
@@ -618,7 +537,7 @@ Verified against production afterwards: `/healthz` on `8ef2615`; the served
 bundle containing `startAudio` and the page containing both `audio-sink` and
 `unmute-page`, which is as close as anything here gets to testing that file.
 
-### 2026-08-22 — `d2d0ec3` → `24a3920`
+## 2026-08-22 — `d2d0ec3` → `24a3920`
 
 Most recently on 2026-08-22, `d2d0ec3` → `24a3920`, carrying anonymous web
 access whole: a person with no account opens a link, knocks, and is let in by
@@ -648,7 +567,7 @@ returning 101 and then the refusal, in words, before closing 4401.
 answering; the first time guest audio actually flows will be somebody opening a
 real link, and there is no test in this repository that can stand in for that.
 
-### 2026-08-21 — `46dd476` → `bf9ca6e`
+## 2026-08-21 — `46dd476` → `bf9ca6e`
 
 Most recently on 2026-08-21, `46dd476` → `bf9ca6e`, carrying one change: the
 invitation email links to the App Store. It had its own `INSTALL_URL` constant,
@@ -672,7 +591,7 @@ which is how that section fails: it claimed `ef57b7b` while the box had been on
 day. Rotate it in the same commit as the deploy, or the next reader believes a
 sha that has not been live since yesterday.
 
-### 2026-08-21 — `c002d31` → `ef57b7b`
+## 2026-08-21 — `c002d31` → `ef57b7b`
 
 Deployed on 2026-08-21, `c002d31` → `ef57b7b`, carrying the audio
 diagnostic panel and the two entries that closed with it. **This is the deploy
@@ -710,7 +629,7 @@ notice rather than remember. **The dirty marker is worth protecting rather than
 tolerating**: its value is entirely in being rare, and a box that is usually
 `-dirty` reports nothing at all.
 
-### 2026-08-21 — `3bf43cb` → `c002d31`
+## 2026-08-21 — `3bf43cb` → `c002d31`
 
 Most recently on 2026-08-21, `3bf43cb` → `c002d31`, carrying one change: the
 self-mute is now cleared by every departure rather than only a chosen one. It
@@ -742,7 +661,7 @@ root is the current state and the traps; the sequence that produced it is this.
 Newest first, and it picks up where AGENTS.md leaves off — that file keeps the
 most recent deploy, which is now 2026-08-21's.
 
-### 2026-08-20 — a week of server work, and an accidental sha
+## 2026-08-20 — a week of server work, and an accidental sha
 
 Most recently on 2026-08-20, carrying a week of server work that had
 accumulated behind the 08-19 release: last-seen made monotonic and stamped from
@@ -773,7 +692,7 @@ is not necessarily one anybody chose, and it costs a restart's presence on a box
 with a public population. Read `/healthz` before assuming this section is
 current; it was a day stale here, and that is how it will fail again.
 
-### 2026-08-19 — the first with a public population
+## 2026-08-19 — the first with a public population
 
 This was the first deploy with **a public
 population on the other end of it** — 1.0.0 was approved and build 51 released
@@ -808,7 +727,7 @@ button on it. Nothing is below the floor today and 51 could not read it anyway,
 but the listing now has a URL and there is no longer a reason for it to be
 empty.
 
-### 2026-08-17 — the ping
+## 2026-08-17 — the ping
 
 **The ping**, `POST /channels/:id/ping`, which is
 the first notification a person composes rather than the channel sending it
@@ -991,7 +910,7 @@ Before those, twice on 2026-08-10: the channels rework, and later the
 empty-channel playback pause and the shared channel-description fallback. That
 second one changed no wire format, so build 14 kept working across it.
 
-### The 2026-08-10 deploy broke every installed client, on purpose
+## The 2026-08-10 deploy broke every installed client, on purpose
 
 The Session → Channel rename changed the wire protocol, and the two ends were
 shipped separately because they cannot be shipped together: the server deploys
@@ -1016,329 +935,3 @@ compatibility layer to carry and then delete.
 The database migration in that deploy renamed `sessions` to `channels` in place
 and repointed the `recordings` foreign key. Verified against production
 afterwards: 15 channels, 2 recordings, both still joining, ids unchanged.
-
----
-
-## Contact requests are in the contacts, not the channels — 2026-09-05
-
-They had been drawn at the foot of the channel list since that list was the
-whole app, and stayed there through the 2026-09-01 split into two tabs on no
-argument at all — `ChannelsView` said so in its own header, that they were
-there "because that is where they have always been drawn, not because it was
-answered". This answers it.
-
-**A request is not a channel, and being not-yet-a-contact is not a reason to
-file it under the thing it is further from.** The case for leaving it was that
-an unanswered request has nobody to talk to, so it cannot be a row in a list of
-rooms — which is an argument for it not being a *channel*, not an argument for
-it living among them. Everything else points the other way: what accepting one
-produces is a row in the contact list, what withdrawing one removes is a row
-that would have been, and the form that *sends* one is already at the top of
-that list. Asking and being asked were on two different tabs.
-
-So the section moved to `ContactsView`, under *Requests*, above *You* and above
-the contacts. Above, because it is the only thing on either tab with something
-outstanding to do about it, and because sorting a request in among people you
-know would say it was one. `RequestRow` moved with it unchanged: it is still
-the one row on that list that opens nobody — an outgoing request is an address
-rather than a person, the server withholding the id and the name deliberately —
-so it carries Accept, Decline or Withdraw on itself where a contact's row is a
-single target.
-
-The channel list now holds channels and nothing else, which is what it was
-called after.
-
-**A test that presses an async handler must await its `act`.** Not part of the
-decision, but the thing that cost the time: `act(() => onPress())` on the
-Withdraw button returns a promise into a synchronous `act`, and React leaves
-the renderer mid-scope — every subsequent test in the file rendered empty
-text, 63 failures from one press. The console warning says so plainly and
-scrolls past above the first failure.
-
----
-
-## The Android adaptive icon, which is preparation rather than shipping
-
-Android is not built or shipped here — there is no `android/`, and
-`bin/release-ios` is the only release path. The artwork is prepared in three
-layers anyway, and the reasoning for each is below. Moved out of AGENTS.md on
-2026-08-15: reasoning about unshipped work is this file's job.
-
-The artwork is the **background** layer, full-bleed. It survives any launcher
-mask — circle, squircle, rounded square — because a diagonal through the
-centre stays a diagonal through the centre; having no focal mark is what
-makes it crop-proof rather than what puts it at risk.
-
-The **foreground** is a fully transparent 1024×1024 PNG. Expo requires the
-key, and the foreground is the layer launchers shift for parallax, so
-full-bleed art there would slide and expose an edge. The artwork belongs
-underneath it.
-
-The **monochrome** layer — the themed icon, Android 13+ — is the one that
-took a decision rather than a command. It has to be a single-colour shape on
-transparency, and a two-colour split has no silhouette, so the shape is the
-orange triangle: the upper-left half, the one that leads in the artwork. Black
-on transparent; the system tints it, and only the alpha channel is read.
-
-That silhouette is its own master, `the-floor-icon-mono.svg`, beside the
-full one — a second file rather than a `magick` incantation that crops the
-first, because which half it is is a decision and belongs somewhere legible.
-
-    magick -background none -size 4096x4096 the-floor-icon-mono.svg -resize 1024x1024 \
-      -type TrueColorAlpha -colorspace sRGB PNG32:app/assets/android-icon-monochrome.png
-
-`adaptiveIcon.backgroundColor` went from `#14162B` to `#5B6478`, the artwork's
-grey. The background *image* covers it, so it is only what shows if that ever
-fails to load — but a fallback in a colour from nowhere in the design was
-worse than one that matches.
-
----
-
----
-
----
-
-## Labs, which hides two features rather than rearranging one — 2026-09-06
-
-TASKS.md § *Labs Setting*, whole: a fifth account setting, cleared by default,
-which makes the experimental features visible and enabled. Transcripts and the
-watch party are the two.
-
-**It reads the other way round from every setting beside it, and that is the
-whole design.** Appearance, the tap and the control cards change how something
-already yours behaves, and each defaults to what the app did before it existed.
-This one decides whether something *exists* for you, and its default is off —
-which means that on the day it shipped it took two features off everybody's
-screen, including from the people who had been using them. That is not a
-regression to be softened: an experimental feature that arrives without being
-asked for has shipped, whatever the code calls it.
-
-### Both ends, and the two ends withhold differently
-
-The app cannot be the only enforcement, because a transcript spends money at
-AssemblyAI per use and a party puts a video in front of everybody in the room.
-So the server refuses the two acts that *begin* one of these — `POST
-/recordings/:id/transcript` answers 403, and `START_WATCH` is refused in
-`Channels.dispatch` beside the YouTube-link parse that was already there.
-
-What each end hides is decided by where the state lives, and the two cases came
-out differently:
-
-- **A transcript is viewer-relative already.** `transcriptViewOf` builds the
-  `transcript` field per reader, and the app has withheld the whole button
-  since transcripts shipped when that field is absent — which is how a server
-  with no AssemblyAI key says it cannot do this at all. Labs reuses that
-  absence exactly: no client change was needed for transcripts, and a client
-  built before Labs existed hides them too.
-- **A party is channel state.** It arrives on every snapshot whether the reader
-  asked for the feature or not, so the app has to decide, and `ChannelView`
-  draws the section on `app.labs || party`.
-
-That `|| party` is not a hole in the gate. Somebody who never asked for watch
-parties can be sitting in a channel where one is running: their own player is
-being driven by it, and the recording controls are refusing them *because* of
-it. Hiding the card would leave them with an unexplained refusal and no way to
-stop what is causing it — so they get the card, the transport and Stop, and
-what Labs decides is whether they can begin one. The server enforces exactly
-that line: `START_WATCH` is gated, and `STOP_WATCH`, `WATCH_PLAY`,
-`WATCH_PAUSE` and `WATCH_SEEK` are not.
-
-### What was not built
-
-**No per-feature switches.** One toggle for both, on the argument that the
-list will keep changing and a screen of five switches is a screen nobody
-reads. If a feature graduates it leaves the list; if the list grows past what
-one sentence can name, that is the moment to reconsider, not before.
-
-**Reading a transcript is behind the gate too**, which breaks the rule
-transcripts shipped with — "reading is never limited, what goes is the ability
-to spend". It is the price of reusing the field's absence, and the case it
-costs is narrow: a member with Labs on makes a transcript, and a member with it
-off cannot read it. The remedy is the switch, which is two taps away and
-explains itself. The alternative was a field present for reading and absent for
-spending, which is two states the app has no way to tell apart today.
-
-**Nothing was migrated.** The column is null for every account, which reads as
-off — so everybody who was using either feature has to ask for it again. There
-are few enough of those people to count on one hand, and turning it on is the
-only way anybody learns the switch exists.
-
-2,062 lines with this entry in it, so it closed the volume it was written into
-and opened this one. Decided at the landing rather than when the entry was
-written, which is the rule that stops two branches producing the same closed
-volume from different trees — master had not rolled over first, so this one is
-ours.
-
----
-
-## An invitation is a link with one seat in it — 2026-09-06
-
-"Add a contact" took an email address, wrote a `pending_invites` row and sent a
-message whose only link was the App Store. That predates the web app, and it
-left the relationship in the address rather than in the invitation: the
-recipient installed something, signed in, and *found* a request waiting, which
-is a different experience from being let in. What was asked for is a link built
-from the sender's username that accepts the request on their behalf.
-
-**The username alone cannot be the invitation, so it carries a pin.**
-`/i/<username>/<pin>`, six digits. A bare `/i/<username>` would be a standing
-open door — anybody who learned a username could become that person's contact,
-for ever, and a username is quotable by design. The pin makes an invitation a
-thing with one seat in it: minted per press of *Copy Invite Link*, spent by the
-first person who redeems it, thirty days like the addressed invitation it sits
-beside.
-
-**Six digits, and the argument is `otp_codes` rather than arithmetic.** Twenty
-bits is nothing on its own. It is enough here for the reasons a sign-in code is
-enough: the pin is only ever checked against the account named beside it, so a
-guesser is searching one account's live pins rather than every invitation in
-the database; the wrong guesses are counted and stop being answered; and the
-pins are capped at ten per account, so the search space cannot be widened by an
-enthusiastic inviter. Take any one of the three away and the digits are too
-few.
-
-**The attempt counter is per owner, not per pin**, which is the part that is
-easy to get wrong: a wrong guess matches no row, so there is nothing on a row
-to increment. What is under attack is the account in the path. That makes the
-lockout grief-able — anybody at all may spend it, unlike a code offered by the
-one address it went to — so it stops *attempts* rather than destroying pins,
-lapses on its own after an hour, and never blocks minting a fresh link.
-
-**The pin is a path segment and not a fragment**, which reverses the watch
-link's decision on purpose. `/watch/<id>#<token>` keeps a long bearer token out
-of access logs and `Referer`, and that is worth a page which fetches before it
-can speak. Here it would cost more than it buys: the page would be a shell with
-nothing to say without JavaScript, and link rewriters drop fragments. On the
-path the server holds both halves before it renders, which buys something
-better than concealment — **the inviter's display name is disclosed only to a
-request carrying a live pin for that username.** A fragment cannot do that,
-because the server never sees it. The page carries `no-referrer` and the pin is
-single-use, so a log line is a spent one.
-
-**Redemption makes an accepted contact rather than another pending request.**
-Publishing a link is the owner's half of the ask and following it is the other
-half; a pending row would be this application asking somebody to confirm what
-they had just done. That only holds because the pin is single use — an open
-door would have to ask.
-
-**`(owner_id, pin)` is the key, and a collision is not an event.** A global
-`pin TEXT PRIMARY KEY` would throw out of the mint route on a duplicate, which
-at six digits is an expectation rather than a rarity: some collision is around
-40% likely once a thousand live pins exist. Since every lookup already names
-the owner, two accounts holding the same digits means nothing — exactly as two
-people may be sent the same one-time code. What remains is a clash inside one
-owner's ten, and `insertWithUniqueKey` already retries that. **Unlike the
-username's `UNIQUE`, it is never surfaced**: somebody typed the username and
-being told it is taken is the answer they need, where nobody typed a pin and
-any six digits will do.
-
-**Every invitation email now carries a link, and which link is a fact about the
-sender.** Theirs when they have a username, and the door into the web app when
-they do not — in which case the request resolves the old way, from the address
-it went to. The difference is how much is left for the recipient to do, never
-whether the email can be acted on. The line apologising for the App Store being
-unset went with it: there is always something to open now, so an unset setting
-is simply a line that is not there.
-
-**The invitation page inverts the landing page's call to action.** There the
-App Store is primary, because the phone is the referential install and a
-stranger should be sent to it. Here the browser is primary, because the link
-*is* the invitation and a trip through the App Store loses it — somebody who
-installs first arrives with no relationship and nothing to show for having been
-asked. The app is offered underneath, and again from inside the browser by the
-install notice below.
-
-**The notice, and why the browser gets one at all.** Everything else the web
-app gives up is the user's own business; notifications are not, because what
-they cost is *other people's* ability to reach you, and somebody who does not
-know that has not chosen it. So it is said once, in a card above both lists,
-and dismissed for good — a standing banner about a declined install is an
-advertisement. It is drawn only where `APP_STORE_URL` is set, the same graceful
-absence the landing page and the email make about the same setting.
-
-**What is deliberately not built**: no route takes a bare pin, so there is no
-oracle to search; no username lookup that is not an invitation, so this is not
-the directory `core/username.ts` says there is not — a username that exists and
-one that does not get identical answers from the accept route; and no native
-deep link, so an invitation opened on a phone that installs the app is lost
-rather than deferred. The last is a real limit and the page says what to do
-instead. See `DECISIONS-2026-09-04-to-2026-09-06.md` § *A username is a second
-name, not a better one*, whose closing line — that a username does nothing yet
-— stops being true here.
-
----
-
-## The cap was on the file that was not growing — 2026-09-07
-
-The token cost of an ordinary session had been climbing, including sessions
-that had done nothing yet. The obvious suspect was AGENTS.md, which is loaded
-in full before anybody types. It was innocent: 38.5KB on 2026-08-15 and 38.5KB
-now, held flat by its own 650-line rule the whole time.
-
-What had grown was everything it points at. `planning/` went from nine files
-and 237KB to forty-three and 1.65MB in three weeks — seven times over — and
-`decisions/` from two volumes to twelve, about a megabyte across 181 entries.
-
-**A fixed instruction costs whatever its target has grown to since somebody
-wrote it.** That is the whole finding. AGENTS.md said to grep
-`planning/decisions/DECISIONS*.md` rather than the live volume alone, which was
-sound advice about a corpus a tenth the size; measured now, `grep channel`
-across the set returns 1,076 lines and 82KB — twenty thousand tokens in one
-tool result, more than the preamble and every other routine read put together.
-`grep deploy` returns seven thousand. Nobody added a line to make that true.
-The rule that was supposed to prevent exactly this governed the one artifact
-that had stopped moving, and measured it in lines of itself.
-
-So four changes, in the order they matter.
-
-**`DECISIONS` is archaeology now, and is not consulted as a matter of course.**
-It is enough to know the volumes are there, for the case where a comment in the
-code is inexplicable and the reasoning would change what you do. The
-`## The deploy history` running record is the exception, still written to on
-every deploy. When somebody does go in, grep the headings rather than the
-prose. The alternative considered and rejected was an index of all 181 entry
-titles: it would have cut the cost of the sweep, but the sweep itself was the
-thing that did not need doing, and an index is a file to keep correct forever
-in exchange for making a rare operation cheaper.
-
-**RELEASING.md is read when executing a deploy-related verb, and not
-otherwise.** Forty-four kilobytes of procedure for a day most sessions never
-have. It had an unconditional *read it before `bin/upload-ios`*, which is fine,
-next to a description that invited reading it to find out whether it applied.
-
-**GLOSSARY.md goes the other way, because it is the terms of communication.**
-Demoting it was the first instinct and it was wrong: a session that has not
-read the vocabulary and one that has are not having the same conversation, and
-this project's nouns are ordinary English used narrowly, which is how the
-adjacent thing gets built. What was actually wrong was the price — forty-two
-kilobytes to learn that *present* means something specific. So the terms are
-front-loaded: § *Every term, in one line each*, sixty-seven terms at a clause
-apiece, seven kilobytes, enough on its own for ordinary work. The entries below
-keep the reasoning, the contrast and the history, and you go down to one when
-the line will not settle it. Adding a term is now two edits, and the file says
-so — a term missing from the list is, for most sessions, a term that does not
-exist.
-
-**And AGENTS.md was cut by a fifth anyway**, 649 lines to 520, because much of
-it was inessential to most work. The box inventory, the two media settings that
-fail silently, what it can carry and the known rough edges left whole as
-INFRASTRUCTURE.md — the third split on the *who needs it* seam after
-RELEASING.md and CREDENTIALS.md. The three artifacts that disagree about
-entitlements went to RELEASING.md, being a check you only run while making a
-build; `APNS_ENV` stayed, being one that bites somebody testing push locally.
-The cap came down to 550 with it, since leaving 650 in place would have handed
-back the gain over the following fortnight.
-
-The standing rule that replaces the old one: **a `planning/` document over
-about 20KB carries its own index, and a pointer in AGENTS.md says when to read
-the thing rather than merely that it exists.** STATES.md, BACKLOG.md and
-RELEASING.md got contents tables in the same commit. An unconditional *read it*
-aimed at a file that quadruples is a bill that grows on its own, and nobody
-signs it.
-
-Repaired while in there: the live volume's preamble had an entry spliced
-through the middle of it — *Contact requests are in the contacts* had landed
-inside the sentence naming the two running records, which broke off mid-clause
-at `## Contact requests` and resumed thirty-five lines later at
-`## The deploy history\`, which is newest-first`. A rollover did it. The entry
-is intact and has been moved down among the dated ones.

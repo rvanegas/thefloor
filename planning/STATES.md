@@ -77,7 +77,7 @@ somebody who is not there. **Note what did not change: nothing is cleared
 during the grace period**, so a connection that flaps and returns inside
 `DISCONNECT_GRACE_MS` keeps the mute, because nobody has left. The exposure
 traded away is bounded by `microphoneNeeded`, which keeps the device shut until
-somebody else is present. See decisions/DECISIONS-2026-08-20-to-2026-08-21.md §
+somebody else is present. See decisions/archive/DECISIONS-2026-08-20-to-2026-08-21.md §
 *Every departure clears the self-mute, and the microphone is not the reason
 why*.
 
@@ -123,7 +123,7 @@ and they can differ for a window:
   track, which the old statement does not name and which is subscribed to by
   default. The transition is for latency and `reconcileSilence` is for truth;
   do not collapse one into the other. See AGENTS.md and
-  decisions/DECISIONS-2026-08-13-to-2026-08-15.md.
+  decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md.
 - The app's `mutedByServer` is an observation of an event, so it lags.
 - The word on screen is "silenced", which appears in neither layer.
 
@@ -327,7 +327,7 @@ things that this file keeps apart:
   and must not hold anything that belongs to everybody else. A claimed floor is
   a lock on the room; a ping is the room's only way to call somebody back, and
   the minute it was withheld for was the exact minute it was for. See
-  decisions/DECISIONS.md § *The grace period stops withholding the ping*.
+  decisions/ § *The grace period stops withholding the ping*.
 - **Standing** — `Realtime.enteredChannel` on the client, mirrored into the
   app as `AppProvider.standingIn`. Which channel *this copy of the app* is in.
   **Presence is an account's and standing is a device's**, and the two come
@@ -347,7 +347,7 @@ things that this file keeps apart:
   **Step Out** to somebody present. A notification tap used to land this way
   too; **since 2026-09-04 it lands on the channel list instead**, naming no
   room at all, so the only way into a channel screen is a tap on a row. See
-  decisions/DECISIONS.md § *An address names a place and never an id*. The microphone card and the knocks are hidden, because neither is true
+  decisions/ § *An address names a place and never an id*. The microphone card and the knocks are hidden, because neither is true
   of somebody outside the room.
 
   **This said the screen's other controls needed no special case, on the
@@ -380,11 +380,11 @@ things that this file keeps apart:
   while starting leaves something behind for whoever steps in next, chosen by
   somebody who is not there. `canOpenWatchScreen` is a third combination,
   occupation without the floor, because a follower page changes nothing.
-  decisions/DECISIONS.md § *Starting is for whoever is in the room; driving is
+  decisions/ § *Starting is for whoever is in the room; driving is
   for whoever the room belongs to*. `present` counts members only, so a guest
   never holds a room — though `settleEmpty` means a guest cannot be in an empty
   one either, and `canManageGuest` therefore gets no behaviour from the empty
-  half. The reasoning is decisions/DECISIONS.md § *Nobody reaches into a
+  half. The reasoning is decisions/ § *Nobody reaches into a
   conversation they are not in*.
 
 `lastActiveAt` says nothing about a channel that is occupied now — there is no
@@ -441,7 +441,7 @@ drawing.
 push instead and lost every step-in that was suppressed or had nobody to notify.
 And it is **not** the reader's `lastPresentAt`, which the heartbeat refreshes and
 every route out re-stamps: that says when you were last here, this says when you
-arrived, and only the second outlives a departure. decisions/DECISIONS.md § *Home
+arrived, and only the second outlives a departure. decisions/ § *Home
 counts other people, and marks your own step-in separately*.
 
 ---
@@ -837,7 +837,7 @@ and nothing was audible at the boundary — which is the echo path the option wa
 removed for. With the option gone the speaker is no longer eligible while
 capturing, so crossing the boundary *evicts* it to the phone's own loudspeaker,
 which is not subtle. **Verified on a device 2026-08-21**, as the first of the
-three checks in decisions/DECISIONS.md § *No output that cannot also capture*.
+three checks in decisions/ § *No output that cannot also capture*.
 
 **The silent version of this misled the author on 2026-08-20**, before the
 fix — alone on a Bluetooth speaker, a second person arrived, the audio stayed

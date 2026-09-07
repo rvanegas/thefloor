@@ -5,7 +5,7 @@
 the listing copy — it lives in App Store Connect — so this file is where the
 wording gets argued about before somebody pastes it in. Delete it once the
 listing carries this text, moving whatever the argument settled into
-`decisions/DECISIONS.md`.
+`decisions/`.
 
 **PROPOSITION.md is the sibling to this file and holds the argument** — why
 the copy says what it says, where the evidence for it is, and the growth

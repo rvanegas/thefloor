@@ -2,7 +2,7 @@
 
 **Built on 2026-08-30 and not yet landed.** It was a design for unbuilt work
 and is now the account of what was written; delete it when the work ships,
-moving whatever survives into `decisions/DECISIONS.md` — the three reversals
+moving whatever survives into `decisions/` — the three reversals
 below are what that volume needs, the rest being description of code that
 exists.
 
@@ -471,7 +471,7 @@ what everybody did before there was a button.
 
 **This is the one wire change that may be made in one step**, because the guest
 page is rebuilt by `bin/deploy` and is lockstep with the server —
-`decisions/DECISIONS.md` § *The web app is a versioned client* is explicit
+`decisions/` § *The web app is a versioned client* is explicit
 that the two ends
 have opposite compatibility policies, and this is the end with none. The app's
 `ChannelView` is unaffected: it never rendered a floor control for a guest.

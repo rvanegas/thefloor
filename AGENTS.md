@@ -7,11 +7,11 @@ Everything that is not this file lives in **`planning/`**. This one stays at the
 root because it is the one a fresh reader is pointed at; the rest are documents
 you go looking for, and a root directory that lists them all buries the code.
 
-Three of them answer a standing question each. **`planning/BACKLOG.md`** is
-what is known and not done; **`planning/decisions/DECISIONS.md`** is what was
-built and why, including what was deliberately not built; **`planning/TASKS.md`**
-is the roadmap, at a paragraph each — features, but also audits, open questions
-and things to go and find out, which is why it is not called FEATURES.
+Three of them answer a standing question each. **`planning/BACKLOG.md`** is what
+is known and not done; **`planning/decisions/`** is what was built and why,
+including what was deliberately not built; **`planning/TASKS.md`** is the
+roadmap, at a paragraph each — features, but also audits, open questions, and
+things to go and find out.
 
 **Any verb followed by a quoted string that matches a `##` heading in
 `planning/TASKS.md` is a reference to that entry, and is not itself a
@@ -29,20 +29,26 @@ else, it is a coincidence; read it as context tells you to, and say which way
 you read it. Items in `BACKLOG.md` are named explicitly instead, until this
 convention is extended to cover them.
 
-`DECISIONS` is **more than one file**, and as of 2026-09-07 it is **not
-something to consult as a matter of course.** `planning/decisions/DECISIONS.md`
-is the live volume and the only one new decisions are appended to; closed
-volumes are `planning/decisions/DECISIONS-<first date>-to-<last date>.md`, and
-the live volume's header indexes them and carries the rule for closing it.
+**Decisions are one file each**, since 2026-09-07, in `planning/decisions/`,
+named `<date>-<title>.md`. Writing one means adding a file and nothing else —
+no volume to choose, no cap to check, no rollover. `planning/decisions/README.md`
+is the whole convention, and the reason it replaced an append-only volume:
+two worktrees landing in the same week used to conflict at the same place every
+time, and the surgery to avoid that went wrong in both directions. The eleven
+closed volumes are frozen in `planning/decisions/archive/`.
 
-**It is archaeology, for the exceptional case.** The set is approaching a
-megabyte across a dozen volumes, and it used to say to grep the whole thing —
-which for a common word like `channel` returns eighty kilobytes and costs more
-than everything else a session reads put together. Enough to know it is there.
-Go into it when a comment or a decision in the code is genuinely inexplicable
-and knowing why it was built that way would change what you do — and then grep
-the headings first (`grep -n '^## ' planning/decisions/DECISIONS*.md`) and read
-the one section, rather than sweeping the prose.
+**It is archaeology, for the exceptional case, and is not consulted as a matter
+of course.** The collection is approaching a megabyte, and this file used to say
+to grep all of it — which for a common word like `channel` returns eighty
+kilobytes and costs more than everything else a session reads put together.
+Enough to know it is there. Go in when a comment or a decision in the code is
+genuinely inexplicable and knowing why would change what you do; then match the
+filenames first, and the archive's headings
+(`grep -n '^## ' planning/decisions/archive/*.md`) second, rather than sweeping
+the prose.
+
+**The exception is `planning/decisions/deploy-history.md`**, which is written to
+on every deploy and is the one part of the collection still in routine use.
 
 **`planning/RELEASING.md`** answers a fourth, and is different in kind from the
 rest: it is not deferred work or history but standing guidance that was in this
@@ -66,16 +72,16 @@ The rest are temporary and say so in their own first lines, and **this file
 names none of them, deliberately** — every such list it has kept was wrong
 within a fortnight, pointing at a design that had shipped or a file that had
 been deleted. `ls planning/` is the current list. Two kinds recur: a **design
-for unbuilt work**, deleted when the work ships with whatever survives moving
-to `decisions/DECISIONS.md`; and a **submission's own text**, written by
-`bin/set-review-notes` and gone when that version is approved.
+for unbuilt work**, deleted when the work ships with whatever survives moving to
+`decisions/`; and a **submission's own text**, written by `bin/set-review-notes`
+and gone when that version is approved.
 
 **A shipped design's reasoning is not always what the task that asked for it
-appears to ask for** — `decisions/DECISIONS.md` § *The Floor carries no video*
-is the one that caught somebody out. This is the exceptional case the section
-above licenses: when you are about to contradict something that was clearly
-decided, go and find the entry. The queries such a design carried usually leave
-as a script in `bin/`, which is then the only thing that reads that data at all.
+appears to ask for** — the entry *The Floor carries no video* is the one that
+caught somebody out. This is the exceptional case the section above licenses:
+when you are about to contradict something that was clearly decided, go and
+find the entry. The queries such a design carried usually leave as a script in
+`bin/`, which is then the only thing that reads that data at all.
 
 **Two more are standing rather than temporary, and both are read at submission
 time.** `planning/APPREVIEWSCRIPT.md` is the *walk* — what found eight defects
@@ -142,7 +148,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 550 lines, and nearer 500.** It is 520 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 527 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale, claiming 104
 lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
@@ -155,11 +161,11 @@ When it passes 550, **do not shave the traps.** Almost all of the excess will be
 one of these:
 
 - **Deploy narrative.** None of it belongs here. A deploy is written up in
-  `planning/decisions/DECISIONS.md` under `## The deploy history`, newest
+  `planning/decisions/deploy-history.md`, newest
   first, and what is running right now is `bin/health` rather than any sentence.
   This file kept the most recent deploy until 2026-08-23 and was wrong twice.
 - **Reasoning about unshipped work.** Belongs in
-  `planning/decisions/DECISIONS.md`, or in its own `planning/` design document
+  `planning/decisions/`, or in its own `planning/` design document
   if it is still being decided.
 - **The story behind a rule.** Keep the rule and the cost of breaking it; move
   the account of the afternoon it cost, leaving a pointer.
@@ -201,15 +207,16 @@ So these rules are about what this file **points at**, not only what it holds:
 - **A pointer says when to read the thing, not merely that it exists.** An
   unconditional *read it* aimed at a file that quadruples is a bill that grows
   on its own, unsigned by anybody.
-- **The `DECISIONS` volumes have a cap of their own: 2,000 lines each.** Not
-  for context — nothing loads them unprompted, and since 2026-09-07 nothing
-  reads them routinely at all — but because a plain read stops at 2,000 and
-  drops the tail, which in an append-only file is the newest material and the
-  most likely to matter. **Roll over rather than look for a seam**, the rule
-  since 2026-08-21: if the entry you are about to write would take the live
-  volume past 2,000 lines, close it first and make that entry the first of the
-  next one. The live volume's header says how, and volumes closed that way say
-  so, so nobody reads meaning into where they stop.
+- **A record that many sessions append to is one file per entry, not one file.**
+  `DECISIONS` was a single append-only volume rolled over at 2,000 lines, and
+  it failed in the ways that scheme always fails: two worktrees landing in the
+  same week conflicted at the same place, the rollover was hand surgery done in
+  the middle of unrelated work, and the running records were copied forward
+  until three volumes held a stale `## The deploy history`. It is now a file per
+  decision, and there is nothing left to get wrong. **The 2,000-line read limit
+  that drove the old cap still exists** — a plain read stops there and drops the
+  tail, which in an append-only file is the newest material — so it is a reason
+  to prefer many files, not to police one.
 
 Line *length* is not a constraint worth thinking about — a read truncates at
 2,000 characters and the prose here wraps at 79.
@@ -265,7 +272,7 @@ record.
 ## Branches, tags, and what is actually in people's hands
 
 Adopted 2026-08-15, once there was a submitted build to be wrong about. The
-reasoning is in planning/decisions/DECISIONS-2026-08-13-to-2026-08-15.md; these
+reasoning is in planning/decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md; these
 are the rules.
 
 - **`master` is trunk and is the only thing deployed.** Work on short-lived
@@ -400,11 +407,11 @@ that is this checkout's HEAD or behind it, the compatibility floor and the
 build census, with `--raw` for the body `/healthz` actually returned. Run it
 before believing anything here about the state of production.
 
-What each deploy *was* is in planning/decisions/DECISIONS.md under `## The
-deploy history`, newest first — **add an entry there when you deploy.** That
-running record is an exception to the archaeology rule above, being the one
-part of `DECISIONS` still written to as a matter of course. This file used to
-carry the latest deploy and went stale twice; it is not coming back.
+What each deploy *was* is in planning/decisions/deploy-history.md, newest first
+— **add an entry there when you deploy.** That running record is the exception
+to the archaeology rule above, being the one part of the collection still
+written to as a matter of course. This file used to carry the latest deploy and
+went stale twice; it is not coming back.
 
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
 runs the tests first and refuses to continue if they fail, and refuses a dirty

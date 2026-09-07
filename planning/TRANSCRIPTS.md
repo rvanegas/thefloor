@@ -1,7 +1,7 @@
 # Transcripts
 
 **Temporary.** This is the design for TASKS.md § *Transcripts*, and it is
-deleted when the work ships — whatever survives goes to decisions/DECISIONS.md,
+deleted when the work ships — whatever survives goes to decisions/,
 the way WATCHPARTY.md and USAGE.md went. **Phase 1 of § *Order of work* is
 built; nothing else is**, and that section is where the state of it is kept.
 
@@ -842,7 +842,7 @@ local server with the key set does it without touching the box or publishing
 the disclosure.
 
 This file is deleted when the work ships, and what survives moves to
-decisions/DECISIONS.md — but not before that run, since half of what is written
+decisions/ — but not before that run, since half of what is written
 here is a prediction about a service nobody has called yet.
 
 ## Open questions

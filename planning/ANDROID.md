@@ -10,7 +10,7 @@ and is the first item here built entirely ahead of the thing it needs: it is
 complete and inert until a Firebase project exists. Everything else this file
 describes is unbuilt, and each item says what it would cost. When Android
 ships, what survives moves to
-`decisions/DECISIONS.md` and this file goes.
+`decisions/` and this file goes.
 
 **Three of the sections below now describe built work rather than gaps**, and
 each says so in its first line. Read the first line before the section.

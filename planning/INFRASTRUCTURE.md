@@ -115,7 +115,7 @@ raising it is the first move if it ever bites, not a hardware limit —
   `reconcileSilence` compares what was stated against what the room is actually
   carrying, once a tick, and restates the difference. **The transition is for
   latency and the reconciliation is for truth** — do not collapse one into the
-  other. planning/decisions/DECISIONS-2026-08-13-to-2026-08-15.md carries the
+  other. planning/decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md carries the
   logs.
 
 

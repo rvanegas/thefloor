@@ -133,7 +133,7 @@ the argument stay down in the entry, which is what the entry is for.
 
 **It is not an index of the code.** Where the reasoning behind a term is long,
 the entry says the term's meaning in a sentence or two and points at the file
-that argues it — usually STATES.md, decisions/DECISIONS.md, or the type's own
+that argues it — usually STATES.md, decisions/, or the type's own
 comment. Nothing here should have to be rewritten when an implementation
 changes, only when a *meaning* does.
 
@@ -201,7 +201,7 @@ settings, and which channel a channel screen is — so the browser's Back does
 not see them: pressing it leaves for the list, or leaves the site. Chosen on
 2026-09-04 rather than overlooked, and the alternative was giving those screens
 addresses, which would have meant putting ids in them. See
-decisions/DECISIONS.md § *An address names a place and never an id*.
+decisions/ § *An address names a place and never an id*.
 
 **The channel screen's own way off used to be two words and three cases** —
 *Home* on a phone, *Close* in the *detail* pane, and neither while you were
@@ -304,7 +304,7 @@ it had already been renamed out of.
 inside it; passages elsewhere that say "Home" for a list of channels are from
 before that. Above the width breakpoint Home is the *list* pane and never goes
 away, which is what lets *Close* mean one thing in both layouts. See
-decisions/DECISIONS.md § *The tier above both lists*.
+decisions/ § *The tier above both lists*.
 
 ## Invitation
 
@@ -982,7 +982,7 @@ is) and `/beta` (`beta/`, what TestFlight has). `server/src/open.ts` is the one
 door that decides which a browser is sent to, from what that browser last used.
 Deployed by `bin/deploy-web`, not `bin/deploy`, and both directories are
 excluded from the latter's rsync — `--delete` would otherwise take them off the
-box. See decisions/DECISIONS.md § *Three variants of deploy*.
+box. See decisions/ § *Three variants of deploy*.
 
 ## Withheld
 
@@ -998,7 +998,7 @@ the server states to the media plane.
   where
   two layers describe the same thing and can differ. The file to read before
   anything that looks stated twice.
-- **decisions/DECISIONS.md** and its closed volumes — why a thing is the way it
+- **decisions/** and its closed volumes — why a thing is the way it
   is, including what was deliberately not built. Grep the whole set.
 - **EXPIRATIONS.md** — every deadline measured in days.
 - **AGENTS.md** — the traps that cost a day, and the five verbs (*land*,

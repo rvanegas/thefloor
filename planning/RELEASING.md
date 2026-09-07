@@ -197,7 +197,7 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   Three layers, generated from `the-floor-icon.svg` and
   `the-floor-icon-mono.svg`. Why each layer is what it is — and why the
   monochrome silhouette gets its own master file — is in
-  planning/decisions/DECISIONS.md.
+  planning/decisions/.
 
   **There is an `android/` since 2026-09-01, and `bin/upload-ios` is still the
   only release path.** Those were one clause until Android built; they are two
@@ -779,7 +779,7 @@ Build 36 was submitted 2026-08-14 and rejected 2026-08-15 under **Guideline 2.1
 pack a first submission is expected to carry. Fifteen builds separate 36 from
 51, and only the first of those was about the rejection: making the screen
 recording Apple asked for meant walking the app as a stranger would, and that
-walk found eight defects. What each of them was is in decisions/DECISIONS.md;
+walk found eight defects. What each of them was is in decisions/;
 the three files that carried the submission itself — the reply, the shooting
 script and the build-by-build account — were deleted on approval, having had
 everything recurring moved into this one first.
