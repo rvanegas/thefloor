@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, IconButton, Screen, SectionLabel } from './components';
 import { SettingsIcon } from './icons';
@@ -7,6 +14,7 @@ import { ChannelsView } from './ChannelsView';
 import { ContactsView } from './ContactsView';
 import { ProfileView } from './ProfileView';
 import type { List } from './detail';
+import { dismissInstallNotice, installNoticeDismissed } from './installNotice';
 import { colors, measure, radius, spacing, type } from './theme';
 
 /**
@@ -81,7 +89,12 @@ export function HomeView({
    * one answer — back to this tier, with the contacts showing, which is where
    * it was tapped.
    */
-  onOpenProfile?: (contact: { id: string; name: string }) => void;
+  onOpenProfile?: (contact: {
+    id: string;
+    name: string;
+    /** Opens your own already editing; see ProfileView. */
+    edit?: boolean;
+  }) => void;
   /**
    * The channel you are present in right now, if you walked back here without
    * stepping out. Null when you are not in one.
@@ -115,13 +128,16 @@ export function HomeView({
    * `ContactsView` because that is a body now and cannot cover anything; see
    * `onOpenProfile`.
    */
-  const [profile, setProfile] = useState<{ id: string; name: string } | null>(
-    null
-  );
+  const [profile, setProfile] = useState<{
+    id: string;
+    name: string;
+    edit?: boolean;
+  } | null>(null);
   /** Upward when there is a pane to open it in, here when there is not. */
   const openProfile =
     onOpenProfile ??
-    ((contact: { id: string; name: string }) => setProfile(contact));
+    ((contact: { id: string; name: string; edit?: boolean }) =>
+      setProfile(contact));
 
   /**
    * Whether there is anywhere to donate at all, which decides only whether the
@@ -169,6 +185,9 @@ export function HomeView({
         // Removing a contact from their own profile takes the row this was
         // opened from with it, so there is nothing to go back to.
         onRemoved={() => setProfile(null)}
+        // Straight through from *Choose a Username*, which wants the field
+        // rather than the screen it is on.
+        beginEditing={profile.edit}
       />
     );
   }
@@ -270,6 +289,8 @@ export function HomeView({
           </Pressable>
         ) : null}
 
+        <InstallNotice />
+
         <ListSwitch list={list} onList={onList} />
       </View>
     </View>
@@ -370,6 +391,65 @@ export function HomeView({
  * control that goes inert where you already are is one people press twice
  * wondering whether it registered.
  */
+/**
+ * The one thing a browser cannot do, said once to somebody using one.
+ *
+ * **Web only, and it is not a nag about a nicer client.** Everything else the
+ * browser gives up is the user's own business — a smaller screen, no lock
+ * screen, no audio session — but notifications are what let *other people*
+ * reach you, so a browser-only install is somebody quietly unreachable who has
+ * not agreed to be. That is worth interrupting for once, and worth never
+ * mentioning again after they have answered.
+ *
+ * Drawn only where there is an App Store to send anybody to: `updateUrl` is
+ * unset on a box that has not been told, and a call to action that goes
+ * nowhere is worse than none — the same graceful absence the landing page and
+ * the invitation email make about the same setting.
+ *
+ * It sits above the switch rather than in either list because it is about the
+ * application rather than about channels or contacts, which is the same
+ * argument that put Settings in this header.
+ */
+function InstallNotice() {
+  const { updateUrl } = useApp();
+  // Read once on mount rather than watched: nothing else in this tab writes
+  // it, and the only writer is the button below.
+  const [dismissed, setDismissed] = useState(() => installNoticeDismissed());
+
+  if (Platform.OS !== 'web' || !updateUrl || dismissed) return null;
+
+  return (
+    <Card style={styles.install}>
+      <View style={styles.rowMain}>
+        <Text style={type.body}>Put The Floor on your phone</Text>
+        <Text style={type.muted}>
+          A browser cannot notify you, so nobody can reach you here unless you
+          are looking. The app can.
+        </Text>
+      </View>
+      <View style={styles.installActions}>
+        <Button
+          label="Not now"
+          variant="ghost"
+          onPress={() => {
+            dismissInstallNotice();
+            setDismissed(true);
+          }}
+        />
+        <Button
+          label="Get the app"
+          onPress={() => {
+            // Left standing rather than dismissed: they have not installed
+            // anything yet, and a tab that quietly forgets is one that cannot
+            // remind somebody who came back to think about it.
+            void Linking.openURL(updateUrl);
+          }}
+        />
+      </View>
+    </Card>
+  );
+}
+
 function ListSwitch({
   list,
   onList,
@@ -475,6 +555,18 @@ const styles = StyleSheet.create({
     borderColor: colors.textFaint,
   },
   rowMain: { flex: 1, gap: 2 },
+  /**
+   * The install notice, which is a card in the header rather than the first
+   * row of a list: it is about the application, and a list of channels that
+   * began with something that is not a channel would be the overlap the two
+   * lists were separated to avoid.
+   */
+  install: { gap: spacing(1), marginBottom: spacing(1.5) },
+  installActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing(0.5),
+  },
   /**
    * The switch: one track, two halves, and the selected half raised out of it
    * rather than coloured. The accent belongs to the live bar directly above,

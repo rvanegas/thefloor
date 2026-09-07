@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ContactView as Contact } from '../../../core/protocol';
+import { copyText } from '../clipboard';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
 import { Button, Card, Empty, Field, SectionLabel } from './components';
@@ -74,7 +75,17 @@ export function ContactsView({
    * is answered once in `HomeView` rather than twice here. This used to hold
    * its own profile state for the phone case, which is what made it a screen.
    */
-  onOpenProfile: (contact: { id: string; name: string }) => void;
+  onOpenProfile: (contact: {
+    id: string;
+    name: string;
+    /**
+     * Opens it already editing. One caller: *Choose a Username*, below, which
+     * is a way in to one field rather than to the screen it is on — sending
+     * somebody to their own profile to hunt for Edit would be handing them a
+     * map instead of an answer.
+     */
+    edit?: boolean;
+  }) => void;
 }) {
   const app = useApp();
   const now = app.serverNow();
@@ -92,7 +103,19 @@ export function ContactsView({
 
   return (
     <>
-      <AddContact />
+      <AddContact
+        onChooseUsername={
+          app.me
+            ? () =>
+                app.me &&
+                onOpenProfile({
+                  id: app.me.id,
+                  name: app.me.displayName,
+                  edit: true,
+                })
+            : undefined
+        }
+      />
 
       {/*
         Requests, drawn only when there are any — an account with nothing
@@ -325,7 +348,12 @@ function RequestRow({ entry }: { entry: Contact }) {
  * so it is a line until tapped. The field only exists while it is open, which
  * is also what keeps the keyboard off a screen nobody is typing into.
  */
-function AddContact() {
+function AddContact({
+  onChooseUsername,
+}: {
+  /** Opens your own profile, already in edit mode. Absent before `me` lands. */
+  onChooseUsername?: () => void;
+}) {
   const app = useApp();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -417,7 +445,129 @@ function AddContact() {
           {message.text}
         </Text>
       ) : null}
+
+      <View style={styles.divider} />
+      <InviteLink onChooseUsername={onChooseUsername} />
     </Card>
+  );
+}
+
+/**
+ * The other way of adding somebody: a link you hand over yourself.
+ *
+ * **The second half of one card rather than a card of its own**, because the
+ * two are one question — *how do I get this person in here* — answered for the
+ * two situations somebody is in. The field above needs an address and reaches
+ * the person by email; this needs nothing and reaches them however you already
+ * talk to them, which is the case the address form cannot serve at all.
+ *
+ * **It is conditional on a username, and says why when there is none.** A link
+ * is `/i/<username>/<pin>` and there is no link without the first half, so the
+ * absence is explained and made actionable rather than hidden — hiding it
+ * would leave somebody who had heard of invite links looking for a control
+ * that is not drawn.
+ *
+ * Asked on mount rather than held: this component exists only while the card
+ * is open, so a fresh answer costs one request per opening and cannot be stale
+ * — including just after somebody has been away choosing a username.
+ */
+function InviteLink({
+  onChooseUsername,
+}: {
+  onChooseUsername?: () => void;
+}) {
+  const app = useApp();
+  const [url, setUrl] = useState<string | null | undefined>(undefined);
+  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
+  const [minting, setMinting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void app
+      .inviteLink()
+      .then((minted) => {
+        if (!cancelled) setUrl(minted);
+      })
+      // An older server, or one that cannot answer, leaves this undefined and
+      // the section simply is not drawn. Nothing here is worth an error
+      // message on a screen somebody opened to type an address into.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // Once per opening of the card. `app` changes identity often and refetching
+    // on every one of those would mint a pin a second.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** The same three states and the same fade the profile's copy uses. */
+  useEffect(() => {
+    if (copied === 'idle') return;
+    const timer = setTimeout(() => setCopied('idle'), 2500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  if (url === undefined) return null;
+
+  if (url === null) {
+    return (
+      <View style={styles.invite}>
+        <Text style={type.muted}>To generate an invite link,</Text>
+        <View style={styles.addActions}>
+          <Button
+            label="Choose a Username"
+            variant="ghost"
+            // Absent only in the moment before `me` lands, which is why the
+            // button is drawn disabled rather than withheld: a control that
+            // appears a beat after the sentence explaining it is a control
+            // somebody has already given up looking for.
+            onPress={onChooseUsername ?? (() => undefined)}
+            disabled={!onChooseUsername}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  /**
+   * Mints on the press rather than handing over what was fetched on mount.
+   *
+   * A link is good for one person, so copying twice has to produce two links
+   * — otherwise somebody who sends one to two people has sent the second
+   * person an invitation that is already spent. The mount fetch is what
+   * decides whether this section exists at all; this is what is handed over.
+   */
+  async function copy() {
+    setMinting(true);
+    try {
+      const fresh = (await app.inviteLink()) ?? url;
+      if (!fresh) return;
+      setUrl(fresh);
+      setCopied((await copyText(fresh)) ? 'done' : 'failed');
+    } catch {
+      setCopied('failed');
+    } finally {
+      setMinting(false);
+    }
+  }
+
+  return (
+    <View style={styles.invite}>
+      <View style={styles.addActions}>
+        <Button
+          label={minting ? 'Copying…' : 'Copy Invite Link'}
+          onPress={copy}
+          disabled={minting}
+        />
+      </View>
+      <Text style={type.muted}>
+        {copied === 'done'
+          ? 'Copied. It works once, for the first person who opens it.'
+          : copied === 'failed'
+            ? 'The clipboard refused. Try again.'
+            : 'A link for one person. Whoever opens it becomes a contact.'}
+      </Text>
+    </View>
   );
 }
 
@@ -470,6 +620,17 @@ const styles = StyleSheet.create({
   },
   addLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
   addContact: { gap: spacing(1), marginBottom: spacing(1.5) },
+  /**
+   * What separates the two ways of adding somebody. A rule rather than a
+   * heading: they are alternatives to each other, not a list of things to
+   * read, and a second title inside one card would make it look like two.
+   */
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: spacing(0.5),
+  },
+  invite: { gap: spacing(0.75) },
   addActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

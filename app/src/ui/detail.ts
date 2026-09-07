@@ -32,7 +32,13 @@
 export type Detail =
   | { kind: 'none' }
   | { kind: 'channel'; channelId: string }
-  | { kind: 'profile'; id: string; name: string }
+  /**
+   * `edit` opens your own profile already editing, and is the state it was
+   * opened in rather than a mode kept from out here — see ProfileView. It
+   * never reaches an address: `webRoute.ts` cannot name a profile at all,
+   * which is the same reason none of the ids here do.
+   */
+  | { kind: 'profile'; id: string; name: string; edit?: boolean }
   | { kind: 'settings' }
   | { kind: 'standings' }
   | { kind: 'support' };

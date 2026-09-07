@@ -367,6 +367,70 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The second way of adding somebody, which is a link you hand over yourself
+   * — and which exists only for an account with a username, a link being
+   * `/i/<username>/<pin>`.
+   */
+  it('offers a username when there is no link to be had', async () => {
+    withContacts([]);
+    mockApp.inviteLink.mockResolvedValue(null);
+    const tree = open();
+    await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
+
+    expect(textOf(tree)).toContain('To generate an invite link');
+
+    // The way in is a way to the *field* rather than to the screen it is on:
+    // somebody sent to their own profile to hunt for Edit has been handed a
+    // map instead of an answer. This tier owns the profile, so what proves it
+    // is the screen arriving already editing — the Username section is drawn
+    // in no other mode.
+    await act(async () =>
+      findButton(tree, 'Choose a Username')!.props.onPress()
+    );
+    expect(mockApp.loadProfile).toHaveBeenCalledWith(ME);
+    expect(textOf(tree)).toContain('Username');
+    act(() => tree.unmount());
+  });
+
+  it('copies a fresh link, and mints a new one for the next person', async () => {
+    withContacts([]);
+    mockApp.inviteLink
+      .mockResolvedValueOnce('https://thefloor.example/i/dana_c/111111')
+      .mockResolvedValueOnce('https://thefloor.example/i/dana_c/222222')
+      .mockResolvedValueOnce('https://thefloor.example/i/dana_c/333333');
+    const tree = open();
+    await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
+
+    expect(textOf(tree)).not.toContain('To generate an invite link');
+    await act(async () => findButton(tree, 'Copy Invite Link')!.props.onPress());
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
+      'https://thefloor.example/i/dana_c/222222'
+    );
+
+    // A second press hands over a *different* link, because each is good for
+    // one person and two people must not be sent the same one.
+    await act(async () => findButton(tree, 'Copy Invite Link')!.props.onPress());
+    expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith(
+      'https://thefloor.example/i/dana_c/333333'
+    );
+    act(() => tree.unmount());
+  });
+
+  it('says when the clipboard refused, rather than claiming a copy', async () => {
+    withContacts([]);
+    mockApp.inviteLink.mockResolvedValue(
+      'https://thefloor.example/i/dana_c/111111'
+    );
+    (Clipboard.setStringAsync as jest.Mock).mockResolvedValueOnce(false);
+    const tree = open();
+    await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
+    await act(async () => findButton(tree, 'Copy Invite Link')!.props.onPress());
+
+    expect(textOf(tree)).toContain('clipboard refused');
+    act(() => tree.unmount());
+  });
+
   it('says so plainly when there is nobody yet', () => {
     withContacts([]);
     const tree = open();

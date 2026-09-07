@@ -328,6 +328,35 @@ export const api = {
     }),
 
   /**
+   * A fresh invite link, or null for an account with no username.
+   *
+   * Null is an answer rather than a failure — a link is `/i/<username>/<pin>`
+   * and cannot be written without a username — so the screen reads it as the
+   * state it is and offers to go and choose one.
+   *
+   * **A mint per call.** Each link is good for one person, so this is asked at
+   * the moment somebody means to hand one over rather than held and reused.
+   */
+  inviteLink: (token: string) =>
+    request<{ url: string | null }>('/contacts/invite-link', {
+      method: 'POST',
+      token,
+    }),
+
+  /**
+   * Spends an invite link, which makes its owner a contact.
+   *
+   * Called by `AppProvider` as soon as there is both a session and an
+   * invitation, which is the moment somebody who arrived through a link
+   * finishes signing in — not by any screen. Nobody taps this.
+   */
+  acceptInvite: (token: string, username: string, pin: string) =>
+    request<{ ok: true; contact: PublicAccount | null }>(
+      '/contacts/invite/accept',
+      { method: 'POST', body: { username, pin }, token }
+    ),
+
+  /**
    * Asks somebody you share a channel with to be a contact. By id, because
    * meeting someone in a channel gives you that and not their address.
    */

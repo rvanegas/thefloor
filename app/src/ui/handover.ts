@@ -36,6 +36,30 @@ const HANDOVER_KEY = 'thefloor.handover';
  */
 const SEAT_CHANNEL_KEY = 'thefloor.seat.channel';
 
+/**
+ * The invitation somebody arrived on, waiting for them to have a session.
+ *
+ * The third walk, and the only one this end does not write: it is left by the
+ * invite page in `server/src/invite.ts`, which repeats this key with a comment
+ * pointing back here, exactly as the guest page repeats the two above.
+ *
+ * One-shot, like `HANDOVER_KEY` and for a sharper reason: it is spent against
+ * the server, and a pin that fired twice would be the second attempt reporting
+ * that the invitation had already been used — to the very person who had just
+ * used it.
+ *
+ * It waits for a session rather than being acted on at boot, which is the one
+ * thing that makes it different from the others: the walk it completes has a
+ * sign-in in the middle of it, and the app has no token until that is done.
+ */
+const INVITE_KEY = 'thefloor.invite';
+
+/** Whose link was followed, and the pin that makes it worth something. */
+export interface Invite {
+  username: string;
+  pin: string;
+}
+
 export interface Handover {
   channelId: string;
   /**
@@ -78,6 +102,39 @@ export function leaveHandover(handover: Handover): void {
   } catch {
     // Safari with storage blocked throws rather than refusing quietly. The
     // walk then lands on the list, which is where it lands on native too.
+  }
+}
+
+/**
+ * The invitation this visit arrived on, taken rather than read.
+ *
+ * Taken *before* it is known to be redeemable, deliberately: what it opens is
+ * single use, so an invitation left in storage while a request is in flight is
+ * one a reload can spend twice. Losing it to a failed request costs somebody a
+ * link they can be sent again; spending it twice tells them their own
+ * acceptance had already been used.
+ *
+ * Null on native, where `sessionStorage` does not exist — an invite link opens
+ * a browser, and what the app does with one is nothing.
+ */
+export function takeInvite(): Invite | null {
+  let raw: string | null = null;
+  try {
+    raw = globalThis.sessionStorage?.getItem(INVITE_KEY) ?? null;
+    globalThis.sessionStorage?.removeItem(INVITE_KEY);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<Invite>;
+    // Both halves or nothing, on the same reasoning as `takeHandover`: this
+    // crossed a document boundary, so a version skew is ordinary.
+    if (typeof parsed?.username !== 'string' || !parsed.username) return null;
+    if (typeof parsed?.pin !== 'string' || !parsed.pin) return null;
+    return { username: parsed.username, pin: parsed.pin };
+  } catch {
+    return null;
   }
 }
 

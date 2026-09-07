@@ -40,6 +40,7 @@ import {
   isPreference,
   type ColorSchemePreference,
 } from '../ui/appearance';
+import { takeInvite } from '../ui/handover';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
   type AccountSettings,
@@ -277,6 +278,15 @@ interface AppValue extends AppState {
    */
   deleteAccount: () => Promise<void>;
   requestContact: (identifier: string) => Promise<{ accepted: boolean }>;
+  /**
+   * A fresh invite link to hand to one person, or null when there is no
+   * username to build one out of.
+   *
+   * Null is a state rather than a failure, and the screen asking draws a way
+   * to choose a username from it. Each call mints — a link is good once, so
+   * two people must not be handed the same one.
+   */
+  inviteLink: () => Promise<string | null>;
   /** Takes back a sent request, by the address it went to. */
   withdrawContact: (identifier: string) => Promise<void>;
   acceptContact: (contactId: string) => Promise<void>;
@@ -780,6 +790,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [connect]);
 
+  /**
+   * Spends the invitation somebody arrived on, once there is a session to
+   * spend it with.
+   *
+   * **The walk this completes has a sign-in in the middle of it.** Somebody
+   * follows a link, the invite page hands the pin to this tab, and the app
+   * boots to a sign-in screen — so the invitation has to wait for a token
+   * rather than be acted on at boot, which is what separates it from the
+   * channel handover in `App.tsx`. Waiting on `state.token` covers both
+   * arrivals with one effect: a signup that happened because of the link, and
+   * somebody who was already signed in when they opened it.
+   *
+   * **Nothing is announced on success.** The contact and the channel arrive on
+   * the Home snapshot the server pushes, which is the screen this person is
+   * looking at; a notice would be telling them about something already in
+   * front of them. A refusal is worth saying, because the alternative is a
+   * link that visibly did nothing.
+   *
+   * `takeInvite` is one-shot, so the re-runs this effect gets as `state.token`
+   * settles find nothing left to do.
+   */
+  useEffect(() => {
+    if (!state.token) return;
+    const invite = takeInvite();
+    if (!invite) return;
+    const token = state.token;
+    let cancelled = false;
+    void api
+      .acceptInvite(token, invite.username, invite.pin)
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setState((s) => ({
+          ...s,
+          lastError:
+            error instanceof ApiError
+              ? error.message
+              : 'Could not accept the invitation.',
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.token]);
+
   // Registered on every sign-in and every restored launch, not once ever: iOS
   // reissues a device token after a restore or a reinstall, so a registry
   // written once slowly fills with addresses that no longer resolve.
@@ -1203,6 +1257,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const home = await api.home(state.token);
         setState((s) => ({ ...s, home }));
         return { accepted: result.accepted };
+      },
+
+      // No `home` refetch, unlike its neighbours: minting a link changes
+      // nothing anybody can see. What it changes happens when somebody else
+      // opens it, and that arrives on the pushed snapshot like any other
+      // contact.
+      inviteLink: async () => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const { url } = await api.inviteLink(state.token);
+        return url;
       },
 
       withdrawContact: async (identifier) => {

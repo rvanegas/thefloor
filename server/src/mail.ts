@@ -19,14 +19,22 @@ export interface Mailer {
   /** Resolves once handed to the transport. Delivery itself is not guaranteed. */
   sendCode(to: string, code: string): Promise<void>;
   /**
-   * Asks an address with no account to install the app and find the request
-   * that is already waiting for it.
+   * Asks an address with no account to come and find the request that is
+   * already waiting for it.
    *
    * `from` is the inviter's display name and deliberately not their address:
    * the recipient never asked to hear from them, and an address is theirs to
    * give out rather than ours. A name is what the app would show anyway.
+   *
+   * `link` is where they are being sent, and there is always one. An invite
+   * link when the sender has a username — which accepts the request on their
+   * behalf the moment they sign in — and otherwise the door into the web app,
+   * where signing in with this address resolves the request the older way.
+   * The two differ in how much the recipient has left to do and not in whether
+   * the email can be acted on, which is why the caller decides and this only
+   * writes it down.
    */
-  sendInvite(to: string, from: string): Promise<void>;
+  sendInvite(to: string, from: string, link: string): Promise<void>;
 }
 
 /**
@@ -140,7 +148,7 @@ export class SesMailer implements Mailer {
     );
   }
 
-  async sendInvite(to: string, from: string): Promise<void> {
+  async sendInvite(to: string, from: string, link: string): Promise<void> {
     await this.client.send(
       new SendEmailCommand({
         FromEmailAddress: this.options.from,
@@ -148,7 +156,7 @@ export class SesMailer implements Mailer {
         Content: {
           Simple: {
             Subject: { Data: `${from} wants to talk with you on The Floor` },
-            Body: { Text: { Data: inviteBody(from) } },
+            Body: { Text: { Data: inviteBody(from, link) } },
           },
         },
       })
@@ -167,7 +175,7 @@ export class SesMailer implements Mailer {
  * address signs up and is swept when it does not, and worth saying out loud so
  * that nobody feels obliged to act in order to make it stop.
  */
-function inviteBody(from: string): string {
+function inviteBody(from: string, link: string): string {
   const days = Math.round(INVITE_TTL_MS / (24 * 60 * 60 * 1000));
   return [
     `${from} added you as a contact on The Floor, using this email address.`,
@@ -176,11 +184,19 @@ function inviteBody(from: string): string {
     'when you have something to say, and you can see who is around before you',
     'interrupt anybody.',
     '',
-    ...(installUrl()
-      ? [`Install it here: ${installUrl()}`, '']
-      : ['It is not on the App Store yet. This is an invitation to be ready.', '']),
-    'Sign in with this address and the request will be waiting for you.',
+    // **One link, and it is the first thing to do.** It used to be the App
+    // Store, which asked somebody to install an application before they had
+    // any way to see what was waiting for them — and left the sender's request
+    // to be found rather than handed over. This opens in whatever they are
+    // reading their mail on, and the app is offered from inside it.
+    `Open it here: ${link}`,
     '',
+    // The store is still named, because the phone is the referential install
+    // and this is where somebody decides. Omitted rather than dead when the
+    // URL is unset, as everywhere else that offers it.
+    ...(installUrl()
+      ? [`It is on the App Store too: ${installUrl()}`, '']
+      : []),
     'If the name means nothing to you, ignore this email — nothing happens',
     `until you sign up, and the request expires after ${days} days.`,
   ].join('\n');
@@ -194,22 +210,30 @@ export class ConsoleMailer implements Mailer {
     this.log(`\n  ── one-time code for ${to}: ${code} ──\n`);
   }
 
-  async sendInvite(to: string, from: string): Promise<void> {
-    this.log(`\n  ── invitation to ${to}, from ${from} ──\n${inviteBody(from)}\n`);
+  async sendInvite(to: string, from: string, link: string): Promise<void> {
+    this.log(
+      `\n  ── invitation to ${to}, from ${from} ──\n${inviteBody(from, link)}\n`
+    );
   }
 }
 
 /** Records what would have been sent. For tests. */
 export class MemoryMailer implements Mailer {
   readonly sent: Array<{ to: string; code: string }> = [];
-  readonly invited: Array<{ to: string; from: string; body: string }> = [];
+  readonly invited: Array<{
+    to: string;
+    from: string;
+    /** Kept beside the body so a test can assert on it without parsing prose. */
+    link: string;
+    body: string;
+  }> = [];
 
   async sendCode(to: string, code: string): Promise<void> {
     this.sent.push({ to, code });
   }
 
-  async sendInvite(to: string, from: string): Promise<void> {
-    this.invited.push({ to, from, body: inviteBody(from) });
+  async sendInvite(to: string, from: string, link: string): Promise<void> {
+    this.invited.push({ to, from, link, body: inviteBody(from, link) });
   }
 
   lastCodeFor(to: string): string | undefined {

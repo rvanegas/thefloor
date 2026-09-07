@@ -44,6 +44,7 @@ import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { escapeHtml } from './html';
 import { landingPage } from './landing';
+import { invitePage, inviteRefusalText } from './invite';
 import { openPage } from './open';
 import { privacyPage } from './privacy';
 import type { TranscriptionProvider } from './transcription';
@@ -878,10 +879,30 @@ export function buildApp(options: BuildOptions = {}): App {
           .code(503)
           .send({ error: 'Invitations are temporarily unavailable.' });
       }
+      // **Every invitation carries a link, and which link depends on the
+      // sender.** With a username it is theirs, and following it accepts this
+      // request on the recipient's behalf the moment they sign in. Without
+      // one it is the door into the web app, and the request resolves the
+      // older way — from the address the email went to. The difference is how
+      // much is left for the recipient to do, never whether the email works.
+      const pin = accounts.mintInvitePin(account.id, now());
+      const link =
+        pin && account.username
+          ? inviteLinkUrl(request, account.username, pin)
+          : `${origin(request)}/open`;
       try {
-        await options.mailer.sendInvite(body.identifier, account.display_name);
+        await options.mailer.sendInvite(
+          body.identifier,
+          account.display_name,
+          link
+        );
       } catch (error) {
         accounts.withdrawRequest(account.id, body.identifier);
+        // The pin goes with the request, for the reason the request goes: an
+        // invitation that was not sent must leave nothing behind. A pin left
+        // here is one of ten an account may hold, spent on a message nobody
+        // received, and the oldest of them is what the next mint evicts.
+        if (pin) accounts.forgetInvitePin(account.id, pin);
         request.log.error({ err: error }, 'failed to send an invitation');
         return reply.code(502).send({ error: 'Could not send the invitation.' });
       }
@@ -901,6 +922,87 @@ export function buildApp(options: BuildOptions = {}): App {
       result.targetId ? [account.id, result.targetId] : [account.id]
     );
     return { ok: true, accepted: result.accepted };
+  });
+
+  /**
+   * A fresh invite link, or the news that this account cannot have one.
+   *
+   * `{ url: null }` rather than a 4xx for an account with no username: it is
+   * not a refusal of anything, it is the answer to "what is my link", and the
+   * screen asking draws a way to choose a username from exactly this. A status
+   * code would make the app read an error to find a state.
+   *
+   * **A mint per call, and the call is a button press.** Each link is good for
+   * one person, so handing back an existing one would mean two people sent the
+   * same link and the second finding it spent. What bounds the accumulation is
+   * `INVITE_PINS_PER_ACCOUNT`, in `Accounts`, rather than reuse here.
+   *
+   * `POST` for that reason as well: this writes, and a `GET` that mints is one
+   * a prefetch or a retry can spend.
+   */
+  fastify.post('/contacts/invite-link', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const pin = accounts.mintInvitePin(account.id, now());
+    // Re-read rather than trusting the account row this request began with:
+    // `mintInvitePin` answers null for exactly the case where there is no
+    // username to put in the path, so the two cannot disagree.
+    if (!pin || !account.username) return { url: null };
+    return { url: inviteLinkUrl(request, account.username, pin) };
+  });
+
+  /**
+   * Spends an invite link: whoever is signed in becomes a contact of whoever
+   * minted it.
+   *
+   * Authenticated, and that is the whole shape of the feature — the link
+   * proves who is inviting, the session proves who is accepting, and neither
+   * half is any use without the other. The app calls this the moment it has a
+   * session and an invitation in hand, which may be a fresh signup arriving
+   * through the link or somebody who was already signed in when they opened
+   * it.
+   *
+   * The refusals are told apart here, unlike a sign-in code's: see
+   * `InviteRefusal`. What the app does with them is say them.
+   */
+  fastify.post('/contacts/invite/accept', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as
+      | { username?: string; pin?: string }
+      | undefined;
+    if (!body?.username || !body.pin) {
+      return reply.code(400).send({ error: 'username and pin are required' });
+    }
+
+    const owner = accounts.byUsername(body.username);
+    // Deliberately the same answer as a wrong pin, and the only place this
+    // route is coy. A username that exists and one that does not must look
+    // alike, or this becomes the directory `core/username.ts` says there is
+    // not — and unlike a pin, a username is guessable by design.
+    if (!owner) {
+      return reply.code(400).send({ error: inviteRefusalText('unknown') });
+    }
+
+    const result = accounts.redeemInvitePin(
+      owner.id,
+      body.pin,
+      account.id,
+      now()
+    );
+    if (!result.ok) {
+      return reply.code(400).send({ error: inviteRefusalText(result.reason) });
+    }
+
+    // The same two follow-ups the guest acceptance makes, and for the same
+    // reasons: a pair who are contacts are owed the channel that is the point
+    // of being contacts, and both Homes have somebody on them who was not
+    // there a moment ago.
+    channels.ensurePairChannel(result.owner.id, account.id);
+    homeNotifier.notify([account.id, result.owner.id]);
+    return { ok: true, contact: accounts.public(result.owner.id) };
   });
 
   // Withdrawal goes by address, not row id — see Accounts.withdrawRequest for
@@ -1227,6 +1329,57 @@ export function buildApp(options: BuildOptions = {}): App {
     const webAppReady = (await availableTrains()).length > 0;
     reply.type('text/html; charset=utf-8');
     return landingPage({ appStoreUrl: options.updateUrl, webAppReady });
+  });
+
+  /**
+   * The page an invite link opens — see invite.ts, which owns the prose and
+   * the reasoning.
+   *
+   * Both halves are in the path because the pin is checked before anything is
+   * said: this is the only page here that draws a user's name for somebody
+   * with no account, and it does it only for a request that already holds a
+   * live pin belonging to that name.
+   *
+   * Unauthenticated, necessarily. What it hands out is a page; redeeming
+   * happens later, from inside the app, against a session.
+   */
+  fastify.get('/i/:username/:pin', async (request, reply) => {
+    const { username, pin } = request.params as {
+      username: string;
+      pin: string;
+    };
+    reply.type('text/html; charset=utf-8');
+    // Never cached: it says whether an invitation is still there to take, and
+    // that changes the moment somebody takes it.
+    reply.header('cache-control', 'no-store');
+
+    const webAppReady = (await availableTrains()).length > 0;
+    const owner = accounts.byUsername(username);
+    // A username nobody holds gets the same page as a bad pin, and no attempt
+    // is counted — there is no account to count it against, and inventing one
+    // would be a way of asking whether a username exists.
+    if (!owner) {
+      return invitePage({
+        username,
+        pin,
+        refusal: 'unknown',
+        appStoreUrl: options.updateUrl,
+        webAppReady,
+      });
+    }
+
+    const state = accounts.invitePinState(owner.id, pin, now());
+    return invitePage({
+      username,
+      pin,
+      // The disclosure, and the only branch that makes it: a name is drawn
+      // exactly when the pin beside it is live and unspent.
+      ...(state.ok
+        ? { displayName: owner.display_name }
+        : { refusal: state.reason }),
+      appStoreUrl: options.updateUrl,
+      webAppReady,
+    });
   });
 
   // --- The guest page -------------------------------------------------------
@@ -2171,6 +2324,22 @@ export function buildApp(options: BuildOptions = {}): App {
 
   const guestLinkUrl = (request: FastifyRequest, token: string): string =>
     `${origin(request)}/g/${token}`;
+
+  /**
+   * An invite link, which is a username and a pin and cannot be written
+   * without both.
+   *
+   * Beside the guest link on purpose: they are the two addresses this server
+   * mints for somebody to hand to a person, they share `origin`, and a reader
+   * comparing them should not have to go looking. What they do not share is
+   * what the secret opens — a guest link opens one room to anybody holding it
+   * until the room empties, and this opens one contact to one person, once.
+   */
+  const inviteLinkUrl = (
+    request: FastifyRequest,
+    username: string,
+    pin: string
+  ): string => `${origin(request)}/i/${username}/${pin}`;
 
   /**
    * Mints a link to one channel, for a member to hand to anybody.

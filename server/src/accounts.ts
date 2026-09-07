@@ -17,7 +17,7 @@ import {
   type ImHandles,
   type ImService,
 } from '../../core/im';
-import { normaliseUsername } from '../../core/username';
+import { foldUsername, normaliseUsername } from '../../core/username';
 import {
   hashesEqual,
   insertWithUniqueKey,
@@ -27,6 +27,7 @@ import {
   sha256,
   type AccountRow,
   type Db,
+  type InvitePinRow,
 } from './db';
 
 /**
@@ -101,6 +102,55 @@ export const WATCH_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
  * sender's list while they might still remember sending it.
  */
 export const INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * How many unspent invite links one account may have outstanding.
+ *
+ * A cap rather than a rule about how people should invite: every live pin is
+ * another six-digit number that opens the same door, so an account that has
+ * minted a thousand of them has handed a guesser a thousand chances at one
+ * account instead of one. Ten is comfortably more than anybody hands out at
+ * once and leaves the search space at roughly one in a hundred thousand per
+ * guess, under a throttle that stops long before that.
+ *
+ * The oldest goes rather than the mint being refused. A refusal would be a
+ * screen telling somebody to go and tidy up a list of links they have never
+ * been shown; the oldest unspent link is also the one most likely to have been
+ * sent into a conversation nobody went back to.
+ */
+export const INVITE_PINS_PER_ACCOUNT = 10;
+
+/**
+ * How many wrong pins may be offered against one account before it stops
+ * answering, and for how long.
+ *
+ * `OTP_MAX_ATTEMPTS`'s sibling, and the numbers are looser for a reason: a
+ * one-time code is offered by the one address it was sent to, where an
+ * invitation is offered by whoever holds the link — including several people
+ * legitimately mistyping the same one. Ten in an hour stops a search dead (a
+ * million digits at ten an hour is centuries) while leaving room for a person
+ * who is simply getting it wrong.
+ */
+export const INVITE_MAX_GUESSES = 10;
+export const INVITE_GUESS_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * Why a pin did not open anything.
+ *
+ * Told apart on purpose, unlike the sign-in code's deliberately uniform
+ * refusal. A code is offered against an address, so distinguishing "wrong" from
+ * "expired" would say whether that address has an account; a pin is offered
+ * against a username somebody has already been handed, so there is no fact
+ * left to protect and a great deal to explain. `used` in particular is the
+ * whole reason the row is spent rather than deleted: somebody who follows the
+ * same link twice should be told what happened rather than that it never
+ * existed.
+ *
+ * `locked` is the throttle above, and is deliberately its own answer: it is
+ * the one refusal that is about the request rather than the invitation, and it
+ * comes back even for a pin that was correct — see `redeemInvitePin`.
+ */
+export type InviteRefusal = 'unknown' | 'used' | 'expired' | 'self' | 'locked';
 
 /**
  * How often expired rows are swept. Every deadline here is far longer than the
@@ -184,9 +234,21 @@ export class Accounts {
     const watchTokens = this.db
       .prepare('DELETE FROM watch_tokens WHERE expires_at <= ?')
       .run(now).changes;
+    // On `pending_invites`' clock, both being invitations and neither being
+    // honoured past it. Spent ones go on the same deadline rather than at once:
+    // "you have already used this" is worth saying for as long as the link
+    // would have worked, and is worth nothing after that.
+    const pins = this.db
+      .prepare('DELETE FROM invite_pins WHERE created_at <= ?')
+      .run(now - INVITE_TTL_MS).changes;
+    // Nothing reads a window that has passed, so this is housekeeping in the
+    // purest sense — the row is already inert when the clock says it is.
+    this.db
+      .prepare('DELETE FROM invite_guesses WHERE window_start <= ?')
+      .run(now - INVITE_GUESS_WINDOW_MS);
     return {
       codes: Number(codes),
-      invites: Number(invites),
+      invites: Number(invites) + Number(pins),
       tokens: Number(tokens),
       watchTokens: Number(watchTokens),
     };
@@ -208,6 +270,25 @@ export class Accounts {
     return this.db
       .prepare('SELECT * FROM accounts WHERE identifier = ? COLLATE NOCASE')
       .get(normalize(identifier)) as AccountRow | undefined;
+  }
+
+  /**
+   * The account holding a username, or none.
+   *
+   * **Not a search and not a directory**, which is the line `core/username.ts`
+   * draws and this does not cross: it answers only for a name given whole, and
+   * the one caller is the invite link, where the name arrived in a URL
+   * somebody was handed. Nothing built on this may list names or complete
+   * them.
+   *
+   * `COLLATE NOCASE` on the column and `foldUsername` in the app agree by
+   * construction — see the username decision — so this folds the input for the
+   * same reason the index does and the two cannot part company.
+   */
+  byUsername(username: string): AccountRow | undefined {
+    return this.db
+      .prepare('SELECT * FROM accounts WHERE username = ? COLLATE NOCASE')
+      .get(foldUsername(username.trim())) as AccountRow | undefined;
   }
 
   /**
@@ -1662,6 +1743,221 @@ export class Accounts {
     return { withdrawn: true, targetId: target.id };
   }
 
+  // --- Invite links -------------------------------------------------------
+
+  /**
+   * Mints a pin for an account's invite link, or null if it has no username.
+   *
+   * **The username is the check, and there is only one of it.** A link is
+   * `/i/<username>/<pin>` and cannot be written without both halves, so an
+   * account with no username has no link — and asking here rather than at the
+   * route is what keeps that from becoming two rules that can drift apart. The
+   * screen offering to choose a username is reading this null.
+   *
+   * Six digits, `issueCode`'s own line, and viable for the same reasons they
+   * are there: a pin is only ever checked against the account named beside it,
+   * the wrong guesses against that account are counted, and there are never
+   * more than `INVITE_PINS_PER_ACCOUNT` live at once. See db.ts.
+   *
+   * A collision retries rather than surfacing. Nobody typed a pin — any six
+   * digits will do, so a clash is an implementation detail, where a taken
+   * username is an answer somebody needs. `insertWithUniqueKey` is exactly
+   * that loop; its own comment reasons about a 72-bit key, which this is not,
+   * so what makes five attempts enough here is the cap above rather than the
+   * entropy.
+   */
+  mintInvitePin(ownerId: string, now: number): string | null {
+    const owner = this.byId(ownerId);
+    if (!owner?.username) return null;
+
+    // Before the insert, so the cap is a ceiling rather than something the
+    // next mint tidies up after. Unspent only: a used pin is history, and
+    // keeping it is what lets a second visit be told what happened.
+    const surplus = this.db
+      .prepare(
+        `SELECT pin FROM invite_pins
+          WHERE owner_id = ? AND used_at IS NULL
+          ORDER BY created_at DESC, pin DESC
+          LIMIT -1 OFFSET ?`
+      )
+      .all(ownerId, INVITE_PINS_PER_ACCOUNT - 1) as Array<{ pin: string }>;
+    for (const { pin } of surplus) {
+      this.db
+        .prepare('DELETE FROM invite_pins WHERE owner_id = ? AND pin = ?')
+        .run(ownerId, pin);
+    }
+
+    return insertWithUniqueKey(
+      () => String(randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(6, '0'),
+      (pin) => {
+        this.db
+          .prepare(
+            `INSERT INTO invite_pins (owner_id, pin, created_at, used_at, used_by)
+             VALUES (?, ?, ?, NULL, NULL)`
+          )
+          .run(ownerId, pin, now);
+      }
+    );
+  }
+
+  /**
+   * Takes back a pin that was minted for a message which never went.
+   *
+   * The mint and the sending of an invitation are two steps and the second can
+   * fail; `withdrawRequest` already undoes the row for that case, and this is
+   * the same undo for the link that would have been in it. Unspent only, which
+   * cannot matter here — nobody has been given it — and is the right guard for
+   * a method that is one call away from being used somewhere it could.
+   */
+  forgetInvitePin(ownerId: string, pin: string): void {
+    this.db
+      .prepare(
+        'DELETE FROM invite_pins WHERE owner_id = ? AND pin = ? AND used_at IS NULL'
+      )
+      .run(ownerId, pin);
+  }
+
+  /**
+   * Counts one wrong guess against an account.
+   *
+   * Per owner rather than per pin, for the reason db.ts gives: a wrong guess
+   * matches no row, so there is nothing on a row to count. The window is fixed
+   * rather than sliding — the first wrong guess opens it and the count runs
+   * until it lapses — which is what `otp_codes` does with `created_at`, and is
+   * enough for a rate nobody legitimate approaches.
+   */
+  private countInviteGuess(ownerId: string, now: number): void {
+    const row = this.db
+      .prepare('SELECT * FROM invite_guesses WHERE owner_id = ?')
+      .get(ownerId) as { attempts: number; window_start: number } | undefined;
+    if (!row || now - row.window_start >= INVITE_GUESS_WINDOW_MS) {
+      this.db
+        .prepare(
+          `INSERT INTO invite_guesses (owner_id, attempts, window_start)
+           VALUES (?, 1, ?)
+           ON CONFLICT(owner_id) DO UPDATE
+             SET attempts = 1, window_start = excluded.window_start`
+        )
+        .run(ownerId, now);
+      return;
+    }
+    this.db
+      .prepare(
+        'UPDATE invite_guesses SET attempts = attempts + 1 WHERE owner_id = ?'
+      )
+      .run(ownerId);
+  }
+
+  /** Whether this account is still answering pins at all. */
+  private inviteLocked(ownerId: string, now: number): boolean {
+    const row = this.db
+      .prepare('SELECT * FROM invite_guesses WHERE owner_id = ?')
+      .get(ownerId) as { attempts: number; window_start: number } | undefined;
+    if (!row) return false;
+    if (now - row.window_start >= INVITE_GUESS_WINDOW_MS) return false;
+    return row.attempts >= INVITE_MAX_GUESSES;
+  }
+
+  /**
+   * What a pin is worth against an account, without spending it.
+   *
+   * The page reads this to decide what to say and `redeemInvitePin` reads it
+   * to decide whether there is anything to do — one statement of the rule
+   * rather than two that can come apart. Looking is therefore throttled
+   * exactly as redeeming is, which is the point: somebody who only ever looked
+   * would otherwise have an oracle with no limit on it.
+   *
+   * **A wrong pin is counted; a right one that cannot be used is not.** Being
+   * told an invitation is spent or expired is a fact about a link somebody was
+   * handed rather than a step towards guessing another, and counting it would
+   * let one stale link lock out its owner's live ones.
+   */
+  invitePinState(
+    ownerId: string,
+    pin: string,
+    now: number
+  ): { ok: true; row: InvitePinRow } | { ok: false; reason: InviteRefusal } {
+    if (this.inviteLocked(ownerId, now)) return { ok: false, reason: 'locked' };
+
+    const row = this.db
+      .prepare('SELECT * FROM invite_pins WHERE owner_id = ? AND pin = ?')
+      .get(ownerId, pin.trim()) as InvitePinRow | undefined;
+    if (!row) {
+      this.countInviteGuess(ownerId, now);
+      return { ok: false, reason: 'unknown' };
+    }
+    if (row.used_at !== null) return { ok: false, reason: 'used' };
+    if (now - row.created_at >= INVITE_TTL_MS) {
+      return { ok: false, reason: 'expired' };
+    }
+    return { ok: true, row };
+  }
+
+  /**
+   * Spends a pin: the pair become contacts, and the owner is credited with
+   * having brought this person here.
+   *
+   * **Accepted rather than pending, and single use is what makes that
+   * honest.** Publishing a link is the owner's half of the ask — they wrote it
+   * and gave it away — and following it is the other half, so a pending row
+   * would be this application asking somebody to confirm what they had just
+   * done. That only holds because a link admits the one person who takes it
+   * rather than everybody who reads it.
+   *
+   * Not wrapped in a transaction, in the manner of `resolveInvitesFor` and for
+   * the same reason: nothing in this server uses one. What that costs is a
+   * crash between two statements leaving a spent pin and no contact, which is
+   * one wasted link rather than a wrong answer. **Spending first is
+   * deliberate** — the other order can hand out two contacts for one pin.
+   */
+  redeemInvitePin(
+    ownerId: string,
+    pin: string,
+    redeemerId: string,
+    now: number
+  ): { ok: true; owner: AccountRow } | { ok: false; reason: InviteRefusal } {
+    // Before the lookup rather than after it: somebody holding their own link
+    // has guessed at nothing, and refusing them with a reason about attempts
+    // against themselves would be nonsense.
+    if (ownerId === redeemerId) return { ok: false, reason: 'self' };
+
+    const state = this.invitePinState(ownerId, pin, now);
+    if (!state.ok) return state;
+
+    const owner = this.byId(ownerId);
+    if (!owner) return { ok: false, reason: 'unknown' };
+
+    this.db
+      .prepare(
+        `UPDATE invite_pins SET used_at = ?, used_by = ?
+          WHERE owner_id = ? AND pin = ? AND used_at IS NULL`
+      )
+      .run(now, redeemerId, ownerId, state.row.pin);
+
+    const [a, b] = pairKey(ownerId, redeemerId);
+    this.db
+      .prepare(
+        `INSERT INTO contacts (a_id, b_id, state, requester_id, created_at)
+         VALUES (?, ?, 'accepted', ?, ?)
+         ON CONFLICT(a_id, b_id) DO UPDATE SET state = 'accepted'`
+      )
+      // **`requester_id` is written on insert and never on conflict**, which
+      // the `DO UPDATE` says by omission. Who asked first is a fact about what
+      // happened, and the crossed case is real: whoever follows this link may
+      // already have requested its owner by address, in which case the row
+      // correctly says they asked and this redemption is the owner's side
+      // arriving. Overwriting it would rewrite that into its opposite.
+      .run(a, b, ownerId, now);
+
+    // Only the first inviter and only for an account that has none:
+    // `creditInviter` refuses a self-edge, a cycle and an account already
+    // credited, so redeeming a link after arriving some other way leaves the
+    // standings alone.
+    this.creditInviter(redeemerId, ownerId);
+
+    return { ok: true, owner };
+  }
+
   // --- Erasure ------------------------------------------------------------
 
   /**
@@ -1737,6 +2033,18 @@ export class Accounts {
       .run(accountId, accountId);
     this.db
       .prepare('DELETE FROM pending_invites WHERE requester_id = ?')
+      .run(accountId);
+    // Both tables, and the second is the one that is easy to forget: a pin
+    // outliving its owner is a link that still resolves a username nobody
+    // holds any more, and the guess counter is a row about an account that no
+    // longer exists. `used_by` is cleared the same way — a spent pin naming a
+    // deleted redeemer is a record of who somebody used to know.
+    this.db.prepare('DELETE FROM invite_pins WHERE owner_id = ?').run(accountId);
+    this.db
+      .prepare('UPDATE invite_pins SET used_by = NULL WHERE used_by = ?')
+      .run(accountId);
+    this.db
+      .prepare('DELETE FROM invite_guesses WHERE owner_id = ?')
       .run(accountId);
     // Both directions: the addresses they were showing, and the ones they were
     // being shown. The first is the account's own to take with it; the second

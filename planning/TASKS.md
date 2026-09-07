@@ -12,21 +12,6 @@ Look has changed.
 
 If a user steps into an empty channel and backgrounds the app in CALL mode, then he is forcibly stepped out after 15m. Does this rule apply to users who after others have left, finds himself in a newly empty channel while app is backgrounded?
 
-## Add Contact Invite Link 
-
-Currently, guest links navigate to listening then speaking in a channel, optionally without an account. The link sent by "Add a Contact" is currently just the static link to the app store. This was put in place before the development of the web app. Now it would be better to have the link go to the web app, such that signing in, results implicitly in accepting the contact request from the user who sent the email. The link itself should be determined by the user's username. Since usernames are optional, view displayed when "Add a Contact" is pressed, should have two sections. The first, containing what is there now. The second, conditional on whether a username has been set. If it has been set, 
-
-  [Copy Invite Link]
-  
-If not,
-
-  "To generate an invite link,"
-  [Choose a Username]
-
-where the latter action navigates to Profile Edit View.
-
-Additionally, the web app should include a prominently placed button instructing the new user to install the native app, for now, iphone, to enable notifications.
-
 ## Media Transience
 
 Why does media loaded for playback not persist?

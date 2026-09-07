@@ -150,8 +150,15 @@ describe('inviting an address with no account', () => {
    * the address lived in a constant somebody had to remember to edit rather
    * than in the setting that already held it. Both branches, since an unset
    * `APP_STORE_URL` has to leave the line out rather than link to nothing.
+   *
+   * **What it no longer has to do is apologise.** It used to say "not on the
+   * App Store yet" in the unset branch, because with no store link there was
+   * nothing in the message to act on and the absence needed explaining. Every
+   * invitation now carries a link of its own, so the store is the second thing
+   * offered rather than the only one, and an unset setting is simply a line
+   * that is not there — the same graceful absence the landing page makes.
    */
-  it('links to the App Store when there is one, and says so when there is not', async () => {
+  it('links to the App Store when there is one, and leaves the line out when there is not', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
     const previous = process.env.APP_STORE_URL;
 
@@ -159,16 +166,43 @@ describe('inviting an address with no account', () => {
       process.env.APP_STORE_URL = 'https://apps.apple.com/app/id123';
       await request(alice.token, 'stranger@example.com');
       expect(mailer.invited[0].body).toContain('https://apps.apple.com/app/id123');
-      expect(mailer.invited[0].body).not.toContain('not on the App Store yet');
 
       delete process.env.APP_STORE_URL;
       await request(alice.token, 'other@example.com');
-      expect(mailer.invited[1].body).toContain('not on the App Store yet');
-      expect(mailer.invited[1].body).not.toContain('Install it here');
+      expect(mailer.invited[1].body).not.toContain('App Store');
+      // And still actionable, which is the whole reason the apology could go.
+      expect(mailer.invited[1].body).toContain(mailer.invited[1].link);
     } finally {
       if (previous === undefined) delete process.env.APP_STORE_URL;
       else process.env.APP_STORE_URL = previous;
     }
+  });
+
+  /**
+   * Every invitation carries a link, and which link is a fact about the
+   * sender rather than about the recipient.
+   *
+   * The username form is the point of the feature — following it accepts the
+   * request on the recipient's behalf — and the plain form is what an account
+   * with no username can still send. Neither is an error and both are opened
+   * the same way, which is why this asserts the shape rather than the words
+   * around it.
+   */
+  it('carries the sender’s invite link, or the web app when they have no username', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+
+    await request(alice.token, 'stranger@example.com');
+    expect(mailer.invited[0].link).toMatch(/\/open$/);
+
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/me',
+      headers: { authorization: `Bearer ${alice.token}` },
+      payload: { username: 'alice_k' },
+    });
+    await request(alice.token, 'other@example.com');
+    expect(mailer.invited[1].link).toMatch(/\/i\/alice_k\/\d{6}$/);
+    expect(mailer.invited[1].body).toContain(mailer.invited[1].link);
   });
 
   /**

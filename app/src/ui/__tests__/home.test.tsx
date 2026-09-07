@@ -143,6 +143,57 @@ describe('Home', () => {
   });
 
   /**
+   * The install notice, which is about the one thing a browser cannot do.
+   *
+   * Not a nag about a nicer client: what a browser-only install costs is other
+   * people's ability to reach you, which is not something somebody can be said
+   * to have chosen without being told. Hence a browser, hence once.
+   */
+  it('offers the app to a browser, once, and never on a phone', () => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.updateUrl = 'https://apps.apple.com/app/id123';
+
+    // A phone is already the thing the notice is asking for.
+    const phone = render(<HomeView {...homeNav} />);
+    expect(textOf(phone)).not.toContain('Put The Floor on your phone');
+    act(() => phone.unmount());
+
+    const wasOs = Platform.OS;
+    (Platform as { OS: string }).OS = 'web';
+    try {
+      const browser = render(<HomeView {...homeNav} />);
+      expect(textOf(browser)).toContain('Put The Floor on your phone');
+
+      // Answered is answered: a standing banner about an install somebody has
+      // declined is an advertisement. That it survives a reload is
+      // `installNotice.test.ts`, which has a browser's storage to check it in
+      // — this preset has none.
+      act(() => findButton(browser, 'Not now')!.props.onPress());
+      expect(textOf(browser)).not.toContain('Put The Floor on your phone');
+      act(() => browser.unmount());
+    } finally {
+      (Platform as { OS: string }).OS = wasOs;
+    }
+  });
+
+  it('offers no install where there is no App Store to offer', () => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    // Unset on a box that has not been told, and a call to action that goes
+    // nowhere is worse than none.
+    mockApp.updateUrl = null;
+
+    const wasOs = Platform.OS;
+    (Platform as { OS: string }).OS = 'web';
+    try {
+      const browser = render(<HomeView {...homeNav} />);
+      expect(textOf(browser)).not.toContain('Put The Floor on your phone');
+      act(() => browser.unmount());
+    } finally {
+      (Platform as { OS: string }).OS = wasOs;
+    }
+  });
+
+  /**
    * Three sections, in one order, and each channel in exactly the first one it
    * qualifies for.
    */

@@ -223,6 +223,34 @@ created the channel. It outlives the moment it was sent, so a card says how
 many people are in the channel now rather than claiming somebody is still
 waiting.
 
+## Invite link
+
+**A link that makes whoever opens it a *contact* of whoever sent it**, once
+they are signed in. `/i/<username>/<pin>`: the *username* says whose it is and
+is not secret, and the *invite pin* is what makes it worth anything.
+
+Not a *guest link*, and the two are worth keeping apart. A guest link opens one
+*channel* to anybody holding it, without an account, until the room empties; an
+invite link opens a *relationship*, needs an account at the far end, and is
+spent by the first person to use it. One is a door to a room and the other is
+an introduction.
+
+It is sent two ways: copied from the Contacts tab and handed over however you
+like, or carried in the invitation email that goes to an address with no
+account. An account with no username has neither, since there is no link to
+write.
+
+## Invite pin
+
+**The six digits at the end of an invite link**, good once. Checked only
+alongside the username beside it, so guessing means guessing at one named
+account rather than at every outstanding invitation; wrong guesses are counted
+against that account and stop being answered. It expires with the invitation
+that carries it, thirty days.
+
+Spent rather than deleted when used, which is what lets a second visit be told
+the invitation has already been used rather than that it never existed.
+
 ## Knock
 
 What arrives when somebody follows a *guest link*: a named person at the door,
@@ -403,10 +431,12 @@ three: one owner, ASCII, and shown on one screen. Two spellings differing only
 in case are one username, and only the first person to ask gets it — but what
 is drawn is the case its owner typed.
 
-**It does nothing.** As of 2026-09-06 it is displayed on a profile and read
-nowhere else — no search, no mention, no link, no sign-in — so a screen that
-appears to reach somebody *by* it is a screen doing something this word does
-not yet mean.
+**One thing reads it.** As of 2026-09-06 it is displayed on a profile and is
+the first half of an *invite link* — still no search, no mention and no
+sign-in. The distinction that matters is that the link carries a name somebody
+was *handed*; nothing anywhere looks a username up, and a screen that appears
+to reach somebody by typing one is a screen doing something this word does not
+mean.
 
 ## Voice
 

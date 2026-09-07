@@ -159,6 +159,22 @@ export interface ContactRow {
   created_at: number;
 }
 
+export interface InvitePinRow {
+  owner_id: string;
+  /** Six digits, as a string: `042317` is not 42317. */
+  pin: string;
+  created_at: number;
+  /** Null while it is still there to take. */
+  used_at: number | null;
+  used_by: string | null;
+}
+
+export interface InviteGuessRow {
+  owner_id: string;
+  attempts: number;
+  window_start: number;
+}
+
 export interface DeviceTokenRow {
   token: string;
   account_id: string;
@@ -506,6 +522,56 @@ CREATE TABLE IF NOT EXISTS pending_invites (
   identifier   TEXT NOT NULL,
   created_at   INTEGER NOT NULL,
   PRIMARY KEY (requester_id, identifier)
+);
+
+-- An invitation somebody can hand to anybody, spent by the first person who
+-- takes it.
+--
+-- The other half of pending_invites and deliberately not a replacement for it.
+-- That one is addressed: it names the mailbox the invitation went to and
+-- resolves when that address signs in. This one is bearer: it names nobody,
+-- and whoever redeems it becomes a contact of the owner. So an invitation can
+-- now be sent through a channel this server has never heard of — a message, a
+-- room, a piece of paper — which is what the addressed form cannot do.
+--
+-- **The key is (owner_id, pin), and that is what makes six digits viable.**
+-- The pin is never looked up on its own: a redemption names the owner, by the
+-- username in the link's path, so the space a guesser searches is one
+-- account's live pins rather than every outstanding invitation in the
+-- database. It also means two accounts may hold the same digits, exactly as
+-- two people may be sent the same one-time code, and that is not a collision
+-- anybody has to care about.
+--
+-- Spent rather than deleted, so a second visit can say the invitation has
+-- already been used instead of pretending it never existed. Swept on the same
+-- clock as pending_invites.
+CREATE TABLE IF NOT EXISTS invite_pins (
+  owner_id   TEXT NOT NULL REFERENCES accounts(id),
+  pin        TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  -- Null while the invitation is still there to take.
+  used_at    INTEGER,
+  used_by    TEXT REFERENCES accounts(id),
+  PRIMARY KEY (owner_id, pin)
+);
+
+-- What stands between six digits and somebody working through them.
+--
+-- **Per owner rather than per pin**, which is the whole reason this is a table
+-- and not a column on the one above: a wrong guess matches no row, so there is
+-- nothing on a row to increment. What is under attack is the account named in
+-- the link, so that is what carries the count.
+--
+-- Unlike otp_codes' attempts, anybody at all may spend these — an invitation
+-- is redeemable by whoever holds it, where a code is offered by one address.
+-- That makes the lockout grief-able: somebody can burn an account's window and
+-- leave its outstanding links unredeemable until it passes. It stops attempts
+-- rather than destroying pins for exactly that reason, and minting a fresh
+-- link is never throttled.
+CREATE TABLE IF NOT EXISTS invite_guesses (
+  owner_id     TEXT PRIMARY KEY REFERENCES accounts(id),
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  window_start INTEGER NOT NULL
 );
 
 -- Money somebody gave, voluntarily, toward keeping this running. Nothing is

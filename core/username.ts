@@ -8,12 +8,16 @@
  * spelling, and a spelling you can say out loud and somebody else can type.
  * They answer different questions and this application asks both.
  *
- * **It does nothing yet.** It is drawn on a profile and read nowhere else —
- * no search, no mention, no link, no sign-in. That is the whole of the current
- * feature and the reason the rules here are strict rather than accommodating:
- * a name that will later be typed into a box by somebody who heard it in a
- * conversation has to survive being heard, and every character that is not a
- * letter, a digit or an underscore is one that survives badly.
+ * **One thing reads it, as of 2026-09-06: the invite link.** A username is
+ * drawn on a profile and is the first half of `/i/<username>/<pin>`, which is
+ * how somebody hands out an invitation to become a contact. Still no search,
+ * no mention and no sign-in — and the one reader is a name arriving in a URL
+ * that was handed over, never a name being looked up, which is the line this
+ * file's strictness exists to keep drawable.
+ *
+ * That strictness is why the link is legible at all: a name that is typed by
+ * somebody who *heard* it has to survive being heard, and every character that
+ * is not a letter, a digit or an underscore is one that survives badly.
  *
  * In `core/` rather than in either end, for the reason `im.ts` is: the server
  * decides what may be stored and the app decides what to say about a field

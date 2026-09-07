@@ -142,6 +142,7 @@ export function ProfileView({
   onPing,
   pingableAt = null,
   onRemoved,
+  beginEditing = false,
 }: {
   accountId: string;
   /**
@@ -201,6 +202,19 @@ export function ProfileView({
    * where it is, so it decides where to go; the default is simply back.
    */
   onRemoved?: () => void;
+  /**
+   * Opens straight into edit mode, once the profile has arrived.
+   *
+   * One caller: *Choose a Username* on the Contacts tab, which is a way in to
+   * a single field rather than to this screen — somebody sent here to find
+   * Edit for themselves has been handed a map instead of an answer.
+   *
+   * Only honoured for your own profile, which is the only kind there is to
+   * edit, and only once: it is the state this screen was *opened* in, not a
+   * mode the caller keeps it in, so tapping the way out of edit mode does not
+   * bounce straight back into it.
+   */
+  beginEditing?: boolean;
 }) {
   const app = useApp();
   /**
@@ -636,6 +650,23 @@ export function ProfileView({
     setSaveError(null);
     setEditing(true);
   };
+
+  /**
+   * Honours `beginEditing`, once the profile is there to seed the fields from.
+   *
+   * Deferred rather than done on mount, because `startEditing` refuses without
+   * a profile — the drafts are seeded from what the server holds, and seeding
+   * them from nothing is how a blur writes an empty handle over a real one.
+   * The ref makes it the state this screen opened in rather than a mode: after
+   * it has fired once, leaving edit mode leaves it.
+   */
+  const beganEditing = useRef(false);
+  useEffect(() => {
+    if (!beginEditing || beganEditing.current) return;
+    if (!isSelf || !profile) return;
+    beganEditing.current = true;
+    startEditing();
+  }, [beginEditing, isSelf, profile]);
 
   /**
    * Writes whatever has actually changed.

@@ -456,6 +456,9 @@ function Root() {
             // so there is nothing to go back to — and the list beside it has
             // already lost the row.
             onRemoved={close}
+            // Straight through from *Choose a Username* on the contact list,
+            // which is after one field rather than this whole screen.
+            beginEditing={detail.edit}
           />
         );
 

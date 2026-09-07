@@ -76,6 +76,12 @@ export const mockApp = {
    * Cleared in `beforeEach` like the rest.
    */
   expired: false,
+  /**
+   * Where to get the app, from `/healthz`. Null by default, as it is on a box
+   * that has not been told — which is also the state in which the install
+   * notice is not drawn at all.
+   */
+  updateUrl: null as string | null,
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -84,6 +90,13 @@ export const mockApp = {
   signOut: jest.fn(),
   deleteAccount: jest.fn(async () => {}),
   requestContact: jest.fn(),
+  // Null by default, which is the account with no username: the invite section
+  // then draws its *choose a username* half, and every test that is about
+  // something else on this card is unaffected by it being there.
+  // Typed rather than inferred, so a test can hand back a link: inferred from
+  // this one answer it would be `Promise<null>` and every override a type
+  // error.
+  inviteLink: jest.fn(async (): Promise<string | null> => null),
   acceptContact: jest.fn(),
   declineContact: jest.fn(),
   withdrawContact: jest.fn(async () => {}),
@@ -413,6 +426,7 @@ export function resetHarness(): void {
   mockApp.standingIn = null;
   mockApp.displaced = false;
   mockApp.expired = false;
+  mockApp.updateUrl = null;
   mockApp.status = 'open';
   mockApp.appearance = 'system';
   mockApp.tapToStepIn = true;
