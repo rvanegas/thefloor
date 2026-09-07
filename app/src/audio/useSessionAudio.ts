@@ -622,9 +622,11 @@ async function applyFor(want: SessionWant): Promise<void> {
  * @param token     the app's own auth token, used to fetch a join credential
  * @param selfMuted the user's own mute, which is theirs alone and unrelated to
  *                  the floor
- * @param micNeeded whether anything is listening: somebody else present, or a
- *                  recording running. Told rather than worked out here — this
- *                  hook has never decided anything about who may speak.
+ * @param micNeeded whether anything is listening, which since 2026-09-07 means
+ *                  somebody else being present and nothing else — a recording
+ *                  can no longer start without one, so it stopped being a
+ *                  second reason. Told rather than worked out here: this hook
+ *                  has never decided anything about who may speak.
  * @param hasAudioAsked whether the session should be a call. Computed by
  *                  `channelHasAudio` in core/micNeeded.ts — *does this app have
  *                  any audio at all*. There were two rules and a setting
