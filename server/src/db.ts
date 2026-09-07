@@ -125,6 +125,23 @@ export interface AccountRow {
    * above, which is why the untouched case is still stored as null.
    */
   control_cards: number | null;
+  /**
+   * The name this person chose for themselves, without its at, or null when
+   * they have chosen none — which is everybody until they do, a username being
+   * optional and, for now, decorative.
+   *
+   * **Stored as typed and unique when folded.** The index on this column is
+   * `COLLATE NOCASE`, so `AnnaK` and `annak` cannot both exist, while what is
+   * drawn is whichever of the two its owner typed. See `core/username.ts` for
+   * why the identity is the folded form and the display is not.
+   *
+   * Cleared by `erase`, unlike `display_name`, which is replaced with a
+   * tombstone. The two differ because a display name is still needed — an old
+   * roster resolves the id and has to draw something — and a username is
+   * needed by nothing, so a departed account holding one would be a scarce
+   * public name reserved for nobody, for ever.
+   */
+  username: string | null;
 }
 
 export interface ContactRow {
@@ -386,7 +403,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- null rather than the default written down.
   appearance     TEXT,
   tap_to_step_in INTEGER,
-  control_cards  INTEGER
+  control_cards  INTEGER,
+  -- The name this person chose for themselves, without its at, and null until
+  -- they choose one — which most never will, it being optional and doing
+  -- nothing yet. Stored as typed; uniqueness is judged folded, by the
+  -- case-insensitive index created in the migration below. See
+  -- core/username.ts for what may be in here.
+  username TEXT
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -1298,6 +1321,13 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_id TEXT');
     db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_at INTEGER');
   }
+  // Null for everyone, which is the only value available: a username exists
+  // because somebody chose it, and there is nothing on this box one could be
+  // derived from. Deriving one from a display name would be handing out a
+  // permanent public name nobody asked for, to everybody at once.
+  if (!accountColumns.some((c) => c.name === 'username')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN username TEXT');
+  }
   // The index is created *here* rather than in SCHEMA, and that is not tidiness.
   // SCHEMA runs before this function, and `CREATE TABLE IF NOT EXISTS accounts`
   // is a no-op against a database that already has the table — so an index on
@@ -1309,6 +1339,26 @@ function migrate(db: Db): void {
   // they brought in — so the index is on the edge's tail.
   db.exec(
     'CREATE INDEX IF NOT EXISTS accounts_invited_by ON accounts(invited_by)'
+  );
+
+  // Here rather than in SCHEMA for the same reason as the line above — a
+  // column added by migration can only be indexed by migration — and it is the
+  // only index in this file that is doing more than making a read fast.
+  //
+  // **This is where uniqueness lives.** Nothing in `core/` can enforce it and
+  // a check-then-write in `updateProfile` would be a race with itself: two
+  // requests can both read a free name before either writes it, and the loser
+  // of that race is somebody quietly given a name that belongs to somebody
+  // else. The index refuses the second write instead, whenever it arrives, and
+  // the route turns that refusal into a sentence.
+  //
+  // `COLLATE NOCASE` folds ASCII and nothing else, which is exactly the
+  // alphabet `core/username.ts` admits — so what the database calls the same
+  // name and what `foldUsername` calls the same name cannot disagree. Nulls do
+  // not collide in SQLite, so the great majority of accounts, which have no
+  // username at all, are unaffected by a unique index over them.
+  db.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS accounts_username ON accounts(username COLLATE NOCASE)'
   );
 
   // Null for every seat that predates it, which is right in the only sense
@@ -1477,6 +1527,29 @@ function isPrimaryKeyCollision(error: unknown): boolean {
     typeof error === 'object' &&
     error !== null &&
     (error as { errcode?: unknown }).errcode === SQLITE_CONSTRAINT_PRIMARYKEY
+  );
+}
+
+/**
+ * SQLITE_CONSTRAINT_UNIQUE — some column with a unique index over it is
+ * already holding this value.
+ *
+ * The other half of the pair above, and exported because for one column that
+ * failure is not a fault but an answer: a username somebody else already has.
+ * Read the extended result code rather than the message, for the reason stated
+ * above — every uniqueness failure carries the same text.
+ *
+ * It does not say *which* column, so a caller may only read it as "taken" when
+ * the statement it wrapped could break exactly one unique constraint. Wrap the
+ * single UPDATE, never a transaction.
+ */
+const SQLITE_CONSTRAINT_UNIQUE = 2067;
+
+export function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { errcode?: unknown }).errcode === SQLITE_CONSTRAINT_UNIQUE
   );
 }
 

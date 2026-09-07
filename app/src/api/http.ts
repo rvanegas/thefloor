@@ -224,9 +224,15 @@ export const api = {
    * Writes your own profile. A partial write: whatever is left undefined is
    * left alone, so saving one field cannot blank the other.
    */
+  /**
+   * A partial write: what is left undefined is left alone. `username` is the
+   * one field an empty string means something for — it is how one is given up
+   * — and the one that can be refused for a reason nothing local could have
+   * seen, a 409 saying somebody else has it. See `core/username.ts`.
+   */
   saveProfile: (
     token: string,
-    changes: { displayName?: string; im?: ImHandles }
+    changes: { displayName?: string; im?: ImHandles; username?: string }
   ) => request<ProfileView>('/me', { method: 'POST', body: changes, token }),
 
   /**

@@ -960,3 +960,122 @@ describe('the channels on somebody’s profile', () => {
     expect(profile.sharedChannels).toHaveLength(1);
   });
 });
+
+/**
+ * The name somebody chooses for themselves. What may be *in* one is settled in
+ * `core/__tests__/username.test.ts`; what is settled here is the half that
+ * needs a database — that it is one person's, that giving it up hands it back,
+ * and that everybody who may read the profile is told it.
+ */
+describe('usernames', () => {
+  it('keeps one, with the case it was typed in, and answers with it', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const response = await save(alice, { username: 'AnnaK' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ username: 'AnnaK' });
+  });
+
+  it('forgives the at it is written with', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await save(alice, { username: '@annak' });
+    expect((await read(alice, alice.account.id)).json()).toMatchObject({
+      username: 'annak',
+    });
+  });
+
+  it('refuses one that is not a username, and changes nothing while doing it', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await save(alice, { username: 'annak' });
+    const response = await save(alice, {
+      displayName: 'Alice Nkemdirim',
+      username: 'anna k',
+    });
+
+    expect(response.statusCode).toBe(400);
+    // The whole write is refused rather than half of it kept: a rename that
+    // rode along with a bad username must not land, or the screen reporting
+    // the failure is showing a name that has already changed.
+    const profile = (await read(alice, alice.account.id)).json();
+    expect(profile).toMatchObject({
+      account: { id: alice.account.id, displayName: 'Alice' },
+      username: 'annak',
+    });
+  });
+
+  it('refuses one somebody else already has, however it is capitalised', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await save(alice, { username: 'AnnaK' });
+
+    const response = await save(bob, { username: 'annak' });
+    // 409 rather than 400: what he typed is a perfectly good username and is
+    // simply hers.
+    expect(response.statusCode).toBe(409);
+    expect((await read(bob, bob.account.id)).json()).not.toHaveProperty(
+      'username'
+    );
+  });
+
+  it('lets somebody re-save their own, and change only its case', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await save(alice, { username: 'annak' });
+    expect((await save(alice, { username: 'annak' })).statusCode).toBe(200);
+    expect((await save(alice, { username: 'AnnaK' })).statusCode).toBe(200);
+    expect((await read(alice, alice.account.id)).json()).toMatchObject({
+      username: 'AnnaK',
+    });
+  });
+
+  it('gives it up on a blank, and hands the name back', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await save(alice, { username: 'annak' });
+    expect((await save(alice, { username: '' })).statusCode).toBe(200);
+
+    // Absent rather than empty — the client draws a line only for a username
+    // there is one of.
+    expect((await read(alice, alice.account.id)).json()).not.toHaveProperty(
+      'username'
+    );
+    expect((await save(bob, { username: 'annak' })).statusCode).toBe(200);
+  });
+
+  it('leaves it alone when a save does not mention it', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    await save(alice, { username: 'annak' });
+    await save(alice, { displayName: 'Alice Nkemdirim' });
+    expect((await read(alice, alice.account.id)).json()).toMatchObject({
+      username: 'annak',
+    });
+  });
+
+  it('is told to anybody who may read the profile, contact or not', async () => {
+    // Unlike a messaging handle, which is a way to reach somebody and is given
+    // on the strength of a relationship. A username is a public name.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await save(carol, { username: 'carol_m', im: { telegram: '@carol' } });
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(alice, carol, 'carol@example.com');
+    app.channels.create(alice.account.id, [bob.account.id, carol.account.id]);
+
+    // Bob shares a channel with Carol and is not her contact.
+    const profile = (await read(bob, carol.account.id)).json();
+    expect(profile).toMatchObject({ username: 'carol_m' });
+    expect(profile).not.toHaveProperty('im');
+  });
+
+  it('is handed back when the account goes', async () => {
+    // A display name is tombstoned because old rosters still resolve it; a
+    // username is needed by nothing, so holding one for a departed account
+    // would reserve a public name for nobody, for ever.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await save(alice, { username: 'annak' });
+    app.accounts.erase(alice.account.id);
+
+    expect((await save(bob, { username: 'annak' })).statusCode).toBe(200);
+  });
+});

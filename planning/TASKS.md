@@ -6,7 +6,9 @@ and things to go and find out. There are more in BACKLOG.md.
 
 ## Guest Link to Contact
 
-use webapp
+Currently, guest links navigate to listening then speaking in a channel, optionally without an account. The link sent by "Add a Contact" is currently just the static link to the app store. This was put in place before the development of the web app. Now it seems it would be better to have the link go to the web app, such that signing in, results implicitly in accepting the contact request from the user who generated the link.
+
+Additionally, the web app should include a prominently placed button instructing the user to install the native app, for now iphone, to enable notifications.
 
 ## UI Restyling
 

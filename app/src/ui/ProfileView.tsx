@@ -20,6 +20,12 @@ import {
 } from '../../../core/im';
 import { describeChannel } from '../../../core/naming';
 import {
+  MAX_USERNAME_LENGTH,
+  MIN_USERNAME_LENGTH,
+  normaliseUsername,
+  usernameProblem,
+} from '../../../core/username';
+import {
   MAX_DISPLAY_NAME_LENGTH,
   MAX_PING_TEXT_LENGTH,
 } from '../../../core/constants';
@@ -270,6 +276,15 @@ export function ProfileView({
     telegram: '',
     signal: '',
   });
+  /**
+   * The name they chose for themselves, as typed and without its `@`.
+   *
+   * The field draws the `@` beside itself rather than inside itself, so what
+   * is in here is the name alone — a field whose first character cannot be
+   * deleted is a field that fights whoever is in it. One pasted in with its
+   * `@` still attached is forgiven on the way out; see `normaliseUsername`.
+   */
+  const [draftUsername, setDraftUsername] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   /**
@@ -282,9 +297,13 @@ export function ProfileView({
     displayName: string;
     /** Canonical, since that is the shape the server answers with. */
     im: Record<ImService, string>;
+    /** Empty string for somebody who has none, the field having no other way
+        to hold nothing. */
+    username: string;
   }>({
     displayName: '',
     im: { whatsapp: '', telegram: '', signal: '' },
+    username: '',
   });
 
   useEffect(() => {
@@ -602,9 +621,11 @@ export function ProfileView({
     saved.current = {
       displayName: profile.account.displayName,
       im: held,
+      username: profile.username ?? '',
     };
     setDraftName(profile.account.displayName);
     setDraftIm(held);
+    setDraftUsername(profile.username ?? '');
     // Not seeded from the address held above it: this field is a proposal
     // rather than a value being edited, and starting it at the current address
     // would offer to change it to itself.
@@ -654,11 +675,32 @@ export function ProfileView({
     }
     const imChanged = Object.keys(im).length > 0;
 
-    if (!nameChanged && !imChanged) return;
+    /*
+      The username, which is the one field here that may legitimately be
+      emptied: blank gives it up, where a blank name is refused. So the
+      comparison is against what was saved rather than against emptiness.
 
-    const changes: { displayName?: string; im?: ImHandles } = {};
+      A half-typed one — a space in the middle, a dot — is left out rather than
+      sent, exactly as an unreadable handle is and for the same reason: this is
+      one write, so a name the server would refuse takes a rename down with it.
+      The field says what is wrong underneath itself; see `usernameProblem`.
+    */
+    const typedUsername = draftUsername.trim();
+    const username =
+      typedUsername === '' ? '' : (normaliseUsername(typedUsername) ?? null);
+    const usernameChanged =
+      username !== null && username !== saved.current.username;
+
+    if (!nameChanged && !imChanged && !usernameChanged) return;
+
+    const changes: {
+      displayName?: string;
+      im?: ImHandles;
+      username?: string;
+    } = {};
     if (nameChanged) changes.displayName = name;
     if (imChanged) changes.im = im;
+    if (usernameChanged) changes.username = username;
 
     setSaving(true);
     setSaveError(null);
@@ -667,6 +709,7 @@ export function ProfileView({
       saved.current = {
         displayName: changes.displayName ?? saved.current.displayName,
         im: { ...saved.current.im, ...im },
+        username: changes.username ?? saved.current.username,
       };
       /*
         Patched rather than re-read. `saveProfile` resolves to nothing, and the
@@ -684,6 +727,13 @@ export function ProfileView({
                 ...held.account,
                 displayName: saved.current.displayName,
               },
+              // Absent rather than empty for somebody who has just given
+              // theirs up, which is the shape the server would have sent —
+              // the read view draws a line only for a username there is one
+              // of.
+              ...(saved.current.username
+                ? { username: saved.current.username }
+                : { username: undefined }),
               // Rebuilt from what was kept rather than merged, so that a
               // handle which was cleared leaves rather than lingering as an
               // empty string the read view would draw a dead link for.
@@ -768,6 +818,25 @@ export function ProfileView({
             <Text style={type.heading} numberOfLines={1}>
               {profile?.account.displayName ?? fallbackName}
             </Text>
+            {/*
+              The name they chose, under the one everybody calls them by,
+              because that is the order the two are read in: the heading says
+              who this is and this says what to type. Written with its `@`,
+              which is not decoration — it is what makes a lowercase word with
+              underscores in it read as a handle rather than as a mistyped
+              name.
+
+              Nothing at all when there is none, which is most people: this is
+              optional and does nothing yet, so a placeholder saying so would
+              be a line about an absence on a screen that has no other. And
+              nothing while the profile is in flight — `fallbackName` stands in
+              for the heading above, and there is no fallback for this.
+            */}
+            {profile?.username ? (
+              <Text style={styles.username} numberOfLines={1}>
+                @{profile.username}
+              </Text>
+            ) : null}
           </View>
         )}
         {editing ? (
@@ -837,6 +906,57 @@ export function ProfileView({
                 this one is kept until you type another.
               </Text>
             ) : null}
+          </Card>
+        </>
+      ) : null}
+
+      {/*
+        The name you choose, as against the one above that people call you by.
+        Second because it is the optional one, and its own section rather than
+        a second field in the card above for the same reason the sections here
+        are sections: they are different questions, and the hint under this one
+        is about this one.
+
+        The `@` is drawn beside the field rather than typed into it. Somebody
+        who pastes a handle with theirs attached is forgiven — see
+        `normaliseUsername` — but nobody should have to keep a character alive
+        at the head of a field they are editing.
+
+        What is wrong is said under the field, and what is *taken* is not said
+        here at all: that answer is on the server, arrives at a save, and comes
+        out at the top of the screen with every other refusal of a write.
+      */}
+      {editing ? (
+        <>
+          <SectionLabel>Username</SectionLabel>
+          <Card style={styles.stack}>
+            <View style={styles.usernameField}>
+              <Text style={styles.at}>@</Text>
+              <View style={styles.usernameInput}>
+                <Field
+                  value={draftUsername}
+                  onChangeText={(v) =>
+                    setDraftUsername(
+                      v.replace(/^@/, '').slice(0, MAX_USERNAME_LENGTH)
+                    )
+                  }
+                  placeholder="optional"
+                  autoCapitalize="none"
+                  onBlur={() => void persist().catch(() => {})}
+                />
+              </View>
+            </View>
+            {usernameProblem(draftUsername) ? (
+              <Text style={styles.error}>
+                {usernameProblem(draftUsername)}
+              </Text>
+            ) : (
+              <Text style={styles.hint}>
+                Yours alone, and shown on your profile —{' '}
+                {MIN_USERNAME_LENGTH} to {MAX_USERNAME_LENGTH} characters. It
+                does nothing else yet; leave it empty to have none.
+              </Text>
+            )}
           </Card>
         </>
       ) : null}
@@ -1618,6 +1738,24 @@ const styles = StyleSheet.create({
    */
   headerAlone: { justifyContent: 'flex-end' },
   stack: { gap: spacing(1) },
+  /**
+   * The chosen name under the called-by one: muted, because it is the second
+   * answer to "who is this" rather than a competing first. Same size as the
+   * label above the heading, so the three lines read as one block.
+   */
+  username: { ...type.muted },
+  /** The `@` and the field it belongs to, on one line. */
+  usernameField: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.5) },
+  /**
+   * The `@` sits outside the input rather than inside it — a character that
+   * cannot be deleted is a character that fights the cursor — so it is styled
+   * to read as part of the same word.
+   */
+  at: { ...type.body, color: colors.textMuted },
+  /** The field takes what the `@` leaves. */
+  usernameInput: { flex: 1 },
+  /** What a field is for, where that is not obvious from its label. */
+  hint: { ...type.muted },
   /**
    * The transparent border is not decoration. The live variant below adds a
    * real one, and without a matching border here that card would be two pixels

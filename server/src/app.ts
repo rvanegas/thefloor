@@ -20,6 +20,7 @@ import {
   normaliseImHandle,
 } from '../../core/im';
 import { describeChannel } from '../../core/naming';
+import { usernameProblem } from '../../core/username';
 import {
   isColorSchemePreference,
   type AccountSettings,
@@ -31,7 +32,7 @@ import {
   type NotificationAlert,
   type NotificationLevel,
 } from '../../core/notifications';
-import { Accounts } from './accounts';
+import { Accounts, UsernameTakenError } from './accounts';
 import { openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
 import { deletionPage } from './deletion';
 import { Devices, type DevicePlatform } from './devices';
@@ -1622,11 +1623,12 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
 
     const body = request.body as
-      | { displayName?: unknown; im?: unknown }
+      | { displayName?: unknown; im?: unknown; username?: unknown }
       | undefined;
     const changes: {
       displayName?: string;
       im?: Record<string, string>;
+      username?: string;
     } = {};
     if (body?.displayName !== undefined) {
       if (typeof body.displayName !== 'string') {
@@ -1638,6 +1640,31 @@ export function buildApp(options: BuildOptions = {}): App {
         return reply.code(400).send({ error: 'A name cannot be empty.' });
       }
       changes.displayName = body.displayName;
+    }
+    /*
+      The name they chose for themselves, which unlike the one above is
+      optional — so blank is a removal here rather than a refusal, exactly as
+      it is for a messaging handle. Nothing else in a profile can be given up
+      once given, and this one can, because nothing depends on it.
+
+      Refused rather than repaired when it is not a username: `@` and
+      surrounding space are the only things forgiven, since those are how the
+      thing is written rather than mistakes in it. Everything else — a space in
+      the middle, a dot, an alphabet — would have to be *changed* to be stored,
+      and storing a different name than the one somebody typed is worse than
+      saying no to the one they did.
+
+      Whether it is *taken* is not asked here. There is no answer this route
+      could read that would still be true by the time it wrote; the unique
+      index settles it, and the refusal is caught below.
+    */
+    if (body?.username !== undefined) {
+      if (typeof body.username !== 'string') {
+        return reply.code(400).send({ error: 'username must be text.' });
+      }
+      const problem = usernameProblem(body.username);
+      if (problem) return reply.code(400).send({ error: problem });
+      changes.username = body.username;
     }
     /*
       Where they can be reached elsewhere. Partial in the same two senses as
@@ -1680,7 +1707,23 @@ export function buildApp(options: BuildOptions = {}): App {
       if (Object.keys(im).length > 0) changes.im = im;
     }
 
-    const updated = accounts.updateProfile(account.id, changes);
+    /*
+      409 rather than 400, and the distinction is worth keeping: everything
+      above is a refusal of what was *sent*, where this is a refusal about the
+      state of the world, and what somebody typed may be perfectly good and
+      simply somebody else's. The client draws the sentence either way; a
+      client that ever wants to offer an alternative spelling needs to be able
+      to tell the two apart.
+    */
+    let updated;
+    try {
+      updated = accounts.updateProfile(account.id, changes);
+    } catch (e) {
+      if (e instanceof UsernameTakenError) {
+        return reply.code(409).send({ error: e.message });
+      }
+      throw e;
+    }
     if (!updated) return reply.code(404).send({ error: 'No such account.' });
     // Contacts see the name, so a rename has to reach their home screens.
     // An outgoing request to an address with no account yet carries an empty

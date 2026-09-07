@@ -186,6 +186,31 @@ export interface ProfileView {
    * nothing to draw. See `core/im.ts` for the shape a handle is stored in.
    */
   im?: ImHandles;
+  /**
+   * The name they chose for themselves, without its `@` — see
+   * `core/username.ts`, which owns what one may be.
+   *
+   * **Given to everybody who may read the profile at all**, unlike
+   * availability and unlike the handles above, and the reason is what a
+   * username is *for*. A handle is a way to reach somebody outside this
+   * application, so it is given on the strength of a relationship; a username
+   * is a public name, chosen to be seen and eventually to be typed by
+   * somebody who has only heard it. Withholding it from a channel member
+   * would be withholding the one field on this screen whose entire purpose is
+   * to be quotable.
+   *
+   * Absent means they have not chosen one, which is also what an older server
+   * sends — the client draws no line for either, there being nothing to draw.
+   * Never an empty string: blank is how one is given up, and what is given up
+   * leaves rather than lingering.
+   *
+   * On the profile rather than on `PublicAccount`, which is the same division
+   * the rest of this interface is built on: a roster row, an invitation and a
+   * recording all carry a name because they are drawn as a person, and none of
+   * them is a screen *about* a person. Nothing outside this screen reads a
+   * username today, so nothing outside this screen is made to carry one.
+   */
+  username?: string;
 }
 
 /**

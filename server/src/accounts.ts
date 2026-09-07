@@ -17,15 +17,33 @@ import {
   type ImHandles,
   type ImService,
 } from '../../core/im';
+import { normaliseUsername } from '../../core/username';
 import {
   hashesEqual,
   insertWithUniqueKey,
+  isUniqueViolation,
   newId,
   pairKey,
   sha256,
   type AccountRow,
   type Db,
 } from './db';
+
+/**
+ * Somebody else has the username that was asked for.
+ *
+ * Its own class rather than a returned value, because it is raised from inside
+ * a write that has several other fields to get through and there is no partial
+ * answer worth returning: the write is abandoned where it stands, having
+ * changed nothing, and the route turns this into a refusal the person can read.
+ * See `updateProfile`, which does the username first for exactly that reason.
+ */
+export class UsernameTakenError extends Error {
+  constructor() {
+    super('That username is taken.');
+    this.name = 'UsernameTakenError';
+  }
+}
 
 /**
  * Which column holds which service's handle.
@@ -267,13 +285,50 @@ export class Accounts {
    * **anything that is neither blank nor a handle is dropped rather than
    * stored**, and the route is what refuses it — this is the layer that
    * writes, and a half-written profile is worse than a refused one.
+   *
+   * A username is the same in both respects — normalised by
+   * `core/username.ts`, blank gives it up — and different in one: it is the
+   * only field here that can be refused by somebody *else's* row, so it can
+   * fail after every check has passed. It throws `UsernameTakenError` when it
+   * does, and it is attempted before anything else is written so that the
+   * throw costs the caller nothing.
    */
   updateProfile(
     accountId: string,
-    changes: { displayName?: string; im?: ImHandles }
+    changes: { displayName?: string; im?: ImHandles; username?: string }
   ): AccountRow | undefined {
     const account = this.byId(accountId);
     if (!account) return undefined;
+
+    /*
+      The username goes first, and the order is the whole of what makes a
+      refusal safe. It is the one field here that can fail on a fact about
+      *other* rows — the unique index — and it can only fail by throwing, since
+      nothing this method could read beforehand would still be true by the time
+      it wrote. Doing it first means a taken name leaves the request having
+      changed nothing at all; doing it last would leave somebody renamed by a
+      request they were told had failed.
+    */
+    if (changes.username !== undefined) {
+      const chosen = normaliseUsername(changes.username);
+      // Blank is how one is given up; anything neither blank nor a username is
+      // left alone here, the route having already refused it.
+      const value = changes.username.trim() === '' ? null : chosen;
+      if (value !== null || changes.username.trim() === '') {
+        try {
+          this.db
+            .prepare('UPDATE accounts SET username = ? WHERE id = ?')
+            .run(value, accountId);
+        } catch (e) {
+          // SQLite says `UNIQUE constraint failed: accounts.username`, which
+          // is the only constraint this statement can break. Rethrown as
+          // something the route can answer with a sentence rather than as a
+          // 500 about an index.
+          if (isUniqueViolation(e)) throw new UsernameTakenError();
+          throw e;
+        }
+      }
+    }
 
     if (changes.displayName !== undefined) {
       const name = changes.displayName.trim().slice(0, MAX_DISPLAY_NAME_LENGTH);
@@ -558,6 +613,10 @@ export class Accounts {
         : {};
     return {
       account: { id: row.id, displayName: row.display_name },
+      // Everybody entitled to the profile gets it, unlike the handles above —
+      // it is a public name rather than a way to reach somebody. See
+      // `ProfileView.username`. Absent rather than null when there is none.
+      ...(row.username ? { username: row.username } : {}),
       invited: this.invitedCount(row.id),
       ...(invitedBy ? { invitedBy } : {}),
       // Absent rather than empty, which is what the client reads as "nothing
@@ -1701,8 +1760,12 @@ export class Accounts {
 
     this.db
       .prepare(
+        // The username goes rather than being tombstoned like the display
+        // name: nothing needs it — no old roster resolves one — and a name
+        // held by a departed account is a scarce public name reserved for
+        // nobody. Clearing it hands it back.
         `UPDATE accounts
-            SET identifier = ?, display_name = ?,
+            SET identifier = ?, display_name = ?, username = NULL,
                 last_seen_at = NULL, donations_allowed = NULL,
                 debug = NULL, im_whatsapp = NULL, im_telegram = NULL,
                 im_signal = NULL

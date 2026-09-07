@@ -373,6 +373,24 @@ A transcript is never edited. What can be said about it — renaming a *voice*,
 dropping one — is a *declaration* laid over the text, so getting it wrong costs
 a tap rather than a second paid run.
 
+## Username
+
+**A name somebody chooses for themselves, unique across everybody, written with
+an `@`.** Optional, and most people have none. Letters, digits and underscores
+only, five to thirty of them; `core/username.ts` is the rule.
+
+**It is not the name anybody is called by.** That is the *display name*, which
+is what appears in every roster, invitation and recording, need not be unique,
+and can hold anything a keyboard produces. A username is the opposite of all
+three: one owner, ASCII, and shown on one screen. Two spellings differing only
+in case are one username, and only the first person to ask gets it — but what
+is drawn is the case its owner typed.
+
+**It does nothing.** As of 2026-09-06 it is displayed on a profile and read
+nowhere else — no search, no mention, no link, no sign-in — so a screen that
+appears to reach somebody *by* it is a screen doing something this word does
+not yet mean.
+
 ## Voice
 
 One speaker within a transcript. Usually one voice per person, since each

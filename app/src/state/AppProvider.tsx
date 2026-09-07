@@ -331,6 +331,8 @@ interface AppValue extends AppState {
   saveProfile: (changes: {
     displayName?: string;
     im?: ImHandles;
+    /** Blank gives it up; see `core/username.ts`. */
+    username?: string;
   }) => Promise<void>;
   /** Sends a code to an address you would like to sign in with instead. */
   requestEmailChange: (identifier: string) => Promise<void>;

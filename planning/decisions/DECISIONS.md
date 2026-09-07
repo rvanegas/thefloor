@@ -114,6 +114,86 @@ plane's vocabulary; in the interface it does not exist.
 
 ---
 
+## A username is a second name, not a better one — 2026-09-06
+
+Somebody may now choose an `@name`, unique across everybody, five to thirty
+characters of letters, digits and underscores. It is drawn on their profile and
+read nowhere else.
+
+**The two names are not competing and neither is redundant.** A display name is
+what people call somebody: not unique, not typeable, anything a keyboard
+produces, and drawn in every roster, invitation and recording. A username is
+the opposite of all of that — one owner, ASCII, sayable aloud and enterable by
+somebody who has only heard it. The temptation with any second name is to let
+it start replacing the first somewhere; nothing here does, and the rule against
+it is that `PublicAccount` does not carry one. A roster row cannot draw what it
+is not given.
+
+**It does nothing on purpose.** No search, no mention, no link, no sign-in —
+which is what the task asked for, and is also the reason the format is strict
+rather than accommodating. The eventual use is somebody typing in a name they
+heard in a conversation, and every character outside that alphabet is one that
+survives being spoken badly. Strictness is cheap now and expensive later: names
+already handed out cannot be narrowed.
+
+**Uniqueness is the unique index and nothing else.** A check-then-write in
+`updateProfile` would race itself — two requests can both find a name free —
+and the loser is somebody quietly given a name that is somebody else's. So the
+column carries `UNIQUE ... COLLATE NOCASE` and the write is attempted; a
+`SQLITE_CONSTRAINT_UNIQUE` becomes `UsernameTakenError` becomes a 409. `NOCASE`
+folds ASCII and nothing else, which is exactly the alphabet `core/username.ts`
+admits, so the database's idea of the same name and `foldUsername`'s agree by
+construction rather than by luck.
+
+**409 rather than 400, and the distinction is worth the extra branch.**
+Everything else the route refuses is a refusal of what was *sent*; this one is
+about the state of the world, and what somebody typed may be perfectly good and
+simply already someone's. A client that ever wants to suggest an alternative
+spelling needs to tell those apart.
+
+**The username is written before anything else in the same request.** It is the
+only field on `/me` that can fail on a fact about other rows, so it is the only
+one that can fail after every check has passed — and doing it last would leave
+somebody renamed by a request they were told had failed. First means a refusal
+costs nothing.
+
+**Given to everybody who may read the profile, unlike a messaging handle.** The
+handles are withheld from a channel member on the grounds that they are ways to
+reach somebody outside this application; a username is a public name whose
+entire purpose is to be quotable, so withholding it would be withholding the
+one field on the screen that exists to be repeated.
+
+**Case is kept and is not the identity.** `@AnnaK` stays `@AnnaK` on her
+profile and nobody else may be `@annak`. Two names differing only in case are
+one name to anybody who ever hears one spoken, and letting both exist is
+handing out an impersonation.
+
+**Erasing an account clears it, where the display name is tombstoned.** An old
+roster resolves an id and has to draw something, so `Deleted account` stays;
+nothing at all resolves a username, so holding one for a departed account would
+reserve a scarce public name for nobody, for ever.
+
+**There is a floor as well as a cap, and the floor is the consequential
+one.** The cap is thirty, Instagram's, and only ever refuses a name nobody
+would type twice. The floor is five, Telegram's, and it is about supply: the
+short names are a fixed and tiny stock — 63 of one character, some 4,000 of
+two, a quarter of a million of three — against an unbounded supply of longer
+ones, and without a floor they go to whoever signs up first and never come
+back.
+
+It was three for an afternoon, on the argument that nothing here is reached
+*by* a username yet so the scarcity is worth guarding against rather than
+legislating around. That gets the asymmetry backwards. **A floor can be
+lowered later and cannot be raised**, since raising it takes names off people
+who already have them — so the guess that costs nothing to be wrong about is
+the strict one, and the moment it costs nothing is before any names exist,
+which is now.
+
+**Blank is not a refusal, and that survives the floor.** An empty field is how
+a username is given up, so `normaliseUsername('')` answers with the empty name
+rather than with the null every other too-short string gets — the one ordering
+in that function that is a contract rather than a convenience.
+
 ## A hold with nothing to hold — 2026-09-06
 
 **`connect muted CALL` is a state that should not exist.** The `muted` intent
