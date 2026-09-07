@@ -314,10 +314,18 @@ export function buildApp(options: BuildOptions = {}): App {
   const devices = new Devices(db);
   const preferences = new NotificationPreferences(db);
   const pusher = options.pusher ?? new ConsolePusher(() => {});
-  // Falls back to the iOS sender rather than to a no-op, so that a server with
-  // no FCM credential still logs what it would have sent to an Android device
-  // instead of dropping it without a word.
-  const androidPusher = options.androidPusher ?? pusher;
+  // **Its own console, never `pusher`.** This fell back to the iOS sender until
+  // 2026-09-06, on the reasoning that a server with no FCM credential should
+  // still log what it would have sent rather than drop it silently. That was
+  // right in development, where `pusher` is a `ConsolePusher` anyway, and
+  // wrong everywhere else: on a box with APNs configured it handed FCM
+  // registration tokens to Apple, which refuses them with a `BadDeviceToken`
+  // that names the token and says nothing about the service being wrong. No
+  // row was pruned — `isDeadToken` declines 400 for exactly this class of
+  // confusion — so the cost was a log full of a failure whose cause was not in
+  // it. A token belongs to the service that issued it, and there is no
+  // arrangement under which sending it elsewhere is better than not sending.
+  const androidPusher = options.androidPusher ?? new ConsolePusher(() => {});
   const pusherFor = (platform: DevicePlatform): Pusher =>
     platform === 'android' ? androidPusher : pusher;
   const pushNotifier = createPushNotifier();

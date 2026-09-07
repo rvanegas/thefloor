@@ -301,7 +301,22 @@ app.fastify
               mail: mailFrom ? `ses:${mailFrom}` : 'console',
         audio: media ? liveKitUrl : 'none',
         recordings: storage ? `s3://${storage.bucket}` : 'not configured',
-        push: apnsKeyPath ? `apns:${apnsEnv}` : 'console',
+        // **Both senders, because there are two and one of them is easy to
+        // deploy without noticing.** This named APNs alone until 2026-09-06,
+        // which meant the one line anybody reads to see how notifications are
+        // configured could not distinguish a box that reaches Android phones
+        // from one that does not — and the difference is invisible everywhere
+        // else too, since a device with no sender behind it registers normally
+        // and is simply never written to. Same reasoning as `review` and
+        // `transcription` below: reading .env is not how anybody should have to
+        // find out.
+        push:
+          [
+            apnsKeyPath ? `apns:${apnsEnv}` : null,
+            fcmServiceAccountPath ? 'fcm' : null,
+          ]
+            .filter(Boolean)
+            .join('+') || 'console',
         // Logged because an account whose code never changes is worth being
         // able to see from the outside, rather than having to read .env to
         // find out whether one is open.

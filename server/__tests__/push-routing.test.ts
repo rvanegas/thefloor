@@ -136,10 +136,16 @@ it('groups by alert within a platform rather than across one', async () => {
 });
 
 /**
- * The state every deployment is in until the Firebase credential exists, and
- * the reason the whole path could be built ahead of it.
+ * A box with APNs configured and no FCM credential, which is what every
+ * deployment is between shipping this and creating a Firebase project.
+ *
+ * **The Android address must not reach the iOS sender.** It did until
+ * 2026-09-06, which meant a production server handed FCM registration tokens
+ * to Apple and collected `BadDeviceToken` refusals that name the token and say
+ * nothing about the service being wrong. Nothing was pruned, so the only cost
+ * was a log that misdescribed its own failure — which is the expensive kind.
  */
-it('falls back to the iOS sender when no Android one is configured', async () => {
+it('does not send an Android address to the iOS sender', async () => {
   await app.fastify.close();
   app.channels.stop();
   app = buildApp({ dbPath: ':memory:', now: () => clock, pusher: ios });
@@ -150,5 +156,21 @@ it('falls back to the iOS sender when no Android one is configured', async () =>
   await invite(alice, bob.account.id);
   await new Promise((resolve) => setImmediate(resolve));
 
-  expect(ios.messagesFor('bob-pixel')).toHaveLength(1);
+  expect(ios.messagesFor('bob-pixel')).toHaveLength(0);
+  expect(ios.sent).toHaveLength(0);
+});
+
+/** And an iOS address on the same server still goes where it always did. */
+it('still reaches the iOS sender when only that is configured', async () => {
+  await app.fastify.close();
+  app.channels.stop();
+  app = buildApp({ dbPath: ':memory:', now: () => clock, pusher: ios });
+  await app.fastify.listen({ port: 0, host: '127.0.0.1' });
+
+  const { alice, bob } = await twoContacts();
+  await register(bob.token, 'bob-iphone', 'ios');
+  await invite(alice, bob.account.id);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  expect(ios.messagesFor('bob-iphone')).toHaveLength(1);
 });
