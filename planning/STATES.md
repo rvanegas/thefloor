@@ -450,17 +450,25 @@ counts other people, and marks your own step-in separately*.
 
 **Name in source.** `SessionAudio.micOpen` (`useSessionAudio.ts:88`), computed
 as `micNeeded && !selfMuted`, where `micNeeded` is `microphoneNeeded`
-(`core/micNeeded.ts:19`).
+(`core/micNeeded.ts`).
 
-**Conditions.** `microphoneNeeded` is true when somebody else is present, or
-when a recording is active — the exception being load-bearing, since one person
-alone may record and a rule written as "alone means closed" would capture
-silence and report success. **And false for everybody while the room is
-party-muted**, which is answered here rather than at the call site because it
-is the same question this function already asks: whether the microphone has
-anything to capture *for*. See `Party-Muted`. `App.tsx` widens it with `recordingAsked`, because
-server state arrives a round trip after the tap and that round trip is when a
-short run recorded nothing at all.
+**Conditions.** `microphoneNeeded` is true when somebody else is present.
+**And false for everybody while the room is party-muted**, which is answered
+here rather than at the call site because it is the same question this function
+already asks: whether the microphone has anything to capture *for*. See
+`Party-Muted`. `App.tsx` widens it with `recordingAsked`, because server state
+arrives a round trip after the tap and that round trip is when a short run
+recorded nothing at all.
+
+**A running recording used to be a second condition and no longer is, since
+2026-09-07.** It was there because one person alone could record, so a rule
+written as "alone means closed" would capture silence and report success.
+`canStartRecording` now requires somebody else present or media playing, which
+makes the clause unreachable rather than merely unwanted — every legal run
+already has an occupant behind it. The clause was what let a recording be a
+reason to hold a microphone open with nobody there, which is the same mechanism
+that let a pocketed phone hold a channel open. **If that guard is ever relaxed,
+this condition has to come back with it.**
 
 **Where the sources disagree.** **There are two senses of this state and they
 are both wanted.** `micOpen` decides whether *we publish*. `channelHasAudio`

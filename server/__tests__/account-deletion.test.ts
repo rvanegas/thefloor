@@ -284,8 +284,11 @@ describe('what happens to channels', () => {
     // A channel is never created alone — it becomes one when everybody else
     // walks out, which is the only way to be its last member.
     const channelId = await channelOf(alice, [bob]);
-    app.channels.dispatch(channelId, bob.account.id, { type: 'LEAVE_CHANNEL' });
+    // The run is made while both are here, because a room of one may no
+    // longer be recorded; Bob leaves afterwards, which is what makes Alice its
+    // last member and is the thing under test.
     app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'START_RECORDING',
     });
@@ -295,6 +298,9 @@ describe('what happens to channels', () => {
       type: 'STOP_RECORDING',
     });
     await settle();
+    app.channels.dispatch(channelId, bob.account.id, {
+      type: 'LEAVE_CHANNEL',
+    });
     // A recording is shown to nobody until its mix has resolved one way or
     // the other.
     await app.channels.mixesSettled();

@@ -66,6 +66,23 @@ export interface Look {
   occupants: string[];
   /** Whom the room says is audible right now — `SessionAudio.speaking`. */
   audible: string[];
+  /**
+   * Whether somebody *leaving* refreshes the clock, which only a phone wants.
+   *
+   * **A switch rather than a rule, because the two platforms genuinely differ
+   * here.** On a phone the clock is scoped to a device standing alone, and the
+   * moment that becomes true is a departure — so without this the newly-solo
+   * person inherits whatever was left of a window that started while the others
+   * were still talking, and can be stepped out seconds after being left. A
+   * browser has the opposite problem: an abandoned tab in a room people come
+   * and go from would be handed a fresh window by every departure, and never
+   * expire at all. That tab is the entire reason the web clock exists.
+   *
+   * It lives on `Look` rather than in the hook because it is a fact about the
+   * `others` diff, which is computed here — unlike the foreground rule of
+   * 2026-09-06, which the native hook could keep to itself.
+   */
+  departureCounts?: boolean;
 }
 
 /**
@@ -84,8 +101,17 @@ export interface Look {
  * caller therefore has to look on a timer rather than only when something
  * changes.
  *
- * An arrival is evidence and a departure is not. Somebody leaving says nothing
- * whatever about whether you are still here.
+ * **What the clock measures is how long the situation has been unchanged**, and
+ * a change in who is in the room is a change in the situation. An arrival has
+ * always counted. A departure counts too where the caller asks for it — see
+ * `Look.departureCounts`, and the paragraph below for what this replaced.
+ *
+ * It used to read: *an arrival is evidence and a departure is not; somebody
+ * leaving says nothing whatever about whether you are still here.* That is true
+ * as literal evidence and it was still the wrong rule for a phone, because the
+ * clock is not really an evidence ledger — it is a measure of staleness, and a
+ * departure resets what is being measured. Somebody left alone by it is in a
+ * different room from the one whose window was running.
  */
 export function attend(prior: Attention, look: Look, now: number): Attention {
   if (look.channelId === null) return NOT_STANDING;
@@ -99,12 +125,15 @@ export function attend(prior: Attention, look: Look, now: number): Attention {
   }
 
   const arrived = others.some((id) => !prior.others.includes(id));
+  const departed =
+    look.departureCounts === true &&
+    prior.others.some((id) => !others.includes(id));
   const heard = look.audible.some((id) => id !== look.me);
 
   return {
     channelId: look.channelId,
     others,
-    heardAt: arrived || heard ? now : prior.heardAt,
+    heardAt: arrived || departed || heard ? now : prior.heardAt,
   };
 }
 

@@ -1130,6 +1130,11 @@ export function registerWebsocket(deps: {
           if (
             message.action.type === 'ENTER' ||
             message.action.type === 'STEP_OUT' ||
+            // Gives up presence exactly as a Step Out does, so it needs the
+            // same treatment: an untold sibling session goes on believing it
+            // is present and re-sends ENTER from that belief on reconnect,
+            // undoing the expiry a moment after it lands.
+            message.action.type === 'ATTENTION_EXPIRED' ||
             message.action.type === 'LEAVE_CHANNEL'
           ) {
             displaceOtherSessions(connection);

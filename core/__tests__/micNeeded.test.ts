@@ -40,32 +40,46 @@ describe('whether the microphone is needed', () => {
     expect(microphoneNeeded(together(), ME)).toBe(true);
   });
 
-  it('is while recording alone, which is a thing one may do', () => {
-    // The failure this exists for: a rule written as "alone means closed"
-    // records silence and reports success.
+  it('is not while alone, because a solo run can no longer start', () => {
+    // This asserted the opposite until 2026-09-07, when solo recording was
+    // removed. The old rule made `isRecordingActive` a reason to open the
+    // microphone by itself, which is how a phone alone in a channel came to
+    // hold one open indefinitely.
     const s = recording(alone());
     expect(s.present).toEqual([ME]);
+    expect(s.recording.status).toBe('idle');
+    expect(microphoneNeeded(s, ME)).toBe(false);
+  });
+
+  it('is while a recording runs with somebody else there', () => {
+    const s = recording(together());
+    expect(s.recording.status).toBe('recording');
     expect(microphoneNeeded(s, ME)).toBe(true);
   });
 
-  it('is while a solo recording is merely paused, not stopped', () => {
+  it('is while such a recording is merely paused, not stopped', () => {
     // Paused is still a run — resuming must not have to wait for the audio
-    // session to be retaken.
+    // session to be retaken. The occupant is what holds it open now, but the
+    // crossing is the one worth pinning either way.
     const s = reduce(
-      recording(alone()),
+      recording(together()),
       { type: 'PAUSE_RECORDING', userId: ME },
       T0 + 3_000
     );
     expect(microphoneNeeded(s, ME)).toBe(true);
   });
 
-  it('is not once a solo recording has stopped', () => {
-    const s = reduce(
-      recording(alone()),
-      { type: 'STOP_RECORDING', userId: ME },
-      T0 + 4_000
-    );
-    expect(microphoneNeeded(s, ME)).toBe(false);
+  it('needs no recording clause of its own, which is why there is not one', () => {
+    // The redundancy the removal rests on: a legal run always has an occupant
+    // or playback behind it, so every state in which a recording is active is
+    // already a state this answers true for. If `canStartRecording` is ever
+    // relaxed to permit a solo run, this fails and the clause has to return.
+    const running = recording(together());
+    expect(running.recording.status).toBe('recording');
+    expect(microphoneNeeded(running, ME)).toBe(true);
+
+    const solo = recording(alone());
+    expect(solo.recording.status).toBe('idle');
   });
 
   it('is when others are there even if you have stepped out yourself', () => {
@@ -112,8 +126,11 @@ describe('whether this app has any audio', () => {
     expect(channelHasAudio(s, ME)).toBe(false);
   });
 
-  it('has, alone and recording', () => {
-    expect(channelHasAudio(recording(alone()), ME)).toBe(true);
+  it('has not, alone, since a solo run cannot start', () => {
+    // Was `has, alone and recording`. See the microphone case above: the
+    // recording clause is gone from both predicates because it is unreachable,
+    // not because a running recording stopped being audio.
+    expect(channelHasAudio(recording(alone()), ME)).toBe(false);
   });
 
   it('has, with somebody else present and nobody muted', () => {

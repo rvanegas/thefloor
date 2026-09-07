@@ -44,12 +44,26 @@ const LOOK_INTERVAL_MS = 30_000;
  * anybody in it would have received. That was observed in the field before
  * this was written.
  *
- * **The rules are the web half's, unchanged**, and that is the point of
- * `attention.ts` being separate: somebody else being audible refreshes the
- * clock, an arrival refreshes it, your own voice never does. So a phone in a
- * pocket beside a live conversation keeps its seat, and one alone in a quiet
- * room loses it — which is the difference between a stuck member and a defunct
- * visit.
+ * **This half only ever expires a device standing alone, since 2026-09-07**,
+ * and that is the largest way it differs from the web. The shared rules still
+ * apply — somebody else audible refreshes the clock, an arrival refreshes it,
+ * your own voice never does — but reaching the end of the window is not enough
+ * on a phone: the room has to be empty of everybody else as well.
+ *
+ * The reason is that the window cannot tell the two quiet rooms apart. A room
+ * somebody walked away from and a room where two people are deliberately quiet
+ * — music with a muted listener, two people asleep — produce identical
+ * readings, and the right answers are opposite. On 2026-09-06 it resolved that
+ * ambiguity the worst possible way: because `attend` discards your own voice,
+ * the only person *making* the audio was the only person whose clock was
+ * ageing, and it removed him while everybody listening to him stayed. Alone,
+ * there is no such ambiguity and nothing to get wrong.
+ *
+ * **So this is also the bound on the solo wait.** `waitingAlone` in
+ * `useSessionAudio` opens the microphone at step-in — iOS will not grant a
+ * backgrounded app a new one, so it has to be open before the phone is pocketed
+ * — and capturing keeps the process alive indefinitely. Nothing else stops
+ * that; this does, which is why the keep-alive needs no timer of its own.
  *
  * **The one thing that differs is what counts as a hand.** A browser has
  * clicks and keystrokes; a phone has none of them, so what stands in for a
@@ -134,25 +148,58 @@ export function useAttention(
        * clock is refreshed only by what a look sees, so a frozen process
        * accumulates a window's worth of staleness without anybody being
        * absent, and the first look after it spends that staleness at once.
-       * Whether iOS actually freezes these timers behind a live LiveKit
-       * connection is the open question of 2026-09-06 — the media stack is
-       * native and stays up, so a phone can hold its seat while this hook is
-       * not running at all. One expiry line carrying a gap of thirty minutes
-       * settles it; a whole evening of inference from usage spans did not.
+       *
+       * **The question this was added to settle is answered: iOS does not
+       * freeze these timers.** A backgrounded phone holding a LiveKit
+       * connection logged sixteen consecutive looks at `gap=30s` across a full
+       * fifteen-minute window on 2026-09-06, with no missed tick. So a late
+       * look is not the explanation for any step-out, and any future report
+       * that blames one has to produce a line showing it. Kept for exactly
+       * that: it costs a few characters and it is the only thing that can
+       * distinguish a device that was not observing from one that was.
        */
       const gap = lastLook === 0 ? 0 : now - lastLook;
       lastLook = now;
 
+      const others = present.filter((id) => id !== mine).length;
       const seen =
-        `others=${present.filter((id) => id !== mine).length}` +
+        `others=${others}` +
         ` audible=${audible.filter((id) => id !== mine).length}` +
+        // **Your own voice, which is counted nowhere else.** `audible` above
+        // excludes you, by the rule in `attend` that your own voice never
+        // refreshes your own clock — so a room where you were the only sound
+        // for fifteen minutes and a room that was silent produce identical
+        // lines. That ambiguity is exactly what made the 2026-09-06 diagnosis
+        // take three attempts, and this is the one character that ends it.
+        ` self=${audible.includes(mine) ? 'T' : 'F'}` +
         ` fg=${foreground ? 'T' : 'F'}` +
         ` gap=${Math.round(gap / 1000)}s`;
+
+      // **Only a device standing alone may be expired, since 2026-09-07.**
+      //
+      // The rule this replaced expired anybody whose window ran out, and it
+      // could not tell an abandoned room from one where two people are
+      // deliberately quiet — music with a muted listener, or two people asleep
+      // — because no measure taken from the audio separates them. It removed
+      // the wrong person on 2026-09-06: `attend` discards your own voice, so
+      // the one participant producing the audio was the only one whose clock
+      // was ageing, while everybody listening to him was refreshed by him.
+      //
+      // Alone, there is nothing to misjudge. A phone by itself in a channel is
+      // holding the room open against nobody, and this is also what bounds the
+      // solo wait — `waitingAlone` in `useSessionAudio` opens the microphone at
+      // step-in and needs no timer of its own, because this is that timer.
+      //
+      // Two pocketed phones with open microphones are therefore never expired
+      // here. That is the decision rather than a gap: Rule A retires the room
+      // if neither is publishing unmuted, and if both are, nobody is willing to
+      // say from the audio alone that the room is empty of people.
+      const alone = others === 0;
 
       // Expiry before the look, as on the web: a phone that was suspended for
       // twenty minutes and wakes to find somebody mid-sentence has no evidence
       // about the twenty minutes it did not observe.
-      if (unattended(clock.current, now)) {
+      if (alone && unattended(clock.current, now)) {
         const channelId = clock.current.channelId;
         // The one line that is never rate-limited. Every question asked of
         // this clock so far has been answered by inference from usage spans,
@@ -160,7 +207,13 @@ export function useAttention(
         // ended the visit, and what it believed when it did.
         recordEvent(`attention expired after ${Math.round(age / 1000)}s ${seen}`);
         clock.current = NOT_STANDING;
-        if (channelId) act(channelId, { type: 'STEP_OUT' });
+        // **`ATTENTION_EXPIRED`, not `STEP_OUT`.** A step-out is `exit:
+        // 'chosen'` and reads as a tap on the button; this was the app's
+        // decision, and `exit: 'inattentive'` is the row that says so. It does
+        // not leave them *Nearby*, deliberately: the fifteen minutes it takes
+        // to get here is the same fifteen minutes Nearby would grant, and it
+        // has been spent whether or not anybody was shown it.
+        if (channelId) act(channelId, { type: 'ATTENTION_EXPIRED' });
         return;
       }
 
@@ -181,6 +234,11 @@ export function useAttention(
           me: mine,
           occupants: here ? roomOccupants(here) : [],
           audible,
+          // A phone wants this and a browser does not — see `Look`. Without
+          // it, becoming solo is the one transition that arms the rule above
+          // while handing it a window that is already nearly spent, so the
+          // last person out of a room could take somebody with them.
+          departureCounts: true,
         },
         now
       );

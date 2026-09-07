@@ -586,8 +586,12 @@ export class Realtime {
       this.setStanding(channelId);
       this.enteredLostAt = 0;
     }
-    // Both give up presence, so neither should be re-entered on a reconnect.
-    if (action.type === 'STEP_OUT' || action.type === 'LEAVE_CHANNEL') {
+    // All three give up presence, so none should be re-entered on a reconnect.
+    if (
+      action.type === 'STEP_OUT' ||
+      action.type === 'ATTENTION_EXPIRED' ||
+      action.type === 'LEAVE_CHANNEL'
+    ) {
       if (this.enteredChannel === channelId) this.setStanding(null);
     }
     this.watchedChannel = channelId;

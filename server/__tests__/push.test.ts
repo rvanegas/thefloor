@@ -505,11 +505,22 @@ describe('a channel becoming active', () => {
   });
 
   /**
-   * Only the transition out of empty is worth announcing. Somebody joining a
-   * conversation already in progress has changed nothing about whether it is
-   * worth walking over to your phone.
+   * **Every arrival is announced, since 2026-09-07.** This asserted the
+   * opposite: only the transition out of empty, on the argument that joining a
+   * conversation already in progress changes nothing worth walking over for.
+   *
+   * The argument was about the *arrival*. What it missed is the *room* — a
+   * channel that never empties can never produce that transition again, so an
+   * occupied room swallowed every notification anybody outside it would have
+   * had, permanently. Found in the field on 2026-09-06, and now load-bearing:
+   * a phone standing alone is the only thing the attention rules will retire,
+   * so an occupied room is a state this system deliberately allows to persist.
+   *
+   * The per-recipient window in `announceActive` is what keeps this from being
+   * noisy, and it always was — the edge test was a second rate limiter doing
+   * the same job worse.
    */
-  it('says nothing when somebody joins a channel that is already occupied', async () => {
+  it('announces an arrival into a channel that is already occupied', async () => {
     const { alice, bob, channelId } = await emptyChannel();
     const carol = await signIn('carol@example.com', 'Carol');
     await app.fastify.inject({
@@ -549,7 +560,21 @@ describe('a channel becoming active', () => {
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
     await settle();
 
-    expect(pusher.sent).toEqual([]);
+    // Carol is a member and is not in the room, so she is told — by name of
+    // whoever actually arrived, which under the old edge rule was read off
+    // `present[0]` and would have said "Alice".
+    expect(pusher.messagesFor('carol-phone')).toEqual([
+      {
+        title: 'Standup',
+        kind: 'arrived',
+        body: 'Bob stepped in.',
+        channelId,
+        collapseKey: channelId,
+        threadId: channelId,
+        lifetimeMs: PRESENCE_LIFETIME_MS,
+        reachesInApp: false,
+      },
+    ]);
   });
 
   /**

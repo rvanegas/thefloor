@@ -447,19 +447,32 @@ export function canSetSelfMute(
 }
 
 /**
- * Recording needs the person starting it to be **present**, and nothing more.
+ * Recording needs the person starting it to be **present**, and needs there to
+ * be something to record.
  *
- * One person alone may record — a channel is a place you can talk into before
- * anyone else arrives, and a note to yourself is a use rather than a mistake.
+ * Presence is required at both ends: a run starts only while somebody is here
+ * and stops the moment nobody is. It used to read `everPresent` — "have two
+ * ever connected" — which was nearly the same claim as "are two here" while a
+ * channel lasted minutes, but which never decays, so in a permanent channel it
+ * would let someone record an empty room months later on the strength of a
+ * conversation that once happened in it. Requiring the actor rather than
+ * merely a head count also means nobody can start recording a room they are
+ * not in.
  *
- * Presence, though, is required, and it is the same condition at both ends: a
- * run starts only while somebody is here and stops the moment nobody is. It
- * used to read `everPresent` — "have two ever connected" — which was nearly
- * the same claim as "are two here" while a channel lasted minutes, but which
- * never decays, so in a permanent channel it would let someone record an empty
- * room months later on the strength of a conversation that once happened in
- * it. Requiring the actor rather than merely a head count also means nobody
- * can start recording a room they are not in.
+ * **One person alone may no longer record, as of 2026-09-07.** It used to be
+ * allowed on the grounds that a note to yourself is a use rather than a
+ * mistake — but recording here is not a memo feature, it is a record of what
+ * happened in a room, and there is nothing happening in a room of one. Allowing
+ * it made `isRecordingActive` a reason to open the microphone all by itself,
+ * which is what put a *recording* clause inside two predicates about *audio*
+ * and made a solo phone hold a channel open. With this clause the two are
+ * ordered instead: audio first, recording on top of it. See
+ * `core/micNeeded.ts`, where `isRecordingActive` is now redundant rather than
+ * removed — whenever a run is legal, one of the other clauses has already
+ * answered true.
+ *
+ * "Something to record" is deliberately the same pair `channelHasAudio` asks
+ * about: somebody else in the room, or media playing into it.
  */
 export function canStartRecording(
   state: ChannelState,
@@ -472,7 +485,9 @@ export function canStartRecording(
     // party is loaded would be missing the thing everybody was reacting to,
     // and nothing in the file would say so.
     state.watch.party === null &&
-    isPresent(state, userId)
+    isPresent(state, userId) &&
+    (roomOccupants(state).some((id) => id !== userId) ||
+      state.playback.status !== 'idle')
   );
 }
 

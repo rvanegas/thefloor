@@ -1498,6 +1498,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           pendingRecord.current &&
           (action.type === 'STOP_RECORDING' ||
             action.type === 'STEP_OUT' ||
+            action.type === 'ATTENTION_EXPIRED' ||
             action.type === 'LEAVE_CHANNEL')
         ) {
           clearTimeout(pendingRecord.current.timer);

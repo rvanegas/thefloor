@@ -887,10 +887,15 @@ describe('presence is exclusive', () => {
   it('stops a recording the departure leaves with nobody in it', async () => {
     // Stepping out empties the channel, and an empty channel stops recording —
     // the same rule, reached by a new route.
-    const { alice, first, second } = await twoChannels();
+    const { alice, bob, first, second } = await twoChannels();
+    // Bob has to be here for the run to start — a recording of a room of one
+    // is no longer permitted. He leaves again immediately, which is allowed:
+    // the guard is on *starting* a run, not on continuing one.
+    app.channels.dispatch(first, bob.account.id, { type: 'ENTER' });
     app.channels.dispatch(first, alice.account.id, { type: 'START_RECORDING' });
     await settle();
     expect(app.channels.get(first)!.recording.status).toBe('recording');
+    app.channels.dispatch(first, bob.account.id, { type: 'STEP_OUT' });
 
     clock += 5_000;
     app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });

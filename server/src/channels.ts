@@ -191,6 +191,11 @@ function quantise(
 const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'ENTER',
   'STEP_OUT',
+  // Raised by the server's own Rule A as well, which is why it reads oddly
+  // here: it is safe from a client for the same reason STEP_OUT is, the actor
+  // being supplied below rather than carried, so the worst a client can do
+  // with it is end its own visit — which it may already do.
+  'ATTENTION_EXPIRED',
   'LEAVE_CHANNEL',
   'DELETE_CHANNEL',
   'INVITE',
@@ -2220,7 +2225,25 @@ export class ChannelRegistry {
       // chose to empty. See guests.ts.
       this.guests.channelEmptied(after.id, this.now());
     }
-    if (before.present.length === 0 && after.present.length > 0) {
+    // **Any arrival, not only the empty-to-occupied edge, since 2026-09-07.**
+    //
+    // The edge test was a second rate limiter doing a job `announceActive`
+    // already does better: it computes `absent` per recipient and suppresses
+    // per recipient within ANNOUNCE_INTERVAL_MS. What the edge added was a
+    // silent failure — a room that never empties can never produce it again,
+    // so **every arrival into an occupied room notified nobody.** That was
+    // found in the field on 2026-09-06 and was the whole reason presence
+    // needed retiring at all.
+    //
+    // It matters more now that it is deliberate policy to leave an occupied
+    // room alone: two people quietly holding a channel is a state this system
+    // now chooses not to end, so it must stop being a state that swallows
+    // everybody else's notifications.
+    //
+    // A deploy still cannot storm: `revive` stamps `lastAnnouncedAt` for every
+    // participant of every restored channel, so the reconnecting clients that
+    // follow a restart are all inside the suppression window.
+    if (steppedIn.length > 0) {
       // Nobody had ever been in it, so this is not somebody arriving where you
       // both have been before: it is the channel starting, and until contacts
       // came with a standing channel each it could only happen inside `create`,
@@ -2229,8 +2252,13 @@ export class ChannelRegistry {
       // person's invitation would arrive as "Alice stepped in" — five minutes'
       // lifetime, about a channel they had never heard of, in place of the
       // month an invitation is given.
+      //
+      // Still asked of `before`, so it is the *first* entry that announces a
+      // start and every later one that announces an arrival.
       if (before.everPresent.length === 0) this.announceStarted(after);
-      else this.announceActive(after);
+      // The last of them, matching `lastEntry` above: several people can be
+      // admitted on one transition, and the newest is the one worth naming.
+      else this.announceActive(after, steppedIn[steppedIn.length - 1]!);
     }
     if (after.status === 'active' && arrived) {
       if (after.floor.holder !== null) this.assertSilence(after);
@@ -2329,10 +2357,15 @@ export class ChannelRegistry {
     //
   }
 
-  private announceActive(channel: ChannelState): void {
+  private announceActive(channel: ChannelState, arrived: string): void {
     if (channel.status !== 'active') return;
     const now = this.now();
-    const arrived = channel.present[0];
+    // **Told who arrived rather than guessing, since 2026-09-07.** This read
+    // `channel.present[0]`, which was right only because the caller fired on
+    // the empty-to-occupied edge — the room having been empty, the first
+    // person present was the person who had just walked in. Now that any
+    // arrival announces, `present[0]` is whoever has been there longest, and
+    // the notification would name the wrong person to everybody outside.
     if (arrived === undefined) return;
     const absent = channel.participants.filter(
       (id) => !channel.present.includes(id)

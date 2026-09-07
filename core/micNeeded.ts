@@ -1,5 +1,4 @@
 import { guestMaySpeak, isGuest, roomOccupants } from './guests';
-import { isRecordingActive } from './recording';
 import { partyWithholds } from './watch';
 import type { ChannelState, UserId } from './types';
 
@@ -12,11 +11,15 @@ import type { ChannelState, UserId } from './types';
  * are in the channel. Being in an empty channel should cost the speakers
  * nothing.
  *
- * **Recording is the exception, and not a small one.** `core/channel.ts` lets
- * one person alone record — a note to yourself is a use rather than a mistake
- * — so a solo run has to hold the microphone open with nobody there. Written
- * as "alone means closed", this would record silence and say nothing about it,
- * which is why it is a function with a test rather than a condition inline.
+ * **Recording used to be an exception here and no longer is, since
+ * 2026-09-07.** `core/channel.ts` allowed one person alone to record, so a
+ * solo run had to hold the microphone open with nobody there — and that single
+ * clause put a *recording* term inside a predicate about *audio*, which is how
+ * a phone alone in a channel came to hold it open indefinitely.
+ * `canStartRecording` now requires somebody else present or media playing, so
+ * the term is **redundant rather than removed**: whenever a run is legal, the
+ * occupancy clause below has already answered true. If that guard is ever
+ * relaxed, this exception has to come back with it.
  */
 export function microphoneNeeded(
   channel: ChannelState,
@@ -51,8 +54,7 @@ export function microphoneNeeded(
   // member talking to somebody who is demonstrably there. This is the first of
   // the three places the guest design named as wanting the wider question, and
   // it is the one whose failure is silent.
-  if (roomOccupants(channel).some((id) => id !== me)) return true;
-  return isRecordingActive(channel.recording);
+  return roomOccupants(channel).some((id) => id !== me);
 }
 
 /**
@@ -120,7 +122,7 @@ export function microphoneNeeded(
  * one person's self-mute was an input to everybody's session — is no longer
  * true.
  *
- * The four answers, in the order they are asked:
+ * The three answers, in the order they are asked:
  *
  * - **A watch party that is withholding has no audio**, and this is the case
  *   that looks like an exception and is not. The Floor carries no video: each
@@ -134,12 +136,14 @@ export function microphoneNeeded(
  *   muted, or a guest without the microphone. They can be heard the moment
  *   they are not, and the boundary is not worth crossing on the difference.
  *   The room rather than the roster, for the reason `microphoneNeeded` gives.
- * - **A recording alone is audio**, being the one case that captures with
- *   nobody there.
- * - **Shared playback is audio**, including while paused — the same reading
- *   `isRecordingActive` takes, and for the same reason: pausing a track to
+ * - **Shared playback is audio**, including while paused: pausing a track to
  *   talk about it should not hand the route away and take it back. `idle`
  *   covers both a track loaded and never started and one that has finished.
+ *
+ * A recording used to be a fourth case, on the grounds that it was the one
+ * thing that captured with nobody there. `canStartRecording` no longer permits
+ * that, so the case cannot arise: a legal run already has an occupant or
+ * playback behind it. See `microphoneNeeded` above.
  *
  * Everything else is `IDLE`: alone in a channel with nothing running, which is
  * the state this whole function exists to protect. Being present somewhere
@@ -148,7 +152,6 @@ export function microphoneNeeded(
 export function channelHasAudio(channel: ChannelState, me: UserId): boolean {
   if (channel.watch && partyWithholds(channel.watch)) return false;
   if (roomOccupants(channel).some((id) => id !== me)) return true;
-  if (isRecordingActive(channel.recording)) return true;
   return channel.playback.status !== 'idle';
 }
 

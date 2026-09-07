@@ -28,6 +28,8 @@ import type { ChannelState } from '../../../../core/types';
 const ME = 'acct_me';
 const THEM = 'acct_them';
 const CHANNEL = 'chan_1';
+/** `LOOK_INTERVAL_MS` in the hook, which is not exported. */
+const LOOK = 30_000;
 
 const acted: Array<{ channelId: string; type: string }> = [];
 
@@ -88,17 +90,67 @@ describe('the attention clock on a phone', () => {
     jest.useRealTimers();
   });
 
-  it('steps a backgrounded phone out once the window is spent', () => {
+  it('steps a backgrounded phone out once the window is spent, alone', () => {
     setForeground(false);
     reactAct(() => {
-      renderer.create(<Harness live={channel([ME, THEM])} speaking={[]} />);
+      renderer.create(<Harness live={channel([ME])} speaking={[]} />);
     });
 
     reactAct(() => {
       jest.advanceTimersByTime(WAITING_WINDOW_MS + 60_000);
     });
 
-    expect(acted).toEqual([{ channelId: CHANNEL, type: 'STEP_OUT' }]);
+    expect(acted).toEqual([
+      { channelId: CHANNEL, type: 'ATTENTION_EXPIRED' },
+    ]);
+  });
+
+  it('leaves a backgrounded phone alone while anybody else is there', () => {
+    // The 2026-09-06 field case, which this rule used to get exactly wrong.
+    // Somebody else is present and never audible — asleep, muted, or listening
+    // to the person holding the phone — and no reading taken from the audio
+    // can tell that room from an abandoned one. So it is not judged.
+    setForeground(false);
+    reactAct(() => {
+      renderer.create(<Harness live={channel([ME, THEM])} speaking={[]} />);
+    });
+
+    reactAct(() => {
+      jest.advanceTimersByTime(WAITING_WINDOW_MS * 3);
+    });
+
+    expect(acted).toEqual([]);
+  });
+
+  it('gives a full window to somebody the others have just left', () => {
+    // A departure refreshes the clock, so becoming solo does not hand you the
+    // remainder of a window that started while the others were still talking.
+    setForeground(false);
+    const view = renderer.create(
+      <Harness live={channel([ME, THEM])} speaking={[]} />
+    );
+
+    reactAct(() => {
+      jest.advanceTimersByTime(WAITING_WINDOW_MS - 60_000);
+    });
+
+    reactAct(() => {
+      view.update(<Harness live={channel([ME])} speaking={[]} />);
+      jest.advanceTimersByTime(LOOK);
+    });
+
+    // Well past where the original window would have run out.
+    reactAct(() => {
+      jest.advanceTimersByTime(WAITING_WINDOW_MS - LOOK * 3);
+    });
+    expect(acted).toEqual([]);
+
+    reactAct(() => {
+      jest.advanceTimersByTime(LOOK * 4);
+    });
+    expect(acted).toEqual([
+      { channelId: CHANNEL, type: 'ATTENTION_EXPIRED' },
+    ]);
   });
 
   it('keeps the seat of a foregrounded phone nobody has touched', () => {
@@ -118,9 +170,11 @@ describe('the attention clock on a phone', () => {
   });
 
   it('lets a stale clock be rescued by the app coming back in front', () => {
+    // Alone, so the solo gate is open and the foreground rule is the only
+    // thing preventing an expiry — which is what this is about.
     setForeground(false);
     reactAct(() => {
-      renderer.create(<Harness live={channel([ME, THEM])} speaking={[]} />);
+      renderer.create(<Harness live={channel([ME])} speaking={[]} />);
     });
 
     // Just short of the window, in the background and in silence.
@@ -142,18 +196,20 @@ describe('the attention clock on a phone', () => {
   it('says why it ended the visit, and what it believed at the time', () => {
     setForeground(false);
     reactAct(() => {
-      renderer.create(<Harness live={channel([ME, THEM])} speaking={[]} />);
+      renderer.create(<Harness live={channel([ME])} speaking={[]} />);
     });
 
     reactAct(() => {
       jest.advanceTimersByTime(WAITING_WINDOW_MS + 60_000);
     });
 
-    // Somebody was in the room the whole time and never audible, which is the
-    // shape of both field reports and is exactly what the line has to show.
+    // **`self` is pinned because its absence cost an afternoon.** `audible`
+    // excludes you, so without this a room where you were the only sound for
+    // fifteen minutes and a silent room produce identical lines — which is
+    // what made the 2026-09-06 diagnosis take three attempts.
     const expiry = lines().filter((l) => l.startsWith('attention expired'));
     expect(expiry).toHaveLength(1);
-    expect(expiry[0]).toMatch(/others=1 audible=0 fg=F gap=\d+s$/);
+    expect(expiry[0]).toMatch(/others=0 audible=0 self=F fg=F gap=\d+s$/);
   });
 
   it('says nothing at all while somebody else is audible', () => {
@@ -175,7 +231,7 @@ describe('the attention clock on a phone', () => {
   it('stays quiet until the clock is half spent, then ships the run-up', () => {
     setForeground(false);
     reactAct(() => {
-      renderer.create(<Harness live={channel([ME, THEM])} speaking={[]} />);
+      renderer.create(<Harness live={channel([ME])} speaking={[]} />);
     });
 
     reactAct(() => {
@@ -189,6 +245,6 @@ describe('the attention clock on a phone', () => {
 
     const aged = lines().filter((l) => l.startsWith('attention age'));
     expect(aged.length).toBeGreaterThan(0);
-    expect(aged[0]).toMatch(/others=1 audible=0 fg=F gap=\d+s$/);
+    expect(aged[0]).toMatch(/others=0 audible=0 self=F fg=F gap=\d+s$/);
   });
 });

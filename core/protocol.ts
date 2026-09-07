@@ -849,6 +849,21 @@ export type ClientAction =
   /** Give up presence, keep membership. */
   | { type: 'STEP_OUT' }
   /**
+   * Give up presence because this device stopped attending — never a tap.
+   *
+   * **The same action Rule A raises on the server**, and deliberately so: both
+   * are the attention window running out, and a reader who greps for one
+   * should find the whole mechanism. It carries no `userId` here for the
+   * reason `STEP_OUT` does not — the server supplies the actor, and a client
+   * that could name one could expire somebody else.
+   *
+   * Distinct from `STEP_OUT` because the reducer files them differently:
+   * `chosen` stamps `lastPresentAt` and reads as a deliberate departure,
+   * `inattentive` does neither. Sent only by `useAttention` on a phone
+   * standing alone; see `app/src/state/useAttention.ts`.
+   */
+  | { type: 'ATTENTION_EXPIRED' }
+  /**
    * Destroy the channel and every recording made in it. Only its last member
    * may — everyone else leaves instead, and the last member cannot.
    */

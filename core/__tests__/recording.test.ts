@@ -45,14 +45,27 @@ describe('starting a recording', () => {
     expect(joined().recording.status).toBe('idle');
   });
 
-  it('is available to one person alone in the channel', () => {
-    // A channel is a place you can talk into before anyone else arrives.
+  it('is unavailable to one person alone in the channel', () => {
+    // The reverse of what this asserted until 2026-09-07. Recording here is a
+    // record of what happened in a room, and nothing happens in a room of one
+    // — a note to yourself is a different feature, and permitting it made a
+    // running recording a reason to hold the microphone open with nobody
+    // there. See `core/micNeeded.ts`.
     const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
     expect(alone.present).toEqual([A]);
-    expect(canStartRecording(alone, A)).toBe(true);
+    expect(canStartRecording(alone, A)).toBe(false);
+    expect(reduce(alone, start(A), T0)).toBe(alone);
+  });
 
-    const s = reduce(alone, start(A), T0);
-    expect(s.recording.status).toBe('recording');
+  it('is available alone when media is playing into the room', () => {
+    // The second half of "something to record": the room has audio in it even
+    // with one person, so a run has something to capture.
+    const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    const playing = {
+      ...alone,
+      playback: { ...alone.playback, status: 'playing' as const },
+    };
+    expect(canStartRecording(playing, A)).toBe(true);
   });
 
   it('requires the person starting it to be present', () => {
@@ -71,8 +84,13 @@ describe('starting a recording', () => {
     expect(alsoEmpty.present).toEqual([]);
     expect(canStartRecording(alsoEmpty, A)).toBe(false);
 
+    // One returning is not enough any more — there has to be somebody to
+    // record with. Both back, and it is available again.
     const back = reduce(alsoEmpty, { type: 'ENTER', userId: A }, T0 + 2);
-    expect(canStartRecording(back, A)).toBe(true);
+    expect(canStartRecording(back, A)).toBe(false);
+
+    const bothBack = reduce(back, { type: 'ENTER', userId: B }, T0 + 3);
+    expect(canStartRecording(bothBack, A)).toBe(true);
   });
 
   it('can be initiated by either user', () => {
