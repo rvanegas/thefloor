@@ -18,6 +18,67 @@ read like missing features until you find the reasoning.
 
 ---
 
+## Contents
+
+Added 2026-09-07. Every item, in order. Read the entry you are being asked
+about rather than the file — this is eighty-seven kilobytes.
+
+- The watch party has been walked once, and the rest of the walk is outstanding
+- The follower page's control logic has no test, and has now produced four defects
+- Two things that ship unbounded, both from channels being permanent
+- Sessions cannot be listed, only ended wholesale
+- Why one phone could not hold a socket is diagnosed, not observed
+- Presence follows the websocket, not the room
+- The FCM credential is the wide one, and stays acceptable only while the project is empty
+- Android has never been built or run
+- Notifications do not ring — they are alerts
+  - What the larger version needs
+  - Smaller things left on the table
+- What AssemblyAI does with the audio after we ask it to delete it
+- Two-party consent has not been reviewed
+  - What exists today
+  - What makes it sharper than the spec anticipated
+  - Likely shapes of an answer
+- Playing media into a channel is a copyright surface nobody has addressed
+- SMS authentication — shelved indefinitely
+  - What is already built
+  - What SMS would take
+  - Consequences of shelving, which are live now
+  - Related decision
+- Per-speaker volume
+- Interaction with phonecalls
+- `HomeView.recordings` outlived its screen
+- The output picker is on probation
+- Nobody has heard the `IDLE` → `LISTENING` edge on a device
+- The engine stops under a healthy room, and nothing in the app restarts it
+  - The instrument was the fault
+  - What build 89 carries
+  - The protocol, and the second axis
+  - Confirmed with the panel removed, and the leftover is not a fault
+  - The recovery buttons answered it, and reopened the suspect I had cleared
+  - What to build next, and it is an experiment that doubles as the fix
+  - Build 90 made it rare rather than gone
+  - `audible 0` was an artefact, and the entry below it is wrong
+  - The old entry, retracted: `audible 0`
+  - A rebuild restores it, and that is the first recovery that has ever worked
+  - The log goes to the server, because a ring dies with the process
+  - The variable is probably *what was already there when we connected*
+  - What survives either way
+- Donations arrive by webhook alone, and nothing reconciles them
+- Inviting a stranger now sends mail, and nothing bounds how much
+- The second demo account has no credential left
+- The meter records microphones, and nobody can count turns
+- The browser's audio hook is a spike, and two of its gaps are named
+- The update screen tells a browser to open the App Store
+- The support page's notifications section is iOS-only, and there is now a web client
+- `/app/` with a trailing slash is a 403
+- The left pane has no selected-row highlight
+- Whether iPadOS 26 still honours `UIRequiresFullScreen`
+- Known defects
+- Untested behaviour
+
+---
+
 ## The watch party has been walked once, and the rest of the walk is outstanding
 
 **Partly done as of 2026-08-23**, and the heading here used to read "Nobody has

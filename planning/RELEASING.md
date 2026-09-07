@@ -5,6 +5,33 @@ to and why, what `prebuild --clean` takes away, the icon rules that fail at
 upload rather than at build, what an upload costs each time, and what App Store
 Connect will not tell you about the state of a submission.
 
+## Contents
+
+Added 2026-09-07. Read the section for the verb you are executing. Almost
+nothing here is needed by a session that is not producing or shipping a build.
+
+- The five verbs, which are five different days
+- One verb does not imply the others — say so and ask
+- Before the first TestFlight build
+- The build number never resets, and Apple would let it
+- `prebuild --clean` drops the signing team
+- What one build costs, end to end
+  - Writing "What's New", which is a list of what is new
+  - The web trains ship with the build
+  - What the second build costs that the first did not
+- What every submission needs configured on the box
+- To verify before pressing submit
+- The App Privacy answers, one data type at a time
+  - The ones deliberately answered No
+  - The privacy manifest is a separate file and does not agree
+  - There is no API for any of it
+- App Store Connect, and what it will not tell you
+  - The DSA declaration, which is still a loose end
+- The release history
+- What the app requests, what it gets, and how to check
+
+---
+
 ## The five verbs, which are five different days
 
 Adopted 2026-08-21, because *release* had come to mean both "put a build in
@@ -129,7 +156,7 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
 
   **Read the generated plist, not `app.json`.** The two keys and the merge
   order are exactly the sort of thing that is right in the config and wrong in
-  the artefact — the same rule `rtc.use_external_ip` earns in AGENTS.md.
+  the artefact — the same rule `rtc.use_external_ip` earns in INFRASTRUCTURE.md.
   `plutil -extract 'UISupportedInterfaceOrientations~ipad' xml1 -o -
   app/ios/TheFloor/Info.plist` after a prebuild, and
   `TARGETED_DEVICE_FAMILY = "1,2"` in `project.pbxproj`.
@@ -770,3 +797,79 @@ update screen. Every build from 52 on can be retired with a sentence on screen;
 the first public one has to be waited out instead.
 
 ---
+
+---
+
+## What the app requests, what it gets, and how to check
+
+Moved here from AGENTS.md on 2026-09-07: this is verification you do while
+producing a build, and the trap that bites outside it — `APNS_ENV`, sandbox
+tokens versus production ones — stayed in AGENTS.md.
+
+**`aps-environment` is static, and its default is wrong for us.** The
+`expo-notifications` config plugin writes the entitlement once at prebuild
+time — it does *not* vary by build configuration, and its default is
+`development`. `app.json` therefore passes `{ "mode": "production" }`, which
+is what a build headed for TestFlight needs.
+
+The cost is that `expo run:ios` now *requests* production too. Requests, not
+gets: the entitlements file only asks, the provisioning profile decides what
+may be claimed, and what APNs reads is the entitlement in the **signature of
+the installed binary**. A local run is signed against a Development profile,
+which permits only `development` — so the phone holds a sandbox token however
+`app.json` is set. Same three-way split as the table below, seen from the
+other end.
+
+To test push against a locally built app, point it at a server running
+`APNS_ENV=sandbox` — a local one. Not the deployed server: its testers hold
+production tokens, and flipping it breaks push for all of them at once.
+Flipping `mode` to `development` is then only housekeeping, making the file
+agree with what signing was going to do anyway.
+
+`codesign -d --entitlements - ` on the installed `.app` settles what a phone
+actually has, the file being no evidence.
+
+
+**Check the exported IPA, not the entitlements file and not the archive.**
+There are three artifacts and they disagree, which makes this easy to get
+wrong in either direction:
+
+| | |
+| --- | --- |
+| `app/ios/TheFloor/TheFloor.entitlements` | what the app *requests*; the plugin writes it |
+| `/tmp/thefloor.xcarchive` | signed against a **Development** profile by automatic signing — reads `development` even when the file says `production`, and that is expected |
+| the exported IPA | re-signed for distribution at export. **This is what ships.** |
+
+So an archive reading `development` proves nothing. To settle it:
+
+    ASC=~/.config/thefloor/asc
+    KEY=$(ls $ASC/AuthKey_*.p8 | head -1); KID=$(basename "$KEY" .p8); KID=${KID#AuthKey_}
+    xcodebuild -exportArchive -archivePath /tmp/thefloor.xcarchive \
+      -exportPath /tmp/thefloor-check -exportOptionsPlist <plist with
+      destination=export> -allowProvisioningUpdates \
+      -authenticationKeyPath "$KEY" -authenticationKeyID "$KID" \
+      -authenticationKeyIssuerID "$(tr -d '[:space:]' < $ASC/issuer-id)"
+    cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
+    codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
+
+**The three authentication flags are not optional, and this recipe was
+missing them until build 36.** Without them the export fails with `No
+Accounts` and `No signing certificate "iOS Distribution" found` — the export
+re-signs for distribution, Apple holds that certificate, and fetching it is a
+signing-asset operation needing the App Store Connect key. It is the same
+failure `bin/upload-ios` exists to avoid, met by a command that had not been
+given the same treatment.
+
+Verified this way for builds 14 through 23, and for **36**: `production`.
+
+Note that this export **re-signs**, and Xcode's automatic build-number
+management can bump `CFBundleVersion` while doing it: the check on build 19
+produced an IPA reading 20 from an archive reading 19. That copy is local and
+is never uploaded, so it does not matter for what ships — but do not read the
+number off the *checked* IPA and conclude the wrong build went out. The
+archive's `Info.plist` is the honest answer, and TestFlight is the final one.
+
+**The App ID needs the Push Notifications capability** enabled in the
+developer portal, or signing refuses the entitlement. It is registered
+against `co.rvanegas.thefloor`, which survives `prebuild --clean` even though
+the local `ios/` does not.

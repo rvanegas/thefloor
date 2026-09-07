@@ -16,10 +16,11 @@ reducer or the app's behaviour, which is most work.
 **Read this before touching any credential, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.**
 
-Two of the traps here bite people who never open this file, so they stayed in
-AGENTS.md: `APNS_ENV`, and the three artifacts that disagree about entitlements.
-The `rtc.use_external_ip` trap stayed with the infrastructure inventory under
-`### What is where`, which it should not be separated from.
+One of the traps here bites people who never open this file, so it stayed in
+AGENTS.md: `APNS_ENV`. The three artifacts that disagree about entitlements are
+in RELEASING.md.
+The `rtc.use_external_ip` trap stayed with the infrastructure inventory, in
+INFRASTRUCTURE.md § *What is where*, which it should not be separated from.
 
 ---
 

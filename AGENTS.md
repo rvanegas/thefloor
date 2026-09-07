@@ -8,11 +8,10 @@ root because it is the one a fresh reader is pointed at; the rest are documents
 you go looking for, and a root directory that lists them all buries the code.
 
 Three of them answer a standing question each. **`planning/BACKLOG.md`** is
-what is known and not done. **`planning/decisions/DECISIONS.md`** is what was
-built and why, including what was deliberately not built.
-**`planning/TASKS.md`** is the roadmap, at a paragraph each — features, but
-also audits, open questions and things to go and find out, which is why it is
-not called FEATURES.
+what is known and not done; **`planning/decisions/DECISIONS.md`** is what was
+built and why, including what was deliberately not built; **`planning/TASKS.md`**
+is the roadmap, at a paragraph each — features, but also audits, open questions
+and things to go and find out, which is why it is not called FEATURES.
 
 **Any verb followed by a quoted string that matches a `##` heading in
 `planning/TASKS.md` is a reference to that entry, and is not itself a
@@ -30,21 +29,33 @@ else, it is a coincidence; read it as context tells you to, and say which way
 you read it. Items in `BACKLOG.md` are named explicitly instead, until this
 convention is extended to cover them.
 
-`DECISIONS` is **more than one file**. `planning/decisions/DECISIONS.md` is
-always the live volume and the only one new decisions are appended to; closed
-volumes are `planning/decisions/DECISIONS-<first date>-to-<last date>.md`, cut
-at a seam that meant something for the first two and **where the line count
-fell** for the ones after, each saying which in its own header. The live
-volume's header carries the index and the rule for closing it. **Grep across
-the set** — `planning/decisions/DECISIONS*.md` — rather than the live one
-alone, or you will search only the last few days of the project's reasoning.
+`DECISIONS` is **more than one file**, and as of 2026-09-07 it is **not
+something to consult as a matter of course.** `planning/decisions/DECISIONS.md`
+is the live volume and the only one new decisions are appended to; closed
+volumes are `planning/decisions/DECISIONS-<first date>-to-<last date>.md`, and
+the live volume's header indexes them and carries the rule for closing it.
+
+**It is archaeology, for the exceptional case.** The set is approaching a
+megabyte across a dozen volumes, and it used to say to grep the whole thing —
+which for a common word like `channel` returns eighty kilobytes and costs more
+than everything else a session reads put together. Enough to know it is there.
+Go into it when a comment or a decision in the code is genuinely inexplicable
+and knowing why it was built that way would change what you do — and then grep
+the headings first (`grep -n '^## ' planning/decisions/DECISIONS*.md`) and read
+the one section, rather than sweeping the prose.
 
 **`planning/RELEASING.md`** answers a fourth, and is different in kind from the
 rest: it is not deferred work or history but standing guidance that was in this
 file until 2026-08-15. Everything only somebody producing an iOS build needs —
 `app.json`'s settings and their reasons, the icon rules that fail at upload,
-`prebuild --clean` dropping the signing team, and **the five verbs** below.
-Read it before `bin/upload-ios`.
+`prebuild --clean` dropping the signing team, the entitlements three artifacts
+disagree about, and **the five verbs** below.
+
+**Read it when you are executing one of the deploy-related verbs, and not
+otherwise.** `deploy`, `upload`, `submit`, `release` — before `bin/deploy`,
+`bin/upload-ios` or `bin/submit-ios`. It is forty-four kilobytes of procedure
+for a day that most sessions never have, and reading it speculatively is the
+single most expensive thing this file used to imply.
 
 **`planning/CREDENTIALS.md`** is the second of that kind, split out the same
 day: the nine credentials, where each lives, what it can do and what losing it
@@ -52,46 +63,39 @@ costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 
 The rest are temporary and say so in their own first lines, and **this file
-names none of them, deliberately.** A list of what is outstanding right now is
-a list that goes stale, and every one this file has kept has been wrong within
-a fortnight — pointing at a design that had shipped, or at a file that had been
-deleted. `ls planning/` is the current list, and each file's first line says
-which kind it is. Two kinds recur: a **design for unbuilt work**, deleted when
-the work ships with whatever survives moving to `decisions/DECISIONS.md`; and a
-**submission's own text**, written by `bin/set-review-notes` and gone when that
-version is approved.
+names none of them, deliberately** — every such list it has kept was wrong
+within a fortnight, pointing at a design that had shipped or a file that had
+been deleted. `ls planning/` is the current list. Two kinds recur: a **design
+for unbuilt work**, deleted when the work ships with whatever survives moving
+to `decisions/DECISIONS.md`; and a **submission's own text**, written by
+`bin/set-review-notes` and gone when that version is approved.
 
-**Go and look for a shipped design's reasoning rather than assuming the task
-says it.** What a design decided is not always what the task that asked for it
-appears to ask for — `decisions/DECISIONS.md` § *The Floor carries no video* is
-the one that caught somebody out — and the queries a design carried usually
-leave as a script in `bin/`, which is then the only thing that reads that data
-at all.
+**A shipped design's reasoning is not always what the task that asked for it
+appears to ask for** — `decisions/DECISIONS.md` § *The Floor carries no video*
+is the one that caught somebody out. This is the exceptional case the section
+above licenses: when you are about to contradict something that was clearly
+decided, go and find the entry. The queries such a design carried usually leave
+as a script in `bin/`, which is then the only thing that reads that data at all.
 
-**`planning/APPREVIEWSCRIPT.md` is standing**, on a narrow premise: Apple does
-not require a demo video, and 1.2.0 went without one. What the file is for is
-the *walk*, which is what found eight defects before 1.0.0; filming is the
-optional half.
+**Two more are standing rather than temporary, and both are read at submission
+time.** `planning/APPREVIEWSCRIPT.md` is the *walk* — what found eight defects
+before 1.0.0 — on the premise that Apple requires no demo video and 1.2.0 went
+without one; filming is the optional half. `planning/DEMO-ACCOUNT.md` is the
+two accounts App Review signs in as, why there are two, and the order they are
+torn down in. **They outlive approval, because every update is reviewed** and
+the notes' credentials have to work each time. Read it before deleting them or
+before touching `REVIEW_IDENTIFIER` / `REVIEW_CODE` on the box — unsetting
+those before the accounts are gone is how the rows become unreachable. The
+credentials are in `~/.config/thefloor/demo-account.txt`, mode 600, on the same
+reasoning as the `.p8` keys.
 
-**`planning/DEMO-ACCOUNT.md`** looked temporary in the same way and is not: the
-two accounts App Review signs in as, why there are two rather than one, and the
-order they have to be torn down in. **They outlive approval, because every
-update is reviewed** and the notes' credentials have to work each time — the
-file said otherwise until the day it mattered. Read it before deleting them, or
-before touching `REVIEW_IDENTIFIER` / `REVIEW_CODE` on the box — unsetting those
-before the accounts are gone is how the rows become unreachable. The credentials
-are not in it; they are in `~/.config/thefloor/demo-account.txt`, mode 600, on
-the same reasoning as the `.p8` keys.
-
-**`planning/STATES.md`** is the third of the standing kind, split out
-2026-08-18: what each state in this system is called in each layer that has a
-word for it, when it holds, and where two layers describe the same thing and can
-differ. Read it before touching the floor, the microphone, presence, or the
-audio session — and before "simplifying" anything that looks stated twice, since
-several of those pairs are load-bearing. It carries the rule that the audio
-session is configured from whether **anybody** present is capturing rather than
-whether you are, and the reason the resulting mono/stereo transition is a
-feature rather than a blemish.
+**`planning/STATES.md`** is the third of the standing kind: what each state is
+called in each layer that has a word for it, when it holds, and where two
+layers describe the same thing and can differ. Read it before touching the
+floor, the microphone, presence, or the audio session — and before
+"simplifying" anything that looks stated twice, since several of those pairs
+are load-bearing. It carries the rule that the audio session is configured from
+whether **anybody** present is capturing rather than whether you are.
 
 **`planning/GLOSSARY.md`** is the fourth, and is **the source of truth for the
 vocabulary**: what every word this project uses means, in two parts — words a
@@ -99,26 +103,35 @@ user meets, and words that exist only in the code. Where a name in the code and
 an entry there disagree, one of them is a bug. Most of these nouns are ordinary
 English used narrowly — *present*, *live*, *member*, *seat* — and reading one
 the way English suggests is how somebody builds the adjacent thing, twice so
-far. **Maintain it as the code evolves**: rename there in the same commit as
-the rename in the code, and add an entry when a word starts to mean something
-the dictionary does not. A lagging source of truth authorises the wrong word.
+far.
+
+**This one is worth reading routinely, and since 2026-09-07 it is cheap to.**
+Its § *Every term, in one line each* is the whole vocabulary, sixty-seven terms
+at a clause apiece, front-loaded so that section alone is enough for ordinary
+work — seven kilobytes rather than forty-two. Read the list; go down to an
+entry only when the one-liner will not settle the question, or when you are
+about to argue with it. These are the terms of communication, so a session that
+has skimmed the list and one that has not are not having the same conversation.
+
+**Maintain it as the code evolves**: rename there in the same commit as the
+rename in the code, and add an entry when a word starts to mean something the
+dictionary does not — **and edit the list at the top in the same breath**, since
+that is the half that gets read. A lagging source of truth authorises the wrong
+word.
 
 Two are one-offs that stay. **`planning/POSTMORTEM-echo.md`** is the build 17
-echo bug, start to finish. Read it before touching the iOS audio session —
-three separate components configure it and the ways they disagree are not
-guessable from the code. **`planning/MIGRATION.md`** is about moving this box:
-it began as the 2026-08-13 migration to a *smaller* instance, built and then
-abandoned before cutover when self-hosting the media inverted its premise, and
-it now carries the sizing argument in both directions. Read it before sizing,
-rebuilding or re-hosting the server, and before trusting `bin/provision`,
-`bin/provision-livekit` or `bin/deploy`'s health check about any box that is not
-the live one.
+echo bug, start to finish — read it before touching the iOS audio session,
+since three separate components configure it and the ways they disagree are not
+guessable from the code. **`planning/MIGRATION.md`** carries the sizing argument
+in both directions, from the 2026-08-13 migration to a *smaller* instance that
+was abandoned before cutover when self-hosting the media inverted its premise.
+Read it before sizing, rebuilding or re-hosting the server, and before trusting
+`bin/provision`, `bin/provision-livekit` or `bin/deploy`'s health check about
+any box that is not the live one.
 
-References between documents inside `planning/` are by bare filename, since
-they are siblings — inside `planning/decisions/` too, whose volumes name each
-other and the rest of the collection bare. From outside, a volume carries
-`decisions/` and a submission's text `submissions/`; code and this file carry
-the `planning/` prefix.
+References inside `planning/` are by bare filename, since they are siblings —
+inside `planning/decisions/` too. From outside, a volume carries `decisions/`
+and a submission's text `submissions/`; code and this file carry `planning/`.
 
 ## Keeping this file small, which is a standing job
 
@@ -129,14 +142,16 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 650 lines, and nearer 600.** It is 649 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 520 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale, claiming 104
-lines of headroom when there were 50. Nothing displaces anything here any more,
-so the file has no reason to climb at all: material arrives only when a rule is
-added, and one should usually leave with it.
+lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
+the file was cut by a fifth and there was no reason to leave the headroom
+behind. Nothing displaces anything here any more, so the file has no reason to
+climb at all: material arrives only when a rule is added, and one should
+usually leave with it.
 
-When it passes 650, **do not shave the traps.** Almost all of the excess will be
+When it passes 550, **do not shave the traps.** Almost all of the excess will be
 one of these:
 
 - **Deploy narrative.** None of it belongs here. A deploy is written up in
@@ -149,46 +164,52 @@ one of these:
 - **The story behind a rule.** Keep the rule and the cost of breaking it; move
   the account of the afternoon it cost, leaving a pointer.
 
-What earns its place here is what stops somebody losing a day: `APNS_ENV`, the
-three artifacts that disagree about entitlements, `rtc.use_external_ip`, the
-`.p8` keys living outside a tree that `bin/deploy` rsyncs with `--delete`. Those
-stay verbatim however long the file gets — the density of the prose is not the
-problem, accumulation is.
+What earns its place here is what stops somebody losing a day: `APNS_ENV`, and
+the `.p8` keys living outside a tree that `bin/deploy` rsyncs with `--delete`.
+Those stay verbatim however long the file gets — the density of the prose is
+not the problem, accumulation is.
 
 **When the traps alone reach the limit, split thematically rather than shave.**
-Take a subject that a whole class of work never touches, move it to
-`planning/` entire, and leave a section here that names the traps it contains
-and says when to go read it. Nothing is summarised away, and the sessions that
-do not need it stop paying for it — which is the same asymmetry the split from
-`planning/` was for, applied one level in. `planning/RELEASING.md` was the first
-of these and `planning/CREDENTIALS.md` the second, and they show the shape: the
-seam is *who needs it*, not *how old it is*.
-
-A trap that bites outside the subject stays here even when it looks like it
-belongs there — `APNS_ENV` reads like release material and costs an afternoon to
-somebody testing push locally, and the `.p8` keys sit outside the tree because
-of `bin/deploy`, so that rule is quoted back into `### Credentials`. A trap
-wrapped around material that is staying does not move either:
-`rtc.use_external_ip` is inside `### What is where`, and separating it from the
-inventory would leave it without the thing it is about.
+Take a subject that a whole class of work never touches, move it to `planning/`
+entire, and leave a section here that names the traps it contains and says when
+to go read it. Nothing is summarised away, and the sessions that do not need it
+stop paying for it — the same asymmetry the split from `planning/` was for,
+applied one level in. RELEASING.md was the first of these, CREDENTIALS.md the
+second and INFRASTRUCTURE.md the third: the seam is *who needs it*, not *how old
+it is*. A trap that bites outside its subject stays here even so — `APNS_ENV`
+reads like release material and costs an afternoon to somebody testing push
+locally, and the `.p8` rule sits in `### Credentials` because of `bin/deploy`.
 
 Trimming is not a separate errand. Do it in the same commit as whatever added
 the material, while the judgement about what is durable is still fresh.
 
-**The `DECISIONS` volumes have a cap of their own: 2,000 lines each.** Not for
-context — nothing loads them unprompted — but because a plain read stops at
-2,000 and what it drops is the tail, which in an append-only file is the newest
-material and the most likely to matter. The notice is easy to miss in a file
-that reads like an archive.
+### The cap that mattered was not this file's
 
-**Roll over rather than look for a seam**, which is the rule as of 2026-08-21:
-if the entry you are about to write would take the live volume past 2,000
-lines, close it first and make that entry the first of the next one. The live
-volume's header says how. The first three volumes were cut at seams that meant
-something and it was worth doing while they were obvious; hunting for one under
-a line-count deadline turns a filing decision into an argument about what an
-epoch is, in the middle of the work that raised it. Volumes closed by rollover
-say so in their own headers, so nobody reads meaning into where they stop.
+Adopted 2026-09-07, after the cost of a session was actually measured and this
+file turned out to be innocent. It had been flat at 38KB since August while
+`planning/` went from nine files and 237KB to forty-three and 1.6MB — seven
+times over, in three weeks. **A fixed sentence here that says *read X* or *grep
+the set* costs whatever X has grown to since somebody wrote it**, which is how
+the bill went up with nothing in this file changing.
+
+So these rules are about what this file **points at**, not only what it holds:
+
+- **A `planning/` document over about 20KB carries its own index** — a contents
+  table of sections and when to read each, or for GLOSSARY.md a line per term.
+  A pointer here can then say *read the index*, and a session pays for the
+  paragraph it needs rather than for the file.
+- **A pointer says when to read the thing, not merely that it exists.** An
+  unconditional *read it* aimed at a file that quadruples is a bill that grows
+  on its own, unsigned by anybody.
+- **The `DECISIONS` volumes have a cap of their own: 2,000 lines each.** Not
+  for context — nothing loads them unprompted, and since 2026-09-07 nothing
+  reads them routinely at all — but because a plain read stops at 2,000 and
+  drops the tail, which in an append-only file is the newest material and the
+  most likely to matter. **Roll over rather than look for a seam**, the rule
+  since 2026-08-21: if the entry you are about to write would take the live
+  volume past 2,000 lines, close it first and make that entry the first of the
+  next one. The live volume's header says how, and volumes closed that way say
+  so, so nobody reads meaning into where they stop.
 
 Line *length* is not a constraint worth thinking about — a read truncates at
 2,000 characters and the prose here wraps at 79.
@@ -301,28 +322,24 @@ are the rules.
   change that carries none. When one verb is asked for and another looks
   necessary to finish the thought, **say so and ask** rather than deciding
   either way — RELEASING.md § *One verb does not imply the others*.
-  **The reason is not the merge and not the race.** Several sessions do work
-  this repository at once from separate worktrees, and `master` moved twice
-  under one session in the afternoon this was written — but sequencing alone
-  could be delegated, to inter-session coordination or to a queue. What cannot
-  be delegated is knowing that a piece of work is *finished*. A session cannot
-  tell whether more will be asked of it in the same context a minute from now;
-  the person at the prompt is holding that picture across every session at
-  once, which ones are done and which are still going. **So it is a rule about
-  who knows the work is over, not about who is careful with git**, and merging
-  well is not a substitute for being asked.
+  **The reason is not the merge and not the race.** Sequencing could be
+  delegated to a queue; what cannot is knowing that a piece of work is
+  *finished*. A session cannot tell whether more will be asked of it a minute
+  from now, and the person at the prompt is holding that picture across every
+  session at once. **So it is a rule about who knows the work is over, not
+  about who is careful with git**, and merging well is not a substitute for
+  being asked.
 
-  Once asked, the mechanics have to assume `master` has moved, which is where
-  the concurrency does bite. **Re-read it at the moment of merging, not
-  before**: rebase
-  onto what is there now, re-run the tests if the rebase moved anything, and
-  only then fast-forward. `--ff-only` is the guard that makes a stale
-  assumption fail loudly instead of inventing a merge commit — use it rather
-  than trusting a fast-forward checked a minute ago. And `git branch -d`
-  refuses a branch whose *upstream* has diverged even when `master` already
-  contains every commit, which is what rebasing an already-pushed branch
-  leaves behind; reading that refusal as "not merged" is how somebody talks
-  themselves out of a landing that was complete.
+  Once asked, the mechanics have to assume `master` has moved — several
+  sessions work this repository at once from separate worktrees. **Re-read it
+  at the moment of merging, not before**: rebase onto what is there now, re-run
+  the tests if the rebase moved anything, and only then fast-forward.
+  `--ff-only` is the guard that makes a stale assumption fail loudly instead of
+  inventing a merge commit. And `git branch -d` refuses a branch whose
+  *upstream* has diverged even when `master` already contains every commit,
+  which is what rebasing an already-pushed branch leaves behind; reading that
+  refusal as "not merged" is how somebody talks themselves out of a landing
+  that was complete.
 - **A fresh worktree has no dependencies. Run `bin/worktree-setup` in it first.**
   The three packages are not an npm workspace: each owns a lockfile and a
   `node_modules`, all ignored, so git populates a worktree with none of them and
@@ -383,19 +400,11 @@ that is this checkout's HEAD or behind it, the compatibility floor and the
 build census, with `--raw` for the body `/healthz` actually returned. Run it
 before believing anything here about the state of production.
 
-What each deploy *was* — which build kept working across which restart, what
-was verified against production, and what shipped before the client that needed
-it — is in planning/decisions/DECISIONS.md under `## The deploy history`,
-newest first. Look there before assuming a behaviour is new, and add an entry
-there when you deploy. This file used to carry the latest one and hand it over
-as the next landed; it went stale twice and is not coming back. See
-decisions/DECISIONS.md § *The most recent deploy is not documentation*.
-
-The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
-`/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
-participants**, every stem being its own egress job. That is a chosen figure and
-raising it is the first move if it ever bites, not a hardware limit —
-`bin/usage peak` says how close it has ever come.
+What each deploy *was* is in planning/decisions/DECISIONS.md under `## The
+deploy history`, newest first — **add an entry there when you deploy.** That
+running record is an exception to the archaeology rule above, being the one
+part of `DECISIONS` still written to as a matter of course. This file used to
+carry the latest deploy and went stale twice; it is not coming back.
 
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
 runs the tests first and refuses to continue if they fail, and refuses a dirty
@@ -403,51 +412,25 @@ tree before it does either — `--dirty` if you mean it.
 
 ### Never ship a wire change to a server before the client can speak it
 
-The 2026-08-10 Session → Channel rename broke every installed client on
-purpose: the server deploys in a minute and a new iOS build reaches a phone via
-App Store Connect processing plus whenever a tester updates, so build 5 was dead
-the instant the server restarted and stayed dead until build 6 landed. It was
-accepted only because the only installs were the author's. **It is not a choice
-that survives having users.** The way to avoid it is the ordinary two-step:
-teach the server the old names as aliases, deploy that first, ship the client,
-remove the aliases a release later. What broke, and the migration that went with
-it, is in the first `DECISIONS` volume.
+The server deploys in a minute; a new iOS build reaches a phone via App Store
+Connect processing plus whenever a tester updates. The 2026-08-10 Session →
+Channel rename therefore killed build 5 the instant the server restarted, and
+it stayed dead until build 6 landed — accepted only because the only installs
+were the author's. **It is not a choice that survives having users.** The way
+to avoid it is the ordinary two-step: teach the server the old names as
+aliases, deploy that first, ship the client, remove the aliases a release
+later.
 
-### What is where
+### The box itself is planning/INFRASTRUCTURE.md
 
-| | |
-| --- | --- |
-| Instance | Lightsail `thefloor`, us-west-2a, Ubuntu 24.04, 2GB, 2 vCPU, $12/mo |
-| Static IP | `44.241.121.49` |
-| DNS | Namecheap, A records `thefloor` **and `livekit`** → that IP |
-| TLS | Caddy, automatic Let's Encrypt, renews itself, two site blocks |
-| Service | systemd `thefloor`, restarts on failure and on boot |
-| Media | systemd `livekit-server` (1.13.5) and `livekit-egress` (`livekit/egress:v1.14.0`, under Docker), plus `redis-server` |
-| Media config | `/etc/livekit/livekit.yaml` and `egress.yaml`, mode 600 |
-| Node | 22, required for the built-in `node:sqlite` |
-| Database | `/home/ubuntu/thefloor-data/thefloor.db`, outside the synced tree |
-| Logs | `journalctl -u thefloor`, `-u caddy`, `-u livekit-server`, `-u livekit-egress` |
-
-Node binds to loopback only; nothing reaches it except through Caddy. So does
-LiveKit's HTTP/WSS port, 7880. What is exposed is the media transport, which
-cannot be otherwise: **7881/TCP** (ICE/TCP) and **7882-7885/UDP** (the mux), open
-to any address, because that is where phones on arbitrary networks send audio.
-Nothing is given up — WebRTC carries its own encryption, and ICE credentials are
-negotiated during signalling, which is behind Caddy and needs a token this server
-signs.
-
-Two media settings are load-bearing and neither announces itself when wrong.
-**`rtc.use_external_ip: true`** is necessary and *not sufficient*: it validates
-the STUN-discovered address with a round trip, so the UDP ports must be open
-before `livekit-server` starts or it silently advertises the private address and
-rooms connect with no audio. Read `journalctl -u livekit-server | grep "using
-external IPs"` — the yaml is no evidence. And **`udp_port` is mutually exclusive
-with `port_range_start`/`end`**; setting both is not an error, the range just
-wins. Both are covered at length in the first `DECISIONS` volume.
-
-The media plane is deliberately *not* in `bin/provision`. It is
-**`bin/provision-livekit`**, a sibling, run after it — which is exactly what a
-second box would need if the media ever splits off this one.
+Split out 2026-09-07, on the same seam as RELEASING.md and CREDENTIALS.md —
+who needs it. The instance, static IP, DNS, TLS, services, which ports are
+exposed and why, and the logs; the two media settings that fail silently when
+wrong (`rtc.use_external_ip`, and `udp_port` being mutually exclusive with
+`port_range_start`/`end`); what the box can carry before recording capacity
+bites; and the known rough edges — what a deploy costs, and what a restart
+does to audio in flight. **Read it before touching the box, before sizing it,
+and before believing a restart is free.**
 
 ### Credentials
 
@@ -489,131 +472,19 @@ working fine.
 The server defaults to `production`, because that is what a deployed server is
 talking to. Set `APNS_ENV=sandbox` when testing against a locally built app.
 
-Two more things that fail quietly and are worth checking before anything else:
+**The entitlement is static and its default is wrong for us**, so `app.json`
+passes `{ "mode": "production" }` — which means `expo run:ios` *requests*
+production too. Requests, not gets: the entitlements file only asks, the
+provisioning profile decides what may be claimed, and a local run is signed
+against a Development profile — so the phone holds a sandbox token however
+`app.json` is set. `codesign -d --entitlements -` on the installed `.app`
+settles what a phone actually has; the file is no evidence.
 
-- **`aps-environment` is static, and its default is wrong for us.** The
-  `expo-notifications` config plugin writes the entitlement once at prebuild
-  time — it does *not* vary by build configuration, and its default is
-  `development`. `app.json` therefore passes `{ "mode": "production" }`, which
-  is what a build headed for TestFlight needs.
-
-  The cost is that `expo run:ios` now *requests* production too. Requests, not
-  gets: the entitlements file only asks, the provisioning profile decides what
-  may be claimed, and what APNs reads is the entitlement in the **signature of
-  the installed binary**. A local run is signed against a Development profile,
-  which permits only `development` — so the phone holds a sandbox token however
-  `app.json` is set. Same three-way split as the table below, seen from the
-  other end.
-
-  To test push against a locally built app, point it at a server running
-  `APNS_ENV=sandbox` — a local one. Not the deployed server: its testers hold
-  production tokens, and flipping it breaks push for all of them at once.
-  Flipping `mode` to `development` is then only housekeeping, making the file
-  agree with what signing was going to do anyway.
-
-  `codesign -d --entitlements - ` on the installed `.app` settles what a phone
-  actually has, the file being no evidence.
-
-- **Check the exported IPA, not the entitlements file and not the archive.**
-  There are three artifacts and they disagree, which makes this easy to get
-  wrong in either direction:
-
-  | | |
-  | --- | --- |
-  | `app/ios/TheFloor/TheFloor.entitlements` | what the app *requests*; the plugin writes it |
-  | `/tmp/thefloor.xcarchive` | signed against a **Development** profile by automatic signing — reads `development` even when the file says `production`, and that is expected |
-  | the exported IPA | re-signed for distribution at export. **This is what ships.** |
-
-  So an archive reading `development` proves nothing. To settle it:
-
-      ASC=~/.config/thefloor/asc
-      KEY=$(ls $ASC/AuthKey_*.p8 | head -1); KID=$(basename "$KEY" .p8); KID=${KID#AuthKey_}
-      xcodebuild -exportArchive -archivePath /tmp/thefloor.xcarchive \
-        -exportPath /tmp/thefloor-check -exportOptionsPlist <plist with
-        destination=export> -allowProvisioningUpdates \
-        -authenticationKeyPath "$KEY" -authenticationKeyID "$KID" \
-        -authenticationKeyIssuerID "$(tr -d '[:space:]' < $ASC/issuer-id)"
-      cd /tmp/thefloor-check && unzip -q TheFloor.ipa -d x
-      codesign -d --entitlements - x/Payload/TheFloor.app | grep -A2 aps-environment
-
-  **The three authentication flags are not optional, and this recipe was
-  missing them until build 36.** Without them the export fails with `No
-  Accounts` and `No signing certificate "iOS Distribution" found` — the export
-  re-signs for distribution, Apple holds that certificate, and fetching it is a
-  signing-asset operation needing the App Store Connect key. It is the same
-  failure `bin/upload-ios` exists to avoid, met by a command that had not been
-  given the same treatment.
-
-  Verified this way for builds 14 through 23, and for **36**: `production`.
-
-  Note that this export **re-signs**, and Xcode's automatic build-number
-  management can bump `CFBundleVersion` while doing it: the check on build 19
-  produced an IPA reading 20 from an archive reading 19. That copy is local and
-  is never uploaded, so it does not matter for what ships — but do not read the
-  number off the *checked* IPA and conclude the wrong build went out. The
-  archive's `Info.plist` is the honest answer, and TestFlight is the final one.
-- **The App ID needs the Push Notifications capability** enabled in the
-  developer portal, or signing refuses the entitlement. It is registered
-  against `co.rvanegas.thefloor`, which survives `prebuild --clean` even though
-  the local `ios/` does not.
-
-### Known rough edges
-
-- **A deploy costs presence, not channels.** `restore()` revives every unended
-  channel from its state blob; what a restart drops is `present`,
-  `disconnectedAt`, the floor and any recording in flight — the process, not
-  the place. This file claimed the opposite for a day after `9761d72` made it
-  false, and was believed.
-- **The 380-day-uptime box is not this one.** dianoia runs on a separate
-  instance and was deliberately left alone — it owns ports 80 and 443 there
-  with its own nginx and certbot.
-- **`tsx` runs TypeScript directly in production.** Fine at this scale and it
-  keeps the cross-package `core/` imports working without a build step, but a
-  compile step would start faster and use less memory if that ever matters.
-- **A deploy now happens next to live audio, and nobody has heard what that
-  sounds like.** `bin/deploy` runs `npm install` on the box and restarts, and
-  since 2026-08-13 the SFU is on that same box. The line above is still true —
-  a deploy costs presence, not channels — but it used to also be true that a
-  deploy could not touch a conversation, *because* the media was elsewhere. That
-  is no longer true. **A deploy that audibly interrupts a call is the signal to
-  move the media plane to its own $7 box**, which the first `DECISIONS` volume
-  argues and `bin/provision-livekit` exists to make cheap. It is worth listening
-  for rather than waiting to be told about.
-
-  **Half-observed on 2026-08-19.** Somebody present through a restart saw
-  nothing: the socket dropped, the client re-entered from the set of channels
-  `socket.ts` keeps for exactly that, and the screen never changed — presence
-  recovery works outside its tests. But **nobody was talking**, so what a
-  restart does to audio in flight is still unheard, and the case worth hearing
-  is a claimed floor rather than silence: a restart drops the floor while the
-  mutes it implied are stated in LiveKit and get restated a tick later by
-  `reconcileSilence`. That gap is where an artefact would live.
-
-  **And an `env-push` restart is the short version of this, not a sample of
-  it.** A deploy installs on the box first, so the process comes back with a
-  cold module cache on 2 vCPU while `tsx` strips the whole server at boot;
-  `env-push` restarts a box nobody touched. On top of that the client retries at
-  500ms × 2ⁿ capped at ten seconds, so what anybody sees is the outage rounded
-  *up* to the next attempt — a two-second restart costs two seconds and a
-  fifteen-second one can cost twenty-five. Each phone is on its own attempt
-  count, so a channel refills raggedly rather than at once.
-- **A floor claim is enforced against a *track*, and tracks are replaced under
-  it.** Fixed on 2026-08-14 and worth knowing before touching `assertSilence`:
-  a phone whose connection flaps rejoins publishing a new track id, which the
-  mute already stated does not name and which is subscribed to by default, so
-  the silenced person becomes audible again while every screen says otherwise.
-  `reconcileSilence` compares what was stated against what the room is actually
-  carrying, once a tick, and restates the difference. **The transition is for
-  latency and the reconciliation is for truth** — do not collapse one into the
-  other. planning/decisions/DECISIONS-2026-08-13-to-2026-08-15.md carries the
-  logs.
-
-
-  The same change retired what used to be the loudest thing in the log by a wide
-  margin — `participant does not exist`, twice a second for as long as a claim
-  lasted, 470 on 2026-08-10 — by asking the room who is in it rather than
-  guessing from channel membership. If it ever comes back, that is the
-  regression.
+Which of three artifacts to check, why an archive reading `development` proves
+nothing, and the `xcodebuild -exportArchive` recipe that settles it — with the
+three authentication flags it needs — are in planning/RELEASING.md § *What the
+app requests, what it gets, and how to check*, along with the App ID's Push
+Notifications capability.
 
 ---
 
@@ -627,9 +498,9 @@ somebody producing a build and by nobody else, which is most sessions.
 
 **Read it before running `bin/upload-ios` or `bin/submit-ios`** — the second
 prepares a submission and deliberately stops before the button, since that
-PATCH is the irreversible half. The two traps that bite outside
-that stayed here: `APNS_ENV` above, and the three artifacts that disagree
-about entitlements.
+PATCH is the irreversible half. The trap that bites outside that stayed here:
+`APNS_ENV` above. The three artifacts that disagree about entitlements went to
+RELEASING.md on 2026-09-07, being a check you only run while making a build.
 
 ---
 

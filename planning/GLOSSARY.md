@@ -24,6 +24,90 @@ glossary is looked things up in, and a thematic order requires knowing the
 answer before finding it. Cross-references are in *italics* and point at the
 entry, not at the part.
 
+## Every term, in one line each
+
+**Front-loaded 2026-09-07 so that reading this section is enough for
+ordinary work.** These are the definitions of the terms of communication and
+the list is the point: skim it, and go down to the full entry only when a
+one-liner is not enough, or when you are about to argue with it. The entries
+below carry the reasoning, the history, and the mistakes each word has already
+caused; the list carries the meaning.
+
+**Words a user meets**
+
+- **Channel** — The place a conversation happens
+- **Channels** — One of Home's two lists: conversations you can walk into, in three sections
+- **Chip in** — The donation link, in Settings
+- **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
+- **Close** — The way off any screen you opened, and the word every one of them uses
+- **Contact** — Somebody you have both agreed to be in touch with
+- **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
+- **Floor, the** — The thing the app is named after
+- **Guest** — Somebody in a channel with no account here, admitted by a member through a *guest link*
+- **Guest link** — A link a member shares that lets somebody open a channel in a browser without an account
+- **Home** — The screen the app opens on and the frame the rest sits in; holds two lists, not one
+- **Invitation** — An ask to join a channel, from whoever actually asked rather than whoever created it
+- **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in
+- **Invite pin** — The six digits at the end of an invite link, good once
+- **Knock** — A named person at the door via a *guest link*, settled by one member answering
+- **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default
+- **Leaderboard** — The invitation standings: who is here because of whom
+- **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
+- **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here
+- **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
+- **Present** — In a channel, able to hear and be heard, right now
+- **Recording** — Audio kept from a channel, started and stopped by anybody present
+- **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
+- **Self-mute** — Your own microphone, closed by you
+- **Step in / Step out** — Entering and leaving a conversation without leaving the channel
+- **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
+- **Username** — A name somebody chooses for themselves, unique across everybody, written with an `@`. Optional, and most people have none
+- **Voice** — One speaker within a transcript
+- **Watch party** — Shared playback in a channel; behind *Labs*, starting side only
+
+**Words that exist only in the codebase**
+
+- **Address** — What a URL says: which list the tier is showing, and what is open over it
+- **Attention** — The clock a web client keeps over its own *standing*, in `app/src/state/attention.ts`
+- **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
+- **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
+- **Claim** — One holding of the *floor*: `floor.holder` plus `claimedAt`
+- **Core** — `core/`, the rules: pure functions over a `ChannelState`, no I/O and no imports outside itself
+- **Detail (pane)** — The right-hand pane of the two-pane layout, above the width breakpoint — the other is the *list*
+- **Detail (what is open)** — The `Detail` type: one value naming the single thing the detail pane is showing
+- **Detail (of a notification level)** — The sublabel under a notification option, saying what that level does
+- **Displaced** — The message telling a session it is no longer the one standing, another device having entered
+- **Egress** — LiveKit's recording jobs
+- **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
+- **Ghost** — A button variant and nothing else: transparent, muted, for a control that must not compete
+- **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
+- **Has the room** — `hasTheRoom` — you are in the channel, or nobody is
+- **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
+- **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
+- **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
+- **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
+- **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
+- **Mix** — The single file a finished recording becomes, made from its *stems*
+- **Mute (four things, one word)** — The word does four jobs and only the first is the user's; they are separated in the entry
+- **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
+- **Playout** — Whether this device is actually rendering the audio it is subscribed to
+- **Protocol** — `core/protocol.ts` — the wire
+- **Pump** — `PlaybackPump` — what *produces* shared playback, as distinct from publishing
+- **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
+- **Restore** — Reviving every unended channel from its state blob at startup
+- **Room** — The media plane's word for a media thing; never appears in the interface, which says *channel*
+- **Run** — One recording from start to stop, identified by a `runId` the server mints
+- **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
+- **Session want — `call`, `idle`** — What this app is asking iOS for, decided in one place (`wantFor`)
+- **Silenced** — Derived from `floor.holder` rather than stored: you are silenced iff somebody else holds the floor
+- **Snapshot** — One `ChannelView` or `HomeView` pushed over the socket
+- **Stem** — One participant's isolated audio from a recording, uploaded by its own *egress* job
+- **Train** — A deployed build of the web app: `/app` (stable) and `/beta` (TestFlight)
+- **Withheld** — `isWithheld` — the single answer to whether this person may be heard
+
+---
+
 ## Maintaining it
 
 **A word gets an entry when it means something the dictionary does not.**
@@ -40,6 +124,12 @@ writing.
 claimed as a source of truth, and a source of truth that lags is worse than no
 file — it authorises the wrong word. The same rule AGENTS.md applies to its own
 line count.
+
+**And an entry is not written until it is in the list at the top.** Adding,
+renaming or retiring a term means two edits, not one, and the list is the half
+that gets read — a term missing from it is, for most sessions, a term that does
+not exist. Keep the line to one clause that says the meaning; the contrast and
+the argument stay down in the entry, which is what the entry is for.
 
 **It is not an index of the code.** Where the reasoning behind a term is long,
 the entry says the term's meaning in a sentence or two and points at the file

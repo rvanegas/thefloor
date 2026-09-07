@@ -27,6 +27,29 @@ either of the other two.
 
 ---
 
+## Contents
+
+Added 2026-09-07. Read the section you need, not the file: this is sixty-two
+kilobytes and almost no question needs all of it.
+
+- Self-Mute
+- Muted-by-Claim
+- Party-Muted
+- Claimed Floor
+- In-App
+- Present-in-Channel
+  - How recent a channel is, which has one answer and a second thing beside it
+- Mic Open
+- Speaking
+- Recording
+- Playing
+- Audio Connected
+- Audio Output Selection
+- Audio Session Configuration
+- Disagreements, numbered
+
+---
+
 ## Self-Mute
 
 **Name in source.** `ChannelState.selfMuted[userId]` (`core/types.ts:209`), a

@@ -108,7 +108,7 @@ sentence, and keeps the enclosure URL stable and ours forever. The cost is that
 the box serves them: 2GB and 2 vCPU, with the SFU on the same machine. A feed
 that catches on means the same file going to thousands of clients over the few
 hours after an episode lands, next to live audio — the same neighbourliness
-problem AGENTS.md § *Known rough edges* already flags for deploys, arriving from
+problem INFRASTRUCTURE.md § *Known rough edges* already flags for deploys, arriving from
 a new direction and with no upper bound.
 
 **Point the enclosure at S3.** Range and bandwidth for free, and the box never

@@ -876,7 +876,7 @@ here is a prediction about a service nobody has called yet.
 
 - **ffmpeg next to live audio.** Rendering N stems is the mix's cost again, on a
   box that is now also the SFU. Run the jobs one at a time and never during a
-  mix. AGENTS.md § *Known rough edges* is the same worry from the deploy side,
+  mix. INFRASTRUCTURE.md § *Known rough edges* is the same worry from the deploy side,
   and the answer if it bites is the same $7 box.
 - **Does bleed actually happen, and is a second speaker label evidence of it?**
   Decided 2026-08-25: **nothing filters**, and the question is narrower than
