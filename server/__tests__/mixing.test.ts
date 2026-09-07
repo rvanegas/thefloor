@@ -257,6 +257,95 @@ describe('a mix that could not be made', () => {
   }, 60_000);
 });
 
+describe('a stem key with no object behind it', () => {
+  /**
+   * **Observed 2026-09-04 as `rec_ub4l1XLe6NCd`.** A six-second solo run whose
+   * egress was stopped before LiveKit's worker had attached: the key was
+   * reserved by `startEgress` and read back by `fileRun` as proof of capture,
+   * and nothing was ever uploaded under it. What that left was a card offering
+   * Play, a mix that could not be made, and an export fetching a key S3 had
+   * never heard of — the same failure every time, for ever.
+   *
+   * `mixWaitMs: 1` rather than `0`, and the difference is the whole test: a
+   * wait that expires is evidence the object is not coming, and a wait that
+   * never happened is not. The suite above pins the second case.
+   */
+  it('is taken back, and the run says nothing was captured', async () => {
+    app.channels.stop();
+    await app.fastify.close();
+    media = new MemoryMediaServer();
+    store = new MemoryRecordingStore();
+    app = buildApp({
+      dbPath: ':memory:',
+      mailer: new MemoryMailer(),
+      media,
+      mediaUrl: 'wss://example.livekit.cloud',
+      store,
+      mixWaitMs: 1,
+      now: () => clock,
+      roomCloseGraceMs: 0,
+    });
+
+    const { alice } = await record({ uploaded: false });
+    await app.channels.mixesSettled();
+
+    const [recording] = app.channels.recordingsFor(alice.account.id);
+    expect(recording).toBeDefined();
+
+    const row = app.db
+      .prepare('SELECT stems, segment_keys, s3_key, failure FROM recordings WHERE id = ?')
+      .get(recording.id) as {
+      stems: string;
+      segment_keys: string;
+      s3_key: string;
+      failure: string | null;
+    };
+
+    // Nothing is claimed that the bucket cannot answer for.
+    expect(JSON.parse(row.stems)).toEqual({});
+    expect(JSON.parse(row.segment_keys)).toEqual([]);
+    expect(row.s3_key).toBe('');
+    // The same words a run that captured nothing at all is filed with, because
+    // it is the same fact arriving late.
+    expect(row.failure).toBe('Nothing was captured — no audio was being published.');
+  }, 60_000);
+
+  /**
+   * The other half of the rule: a mix that failed for its own reasons must not
+   * cost a recording its stems. Here every key is in the bucket and the encode
+   * is what breaks, so there is nothing hollow to take back.
+   */
+  it('leaves a real stem alone when the mix fails for another reason', async () => {
+    app.channels.stop();
+    await app.fastify.close();
+    media = new MemoryMediaServer();
+    store = new MemoryRecordingStore();
+    app = buildApp({
+      dbPath: ':memory:',
+      mailer: new MemoryMailer(),
+      media,
+      mediaUrl: 'wss://example.livekit.cloud',
+      store,
+      mixWaitMs: 1,
+      now: () => clock,
+      roomCloseGraceMs: 0,
+    });
+
+    // Present in the bucket, and not audio — the encode is what will fail.
+    const { alice } = await record({ uploaded: false });
+    for (const { key } of media.recordings) store.put(key, Buffer.from('not ogg'));
+    await app.channels.mixesSettled();
+
+    const [recording] = app.channels.recordingsFor(alice.account.id);
+    const row = app.db
+      .prepare('SELECT stems, failure FROM recordings WHERE id = ?')
+      .get(recording.id) as { stems: string; failure: string | null };
+
+    expect(Object.keys(JSON.parse(row.stems))).not.toHaveLength(0);
+    expect(row.failure).toBeNull();
+  }, 60_000);
+});
+
 describe('recordings made before mixes existed', () => {
   it('are shown, and mix themselves the first time they are asked for', async () => {
     // A row whose mix_state is null is what every recording in the database

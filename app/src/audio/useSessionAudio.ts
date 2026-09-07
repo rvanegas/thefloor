@@ -180,6 +180,29 @@ export interface SessionAudio {
    */
   micOpen: boolean;
   /**
+   * Whether a microphone track is actually published to the room.
+   *
+   * **`micOpen` is the intent and this is the fact, and only one of them is
+   * safe to start a recording on.** `micOpen` is written from `intentFor`
+   * synchronously, before `setMicrophoneEnabled` has been awaited — which is
+   * what it should be, since it answers *is anything I say going out* for a
+   * screen that must not lag the mute control. This is written after that
+   * await resolves, from the publication itself.
+   *
+   * **What needs the difference is `START_RECORDING`.** The server points an
+   * egress at a published track the moment the action arrives, and finding
+   * none is not retried for five seconds — long enough that a run of a few
+   * seconds captures nothing and files a stem key with no object behind it.
+   * See `Channels.dropHollowStems` for what that used to leave. So the app
+   * waits for a real publication before it asks, and the server's first look
+   * finds a track.
+   *
+   * True through a self-mute, because the track stays published: what the
+   * egress needs is something to point at, and `MediaPlane.audioTracks` does
+   * not filter muted ones.
+   */
+  micPublished: boolean;
+  /**
    * Whether this device has a microphone at all.
    *
    * **False is a real state and not a failure to read it.** A Mac mini has no
@@ -498,12 +521,25 @@ function publishedAlready(room: Room): number {
   }
 }
 
-/** The published microphone track, or null when nothing is published. */
+/**
+ * The published microphone track, or null when nothing is published.
+ *
+ * **Never throws, for the reason `publishedAlready` above gives.** It is asked
+ * on the connect path now, where it decides `micPublished` — and a room shaped
+ * slightly differently from the one this expects would otherwise take the
+ * connection down on its way past, which is the fault that rule was learnt
+ * from. Unreadable answers *nothing published*, which is the safe direction:
+ * the worst it costs is a `START_RECORDING` that waits out its two seconds.
+ */
 function micTrack(room: Room) {
-  return (
-    room.localParticipant.getTrackPublication(Track.Source.Microphone)
-      ?.audioTrack ?? null
-  );
+  try {
+    return (
+      room.localParticipant.getTrackPublication(Track.Source.Microphone)
+        ?.audioTrack ?? null
+    );
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -643,6 +679,7 @@ export function useSessionAudio(
     speaking: [],
     failing: [],
     micOpen: false,
+    micPublished: false,
     inputAvailable: true,
     asked: null,
     // Replaced below, once `setGeneration` exists to close over. Never called
@@ -1490,7 +1527,13 @@ export function useSessionAudio(
           await room.localParticipant.setMicrophoneEnabled(true);
         }
         attemptRef.current = 0;
-        update({ status: 'connected', micOpen: intent === 'capturing' });
+        // `micPublished` from the room rather than from the intent: the await
+        // above is the one that either published a track or did not.
+        update({
+          status: 'connected',
+          micOpen: intent === 'capturing',
+          micPublished: micTrack(room) !== null,
+        });
 
         // The gap is the treatment, so it is a timer rather than an await: the
         // connection is finished and usable now, and what is being deferred is
@@ -1778,7 +1821,19 @@ export function useSessionAudio(
             // where somebody's music is let back in — the last person leaving
             // a channel, or a shared track coming to rest.
             .then(() => applyFor(want))
-    ).catch((error: unknown) => {
+    )
+      // The publication as it stands once the chain has settled, which is the
+      // signal `START_RECORDING` waits on. Read from the room rather than
+      // inferred from `intent`, so a publish that iOS refused reads false
+      // instead of claiming a track that is not there — the `.catch` below
+      // leaves it false for exactly that case.
+      .then(() => {
+        const published = micTrack(room) !== null;
+        setState((s) =>
+          s.micPublished === published ? s : { ...s, micPublished: published }
+        );
+      })
+      .catch((error: unknown) => {
       // **Not swallowed, since 2026-09-05.** This chain is where iOS refuses a
       // category it will not grant, and the empty catch that used to be here
       // made the refusal invisible: the log said `capturing CALL` — written

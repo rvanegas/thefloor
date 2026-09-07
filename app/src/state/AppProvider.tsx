@@ -87,6 +87,21 @@ const CONTROL_CARDS_KEY = 'thefloor.controlCards';
  */
 const LABS_KEY = 'thefloor.labs';
 
+/**
+ * How long `START_RECORDING` waits for a microphone before asking anyway.
+ *
+ * **The wait is the point and the ceiling is the safety.** Waiting buys the
+ * server a track to point its egress at from the first instant; the ceiling
+ * means nothing that could go wrong with a microphone can cost somebody the
+ * ability to record at all. A device with no input never publishes, and a
+ * recording of the other party is still worth having.
+ *
+ * Two seconds because a publish on a working connection is comfortably inside
+ * it, and because this is a button somebody just pressed: longer would be felt
+ * as the app ignoring them.
+ */
+const RECORD_PUBLISH_WAIT_MS = 2_000;
+
 /** SecureStore has no web implementation; the browser is only used for checks. */
 const storage = {
   async get(key: string): Promise<string | null> {
@@ -356,6 +371,15 @@ interface AppValue extends AppState {
   watchChannel: (channelId: string) => void;
   leaveChannelView: (channelId: string) => void;
   act: (channelId: string, action: ClientAction) => void;
+  /**
+   * Tells this provider whether a microphone track is published right now.
+   *
+   * The audio hook is mounted above the screens and this provider knows
+   * nothing about rooms, so the one fact `act` needs about the media plane is
+   * handed to it rather than reached for. See the `START_RECORDING` branch of
+   * `act` for what it is needed for.
+   */
+  reportMicPublished: (published: boolean) => void;
   clearError: () => void;
   /**
    * A channel a notification asked to be opened, waiting to be navigated to.
@@ -584,6 +608,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }>({ expired: false, updateUrl: null });
   /** Gives up on a recording request the server never confirmed. */
   const askedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Whether the media plane currently has a microphone track of ours. */
+  const micPublished = useRef(false);
+  /** A `START_RECORDING` held back until there is a track to record. */
+  const pendingRecord = useRef<{
+    channelId: string;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
   const [state, setState] = useState<AppState>({
     ready: false,
     token: null,
@@ -1368,8 +1399,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               s.recordingAsked === channelId ? { ...s, recordingAsked: null } : s
             );
           }, 10_000);
+
+          // **Held until there is a track to record.** The server points an
+          // egress at a published track the instant this action arrives, and
+          // a miss is not retried for five seconds — so asking before the
+          // microphone is up is what produced a six-second run with one
+          // second of audio in it, and a stem key with no object behind it.
+          // See `Channels.dropHollowStems`.
+          //
+          // `recordingAsked` above is what opens the microphone, so this is
+          // waiting on something this very call set in motion. Alone in a
+          // quiet channel with nothing else playing the device is already
+          // open — `waitingAlone` in useSessionAudio — and the wait is
+          // nothing; it is the case with another app playing, where step-in
+          // handed the audio system back, that this exists for.
+          if (!micPublished.current) {
+            if (pendingRecord.current) {
+              clearTimeout(pendingRecord.current.timer);
+            }
+            pendingRecord.current = {
+              channelId,
+              timer: setTimeout(() => {
+                pendingRecord.current = null;
+                realtime.act(channelId, action);
+              }, RECORD_PUBLISH_WAIT_MS),
+            };
+            return;
+          }
+        }
+        // Nothing to wait for any more: a run being stopped, or a channel
+        // being left, is an answer to the held request as much as a
+        // microphone would have been.
+        if (
+          pendingRecord.current &&
+          (action.type === 'STOP_RECORDING' ||
+            action.type === 'STEP_OUT' ||
+            action.type === 'LEAVE_CHANNEL')
+        ) {
+          clearTimeout(pendingRecord.current.timer);
+          pendingRecord.current = null;
+          setState((s) =>
+            s.recordingAsked === channelId ? { ...s, recordingAsked: null } : s
+          );
         }
         realtime.act(channelId, action);
+      },
+
+      reportMicPublished: (published) => {
+        micPublished.current = published;
+        const pending = pendingRecord.current;
+        if (!published || !pending) return;
+        clearTimeout(pending.timer);
+        pendingRecord.current = null;
+        realtime.act(pending.channelId, { type: 'START_RECORDING' });
       },
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),

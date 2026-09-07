@@ -4689,6 +4689,10 @@ export class ChannelRegistry {
         await this.mix(recordingId, { wait: true });
       } catch (error) {
         this.onMediaError(error, `mix ${recordingId}`);
+        // Before the state changes, because `'unmixed'` is a promise that the
+        // audio can be encoded on demand and this is what establishes whether
+        // that promise can be kept.
+        await this.dropHollowStems(recordingId);
         this.db
           .prepare(
             `UPDATE recordings SET mix_state = 'unmixed'
@@ -4704,6 +4708,97 @@ export class ChannelRegistry {
       }
     })();
     this.mixing.set(recordingId, work);
+  }
+
+  /**
+   * Takes back the stem keys the bucket has no object for.
+   *
+   * A key is *reserved* by `startEgress` before LiveKit has accepted
+   * anything, and read back by `fileRun` as proof that something was
+   * captured. Between those two the egress can be stopped before its worker
+   * ever attaches, which writes no object at all — a run of a few seconds, on
+   * a microphone that opened partway through it, is enough. Observed
+   * 2026-09-04 on `rec_ub4l1XLe6NCd`.
+   *
+   * What that leaves is worse than a failure because it does not look like
+   * one: a card offering Play, a mix that cannot be made, and an export that
+   * fetches a key S3 has never heard of. So a mix that failed is asked the
+   * narrower question — *which of these keys is real* — and the row is
+   * rewritten to claim only those.
+   *
+   * **A key is dropped only on a fetch that already had its wait, and a wait
+   * of zero is not one.** The caller is the mix, which polls `getWhenReady`
+   * for ten minutes before giving up, so an object still in flight is not
+   * what this sees — what it sees is an object that is not coming. Where the
+   * wait was configured away there is no such evidence and nothing is
+   * dropped: `mixWaitMs: 0` is a harness saying *do not wait*, and a stem that
+   * arrives a moment later is the transient failure `__tests__/mixing.test.ts`
+   * pins the recovery from.
+   *
+   * **Every failure counts as absent, and it has to.** Without
+   * `s3:ListBucket` the bucket answers a missing key with `AccessDenied`
+   * naming the *list* permission rather than `NoSuchKey` — it will not
+   * confirm or deny existence to a caller who cannot list — so the two cases
+   * are not distinguishable from here. Treating an outage as absence is the
+   * cost, and it is bounded: the row keeps its duration, its roster and its
+   * name, and loses only a claim to audio that could not be fetched.
+   */
+  private async dropHollowStems(recordingId: string): Promise<void> {
+    const store = this.store;
+    if (!store) return;
+    // No wait means no evidence. See the note above.
+    if (this.mixWaitMs === 0) return;
+    const row = this.db
+      .prepare('SELECT * FROM recordings WHERE id = ?')
+      .get(recordingId) as unknown as RecordingRow | undefined;
+    if (!row) return;
+
+    const stems: Record<string, Array<{ key: string; startMs: number }>> =
+      parseJson(row.stems) ?? {};
+    const hollow = new Set<string>();
+    for (const segments of Object.values(stems)) {
+      for (const segment of segments) {
+        try {
+          await store.get(segment.key);
+        } catch {
+          hollow.add(segment.key);
+        }
+      }
+    }
+    // The mix failed for some other reason — an encode, a write, a bucket
+    // briefly unreachable and not any more. Nothing here is wrong, and
+    // rewriting the row on the strength of it is the destructive answer.
+    if (hollow.size === 0) return;
+
+    const kept: Record<string, Array<{ key: string; startMs: number }>> = {};
+    for (const [identity, segments] of Object.entries(stems)) {
+      const surviving = segments.filter((segment) => !hollow.has(segment.key));
+      if (surviving.length > 0) kept[identity] = surviving;
+    }
+    const flat = Object.values(kept)
+      .flat()
+      .map((segment) => segment.key);
+
+    // The same words `fileRun` uses for a run that ended with no stems at
+    // all, because it is the same fact arriving late. Said once, so a reader
+    // is not left deciding whether two messages mean two things.
+    const failure =
+      flat.length === 0
+        ? 'Nothing was captured — no audio was being published.'
+        : row.failure;
+
+    this.db
+      .prepare(
+        `UPDATE recordings SET stems = ?, segment_keys = ?, s3_key = ?,
+                failure = ? WHERE id = ?`
+      )
+      .run(
+        JSON.stringify(kept),
+        JSON.stringify(flat),
+        flat[0] ?? '',
+        failure,
+        recordingId
+      );
   }
 
   /**

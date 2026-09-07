@@ -39,6 +39,9 @@ const mockApp = {
   status: 'open' as const,
   lastError: null,
   serverNow: () => NOW,
+  // The wire App.tsx runs from `audio.micPublished`; see the provider's own
+  // tests for what it is for.
+  reportMicPublished: jest.fn(),
   requestCode: jest.fn(),
   verify: jest.fn(),
   signOut: jest.fn(),
@@ -113,6 +116,7 @@ jest.mock('../src/audio/useSessionAudio', () => ({
     // ChannelView reads it per participant, and this file renders that screen.
     failing: [],
     micOpen: true,
+    micPublished: true,
     }
   ),
 }));

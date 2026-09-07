@@ -212,6 +212,8 @@ export const AUDIO = {
   speaking: [] as string[],
   failing: [] as string[],
   micOpen: true,
+  // A track is published, matching `micOpen`: the ordinary connected case.
+  micPublished: true,
   // A microphone exists, which is the ordinary case and the one every view
   // test means. `channel.test.tsx` is where the other one is rendered.
   inputAvailable: true,

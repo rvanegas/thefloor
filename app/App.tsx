@@ -185,6 +185,18 @@ function Root() {
   );
 
   /**
+   * Hands the provider the one media-plane fact `act` needs.
+   *
+   * `AppProvider` holds `START_RECORDING` back until a microphone track
+   * exists, and it has no room to ask. This is the only place both halves are
+   * in scope, which is why the wire is here and not there.
+   */
+  const reportMicPublished = app.reportMicPublished;
+  useEffect(() => {
+    reportMicPublished(audio.micPublished);
+  }, [reportMicPublished, audio.micPublished]);
+
+  /**
    * Told without words that you are talking to nobody.
    *
    * Here rather than in `ChannelView` for the same reason the audio is: it
