@@ -8,7 +8,7 @@ Voice conversation between people who know each other. A channel holds up to
 six and outlasts a conversation; anyone present may claim "the floor",
 withholding every other microphone for a minute. New: iPad, one Home for
 channels and contacts, single-use invite links, and a Labs setting, off by
-default, hiding two unfinished features.
+default, hiding two unfinished features; every Settings switch starts off.
 
 3. GETTING IN AND REACHING FEATURES
 No passwords; a six-digit code is emailed. This account has a fixed

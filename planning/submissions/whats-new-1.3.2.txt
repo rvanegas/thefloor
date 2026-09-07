@@ -8,6 +8,8 @@ You can choose a username on your profile — five characters or more, letters, 
 
 Transcripts and watch parties are behind a new setting, "Show experimental features", under Labs in Settings, and it is off to begin with. Until you turn it on, Transcribe is not on a recording and "Watch something together" is not in a channel.
 
+Two settings have new names, each naming what turning it on does. "Tap a channel to step in" is now "Tap a channel to look, not step in", and "Repeat the channel controls as cards" is now "Hide the repeated channel controls". What you had chosen is kept.
+
 The Headphones setting "Keep the connection steady" is gone, and headphones now hold the speaking connection whenever there is audio in the channel, for everybody.
 
 Stepping into a quiet channel leaves whatever else you are playing running. If something else is playing while you would be waiting alone in a channel, you are stepped out to Nearby rather than held there present.
