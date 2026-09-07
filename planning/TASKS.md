@@ -4,27 +4,56 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Guest Link to Contact
+## New Screenshots for App Store
 
-Currently, guest links navigate to listening then speaking in a channel, optionally without an account. The link sent by "Add a Contact" is currently just the static link to the app store. This was put in place before the development of the web app. Now it seems it would be better to have the link go to the web app, such that signing in, results implicitly in accepting the contact request from the user who generated the link.
+Look has changed.
 
-Additionally, the web app should include a prominently placed button instructing the user to install the native app, for now iphone, to enable notifications.
+## Labs Setting
+
+Add a setting cleared by default, such that if set, experimental features are visible and enabled. These include transcripts, and the watch party.
+
+## Rule B
+
+If a user steps into an empty channel and backgrounds the app in CALL mode, then he is forcibly stepped out after 15m. Does this rule apply to users who after others have left, finds himself in a newly empty channel while app is backgrounded?
+
+## Add Contact Invite Link 
+
+Currently, guest links navigate to listening then speaking in a channel, optionally without an account. The link sent by "Add a Contact" is currently just the static link to the app store. This was put in place before the development of the web app. Now it would be better to have the link go to the web app, such that signing in, results implicitly in accepting the contact request from the user who sent the email. The link itself should be determined by the user's username. Since usernames are optional, view displayed when "Add a Contact" is pressed, should have two sections. The first, containing what is there now. The second, conditional on whether a username has been set. If it has been set, 
+
+  [Copy Invite Link]
+  
+If not,
+
+  "To generate an invite link,"
+  [Choose a Username]
+
+where the latter action navigates to Profile Edit View.
+
+Additionally, the web app should include a prominently placed button instructing the new user to install the native app, for now, iphone, to enable notifications.
+
+## Media Transience
+
+Why does media loaded for playback not persist?
+
+## Audio Announcement
+
+When member steps in or steps out, there ought to be an audible announcement, such as two inverse distinguishable subtle chimes.
 
 ## UI Restyling
 
 Improve look and feel
 
-## Call if you must
+## Call if You Must
 
 special case
 
-## many step ins
+## Many Step Ins
 
 only one step in live room
 
-## Clarify "live" in Glossary
+## Clarify "Live" in Glossary
 
-
+Apparently it is ambiguous.
 
 ## Keep Alive During Watch Party
 
@@ -33,6 +62,10 @@ Since there's no speaking, there must be another way.
 ## PIP Watch Party
 
 Small video in the corner.
+
+## App as Watch Party Player
+
+If watch party is started and a there is a second session with the same account, let the second app become the player.
 
 ## Review S3
 
@@ -45,10 +78,6 @@ explore options in case screen locks during a call. lock screen, control center,
 ## SMS Authentication
 
 Not just email.
-
-## App as Watch Party Player
-
-If watch party is started and a there is a second session with the same account, let the second app become the player.
 
 ## API to Create Telegram or Whatsapp Group Chat
 
