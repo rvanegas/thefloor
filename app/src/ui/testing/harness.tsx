@@ -165,25 +165,25 @@ export const mockApp = {
   setAppearance: jest.fn((preference: 'light' | 'dark' | 'system') => {
     mockApp.appearance = preference;
   }),
-  // On, which is what an install that has never opened Settings has, and what
-  // every build before the setting existed did. The tests about stepping in
-  // being deliberate are the only ones that turn it off.
-  tapToStepIn: true,
-  setTapToStepIn: jest.fn((value: boolean) => {
-    mockApp.tapToStepIn = value;
+  // Off, which is what an install that has never opened Settings has: a tap
+  // steps in, as it did in every build before the setting existed. The tests
+  // about stepping in being deliberate are the only ones that turn it on.
+  tapToLook: false,
+  setTapToLook: jest.fn((value: boolean) => {
+    mockApp.tapToLook = value;
   }),
-  // On, for the same reason and with the same consequence: the channel screen
+  // Off, for the same reason and with the same consequence: the channel screen
   // draws a card for each of its footer's three controls unless a test says
   // otherwise, so every assertion written before the setting existed is still
   // asserting about the screen everybody gets.
-  controlCards: true,
-  setControlCards: jest.fn((value: boolean) => {
-    mockApp.controlCards = value;
+  hideControlCards: false,
+  setHideControlCards: jest.fn((value: boolean) => {
+    mockApp.hideControlCards = value;
   }),
-  // Off, which is what every account has until somebody asks. The tests about
-  // the watch party turn it on, in as many words, which is the point: a screen
-  // that draws a watch card without it would be a screen no ordinary account
-  // ever sees.
+  // Off, which is what every account has until somebody asks — as it is for
+  // all three of these now. The tests about the watch party turn it on, in as
+  // many words, which is the point: a screen that draws a watch card without
+  // it would be a screen no ordinary account ever sees.
   labs: false,
   setLabs: jest.fn((value: boolean) => {
     mockApp.labs = value;
@@ -429,8 +429,8 @@ export function resetHarness(): void {
   mockApp.updateUrl = null;
   mockApp.status = 'open';
   mockApp.appearance = 'system';
-  mockApp.tapToStepIn = true;
-  mockApp.controlCards = true;
+  mockApp.tapToLook = false;
+  mockApp.hideControlCards = false;
   mockApp.labs = false;
   mockApp.debug = false;
   uploads.length = 0;

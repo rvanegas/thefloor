@@ -75,6 +75,7 @@ about rather than the file — this is eighty-seven kilobytes.
 - `/app/` with a trailing slash is a 403
 - The left pane has no selected-row highlight
 - Whether iPadOS 26 still honours `UIRequiresFullScreen`
+- The two renamed settings still answer to their old names on the wire
 - Known defects
 - Untested behaviour
 
@@ -1562,6 +1563,30 @@ where `UISceneSizeRestrictions` notes that `allowsFullScreen` is "currently
 only honored on Mac Catalyst", which reads as though the retreat is gone.
 
 Worth settling before anyone plans on being able to opt back out.
+
+## The two renamed settings still answer to their old names on the wire
+
+`tapToStepIn` and `controlCards` became `tapToLook` and `hideControlCards` on
+2026-09-07, each the negation of what it replaced, so that every boolean
+account setting defaults to false — see decisions/
+2026-09-07-every-boolean-setting-defaults-to-false.md. Every build in anybody's
+hands reads the old names, so the server sends both and accepts either:
+`server/src/settings-wire.ts` is that whole arrangement, and it is written to
+be deleted in one piece, along with the two tests in `settings.test.ts` that
+name it and the legacy keys the answers carry in `ws.test.ts`.
+
+**Delete it once `MIN_SUPPORTED_BUILD` has passed the first build that speaks
+the new names**, which is the next one uploaded. Not before: an install below
+the floor is shown the update screen and disconnects, and until that is true of
+every build that predates this, one of them is out there reading the answer to
+`POST /me/settings` and finding neither of its channel settings in it.
+
+The app's cache of the last answer has the same shape and the same expiry:
+`LEGACY_TAP_TO_STEP_IN_KEY` and `LEGACY_CONTROL_CARDS_KEY` in `AppProvider`,
+read only when the current key is missing, negated on the way in, and removed
+the moment the server states anything. That half is cheaper to be wrong about —
+it is a cache, so the cost is one second of the wrong answer at a cold start
+rather than a setting — but it goes with the other half.
 
 ---
 

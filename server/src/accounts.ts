@@ -460,14 +460,14 @@ export class Accounts {
       appearance: isColorSchemePreference(row.appearance)
         ? row.appearance
         : DEFAULT_ACCOUNT_SETTINGS.appearance,
-      tapToStepIn:
-        row.tap_to_step_in === null
-          ? DEFAULT_ACCOUNT_SETTINGS.tapToStepIn
-          : row.tap_to_step_in === 1,
-      controlCards:
-        row.control_cards === null
-          ? DEFAULT_ACCOUNT_SETTINGS.controlCards
-          : row.control_cards === 1,
+      tapToLook:
+        row.tap_to_look === null
+          ? DEFAULT_ACCOUNT_SETTINGS.tapToLook
+          : row.tap_to_look === 1,
+      hideControlCards:
+        row.hide_control_cards === null
+          ? DEFAULT_ACCOUNT_SETTINGS.hideControlCards
+          : row.hide_control_cards === 1,
       labs: row.labs === null ? DEFAULT_ACCOUNT_SETTINGS.labs : row.labs === 1,
     };
   }
@@ -499,15 +499,15 @@ export class Accounts {
         .prepare('UPDATE accounts SET appearance = ? WHERE id = ?')
         .run(changes.appearance, accountId);
     }
-    if (changes.tapToStepIn !== undefined) {
+    if (changes.tapToLook !== undefined) {
       this.db
-        .prepare('UPDATE accounts SET tap_to_step_in = ? WHERE id = ?')
-        .run(changes.tapToStepIn ? 1 : 0, accountId);
+        .prepare('UPDATE accounts SET tap_to_look = ? WHERE id = ?')
+        .run(changes.tapToLook ? 1 : 0, accountId);
     }
-    if (changes.controlCards !== undefined) {
+    if (changes.hideControlCards !== undefined) {
       this.db
-        .prepare('UPDATE accounts SET control_cards = ? WHERE id = ?')
-        .run(changes.controlCards ? 1 : 0, accountId);
+        .prepare('UPDATE accounts SET hide_control_cards = ? WHERE id = ?')
+        .run(changes.hideControlCards ? 1 : 0, accountId);
     }
     if (changes.labs !== undefined) {
       this.db

@@ -178,7 +178,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         gives; the cards are about the same screen once you are looking at it.
       */}
       <Card style={styles.stack}>
-        <Text style={type.heading}>Tap a channel to step in</Text>
+        <Text style={type.heading}>Tap a channel to look, not step in</Text>
         <View style={styles.choices}>
           {(
             [
@@ -190,29 +190,33 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
               key={label}
               label={label}
               style={styles.choice}
-              variant={app.tapToStepIn === value ? 'primary' : 'default'}
-              onPress={() => app.setTapToStepIn(value)}
+              variant={app.tapToLook === value ? 'primary' : 'default'}
+              onPress={() => app.setTapToLook(value)}
             />
           ))}
         </View>
         <Text style={type.muted}>
-          On, tapping a channel walks you into it and everyone there can hear
-          you. Off, it only opens the channel — you can see who is around and
-          read what has been shared, and step in when you mean to.
+          Off, which is where everybody starts: tapping a channel walks you
+          into it and everyone there can hear you. On, a tap only opens the
+          channel — you can see who is around and read what has been shared,
+          and step in when you mean to.
         </Text>
 
         <View style={styles.divider} />
 
         {/*
-          Named by what it draws rather than by a word like "compact", and the
-          second paragraph names what goes with the cards. What goes is a way
+          Named by what it stops drawing rather than by a word like "compact",
+          and the second paragraph names what goes with the cards. Named for
+          the departure, like the tap above it and Labs below, so that Off is
+          the untouched answer on every setting here — see
+          DEFAULT_ACCOUNT_SETTINGS in core/settings.ts. What goes is a way
           of doing something a second time and nothing else: the floor keeps
           its card, minus the button, so the countdown and the sentence saying
           why a claim is refused stay on the screen either way. A setting that
           quietly stopped a screen explaining itself would be discovered at
           exactly the moment the explanation was wanted.
         */}
-        <Text style={type.heading}>Repeat the channel controls as cards</Text>
+        <Text style={type.heading}>Hide the repeated channel controls</Text>
         <View style={styles.choices}>
           {(
             [
@@ -224,16 +228,17 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
               key={label}
               label={label}
               style={styles.choice}
-              variant={app.controlCards === value ? 'primary' : 'default'}
-              onPress={() => app.setControlCards(value)}
+              variant={app.hideControlCards === value ? 'primary' : 'default'}
+              onPress={() => app.setHideControlCards(value)}
             />
           ))}
         </View>
         <Text style={type.muted}>
           A channel keeps the floor, your microphone and the way out under your
-          thumb at all times. On, each of them also has a card further down the
-          screen. Off, the bar is the whole of them and the screen below is who
-          is in the room and what the room is carrying.
+          thumb at all times. Off, which is where everybody starts, each of
+          them also has a card further down the screen. On, the bar is the
+          whole of them and the screen below is who is in the room and what the
+          room is carrying.
         </Text>
         <Text style={type.muted}>
           The floor is the exception: its card stays either way, with the

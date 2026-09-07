@@ -83,7 +83,7 @@ here, and it is the same shape of record, so it is the same shape of field.
    already walking into is the app inventing an event.
 7. **The page navigates the tab to the address the server hands back.** One
    hop, at the end, with the decision already made and the membership already
-   real. He arrives as himself, and `tapToStepIn` puts him back in the room on
+   real. He arrives as himself, and `tapToLook` puts him back in the room on
    the rule that governs opening any channel.
 
    **The microphone is handed back before the hop, explicitly.** Disconnecting
@@ -97,7 +97,7 @@ here, and it is the same shape of record, so it is the same shape of field.
    **And it arrives stepped in.** The intent travels in this tab's
    `sessionStorage`, written by this page and taken once by the app — it was
    `?enter=1` on the address until 2026-09-04, when the ids and the query left
-   the addresses together; see `app/src/ui/handover.ts`. `tapToStepIn` is
+   the addresses together; see `app/src/ui/handover.ts`. `tapToLook` is
    not consulted — that setting is about a list of rooms where a tap is as
    likely to be curiosity as intent, and somebody who was audible in this room
    a second ago is not curious about it.

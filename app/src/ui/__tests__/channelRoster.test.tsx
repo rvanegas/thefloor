@@ -1115,7 +1115,7 @@ describe('a channel screen without the repeated cards', () => {
   };
 
   const showBare = (channel = channelOf()) => {
-    mockApp.controlCards = false;
+    mockApp.hideControlCards = true;
     showChannel(channel);
     return render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
@@ -1220,7 +1220,7 @@ describe('a channel screen without the repeated cards', () => {
   });
 
   it('says it exactly once when the cards are drawn', () => {
-    mockApp.controlCards = true;
+    mockApp.hideControlCards = false;
     showChannel(
       channelOf((c) =>
         reduce(
@@ -1243,7 +1243,7 @@ describe('a channel screen without the repeated cards', () => {
    * would otherwise discover by doing it.
    */
   it('still says the channel is held on another device', () => {
-    mockApp.controlCards = false;
+    mockApp.hideControlCards = true;
     mockApp.displaced = true;
     showChannel(channelOf());
     // Present in the room, not on this device: the case the sentence is for.

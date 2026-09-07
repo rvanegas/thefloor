@@ -312,9 +312,14 @@ describe('websocket', () => {
     await client.open();
     expect((await client.next('hello')).settings).toEqual({
       appearance: 'system',
+      tapToLook: false,
+      hideControlCards: false,
+      labs: false,
+      // The two names builds already installed know, sent beside the current
+      // ones so that a phone that has not been updated reads a hello from this
+      // server as the settings it has always had. See settings-wire.ts.
       tapToStepIn: true,
       controlCards: true,
-      labs: false,
     });
     client.close();
 
@@ -324,8 +329,8 @@ describe('websocket', () => {
       headers: auth(token),
       payload: {
         appearance: 'dark',
-        tapToStepIn: false,
-        controlCards: false,
+        tapToLook: true,
+        hideControlCards: true,
         labs: true,
       },
     });
@@ -333,9 +338,11 @@ describe('websocket', () => {
     await later.open();
     expect((await later.next('hello')).settings).toEqual({
       appearance: 'dark',
+      tapToLook: true,
+      hideControlCards: true,
+      labs: true,
       tapToStepIn: false,
       controlCards: false,
-      labs: true,
     });
     later.close();
   });
@@ -375,9 +382,15 @@ describe('websocket', () => {
     for (const client of [phone, tablet]) {
       expect((await client.next('settings')).settings).toEqual({
         appearance: 'dark',
+        tapToLook: false,
+        hideControlCards: false,
+        labs: false,
+        // Both names here too, and that is the point of putting the
+        // translation in one function: a client that learnt one shape from the
+        // hello and another from this event would be the same bug in a harder
+        // place to find.
         tapToStepIn: true,
         controlCards: true,
-        labs: false,
       });
     }
     expect(bobs.received.some((m) => m.type === 'settings')).toBe(false);

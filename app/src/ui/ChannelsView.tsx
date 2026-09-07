@@ -185,14 +185,14 @@ export function ChannelsView({
    * What a tap on a channel does, which is one of two things.
    *
    * By default it is arriving: ENTER, and the others can hear you the moment
-   * the screen opens. With "Tap a channel to step in" off it is only looking —
+   * the screen opens. With "Tap a channel to look" on it is only looking —
    * the channel screen opens, offering Step In where it would offer Step Out,
    * and nothing about presence has changed. The screen subscribes to the
    * channel itself, so a snapshot arrives either way; watching has never been
    * being there. See ChannelView.
    */
   const openChannel = (channelId: string) => {
-    if (app.tapToStepIn) app.act(channelId, { type: 'ENTER' });
+    if (!app.tapToLook) app.act(channelId, { type: 'ENTER' });
     onEnterChannel(channelId);
   };
 
@@ -291,7 +291,7 @@ export function ChannelsView({
                     ? openSeat(card.channelId)
                     : openChannel(card.channelId)
                 }
-                stepsIn={app.tapToStepIn}
+                stepsIn={!app.tapToLook}
                 onDecline={
                   card.kind === 'invite' ? () => declineInvite(card) : undefined
                 }
@@ -315,7 +315,7 @@ export function ChannelsView({
                     ? openSeat(card.channelId)
                     : openChannel(card.channelId)
                 }
-                stepsIn={app.tapToStepIn}
+                stepsIn={!app.tapToLook}
                 onDecline={() => declineInvite(card)}
               />
             ))}
@@ -344,7 +344,7 @@ export function ChannelsView({
                     ? openSeat(card.channelId)
                     : openChannel(card.channelId)
                 }
-                stepsIn={app.tapToStepIn}
+                stepsIn={!app.tapToLook}
               />
             ))}
           </View>

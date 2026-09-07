@@ -112,24 +112,31 @@ export interface AccountRow {
    */
   appearance: string | null;
   /**
-   * Whether tapping a channel on Home steps into it: 1 for yes, 0 for no,
-   * null for never having said — which reads as the default, and the default
-   * is on. Null and 1 therefore mean the same thing today, for the reason
-   * above.
+   * Whether tapping a channel on Home only opens it rather than stepping in:
+   * 1 for yes, 0 for no, null for never having said — which reads as the
+   * default, and the default is off. Null and 0 therefore mean the same thing
+   * today, for the reason above.
+   *
+   * Was `tap_to_step_in`, holding the negation of this, until the 2026-09-07
+   * migration below turned it over. See `tapToLook` in core/settings.ts.
    */
-  tap_to_step_in: number | null;
+  tap_to_look: number | null;
   /**
-   * Whether the channel screen repeats its footer's three controls as cards
-   * further down: 1 for yes, 0 for no, null for never having said. The
-   * default is on, so null and 1 mean the same thing today — for the reason
-   * above, which is why the untouched case is still stored as null.
+   * Whether the channel screen has stopped repeating its footer's three
+   * controls as cards further down: 1 for yes, 0 for no, null for never
+   * having said. The default is off, so null and 0 mean the same thing today
+   * — which is why the untouched case is still stored as null.
+   *
+   * Was `control_cards`, holding the negation of this, until the same
+   * migration.
    */
-  control_cards: number | null;
+  hide_control_cards: number | null;
   /**
    * Whether this account has asked to see the experimental features: 1 for
-   * yes, 0 for no, null for never having said. The default is *off*, so null
-   * and 0 mean the same thing today — the same argument as the two above,
-   * pointing the other way. See `labs` in core/settings.ts.
+   * yes, 0 for no, null for never having said. The default is off, so null
+   * and 0 mean the same thing today — the same argument as the two above, and
+   * since 2026-09-07 pointing the same way as both of them. See `labs` in
+   * core/settings.ts.
    */
   labs: number | null;
   /**
@@ -424,12 +431,15 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- headset in somebody's ears rather than about them, and lives on the phone.
   -- See core/settings.ts and the row type above for why the untouched case is
   -- null rather than the default written down.
-  appearance     TEXT,
-  tap_to_step_in INTEGER,
-  control_cards  INTEGER,
+  appearance         TEXT,
+  tap_to_look        INTEGER,
+  hide_control_cards INTEGER,
   -- Whether the experimental features are visible to this account, null until
-  -- somebody says. Off is the default here, unlike the two above.
-  labs           INTEGER,
+  -- somebody says. Off is the default here, as it is for all three: each of
+  -- these booleans is named for the departure from what an untouched account
+  -- gets, so null, 0 and the default are the same answer in every one of
+  -- them. See DEFAULT_ACCOUNT_SETTINGS in core/settings.ts.
+  labs               INTEGER,
   -- The name this person chose for themselves, without its at, and null until
   -- they choose one — which most never will, it being optional and doing
   -- nothing yet. Stored as typed; uniqueness is judged folded, by the
@@ -1390,13 +1400,49 @@ function migrate(db: Db): void {
   // that block already has `appearance`, so anything added inside it would
   // never run there. One column, one guard, is the only arrangement that
   // survives columns being added on different days.
-  if (!accountColumns.some((c) => c.name === 'control_cards')) {
+  if (
+    !accountColumns.some(
+      (c) => c.name === 'control_cards' || c.name === 'hide_control_cards'
+    )
+  ) {
     db.exec('ALTER TABLE accounts ADD COLUMN control_cards INTEGER');
   }
   // One column, one guard, for the reason the comment above gives — this one
   // arrived on 2026-09-06, days after both of them.
   if (!accountColumns.some((c) => c.name === 'labs')) {
     db.exec('ALTER TABLE accounts ADD COLUMN labs INTEGER');
+  }
+  // The 2026-09-07 turn: both channel settings were stored as the thing they
+  // switched *on* and defaulted to 1, and are now stored as the departure from
+  // the default and read as 0 when null. The rename and the inversion have to
+  // happen together — a column called `tap_to_look` holding what
+  // `tap_to_step_in` held would be silently backwards for every account that
+  // had chosen, and the two names would be indistinguishable afterwards. See
+  // DEFAULT_ACCOUNT_SETTINGS in core/settings.ts for why they were turned over.
+  //
+  // Re-read rather than using `accountColumns`, which is the snapshot from
+  // before the blocks above ran: on a database old enough to be missing
+  // `appearance`, `tap_to_step_in` was added a few lines ago and the snapshot
+  // does not know it. The guard is the presence of the old name, so a second
+  // boot finds nothing to do.
+  const renamedColumns = db
+    .prepare('PRAGMA table_info(accounts)')
+    .all() as Array<{ name: string }>;
+  if (renamedColumns.some((c) => c.name === 'tap_to_step_in')) {
+    db.exec('ALTER TABLE accounts RENAME COLUMN tap_to_step_in TO tap_to_look');
+    // Nulls stay null: never having said is not a choice to invert, and it is
+    // the same answer under either name.
+    db.exec(
+      'UPDATE accounts SET tap_to_look = 1 - tap_to_look WHERE tap_to_look IS NOT NULL'
+    );
+  }
+  if (renamedColumns.some((c) => c.name === 'control_cards')) {
+    db.exec(
+      'ALTER TABLE accounts RENAME COLUMN control_cards TO hide_control_cards'
+    );
+    db.exec(
+      'UPDATE accounts SET hide_control_cards = 1 - hide_control_cards WHERE hide_control_cards IS NOT NULL'
+    );
   }
   if (!accountColumns.some((c) => c.name === 'free_transcript_id')) {
     db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_id TEXT');

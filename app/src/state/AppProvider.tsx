@@ -51,40 +51,57 @@ const TOKEN_KEY = 'thefloor.token';
  * Whether a tap on a channel walks into it, or only opens it — cached from
  * what the server last said this account had chosen.
  *
- * Stored as `'true'`/`'false'` and read as "anything that is not `'false'` is
- * on", so the default survives a missing key, a key from a build that never
- * wrote one, and a value nobody recognises. On is the behaviour every build
- * before this one had, and the one somebody who has never opened Settings
- * should keep.
+ * Stored as `'true'`/`'false'` and read as "only `'true'` is on", so the
+ * default survives a missing key, a key from a build that never wrote one, and
+ * a value nobody recognises. Off is a tap that steps in, which is the
+ * behaviour every build before this one had and the one somebody who has never
+ * opened Settings should keep.
  *
  * **A cache since 2026-08-31**, when this setting and the scheme moved to the
  * account. It is read once at launch and never again; anything the server says
  * overwrites it, and signing out clears it. Its whole job is the second or so
- * between a cold start and `hello`. See `AppValue.tapToStepIn`.
+ * between a cold start and `hello`. See `AppValue.tapToLook`.
  */
-const TAP_TO_STEP_IN_KEY = 'thefloor.tapToStepIn';
+const TAP_TO_LOOK_KEY = 'thefloor.tapToLook';
+
+/**
+ * What that key was called until 2026-09-07, holding the negation of it.
+ *
+ * Read once, when the current key is missing, so that a phone upgrading into
+ * this build does not spend the first second of its first cold start with a
+ * tap that steps in for somebody who turned that off. Removed as soon as the
+ * server states the settings, which is a second later. Delete this, and the
+ * fallback that reads it, once no install can plausibly still be carrying it —
+ * it is a cache, so the cost of being wrong about that is one second and not a
+ * setting. See `tapToLook` in core/settings.ts.
+ */
+const LEGACY_TAP_TO_STEP_IN_KEY = 'thefloor.tapToStepIn';
 
 /**
  * Whether the channel screen repeats its footer's controls as cards, cached
  * from the account in exactly the way the key above is.
  *
- * Stored as `'true'`/`'false'` and read as "anything that is not `'false'` is
- * on", so the default survives a missing key and a build that never wrote one.
- * The gap this covers is smaller than the tap's — nobody is mid-gesture on a
+ * Stored as `'true'`/`'false'` and read as "only `'true'` is on", so the
+ * default survives a missing key and a build that never wrote one. The gap
+ * this covers is smaller than the tap's — nobody is mid-gesture on a
  * channel screen a second after a cold start — but it is cached anyway rather
  * than left to arrive, because the alternative is a screen that draws four
  * cards and then removes them under a thumb already reaching past them.
  */
-const CONTROL_CARDS_KEY = 'thefloor.controlCards';
+const HIDE_CONTROL_CARDS_KEY = 'thefloor.hideControlCards';
+
+/** What that key was called until 2026-09-07, holding its negation. */
+const LEGACY_CONTROL_CARDS_KEY = 'thefloor.controlCards';
 
 /**
  * Whether the experimental features are visible to this account, cached from
  * the account the way the two keys above are.
  *
- * Read the other way round — only `'true'` turns it on — because the default
- * is off. That is what makes a missing key, a key from a build that never
- * wrote one and a value nobody recognises all mean "not asked for", which is
- * the honest reading of every one of them.
+ * Read the way both keys above are — only `'true'` turns it on — because the
+ * default is off, as it is for all three since 2026-09-07. That is what makes
+ * a missing key, a key from a build that never wrote one and a value nobody
+ * recognises all mean "not asked for", which is the honest reading of every
+ * one of them.
  */
 const LABS_KEY = 'thefloor.labs';
 
@@ -427,10 +444,11 @@ interface AppValue extends AppState {
   appearance: ColorSchemePreference;
   setAppearance: (preference: ColorSchemePreference) => void;
   /**
-   * Whether tapping a channel on Home steps into it, or only opens its screen.
+   * Whether tapping a channel on Home only opens its screen, rather than
+   * stepping into it.
    *
-   * Set, which is the default, a tap is arriving: the app enters and the
-   * others can hear you. Unset, a tap is only looking — the channel screen
+   * Unset, which is the default, a tap is arriving: the app enters and the
+   * others can hear you. Set, a tap is only looking — the channel screen
    * opens with a Step In button where Step Out would be, and nothing about
    * your presence has changed.
    *
@@ -442,31 +460,32 @@ interface AppValue extends AppState {
    * device the habit is exercised on, and finding the other answer on the
    * second phone is being surprised by your own app.
    */
-  tapToStepIn: boolean;
-  setTapToStepIn: (value: boolean) => void;
+  tapToLook: boolean;
+  setTapToLook: (value: boolean) => void;
   /**
-   * Whether the channel screen keeps a card for each of the three controls in
-   * its pinned footer, or lets the footer be the whole of them.
+   * Whether the channel screen has dropped the card it keeps for each of the
+   * three controls in its pinned footer, letting the footer be the whole of
+   * them.
    *
    * **An account setting**, on the same reasoning as the tap: how much a
    * screen should repeat itself to you is something you have learnt, not
    * something about the handset you learnt it on, and the second phone
    * disagreeing with the first is the app forgetting it.
    *
-   * On by default and read only by `ChannelView`. What goes with the cards is
+   * Off by default and read only by `ChannelView`. What goes with the cards is
    * named on the settings screen rather than hidden behind the word "compact"
    * — the sentence saying why a control is refused, the floor's countdown, and
    * the notice that a silenced microphone is still being recorded. The last of
    * those does not go: it moves. See `ChannelView`.
    */
-  controlCards: boolean;
-  setControlCards: (value: boolean) => void;
+  hideControlCards: boolean;
+  setHideControlCards: (value: boolean) => void;
   /**
    * Whether this account has asked to see the experimental features.
    *
-   * Off by default, and unlike the three above it hides things rather than
-   * rearranging them: with it off there is no watch party card on a channel
-   * screen and no transcript anywhere. The transcripts half is not read from
+   * Off by default like the two above it, and unlike them it hides things
+   * rather than rearranging them: with it off there is no watch party card on
+   * a channel screen and no transcript anywhere. The transcripts half is not read from
    * here at all — the server withholds each recording's `transcript` field
    * from a viewer without Labs, and the app already draws nothing when that
    * field is absent, which is how a server with no transcription key has
@@ -517,24 +536,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * long, and neither is worth blocking the first screen on — the recovery
    * from this one is a tap on Step Out.
    */
-  const [tapToStepIn, setTapToStepInState] = useState(
-    DEFAULT_ACCOUNT_SETTINGS.tapToStepIn
+  const [tapToLook, setTapToLookState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.tapToLook
   );
   useEffect(() => {
     void (async () => {
-      if ((await storage.get(TAP_TO_STEP_IN_KEY)) === 'false') {
-        setTapToStepInState(false);
+      if ((await storage.get(TAP_TO_LOOK_KEY)) === 'true') {
+        setTapToLookState(true);
+        return;
+      }
+      // Nothing under the current name means either a fresh install or a
+      // phone that last ran a build which wrote the old one. Only the second
+      // has anything to say, and what it says is the negation.
+      if ((await storage.get(LEGACY_TAP_TO_STEP_IN_KEY)) === 'false') {
+        setTapToLookState(true);
       }
     })();
   }, []);
   /** Read the same way, at the same moment, for the same second or so. */
-  const [controlCards, setControlCardsState] = useState(
-    DEFAULT_ACCOUNT_SETTINGS.controlCards
+  const [hideControlCards, setHideControlCardsState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.hideControlCards
   );
   useEffect(() => {
     void (async () => {
-      if ((await storage.get(CONTROL_CARDS_KEY)) === 'false') {
-        setControlCardsState(false);
+      if ((await storage.get(HIDE_CONTROL_CARDS_KEY)) === 'true') {
+        setHideControlCardsState(true);
+        return;
+      }
+      if ((await storage.get(LEGACY_CONTROL_CARDS_KEY)) === 'false') {
+        setHideControlCardsState(true);
       }
     })();
   }, []);
@@ -570,10 +600,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAppearanceState(settings.appearance);
     applyPreference(settings.appearance);
     void storage.set(APPEARANCE_KEY, settings.appearance);
-    setTapToStepInState(settings.tapToStepIn);
-    void storage.set(TAP_TO_STEP_IN_KEY, settings.tapToStepIn ? 'true' : 'false');
-    setControlCardsState(settings.controlCards);
-    void storage.set(CONTROL_CARDS_KEY, settings.controlCards ? 'true' : 'false');
+    setTapToLookState(settings.tapToLook);
+    void storage.set(TAP_TO_LOOK_KEY, settings.tapToLook ? 'true' : 'false');
+    // The old keys are dropped rather than kept in step: the server has just
+    // said what is true, so the fallback that reads them has nothing left to
+    // add, and a stale pair of them is a second of the wrong answer waiting
+    // for the day somebody deletes the wrong line.
+    void storage.remove(LEGACY_TAP_TO_STEP_IN_KEY);
+    setHideControlCardsState(settings.hideControlCards);
+    void storage.set(
+      HIDE_CONTROL_CARDS_KEY,
+      settings.hideControlCards ? 'true' : 'false'
+    );
+    void storage.remove(LEGACY_CONTROL_CARDS_KEY);
     setLabsState(settings.labs);
     void storage.set(LABS_KEY, settings.labs ? 'true' : 'false');
   }, []);
@@ -590,10 +629,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAppearanceState(DEFAULT_ACCOUNT_SETTINGS.appearance);
     applyPreference(DEFAULT_ACCOUNT_SETTINGS.appearance);
     void storage.remove(APPEARANCE_KEY);
-    setTapToStepInState(DEFAULT_ACCOUNT_SETTINGS.tapToStepIn);
-    void storage.remove(TAP_TO_STEP_IN_KEY);
-    setControlCardsState(DEFAULT_ACCOUNT_SETTINGS.controlCards);
-    void storage.remove(CONTROL_CARDS_KEY);
+    setTapToLookState(DEFAULT_ACCOUNT_SETTINGS.tapToLook);
+    void storage.remove(TAP_TO_LOOK_KEY);
+    void storage.remove(LEGACY_TAP_TO_STEP_IN_KEY);
+    setHideControlCardsState(DEFAULT_ACCOUNT_SETTINGS.hideControlCards);
+    void storage.remove(HIDE_CONTROL_CARDS_KEY);
+    void storage.remove(LEGACY_CONTROL_CARDS_KEY);
     setLabsState(DEFAULT_ACCOUNT_SETTINGS.labs);
     void storage.remove(LABS_KEY);
   }, []);
@@ -1135,22 +1176,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
-      tapToStepIn,
-      setTapToStepIn: (value) => {
-        setTapToStepInState(value);
-        void storage.set(TAP_TO_STEP_IN_KEY, value ? 'true' : 'false');
+      tapToLook,
+      setTapToLook: (value) => {
+        setTapToLookState(value);
+        void storage.set(TAP_TO_LOOK_KEY, value ? 'true' : 'false');
+        void storage.remove(LEGACY_TAP_TO_STEP_IN_KEY);
         if (state.token) {
-          void api.saveSettings(state.token, { tapToStepIn: value }).catch(() => {});
+          void api.saveSettings(state.token, { tapToLook: value }).catch(() => {});
         }
       },
 
-      controlCards,
-      setControlCards: (value) => {
-        setControlCardsState(value);
-        void storage.set(CONTROL_CARDS_KEY, value ? 'true' : 'false');
+      hideControlCards,
+      setHideControlCards: (value) => {
+        setHideControlCardsState(value);
+        void storage.set(HIDE_CONTROL_CARDS_KEY, value ? 'true' : 'false');
+        void storage.remove(LEGACY_CONTROL_CARDS_KEY);
         if (state.token) {
           void api
-            .saveSettings(state.token, { controlCards: value })
+            .saveSettings(state.token, { hideControlCards: value })
             .catch(() => {});
         }
       },
@@ -1529,8 +1572,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tick,
       notificationTapped,
       appearance,
-      tapToStepIn,
-      controlCards,
+      tapToLook,
+      hideControlCards,
       labs,
       forgetSettings,
       expiry,

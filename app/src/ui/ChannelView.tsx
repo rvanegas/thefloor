@@ -486,9 +486,10 @@ export function ChannelView({
    * Whether the microphone and the two departures still get a card apiece
    * further down, and whether the floor's card still carries its button.
    *
-   * On by default and off by choice, from Home settings — see
-   * `AppValue.controlCards`. What is conditional on it is only ever a way of
-   * doing something twice: no act becomes unavailable, because every one of
+   * On unless somebody has said otherwise, from Home settings — see
+   * `AppValue.hideControlCards`, which is the setting and is named for the
+   * departure rather than for this. What is conditional on it is only ever a
+   * way of doing something twice: no act becomes unavailable, because every one of
    * the three is in the footer at all times and the footer is not conditional
    * on anything.
    *
@@ -505,7 +506,7 @@ export function ChannelView({
    * closes a microphone somewhere else, and the footer's Step In cannot say
    * so.
    */
-  const controlCards = app.controlCards;
+  const controlCards = !app.hideControlCards;
   /**
    * Whether somebody is to be shown as speaking *on this screen*, as against
    * somebody the room happens to be hearing.
@@ -903,9 +904,9 @@ export function ChannelView({
     shortcuts.
 
     **Unless the cards have been turned off, in which case this is the whole of
-    the microphone and the two departures.** `controlCards`, from Home
+    the microphone and the two departures.** `hideControlCards`, from Home
     settings, is a choice somebody makes after the sentences have done their
-    work — see `AppValue.controlCards`. That is why the rule above is about
+    work — see `AppValue.hideControlCards`. That is why the rule above is about
     what a screen may show somebody who has not asked, rather than about what a
     screen may ever be: what a footer cannot state is kept rather than dropped.
     The floor keeps its card either way and loses only its button, so even

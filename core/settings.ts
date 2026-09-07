@@ -51,20 +51,21 @@ export function isColorSchemePreference(
 export interface AccountSettings {
   appearance: ColorSchemePreference;
   /**
-   * Whether tapping a channel on Home steps into it, or only opens its screen.
+   * Whether tapping a channel on Home only opens its screen, rather than
+   * stepping into it.
    *
-   * Set, which is the default, a tap is arriving: the app enters and the
-   * others can hear you. Unset, a tap is only looking.
+   * Unset, which is the default, a tap is arriving: the app enters and the
+   * others can hear you. Set, a tap is only looking.
    */
-  tapToStepIn: boolean;
+  tapToLook: boolean;
   /**
-   * Whether the channel screen still draws a card for each of the three
-   * controls pinned in its footer.
+   * Whether the channel screen has stopped drawing a card for each of the
+   * three controls pinned in its footer.
    *
-   * Set, which is the default, the screen is as it has always been: the
+   * Unset, which is the default, the screen is as it has always been: the
    * footer is a row of shortcuts and the floor, the microphone and the two
    * departures each keep a card further down, where the state is explained.
-   * Unset, the cards go and the footer is the whole of those three controls —
+   * Set, the cards go and the footer is the whole of those three controls —
    * a channel screen that opens on who is in the room and what the room is
    * carrying, for somebody who has learnt what the three do and no longer
    * reads the sentences under them.
@@ -73,7 +74,7 @@ export interface AccountSettings {
    * habit rather than a property of a handset, so it belongs to the person on
    * the same reasoning as the tap. See `app/src/ui/ChannelView.tsx`.
    */
-  controlCards: boolean;
+  hideControlCards: boolean;
   /**
    * Whether the experimental parts of the app are visible and usable at all.
    *
@@ -82,18 +83,18 @@ export interface AccountSettings {
    * more things appear — transcripts on recordings, and the watch party — and
    * the controls that begin them start working.
    *
-   * **It is a gate rather than a preference**, which is why it reads the other
-   * way round from everything above it. The other three change how something
-   * already yours behaves; this one decides whether something exists for you,
-   * and off is the answer for anyone who has not asked. That is also why it is
-   * enforced at both ends: the app withholds the surfaces, and the server
-   * refuses the two actions that begin one of these features — starting a
-   * watch party and asking for a transcript, the second of which spends money
-   * at a third party. A hidden control and a refused action must not disagree,
-   * and here the refusal is the one that matters.
+   * **It is a gate rather than a preference**, which is the one thing that
+   * still sets it apart from the two above now that all three read the same
+   * way round. They change how something already yours behaves; this one
+   * decides whether something exists for you. That is also why it is enforced
+   * at both ends: the app withholds the surfaces, and the server refuses the
+   * two actions that begin one of these features — starting a watch party and
+   * asking for a transcript, the second of which spends money at a third
+   * party. A hidden control and a refused action must not disagree, and here
+   * the refusal is the one that matters.
    *
    * It follows the person rather than the phone on the plainest reading of
-   * the three above: having asked to see the unfinished parts of an app is
+   * the two above: having asked to see the unfinished parts of an app is
    * something you asked, not something a handset knows.
    */
   labs: boolean;
@@ -102,13 +103,26 @@ export interface AccountSettings {
 /**
  * What somebody who has never touched any of these gets.
  *
- * The tap defaults on because arriving is what a channel is for, and the
- * scheme defaults to the phone's because an app that has not been told
- * anything should look like the rest of the phone. The cards default on
- * because they are what every build before this setting drew, and because
- * they are where a refused control says why it is refused — which is the
- * thing somebody has to have read before they can reasonably choose to stop
- * being shown it.
+ * The scheme defaults to the phone's because an app that has not been told
+ * anything should look like the rest of the phone.
+ *
+ * **Every boolean here is false by default, and that is a rule rather than a
+ * coincidence**, since 2026-09-07. Two of them used to default on and were
+ * named for the behaviour they switched *off*, so half the settings on the
+ * screen said "the untouched case is true" and half said the opposite — which
+ * is a thing to get wrong in every layer at once: the column that stores it,
+ * the read that fills a null in, the test that asserts a fresh account, and
+ * the sentence on the card. Naming each of them for the departure from the
+ * default — look rather than step in, hide the cards rather than draw them —
+ * makes false the answer for somebody who has never said anything, everywhere,
+ * and leaves nothing to remember per setting.
+ *
+ * So the tap defaults to arriving, because arriving is what a channel is for;
+ * the cards default to being drawn, because they are what every build before
+ * that setting drew and because they are where a refused control says why it
+ * is refused — which is the thing somebody has to have read before they can
+ * reasonably choose to stop being shown it. Both of those are now the false
+ * case rather than the true one, and neither behaviour changed.
  *
  * Labs defaults off because that is what the word means. Everything behind it
  * is unfinished by admission, and an experimental feature that arrives without
@@ -116,7 +130,7 @@ export interface AccountSettings {
  */
 export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   appearance: 'system',
-  tapToStepIn: true,
-  controlCards: true,
+  tapToLook: false,
+  hideControlCards: false,
   labs: false,
 };

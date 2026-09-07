@@ -47,6 +47,7 @@ import { landingPage } from './landing';
 import { invitePage, inviteRefusalText } from './invite';
 import { openPage } from './open';
 import { privacyPage } from './privacy';
+import { booleanUnderEitherName, settingsForWire } from './settings-wire';
 import type { TranscriptionProvider } from './transcription';
 import {
   formatTranscript,
@@ -1902,10 +1903,15 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * Writes the settings that belong to the account rather than to the phone.
    *
-   * Two of them: the colour scheme and whether tapping a channel steps into
-   * it. **The fourth setting on that screen is not here on purpose** — keeping
-   * the hands-free link steady is about the headset somebody is wearing, so it
-   * stays on the device and never reaches this server. See core/settings.ts.
+   * Four of them: the colour scheme, whether a tap only looks, whether the
+   * channel screen has dropped its control cards, and labs. **A fifth setting
+   * on that screen was never here on purpose** — keeping the hands-free link
+   * steady was about the headset somebody is wearing, so it stayed on the
+   * device and never reached this server. See core/settings.ts.
+   *
+   * Two of the four are accepted under their old names as well as their
+   * current ones, for as long as builds that know only the old names are
+   * installed; settings-wire.ts is that whole arrangement.
    *
    * Partial like `POST /me`, and refused rather than coerced: a scheme this
    * server does not know is a client bug, and storing it would hand every
@@ -1919,14 +1925,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    const body = request.body as
-      | {
-          appearance?: unknown;
-          tapToStepIn?: unknown;
-          controlCards?: unknown;
-          labs?: unknown;
-        }
-      | undefined;
+    const body = request.body as Record<string, unknown> | undefined;
     const changes: Partial<AccountSettings> = {};
     if (body?.appearance !== undefined) {
       if (!isColorSchemePreference(body.appearance)) {
@@ -1936,21 +1935,32 @@ export function buildApp(options: BuildOptions = {}): App {
       }
       changes.appearance = body.appearance;
     }
-    if (body?.tapToStepIn !== undefined) {
-      if (typeof body.tapToStepIn !== 'boolean') {
-        return reply
-          .code(400)
-          .send({ error: 'tapToStepIn must be true or false.' });
-      }
-      changes.tapToStepIn = body.tapToStepIn;
+    // Under either name, since a build already on a phone sends the old one
+    // and means its negation. See settings-wire.ts, which is where both halves
+    // of that compatibility live and is deleted in one piece.
+    const tapToLook = booleanUnderEitherName(
+      body,
+      'tapToLook',
+      'tapToStepIn',
+      true
+    );
+    if (tapToLook === null) {
+      return reply.code(400).send({ error: 'tapToLook must be true or false.' });
     }
-    if (body?.controlCards !== undefined) {
-      if (typeof body.controlCards !== 'boolean') {
-        return reply
-          .code(400)
-          .send({ error: 'controlCards must be true or false.' });
-      }
-      changes.controlCards = body.controlCards;
+    if (tapToLook !== undefined) changes.tapToLook = tapToLook;
+    const hideControlCards = booleanUnderEitherName(
+      body,
+      'hideControlCards',
+      'controlCards',
+      true
+    );
+    if (hideControlCards === null) {
+      return reply
+        .code(400)
+        .send({ error: 'hideControlCards must be true or false.' });
+    }
+    if (hideControlCards !== undefined) {
+      changes.hideControlCards = hideControlCards;
     }
     if (body?.labs !== undefined) {
       if (typeof body.labs !== 'boolean') {
@@ -1965,7 +1975,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // see — no roster, no name, no availability — so unlike a rename there is
     // no audience beyond the account's own devices.
     settingsNotifier.notify(account.id, settings);
-    return settings;
+    return settingsForWire(settings);
   });
 
   /**

@@ -52,8 +52,8 @@ jest.mock('../../api/http', () => ({
       mockSaved.push(changes);
       return {
         appearance: 'system',
-        tapToStepIn: true,
-        controlCards: true,
+        tapToLook: false,
+        hideControlCards: false,
         labs: false,
       };
     }),
@@ -80,8 +80,8 @@ function Settings() {
   latest = app;
   return (
     <Text>
-      {app.appearance}/{app.tapToStepIn ? 'tap' : 'open'}/
-      {app.controlCards ? 'cards' : 'bare'}/{app.labs ? 'labs' : 'plain'}
+      {app.appearance}/{app.tapToLook ? 'open' : 'tap'}/
+      {app.hideControlCards ? 'bare' : 'cards'}/{app.labs ? 'labs' : 'plain'}
     </Text>
   );
 }
@@ -102,8 +102,8 @@ function textOf(tree: ReactTestRenderer): string {
 /** What the socket does on connecting, with whatever the server holds. */
 function hello(settings: {
   appearance: 'light' | 'dark' | 'system';
-  tapToStepIn: boolean;
-  controlCards: boolean;
+  tapToLook: boolean;
+  hideControlCards: boolean;
   labs: boolean;
 } | null): void {
   handlers.onHello?.(
@@ -152,9 +152,10 @@ describe('the settings that follow the account', () => {
 
   it('takes what the server says over what this device had cached', async () => {
     mockStored['thefloor.appearance'] = 'light';
-    mockStored['thefloor.tapToStepIn'] = 'true';
-    mockStored['thefloor.controlCards'] = 'false';
-    // Read as 'true' rather than 'false', this one defaulting off.
+    mockStored['thefloor.tapToLook'] = 'false';
+    mockStored['thefloor.hideControlCards'] = 'true';
+    // All three read as "only 'true' turns it on", every one of them
+    // defaulting off since 2026-09-07.
     mockStored['thefloor.labs'] = 'true';
     const tree = await mount();
     // The cache first, which is the whole of what a cold start has.
@@ -163,17 +164,48 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'dark',
-        tapToStepIn: false,
-        controlCards: true,
+        tapToLook: true,
+        hideControlCards: false,
         labs: false,
       })
     );
     expect(textOf(tree)).toContain('dark/open/cards/plain');
     // And written through, so the next cold start starts from the right one.
     expect(mockStored['thefloor.appearance']).toBe('dark');
-    expect(mockStored['thefloor.tapToStepIn']).toBe('false');
-    expect(mockStored['thefloor.controlCards']).toBe('true');
+    expect(mockStored['thefloor.tapToLook']).toBe('true');
+    expect(mockStored['thefloor.hideControlCards']).toBe('false');
     expect(mockStored['thefloor.labs']).toBe('false');
+  });
+
+  /**
+   * A phone upgrading into the build that renamed these has only the old keys
+   * cached, holding the negation of what they hold now.
+   *
+   * The gap this covers is the second between a cold start and `hello`, and it
+   * is the tap that makes it worth covering: read as absent, that second is
+   * one in which a tap on Home walks somebody into a channel they meant only
+   * to open. Delete this with the fallback it tests — see BACKLOG.md § *The
+   * two renamed settings still answer to their old names on the wire*.
+   */
+  it('falls back to the cache an earlier build left under the old names', async () => {
+    mockStored['thefloor.tapToStepIn'] = 'false';
+    mockStored['thefloor.controlCards'] = 'false';
+    const tree = await mount();
+    expect(textOf(tree)).toContain('system/open/bare/plain');
+
+    // And the old keys go the moment the server states anything, rather than
+    // being kept in step with the new ones.
+    await act(async () =>
+      hello({
+        appearance: 'system',
+        tapToLook: true,
+        hideControlCards: true,
+        labs: false,
+      })
+    );
+    expect(mockStored['thefloor.tapToLook']).toBe('true');
+    expect(mockStored['thefloor.tapToStepIn']).toBeUndefined();
+    expect(mockStored['thefloor.controlCards']).toBeUndefined();
   });
 
   /**
@@ -192,16 +224,16 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'system',
-        tapToStepIn: true,
-        controlCards: true,
+        tapToLook: false,
+        hideControlCards: false,
         labs: false,
       })
     );
     await act(async () =>
       handlers.onSettings?.({
         appearance: 'light',
-        tapToStepIn: false,
-        controlCards: false,
+        tapToLook: true,
+        hideControlCards: true,
         labs: true,
       })
     );
@@ -217,8 +249,8 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'system',
-        tapToStepIn: true,
-        controlCards: true,
+        tapToLook: false,
+        hideControlCards: false,
         labs: false,
       })
     );
@@ -227,24 +259,24 @@ describe('the settings that follow the account', () => {
     expect(textOf(tree)).toContain('dark/tap');
     expect(mockSaved).toEqual([{ appearance: 'dark' }]);
 
-    await act(async () => latest!.setTapToStepIn(false));
+    await act(async () => latest!.setTapToLook(true));
     expect(textOf(tree)).toContain('dark/open');
-    expect(mockSaved).toEqual([{ appearance: 'dark' }, { tapToStepIn: false }]);
+    expect(mockSaved).toEqual([{ appearance: 'dark' }, { tapToLook: true }]);
 
-    await act(async () => latest!.setControlCards(false));
+    await act(async () => latest!.setHideControlCards(true));
     expect(textOf(tree)).toContain('dark/open/bare');
     expect(mockSaved).toEqual([
       { appearance: 'dark' },
-      { tapToStepIn: false },
-      { controlCards: false },
+      { tapToLook: true },
+      { hideControlCards: true },
     ]);
 
     await act(async () => latest!.setLabs(true));
     expect(textOf(tree)).toContain('dark/open/bare/labs');
     expect(mockSaved).toEqual([
       { appearance: 'dark' },
-      { tapToStepIn: false },
-      { controlCards: false },
+      { tapToLook: true },
+      { hideControlCards: true },
       { labs: true },
     ]);
   });
@@ -259,8 +291,8 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'dark',
-        tapToStepIn: false,
-        controlCards: false,
+        tapToLook: true,
+        hideControlCards: true,
         labs: true,
       })
     );
@@ -269,8 +301,8 @@ describe('the settings that follow the account', () => {
     });
     expect(textOf(tree)).toContain('system/tap/cards/plain');
     expect(mockStored['thefloor.appearance']).toBeUndefined();
-    expect(mockStored['thefloor.tapToStepIn']).toBeUndefined();
-    expect(mockStored['thefloor.controlCards']).toBeUndefined();
+    expect(mockStored['thefloor.tapToLook']).toBeUndefined();
+    expect(mockStored['thefloor.hideControlCards']).toBeUndefined();
     expect(mockStored['thefloor.labs']).toBeUndefined();
   });
 });

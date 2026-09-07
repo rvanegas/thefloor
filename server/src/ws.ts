@@ -24,6 +24,7 @@ import {
   type ClientKind,
 } from './release';
 import { sha256 } from './db';
+import { settingsForWire } from './settings-wire';
 
 /**
  * What a socket is allowed to be.
@@ -566,7 +567,10 @@ export function registerWebsocket(deps: {
     for (const connection of connections) {
       if (connection.scope.kind !== 'session') continue;
       if (connection.userId !== userId) continue;
-      send(connection, { type: 'settings', settings });
+      send(connection, {
+        type: 'settings',
+        settings: settingsForWire(settings),
+      });
     }
   };
 
@@ -949,7 +953,7 @@ export function registerWebsocket(deps: {
       // always present: these are settings rather than grants, so there is no
       // "absent means no" to lean on — a client that reads this has to be able
       // to tell "the account says light" from "this server has not been asked".
-      settings: accounts.settings(account.id),
+      settings: settingsForWire(accounts.settings(account.id)),
     });
 
     socket.on('message', (raw: Buffer | string) => {

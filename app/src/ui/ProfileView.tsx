@@ -1257,11 +1257,11 @@ export function ProfileView({
                   }
                   onPress={() => {
                     // The same tap Home's rows take, preference and all: with
-                    // "Tap a channel to step in" off, this opens the channel
+                    // "Tap a channel to look" on, this opens the channel
                     // without arriving in it. Two lists of the same channels
                     // answering a tap differently would be a setting that held
                     // in one place and not the other.
-                    if (app.tapToStepIn) {
+                    if (!app.tapToLook) {
                       app.act(channel.channelId, { type: 'ENTER' });
                     }
                     onEnterChannel(channel.channelId);

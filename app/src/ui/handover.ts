@@ -73,7 +73,7 @@ export interface Handover {
    * **This was `?enter=1` on the address until 2026-09-04**, and its own
    * comment always described it as a one-shot intent rather than part of the
    * address. Here it stops being on the address at all, which is what it was
-   * claiming to be. `tapToStepIn` is not consulted — that setting is about a
+   * claiming to be. `tapToLook` is not consulted — that setting is about a
    * list of rooms where a tap is as likely to be curiosity as intent, and
    * this is not a tap on a list.
    */

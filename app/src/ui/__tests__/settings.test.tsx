@@ -256,7 +256,7 @@ describe('the control-cards setting', () => {
   it('offers both answers and names what goes with the cards', async () => {
     const tree = await openSettings();
     const text = textOf(tree);
-    expect(text).toContain('Repeat the channel controls as cards');
+    expect(text).toContain('Hide the repeated channel controls');
     // What the second paragraph promises, and what the channel screen keeps.
     expect(text).toContain('its card stays either way');
     // The promise the channel screen keeps by moving two sentences upward.
@@ -267,13 +267,13 @@ describe('the control-cards setting', () => {
   it('reports a change rather than keeping it', async () => {
     const tree = await openSettings();
     act(() => cardsButton(tree, 'Off').props.onPress());
-    expect(mockApp.setControlCards).toHaveBeenCalledWith(false);
-    expect(mockApp.setTapToStepIn).not.toHaveBeenCalled();
+    expect(mockApp.setHideControlCards).toHaveBeenCalledWith(false);
+    expect(mockApp.setTapToLook).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 
   it('marks which one is in force', async () => {
-    mockApp.controlCards = false;
+    mockApp.hideControlCards = true;
     const tree = await openSettings();
     const cardStyleOf = (label: string) =>
       StyleSheet.flatten(
@@ -331,16 +331,18 @@ describe('the Labs setting', () => {
     const tree = await openSettings();
     act(() => labsButton(tree, 'On').props.onPress());
     expect(mockApp.setLabs).toHaveBeenCalledWith(true);
-    expect(mockApp.setControlCards).not.toHaveBeenCalled();
-    expect(mockApp.setTapToStepIn).not.toHaveBeenCalled();
+    expect(mockApp.setHideControlCards).not.toHaveBeenCalled();
+    expect(mockApp.setTapToLook).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 
   /**
    * Which one is marked rather than merely that they differ, because the
    * default is the whole point of this setting: an account that has never
-   * asked has to see Off in force. The tap's On is the yardstick — it is in
-   * force by default too, so the two carry the same mark.
+   * asked has to see Off in force. The tap's Off is the yardstick — since
+   * 2026-09-07 every setting on this screen is named for the departure from
+   * what an untouched account gets, so Off is in force on all three and they
+   * carry the same mark.
    */
   it('marks Off in force for somebody who has never asked', async () => {
     const tree = await openSettings();
@@ -352,7 +354,7 @@ describe('the Labs setting', () => {
       styleFor(labsButton(tree, 'On')).backgroundColor
     );
     expect(styleFor(labsButton(tree, 'Off')).backgroundColor).toBe(
-      styleFor(findButton(tree, 'On')!).backgroundColor
+      styleFor(findButton(tree, 'Off')!).backgroundColor
     );
     act(() => tree.unmount());
   });
@@ -378,7 +380,7 @@ describe('the stepping-in setting', () => {
 
   it('offers both answers and says what each means', async () => {
     const tree = await openSettings();
-    expect(textOf(tree)).toContain('Tap a channel to step in');
+    expect(textOf(tree)).toContain('Tap a channel to look, not step in');
     expect(findButton(tree, 'On')).toBeDefined();
     expect(findButton(tree, 'Off')).toBeDefined();
     expect(textOf(tree)).toContain('everyone there can hear you');
@@ -388,12 +390,12 @@ describe('the stepping-in setting', () => {
   it('reports a change rather than keeping it', async () => {
     const tree = await openSettings();
     act(() => findButton(tree, 'Off')!.props.onPress());
-    expect(mockApp.setTapToStepIn).toHaveBeenCalledWith(false);
+    expect(mockApp.setTapToLook).toHaveBeenCalledWith(false);
     act(() => tree.unmount());
   });
 
   it('marks which one is in force', async () => {
-    mockApp.tapToStepIn = false;
+    mockApp.tapToLook = true;
     const tree = await openSettings();
     // Button's style is a function of press state, not an array.
     expect(styleOf(tree, 'Off').backgroundColor).not.toBe(

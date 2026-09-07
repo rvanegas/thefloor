@@ -342,9 +342,9 @@ things that this file keeps apart:
   `Realtime.watchedChannel` and the mounted `ChannelView` in the app. Whether
   snapshots are being sent to you. **Watching is not being there**, and since
   2026-08-22 the app can be in that state on purpose: with the Home setting
-  "Tap a channel to step in" turned off, a tap opens the channel screen and
-  dispatches no `ENTER`, so the screen offers **Step In** where it offers
-  **Step Out** to somebody present. A notification tap used to land this way
+  "Tap a channel to look, not step in" turned on, a tap opens the channel
+  screen and dispatches no `ENTER`, so the screen offers **Step In** where it
+  offers **Step Out** to somebody present. A notification tap used to land this way
   too; **since 2026-09-04 it lands on the channel list instead**, naming no
   room at all, so the only way into a channel screen is a tap on a row. See
   decisions/ § *An address names a place and never an id*. The microphone card and the knocks are hidden, because neither is true

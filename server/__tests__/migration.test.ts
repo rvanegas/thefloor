@@ -357,15 +357,92 @@ it('adds the control-cards column to a database that has the other settings', ()
   const columns = (
     db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>
   ).map((c) => c.name);
-  expect(columns).toContain('control_cards');
+  // Under its current name: the pass that adds it is immediately followed by
+  // the 2026-09-07 turn, which renames it. Both run on the first open, so a
+  // database that never had the column ends with the new one and never with
+  // the old.
+  expect(columns).toContain('hide_control_cards');
+  expect(columns).not.toContain('control_cards');
 
-  // Null, which reads as the default, which is on — the arrangement every
-  // build before the setting existed drew.
+  // Null, which reads as the default, which is cards drawn — the arrangement
+  // every build before the setting existed drew.
   const row = db
-    .prepare('SELECT control_cards FROM accounts WHERE id = ?')
-    .get('acct_a') as { control_cards: number | null };
-  expect(row.control_cards).toBeNull();
+    .prepare('SELECT hide_control_cards FROM accounts WHERE id = ?')
+    .get('acct_a') as { hide_control_cards: number | null };
+  expect(row.hide_control_cards).toBeNull();
   db.close();
+});
+
+/**
+ * The 2026-09-07 turn, which is the migration with something to lose.
+ *
+ * The two channel settings were stored as the thing they switched on and
+ * defaulted to 1; they are now stored as the departure from the default and
+ * read as 0 when null. A rename without the inversion — or an inversion
+ * without the rename, run twice — leaves every account that had chosen with
+ * the opposite of what they chose, and leaves it silently: nothing on the
+ * screen says which way round the column was written.
+ *
+ * The fixture is built by hand rather than by opening the database once,
+ * because a single open now does both passes and there is no moment in
+ * between to seed.
+ */
+it('turns the two channel settings over, and leaves the untouched ones null', () => {
+  const path = join(dir, 'settings-turn.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_RENAME);
+  seedAccounts(old);
+  old.exec('ALTER TABLE accounts ADD COLUMN appearance TEXT');
+  old.exec('ALTER TABLE accounts ADD COLUMN tap_to_step_in INTEGER');
+  old.exec('ALTER TABLE accounts ADD COLUMN control_cards INTEGER');
+  old.exec('ALTER TABLE accounts ADD COLUMN labs INTEGER');
+  // A chose both away from what they defaulted to; B never opened the screen.
+  old.exec(
+    "UPDATE accounts SET tap_to_step_in = 0, control_cards = 0 WHERE id = 'acct_a'"
+  );
+  old.close();
+
+  const db = openDb(path);
+  const columns = (
+    db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>
+  ).map((c) => c.name);
+  expect(columns).toContain('tap_to_look');
+  expect(columns).toContain('hide_control_cards');
+  expect(columns).not.toContain('tap_to_step_in');
+  expect(columns).not.toContain('control_cards');
+
+  const chosen = db
+    .prepare(
+      'SELECT tap_to_look, hide_control_cards FROM accounts WHERE id = ?'
+    )
+    .get('acct_a') as { tap_to_look: number; hide_control_cards: number };
+  // A had turned both off under the old names, which is both on under the
+  // new ones and is the same app either way.
+  expect(chosen.tap_to_look).toBe(1);
+  expect(chosen.hide_control_cards).toBe(1);
+
+  const untouched = db
+    .prepare(
+      'SELECT tap_to_look, hide_control_cards FROM accounts WHERE id = ?'
+    )
+    .get('acct_b') as {
+    tap_to_look: number | null;
+    hide_control_cards: number | null;
+  };
+  // Never having said is not a choice to invert, and it is the same answer
+  // under either name.
+  expect(untouched.tap_to_look).toBeNull();
+  expect(untouched.hide_control_cards).toBeNull();
+  db.close();
+
+  // And is idempotent: the guard is the presence of the old name, so a second
+  // boot finds nothing to do rather than turning everybody back.
+  const again = openDb(path);
+  const still = again
+    .prepare('SELECT tap_to_look FROM accounts WHERE id = ?')
+    .get('acct_a') as { tap_to_look: number };
+  expect(still.tap_to_look).toBe(1);
+  again.close();
 });
 
 it('drops the bio column from a database that has one', () => {

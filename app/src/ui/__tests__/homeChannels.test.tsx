@@ -359,7 +359,7 @@ describe('tapping a row', () => {
    */
   it('opens a channel without entering it when stepping in is deliberate', () => {
     const onEnterChannel = jest.fn();
-    mockApp.tapToStepIn = false;
+    mockApp.tapToLook = true;
     mockApp.home = {
       invites: [],
       rejoinable: [
@@ -387,7 +387,7 @@ describe('tapping a row', () => {
 
   /** What the row promises has to be what the tap does. */
   it('says the tap opens rather than joins when it does not step in', () => {
-    mockApp.tapToStepIn = false;
+    mockApp.tapToLook = true;
     mockApp.home = {
       invites: [
         {
