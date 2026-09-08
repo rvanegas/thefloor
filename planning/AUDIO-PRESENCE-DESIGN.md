@@ -360,6 +360,35 @@ the arrival anyway.
 
 ---
 
+## What this removes
+
+**Half the work is deletion, and it is the half that makes the claim of
+simplicity true.** Each of these exists to answer a question this design stops
+asking. Nothing here is a tidy-up: leaving any of them in place leaves a second
+rule about the audio session, competing with the one above.
+
+| what | where | why it goes |
+| --- | --- | --- |
+| `otherAudio` — the tri-state, the `[foreground]`-keyed read, the `null`-is-not-`false` rule | `app/src/audio/useSessionAudio.ts` | Its whole job was choosing between CALL and IDLE for a quiet channel. Step-in now claims unconditionally, so there is nothing to choose. **The least trustworthy input in the system leaves with it** — it reads true only while this app is active, which is a fact about our own foreground wearing another app's name. |
+| `onOtherAudio`, `secondaryAudioHint`, the silence-hint observer | `app/modules/audio-route/` (Swift and `index.ts`), `useSessionAudio.ts` | Instruments for the question above, and one of them is a recorded negative: `silenceSecondaryAudioHintNotification` never fired once. Keep the negative in `AUDIO-LAB-FINDINGS.md`; the code has nothing left to measure. |
+| `waitingAlone` | `useSessionAudio.ts`, and its references in `state/useAttention.ts` and `state/AppProvider.tsx` | The solo wait exists to keep a phone alive in an empty room *without* claiming audio. Step-in claims outright; nearby is deliberately mortal. There is no middle case left to hold open. |
+| `app/modules/keep-alive` — the whole module, `startSilence` and its native half | the module, plus its caller in `useSessionAudio.ts` | It plays silence when `hasAudio` is false. Stepped in is always a claim, and nearby is meant to be suspended. Nothing is left for it to keep alive. |
+| The occupancy clause — `roomOccupants(channel).some((id) => id !== me)` | both predicates in `core/micNeeded.ts` | **The single largest simplification.** The session follows your own mode, not who else is in the room, so neither predicate reads the roster for this any more. |
+| The watch-party clause — `if (channel.watch && partyWithholds(channel.watch)) return false;` | both predicates in `core/micNeeded.ts` | The film plays on another device. Occupants mute while it runs, which is ordinary self-mute. `partyWithholds` itself stays in `core/watch.ts` for whatever else reads it. |
+| `handBack` | `useSessionAudio.ts` and `wantFor` | It carried the watch-party answer into the session. Nothing carries it now. |
+| `IDLE` and every use of `mixWithOthers` | `app/src/audio/session.ts` | See *Nearby holds no session at all*. `deactivateOnStop` covers the case `IDLE` was kept for, so no slot wants a mixing configuration. `nameOf` loses its `IDLE` arm with it. |
+| `holdForPlayout` — **probably, and check rather than assume** | `useSessionAudio.ts` | It holds the microphone open so the engine is never restarted under a rendering receiver. If stepped in always means an open microphone, the restart it guards cannot happen. **Confirm on a device before deleting**: it was one of two fixes for a fault that took weeks to find. |
+| `app/src/ui/AudioLabView.tsx`, and `configure` / `startInput` / `stopInput` in `AudioRouteModule.swift` | the bench | **Keep it until this ships**, then delete it with its answer. It never established whether any of this survives LiveKit — every reading was taken outside a channel with only iOS writing the session. |
+
+**Two comments must change in the same commit as the behaviour**, both currently
+asserting what the device refuted: the header on `channelHasAudio` in
+`core/micNeeded.ts`, and the `SessionWant` comment in `app/src/audio/session.ts`
+that says *there is no configuration that both holds the call route and lets
+another app play*. `AUDIO-LAB-FINDINGS.md` § *What was falsified* is the record.
+
+**And `GLOSSARY.md` § *Nearby / Stepped out* wants its first line widened**, so
+that *Nearby* stops being only what happens to somebody.
+
 ## Open, and blocking nothing yet
 
 - **Promotion is a media reconnect**, and that is the operation with the

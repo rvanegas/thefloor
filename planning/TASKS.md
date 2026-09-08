@@ -22,8 +22,15 @@ phone is stepped in.** Read the design before touching `core/micNeeded.ts`,
 their comments state the refuted version and the findings names which.
 
 Build the two transitions with real risk first — promotion, which is an
-automatic media reconnect, and the coupled teardown-and-deactivation. The rest
-is mechanical beside them.
+automatic media reconnect, and the release at the end of a claim. The rest is
+mechanical beside them.
+
+**Half the work is deletion**, and the design's § *What this removes* is the
+inventory: `otherAudio` and its observers, `waitingAlone`, the whole
+`app/modules/keep-alive`, the occupancy and watch-party clauses in both core
+predicates, `handBack`, and `IDLE` with every use of `mixWithOthers`. Leaving
+any of them in place leaves a second rule about the audio session competing
+with the one the design states.
 
 ## New Screenshots for App Store
 
