@@ -259,29 +259,28 @@ anywhere in this app. Nothing mixes any more: a phone has either claimed the
 audio system or released it. That also makes *no claim on audio* literal rather
 than approximate, which is what nearby was defined to mean.
 
-### `IDLE` survives as a safety, not as a state
+### Releasing is one operation, and it is coupled to the teardown
 
-**Delete it as a state; keep it as the value the observer is disarmed with.**
+**You hold a session if and only if you are stepped in.** Nearby, stepped out,
+and not in a room are one audio state, and it is *none*. There is no case where
+the app holds a session it is not using.
 
-`policyFor` hands the SDK's native observer a *pair of configurations* —
-`{ recording: CALL, playout: sessionFor(want) }` — which it applies at every
-audio-engine transition with no JavaScript in the path. **It cannot be handed
-"deactivated"**: it wants a category, a mode and options.
+**So ending the claim is a single ordered operation, everywhere it happens**:
+disconnect from the room, let the teardown finish, *then* deactivate with
+`notifyOthersOnDeactivation`. Never deactivate first, and never deactivate
+without disconnecting.
 
-So a teardown still has to arm it with something harmless in case it fires with
-no channel behind it, and **under this design harmless means *mixing*.** A
-non-mixing `playback` fired unbidden would interrupt other apps from a room
-nobody is in, which is the exact failure being designed out.
+**The order is not stylistic.** Three writers share this process-wide
+configuration — this app, the SDK's policy observer at every engine transition,
+and WebRTC reapplying its defaults — so deactivating while the engine is still
+stopping invites a configuration to be re-asserted on the way down, and we
+would be releasing something that immediately returns. Once the engine has
+stopped there are no transitions left for the observer to fire on.
 
-**The trap is that deleting `IDLE` with its state is the obvious move**, and
-re-arming the observer with `LISTENING` because it is the quiet one is the
-obvious substitute. That ships a configuration that interrupts other apps from
-an empty channel — a state the route log would report on `screen home`, which
-is how the 2026-09-06 defect was found.
-
-So the teardown is three things, and the order matters because a disconnect is
-itself an engine transition: **arm the observer with the mixing playback
-configuration, deactivate the session, disconnect the room.**
+**Every exit from stepped-in takes the same path**: a tap on step out,
+declaring nearby, and Rule B retiring an unattended phone. A process that is
+suspended outright releases nothing, because it cannot — the session dies with
+it, which is the same outcome by a different route and needs no code.
 
 ### The three, entire
 
@@ -290,9 +289,6 @@ configuration, deactivate the session, disconnect the room.**
 | **CALL** | `playAndRecord`, exclusive | stepped in — member, or guest who may speak |
 | **LISTENING** | `playback`, exclusive | guest without a speech grant |
 | — | **deactivated** | nearby, or not in a room |
-
-`IDLE` is absent from that table on purpose: it is no longer a state anything
-is in, and it still exists in the code as the observer's disarmed value.
 
 ## Occupancy
 
