@@ -85,5 +85,7 @@ matters for exactly one of the two: the tap's cache exists to stop a cold start
 entering a channel somebody meant only to open.
 
 Both compatibilities are deletions waiting on the compatibility floor, and are
-listed in BACKLOG.md § *The two renamed settings still answer to their old
-names on the wire*.
+listed in SHIMS.md § *Gate 159 — the two renamed settings*, which pins the
+build: 159 is the first that speaks the new names. That entry was in BACKLOG.md
+until 2026-09-08, when the floor-gated ones were collected into a register of
+their own.

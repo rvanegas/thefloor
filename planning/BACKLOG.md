@@ -16,6 +16,14 @@ decisions/. **decisions/** holds what was built and
 why, including the choices that were considered and declined — several of which
 read like missing features until you find the reasoning.
 
+**SHIMS.md** is the third, and took three entries from here on 2026-09-08: code
+that exists only to answer an older install, each with the build number that
+retires it. They are outstanding work like everything else in this file, but
+they become actionable on one event rather than by being chosen — the
+compatibility floor moving — so they are indexed by the build that frees them
+rather than by size. Nothing gated on `MIN_SUPPORTED_BUILD` belongs here any
+more.
+
 ---
 
 ## Contents
@@ -47,8 +55,6 @@ about rather than the file — this is eighty-seven kilobytes.
   - Related decision
 - Per-speaker volume
 - Interaction with phonecalls
-- `HomeView.recordings` outlived its screen
-- `mediaRoom` is the channel id everywhere, and the reason it stays has expired
 - The output picker is on probation
 - Nobody has heard the `IDLE` → `LISTENING` edge on a device
 - The engine stops under a healthy room, and nothing in the app restarts it
@@ -75,7 +81,6 @@ about rather than the file — this is eighty-seven kilobytes.
 - `/app/` with a trailing slash is a 403
 - The left pane has no selected-row highlight
 - Whether iPadOS 26 still honours `UIRequiresFullScreen`
-- The two renamed settings still answer to their old names on the wire
 - Known defects
 - Untested behaviour
 
@@ -623,75 +628,6 @@ what was published, not what any one listener chose to hear.
 
 There ought to be a proper co-existence with phone calls and equivalents, modeled after the
 functionality of Facetime and Zoom channels.
-
----
-
-## `HomeView.recordings` outlived its screen
-
-The app shows recordings on the channel they were made in. The server still
-sends the flat Home list, because build 20 and earlier render it and would
-otherwise lose every recording at a deploy.
-
-Once nobody is on 20, the field goes: `homeFor` stops calling `recordingsFor`,
-and `RecordingView` leaves `HomeView` in `core/protocol.ts`. What must *not* go
-with it is `recordingsFor` itself — the export and playback endpoints both read
-it, and it is the one place the access rule is written down.
-
----
-
-## `mediaRoom` is the channel id everywhere, and the reason it stays has expired
-
-`ChannelState.mediaRoom` is the LiveKit room a channel's audio flows through.
-Its own comment says the field could in principle go, and gives the reason it
-does not: rows written while conversations moved between channels are still on
-disk, where a destination inherited the room name so it would not change under
-a live connection and the channel left behind took a fresh one. Restoring
-either as its own id would put whoever walks in now into a room somebody else
-is still holding tokens for.
-
-**That is no longer true of this database.** Of 74 channel rows, 57 carry a
-`mediaRoom` equal to `id`, 17 predate the field and are defaulted to `row.id`
-by `revive`, and **none differ**. Nor can one appear: `mediaRoom` is written in
-exactly one place, `createChannel`'s `params.mediaRoom ?? id`; nothing in
-production passes `params.mediaRoom`; and no reducer case reassigns it. The
-only non-default in the tree is a fixture, `core/__tests__/participants.test.ts`.
-
-**The client half is inert and can be done at any time.** Every reference in
-`app/src/audio/useSessionAudio.ts` is an effect dependency, a `!!mediaRoom`
-presence guard, or a comment — the hook never names a room in a request, the
-join credential being fetched against `channelId`. So it takes two parameters
-that are always equal, keys one effect on both and another on one alone, and
-carries a comment explaining a distinction that no longer exists. Collapsing
-them to a single identifier touches no wire and no server.
-
-**The server half is the same gate as `HomeView.recordings` above.**
-`protocol.ts` sends `channel: ChannelState` whole, so `mediaRoom` is a wire
-field and `App.tsx` reads `live.mediaRoom`. A server that stops emitting it
-hands every installed build `undefined`, which fails `!!mediaRoom` and leaves
-the app connected to no audio at all — silently, which is the shape the
-two-step exists to prevent.
-
-**So the number: if the client collapse ships in build *N*, the field may be
-deleted once `MIN_SUPPORTED_BUILD` >= *N*.** Build 157 is already uploaded, so
-*N* is 158 at the earliest. The floor is 51 today and the oldest install
-reporting is 56. **Do not raise the floor for this** — raising it ends sessions
-on phones rather than merely licensing a deletion. Wait until it has passed *N*
-for its own reasons, then delete.
-
-What goes when it does: the field from `ChannelState` and `durableOf`, the
-`durable.mediaRoom ?? row.id` default in `revive`, about twenty mechanical
-`state.mediaRoom` → `state.id` substitutions in `server/src/channels.ts`, and
-the fixture. Two staleness guards read `now.mediaRoom !== room` and become
-vacuous — but their `!now` and `status !== 'active'` halves must stay, since a
-channel can still end under an async media call.
-
-The storage half is not gated: `revive` already defaults an absent `mediaRoom`
-to `row.id`, so old rows are safe whatever happens to the field.
-
-One argument for keeping it, recorded rather than endorsed: a separate room
-name is the natural mechanism if a wedged LiveKit room ever needs rebuilding
-under a live channel. Speculative, and today the field buys nothing while
-costing a wire field, a duplicated parameter and a misleading comment.
 
 ---
 
@@ -1563,30 +1499,6 @@ where `UISceneSizeRestrictions` notes that `allowsFullScreen` is "currently
 only honored on Mac Catalyst", which reads as though the retreat is gone.
 
 Worth settling before anyone plans on being able to opt back out.
-
-## The two renamed settings still answer to their old names on the wire
-
-`tapToStepIn` and `controlCards` became `tapToLook` and `hideControlCards` on
-2026-09-07, each the negation of what it replaced, so that every boolean
-account setting defaults to false — see decisions/
-2026-09-07-every-boolean-setting-defaults-to-false.md. Every build in anybody's
-hands reads the old names, so the server sends both and accepts either:
-`server/src/settings-wire.ts` is that whole arrangement, and it is written to
-be deleted in one piece, along with the two tests in `settings.test.ts` that
-name it and the legacy keys the answers carry in `ws.test.ts`.
-
-**Delete it once `MIN_SUPPORTED_BUILD` has passed the first build that speaks
-the new names**, which is the next one uploaded. Not before: an install below
-the floor is shown the update screen and disconnects, and until that is true of
-every build that predates this, one of them is out there reading the answer to
-`POST /me/settings` and finding neither of its channel settings in it.
-
-The app's cache of the last answer has the same shape and the same expiry:
-`LEGACY_TAP_TO_STEP_IN_KEY` and `LEGACY_CONTROL_CARDS_KEY` in `AppProvider`,
-read only when the current key is missing, negated on the way in, and removed
-the moment the server states anything. That half is cheaper to be wrong about —
-it is a cache, so the cost is one second of the wrong answer at a cold start
-rather than a setting — but it goes with the other half.
 
 ---
 

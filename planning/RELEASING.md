@@ -506,7 +506,9 @@ Five differences, none of them obvious from having done the first one.
   raising it ends sessions on phones belonging to people who cannot be asked to
   update — so raise it only once `oldestBuild` on `/healthz` has already passed
   the number, never in advance to license deleting a shim. See
-  `server/src/release.ts`, which carries the reasoning.
+  `server/src/release.ts`, which carries the reasoning, and **SHIMS.md for what
+  a given floor frees** — a table of build number against shim, which is the
+  only thing that turns the new number into a list of deletions.
 
 ## What every submission needs configured on the box
 

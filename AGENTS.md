@@ -148,7 +148,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 550 lines, and nearer 500.** It is 527 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 538 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale, claiming 104
 lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
@@ -388,7 +388,8 @@ are the rules.
   them expires installs nobody can see. **And build 51 is below all of that**:
   it announces which build it is but predates the expiry client by hours, so
   the first public build is one that can never be shown the update screen and
-  has to be waited out instead. See RELEASING.md.
+  has to be waited out instead. See RELEASING.md, and **SHIMS.md for what
+  moving it frees**, which is the only reason to care what the number is.
 
 The thing to hold on to: **the App Store is not a version, it is a
 population.** What the server owes compatibility to is the oldest build still
@@ -427,6 +428,16 @@ were the author's. **It is not a choice that survives having users.** The way
 to avoid it is the ordinary two-step: teach the server the old names as
 aliases, deploy that first, ship the client, remove the aliases a release
 later.
+
+**The third step is `planning/SHIMS.md`, and it is a register with one rule:
+whatever you add at step one gets an entry there in the same commit.** Every
+shim, with the build number that retires it, what it touches, and what must
+*not* be deleted alongside it. The gate is knowable only at the moment the
+shim is written — it is the next build uploaded — and a week later it is
+`git tag --contains` and a guess. **Read it when the floor moves and at no
+other time**, that being the one event that makes any of it actionable; the
+alternative was grepping the tree for build numbers, which missed two. Delete
+the entry in the commit that deletes the shim.
 
 ### The box itself is planning/INFRASTRUCTURE.md
 
