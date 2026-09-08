@@ -8,6 +8,23 @@ and things to go and find out. There are more in BACKLOG.md.
 
 Maybe this was already implemented?
 
+## Stepping In and Nearby
+
+Rebuild presence and the audio session together, to the design in
+planning/AUDIO-PRESENCE-DESIGN.md, which is complete and decided and is the
+request. The evidence it rests on is planning/AUDIO-LAB-FINDINGS.md — nine
+configurations measured on a device on 2026-09-08, which falsified the claim
+that a `playAndRecord` session must be exclusive.
+
+The whole of it reduces to one rule: **a session is held if and only if the
+phone is stepped in.** Read the design before touching `core/micNeeded.ts`,
+`app/src/audio/session.ts` or `app/src/audio/useSessionAudio.ts`; several of
+their comments state the refuted version and the findings names which.
+
+Build the two transitions with real risk first — promotion, which is an
+automatic media reconnect, and the coupled teardown-and-deactivation. The rest
+is mechanical beside them.
+
 ## New Screenshots for App Store
 
 Look has changed.

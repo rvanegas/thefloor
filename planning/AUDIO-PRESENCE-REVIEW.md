@@ -1,5 +1,25 @@
 # The audio-and-presence review, surveyed but not done
 
+> **Superseded in part, 2026-09-08. Read this after the other two, or not at
+> all.** `AUDIO-PRESENCE-DESIGN.md` is the design that answers it and
+> `AUDIO-LAB-FINDINGS.md` is the evidence — nine configurations measured on a
+> device.
+>
+> **What is falsified here**: everything below that treats a call-shaped
+> session as necessarily exclusive, including *"there is no configuration that
+> both holds the call route and lets another app play"*. `playAndRecord` mixes
+> perfectly well; the voice-chat **mode** was what stopped other apps, and the
+> 2026-09-06 experiment could not see that because it held `videoChat` fixed.
+>
+> **What is moot**: § *`otherAudio`, a three-value flag wearing a boolean's
+> name*, § *Two keep-alives, not one*, and the solo-wait material. The design
+> deletes `otherAudio`, `waitingAlone` and the keep-alive outright.
+>
+> **What still stands, and is the reason this file is kept**: § *The naming,
+> which is the main thing to fix*, and § *The latent hazard: four positional
+> booleans*. Those are unaffected by any of it and are still worth doing.
+
+
 **Temporary. A survey for unbuilt work**, written 2026-09-07 at the end of a
 session that changed the attention rules and deliberately changed no names.
 Delete it when the review ships; whatever survives moves to `decisions/`.

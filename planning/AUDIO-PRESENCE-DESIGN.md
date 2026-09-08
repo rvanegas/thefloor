@@ -9,6 +9,19 @@ and this is the intent half. When it ships, what survives moves to
 This is the state machine and the vocabulary. The UI is two labelled buttons
 and is described under *Behind Labs*; everything beyond that is undecided.
 
+**Where everything is.** `AUDIO-LAB-FINDINGS.md` is the evidence half — nine
+configurations measured on a device, and the two source comments that assert
+the refuted version. `AUDIO-PRESENCE-REVIEW.md` is the earlier survey, partly
+superseded and marked as such at its top; its naming section and its warning
+about `useSessionAudio`'s four positional booleans still stand. The bench that
+produced the readings is `app/src/ui/AudioLabView.tsx`, reached from Home for
+an account with the `debug` column, with `configure`, `startInput` and
+`stopInput` in `app/modules/audio-route/ios/AudioRouteModule.swift`. **Keep the
+bench until this ships** — the one question it never answered is whether any of
+it survives LiveKit, every reading having been taken outside a channel with
+only iOS writing the session. Its lines reach the server journal:
+`journalctl -u thefloor | grep 'lab '`.
+
 ---
 
 ## The shape
