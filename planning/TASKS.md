@@ -28,10 +28,6 @@ predicates, `handBack`, and `IDLE` with every use of `mixWithOthers`. Leaving
 any of them in place leaves a second rule about the audio session competing
 with the one the design states.
 
-## New Screenshots for App Store
-
-Look has changed.
-
 ## Media Transience
 
 Why does media loaded for playback not persist?
