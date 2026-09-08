@@ -1264,6 +1264,32 @@ export function reduce(
       // through — see there for why it is no longer this case's business.
       return stepOut(state, action.userId, now);
 
+    /**
+     * Nearby, declared — from outside the channel or from inside it.
+     *
+     * **The two buttons are one action**, and the branch here is the whole of
+     * the difference between them. Somebody present is stepping out, which
+     * abandons the audio claim and goes through `stepOut` so that every other
+     * thing a departure settles — the floor, the self-mute, a pending
+     * disconnect clock — is settled the same way it always is. Somebody who is
+     * not present is stepping in nearby, which adds nothing to `present` and
+     * takes nothing from the audio system: it is a claim on a notification and
+     * on nothing else.
+     *
+     * Neither stamps `lastPresentAt`. See `Exit`.
+     */
+    case 'DECLARE_NEARBY': {
+      if (isPresent(state, action.userId)) {
+        return stepOut(state, action.userId, now, { exit: 'nearby' });
+      }
+      if (state.waiting.includes(action.userId)) return state;
+      // **`lastActiveAt` is deliberately not stamped.** It orders Home by when
+      // a room was last a room, and somebody declaring themselves reachable
+      // has not been in it. A new object is what the watchers need, and this
+      // is one.
+      return { ...state, waiting: [...state.waiting, action.userId] };
+    }
+
     case 'DISCONNECT_EXPIRED':
       return stepOut(state, action.userId, now, { exit: 'dropped' });
 
@@ -1727,7 +1753,7 @@ function tick(state: ChannelState, now: number): ChannelState {
  * self-mute, and the microphone is not the reason why*.
  */
 /**
- * The three ways somebody stops being present, which differ in exactly two
+ * The four ways somebody stops being present, which differ in exactly two
  * fields and were a single boolean until 2026-09-06.
  *
  * | | `lastPresentAt` | `waiting` |
@@ -1735,6 +1761,20 @@ function tick(state: ChannelState, now: number): ChannelState {
  * | `chosen` — a tap | stamped now | cleared |
  * | `dropped` — the grace period ran out | left alone | added |
  * | `inattentive` — the attention window ran out | left alone | cleared |
+ * | `nearby` — declared, 2026-09-08 | left alone | added |
+ *
+ * **`nearby` behaves exactly as `dropped` does and is a fourth reason
+ * anyway**, for legibility: filing a deliberate declaration under *the
+ * connection expired* would work and would read as a lie in every log that
+ * prints it.
+ *
+ * **Leaving `lastPresentAt` alone is what implements the one clock.** Nearby
+ * has three ways in — declared from outside, declared from inside, and
+ * inferred when the socket goes — and one clock governs all three, measuring
+ * the last sign of life rather than the moment anything was declared. The
+ * stamp is left to the transport, so it stays fresh while the app is alive and
+ * freezes when the phone suspends; fifteen minutes from there is *Stepped
+ * out*. See planning/GLOSSARY.md § *Nearby / Stepped out*.
  *
  * **`inattentive` is why this stopped being a boolean.** It matches neither
  * existing row: nobody chose it, so stamping `lastPresentAt` would claim they
@@ -1744,7 +1784,7 @@ function tick(state: ChannelState, now: number): ChannelState {
  * inattention reading as "nearby for 0s" would restart the very claim that
  * expiring was supposed to end.
  */
-type Exit = 'chosen' | 'dropped' | 'inattentive';
+type Exit = 'chosen' | 'dropped' | 'inattentive' | 'nearby';
 
 function stepOut(
   state: ChannelState,
@@ -1790,9 +1830,10 @@ function stepOut(
           : state.lastPresentAt,
       // The same distinction, kept rather than merely acted on. A tap is a
       // departure and clears any earlier wait; a grace period running out is
-      // not one, and is the whole reason this exists.
+      // not one, and is the whole reason this exists. A declaration is not one
+      // either — it is the wait, said out loud.
       waiting:
-        exit === 'dropped'
+        exit === 'dropped' || exit === 'nearby'
           ? state.waiting.includes(userId)
             ? state.waiting
             : [...state.waiting, userId]

@@ -321,7 +321,7 @@ describe('an invite', () => {
         collapseKey: id,
         threadId: id,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        reachesInApp: false,
+        reachesInApp: true,
       },
     ]);
   });
@@ -489,7 +489,7 @@ describe('a channel becoming active', () => {
         collapseKey: channelId,
         threadId: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        reachesInApp: false,
+        reachesInApp: true,
       },
     ]);
   });
@@ -572,7 +572,7 @@ describe('a channel becoming active', () => {
         collapseKey: channelId,
         threadId: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        reachesInApp: false,
+        reachesInApp: true,
       },
     ]);
   });
@@ -875,7 +875,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         collapseKey: channelId,
         threadId: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        reachesInApp: false,
+        reachesInApp: true,
       },
     ]);
   });
@@ -900,7 +900,7 @@ describe('what an unnamed channel is called on the lock screen', () => {
         collapseKey: channelId,
         threadId: channelId,
         lifetimeMs: PRESENCE_LIFETIME_MS,
-        reachesInApp: false,
+        reachesInApp: true,
       },
     ]);
   });
@@ -1548,17 +1548,41 @@ describe('how long a notification stays worth delivering', () => {
     ).toBe('pinged');
   });
 
-  it('delivers only a ping to somebody who is already in the app', () => {
+  /**
+   * **An arrival crossed this line on 2026-09-08, and it is the narrowing the
+   * *nearby* design turns on.** The old rule suppressed an arrival whenever the
+   * recipient had the app open anywhere — so somebody in a different channel,
+   * or on Home, was silenced about a room they were not in, and so was somebody
+   * **nearby**, who is exactly the person asking to be told. The rule is now
+   * *suppress for the occupants of that room*, and this notification only ever
+   * goes to the absent, none of whom is one.
+   *
+   * A membership notification stays suppressed: the app draws the channel
+   * itself, so it really is a second copy of what somebody is looking at.
+   */
+  it('reaches an open app for everything about a room somebody is not in', () => {
     expect(notifications.invited('Alice', null, 'chan_1').reachesInApp).toBe(
       false
     );
     expect(notifications.arrived('Standup', 'Alice', 'chan_1').reachesInApp).toBe(
-      false
+      true
     );
     expect(
       notifications.pinged('Standup', 'Alice', 'come back', 'chan_1')
         .reachesInApp
     ).toBe(true);
+  });
+
+  /**
+   * **The two fields have come apart, which is why there are two.** An arrival
+   * is now the case a single `isPing` predicate could not have described: it
+   * reaches an open app *and* collapses with its own room, where a ping
+   * reaches one and overwrites nothing.
+   */
+  it('lets an arrival reach an open app and still be overwritten', () => {
+    const arrived = notifications.arrived('Standup', 'Alice', 'chan_1');
+    expect(arrived.reachesInApp).toBe(true);
+    expect(arrived.collapseKey).toBe('chan_1');
   });
 
   it('never asks APNs to store nothing', () => {

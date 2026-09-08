@@ -312,15 +312,23 @@ describe('a tap on a notification', () => {
 });
 
 /**
- * The microphone has to open on the tap, not on the server's answer.
+ * **The microphone is open before anybody asks for anything**, since
+ * 2026-09-08: stepping in is the claim.
  *
- * Alone in a channel it is closed on purpose, and a recording is what reopens
- * it — but "a recording is running" is learned from a snapshot, a round trip
- * after the button. Capture is running during that round trip, against nobody
- * publishing, and a short enough run ends with no audio at all. `recordingAsked`
- * is the intent, known here first.
+ * This described the opposite until then, and the reason it existed is worth
+ * keeping. Alone in a channel the microphone was closed on purpose, a recording
+ * was what reopened it, and *a recording is running* is learned from a
+ * snapshot — a round trip after the button, during which capture had not
+ * started and a short run ended with no audio at all. `recordingAsked` was the
+ * intent, known in the app first, and it was passed to both audio predicates so
+ * that the round trip could not be ahead of the device.
+ *
+ * There is nothing left for it to be ahead of. The clause is gone from
+ * `App.tsx` with the rules that needed it, and `recordingAsked` survives for
+ * its other job in `AppProvider`: holding `START_RECORDING` back until a
+ * microphone track exists.
  */
-describe('asking to record', () => {
+describe('the claim on the audio system', () => {
   const CHANNEL = 'chan_1';
 
   function withChannel(present: string[]) {
@@ -352,7 +360,7 @@ describe('asking to record', () => {
     mockApp.standingIn = present.includes('acct_me') ? CHANNEL : null;
   }
 
-  it('opens the microphone before the server has confirmed', () => {
+  it('is held alone in a channel, before anybody has arrived', () => {
     withChannel(['acct_me']);
     mockApp.recordingAsked = null;
     audioCalls.length = 0;
@@ -361,14 +369,27 @@ describe('asking to record', () => {
     act(() => {
       tree = renderer.create(<App />);
     });
-    // Alone and not recording: nothing is listening, so it stays shut.
-    expect(audioCalls.at(-1)?.[4]).toBe(false);
-
-    act(() => {
-      mockApp.recordingAsked = CHANNEL;
-      tree.update(<App />);
-    });
+    // Both predicates: the microphone open, and the session claimed. Alone,
+    // unmuted, with nothing running and nobody expected.
     expect(audioCalls.at(-1)?.[4]).toBe(true);
+    expect(audioCalls.at(-1)?.[5]).toBe(true);
+
+    act(() => tree.unmount());
+  });
+
+  it('is not held by a phone that is standing nowhere', () => {
+    // Which is every way of not being stepped in — nearby, stepped out, or
+    // looking at a channel from outside it. One rule covers all three because
+    // they are one audio state, and it is none.
+    withChannel([]);
+    audioCalls.length = 0;
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    expect(audioCalls.at(-1)?.[4]).toBe(false);
+    expect(audioCalls.at(-1)?.[5]).toBe(false);
 
     act(() => tree.unmount());
   });

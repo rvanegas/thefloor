@@ -44,10 +44,19 @@ export interface RouteSnapshot {
    * set" and is the more alarming of the two.
    */
   categoryOptions?: string[];
-  /** Whether another app is producing sound right now. */
+  /**
+   * Whether another app is producing sound right now.
+   *
+   * **A reading, and since 2026-09-08 not an input to anything.** It decided
+   * which of two waits somebody got until stepping in became an unconditional
+   * claim, and it was never trustworthy for that: it answers false with music
+   * plainly playing once this app's own session is active, so it describes our
+   * own foreground state wearing another app's name. `secondaryAudioHint` and
+   * the notification behind it were the instruments for the same question and
+   * went with it — the notification having been shipped in build 150 and never
+   * fired once, which is the recorded negative.
+   */
   otherAudioPlaying?: boolean;
-  /** Whether iOS thinks our secondary audio should be silenced for it. */
-  secondaryAudioHint?: boolean;
   /**
    * Whether the Taptic Engine is allowed to run while the session is capturing.
    *
@@ -63,26 +72,6 @@ export interface RouteSnapshot {
   allowsHapticsDuringRecording?: boolean;
   /** Only on a change event: iOS's own reason code. */
   reason?: string;
-}
-
-/**
- * Another app's primary audio starting or stopping, with both polled flags
- * sampled natively at the same instant.
- *
- * The comparison is the point. `otherAudioPlaying` is the only reading this
- * app had until 2026-09-06 and it cannot carry a decision: it answered false
- * with music plainly playing once our own session was active, and on a
- * Bluetooth headset it flipped with every foreground, dragging the route
- * between HFP and A2DP each time. Whether this notification is steadier is
- * what the build carrying it exists to find out.
- */
-export interface OtherAudioEvent {
-  /** True when another app's primary audio *started*. */
-  began: boolean;
-  /** `AVAudioSession.isOtherAudioPlaying`, at the moment of the edge. */
-  otherAudioPlaying: boolean;
-  /** `secondaryAudioShouldBeSilencedHint`, at the same moment. */
-  secondaryAudioHint: boolean;
 }
 
 interface NativeAudioRoute {
@@ -102,13 +91,11 @@ interface NativeAudioRoute {
   ): TrialResult;
   startInput?(): TrialResult;
   stopInput?(): TrialResult;
+  /** Optional for the same reason: a bundle can outrun the binary under it. */
+  release?(): Promise<TrialResult>;
   addListener(
     event: 'onRouteChange',
     listener: (payload: RouteSnapshot) => void
-  ): { remove(): void };
-  addListener(
-    event: 'onOtherAudio',
-    listener: (event: OtherAudioEvent) => void
   ): { remove(): void };
 }
 
@@ -188,9 +175,10 @@ export function routeFault(): RouteFault | null {
 /**
  * Asks iOS to let haptics play while this app is capturing.
  *
- * **This is the only thing in this module that writes**, and it is here rather
- * than in the audio hook because `AVAudioSession` is what has to be told and
- * this is the only file that can reach it.
+ * One of the two things in this module that write — `releaseSession` is the
+ * other — and it is here rather than in the audio hook because
+ * `AVAudioSession` is what has to be told and this is the only file that can
+ * reach it.
  *
  * The default is off, and off is what made the silenced-speaker cue produce
  * nothing at all: a session that is using audio input mutes the Taptic Engine
@@ -263,18 +251,35 @@ export function onRouteChange(
 }
 
 /**
- * Subscribes to another app's audio starting and stopping.
+ * Gives the audio system back, and tells the app we interrupted that we have.
  *
- * @returns an unsubscribe function, which is a no-op when there is no module.
+ * **`notifyOthersOnDeactivation`, which neither half of the SDK passes.**
+ * `AudioSession.stopAudioSession` deactivates with no options, and so does the
+ * native policy observer's `deactivateOnStop` path — both release the session
+ * and neither tells anybody. With the flag, iOS tells whatever was interrupted
+ * that it may resume, which the 2026-09-08 lab run measured: every `Release`
+ * brought the other app back to full rate.
+ *
+ * Since that day this app's claim on the audio system is exclusive and its
+ * release is the only way anybody gets their podcast back — so the difference
+ * between *deactivated* and *deactivated and said so* is the whole of what
+ * being nearby buys somebody.
+ *
+ * **Not the mechanism nearby relies on, but the courtesy on top of it.** The
+ * release itself happens natively at the engine's last stop; this is called on
+ * the connection's teardown, after the SDK has already stopped its session, so
+ * on a healthy path it is asserting a deactivation that has happened. Whether
+ * the notification still reaches the other app from there is a question for a
+ * device — a headset, a podcast, and a step-out — and it is written down as
+ * one in the decision record rather than assumed here.
+ *
+ * @returns the session as it is afterwards, or null with no native module.
  */
-export function onOtherAudio(
-  listener: (event: OtherAudioEvent) => void
-): () => void {
+export async function releaseSession(): Promise<TrialResult | null> {
   try {
-    const sub = native?.addListener('onOtherAudio', listener);
-    return () => sub?.remove();
+    return (await native?.release?.()) ?? null;
   } catch {
-    return () => {};
+    return null;
   }
 }
 

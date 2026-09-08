@@ -196,6 +196,11 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   // being supplied below rather than carried, so the worst a client can do
   // with it is end its own visit — which it may already do.
   'ATTENTION_EXPIRED',
+  // Safe from a client for the same reason again: the actor is supplied below,
+  // so the worst it can do is make its own sender nearby — which is either a
+  // step-out they may already take, or a claim on a notification about a
+  // channel they belong to.
+  'DECLARE_NEARBY',
   'LEAVE_CHANNEL',
   'DELETE_CHANNEL',
   'INVITE',

@@ -100,8 +100,10 @@ is that the surviving mute had no way to be described — the roster read
 somebody who is not there. **Note what did not change: nothing is cleared
 during the grace period**, so a connection that flaps and returns inside
 `DISCONNECT_GRACE_MS` keeps the mute, because nobody has left. The exposure
-traded away is bounded by `microphoneNeeded`, which keeps the device shut until
-somebody else is present. See decisions/archive/DECISIONS-2026-08-20-to-2026-08-21.md §
+traded away was bounded by `microphoneNeeded`, which kept the device shut until
+somebody else was present — a bound that left with the redesign of 2026-09-08,
+stepping in now being an open microphone whether or not anybody else is there.
+What still bounds it is that a departure clears the mute at all. See decisions/archive/DECISIONS-2026-08-20-to-2026-08-21.md §
 *Every departure clears the self-mute, and the microphone is not the reason
 why*.
 
@@ -111,10 +113,11 @@ party and writes nothing here, so clearing it restores each person's own mute
 as they set it. A control that folded the two together could not do that.
 
 **Where the sources disagree.** *Your session can be a call while your own
-microphone is shut.* `micOpen` is a question about you; the session is chosen
-from `channelHasAudio` (`core/micNeeded.ts`), a question about the whole
-channel. That is not a bug and is what stops a Bluetooth route being lost.
-**Nobody's self-mute moves anybody's session**, `channelHasAudio` not consulting
+microphone is shut.* `micOpen` is a question about what you are sending; the
+session is chosen from `channelHasAudio` (`core/micNeeded.ts`), which since
+2026-09-08 asks whether you are standing in the room at all. That is not a bug
+and is what stops a Bluetooth route being lost. **Nobody's self-mute moves
+anybody's session** — not even their own — `channelHasAudio` not consulting
 `selfMuted` at all. Until 2026-09-05 a second rule, `anyMicrophoneOpen`, did
 consult it, and one person's mute moving everybody's session was the largest
 single claim this file had to make; that rule and the setting that selected it
@@ -221,9 +224,15 @@ it true for builds that predate the rule and go on publishing, and the app's
 half is what stops the microphone hearing the video at all, which is the
 problem the feature exists for.
 
-That second half has a consequence which is arranged rather than falling out:
-`channelHasAudio` asks the withhold first, ahead of the occupants, so every
-audio session goes to its high-quality configuration for the length of the
+**The app's half left on 2026-09-08 and the server's is now the whole of it.**
+The withhold rested on the film *coming out of another app*, read as another
+app on the same phone; it is another **device**, so an exclusive claim never
+silenced it and closing the microphone bought only the second thing above —
+that the phone does not pick the film up. Occupants mute while it runs, which
+is ordinary self-mute, and the microphone is closed by that instead. What
+follows was the consequence of the clause and no longer holds:
+`channelHasAudio` asked the withhold first, ahead of the occupants, so every
+audio session went to its high-quality configuration for the length of the
 film — and back to the call one at each pause, which is the existing mono/stereo
 cue arriving for a new reason and saying exactly what it always said: somebody
 can be heard now. See `Audio Session Configuration`.
@@ -476,23 +485,30 @@ counts other people, and marks your own step-in separately*.
 as `micNeeded && !selfMuted`, where `micNeeded` is `microphoneNeeded`
 (`core/micNeeded.ts`).
 
-**Conditions.** `microphoneNeeded` is true when somebody else is present.
-**And false for everybody while the room is party-muted**, which is answered
-here rather than at the call site because it is the same question this function
-already asks: whether the microphone has anything to capture *for*. See
-`Party-Muted`. `App.tsx` widens it with `recordingAsked`, because server state
-arrives a round trip after the tap and that round trip is when a short run
-recorded nothing at all.
+**Conditions, since 2026-09-08: you are stepped in.** That is the whole rule.
+`microphoneNeeded` is true for anybody in the room, with one exception — a
+guest whose token cannot publish — and it consults nothing else: not the
+roster, not the watch party, not a recording, not your own mute.
 
-**A running recording used to be a second condition and no longer is, since
-2026-09-07.** It was there because one person alone could record, so a rule
-written as "alone means closed" would capture silence and report success.
-`canStartRecording` now requires somebody else present or media playing, which
-makes the clause unreachable rather than merely unwanted — every legal run
-already has an occupant behind it. The clause was what let a recording be a
-reason to hold a microphone open with nobody there, which is the same mechanism
-that let a pocketed phone hold a channel open. **If that guard is ever relaxed,
-this condition has to come back with it.**
+**Three clauses left it on that date and each is worth knowing was there.**
+
+- **The occupancy clause** — *is anybody else in the room* — which is the
+  single largest simplification. The session follows your own mode rather than
+  who else is present, so nobody else's arrival or departure crosses the
+  category boundary a Bluetooth handover sits on.
+- **The watch-party clause**, which closed every microphone while a film
+  played. It rested on a true sentence read the wrong way: the film is *coming
+  out of another app*, which is another **device**, so an exclusive claim never
+  silenced it. Occupants mute while it runs, which is ordinary self-mute. See
+  `Party-Muted`, where the withholding — the half that does work — still lives.
+- **`recordingAsked`**, which `App.tsx` used to widen this with because server
+  state arrives a round trip after the tap and that round trip was when a short
+  run recorded nothing. The device is open before the button now, so there is
+  nothing left to be ahead of.
+
+**A running recording was a condition until 2026-09-07** and is doubly
+unreachable now. `canStartRecording` requires somebody else present or media
+playing, and standing in the room already answers this true.
 
 **Where the sources disagree.** **There are two senses of this state and they
 are both wanted.** `micOpen` decides whether *we publish*. `channelHasAudio`
@@ -645,77 +661,143 @@ Anything that wants to verify a route has to be a person with the phone.
 The twelfth, absent from the request's list, and the one the audio items all
 turn on.
 
-**Name in source.** `IDLE` and `CALL` in `app/src/audio/session.ts`, chosen by
-`sessionFor` from a single boolean, which `channelHasAudio` in
-`core/micNeeded.ts` computes. `App.tsx` is its only caller. There were two
-rules and a `steadyHeadset` setting picking between them from 2026-08-27 to
-2026-09-05; that header says why there is one now.
+**Three states, since 2026-09-08, and the third is nothing at all.** `CALL` and
+`LISTENING` in `app/src/audio/session.ts`, and **deactivated** — which is not a
+configuration and is why it has no name there. The rule that produces them is
+one sentence: **a session is held if and only if the phone is stepped in.**
 
-**These are our names, not Apple's, and they are requests rather than states.**
-Each is an `AppleAudioConfiguration` bundling three AVAudioSession settings — a
-category, its options, and a mode. We write; iOS disposes.
+**These are our names, not Apple's, and the two that are configurations are
+requests rather than states.** Each is an `AppleAudioConfiguration` bundling a
+category, its options and a mode. We write; iOS disposes.
+`app/modules/audio-route` reads back the category, mode and options the session
+*actually* has, and `app/src/audio/diagnostics.ts` sets them against what was
+asked for. See disagreement 10.
 
-**"Nothing reads the result back" was true until 2026-08-21 and is the sentence
-this whole file was missing.** `app/modules/audio-route` reads the category,
-mode and options the session *actually* has, and
-`app/src/audio/diagnostics.ts` sets them against what was asked for. A request
-and a state are still two different things — that is why this entry is worded
-as it is — but they can now be compared rather than assumed equal. See
-disagreement 10.
+| | category | options | mode | who |
+| --- | --- | --- | --- | --- |
+| `CALL` | `playAndRecord` | `allowBluetooth`, `allowAirPlay`, `defaultToSpeaker` | `videoChat` | stepped in — a member, or a guest who may speak |
+| `LISTENING` | `playback` | *none* | `spokenAudio` | a guest with no speech grant |
+| — | **deactivated** | | | nearby, stepped out, or not in a room |
 
-| | category | options | mode |
+**Nothing mixes.** `mixWithOthers` left the codebase with `IDLE` on the same
+day, and this is the property to keep: a phone has either claimed the audio
+system or given it back, and there is no configuration that half-holds it. That
+makes *no claim on audio* literal rather than approximate, which is what nearby
+was defined to mean.
+
+**Conditions.** `sessionFor(want)`: `call` when `microphoneNeeded` is true —
+which is being stepped in, minus the guest exception — and `listen` otherwise.
+The one thing that can make a stepped-in member ask for `listen` is a
+**deferred promotion**: iOS refuses a backgrounded app a *new* microphone, so
+the app stays on `LISTENING`, hears the person, and takes the call session at
+the next foreground. The transition is what is forbidden, not the state, so a
+session already `CALL` is left alone when the app goes off screen.
+
+| Situation | Session |
+| --- | --- |
+| Not in a channel | deactivated |
+| Nearby, declared or inferred | deactivated |
+| Stepped in, alone, nothing running | `CALL` |
+| Stepped in, muted | `CALL` |
+| Stepped in, everybody muted | `CALL` |
+| Stepped in, watch party, while the video plays | `CALL` |
+| Guest in the room, no speech grant | `LISTENING` |
+| Stepped in, promotion deferred while backgrounded | `LISTENING` |
+
+**The empty-channel row is the reversal, and it was made knowingly.**
+`core/micNeeded.ts` used to carry the principle *being in an empty channel
+should cost the speakers nothing*, and that principle is now inverted: the
+point of standing in a room is to hear somebody the moment they speak, and a
+voice mixed under a podcast is a voice you have to attend to rather than one
+you simply hear. The cost — another app stopped, a Bluetooth headset on mono
+hands-free, for the whole visit — is paid deliberately, and **nearby is the
+escape hatch** for whoever does not want to pay it.
+
+**Exclusivity is a choice rather than a constraint, which it was not before.**
+Nine configurations measured on a device on 2026-09-08 falsified the claim that
+a `playAndRecord` session must be exclusive: `playAndRecord` + `mixWithOthers`
+under a non-voice mode let a podcast play at 48 kHz with an input tap running.
+**The category costs nothing; the mode does** — the voice modes assert
+`duckOthers` behind the caller's back. So the old reasoning was a
+misattribution, and what replaced it is a decision. The readings are in
+planning/decisions/2026-09-08-stepping-in-and-nearby.md.
+
+**Self-mute is not an input to the audio session**, and the argument is now the
+shortest it has ever been: the session follows whether you are stepped in, and
+muting is not stepping out. The 2026-08-19 route loss stays fixed because
+nothing about a mute reaches the category.
+
+**The one thing a mute might still reach is the observer**, and it is the open
+question of this design. If self-mute disables the *recording engine*, the
+native policy observer sees playout-only and applies `LISTENING` — a category
+change, therefore a Bluetooth route handover, which is the same route loss from
+a new direction. If it does not, or if `holdForPlayout` is what prevents it,
+nothing moves. **Two phones and a mute settle it**; no bench in this repository
+can, having no LiveKit in it.
+
+**The transition is audible and that is a feature.** Crossing the boundary is a
+Bluetooth profile switch, stereo to mono and back, and since 2026-09-08 it
+happens at the edge of the room rather than at the edge of a conversation:
+
+| Drop to mono | Bloom to stereo |
+| --- | --- |
+| you stepped in | you stepped out, or went nearby |
+
+**The release is native, and it is the whole mechanism.** `policyFor` — a
+constant since 2026-09-08 — hands the SDK's observer
+`{ recording: CALL, playout: LISTENING, deactivateOnStop: true }`, and the
+observer deactivates at the engine's last stop, on the audio worker thread with
+no JavaScript in the path. **The observer's three engine states are these three
+audio states**, which is why the design fits the SDK rather than fighting it:
+recording enabled, playout only, neither.
+
+Two things about `deactivateOnStop` are worth not rediscovering. It is stated
+explicitly because the SDK's wrapper defaults it to `true` while the native
+setter it wraps reads a missing key as `false` — silently leaving the session
+active after the last engine stop. And **neither the SDK's deactivation nor
+`stopAudioSession` passes `notifyOthersOnDeactivation`**, which is the flag that
+tells the interrupted app it may resume; `releaseSession` in
+`app/modules/audio-route` exists for that alone and is called on the
+connection's teardown. Every `Release` in the 2026-09-08 lab run brought the
+other app back to full rate, and only with that option.
+
+**Every exit from stepped-in takes the same path** — a tap on Step Out,
+declaring nearby, Rule B retiring an unattended phone, being displaced by
+another device — because all of them take `mediaRoom` away. A process suspended
+outright releases nothing because it cannot; the session dies with it, which is
+the same outcome by a different route and needs no code.
+
+**Android says the same states in a vocabulary with nothing in common** —
+`ANDROID_CALL`, `ANDROID_LISTENING` and `ANDROID_RELEASED` in the same file,
+the first two chosen by `androidSessionFor` from the *same* value. That the
+question does not fork is the invariant; the values are not comparable and are
+not meant to be.
+
+| | `AudioManager` mode | stream | focus |
 | --- | --- | --- | --- |
-| `IDLE` | `playback` | `mixWithOthers` | `spokenAudio` |
-| `CALL` | `playAndRecord` | `allowBluetooth`, `allowAirPlay`, `defaultToSpeaker` | `videoChat` |
-
-**Android says the same two states in a vocabulary with nothing in common**,
-since 2026-09-01 — `ANDROID_IDLE` and `ANDROID_CALL` in the same file, chosen by
-`androidSessionFor` from the *same* boolean. That the question does not fork is
-the invariant; the values are not comparable and are not meant to be.
-
-| | `AudioManager` mode | stream | usage |
-| --- | --- | --- | --- |
-| `ANDROID_IDLE` | `normal` | `music` | `media` |
-| `ANDROID_CALL` | `inCommunication` | `voiceCall` | `voiceCommunication` |
+| `ANDROID_CALL` | `inCommunication` | `voiceCall` | `gain` |
+| `ANDROID_LISTENING` | `normal` | `music` | `gain` |
+| `ANDROID_RELEASED` | `normal` | `music` | **not managed** |
 
 `inCommunication` is this platform's `videoChat`: it is what switches on the
-hardware echo canceller. **Before that date Android was configured with nothing
-at all — which did not mean `MODE_NORMAL`.** The SDK's default is already
-`MODE_IN_COMMUNICATION`, so what was absent was not the echo canceller but the
-*transition*: Android sat in communication mode for the whole connection,
-whether or not this app had audio. `ANDROID_IDLE` is the half that did not
-exist, and an empty channel holding the phone in voice-call mode is what it
-costs.
+hardware echo canceller.
 
-Two differences from the iOS story above, both structural rather than pending
-work. There is **no second writer** — no native policy observer, no shared
-process-wide session object — so `policyFor` has no Android counterpart and
-`pushPolicy` stays iOS-only by design rather than by debt. And **nothing reads
-the result back**: `app/modules/audio-route` is iOS-only, so the comparison
-disagreement 10 describes is unavailable here, and `adb logcat` is the
-substitute. See planning/ANDROID.md.
+**`ANDROID_LISTENING` was `ANDROID_IDLE`, and the rename is the change.** It
+was only ever called idle because iOS's `IDLE` mixed; this preset never did.
+Both presets request `gain` focus, which stops other apps — so **the mixing
+this platform never verified is mixing it never did**, and the note that used
+to stand here calling it an unverified risk describes nothing now.
 
-**Mixing does not appear in the Android row, and its absence is not an
-omission.** On iOS mixing is a category *option*; on Android it is the audio
-*focus* request, which both presets set to `gain`. So the behaviour `IDLE`
-exists to provide — an empty channel costing another app's audio nothing — is
-**unverified on Android** rather than stated there.
-
-**There were three until 2026-08-27.** `LISTENING` was `IDLE` without
-`mixWithOthers`, applied when something was audible but nothing was capturing,
-so that shared playback interrupted another app rather than mixing with it. It
-was switched off in build 90 on suspicion of racing the engine's own start, and
-deleted with the rule change below — what it existed for now arrives as a
-consequence, `CALL` being exclusive already.
-
-**`allowBluetoothA2DP` was in that row and came out in build 65**, and its
-absence is the point rather than an omission. A2DP is output-only, so listing
-it under `playAndRecord` made a Bluetooth speaker with no microphone an
-eligible *output*: iOS kept the far end on the speaker and took input from the
-built-in mic in the same room, which is an echo path. `session.ts` carries the
-argument, and it is the second time this option has been removed — build 19
-took it out for a different reason and put it back on a reading that was
-probably wrong.
+**`ANDROID_RELEASED` is the platform's whole share of the redesign**, and the
+only part of it that is new code rather than a rename. Android has no policy
+observer and no `deactivateOnStop`, so nothing gives the focus back on this
+app's behalf and the release has to be said: `releaseAndroidAudio` in
+`useSessionAudio`, on the same teardown. The other half is that it should
+rarely be needed — a nearby phone never starts an audio session at all. Two
+differences from iOS remain structural: there is **no second writer**, so
+`pushPolicy` stays iOS-only by design rather than by debt, and **nothing reads
+the result back**, `app/modules/audio-route` being iOS-only. `adb logcat` is
+the substitute. See planning/ANDROID.md.
 
 Three settings carry all the behaviour:
 
@@ -724,141 +806,43 @@ Three settings carry all the behaviour:
   A2DP is one-way and full-bandwidth, HFP is two-way and mono, and they are
   different link types. So asking for capture *is* asking iOS to tear one down
   and bring the other up.
-- **`mixWithOthers`** — whether other **apps** keep playing. Nothing to do with
-  other participants, who arrive as tracks inside our own output. It is the
-  only thing `IDLE` is for.
 - **`videoChat`** — switches on the system echo canceller. See
   POSTMORTEM-echo.md before touching it.
+- **the absence of `allowBluetoothA2DP`** — see below.
 
-**Conditions.** `sessionFor(hasAudio)`: `CALL` when `channelHasAudio` says
-there is audio, `IDLE` when it says there is not.
+**`allowBluetoothA2DP` came out in build 65**, and its absence is the point
+rather than an omission. A2DP is output-only, so listing it under
+`playAndRecord` made a Bluetooth speaker with no microphone an eligible
+*output*: iOS kept the far end on the speaker and took input from the built-in
+mic in the same room, which is an echo path. It is the second time the option
+has been removed — build 19 took it out for a different reason and put it back
+on a reading that was probably wrong. **The 2026-09-08 run measured the split
+working** — A2DP stereo out at 48 kHz with the phone's own microphone in — so
+it is declined rather than unavailable: it costs the echo canceller, and the
+mic-less speaker above is unsafe under it. Being nearby is how somebody keeps
+stereo.
 
-**`channelHasAudio(channel, me)`** asks *does this app have any audio at all*,
-in four tests in this order: a withholding watch party is `false`, anybody else
-in the room is `true`, a recording running is `true`, and a playback track
-loaded (`status !== 'idle'`, which includes paused) is `true`.
+**Two configurations have been deleted and neither is coming back under its own
+name.** `IDLE` was `playback` with `mixWithOthers`, and it made sense while a
+quiet phone was still *connected*: you hold a playback session because a voice
+could arrive at any moment. A nearby phone has no media subscription, so
+nothing can arrive; the session would assert a readiness for audio that cannot
+happen, and would not even buy process lifetime, an active session with nothing
+flowing being exactly what iOS suspends. `WAITING` was `CALL` *with*
+`mixWithOthers` and lasted one day, 2026-09-06, on the reading that a
+call-shaped session stops another app whatever the option says — a reading the
+lab has since corrected, without changing the outcome, since exclusivity is now
+wanted. **`LISTENING` is a restoration**: it was `IDLE` without `mixWithOthers`,
+deleted in build 90 for interrupting other apps, and it is back because
+interrupting them is the intent.
 
-It drops the fidelity question entirely and asks an ownership one: does this app
-want the audio system, or should it hand it back? The premise it replaced was
-that a room with no open microphone has somebody in it who wants the stereo
-route. Exactly one claimant on that stereo survives examination — **another
-app.** Voices are already degraded by the codec, and shared playback is not
-trying to be a media player, so its quality should not depend on whether
-somebody is talking over it.
-
-| Situation | Session |
-| --- | --- |
-| Not in a channel | none |
-| Alone, nothing running | `IDLE` |
-| Alone, recording | `CALL` |
-| Alone, a track loaded or playing | `CALL` |
-| Others present, anybody unmuted | `CALL` |
-| Others present, I am muted, they are not | `CALL` |
-| Others present, **everybody** muted | `CALL` |
-| Watch party, while the video plays | `IDLE` |
-
-**All present muted is `CALL`, and that is the row to understand.** A muted room
-is not a silenced room, it is a live room that happens to be quiet. Every mute
-is unilateral and instant — `canSetSelfMute` refuses only the muting — so
-handing the route back there would hand it back on a state anybody can leave in
-the time it takes to start a sentence, and the profile handover would land on
-that sentence's first syllable.
-
-**Alone with a track is `CALL` from the moment the track is *loaded*** rather
-than when it is heard, so the category write happens before anything is
-published instead of at the moment the track arrives and the engine starts.
-
-**The watch-party row is arranged rather than falling out.** The withhold is
-asked ahead of the occupants, who are present throughout. The Floor carries no
-video, each person's own player follows a transport clock, so the film is
-coming out of another app and every voice is withheld while it plays. This app
-has nothing to play and nothing to capture, and the claimant on the route is the
-player.
-
-**Self-mute is not an input to the audio session.** Nothing in
-`channelHasAudio` consults `selfMuted`, and the 2026-08-19 route loss stays
-fixed because somebody else is still *there* rather than because somebody else
-is still capturing.
-
-**The transition is audible and that is a feature.** Crossing the boundary is a
-Bluetooth profile switch, stereo to mono and back:
-
-| Drop to mono | Bloom to stereo |
-| --- | --- |
-| somebody has arrived, or a track is loaded | the room is empty, or the track is cleared, or the film has started |
-
-It follows the room's shape rather than its mute states, so it does not fire on
-everybody happening to be muted at once — a state nobody announces and nobody
-chose.
-
-**Since 2026-09-05 the boundary is crossed far less often than this table
-suggests.** The playout fix holds the microphone open, muted, for as long as
-anything is subscribed — see PLAYOUT.md — so a channel with anything to hear is
-`playAndRecord` and stays there. The rows above still describe what `sessionFor`
-is asked for; what a headset actually experiences is HFP for the whole time
-there is audio, which is the cost that fix accepted deliberately.
-
-**A third configuration existed for one day and is gone — 2026-09-06.**
-`WAITING` was `CALL`'s category, mode and route list with `mixWithOthers`
-added, meant to hold the hands-free route through a quiet channel so that an
-arriving voice needed no handover. It was deleted for a reason that has nothing
-to do with routes: **a call-shaped session stops another app's audio whether or
-not it carries `mixWithOthers`.** Measured three builds running, finally with a
-podcast dying a fraction of a second after the play button. So a quiet channel
-asks for `IDLE`, whatever else the phone is doing, and the table above is again
-the whole story.
-
-**The branch it was chosen by cannot be built as it stood.**
-`isOtherAudioPlaying` reads true only while this app is *active* — it describes
-our own foreground state rather than anybody else's audio — and
-`silenceSecondaryAudioHintNotification`, the event that would have replaced it,
-was shipped in build 150 and **never fired**, with the app foregrounded, in a
-channel, playing silence as unambiguously secondary audio while a podcast was
-paused and resumed. Re-asking the flag on every app-state change is what made
-build 150 flip configuration five times in thirty seconds, dragging a headset
-between HFP and A2DP.
-
-**What survives is the timing rule, and it is what the silent wait is built
-on.** iOS grants a backgrounded process playback and refuses it a microphone,
-so the session a voice arrives under is fixed before the phone is locked. So a
-quiet channel with nothing else playing asks for `CALL` and **opens the
-microphone at step-in** — `waitingAlone` in `useSessionAudio.ts`. An arrival is
-then heard and can be answered without touching the phone, and capturing keeps
-the process alive by itself: 22m 30s measured, against about a second for a
-session with nothing flowing.
-
-The decision is made from `otherAudioPlaying`, read **only while the app is
-active** and held in between, because that is both the only moment the flag is
-honest and the only moment the decision can be acted on. Never having asked is
-not the same as *nothing playing*: an app that has had no such moment does not
-open a microphone on an assumption.
-
-**The promotion to `CALL` is still deferred while backgrounded.** Every row
-saying `CALL` reads `IDLE` while the app is off screen *and was not already in
-a call* — the transition is what is forbidden, not the state. What is genuinely
-lost is transmitting, which iOS never offered.
-
-**And an accompanied wait gives up presence.** The phone is not held awake, so
-it suspends, presence lapses, and the roster reads *Nearby* while the arrival
-notification does the work. The alternative was built and tried: ducking the
-other app so the arriving voice carried. It worked — and produced a state worse
-than absence, because iOS grants a backgrounded app no microphone, so the
-arrival could be **heard but not answered**. Somebody talking to a person who
-cannot reply, and cannot know they cannot, is the asymmetry that decided it.
-
-**`IDLE` also became the state in which this app plays silence — 2026-09-05.**
-Not audible silence and not a fourth configuration: `modules/keep-alive` loops
-an inaudible buffer under whatever category is already set, for exactly as long
-as `hasAudio` is false and this device is standing in a channel, bounded by
-`WAITING_WINDOW_MS`. It is the only thing holding such a wait up: a session
-with nothing flowing earns no background assertion at all and is suspended in
-about a second, measured seven times. It is here because the two facts turn out to be one fact —
-`IDLE` is what this app asks for when no audio is flowing, and no audio flowing
-is what lets iOS suspend the process and expire somebody's presence while they
-are still standing there. Measured at `drops 2 (recovered 0, expired 2)` after
-five minutes locked in an empty channel. It changes no category, so everything
-this section says about `playback`, `mixWithOthers` and the stereo route holds
-unchanged while it runs.
+**The keep-alive is gone with them.** `modules/keep-alive` played an inaudible
+buffer for as long as `hasAudio` was false, because a session with nothing
+flowing earns no background assertion and is suspended in about a second. There
+is no such state left: stepped in is always capturing, which keeps the process
+alive by itself — 22m 30s measured backgrounded with zero drops — and nearby is
+*meant* to suspend. `useAttention` is the only bound on the first, and the
+fifteen-minute window is the bound on the second.
 
 **On a mic-less speaker the cue is a route change rather than a profile
 change, and it was nothing at all before build 65.** A Bluetooth *speaker*
@@ -874,7 +858,8 @@ three checks in decisions/ § *No output that cannot also capture*.
 **The silent version of this misled the author on 2026-08-20**, before the
 fix — alone on a Bluetooth speaker, a second person arrived, the audio stayed
 in stereo, and the good quality was read as proof the microphone was shut. It
-was open; `microphoneNeeded` opens it the moment anybody else is present, and
+was open; `microphoneNeeded` opened it the moment anybody else was present —
+and since 2026-09-08 opens it at step-in, before anybody is — and
 `ChannelView` said "Open" on screen throughout. The screen is the truth here
 and the route is not — which still holds, since a cue that depends on the
 hardware is not one to reason from.
@@ -1011,13 +996,13 @@ lifted an entry elsewhere.
    orange indicator, which this app deliberately does not second-guess.
 4. **The audible mono/stereo transition is designed behaviour with nothing in
    the code calling it so** — until this file. Open: it is one refactor away
-   from being deleted as a blemish. **Since 2026-09-05 it means one thing
-   again**, the setting that gave it two having gone: the drop to mono says the
-   room is not empty, or a track is loaded, rather than that somebody's
-   microphone is open. Fewer crossings, a
-   coarser claim, and nothing in the code calls either of them a signal — so a
-   reading of the route is now a reading of a preference too, and the entry
-   stays open for that reason as much as the original one.
+   from being deleted as a blemish. **Since 2026-09-08 it says the one thing it
+   has ever been able to say honestly**: *you are in this room.* It fires at
+   step-in and at step-out, and at nothing else — not on somebody else
+   arriving, not on a track being loaded, not on a mute. That is as few
+   crossings as there can be and the claim is now exactly true, which is the
+   strongest this entry has ever been; it stays open only because nothing in
+   the code still calls it a signal.
 5. **`app/index.ts`'s licensed writer disagreement is argued only about
    `mixWithOthers`, never about the route.** *Closed.* The licence is gone —
    `policyFor` gives the observer the same answer we give — and a test pins the
@@ -1095,13 +1080,10 @@ lifted an entry elsewhere.
    rule said there was no audio, and the two writers wanted different categories
    for the same moment.
 
-   **It closes from both ends.** `channelHasAudio` is true in every case that
-   can leave the engine recording — somebody else in the room, or a recording
-   running, which are exactly the two things that make `microphoneNeeded` true.
-   And the playout hold added the same day pins `hasAudio` wherever it keeps the
-   device open, so the session is a call for exactly as long as the device is
-   held. There is no longer a state in which this device records under
-   `playback`.
+   **It closes from both ends, and since 2026-09-08 trivially.** The engine can
+   only be recording where `microphoneNeeded` was true, which is being stepped
+   in, which is the whole of what a call is. There is no rule left under which
+   this device could record beneath a `playback` session, and none to write.
 
    **This was the leading explanation for TASKS.md § *The Foreground
    Interruption*, and closing it does not close that.** Everybody muted should

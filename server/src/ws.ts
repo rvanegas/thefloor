@@ -1139,6 +1139,12 @@ export function registerWebsocket(deps: {
             // is present and re-sends ENTER from that belief on reconnect,
             // undoing the expiry a moment after it lands.
             message.action.type === 'ATTENTION_EXPIRED' ||
+            // Declaring nearby from inside a channel gives up presence too,
+            // and an untold sibling would re-send ENTER on its next reconnect
+            // and undo it. Declaring it from outside displaces nothing, there
+            // being no presence to withdraw — the account cannot be standing
+            // anywhere this action left it standing.
+            message.action.type === 'DECLARE_NEARBY' ||
             message.action.type === 'LEAVE_CHANNEL'
           ) {
             displaceOtherSessions(connection);

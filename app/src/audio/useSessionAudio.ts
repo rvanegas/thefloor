@@ -16,14 +16,12 @@ import {
   type AppleAudioConfiguration,
 } from '@livekit/react-native';
 import {
-  onOtherAudio,
   onRouteChange,
+  releaseSession,
   routeSnapshot,
   setAllowHapticsDuringRecording,
 } from '../../modules/audio-route';
 import { startCallService, stopCallService } from '../../modules/call-service';
-import { startSilence, stopSilence } from '../../modules/keep-alive';
-import { WAITING_WINDOW_MS } from '../../../core/constants';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
 import { engineSnapshot } from './engineState';
@@ -47,6 +45,8 @@ import {
 } from './routeRecovery';
 import {
   ANDROID_OUTPUTS,
+  ANDROID_RELEASED,
+  androidNameOf,
   androidSessionFor,
   CALL,
   nameOf,
@@ -356,6 +356,36 @@ async function applyAndroidConfiguration(want: SessionWant): Promise<void> {
 }
 
 /**
+ * Gives Android's audio focus back, which is this platform's whole share of the
+ * 2026-09-08 redesign.
+ *
+ * **iOS gets this for free and Android does not.** The SDK's native observer
+ * deactivates the iOS session at the engine's last stop — `deactivateOnStop` in
+ * `policyFor` — and there is no such observer here: `pushPolicy` returns early
+ * off iOS deliberately, so nothing releases focus on this app's behalf and the
+ * release has to be said.
+ *
+ * **The other half of the release is that it should never be needed.** A phone
+ * that is nearby has no media connection, so `startAudioSession` never runs
+ * and `applyAndroidConfiguration` is never called. This is for the path where
+ * something *was* configured and the room has since gone — a step-out, a
+ * declaration of nearby, an unattended phone retired by Rule B — where the
+ * process lives on holding a focus request for nothing.
+ *
+ * Swallows its error for the same reason its counterpart does.
+ */
+async function releaseAndroidAudio(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  recordEvent(`android ${androidNameOf(ANDROID_RELEASED)}`);
+  await AudioSession.configureAudio({
+    android: {
+      audioTypeOptions: ANDROID_RELEASED,
+      preferredOutputList: [...ANDROID_OUTPUTS],
+    },
+  }).catch(() => {});
+}
+
+/**
  * Records every write this app makes to the audio session, in development
  * builds only.
  *
@@ -432,33 +462,33 @@ function trace(config: AppleAudioConfiguration, want: SessionWant): void {
  * assignment, and it touches neither the session nor the engine.
  */
 /**
- * Which session this app wants, from the two facts that decide it.
+ * Which of the two configurations this app wants, from the one fact that
+ * decides it.
  *
- * **A quiet channel hands the audio system back**, whatever else is happening
- * on the phone. That is a narrowing, made 2026-09-06 after a third
- * configuration lasted one day: `WAITING` held the hands-free route through a
- * wait so that an arrival needed no handover, and a call-shaped session turns
- * out to stop another app's audio whether or not it carries `mixWithOthers`.
- * A podcast died a fraction of a second after the play button, three builds
- * running.
+ * **The question is *may this device open a microphone right now*, and nothing
+ * else**, since 2026-09-08. There is no case left in which a phone with a
+ * connection hands the audio system back: nearby is a phone with no connection
+ * at all, and the release is the SDK's `deactivateOnStop` at the engine's last
+ * stop rather than a configuration anybody writes.
  *
- * **The wait that keeps a microphone open is not built yet**, and when it is,
- * it enters here: the third case is *silent channel, nothing else playing*,
- * which asks for `call` so an arrival can be heard and answered without
- * touching the phone. It needs `otherAudioPlaying`, which is only sound while
- * this app is active — so it will be read at step-in and at each foreground
- * and held in between, never re-asked from the background. Until then this
- * function does not ask at all.
+ * Two things make it `listen` rather than `call`, and they are the only two: a
+ * guest with no speech grant, who has no microphone to open, and a member
+ * whose promotion is deferred because iOS will not grant a *new* microphone to
+ * a backgrounded app. The second is temporary by construction and resolves at
+ * the next foreground.
  *
- * @param hasAudio whether there is audio to hear, already adjusted for what
- *                 iOS will grant: false while a promotion is deferred.
- * @param handBack `isPartyMuted` — this app should not have the audio system.
+ * `handBack` was the second parameter and is gone with the watch-party clause:
+ * the film plays on another device, so there is nobody to hand anything back
+ * to. See core/micNeeded.ts.
+ *
+ * @param canCapture whether the microphone may be open, already adjusted for
+ *                   what iOS will grant: false while a promotion is deferred.
  */
-function wantFor(hasAudio: boolean, handBack: boolean): SessionWant {
-  return hasAudio && !handBack ? 'call' : 'idle';
+function wantFor(canCapture: boolean): SessionWant {
+  return canCapture ? 'call' : 'listen';
 }
 
-function pushPolicy(want: SessionWant): void {
+function pushPolicy(): void {
   // **Android has no counterpart and is not missing one**, which is worth
   // stating because every other `Platform.OS !== 'ios'` guard in this
   // directory marks something Android still owes. This one does not: the
@@ -469,8 +499,15 @@ function pushPolicy(want: SessionWant): void {
   // applied once when the session starts and stays. So there is nobody here to
   // agree with, and a branch added to this function would be agreeing with
   // nothing. See src/audio/session.ts and planning/STATES.md.
+  //
+  // **Takes no argument since 2026-09-08**, the policy having become a
+  // constant: the observer's three engine states *are* the three audio states,
+  // so it needs nothing from us but the two configurations and the instruction
+  // to deactivate when both engines stop. It is still pushed at each edge
+  // rather than once at startup, because a push is a single atomic property
+  // assignment and re-stating it is how a superseded setup is superseded.
   if (Platform.OS !== 'ios') return;
-  setupIOSAudioManagement(true, policyFor(want));
+  setupIOSAudioManagement(true, policyFor());
 }
 
 /**
@@ -605,9 +642,9 @@ async function applyFor(want: SessionWant): Promise<void> {
   await applyConfiguration(config);
   // Each half is a no-op off its own platform, so both are stated
   // unconditionally and the branch lives in one place rather than at every
-  // call site. `trace` above names the *state* — IDLE or CALL — which is the
-  // one thing the two platforms genuinely share, so the development log line
-  // reads the same on both.
+  // call site. `trace` above names the *state* — CALL or LISTENING — which is
+  // the one thing the two platforms genuinely share, so the development log
+  // line reads the same on both.
   await applyAndroidConfiguration(want);
 }
 
@@ -670,8 +707,7 @@ export function useSessionAudio(
   hasAudioAsked: boolean,
   recoverPlayout = false,
   deferSubscribe = false,
-  holdForPlayout = false,
-  handBack = false
+  holdForPlayout = false
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -759,51 +795,6 @@ export function useSessionAudio(
   }, []);
 
   /**
-   * Whether another app was playing when we last had the right to ask.
-   *
-   * **`isOtherAudioPlaying` does not report other apps.** It reads true only
-   * while *this* app is the active one — a fact about our own foreground state
-   * wearing somebody else's name, measured 2026-09-06. Asking it on every
-   * app-state change is what made build 150 flip configuration five times in
-   * thirty seconds, dragging a headset between HFP and A2DP and killing a
-   * podcast a fraction of a second after its play button.
-   *
-   * **Asked on the foreground and never on the tick that connects**, which is
-   * narrower than it first shipped and the narrowing was measured. Keyed on
-   * `mediaRoom` as well, the read fired on the same tick as the connection —
-   * and the connect path activates our own session, after which iOS reports no
-   * other audio. Build 153 duly took a *silent* wait with music plainly
-   * playing, held a microphone, and stayed present while its owner expected to
-   * lapse. So the flag is not honest "while the app is active"; it is honest
-   * **before this app's own session is in play**, and the only reliable moment
-   * to ask is a foreground with no connection being made.
-   *
-   * The answer is **held** in between, which costs nothing: the decision it
-   * feeds can only be acted on before the phone is locked anyway, because iOS
-   * will not grant a backgrounded app a microphone it did not already have.
-   *
-   * `silenceSecondaryAudioHintNotification` would have made this an event
-   * rather than a reading. It was shipped in build 150 and never fired once;
-   * see the observer in this file for the conditions it was given.
-   *
-   * **`null` means never asked, and it is not the same as `false`.** An app
-   * launched straight into the background has had no honest moment, and
-   * assuming silence there would take a microphone and could stop audio we
-   * never looked for. Only a *read* answer opens one.
-   */
-  const [otherAudio, setOtherAudio] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!foreground) return;
-    const playing = routeSnapshot()?.otherAudioPlaying === true;
-    // **Logged because every diagnosis that cost more than one build was one
-    // where the app did not record what it believed.** This value decides
-    // which wait somebody gets, and it was previously legible only two steps
-    // downstream, from which session was chosen.
-    recordEvent(`other audio ${playing ? 'T' : 'F'} (asked)`);
-    setOtherAudio(playing);
-  }, [foreground]);
-
-  /**
    * Whether there is a microphone to open — see `SessionAudio.inputAvailable`
    * for the crash that makes this necessary rather than tidy.
    *
@@ -823,52 +814,46 @@ export function useSessionAudio(
     setState((s) => (s.inputAvailable === available ? s : { ...s, inputAvailable: available }));
   }, [foreground, mediaRoom]);
 
-  const holding = holdForPlayout && state.othersAudible > 0;
-
   /**
-   * Whether this is a *silent wait*: standing in a quiet channel with nothing
-   * else playing on the phone, waiting for somebody to arrive.
+   * The playout fix's hold, which since 2026-09-08 is **inert for a member and
+   * scoped so that it can never be anything else.**
    *
-   * **It opens the microphone, and that is the only way the wait can work.**
-   * iOS will not grant a backgrounded app a *new* microphone — measured on
-   * build 146, where a request from a pocketed phone produced no category
-   * change and no engine start for four minutes — but it lets one that is
-   * already capturing carry on. So the microphone an arriving voice is
-   * answered with has to be open before the phone is locked, or it never is.
+   * It holds the microphone open, muted, while anything is subscribed, so that
+   * the engine is never restarted underneath a receiver that is rendering.
+   * Stepping in now *is* an open microphone, so for a member the restart it
+   * guards cannot happen and this adds nothing at all. The one person it could
+   * still reach is a guest with no speech grant — who has no microphone to
+   * hold, whose token cannot publish, and for whom opening one would buy the
+   * whole call-profile handover to publish nothing. Hence `micNeededAsked`
+   * here: this may only ever hold a device somebody is allowed to have.
    *
-   * Capturing also keeps the process alive by itself: 22m 30s backgrounded
-   * with zero drops, measured 2026-09-06, against about a second for a session
-   * with nothing flowing. The wait needs no silence.
-   *
-   * **`waitingElsewhere` is why this can be false.** A quiet channel with
-   * another app playing hands the audio system back instead, because a
-   * call-shaped session stops that app — see `session.ts` on the configuration
-   * that was deleted for it. The cost, accepted at the prompt: starting audio
-   * *during* a silent wait will not work until The Floor is next foregrounded,
-   * and nothing in iOS will tell us it happened.
+   * **Kept rather than deleted, on purpose.** It was one of two fixes for a
+   * fault that took weeks to find, and the argument that it is now unreachable
+   * is an argument rather than a measurement. It leaves when a device says the
+   * playout freeze does not come back without it.
    */
-  const waitingAlone =
-    inputAvailable &&
-    !!mediaRoom &&
-    !hasAudioAsked &&
-    !handBack &&
-    otherAudio === false;
+  const holding =
+    holdForPlayout && micNeededAsked && state.othersAudible > 0;
 
-  const hasAudio = hasAudioAsked || holding || waitingAlone;
+  // **The claim is stepping in, and nothing else is consulted.** Both of these
+  // are already the answer to *am I standing in this room* — see
+  // core/micNeeded.ts — so there is nothing left here to add to them. What used
+  // to be added was `waitingAlone`, the silent wait: a quiet channel with
+  // nothing else playing took a microphone so that an arrival could be answered
+  // from a pocket. Every visit is that wait now, so the state has no separate
+  // existence, and the tri-state `otherAudio` that chose between two kinds of
+  // wait went with it.
+  const hasAudio = hasAudioAsked;
   // **Never true without a microphone to open.** `intentFor` collapses to
   // `released`, so nothing is published and the capturing branch — the one
   // that calls `setMicrophoneEnabled(true)` and crashes an input-less device
   // inside `AVFAudio` — is never reached. The session still goes to `CALL`
   // through `hasAudio`, so somebody else is still *heard*: a machine with no
   // microphone can listen, it simply cannot speak.
-  const micNeeded = (micNeededAsked || holding || waitingAlone) && inputAvailable;
+  const micNeeded = (micNeededAsked || holding) && inputAvailable;
   // Held, not captured. Left alone whenever the microphone was genuinely
-  // wanted, so this can only ever add a hold and never silence a real one.
-  //
-  // A silent wait is *not* muted: it is open and live, so somebody arriving
-  // hears the room from their first instant with no unmute step to fail. That
-  // was chosen at the prompt over muted-with-auto-unmute, against the cost of
-  // continuous upload and `mic` minutes accruing in an empty channel.
+  // wanted, so this can only ever add a hold and never silence a real one —
+  // which, `holding` now requiring `micNeededAsked`, is never.
   const selfMuted = micNeededAsked ? selfMutedAsked : selfMutedAsked || holding;
 
   /**
@@ -886,42 +871,6 @@ export function useSessionAudio(
    * re-run when it changes: a foreground is the moment the deferred promotion
    * becomes possible, and nothing else would notice.
    */
-  /**
-   * Whether this app has written the audio session's category yet, in this
-   * process.
-   *
-   * **The keep-alive must not play before this is true, and 2026-09-05 build
-   * 146 is why.** `AVAudioPlayer.play()` activates the session, and on a fresh
-   * launch the category is still the process default — `soloAmbient`, which
-   * does not mix. So starting silence first activated a *non-mixing* session
-   * and stopped the music the whole feature exists not to touch: stepping into
-   * an empty channel killed a podcast, with the log reading `silence started`
-   * one line above `connect released IDLE`.
-   *
-   * It had worked in testing the day before because the app was already
-   * running and had configured the session on an earlier connect. A fresh
-   * launch is what loses the race, which is why it survived a field test.
-   *
-   * Fixed by ordering rather than by letting `modules/keep-alive` set a
-   * category of its own: three writers already contend for this process-wide
-   * object and the last one wins, and a fourth that only writes at startup
-   * would be the hardest of them to reason about. See `session.ts`.
-   *
-   * Monotonic on purpose — set once per connect and never cleared. A flag that
-   * went false on a reconnect would stop the silence during precisely the
-   * window a backgrounded phone needs it.
-   */
-  /**
-   * Read at connect for the same reason the others are: a watch party starting
-   * or stopping its film must not tear the room down and rebuild it. The apply
-   * effect below is what acts on a change.
-   */
-  const handBackRef = useRef(handBack);
-  handBackRef.current = handBack;
-
-  const [sessionConfigured, setSessionConfigured] = useState(false);
-
-
   /** Same reason as `micNeededRef`: read at connect, acted on below. */
   const selfMutedRef = useRef(selfMuted);
   selfMutedRef.current = selfMuted;
@@ -988,42 +937,6 @@ export function useSessionAudio(
   const deferredRef = useRef(false);
 
   /**
-   * Records another app's audio starting and stopping, and changes nothing.
-   *
-   * **A measurement whose result is already in, kept as the record of it.** On
-   * 2026-09-06 this observer was shipped in build 150 and fired **not once** —
-   * with the app foregrounded, in a channel, playing silence as unambiguously
-   * secondary audio, while a podcast was paused and resumed from Control
-   * Centre. `silenceSecondaryAudioHintNotification` does not report this
-   * transition, so nothing can branch on it.
-   *
-   * The same run showed what the polled flag really tracks: `isOtherAudioPlaying`
-   * reads true only while this app is *active*. It describes our own foreground
-   * state, not anybody else's audio — which is why build 150 flipped
-   * configuration five times in thirty seconds and killed the podcast a
-   * fraction of a second after the play button.
-   *
-   * Left in place because a negative result that is easy to re-derive is
-   * cheaper to keep than to rediscover, and because it costs one log line at
-   * an edge that never comes.
-   *
-   * Unconditional and outside the connection, because the question is about
-   * the phone rather than about a room, and an edge that arrives while nothing
-   * is connected is as much of an answer as one that does not.
-   */
-  useEffect(
-    () =>
-      onOtherAudio((event) => {
-        recordEvent(
-          `other audio ${event.began ? 'began' : 'ended'}` +
-            ` (playing=${event.otherAudioPlaying ? 'T' : 'F'}` +
-            ` hint=${event.secondaryAudioHint ? 'T' : 'F'})`
-        );
-      }),
-    []
-  );
-
-  /**
    * Keeps Android's foreground service up for as long as this app is in a
    * channel, which is what stops the call dying when the app leaves the screen.
    *
@@ -1055,91 +968,6 @@ export function useSessionAudio(
     };
   }, [mediaRoom]);
 
-  /**
-   * Keeps this process alive while the channel has nothing in it to hear,
-   * which is iOS's half of what the service above does for Android.
-   *
-   * **Runs exactly where the session is `IDLE`, and that is the whole design.**
-   * `IDLE` is the configuration this app takes when no audio is flowing, and
-   * no audio flowing is precisely the condition under which iOS suspends a
-   * process holding the `audio` entitlement. The two have always described the
-   * same moment; until now only one of them acted on it. So the condition here
-   * is `hasAudio === false`, the same derived value `applyFor` is given, rather
-   * than a second rule that could drift from it.
-   *
-   * **Measured, not assumed.** A phone locked for five minutes alone in an
-   * empty channel came back `drops 2 (recovered 0, expired 2)`. Nothing
-   * recovered, so the socket did not merely go quiet — the process was gone,
-   * and everybody who stepped into that channel afterwards saw somebody who was
-   * not there and had to ping them back in.
-   *
-   * **Silence rather than the microphone**, which was the other way to buy the
-   * same liveness and costs a great deal more: holding a microphone open needs
-   * `playAndRecord`, which scopes the A2DP route away for the whole wait, lights
-   * the recording indicator, and publishes a track the meter has to be taught
-   * to ignore. Silence needs none of that because it changes no category —
-   * see `modules/keep-alive`.
-   *
-   * **Bounded by `WAITING_WINDOW_MS`**, which is not an arbitrary timeout: it
-   * is how long this app goes on describing somebody as *Nearby*, on the
-   * argument in that constant's own header that waiting is an intention and an
-   * intention has a shelf life. Holding a phone awake past the point where the
-   * app has stopped claiming anybody is expecting company would be spending
-   * battery on an eagerness nobody has. Past it the phone suspends and the
-   * roster reads exactly as it does today.
-   *
-   * Keyed on `[mediaRoom, hasAudio]`, so the clock restarts when the condition
-   * is newly entered rather than on every render — a channel that goes quiet
-   * again after a conversation is a fresh wait, and gets a fresh fifteen
-   * minutes.
-   */
-  useEffect(() => {
-    // `sessionConfigured` rather than merely being in a channel: playing
-    // before the category is written activates the system default, which does
-    // not mix and stops whatever else the phone was playing.
-    //
-    // **Not while another app is playing** — the accompanied wait gives up
-    // presence, decided 2026-09-06 after the field trial that produced it.
-    // Staying alive there bought a state worse than absence: the arrival was
-    // heard, ducked nicely over the music, and **could not be answered**,
-    // because iOS grants a backgrounded app no microphone. So the other person
-    // talks to somebody who cannot reply and has no way to learn that. Better
-    // to suspend, lapse to *Nearby*, and let the arrival notification do the
-    // work it was always for.
-    //
-    // What is left keeping a phone up is a watch party — deliberately left
-    // alone, being an experiment due its own review — and the case where this
-    // app has never had an honest moment to ask.
-    //
-    // A silent wait is not here at all: it holds a microphone, and capturing
-    // keeps the process alive by itself.
-    if (!mediaRoom || hasAudio || otherAudio === true || !sessionConfigured) {
-      return;
-    }
-
-    startSilence().then((playing) => {
-      // Worth a line for the same reason the service's is: whether this
-      // started is the difference between a presence that survives a locked
-      // phone and one that does not, and nothing outside the app can tell.
-      // The category is named because silence under a non-mixing one stops
-      // another app's audio, and the log would say `started` either way.
-      const route = routeSnapshot();
-      recordEvent(
-        `silence ${playing ? 'started' : 'unavailable'}` +
-          (route?.category ? ` ${route.category}` : '')
-      );
-    });
-
-    return () => {
-      recordEvent('silence stopped');
-      stopSilence();
-    };
-    // **No window of its own, since 2026-09-06.** It used to stop itself after
-    // `WAITING_WINDOW_MS` and re-arm on each foreground. `useAttention` now
-    // ends the visit at that same window by stepping out, which stops this by
-    // taking `mediaRoom` away — one clock rather than two that have to be kept
-    // equal.
-  }, [mediaRoom, hasAudio, otherAudio, sessionConfigured]);
 
   useEffect(() => {
     if (!mediaRoom || !channelIdRef.current || !token) return;
@@ -1438,37 +1266,33 @@ export function useSessionAudio(
 
         const intent = intentFor(micNeededRef.current, selfMutedRef.current);
 
-        // Mixing until this app has audio of its own, and a call once it has.
-        // Applied before the session is taken, so it is never briefly the
-        // wrong one.
+        // The claim, taken before the session is: connecting at all means
+        // stepping in, and stepping in is the claim. Applied ahead of
+        // `startAudioSession` so it is never briefly the wrong one.
         //
-        // **Read off the channel rather than off the room, which is the point
-        // of the 2026-08-27 rule and matters most here.** Nothing is
-        // subscribed yet, so a rule keyed on the audible count would take a
-        // mixing session at this line and rewrite it the instant the first
-        // track arrived — which is the instant the engine starts, and the
-        // collision build 90 was written to remove. `hasAudio` is already true
-        // for a channel with somebody in it, so the configuration this
-        // connection needs is the one it is given, before anything is active.
-        const anyAudio = hasAudioRef.current;
-        const anyWant = wantFor(anyAudio, handBackRef.current);
-        pushPolicy(anyWant);
+        // **Read off the channel rather than off the room, which matters most
+        // here.** Nothing is subscribed yet, so a rule keyed on the audible
+        // count would take the quiet configuration at this line and rewrite it
+        // the instant the first track arrived — the instant the engine starts,
+        // and the collision build 90 was written to remove. The rule this asks
+        // is about *me* and is already settled before the socket exists, so
+        // nothing moves.
+        const anyWant = wantFor(micNeededRef.current);
+        pushPolicy();
         await applyFor(anyWant);
         appliedRef.current = { intent, config: sessionFor(anyWant) };
         update({
           asked: {
             selfMuted: selfMutedRef.current,
             micNeeded: micNeededRef.current,
-            hasAudio: anyAudio,
+            hasAudio: hasAudioRef.current,
             othersAudible: 0,
             intent,
             session: sessionFor(anyWant),
-            playout: policyFor(anyWant).playout,
+            playout: policyFor().playout,
           },
         });
         recordEvent(`connect ${intent} ${nameOf(sessionFor(anyWant))}`);
-        // The keep-alive waits for this. See `sessionConfigured`.
-        setSessionConfigured(true);
 
         // Started explicitly, despite registerGlobals() also installing
         // automatic management. Leaving it to the automatic path alone meant
@@ -1584,23 +1408,49 @@ export function useSessionAudio(
       AudioSession.stopAudioSession().catch(() => {});
       roomRef.current = null;
       appliedRef.current = null;
-      // Back to the starting policy, or the observer keeps whatever this
-      // connection last needed. Leaving `CALL` behind is the live hazard:
-      // disconnecting while somebody was still talking would arm the observer
-      // to take `playAndRecord` — exclusive, and mono on a Bluetooth route —
-      // at some later transition with no channel to justify it.
-      pushPolicy('idle');
-      // **And the session itself, which this used to leave behind — fixed
-      // 2026-09-06.** Pushing the policy only tells the *observer* what to use
-      // next; nothing wrote the category back, and `stopAudioSession` does not
-      // clear it. So leaving a channel left the process holding
-      // `playAndRecord` with no channel behind it, and the next thing to make
-      // a sound on that phone met a call session: observed as music started on
-      // the Home screen dying instantly, and as a wait that should have been
-      // *accompanied* stopping the music it was meant to leave alone. The
-      // route log showed `PlayAndRecord/VideoChat` on `screen home`, which is
-      // a state that should not exist.
-      void applyFor('idle');
+      /**
+       * **Leaving the room is leaving the audio system, and this is the only
+       * place that is said.**
+       *
+       * Every exit from stepped-in arrives here, because every one of them
+       * takes `mediaRoom` away: a tap on Step Out, declaring nearby, Rule B
+       * retiring an unattended phone, and being displaced by another device. A
+       * process suspended outright releases nothing because it cannot — the
+       * session dies with it, which is the same outcome by a different route
+       * and needs no code.
+       *
+       * Three things, in this order, and none is redundant.
+       *
+       * **`pushPolicy`** re-arms the observer with the constant, which now
+       * carries `deactivateOnStop`. Leaving `CALL` behind was the live hazard
+       * before: disconnecting while somebody was still talking armed the
+       * observer to take `playAndRecord` — exclusive, mono on a Bluetooth
+       * route — at some later transition with no channel to justify it.
+       *
+       * **`stopAudioSession`**, above, is the SDK's own deactivation. It
+       * releases and says nothing.
+       *
+       * **`releaseSession`** says it: `setActive(false)` with
+       * `notifyOthersOnDeactivation`, which is what actually lets the
+       * interrupted app resume. Neither half of the SDK passes that option —
+       * see the function's header — and going nearby is *meant* to give
+       * somebody their podcast back.
+       *
+       * **What is no longer done here is applying a quiet configuration.**
+       * `IDLE` used to be re-stated at this line so that the process was not
+       * left holding `playAndRecord` with no channel behind it. There is no
+       * quiet configuration any more, and re-stating `LISTENING` would assert
+       * a readiness for audio that cannot arrive — the exact thing `IDLE` was
+       * deleted for. Deactivation is the whole answer.
+       */
+      pushPolicy();
+      void releaseSession().then((route) => {
+        recordEvent(
+          `released${route?.category ? ` ${route.category}` : ''}` +
+            (route?.error ? ` (${route.error})` : '')
+        );
+      });
+      void releaseAndroidAudio();
     };
   }, [mediaRoom, token, generation]);
 
@@ -1713,23 +1563,29 @@ export function useSessionAudio(
      * **The refusal is about the microphone and the cost fell on the
      * speaker.** `sessionFor` answers one question for both jobs, so being
      * denied capture denied playout as well — and `playback` renders a remote
-     * voice perfectly well in the background, as the silent keep-alive playing
-     * under it throughout that same window demonstrates.
+     * voice perfectly well in the background.
      *
-     * So a promotion is deferred rather than attempted: stay `IDLE`, hear the
-     * person, and take the call session at the foreground, which is the moment
-     * iOS will actually grant it. **Only the promotion.** A session already
-     * `CALL` is left alone, because backgrounding one that is capturing is the
-     * ordinary case — switching apps mid-conversation — and iOS permits it.
+     * So a promotion is deferred rather than attempted: stay on `LISTENING`,
+     * hear the person, and take the call session at the foreground, which is
+     * the moment iOS will actually grant it. **Only the promotion.** A session
+     * already `CALL` is left alone, because backgrounding one that is capturing
+     * is the ordinary case — switching apps mid-conversation — and iOS permits
+     * it.
+     *
+     * **This is the same refusal the *promotion* from nearby is built around**,
+     * and it is why that one is a foreground rule. A nearby phone holds no
+     * session and no subscription, so becoming audible means starting both —
+     * which iOS will not do in the background at all. The design only ever asks
+     * for it in the foreground; see `useNearby` in src/state.
      */
     const inCall = appliedRef.current?.config === CALL;
-    const deferring = hasAudio && !foreground && !inCall;
+    const deferring = micNeeded && !foreground && !inCall;
     const intent = deferring ? 'released' : wanted;
-    // `micNeeded` decides whether we publish; `hasAudio` decides what the
-    // session is. Only the second may move the audio category, which is the
-    // boundary a Bluetooth profile handover sits on.
-    const audible = deferring ? false : hasAudio;
-    const want = wantFor(audible, handBack);
+    // The one thing that may move the audio *category*, which is the boundary a
+    // Bluetooth profile handover sits on. A self-mute does not reach it —
+    // `micNeeded` is true for a muted member — so the 2026-08-19 route loss
+    // stays fixed by the shortest argument it has ever had.
+    const want = wantFor(deferring ? false : micNeeded);
     const config = sessionFor(want);
 
     // On its own edge, ahead of the dedupe below, for the reason `deferredRef`
@@ -1764,11 +1620,11 @@ export function useSessionAudio(
               asked: {
                 selfMuted,
                 micNeeded,
-                hasAudio: audible,
+                hasAudio,
                 othersAudible: s.othersAudible,
                 intent,
                 session: config,
-                playout: policyFor(want).playout,
+                playout: policyFor().playout,
               },
             }
       );
@@ -1784,21 +1640,28 @@ export function useSessionAudio(
       asked: {
         selfMuted,
         micNeeded,
-        hasAudio: audible,
+        hasAudio,
         othersAudible: s.othersAudible,
         intent,
         session: config,
-        playout: policyFor(want).playout,
+        playout: policyFor().playout,
       },
     }));
     recordEvent(`${intent} ${nameOf(config)}`);
 
     // Before either branch, and before the `await` in them, because the
     // transition the observer reads this for is the one `setMicrophoneEnabled`
-    // is about to cause. With somebody else in the room the playout value is
-    // `CALL`, so the engine dropping to playout-only on a self-mute moves
-    // nothing: the category holds and the Bluetooth route is not handed over.
-    pushPolicy(want);
+    // is about to cause.
+    //
+    // **Whether a self-mute reaches the observer at all is the open question
+    // of this design.** If muting disables the recording engine, the observer
+    // sees playout-only and writes `LISTENING` — a category change, and
+    // therefore a Bluetooth route handover, which is the 2026-08-19 route loss
+    // arrived at from a new direction. If it does not, or if `holdForPlayout`
+    // is what prevents it, the engine stays recording through a mute and
+    // nothing moves. It needs two phones and a mute to settle, and no bench in
+    // this repository can answer it.
+    pushPolicy();
 
     // Order matters and is opposite in the two directions: the session must
     // already be a call before capture starts, and must stay one until capture

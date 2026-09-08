@@ -1,31 +1,24 @@
 import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { setupIOSAudioManagement } from '@livekit/react-native';
+import { AudioSession, setupIOSAudioManagement } from '@livekit/react-native';
 import { useSessionAudio } from '../useSessionAudio';
-import { CALL, IDLE } from '../session';
+import { CALL, LISTENING } from '../session';
 
 /**
- * `modules/audio-route` answers `null` off a linked iOS build, so under jest
- * `otherAudioPlaying` is false and the waiting case is the default. It is
- * mocked so the *other* case can be reached, which is the one that exists
- * because taking a call-shaped session alongside a playing media app relocated
- * that app's output on build 147.
+ * `modules/audio-route` is a local native module and answers nothing under
+ * jest. It is mocked rather than left absent because the teardown now calls
+ * `releaseSession` through it — the deactivation that tells an interrupted app
+ * it may resume — and a hook that reached the real module would throw on the
+ * one path every exit from a channel takes.
  */
 jest.mock('../../../modules/audio-route', () => ({
   routeSnapshot: jest.fn(() => null),
   routeFault: jest.fn(() => null),
   onRouteChange: jest.fn(() => () => {}),
-  onOtherAudio: jest.fn(() => () => {}),
+  releaseSession: jest.fn(async () => null),
   setAllowHapticsDuringRecording: jest.fn(async () => true),
   routeLine: jest.fn(() => ''),
 }));
-
-/**
- * The other-audio branch these once drove is gone — a quiet channel hands the
- * session back whatever else is playing. It comes back with the microphone
- * hold, and the mock is kept because `useSessionAudio` reads a snapshot when
- * the keep-alive starts and would otherwise reach the real module.
- */
 
 /**
  * The microphone has three states and only one of them transmits, and the
@@ -150,12 +143,10 @@ function Probe({
   selfMuted,
   micNeeded = true,
   hasAudio = true,
-  handBack = false,
 }: {
   selfMuted: boolean;
   micNeeded?: boolean;
   hasAudio?: boolean;
-  handBack?: boolean;
 }) {
   useSessionAudio(
     'room-1',
@@ -166,11 +157,16 @@ function Probe({
     hasAudio,
     false,
     false,
-    false,
-    handBack
+    false
   );
   return null;
 }
+
+/** What this app last wrote to the session itself, as opposed to told the
+ * observer. Since the policy became a constant, this is the only thing that
+ * moves when the app changes its mind. */
+const applied = AudioSession.setAppleAudioConfiguration as jest.Mock;
+const lastApplied = () => applied.mock.calls[applied.mock.calls.length - 1][0];
 
 const settle = async () => {
   await act(async () => {
@@ -217,17 +213,22 @@ describe('a self-mute', () => {
     });
   });
 
-  it('leaves the audio policy a call, so the observer cannot move it', async () => {
+  it('leaves the session a call, so nothing hands the route over', async () => {
     const tree = await connected();
-    setup.mockClear();
+    applied.mockClear();
 
     await act(async () => {
       tree.update(<Probe selfMuted />);
     });
     await settle();
 
-    expect(lastPolicy().playout).toBe(CALL);
-    expect(lastPolicy().playout).not.toBe(IDLE);
+    // **Read off what the app applied rather than off the policy**, which is
+    // the difference the 2026-09-08 redesign made here: the policy is a
+    // constant now, so it says the same thing before and after a mute and
+    // cannot be evidence of anything. What matters is unchanged — muting is
+    // about what you send, being stepped in is about what you hold, and the
+    // category must not move between them.
+    if (applied.mock.calls.length > 0) expect(lastApplied()).toBe(CALL);
 
     await act(async () => {
       tree.unmount();
@@ -264,12 +265,11 @@ describe('a self-mute', () => {
 });
 
 /**
- * **Every case here now reaches the release through `handBack`**, and that is
- * a change of route rather than of subject. From 2026-09-06 a quiet channel
- * with nothing else playing *holds* the microphone open, so "nobody needs it"
- * is no longer a state in which the device is let go — see `waitingAlone` in
- * `useSessionAudio.ts`. What still lets go is this app having no business with
- * the audio system at all, which is the watch-party withhold.
+ * **The case that reaches the release is a guest losing their speech grant**,
+ * which since 2026-09-08 is the only way a phone with a connection stops
+ * needing a microphone. A member stepped in always needs one; a member who
+ * stops needing one has stopped being stepped in, and that takes the whole
+ * connection with it — the teardown, not this effect.
  *
  * The property under test is unchanged: releasing unpublishes rather than
  * merely stopping, and it happens from a self-mute as well as from capturing.
@@ -286,12 +286,7 @@ describe('releasing the microphone', () => {
 
     await act(async () => {
       tree.update(
-        <Probe
-          selfMuted={false}
-          micNeeded={false}
-          hasAudio={false}
-          handBack={true}
-        />
+        <Probe selfMuted={false} micNeeded={false} hasAudio={true} />
       );
     });
     await settle();
@@ -325,7 +320,7 @@ describe('releasing the microphone', () => {
 
     await act(async () => {
       tree.update(
-        <Probe selfMuted micNeeded={false} hasAudio={false} handBack={true} />
+        <Probe selfMuted micNeeded={false} hasAudio={true} />
       );
     });
     await settle();
@@ -339,25 +334,44 @@ describe('releasing the microphone', () => {
   });
 
   /**
-   * The one case that still hands back. A watch party withholding for its film
-   * has a claimant on the route that is not this app, and nobody to wait for.
+   * The remaining crossing between the two configurations, and the only one:
+   * somebody in the room who may not publish takes `playback`. It is
+   * **exclusive** — a guest's session should resemble a member's in every
+   * respect except permission to speak, and letting somebody's podcast play
+   * over the voices a guest is listening to would single out the one person
+   * who cannot do anything about it.
    */
-  it('hands back entirely for a watch party withholding', async () => {
+  it('crosses to the listening configuration, which still mixes with nothing', async () => {
     const tree = await connected();
+    applied.mockClear();
 
     await act(async () => {
       tree.update(
-        <Probe
-          selfMuted={false}
-          micNeeded={false}
-          hasAudio={false}
-          handBack={true}
-        />
+        <Probe selfMuted={false} micNeeded={false} hasAudio={true} />
       );
     });
     await settle();
 
-    expect(lastPolicy().playout).toBe(IDLE);
+    expect(lastApplied()).toBe(LISTENING);
+    expect(LISTENING.audioCategoryOptions).not.toContain('mixWithOthers');
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * **The policy is a constant and says the same thing throughout**, which is
+   * what makes the release cheap: the observer needs no instruction at the
+   * moment somebody goes nearby, because deactivating when both engines stop
+   * is already what it was told to do.
+   */
+  it('arms the observer to deactivate, whatever else is happening', async () => {
+    const tree = await connected();
+
+    expect(lastPolicy().recording).toBe(CALL);
+    expect(lastPolicy().playout).toBe(LISTENING);
+    expect(lastPolicy().deactivateOnStop).toBe(true);
 
     await act(async () => {
       tree.unmount();

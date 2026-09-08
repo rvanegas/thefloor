@@ -586,10 +586,18 @@ export class Realtime {
       this.setStanding(channelId);
       this.enteredLostAt = 0;
     }
-    // All three give up presence, so none should be re-entered on a reconnect.
+    // All four give up presence, so none should be re-entered on a reconnect.
+    //
+    // **`DECLARE_NEARBY` is here whether or not it moved anything**, and that
+    // is the safe direction: sent from inside a channel it is a step-out, and
+    // sent from outside one this device was not standing there to begin with,
+    // so clearing is a no-op. Left out, a phone that declared nearby and then
+    // blipped would re-enter the room it had just chosen to be outside — with a
+    // microphone, since stepping in is the claim.
     if (
       action.type === 'STEP_OUT' ||
       action.type === 'ATTENTION_EXPIRED' ||
+      action.type === 'DECLARE_NEARBY' ||
       action.type === 'LEAVE_CHANNEL'
     ) {
       if (this.enteredChannel === channelId) this.setStanding(null);

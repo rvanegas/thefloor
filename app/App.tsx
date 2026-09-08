@@ -10,6 +10,7 @@ import { AppProvider, useApp } from './src/state/AppProvider';
 import { recordEvent } from './src/audio/diagnostics';
 import { liveChannelHere } from './src/state/live';
 import { useAttention } from './src/state/useAttention';
+import { useNearby } from './src/state/useNearby';
 import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
@@ -20,7 +21,6 @@ import { ChannelView } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { NotificationsView } from './src/ui/NotificationsView';
 import { NoDetailView, Panes } from './src/ui/Panes';
-import { isPartyMuted } from '../core/channel';
 import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
@@ -116,30 +116,27 @@ function Root() {
   const here = liveChannelHere(app.channelViews, me, app.standingIn, app.expired);
   const live = here?.channel ?? null;
 
-  // Or asked for and not yet confirmed. The rule in `microphoneNeeded` is
-  // right — a recording is something listening, so it opens the microphone —
-  // but it reads server state, which arrives a round trip after the tap. That
-  // round trip is when capture starts against nobody publishing, and a short
-  // run ended having recorded nothing at all. See AppProvider.recordingAsked.
-  const micNeeded =
-    !!live && (microphoneNeeded(live, me) || app.recordingAsked === live.id);
+  // Whether this device should be capturing, which since 2026-09-08 is whether
+  // it is stepped in — and, for a guest, whether they have been granted the
+  // microphone.
+  const micNeeded = !!live && microphoneNeeded(live, me);
 
-  // What the *session* is configured from, where `micNeeded` decides only
-  // whether we publish.
+  // Whether this app claims the audio system at all, where `micNeeded` decides
+  // only whether we publish.
   //
-  // **The one place the two audio-session rules are chosen between, and the
-  // only place either is called.** Off — the default, and what has shipped
-  // since 2026-08-18 — asks whether anybody present is capturing, so a room
-  // that goes quiet hands the Bluetooth route back to full quality. On holds
-  // the hands-free link for as long as this app has any audio at all, so the
-  // link does not move under the first word somebody says. core/micNeeded.ts
-  // carries the whole argument and says why this is a setting rather than a
-  // decision.
+  // **Since 2026-09-08 both of these reduce to *am I standing in this room*,
+  // and they differ in one case: a guest with no speech grant.** The two are
+  // still computed separately because that case is real and permanent — it is
+  // the difference between `CALL` and `LISTENING` — and because keeping them
+  // apart is what stops somebody collapsing them and opening a microphone that
+  // nothing is allowed to carry. See core/micNeeded.ts.
   //
-  // Same round-trip caveat as `micNeeded` above, and the same answer either
-  // way: a recording asked for and not yet confirmed is audio here too.
-  const hasAudio =
-    !!live && (channelHasAudio(live, me) || app.recordingAsked === live.id);
+  // The `recordingAsked` clause is gone from both. It existed because a
+  // recording was a reason to open a microphone in a room that otherwise had
+  // none, and it had to be assumed before the server confirmed it; standing in
+  // the room is now the whole answer, so there is nothing left for the round
+  // trip to be ahead of.
+  const hasAudio = !!live && channelHasAudio(live, me);
 
   const audio = useSessionAudio(
     // Keyed on the audio rather than on the channel, which are no longer the
@@ -177,13 +174,17 @@ function Root() {
     // The cost is chosen: HFP rather than A2DP for media playback under all
     // conditions, and a lit microphone indicator while anything is subscribed.
     true,
-    true,
-    // **The one case that still hands the audio system back.** A watch party
-    // withholding for its film has a claimant on the route that is not this
-    // app — everybody's own player — and nothing to wait for, since the people
-    // are already here. Every other quiet channel now holds the call route
-    // instead of handing it back; see `WAITING` in audio/session.ts.
-    !!live && isPartyMuted(live)
+    // **`holdForPlayout`, which is now inert and is kept until a device says
+    // so.** Stepping in is an open microphone, so the engine restart it guards
+    // against cannot happen to a member; it was one of two fixes for a fault
+    // that took weeks to find, and the argument that it is unreachable is an
+    // argument rather than a measurement. See the derivation of `holding`.
+    //
+    // The fourth argument left on 2026-09-08 with the watch-party clause: the
+    // film plays on another *device*, so an exclusive claim does not silence it
+    // and there is nobody to hand the audio system back to. Occupants mute
+    // while it runs, which is ordinary self-mute.
+    true
   );
 
   /**
@@ -227,6 +228,23 @@ function Root() {
    * a screen.
    */
   useAttention(live, me, audio.speaking);
+
+  /**
+   * Stepped **in** to a channel this device is standing nearby, because
+   * somebody arrived.
+   *
+   * The counterpart of the hook above and the only automatic entry in the app:
+   * that one ends a visit nobody is attending, this one starts one nobody
+   * asked for — which is what being nearby is a request for. It reads the
+   * snapshot rather than `live`, because the whole point is that this device is
+   * *not* standing in the channel it is watching. See `state/useNearby.ts`.
+   */
+  useNearby(
+    app.nearbyIn ? (app.channelViews[app.nearbyIn] ?? null) : null,
+    me,
+    app.nearbyIn,
+    app.act
+  );
 
   /**
    * Which screen you are on, in the audio log.

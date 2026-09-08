@@ -849,6 +849,24 @@ export type ClientAction =
   /** Give up presence, keep membership. */
   | { type: 'STEP_OUT' }
   /**
+   * Be **nearby**: reachable by a ping, claiming no audio and subscribed to
+   * nothing.
+   *
+   * **The one wire addition of the 2026-09-08 redesign**, and it is
+   * client→server only. The observer side rides on `waiting`, which is already
+   * on every snapshot and which every existing build renders with a ping — so
+   * this is backwards compatible by construction, and it is also the one step
+   * that has to reach the server before a client that sends it reaches a
+   * phone. See AGENTS.md § *Never ship a wire change to a server before the
+   * client can speak it*.
+   *
+   * Sent by both of the two buttons, which are the same statement from two
+   * places: *step in nearby* from outside a channel, *nearby* from inside one,
+   * where it abandons the claim. `DECLARE_NEARBY` in core/types.ts is where
+   * the branch is.
+   */
+  | { type: 'DECLARE_NEARBY' }
+  /**
    * Give up presence because this device stopped attending — never a tap.
    *
    * **The same action Rule A raises on the server**, and deliberately so: both

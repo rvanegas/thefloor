@@ -222,18 +222,36 @@ interface AppState {
    */
   standingIn: string | null;
   /**
+   * The channel this **device** declared itself nearby in, or null.
+   *
+   * **Its own fact, beside `standingIn` and for the same reason.** Being in
+   * `waiting` is the account's, and a snapshot says it whether the wait was
+   * declared here, declared on another phone, or merely inferred from a socket
+   * that went. Only a declaration made *here* may promote this device into the
+   * room when somebody arrives — see `useNearby` — because promotion opens a
+   * microphone nobody asked for, and a wait somebody's other phone is in the
+   * middle of is not an ask.
+   *
+   * Cleared by anything that ends the declaration: entering, stepping out,
+   * leaving, being displaced, and signing out. Not cleared by the wait lapsing
+   * to *Stepped out*, which the server decides and `useNearby` reads off the
+   * snapshot rather than from here.
+   */
+  nearbyIn: string | null;
+  /**
    * A channel where recording has been asked for and not yet confirmed.
    *
-   * Only the microphone reads it. Alone in a channel the microphone is closed
-   * — see core/micNeeded.ts — and a recording is what reopens it, but "a
-   * recording is running" is a fact this client learns from the server. So
-   * capture began a round trip before anything was published, and a run short
-   * enough ended having captured nothing at all.
+   * **The microphone stopped reading it on 2026-09-08.** It was passed to both
+   * audio predicates because alone in a channel the microphone was closed and a
+   * recording was what reopened it — and *a recording is running* is learned
+   * from the server, so capture began a round trip after the button and a short
+   * run ended having captured nothing. Stepping in is now the claim, so the
+   * device is already open before the button and there is nothing left to be
+   * ahead of.
    *
-   * The intent is known here the moment the button is pressed, which is the
-   * round trip. Cleared when the snapshot confirms the run, and on a timer in
-   * case it never does — a request the server declines would otherwise hold
-   * the microphone open for as long as the screen stayed put.
+   * What it still does is the other half, which is unchanged: `act` holds
+   * `START_RECORDING` back until a microphone track exists. Cleared when the
+   * snapshot confirms the run, and on a timer in case it never does.
    */
   recordingAsked: string | null;
   status: ConnectionStatus;
@@ -665,6 +683,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     movedChannel: null,
     displaced: false,
     standingIn: null,
+    nearbyIn: null,
     status: 'closed',
     lastError: null,
   });
@@ -752,7 +771,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // whether this device counts itself as standing in a channel, which
         // App.tsx reads off `live`. No navigation and no notice — the channel
         // screen simply offers Enter again.
-        onDisplaced: () => setState((s) => ({ ...s, displaced: true })),
+        // A declaration made here is over too: another device has taken the
+        // account somewhere, and this one is no longer holding anything to be
+        // promoted out of.
+        onDisplaced: () =>
+          setState((s) => ({ ...s, displaced: true, nearbyIn: null })),
         // Mirrored rather than derived. Every transition of it is a decision
         // already taken in `Realtime` — entering, stepping out, being
         // displaced, following a move, giving up a stale re-entry past the
@@ -1069,6 +1092,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         movedChannel: null,
         displaced: false,
         standingIn: null,
+        nearbyIn: null,
         status: 'closed',
         lastError:
           'You were signed out. Sign in again with a fresh code by email.',
@@ -1276,6 +1300,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           movedChannel: null,
           displaced: false,
         standingIn: null,
+          nearbyIn: null,
           status: 'closed',
           lastError: null,
         });
@@ -1327,6 +1352,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           movedChannel: null,
           displaced: false,
         standingIn: null,
+          nearbyIn: null,
           status: 'closed',
           lastError: null,
         });
@@ -1552,12 +1578,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // second of audio in it, and a stem key with no object behind it.
           // See `Channels.dropHollowStems`.
           //
-          // `recordingAsked` above is what opens the microphone, so this is
-          // waiting on something this very call set in motion. Alone in a
-          // quiet channel with nothing else playing the device is already
-          // open — `waitingAlone` in useSessionAudio — and the wait is
-          // nothing; it is the case with another app playing, where step-in
-          // handed the audio system back, that this exists for.
+          // **Ordinarily nothing waits here at all**, since 2026-09-08:
+          // stepping in opens the device, so anybody in a position to start a
+          // recording already has one published. What is left for this to
+          // cover is the seconds between connecting and the track landing, and
+          // a device with no microphone, which never publishes one.
           if (!micPublished.current) {
             if (pendingRecord.current) {
               clearTimeout(pendingRecord.current.timer);
@@ -1587,6 +1612,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setState((s) =>
             s.recordingAsked === channelId ? { ...s, recordingAsked: null } : s
           );
+        }
+        // **The device's own record of a declaration**, written here because
+        // this is where the declaration is made. `standingIn` is mirrored from
+        // `Realtime` for the opposite reason — it has half a dozen writers, all
+        // of them there — and this has exactly one.
+        //
+        // Every other action that ends the wait clears it, including `ENTER`,
+        // which is what a promotion sends: the promotion is over the moment it
+        // fires, and leaving this set would let a second arrival fire it again
+        // against a room this phone is now standing in.
+        if (action.type === 'DECLARE_NEARBY') {
+          setState((s) => (s.nearbyIn === channelId ? s : { ...s, nearbyIn: channelId }));
+        } else if (
+          action.type === 'ENTER' ||
+          action.type === 'STEP_OUT' ||
+          action.type === 'ATTENTION_EXPIRED' ||
+          action.type === 'LEAVE_CHANNEL'
+        ) {
+          setState((s) => (s.nearbyIn === channelId ? { ...s, nearbyIn: null } : s));
         }
         realtime.act(channelId, action);
       },

@@ -398,7 +398,6 @@ function otherAudioRows(route: RouteSnapshot | null): DiagnosticRow[] {
   if (!route) return [{ label: 'other audio', value: UNREADABLE, alarm: true }];
   return [
     { label: 'other playing', value: flag(route.otherAudioPlaying) },
-    { label: 'silence hint', value: flag(route.secondaryAudioHint) },
     {
       // Not about other apps' audio, but about ours in the same way: what iOS
       // will suppress for the duration of a capturing session. False means

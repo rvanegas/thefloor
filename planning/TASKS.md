@@ -4,30 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Stepping In and Nearby
-
-Rebuild presence and the audio session together, to the design in
-planning/AUDIO-PRESENCE-DESIGN.md, which is complete and decided and is the
-request. The evidence it rests on is planning/AUDIO-LAB-FINDINGS.md — nine
-configurations measured on a device on 2026-09-08, which falsified the claim
-that a `playAndRecord` session must be exclusive.
-
-The whole of it reduces to one rule: **a session is held if and only if the
-phone is stepped in.** Read the design before touching `core/micNeeded.ts`,
-`app/src/audio/session.ts` or `app/src/audio/useSessionAudio.ts`; several of
-their comments state the refuted version and the findings names which.
-
-Build the two transitions with real risk first — promotion, which is an
-automatic media reconnect, and the release at the end of a claim. The rest is
-mechanical beside them.
-
-**Half the work is deletion**, and the design's § *What this removes* is the
-inventory: `otherAudio` and its observers, `waitingAlone`, the whole
-`app/modules/keep-alive`, the occupancy and watch-party clauses in both core
-predicates, `handBack`, and `IDLE` with every use of `mixWithOthers`. Leaving
-any of them in place leaves a second rule about the audio session competing
-with the one the design states.
-
 ## Media Transience
 
 Why does media loaded for playback not persist?

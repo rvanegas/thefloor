@@ -33,10 +33,10 @@ const LOOK_INTERVAL_MS = 30_000;
  * That was true when it was written and this project falsified it twice.
  * `holdForPlayout` (build 143) keeps a microphone open and muted, and an open
  * microphone is capturing, and capturing keeps a backgrounded process alive —
- * accidentally at first. The silence keep-alive (145) did it deliberately, and
- * the microphone hold does it for as long as somebody is waiting. So a pocketed
- * phone now holds a channel indefinitely, which is precisely the ghost the web
- * half exists to remove.
+ * accidentally at first, then deliberately, and since 2026-09-08 as the whole
+ * design: stepping in is an open microphone. So a pocketed phone holds a
+ * channel indefinitely, which is precisely the ghost the web half exists to
+ * remove.
  *
  * **Presence is supposed to mean responsiveness.** A room of such phones reads
  * as occupied, and `announceActive` fires only on the empty-to-occupied edge —
@@ -59,11 +59,12 @@ const LOOK_INTERVAL_MS = 30_000;
  * ageing, and it removed him while everybody listening to him stayed. Alone,
  * there is no such ambiguity and nothing to get wrong.
  *
- * **So this is also the bound on the solo wait.** `waitingAlone` in
- * `useSessionAudio` opens the microphone at step-in — iOS will not grant a
- * backgrounded app a new one, so it has to be open before the phone is pocketed
- * — and capturing keeps the process alive indefinitely. Nothing else stops
- * that; this does, which is why the keep-alive needs no timer of its own.
+ * **So this is also the bound on every visit**, since 2026-09-08. Stepping in
+ * opens the microphone — iOS will not grant a backgrounded app a new one, so it
+ * has to be open before the phone is pocketed — and capturing keeps the process
+ * alive indefinitely. Nothing else stops that; this does. It used to bound one
+ * case, the solo wait; the solo wait is now every visit, so this timer is the
+ * only thing between a pocketed phone and a room it holds for ever.
  *
  * **The one thing that differs is what counts as a hand.** A browser has
  * clicks and keystrokes; a phone has none of them, so what stands in for a
@@ -186,9 +187,9 @@ export function useAttention(
       // was ageing, while everybody listening to him was refreshed by him.
       //
       // Alone, there is nothing to misjudge. A phone by itself in a channel is
-      // holding the room open against nobody, and this is also what bounds the
-      // solo wait — `waitingAlone` in `useSessionAudio` opens the microphone at
-      // step-in and needs no timer of its own, because this is that timer.
+      // holding the room open against nobody, and this is the only bound on
+      // that: stepping in opens the microphone, and an open microphone keeps
+      // the process alive with nothing else to stop it.
       //
       // Two pocketed phones with open microphones are therefore never expired
       // here. That is the decision rather than a gap: Rule A retires the room

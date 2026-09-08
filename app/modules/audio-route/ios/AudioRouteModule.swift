@@ -46,24 +46,21 @@ import ExpoModulesCore
    `notificationAsync` resolves, and no buzz is produced. Reading it back is
    what turns "it did not buzz" into a stated fact rather than a guess.
 
- - `otherAudioPlaying` and `secondaryAudioHint` are the only readable evidence
-   about somebody *else's* audio. There is no public getter for whether our own
-   session is active, so "did foregrounding interrupt a podcast" has to be
-   answered from the far side.
+ - `otherAudioPlaying` is the only readable evidence about somebody *else's*
+   audio. There is no public getter for whether our own session is active, so
+   "did foregrounding interrupt a podcast" has to be answered from the far
+   side. It decides nothing since 2026-09-08 — stepping in claims the audio
+   system unconditionally, so there is no fork left for it to pick — and it is
+   kept as a reading rather than as an input. `secondaryAudioHint` and the
+   notification behind it left with the fork; see `release` below for what
+   replaced the whole question.
+
+ - `release` deactivates the session **with `notifyOthersOnDeactivation`**,
+   which is the one thing neither half of the SDK does and the thing that
+   actually gives another app its audio back.
  */
 public class AudioRouteModule: Module {
   private var observer: NSObjectProtocol?
-  /**
-   Separate from `observer` because it watches a different notification and
-   must be removed independently. Added 2026-09-06 to *measure* rather than to
-   decide: `isOtherAudioPlaying`, the only reading available until now, answered
-   false with music plainly playing once this app's own session was active, and
-   on a headset it flipped with every foreground. A design cannot branch on
-   that. This notification claims to fire when another app's primary audio
-   starts and stops, and the build carrying it exists to find out whether it
-   does.
-   */
-  private var hintObserver: NSObjectProtocol?
 
   /**
    The lab's input tap, held so it can be stopped.
@@ -78,7 +75,7 @@ public class AudioRouteModule: Module {
   public func definition() -> ModuleDefinition {
     Name("AudioRoute")
 
-    Events("onRouteChange", "onOtherAudio")
+    Events("onRouteChange")
 
     // Synchronous on purpose. Callers take it either side of a transition and
     // compare, and an await between the two samples is exactly how the
@@ -216,6 +213,43 @@ public class AudioRouteModule: Module {
       return Self.snapshot()
     }
 
+    /**
+     Gives the audio system back, and tells the interrupted app so.
+
+     **`notifyOthersOnDeactivation` is the whole of why this exists**, and it is
+     the one thing neither half of the SDK does. `AudioSession.stopAudioSession`
+     is `setActive(false)` with no options
+     (`LiveKitReactNativeModule.swift`), and the native policy observer's
+     `deactivateOnStop` path is `[session setActive:NO error:]` with no options
+     either (`AudioDeviceModuleObserver.m`). Deactivating without the flag
+     releases the session and says nothing; with it, iOS tells whatever was
+     interrupted that it may resume — which is what the 2026-09-08 lab run
+     measured, every `Release` bringing the other app back to full rate.
+
+     **Going nearby is *meant* to give somebody their podcast back**, and since
+     2026-09-08 that is the only mechanism by which it happens: nearby holds no
+     session at all, and only deactivating says so. See
+     planning/decisions/2026-09-08-stepping-in-and-nearby.md.
+
+     Called on the connection's teardown, after the SDK has stopped its own
+     session — so on a healthy path this is asserting a deactivation that has
+     already happened, and its job is the notification rather than the state.
+     Returns the snapshot for the same reason `configure` does: the session as
+     it *is* is the only evidence worth having.
+     */
+    AsyncFunction("release") { () -> [String: Any] in
+      let session = AVAudioSession.sharedInstance()
+      var failure: String? = nil
+      do {
+        try session.setActive(false, options: [.notifyOthersOnDeactivation])
+      } catch {
+        failure = String(describing: error)
+      }
+      var payload = Self.snapshot()
+      payload["error"] = failure as Any
+      return payload
+    }
+
     AsyncFunction("setAllowHapticsDuringRecording") { (allow: Bool) -> Bool in
       do {
         try AVAudioSession.sharedInstance()
@@ -239,45 +273,12 @@ public class AudioRouteModule: Module {
         self.sendEvent("onRouteChange", payload)
       }
 
-      /**
-       Another app's primary audio starting or stopping.
-
-       **Both readings are sent alongside the edge, deliberately.** The point of
-       this event is not only that it fired but whether the two polled flags
-       agree with it at the same instant — that comparison is the measurement,
-       and taking it here rather than in JavaScript means no scheduling sits
-       between the notification and the values it is being compared against.
-       */
-      self.hintObserver = NotificationCenter.default.addObserver(
-        forName: AVAudioSession.silenceSecondaryAudioHintNotification,
-        object: nil,
-        queue: .main
-      ) { [weak self] notification in
-        guard let self else { return }
-        let raw =
-          notification.userInfo?[AVAudioSessionSilenceSecondaryAudioHintTypeKey]
-          as? UInt
-        let session = AVAudioSession.sharedInstance()
-        self.sendEvent(
-          "onOtherAudio",
-          [
-            "began": raw
-              == AVAudioSession.SilenceSecondaryAudioHintType.begin.rawValue,
-            "otherAudioPlaying": session.isOtherAudioPlaying,
-            "secondaryAudioHint": session.secondaryAudioShouldBeSilencedHint,
-          ]
-        )
-      }
     }
 
     OnStopObserving {
       if let observer = self.observer {
         NotificationCenter.default.removeObserver(observer)
         self.observer = nil
-      }
-      if let hintObserver = self.hintObserver {
-        NotificationCenter.default.removeObserver(hintObserver)
-        self.hintObserver = nil
       }
     }
   }
@@ -298,7 +299,6 @@ public class AudioRouteModule: Module {
       // for whether our own session is active, so an interruption has to be
       // read from the other side of it.
       "otherAudioPlaying": session.isOtherAudioPlaying,
-      "secondaryAudioHint": session.secondaryAudioShouldBeSilencedHint,
       // Whether the Taptic Engine is allowed to run while we are capturing.
       // False is the default, and false is a cue that cannot be delivered —
       // see the note at the top of this file.

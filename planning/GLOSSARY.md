@@ -54,13 +54,13 @@ caused; the list carries the meaning.
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
-- **Step in / Step out** — Entering and leaving a conversation without leaving the channel
+- **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name somebody chooses for themselves, unique across everybody, written with an `@`. Optional, and most people have none
 - **Voice** — One speaker within a transcript
@@ -403,23 +403,49 @@ set; which word is used says who is being spoken to. See *participant*.
 The two things a roster card says about somebody who is not here.
 
 **Stepped out** — they left, deliberately, and the card says how long ago.
-**Nearby** — their presence expired rather than being given up: their
-connection ran out of grace, so as far as anybody knows they are still within
-reach and one notification away. It is shown for fifteen minutes
-(`WAITING_WINDOW_MS`) and then reads as *Stepped out* like anything else.
+**Nearby** — within reach, one notification away: ping rather than give up. It
+is shown for fifteen minutes (`WAITING_WINDOW_MS`) and then reads as *Stepped
+out* like anything else.
 
 The distinction is one bit, and it is the difference between telling somebody
 to give up on a person and telling them to ping.
+
+**Nearby has three ways in, and since 2026-09-08 two of them are declared.**
+It used to be only something that happened *to* somebody.
+
+- **Declared** — *step in nearby*, from outside a channel.
+- **Declared** — *nearby*, from inside one, which abandons the claim on the
+  audio system.
+- **Inferred** — present, and the connection ran out of grace before the
+  attention clock expired.
+
+**Nothing else about it changed, and that is the point.** It is not kept alive,
+it lapses to *Stepped out* after the same window, and it is carried by the same
+`waiting` field — so every build that predates the declaration renders one
+correctly, with a ping. The two new ways in are behind `labs` until there is a
+UI worth shipping.
+
+**One clock governs all three, and it measures the last sign of life** rather
+than the moment anything was declared: how long since we heard from you, which
+is how likely a ping is to reach you. `ATTENTION_WINDOW_MS = WAITING_WINDOW_MS`
+in `app/src/state/attention.ts`, and `Exit` in `core/channel.ts` is what leaves
+`lastPresentAt` alone for every kind but a tap.
+
+**A declared nearby holds no audio session and no media subscription**, which
+is what distinguishes it from being stepped in and muted. A muted person hears
+the room and is an occupant; a nearby person hears nothing, claims nothing, and
+is not. Muting is about what you send; being nearby is about whether you are in
+the room at all. See *step in*.
 
 A browser can produce either, and which one is not about the browser: a tab
 that outlasts its *attention* clock has stepped out, and one whose socket died
 first — a phone's, backgrounded — ran out of grace and is nearby. Whichever
 clock expired first is the one that describes what happened.
 
-**A third way out exists from 2026-09-06 and reads as *Stepped out*.** A room
+**A further way out exists from 2026-09-06 and reads as *Stepped out*.** A room
 in which nothing is published unmuted and no media is playing for the same
 fifteen minutes retires everybody in it — see `Exit` in `core/channel.ts`,
-whose three rows are the whole difference between the ways of leaving. It
+whose four rows are the whole difference between the ways of leaving. It
 reads as stepped out rather than nearby deliberately: *Nearby* is the rung
 above, so a person retired **for** inattention arriving there would restart the
 claim that expiring was meant to end. Nobody is told to ping somebody the room
@@ -518,6 +544,22 @@ Entering and leaving a conversation without leaving the channel. See *present*.
 The verbs are deliberately not *join* and *leave* — *Leave the channel* is a
 different, larger action that gives up membership, and the channel disappears
 from Home when you take it.
+
+**Stepping in is a claim on the audio system, since 2026-09-08, and that is
+what the word now means.** The phone takes `playAndRecord` immediately and
+**exclusively**: the microphone opens before anybody has arrived, another app's
+audio stops, and a Bluetooth headset goes to the mono hands-free profile — for
+as long as the visit lasts, whether or not anybody else is there and whether or
+not anybody is speaking. The point of standing in a room is to hear somebody
+the moment they speak, and a voice mixed under a podcast is a voice you have to
+attend to rather than one you simply hear.
+
+**The escape hatch is *nearby***, which claims nothing at all. The two are the
+two ways of being in a room and the difference between them is exactly whether
+you claim the audio system. See *Nearby / Stepped out*.
+
+**A session is held if and only if the phone is stepped in.** Nearby, stepped
+out and not in a room are one audio state, and it is *none*.
 
 ## Transcript
 

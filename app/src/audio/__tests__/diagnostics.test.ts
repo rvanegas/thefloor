@@ -15,7 +15,7 @@ import {
 } from '../diagnostics';
 import type { EngineSnapshot } from '../engineState';
 import { WANTED_MUTE_MODE } from '../muteMode';
-import { CALL, IDLE } from '../session';
+import { CALL, LISTENING } from '../session';
 import type { AudioIntent } from '../useSessionAudio';
 
 /**
@@ -48,7 +48,6 @@ const ROUTE_CALL: RouteSnapshot = {
   mode: 'AVAudioSessionModeVideoChat',
   categoryOptions: ['allowBluetooth', 'allowAirPlay', 'defaultToSpeaker'],
   otherAudioPlaying: false,
-  secondaryAudioHint: false,
   // True is the healthy reading and the default is false: iOS mutes haptics
   // for the duration of a capturing session unless asked otherwise, which is
   // what silenced nobody's phone in build 70.
@@ -221,17 +220,20 @@ describe('a reading that could not be taken', () => {
   });
 
   it('says "(none)" when a list really is empty', () => {
+    // Which since 2026-09-08 is the ordinary reading for the quiet
+    // configuration rather than a corner: `LISTENING` carries no category
+    // options at all, `mixWithOthers` having left the codebase with `IDLE`.
     const d = reading({
-      asked: { ...ASKED_CALL, session: IDLE, playout: IDLE },
+      asked: { ...ASKED_CALL, session: LISTENING, playout: LISTENING },
       route: {
         ...ROUTE_CALL,
         category: 'AVAudioSessionCategoryPlayback',
         mode: 'AVAudioSessionModeSpokenAudio',
-        categoryOptions: ['mixWithOthers'],
+        categoryOptions: [],
       },
     });
-    expect(row(d, 'actual opts').value).toBe('mixWithOthers');
-    expect(row(d, 'asked opts').value).toBe('mixWithOthers');
+    expect(row(d, 'actual opts').value).toBe('(none)');
+    expect(row(d, 'asked opts').value).toBe('(none)');
     expect(alarmingLabels(d)).toEqual([]);
   });
 });

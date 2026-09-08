@@ -235,13 +235,13 @@ export interface PushMessage {
  * overwrites nothing, it is delivered whether or not the app is open, and it
  * is the one that makes a noise.
  *
- * **Two fields rather than one `isPing`, and that is not an oversight.**
- * `collapseKey` and `reachesInApp` agree today because one distinction happens
- * to govern both, but each answers a different question — what may be
- * discarded, and what would be a duplicate — and the answers are not bound to
- * stay together. A notification that ought to arrive quietly and never be
- * overwritten is easy to imagine; the fields can say that and a predicate
- * cannot.
+ * **Two fields rather than one `isPing`, and the two have now come apart.**
+ * `collapseKey` and `reachesInApp` agreed while one distinction governed both
+ * — a ping was the only thing that reached an open app and the only thing that
+ * overwrote nothing. Since 2026-09-08 an *arrival* reaches an open app too,
+ * and still collapses with its own room: it is the notification that ought to
+ * arrive and be overwritable, which is precisely the shape a single predicate
+ * could not have said. See `arrived`.
  *
  * **Loudness left this type on 2026-08-22 and is the reason `kind` arrived.**
  * It sat here as `audible: boolean` for exactly as long as it was a property
@@ -322,7 +322,33 @@ export const notifications = {
       // asking for you, because that is what it is about.
       threadId: channelId,
       lifetimeMs: PRESENCE_LIFETIME_MS,
-      reachesInApp: false,
+      /**
+       * **True since 2026-09-08, and it is the narrowing the *nearby* design
+       * turns on.**
+       *
+       * The rule is *suppress an arrival for the occupants of that room* —
+       * people who subscribe, and who are therefore going to hear the arrival
+       * whether or not anybody tells them. This notification is sent only to
+       * the **absent** participants of the channel (`announceActive` in
+       * channels.ts), and an absent participant is by definition not an
+       * occupant, so under the new rule the suppression set is empty and this
+       * flag says so.
+       *
+       * What it replaces was far wider: suppressed whenever the recipient had
+       * the app open *anywhere*. So somebody sitting in a different channel —
+       * or on Home — was silenced about a room they were not in, and worst of
+       * all **somebody nearby with the app open was silenced**, who is exactly
+       * the person asking to be told. That is the whole point of the pair: you
+       * declare yourself nearby in order to be reached.
+       *
+       * **Said as *occupants*, not as *holding the audio claim*.** The two
+       * were taken to be the same on the grounds that everybody stepped in
+       * claims the audio. Guests are where they come apart: a guest without a
+       * speech grant subscribes, so they are an occupant, and takes playback
+       * only, so they hold no claim. The claim phrasing would notify somebody
+       * about an arrival they are sitting there listening to.
+       */
+      reachesInApp: true,
     };
   },
 

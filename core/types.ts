@@ -565,6 +565,25 @@ export type ChannelAction =
    */
   | { type: 'STEP_OUT'; userId: UserId }
   /**
+   * Declare yourself **nearby**: within reach, one notification away, claiming
+   * nothing.
+   *
+   * **One action for both ways in**, because they are the same statement made
+   * from two places. From outside a channel it is *step in nearby*; from
+   * inside it is *declare nearby*, which abandons the claim on the audio
+   * system and steps you out. The reducer tells them apart by whether you were
+   * present, and nothing downstream needs to.
+   *
+   * **The observer side needs no new field.** *Nearby* is carried by
+   * `waiting`, which every client already renders with a ping — so this action
+   * is the whole of the wire change, and a build that predates it shows a
+   * declared nearby correctly without knowing it exists.
+   *
+   * Refused to guests by omission from `GUEST_ACTIONS`: a seat has no
+   * notification to be one away from.
+   */
+  | { type: 'DECLARE_NEARBY'; userId: UserId }
+  /**
    * Asks `inviteeId` in. Any current participant may; whether the two are
    * contacts is the server's to check, contacts being a server-side concern
    * the reducer knows nothing about.

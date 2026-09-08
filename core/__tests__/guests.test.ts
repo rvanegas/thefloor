@@ -237,7 +237,12 @@ describe('the microphone', () => {
   it('opens for a member alone with a guest', () => {
     // The failure this prevents is silent: a member talking to somebody who is
     // demonstrably there, into a microphone that was never opened.
-    expect(microphoneNeeded(alone(), ALICE)).toBe(false);
+    //
+    // **Now true on both sides of the comparison**, since 2026-09-08: the
+    // roster left this predicate entirely, so a member alone is capturing
+    // before the guest arrives. The case is kept because the *reason* it was
+    // written — the room rather than the roster — is what a future narrowing
+    // would break, and this is where it would be caught.
     expect(microphoneNeeded(withGuest(), ALICE)).toBe(true);
   });
 

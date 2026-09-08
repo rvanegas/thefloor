@@ -1,157 +1,90 @@
-import { guestMaySpeak, isGuest, roomOccupants } from './guests';
-import { partyWithholds } from './watch';
+import { guestMaySpeak, inRoom, isGuest } from './guests';
 import type { ChannelState, UserId } from './types';
 
 /**
- * Whether the microphone has anything to capture *for*.
+ * Whether this device should be capturing.
  *
- * Alone in a channel it has not, and holding it open is not free: it takes the
- * audio session as a call, which drags a Bluetooth speaker from A2DP down to
- * the mono hands-free profile and silences every other app for as long as you
- * are in the channel. Being in an empty channel should cost the speakers
- * nothing.
+ * **One rule, since the *Stepping in, and stepping in nearby* redesign of
+ * 2026-09-08: you hold the audio system if and only if you are stepped in.**
+ * Being in a room is itself the claim — the microphone opens on the way in,
+ * before anybody has arrived and whether or not anybody ever does, so that an
+ * arriving voice is heard rather than attended to.
  *
- * **Recording used to be an exception here and no longer is, since
- * 2026-09-07.** `core/channel.ts` allowed one person alone to record, so a
- * solo run had to hold the microphone open with nobody there — and that single
- * clause put a *recording* term inside a predicate about *audio*, which is how
- * a phone alone in a channel came to hold it open indefinitely.
- * `canStartRecording` now requires somebody else present or media playing, so
- * the term is **redundant rather than removed**: whenever a run is legal, the
- * occupancy clause below has already answered true. If that guard is ever
- * relaxed, this exception has to come back with it.
+ * **This reverses the standing principle this file used to carry** — *being in
+ * an empty channel should cost the speakers nothing* — and the reversal is
+ * deliberate rather than an oversight. The cost is real: a Bluetooth headset
+ * goes to the mono hands-free profile and another app's audio stops, for as
+ * long as the visit lasts. **Nearby is the escape hatch**, and it is what the
+ * old rule was trying to be: somebody who wants to be reachable without their
+ * music stopping declares themselves nearby instead of stepping in, and claims
+ * nothing at all. The old rule served both intentions with one state and had
+ * to guess which was meant.
+ *
+ * **What left with it.** The occupancy clause — *is anybody else in the room* —
+ * and the watch-party clause. Neither is a tidy-up: the session follows your
+ * own mode rather than the roster, so this predicate no longer reads who else
+ * is here; and a watch party's film plays on **another device**, so an
+ * exclusive claim does not silence it and the occupants simply mute, which is
+ * ordinary self-mute using machinery that already exists. `partyWithholds`
+ * stays in `core/watch.ts` for the server's withholding, which is a different
+ * question.
+ *
+ * The one thing this still asks about somebody other than the caller is what
+ * kind of person the caller is, which is the guest case below.
  */
 export function microphoneNeeded(
   channel: ChannelState,
   me: UserId
 ): boolean {
-  // A room muted for a watch party has nothing for anybody's microphone to
-  // capture for, which is the same question this function already asks about
-  // being alone — so it is answered here rather than as a special case at the
-  // call site.
-  //
-  // **Closing the device is the point, not a bonus.** The server withholds the
-  // subscriptions anyway, so nobody would hear anything either way; what only
-  // closing the microphone achieves is that the video playing on the screen
-  // beside the phone is never picked up at all. See DECISIONS.md § *A watch
-  // party leaks into the channel through the microphone*. The server's half
-  // still has to exist, for builds that predate this rule and go on
-  // publishing.
-  //
-  // **Only while the video plays** — `partyWithholds` is the intent and the
-  // transport together — so a pause reopens every microphone in the room. Both
-  // crossings then land where they are wanted: `channelHasAudio` asks the same
-  // question first, so the room hands the audio system to whatever is playing
-  // the film and takes it back at the moment talking becomes possible again.
-  if (channel.watch && partyWithholds(channel.watch)) return false;
+  // Nearby, stepped out, and not a participant are one answer, and it is no.
+  // Stated here rather than left to the call site because it is the whole rule
+  // — every caller that used to lean on the occupancy clause for this is now
+  // leaning on this line.
+  if (!inRoom(channel, me)) return false;
   // A guest with no grant has no microphone to need. Their LiveKit token is
   // minted unable to publish, so asking for capture would open a device
   // microphone that nothing is allowed to carry — and on a phone that is the
   // same profile handover as a real call, paid for to publish nothing.
+  //
+  // **This is why *stepped in* names two session configurations rather than
+  // one.** The hope was that this predicate and `channelHasAudio` would
+  // collapse into each other once the roster left both; the guest is why they
+  // cannot. The divergence is narrower than it was and it is permanent.
   if (isGuest(channel, me) && !guestMaySpeak(channel, me)) return false;
-  // The room, not the roster. A member alone with a guest is not alone: the
-  // guest can hear them, and a microphone that stayed shut would leave the
-  // member talking to somebody who is demonstrably there. This is the first of
-  // the three places the guest design named as wanting the wider question, and
-  // it is the one whose failure is silent.
-  return roomOccupants(channel).some((id) => id !== me);
+  return true;
 }
 
 /**
- * Whether The Floor itself has any audio right now — which is a candidate for
- * what decides the audio session's configuration, and is a question about this
- * app rather than about who is talking.
+ * Whether The Floor has any audio right now, which decides whether this app
+ * claims the audio system at all.
  *
- * **The only rule, since 2026-09-05.** There were two, and `AppValue
- * .steadyHeadset` picked between them: this one, and `anyMicrophoneOpen`,
- * which asked *is anybody capturing* and chose the high-fidelity `playback`
- * session whenever nobody was. That setting and that rule are both gone, and
- * the reason is not that the argument for the other one was refuted. It is
- * that the choice stopped existing.
+ * **The same rule as `microphoneNeeded`, minus the guest clause**: stepped in
+ * is a claim, and nothing else is. A guest without a speech grant subscribes
+ * and hears the room, so they have audio without having capture — `LISTENING`
+ * in `app/src/audio/session.ts`, which is `playback` and, like `CALL`,
+ * exclusive.
  *
- * The playout fix of 2026-09-05 holds the microphone open, muted, for as long
- * as anything is subscribed — see `useSessionAudio`'s `holdForPlayout` and
- * PLAYOUT.md for the isolation that forced it. That makes the session
- * `playAndRecord` whenever there is anything to hear, so the high-fidelity
- * route the other rule existed to protect is no longer reachable in any
- * channel that has audio in it. The two predicates then differ only when
- * nothing is subscribed, which is when nothing can be heard, and a setting
- * that cannot change what anybody hears is not a setting.
+ * **The claim is exclusive, and that is the change of 2026-09-08.** Nothing
+ * mixes any more: a phone has either claimed the audio system or released it,
+ * and there is no third configuration that half-holds it. `IDLE` — `playback`
+ * with `mixWithOthers` — left the codebase with this rule, because the state
+ * it was kept for is now a phone that holds no session whatsoever.
  *
- * planning/HF-ONLY-WALK.md was the device check that was going to decide
- * between them on fidelity grounds. It was never run and has been deleted; the
- * question it was to answer is moot rather than settled, and that distinction
- * is worth keeping — nobody established that stereo-while-quiet was not worth
- * having. It stopped being on offer.
+ * **The header this replaced asserted something the device refuted.** It said
+ * a capturing session must be exclusive, taking that from commit `0fd88c7`'s
+ * *"the option bought nothing and the category cost everything"*. Nine
+ * configurations measured on 2026-09-08 say otherwise: `playAndRecord` with
+ * `mixWithOthers` under a non-voice mode let a podcast play at 48 kHz with an
+ * input tap running. The category costs nothing; the **mode** does, the voice
+ * modes asserting `duckOthers` behind the caller's back. So exclusivity here
+ * is a **choice** — made for the reason at the top of this file — rather than
+ * a constraint inherited from a misattribution.
  *
- * **This one is kept rather than the other for a mechanical reason as well as
- * a semantic one.** `hasAudio` is read at connect, from channel state, before
- * anything is subscribed. Under `anyMicrophoneOpen` a channel would come up
- * `IDLE`, the subscription would land a moment later, the hold would make
- * `hasAudio` true, and the session would be rewritten to `CALL` — an engine
- * transition immediately after every connect, which is the collision build 90
- * was written to remove and the exact class of event that orphans a receiver.
- * This rule is already right at connect and nothing moves.
- *
- * **The change is the question rather than the answer.** The rule this
- * replaced asked *is anybody capturing*, and its premise was that a room with
- * no open microphone wants stereo. Only
- * one claimant on that stereo turned out to be real: **another app's audio.**
- * Voices are already degraded by the codec, and shared playback is not trying
- * to be a media player — its quality should not depend on whether somebody is
- * talking over it. So the rule is no longer about fidelity at all. It is about
- * whether this app wants the audio system, and it hands it back only when it
- * genuinely wants nothing.
- *
- * **What that costs, stated plainly**: a channel with people in it holds the
- * hands-free profile for as long as it lasts, so a Bluetooth route stays mono
- * and other apps stay interrupted even while everybody is muted. That is
- * deliberate. A muted room is a live room that happens to be quiet — every
- * mute is unilateral and instant, `canSetSelfMute` refusing only the muting —
- * so handing the route back means handing it back on the strength of a state
- * anybody can leave in the time it takes to say a first syllable, and the
- * profile handover then lands on exactly that syllable.
- *
- * **The 2026-08-19 route loss stays fixed, by a shorter argument.**
- * `anyMicrophoneOpen` existed because keying the session on your *own*
- * microphone made self-muting mid-conversation cross the category boundary and
- * lose a tester's headphones. Here self-mute is not consulted at all: somebody
- * else is in the room, so there is audio, so the session is a call. The
- * session stopped needing to know anything about mutes, and with it the
- * property planning/STATES.md called the largest thing it had to say — that
- * one person's self-mute was an input to everybody's session — is no longer
- * true.
- *
- * The three answers, in the order they are asked:
- *
- * - **A watch party that is withholding has no audio**, and this is the case
- *   that looks like an exception and is not. The Floor carries no video: each
- *   person's own player follows a transport clock, so the film is coming out
- *   of another app, and every voice is withheld for as long as it plays. There
- *   is nothing for this app to play and nothing for it to capture, and the
- *   other app that wants the route is that player. Asked first, because
- *   occupants are present throughout. A pause reopens it, the same crossing
- *   `microphoneNeeded` makes and for the same reason.
- * - **Anybody else in the room is audio**, whether or not they are speaking,
- *   muted, or a guest without the microphone. They can be heard the moment
- *   they are not, and the boundary is not worth crossing on the difference.
- *   The room rather than the roster, for the reason `microphoneNeeded` gives.
- * - **Shared playback is audio**, including while paused: pausing a track to
- *   talk about it should not hand the route away and take it back. `idle`
- *   covers both a track loaded and never started and one that has finished.
- *
- * A recording used to be a fourth case, on the grounds that it was the one
- * thing that captured with nobody there. `canStartRecording` no longer permits
- * that, so the case cannot arise: a legal run already has an occupant or
- * playback behind it. See `microphoneNeeded` above.
- *
- * Everything else is `IDLE`: alone in a channel with nothing running, which is
- * the state this whole function exists to protect. Being present somewhere
- * nothing is happening should cost another app's music nothing.
+ * **Shared playback is no longer a case, and neither is a recording.** Both
+ * used to be reasons to hold the session in a room that was otherwise quiet;
+ * both can only happen in a room you are standing in, and standing in one is
+ * already the whole answer.
  */
 export function channelHasAudio(channel: ChannelState, me: UserId): boolean {
-  if (channel.watch && partyWithholds(channel.watch)) return false;
-  if (roomOccupants(channel).some((id) => id !== me)) return true;
-  return channel.playback.status !== 'idle';
+  return inRoom(channel, me);
 }
-

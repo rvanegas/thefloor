@@ -62,7 +62,7 @@ jest.mock('@livekit/react-native', () => ({
     // under the test renderer without a bridge.
     configureAudio: jest.fn(async () => {}),
   },
-  // The two Android configurations, inlined for the same reason
+  // The Android presets, inlined for the same reason
   // `AudioEngineMuteMode` is: requiring them from the real module would reach
   // the bridge at import time, which is what this mock exists to avoid.
   // src/audio/session.ts holds these by identity, so the objects must be

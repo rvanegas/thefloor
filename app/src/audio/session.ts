@@ -6,16 +6,33 @@ import type {
 } from '@livekit/react-native';
 
 /**
- * The two states the iOS audio session is ever in, and the single place they
- * are written down.
+ * The states the iOS audio session is ever in, and the single place they are
+ * written down.
  *
- * **Two third states have been tried and both were deleted, for opposite
- * reasons.** `LISTENING` was `IDLE` without `mixWithOthers` and went at build
- * 90 for interrupting other apps. `WAITING` was `CALL` *with* `mixWithOthers`
- * and went a day after it arrived, on 2026-09-06 — for interrupting other apps
- * anyway, because the exclusion turns out to follow from the *category* rather
- * than from that option. A reader who finds "the third state" in an older
- * document should check which one it means; neither exists.
+ * **Three, and the third is nothing at all.** Since 2026-09-08: `CALL` while
+ * stepped in, `LISTENING` for a guest with no speech grant, and **deactivated**
+ * for a phone that is nearby, stepped out, or not in a room. You hold a session
+ * if and only if you are stepped in; there is no case where this app holds one
+ * it is not using.
+ *
+ * **`LISTENING` is a restoration, and it returns for the reason it was
+ * removed.** It was `IDLE` without `mixWithOthers` and went at build 90 for
+ * interrupting other apps — which is now the intent rather than the defect. A
+ * guest's session should resemble a member's in every respect except
+ * permission to speak, and letting somebody's podcast play over the voices a
+ * guest is listening to would single out the one person who cannot do anything
+ * about it.
+ *
+ * **`IDLE` left with it, and with it the last use of `mixWithOthers`
+ * anywhere.** Nothing mixes: a phone has either claimed the audio system or
+ * given it back. `IDLE` made sense while a quiet phone was still *connected* —
+ * you hold a playback session because a voice could arrive at any moment — and
+ * a nearby phone has no media subscription, so nothing can arrive. The session
+ * would assert a readiness for audio that cannot happen, and would not even
+ * buy process lifetime, an active session with nothing flowing being exactly
+ * what iOS suspends. `WAITING` — `CALL` *with* `mixWithOthers` — was the other
+ * casualty, and went on 2026-09-06. A reader who finds "the third state" in an
+ * older document should check which one it means.
  *
  * Three different writers can configure this session: this app, the SDK's
  * native policy observer on every audio-engine transition, and WebRTC itself
@@ -40,25 +57,29 @@ import type {
  */
 
 /**
- * What the session asks of the system when this app has no audio at all:
- * connected to a channel, alone, nothing running — or watching a party whose
- * film is playing out of somebody else's player.
+ * What the session asks of the system for somebody who is in the room and
+ * cannot speak in it: a **guest with no speech grant.**
  *
- * `playback` rather than `playAndRecord` is the whole point: taking the session
- * as a call drags a Bluetooth speaker from A2DP down to HFP — mono, roughly
- * 16 kHz — and makes every other app's audio unusable for as long as you are in
- * the channel.
+ * `playback` rather than `playAndRecord`, because there is no microphone to
+ * open — a guest's LiveKit token is minted unable to publish, and opening a
+ * device microphone that nothing is allowed to carry would buy the whole call
+ * profile handover to publish nothing.
  *
- * **`mixWithOthers` is here and not in `CALL`**, and since 2026-08-27 that is
- * the entire remaining purpose of this configuration: the only claimant on the
- * audio system worth handing it back to is **another app**. Being in an empty
- * channel should cost the speakers nothing — `core/micNeeded.ts` makes the
- * same argument about the microphone, and this is that argument applied to the
- * other end of the session.
+ * **Exclusive, and that is the half worth reading twice.** There is no
+ * `mixWithOthers` here. This configuration existed once and was deleted at
+ * build 90 *for* interrupting other apps; it is back because interrupting them
+ * is the intent now. See the header at the top of this file.
+ *
+ * **One consequence, audible.** A guest granted permission to speak crosses
+ * from here to `CALL`, which on a Bluetooth headset is an A2DP to hands-free
+ * handover — stereo to mono, at the moment they are told they may talk.
+ * Nothing is wrong with it and nobody will expect it. A listening guest is on
+ * a *better* route than a member, which is a consequence of not needing a
+ * microphone rather than a decision.
  */
-export const IDLE: AppleAudioConfiguration = {
+export const LISTENING: AppleAudioConfiguration = {
   audioCategory: 'playback',
-  audioCategoryOptions: ['mixWithOthers'],
+  audioCategoryOptions: [],
   audioMode: 'spokenAudio',
 };
 
@@ -113,14 +134,24 @@ export const IDLE: AppleAudioConfiguration = {
  * Dropping it means a capturing session offers only routes that can *do* both
  * halves: an HFP headset via `allowBluetooth`, AirPlay, or — when neither is
  * there — the built-in speaker and microphone, which `defaultToSpeaker` picks
- * over the earpiece. A2DP is not lost, it is scoped: `IDLE` is `playback`,
- * where a Bluetooth device is an eligible output with no option needed at all,
- * so the stereo route is exactly as available as before whenever this app has
- * no audio of its own. **The audible mono/stereo transition is unchanged by
- * this option**, because it was never about it — it is about the category.
- * What did move the transition is the 2026-08-27 rule: it now fires when the
- * room stops being empty rather than when somebody's microphone opens, so it
- * says *there is somebody here* rather than *somebody could be heard*.
+ * over the earpiece. A2DP is not lost, it is scoped: **being nearby is how you
+ * keep stereo**, because being nearby claims nothing at all and this
+ * configuration is never applied.
+ *
+ * **The A2DP split was measured to work and is declined rather than
+ * unavailable.** Row 8 of the 2026-09-08 lab run kept a headset in A2DP stereo
+ * at 48 kHz by taking the input from the phone, with another app playing
+ * normally. It is not taken because it costs the echo canceller, and because
+ * it is unsafe with a mic-less Bluetooth speaker — the case this option's
+ * absence was written for. What that reading does hand over is a question
+ * nobody has answered: whether to condition the *mode* on the output route,
+ * `default` while output is A2DP headphones and `videoChat` when it is a
+ * loudspeaker. Headphones in somebody's ears are not loudspeakers. Not
+ * decided, and not measured either — it needs a far end and a second person.
+ *
+ * **The audible mono/stereo transition now fires at step-in**, which is the
+ * 2026-09-08 change: it says *I am in this room* rather than *there is
+ * somebody here*.
  *
  * **This is the option build 19 removed, and it is being removed again for a
  * different reason and with a different expectation.** Build 19 dropped it and
@@ -142,28 +173,33 @@ export const CALL: AppleAudioConfiguration = {
 };
 
 /**
- * Which session this app wants.
+ * Which of the **two configurations this app applies** is wanted.
  *
- * - `call` — there is audio: somebody is being heard, or this device is
- *   capturing, or it is waiting with the microphone held open.
- * - `idle` — this app should not have the audio system: not in a channel, in a
- *   watch party whose film is playing elsewhere, or waiting while another app
- *   is playing.
+ * - `call` — stepped in, with a microphone to open: a member, or a guest who
+ *   may speak.
+ * - `listen` — in the room and unable to publish, which is a guest with no
+ *   speech grant.
  *
- * **A third value existed for one day and is gone.** `WAITING` was `CALL` plus
- * `mixWithOthers`, meant to hold the hands-free route through a quiet channel
- * so that an arrival never needed a handover. It was deleted on 2026-09-06 for
- * a reason that had nothing to do with the route: **a call-shaped session
- * alongside a playing media app stops that app**, `mixWithOthers` or not, which
- * was measured three times and finally with a podcast dying a fraction of a
- * second after the play button. There is no configuration that both holds the
- * call route and lets another app play, so the choice is which one to have —
- * and that choice is made once, at step-in, from `otherAudioPlaying`.
+ * **The third state has no value here, because it is not a configuration.**
+ * Nearby, stepped out and not in a room are one audio state and it is *none*:
+ * the session is deactivated, which is a thing that happens rather than a
+ * category that is written. See `policyFor`.
+ *
+ * **The two remaining values are still worth having, for one reason:** a
+ * backgrounded app is granted playback and refused a *new* microphone, so
+ * `useSessionAudio` withholds a promotion until the foreground and asks for
+ * `listen` meanwhile. Without that this type would collapse — recording
+ * enabled is `CALL` and playout-only is `LISTENING`, and the native observer
+ * distinguishes them on the audio worker thread without being told.
+ *
+ * **`idle` was the second value until 2026-09-08** and meant *this app should
+ * not have the audio system*. Nothing means that any more while a connection
+ * exists: the state it described is now a phone with no connection at all.
  */
-export type SessionWant = 'call' | 'idle';
+export type SessionWant = 'call' | 'listen';
 
 /**
- * Which of the three the session should be in.
+ * Which configuration that is.
  *
  * A function with a test rather than a condition inline, on the same reasoning
  * as `microphoneNeeded`: this is the rule that decides whether somebody else's
@@ -171,62 +207,61 @@ export type SessionWant = 'call' | 'idle';
  * wrong in either direction.
  *
  * @param want which case this is. `App.tsx` and `useSessionAudio` between them
- *             decide it — `channelHasAudio` in core/micNeeded.ts answers *is
- *             there audio*, `isPartyMuted` answers *should this app hand
- *             back*, and the foreground answers *may we take a microphone*.
- *             This module deliberately does not know how the answer was
- *             reached; it is handed one, and the arguments live where they are
- *             computed.
+ *             decide it — `microphoneNeeded` in core/micNeeded.ts answers *may
+ *             this person publish*, and the foreground answers *may we take a
+ *             microphone now*. This module deliberately does not know how the
+ *             answer was reached; it is handed one, and the arguments live
+ *             where they are computed.
  */
 export function sessionFor(want: SessionWant): AppleAudioConfiguration {
-  return want === 'call' ? CALL : IDLE;
+  return want === 'call' ? CALL : LISTENING;
 }
 
 /**
- * **`want` is not `channelHasAudio`, and the difference is deliberate.** A
- * backgrounded app is granted playback by `UIBackgroundModes` and refused a
- * microphone, so `useSessionAudio` withholds the promotion to `call` until the
- * foreground and asks for `idle` meanwhile.
+ * The whole of what the native observer is told, which since 2026-09-08 is a
+ * **constant**.
  *
- * **And it is decided only while the app is active.** `isOtherAudioPlaying`,
- * which the choice depends on, reports true only while this app is the active
- * one — it describes our own foreground state rather than anybody else's audio,
- * measured 2026-09-06. Re-asking it on every app-state change is what made
- * build 150 flip between configurations five times in thirty seconds, dragging
- * a headset between HFP and A2DP and killing a podcast on the way. So the
- * question is asked at step-in and at each foreground, where the answer is
- * sound, and the last answer is held in between.
+ * **The observer's three engine states are this design's three audio states**,
+ * which is why the whole of it fits the SDK rather than fighting it:
  *
- * The note is here because a reader comparing this against `channelHasAudio`
- * would otherwise find them disagreeing and assume a bug.
- */
-
-/**
- * The same answer, shaped for the native observer.
+ * | engine | field | state |
+ * | --- | --- | --- |
+ * | recording enabled | `recording` | **CALL** — stepped in |
+ * | playout only | `playout` | **LISTENING** — guest without a speech grant |
+ * | neither | `deactivateOnStop` | **deactivated** — nearby, or not in a room |
+ *
+ * So there is no slot left that wants a mixing configuration, and nothing for
+ * this function to be a function *of*: recording enabled is a call, playout
+ * only is a listener, and the observer distinguishes them on the audio worker
+ * thread without being told which case it is in. It stays a function so that
+ * every call site reads as it did, and so that a fourth state would have
+ * somewhere to arrive.
  *
  * **The observer is a second writer of this session and it cannot be argued
  * with, only agreed with.** It runs on the audio worker thread at the engine
  * transition itself, with no JavaScript in the path, so a re-statement from
- * here always lands *after* it. Handing it the value `sessionFor` would return
- * is what makes the two writers say the same thing, which is the invariant
+ * here always lands *after* it. Handing it the same answers this app applies is
+ * what makes the two writers say the same thing, which is the invariant
  * `__tests__/session.test.ts` pins.
  *
- * **`recording: CALL` is unconditional, and as of 2026-09-05 that is safe by
- * construction.** It rests on *the observer reads it only while this device is
- * capturing, and our capturing implies the session is a call*. That
- * implication used to be falsifiable: under the old default rule
- * `anyMicrophoneOpen` excluded the self-muted while `intentFor` returned
- * `muted` and held the device open, so the engine could be recording under a
- * session that was not a call. That is STATES.md disagreement 11 and the
- * leading suspect in "The Foreground Interruption".
+ * **`recording: CALL` is unconditional and is now trivially safe.** It rests
+ * on *the observer reads it only while this device is capturing, and our
+ * capturing implies the session is a call*, and capturing now implies being
+ * stepped in, which is the whole of what a call is. The falsifiable version of
+ * this — STATES.md disagreement 11 — needed a rule under which the engine could
+ * record beneath a `playback` session, and there is no longer one to write.
  *
- * **It closes with the rule change.** The engine can only be recording where
- * `microphoneNeeded` was true, which means somebody else is in the room or a
- * recording is running, and `channelHasAudio` returns true for both. The hold
- * added the same day closes the other direction: where it keeps the device open
- * it pins `hasAudio` alongside, so the session is a call for exactly as long as
- * the device is held. There is no longer a state in which this device records
- * under `playback`.
+ * **`deactivateOnStop` is stated rather than left to the default, and that is
+ * deliberate.** The wrapper defaults it to `true`; the native setter it wraps
+ * reads a missing key as *false*. Saying it here means the release cannot
+ * depend on which of the two a future call site reaches for — and this release
+ * is the whole mechanism by which nearby holds no session, so it is not a
+ * default worth inheriting silently.
+ *
+ * **The release happens natively, at the engine transition**, on the audio
+ * worker thread with no JavaScript in the path. Nothing has to be armed with
+ * something harmless first, because the harmless thing *is* deactivation and it
+ * is what the observer does.
  *
  * **Push it before the transition, never after.** The observer reads whatever
  * is stored when the engine moves, so a policy pushed after
@@ -244,8 +279,8 @@ export function sessionFor(want: SessionWant): AppleAudioConfiguration {
  * the SDK's caution about switching mid-call is about switching *paths*
  * (the deprecated JS callback against this native one), not about a policy.
  */
-export function policyFor(want: SessionWant): IOSAudioSessionPolicy {
-  return { recording: CALL, playout: sessionFor(want) };
+export function policyFor(): IOSAudioSessionPolicy {
+  return { recording: CALL, playout: LISTENING, deactivateOnStop: true };
 }
 
 /**
@@ -257,20 +292,26 @@ export function policyFor(want: SessionWant): IOSAudioSessionPolicy {
  */
 export function nameOf(config: AppleAudioConfiguration): string {
   if (config === CALL) return 'CALL';
-  if (config === IDLE) return 'IDLE';
+  if (config === LISTENING) return 'LISTENING';
   return 'unknown';
 }
 
 /* -------------------------------------------------------------------------
- * The same two states, said in Android's vocabulary.
+ * The same states, said in Android's vocabulary.
  *
- * **Two states, not two state machines.** Everything above is about what
- * `IDLE` and `CALL` *mean*; the constants below are the same two meanings
- * spelled for a different platform, and they are chosen by the same
- * `hasAudio` boolean from the same rule in core/micNeeded.ts. If a third state
- * is ever wanted, it is wanted on both sides — adding one here alone is how
- * the two ends start disagreeing about what a call is, which is the thing
- * `core/` exists to prevent.
+ * **The same states, not a second state machine.** Everything above is about
+ * what `LISTENING` and `CALL` *mean*; the constants below are those meanings
+ * spelled for a different platform, and they are chosen by the same rule in
+ * core/micNeeded.ts. A state wanted on one side is wanted on both — adding one
+ * here alone is how the two ends start disagreeing about what a call is, which
+ * is the thing `core/` exists to prevent.
+ *
+ * **The third state is where the two platforms genuinely differ, and it is the
+ * only Android work the 2026-09-08 redesign called for.** iOS releases the
+ * session natively through `deactivateOnStop`; Android has no such observer,
+ * so nothing gives the focus back on this app's behalf and the release has to
+ * be said out loud. `releaseAndroidAudio` in `useSessionAudio` is that
+ * sentence.
  *
  * The shapes are not analogous and it is worth knowing why before looking for
  * a category here. iOS has one process-wide session that three writers mutate
@@ -285,22 +326,21 @@ export function nameOf(config: AppleAudioConfiguration): string {
  * ------------------------------------------------------------------------- */
 
 /**
- * What Android is asked for when this app has no audio of its own.
+ * What Android is asked for by somebody in the room who cannot publish — a
+ * guest with no speech grant. The counterpart of `LISTENING`.
  *
  * `AndroidAudioTypePresets.media` — `audioMode: 'normal'`, stream `music`,
- * usage `media`. The counterpart of `IDLE`'s `playback` category, and it earns
- * the name for the same reason: an empty channel should cost the speakers
- * nothing.
+ * usage `media`, and `audioFocusMode: 'gain'`.
  *
- * **There is no `mixWithOthers` here, and its absence is not a gap.** Mixing on
- * iOS is a category option; on Android it is the audio-*focus* request, which
- * `manageAudioFocus: true` in both presets hands to the SDK. What decides
- * whether another app keeps playing is `audioFocusMode`, `gain` in both — so
- * the mixing behaviour this app relies on is not expressible as one flag here
- * and has not been verified. See planning/ANDROID.md: it is one of the things
- * an emulator cannot answer.
+ * **It was `ANDROID_IDLE` until 2026-09-08, and the rename is the change.** It
+ * was only ever called idle because iOS's `IDLE` mixed; this preset never did.
+ * Both presets request `gain` focus, which stops other apps — so **the mixing
+ * this platform never verified is mixing it never did**, and the note that
+ * used to stand here calling that an unverified risk describes nothing now.
+ * Nothing in this app mixes any more, so there is no behaviour left for it to
+ * be wrong about. See planning/ANDROID.md.
  */
-export const ANDROID_IDLE: AndroidAudioTypeOptions =
+export const ANDROID_LISTENING: AndroidAudioTypeOptions =
   AndroidAudioTypePresets.media;
 
 /**
@@ -325,10 +365,10 @@ export const ANDROID_IDLE: AndroidAudioTypeOptions =
  *
  * What it did not have was the *transition*. It sat in communication mode for
  * the whole time it was connected, whether or not this app had any audio —
- * which is `IDLE` being unavailable rather than `CALL` being wrong. An empty
- * channel held the phone in voice-call mode, on the voice stream, with
- * everything that costs another app's playback. That is the same argument
- * `IDLE` exists for on iOS, arrived at from the other end.
+ * which was the quiet configuration being unavailable rather than `CALL` being
+ * wrong. Since 2026-09-08 a member stepped in is in this one throughout, which
+ * is the design rather than a regression: stepping in is the claim, and the
+ * transition that matters is now the one at the edge of the room.
  */
 export const ANDROID_CALL: AndroidAudioTypeOptions =
   AndroidAudioTypePresets.communication;
@@ -362,25 +402,45 @@ export const ANDROID_OUTPUTS = [
 ] as const;
 
 /**
- * Which of the two Android should be in, from the same boolean as `sessionFor`.
+ * Which of the two Android should be in, from the same value as `sessionFor`.
  *
  * Deliberately a second function rather than a platform branch inside
  * `sessionFor`: the return types have nothing in common, and a single function
  * returning either would push a discriminated union into every caller to say
  * something the caller already knows from `Platform.OS`. The thing that must
- * not fork is the *question*, and it has not — both take `hasAudio`.
+ * not fork is the *question*, and it has not — both take a `SessionWant`.
  */
 export function androidSessionFor(want: SessionWant): AndroidAudioTypeOptions {
-  // `waiting` is an iOS answer to an iOS refusal — Android keeps the process
-  // alive with a foreground service and never has to take a route early. It
-  // maps to the quiet configuration, which is what it was before this existed.
-  const hasAudio = want === 'call';
-  return hasAudio ? ANDROID_CALL : ANDROID_IDLE;
+  return want === 'call' ? ANDROID_CALL : ANDROID_LISTENING;
 }
 
-/** Which of the two this is, for a log line. See `nameOf`. */
+/**
+ * What Android is asked for when this app claims nothing: nearby, stepped out,
+ * or not in a room.
+ *
+ * **This is the platform's whole share of the 2026-09-08 redesign.** iOS gets
+ * the release for free from `deactivateOnStop`; here nothing gives the audio
+ * focus back on this app's behalf, so it is said. `manageAudioFocus: false`
+ * with `audioMode: 'normal'` on the media stream is *stop holding anything* —
+ * the one configuration in this file that is about giving something up.
+ *
+ * **Belt and braces, deliberately.** The first half of the release is that a
+ * nearby phone has no media connection, so `startAudioSession` never runs and
+ * nothing configures anything. That may already be enough. This is the second
+ * half, for the path where something *was* configured earlier and the room has
+ * since gone: being explicit costs one call and closes a state nobody can
+ * observe from inside the app.
+ */
+export const ANDROID_RELEASED: AndroidAudioTypeOptions = {
+  ...AndroidAudioTypePresets.media,
+  manageAudioFocus: false,
+  audioMode: 'normal',
+};
+
+/** Which of the three this is, for a log line. See `nameOf`. */
 export function androidNameOf(config: AndroidAudioTypeOptions): string {
   if (config === ANDROID_CALL) return 'CALL';
-  if (config === ANDROID_IDLE) return 'IDLE';
+  if (config === ANDROID_LISTENING) return 'LISTENING';
+  if (config === ANDROID_RELEASED) return 'released';
   return 'unknown';
 }

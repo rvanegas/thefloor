@@ -1,17 +1,17 @@
 import { createChannel, reduce } from '../channel';
 import type { ChannelState } from '../types';
-import {
-  channelHasAudio,
-  microphoneNeeded,
-} from '../micNeeded';
+import { channelHasAudio, microphoneNeeded } from '../micNeeded';
 
 /**
- * When the microphone is worth holding open.
+ * The one rule, since 2026-09-08: **a session is held if and only if the phone
+ * is stepped in.**
  *
- * The cost of getting this wrong is asymmetric. Held open needlessly, a
- * Bluetooth speaker sits on the mono hands-free profile and other apps go
- * silent — annoying, and visible. Closed when it was needed, a recording
- * captures nothing and says nothing, which is the one this is tested for.
+ * This file used to be a decision table over the roster, the watch party and
+ * shared playback, on the principle that being in an empty channel should cost
+ * the speakers nothing. That principle is reversed — see `micNeeded.ts` — so
+ * most of what was tested here is now tested by its absence: the rows that
+ * asked *who else is here* have gone, and what is left pins the two predicates
+ * apart at the one place they still differ, which is a guest.
  */
 
 const ME = 'user-me';
@@ -24,176 +24,112 @@ const alone = () =>
 const together = () =>
   reduce(alone(), { type: 'ENTER', userId: THEM }, T0 + 1_000);
 
-const recording = (state: ChannelState) =>
-  reduce(
-    state,
-    { type: 'START_RECORDING', userId: ME, runId: 'run_1' },
-    T0 + 2_000
-  );
-
-describe('whether the microphone is needed', () => {
-  it('is not, alone in a channel with nothing running', () => {
-    expect(microphoneNeeded(alone(), ME)).toBe(false);
-  });
-
-  it('is, the moment somebody else is present', () => {
-    expect(microphoneNeeded(together(), ME)).toBe(true);
-  });
-
-  it('is not while alone, because a solo run can no longer start', () => {
-    // This asserted the opposite until 2026-09-07, when solo recording was
-    // removed. The old rule made `isRecordingActive` a reason to open the
-    // microphone by itself, which is how a phone alone in a channel came to
-    // hold one open indefinitely.
-    const s = recording(alone());
-    expect(s.present).toEqual([ME]);
-    expect(s.recording.status).toBe('idle');
-    expect(microphoneNeeded(s, ME)).toBe(false);
-  });
-
-  it('is while a recording runs with somebody else there', () => {
-    const s = recording(together());
-    expect(s.recording.status).toBe('recording');
-    expect(microphoneNeeded(s, ME)).toBe(true);
-  });
-
-  it('is while such a recording is merely paused, not stopped', () => {
-    // Paused is still a run — resuming must not have to wait for the audio
-    // session to be retaken. The occupant is what holds it open now, but the
-    // crossing is the one worth pinning either way.
-    const s = reduce(
-      recording(together()),
-      { type: 'PAUSE_RECORDING', userId: ME },
-      T0 + 3_000
-    );
-    expect(microphoneNeeded(s, ME)).toBe(true);
-  });
-
-  it('needs no recording clause of its own, which is why there is not one', () => {
-    // The redundancy the removal rests on: a legal run always has an occupant
-    // or playback behind it, so every state in which a recording is active is
-    // already a state this answers true for. If `canStartRecording` is ever
-    // relaxed to permit a solo run, this fails and the clause has to return.
-    const running = recording(together());
-    expect(running.recording.status).toBe('recording');
-    expect(microphoneNeeded(running, ME)).toBe(true);
-
-    const solo = recording(alone());
-    expect(solo.recording.status).toBe('idle');
-  });
-
-  it('is when others are there even if you have stepped out yourself', () => {
-    // Not a state this app reaches — it only asks about a channel you are
-    // present in — but the predicate should not depend on that.
-    const s = reduce(together(), { type: 'STEP_OUT', userId: ME }, T0 + 5_000);
-    expect(microphoneNeeded(s, ME)).toBe(true);
-  });
-});
-
-/**
- * Every row of the decision table in planning/STATES.md, because the rule's
- * whole claim is about which rows it moves and a test covering only those
- * would not catch it quietly moving another.
- *
- * Rewritten 2026-08-27 from `anyMicrophoneOpen`, whose claim was *nobody is
- * capturing, so somebody wants stereo*. The only claimant on that stereo that
- * survived examination is another app, so the question became whether this app
- * has any audio at all — which moves two rows and leaves the rest where they
- * were.
- */
+const stepOut = (state: ChannelState, who: string) =>
+  reduce(state, { type: 'STEP_OUT', userId: who }, T0 + 8_000);
 
 const mute = (state: ChannelState, who: string) =>
   reduce(state, { type: 'SET_SELF_MUTE', userId: who, muted: true }, T0 + 6_000);
 
-const loadTrack = (state: ChannelState) =>
-  reduce(
-    state,
-    {
-      type: 'SET_TRACK',
-      userId: ME,
-      track: { id: 'trk_1', title: 'A file', durationMs: 60_000 },
+const asGuest = (state: ChannelState, maySpeak: boolean): ChannelState => ({
+  ...state,
+  guests: {
+    guest_1: {
+      id: 'guest_1',
+      name: 'A visitor',
+      admittedAt: T0,
+      maySpeak,
+      request: 'none',
     },
-    T0 + 5_000
-  );
+  },
+});
 
-describe('whether this app has any audio', () => {
-  it('has none, alone and unmuted with nothing running', () => {
-    // The row the whole configuration exists for: somebody sitting alone in a
-    // channel listening to music in another app, which is the one claimant on
-    // the audio system worth handing it back to.
-    const s = alone();
-    expect(s.selfMuted[ME]).toBe(false);
+describe('the microphone, which follows your own mode and nobody else’s', () => {
+  it('is open alone in an empty channel, which is the reversal', () => {
+    // The row that changed. Under the old rule this was false and the whole
+    // point of the rule; now the claim is what standing in a room *is*, so an
+    // arriving voice is heard rather than waited for.
+    expect(microphoneNeeded(alone(), ME)).toBe(true);
+  });
+
+  it('is open with somebody else present', () => {
+    expect(microphoneNeeded(together(), ME)).toBe(true);
+  });
+
+  it('does not move when somebody else arrives or leaves', () => {
+    // The occupancy clause is gone, and this is what that means: the roster is
+    // not an input, so nobody else's coming and going crosses the category
+    // boundary a Bluetooth handover sits on.
+    expect(microphoneNeeded(together(), ME)).toBe(microphoneNeeded(alone(), ME));
+    expect(microphoneNeeded(stepOut(together(), THEM), ME)).toBe(true);
+  });
+
+  it('is not open for somebody who has stepped out', () => {
+    const s = stepOut(together(), ME);
+    expect(s.present).not.toContain(ME);
+    expect(microphoneNeeded(s, ME)).toBe(false);
+  });
+
+  it('is not open for somebody nearby, which is what nearby means', () => {
+    const s = reduce(
+      together(),
+      { type: 'DECLARE_NEARBY', userId: ME },
+      T0 + 9_000
+    );
+    expect(s.waiting).toContain(ME);
+    expect(microphoneNeeded(s, ME)).toBe(false);
     expect(channelHasAudio(s, ME)).toBe(false);
   });
 
-  it('has not, alone, since a solo run cannot start', () => {
-    // Was `has, alone and recording`. See the microphone case above: the
-    // recording clause is gone from both predicates because it is unreachable,
-    // not because a running recording stopped being audio.
-    expect(channelHasAudio(recording(alone()), ME)).toBe(false);
+  it('is not open for a member of a channel they are not standing in', () => {
+    expect(microphoneNeeded(alone(), THEM)).toBe(false);
   });
 
-  it('has, with somebody else present and nobody muted', () => {
-    expect(channelHasAudio(together(), ME)).toBe(true);
+  it('stays open through a self-mute, which is about what you send', () => {
+    // Muting is not stepping out: a muted person still hears the room, still
+    // holds the claim, and is still an occupant. The device is held open and
+    // the intent handles the rest — see `useSessionAudio`.
+    expect(microphoneNeeded(mute(together(), ME), ME)).toBe(true);
   });
 
-  it('has, when I am muted and the other party is not', () => {
-    // The 2026-08-19 route loss, which stays fixed by a shorter argument than
-    // the one that fixed it: self-mute is not consulted at all, so there is
-    // nothing here for a category write to cross.
-    const s = mute(together(), ME);
-    expect(s.selfMuted[ME]).toBe(true);
-    expect(channelHasAudio(s, ME)).toBe(true);
+  it('is not open for a guest with no speech grant', () => {
+    // The one place the two predicates still part company, and it is
+    // permanent: opening a device microphone that nothing is allowed to carry
+    // would buy the whole call-profile handover to publish nothing.
+    const s = asGuest(alone(), false);
+    expect(microphoneNeeded(s, 'guest_1')).toBe(false);
+    expect(channelHasAudio(s, 'guest_1')).toBe(true);
   });
 
-  it('has, once everybody present is muted — the row that changed', () => {
-    // `anyMicrophoneOpen` said no here, and handed the route back. A muted
-    // room is a live room that happens to be quiet: every mute is unilateral
-    // and instant, so the handover would land on the first syllable of
-    // whoever unmutes.
-    const s = mute(mute(together(), ME), THEM);
-    expect(channelHasAudio(s, ME)).toBe(true);
-  });
-
-  it('has none once the other party steps out, muted or not', () => {
-    // Presence is the gate, unchanged: an empty room is an empty room.
-    const s = reduce(together(), { type: 'STEP_OUT', userId: THEM }, T0 + 8_000);
-    expect(s.present).toEqual([ME]);
-    expect(channelHasAudio(s, ME)).toBe(false);
-  });
-
-  it('has, alone with a track loaded — the other row that changed', () => {
-    // Shared playback is this app making sound, so it takes the session even
-    // with nobody there to hear it with. Mono, and deliberately: playback is
-    // not trying to be a media player, and its quality should not depend on
-    // whether somebody is talking over it.
-    //
-    // **From the load rather than from the play**, which is what `setTrack`
-    // leaving the status `paused` buys: the session is already a call before
-    // anything is published, so the category is not written at the moment the
-    // track arrives and the engine starts. That collision is what build 90 was
-    // about.
-    const s = loadTrack(alone());
-    expect(s.playback.status).toBe('paused');
-    expect(channelHasAudio(s, ME)).toBe(true);
-  });
-
-  it('has none with a track that has come to rest', () => {
-    // `idle` covers both a track never started and one that has finished, and
-    // the music somebody had on comes back at that edge.
-    const s = alone();
-    expect(s.playback.status).toBe('idle');
-    expect(channelHasAudio(s, ME)).toBe(false);
+  it('is open for a guest who may speak', () => {
+    const s = asGuest(alone(), true);
+    expect(microphoneNeeded(s, 'guest_1')).toBe(true);
   });
 });
 
-/**
- * There was a second rule here until 2026-09-05 — `anyMicrophoneOpen`, which
- * asked *is anybody capturing* and handed the session back to `playback`
- * whenever nobody was — and a setting picked between the two. Both are gone.
- * The playout fix holds the microphone open while anything is subscribed, so
- * the high-fidelity route that rule protected is no longer reachable in a
- * channel that has audio in it, and a predicate that cannot change what
- * anybody hears is not worth a test or a setting. See `channelHasAudio` in
- * ../micNeeded.ts and planning/PLAYOUT.md.
- */
+describe('the claim on the audio system, which is stepping in and nothing else', () => {
+  it('is held alone in an empty channel', () => {
+    expect(channelHasAudio(alone(), ME)).toBe(true);
+  });
+
+  it('is not held by somebody who has stepped out', () => {
+    expect(channelHasAudio(stepOut(together(), ME), ME)).toBe(false);
+  });
+
+  it('is held through a watch party, the film being on another device', () => {
+    // The watch-party clause left both predicates. The Floor carries no video
+    // — each person's player follows a transport clock — so an exclusive claim
+    // here does not silence the film, and occupants mute while it runs, which
+    // is ordinary self-mute.
+    const withTrack = reduce(
+      together(),
+      {
+        type: 'SET_TRACK',
+        userId: ME,
+        track: { id: 'trk_1', title: 'A film', durationMs: 60_000 },
+      },
+      T0 + 5_000
+    );
+    expect(channelHasAudio(withTrack, ME)).toBe(true);
+    expect(microphoneNeeded(withTrack, ME)).toBe(true);
+  });
+});

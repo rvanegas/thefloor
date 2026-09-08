@@ -1,9 +1,10 @@
 # The audio-and-presence review, surveyed but not done
 
-> **Superseded in part, 2026-09-08. Read this after the other two, or not at
-> all.** `AUDIO-PRESENCE-DESIGN.md` is the design that answers it and
-> `AUDIO-LAB-FINDINGS.md` is the evidence — nine configurations measured on a
-> device.
+> **Superseded in part, 2026-09-08, and the work is built.**
+> `decisions/2026-09-08-stepping-in-and-nearby.md` is the design that answers
+> it and carries the evidence — nine configurations measured on a device. The
+> two temporary files this banner used to name went with it, as they said they
+> would.
 >
 > **What is falsified here**: everything below that treats a call-shaped
 > session as necessarily exclusive, including *"there is no configuration that
@@ -150,18 +151,18 @@ full call-profile handover, paid to publish nothing.
 
 ## The latent hazard: four positional booleans
 
-`useSessionAudio` ends with **four consecutive optional booleans**:
+`useSessionAudio` ends with **three consecutive optional booleans** — four
+until 2026-09-08, when `handBack` left with the watch-party clause:
 
 ```ts
 recoverPlayout = false,
 deferSubscribe = false,
-holdForPlayout = false,
-handBack = false
+holdForPlayout = false
 ```
 
-`App.tsx` passes them bare — `false, true, true, <expr>`. **A transposition
-would be completely silent**, and three of the four change audio behaviour in
-ways that took builds to diagnose the first time.
+`App.tsx` passes them bare — `false, true, true`. **A transposition would be
+completely silent**, and all three change audio behaviour in ways that took
+builds to diagnose the first time. One fewer is not a fix.
 
 Worse, the JSDoc is not a reliable guide to the order: it documents them as
 `holdForPlayout, deferSubscribe, recoverPlayout`, the reverse of the signature.

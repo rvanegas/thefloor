@@ -493,6 +493,17 @@ export function ChannelView({
    */
   const iAmPresent = isPresent(channel, me) && app.standingIn === channelId;
   /**
+   * Nearby in this channel, as the server has it.
+   *
+   * Read off `waiting` rather than off `app.nearbyIn`, because the three ways
+   * into *Nearby* are one state and the roster does not distinguish them: two
+   * are declared and one is inferred from a socket that went. What
+   * `app.nearbyIn` decides is narrower and is not this screen's business —
+   * whether *this device* may promote itself when somebody arrives. See
+   * `state/useNearby.ts`.
+   */
+  const iAmNearby = channel.waiting.includes(me);
+  /**
    * Standing here, but not on this device.
    *
    * The roster says present and this screen says otherwise, and both are
@@ -1252,6 +1263,32 @@ export function ChannelView({
                     ? 'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.'
                     : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
               </Text>
+              {/*
+                **Step in nearby, behind Labs.** The other way of being in a
+                room: within reach, one notification away, claiming no audio at
+                all — so another app goes on playing and a Bluetooth headset
+                stays in stereo. Stepping in claims the audio system outright,
+                and this is the escape hatch for somebody who wants to be
+                reachable without their music stopping.
+
+                A plain labelled button in the body rather than an icon in the
+                footer, and deliberately: the footer is for the controls
+                somebody reaches for without reading, and a way of being in a
+                room that has to be explained is a button with words on it.
+              */}
+              {app.labs ? (
+                <>
+                  <Button
+                    label="Step in nearby"
+                    onPress={() => act({ type: 'DECLARE_NEARBY' })}
+                  />
+                  <Text style={type.muted}>
+                    {iAmNearby
+                      ? 'You are nearby. Nothing on this phone is claimed, and you will step in by yourself when somebody arrives.'
+                      : 'Be reachable without joining: no microphone, nothing heard, and whatever else this phone is playing goes on playing. You step in by yourself when somebody arrives.'}
+                  </Text>
+                </>
+              ) : null}
             </Card>
           </>
         )}
@@ -1471,6 +1508,33 @@ export function ChannelView({
                   onExit();
                 }}
               />
+              {/*
+                **Nearby, behind Labs**: the same declaration made from inside,
+                which abandons the claim. It gives the audio system back — the
+                session is deactivated rather than quietened — and leaves you in
+                `waiting`, where every build already draws you as *Nearby* and
+                offers a ping.
+
+                **It does not close the screen**, where Step Out above does, and
+                that is the difference between the two rather than an
+                inconsistency: stepping out is leaving, and this is staying
+                within reach. Staying is also what promotion needs — the arrival
+                comes over the ordinary websocket, and this screen is what is
+                watching for it.
+              */}
+              {app.labs ? (
+                <>
+                  <Button
+                    label="Nearby"
+                    onPress={() => act({ type: 'DECLARE_NEARBY' })}
+                  />
+                  <Text style={type.muted}>
+                    Give the audio system back and stay within reach. Your
+                    microphone closes, you hear nothing, and you step back in by
+                    yourself when somebody arrives.
+                  </Text>
+                </>
+              ) : null}
             </Card>
           </>
         ) : null}

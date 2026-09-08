@@ -615,6 +615,58 @@ describe('websocket', () => {
     m.close();
   });
 
+  /**
+   * **The one wire addition of the 2026-09-08 redesign**, and the one step
+   * that has to reach the server before a client that sends it reaches a
+   * phone. Everything else about *nearby* is backwards compatible by
+   * construction: the observer side rides on `waiting`, which every existing
+   * build already renders with a ping.
+   */
+  it('takes a declaration of nearby from inside a channel', async () => {
+    const { bob, channelId } = await pairInSession();
+    const b = new Client(bob.token, baseUrl);
+    await b.open();
+    b.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.includes(bob.account.id));
+
+    b.send({
+      type: 'channel.action',
+      channelId,
+      action: { type: 'DECLARE_NEARBY' },
+    });
+    const view = await b.next('channel', (m) =>
+      m.view.channel.waiting.includes(bob.account.id)
+    );
+
+    // Out of the room and into the field every client already draws as
+    // *Nearby*. Nothing new on the snapshot; that is the point.
+    expect(view.view.channel.present).not.toContain(bob.account.id);
+    b.close();
+  });
+
+  it('takes one from outside a channel, without putting anybody in it', async () => {
+    const { alice, bob, channelId } = await pairInSession();
+    const b = new Client(bob.token, baseUrl);
+    await b.open();
+    b.send({ type: 'watch.channel', channelId });
+    await b.next('channel');
+
+    b.send({
+      type: 'channel.action',
+      channelId,
+      action: { type: 'DECLARE_NEARBY' },
+    });
+    const view = await b.next('channel', (m) =>
+      m.view.channel.waiting.includes(bob.account.id)
+    );
+
+    // Stepping in nearby claims a notification and nothing else: no place in
+    // the room, and therefore no microphone, no subscription and no session.
+    expect(view.view.channel.present).toEqual([alice.account.id]);
+    b.close();
+  });
+
   it('answers a heartbeat', async () => {
     const { token } = await signIn('user1@example.com', 'Alice');
     const client = new Client(token, baseUrl);

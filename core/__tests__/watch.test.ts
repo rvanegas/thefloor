@@ -421,30 +421,37 @@ describe('muting the room', () => {
     expect(isWithheld(s, B)).toBe(true);
   });
 
-  it('closes every microphone in the room', () => {
+  it('leaves every microphone and every audio session where they were', () => {
+    // **The row that changed on 2026-09-08**, and it changed because the
+    // premise was wrong rather than because the cost was reconsidered. Both
+    // predicates opened with the withholding clause on the reading that the
+    // film was *coming out of another app* — true, and taken to mean another
+    // app on the same phone, which would make an exclusive claim silence it.
+    // It does not: The Floor carries no video, so the film is on another
+    // *device*, and a phone holding the audio system does not touch it.
+    //
+    // What withholds is unchanged, and it is the whole of the mechanism now:
+    // occupants are muted while the video runs, still publishing and still
+    // subscribing, which is ordinary self-mute rather than a fourth state.
     const s = mutedAndPlaying();
-    expect(microphoneNeeded(s, A)).toBe(false);
-    expect(microphoneNeeded(s, B)).toBe(false);
-    // Which takes every audio session out of its call configuration for the
-    // length of the film. This is the one answer here that is arranged rather
-    // than falling out: the withhold is asked first, ahead of the occupants who
-    // are present throughout. The Floor carries no video, so the film is coming
-    // out of another app, and that app is the claimant this configuration
-    // exists for.
-    expect(channelHasAudio(s, A)).toBe(false);
+    expect(isWithheld(s, A)).toBe(true);
+    expect(microphoneNeeded(s, A)).toBe(true);
+    expect(microphoneNeeded(s, B)).toBe(true);
+    expect(channelHasAudio(s, A)).toBe(true);
   });
 
   it('holds only while the video plays', () => {
     // The whole of the rule: you pause a film to talk about it, and the mute
-    // is what makes that possible rather than what stands in its way.
+    // is what makes that possible rather than what stands in its way. Read off
+    // the withholding rather than off the microphone, which no longer moves.
     const paused = reduce(watching(), mute(true), T0);
     expect(partyMuteRequested(paused)).toBe(true);
     expect(isPartyMuted(paused)).toBe(false);
-    expect(microphoneNeeded(paused, A)).toBe(true);
+    expect(isWithheld(paused, A)).toBe(false);
 
     const playing = reduce(paused, { type: 'WATCH_PLAY', userId: A }, T0 + 1_000);
     expect(isPartyMuted(playing)).toBe(true);
-    expect(microphoneNeeded(playing, A)).toBe(false);
+    expect(isWithheld(playing, A)).toBe(true);
   });
 
   it('gives every voice back on pause and takes it away again on resume', () => {

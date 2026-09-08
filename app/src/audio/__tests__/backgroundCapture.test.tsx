@@ -3,12 +3,9 @@ import { AppState } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { useSessionAudio } from '../useSessionAudio';
 import { drainEvents, resetDiagnostics } from '../diagnostics';
-import { startSilence, stopSilence } from '../../../modules/keep-alive';
-import { routeSnapshot } from '../../../modules/audio-route';
-import { WAITING_WINDOW_MS } from '../../../../core/constants';
 
 /**
- * Two rules with one cause: **iOS will not give a backgrounded app a
+ * One rule, with one cause: **iOS will not give a backgrounded app a
  * microphone it did not already have.**
  *
  * Measured 2026-09-05: somebody arrived while the phone was locked, the app
@@ -17,26 +14,22 @@ import { WAITING_WINDOW_MS } from '../../../../core/constants';
  * minutes. The refusal is about the microphone; the cost fell on the speaker,
  * because `sessionFor` answers one question for both jobs.
  *
- * From that, both halves of what is tested here:
+ * From that, what is tested here: **a promotion is deferred** and an existing
+ * call is left alone, because the transition is what is forbidden rather than
+ * the state.
  *
- * - **A promotion is deferred** and an existing call is left alone, because
- *   the transition is what is forbidden rather than the state.
- * - **A quiet channel opens the microphone up front**, while the app is on
- *   screen and iOS will grant it, so that an arrival can be *answered* without
- *   touching the phone. That is the silent wait, and it is decided from
- *   `otherAudioPlaying` — a flag that only tells the truth while this app is
- *   active, which is also the only moment the decision can be acted on.
+ * **The silent wait left this file on 2026-09-08, by being generalised out of
+ * existence.** It was a quiet channel with nothing else playing opening the
+ * microphone up front so that an arrival could be answered from a pocket, and
+ * it was chosen against the other case from `otherAudioPlaying`. Stepping in
+ * is now that claim unconditionally, so there is no wait to pick and no flag
+ * to pick it with; what is left of the argument is the first case below.
+ * Somebody who wants their music to survive steps in **nearby** instead.
  *
  * They assert on the audio log rather than on a mocked category, because the
  * log line is what a person reads in the field and is exactly what was missing
  * when this was diagnosed.
  */
-
-/**
- * Drives the one input the silent wait turns on. `null` from the real module
- * means "no module", so a mock is needed to say *playing* at all.
- */
-const mockRoute = { otherAudioPlaying: false };
 
 const mockEngine = { inputAvailable: true };
 
@@ -45,12 +38,10 @@ jest.mock('../engineState', () => ({
 }));
 
 jest.mock('../../../modules/audio-route', () => ({
-  routeSnapshot: jest.fn(() => ({
-    otherAudioPlaying: mockRoute.otherAudioPlaying,
-  })),
+  routeSnapshot: jest.fn(() => null),
   routeFault: jest.fn(() => null),
   onRouteChange: jest.fn(() => () => {}),
-  onOtherAudio: jest.fn(() => () => {}),
+  releaseSession: jest.fn(async () => null),
   setAllowHapticsDuringRecording: jest.fn(async () => true),
   routeLine: jest.fn(() => ''),
 }));
@@ -79,11 +70,6 @@ function captureAppState() {
   }) as unknown as typeof AppState.addEventListener);
   (AppState as unknown as { currentState: string }).currentState = 'active';
 }
-
-jest.mock('../../../modules/keep-alive', () => ({
-  startSilence: jest.fn(async () => true),
-  stopSilence: jest.fn(async () => true),
-}));
 
 interface FakeRoom {
   localParticipant: { setMicrophoneEnabled: jest.Mock };
@@ -175,32 +161,30 @@ const logged = () => drainEvents().map((e) => e.text);
 
 const reset = () => {
   mockRooms.length = 0;
-  (routeSnapshot as jest.Mock).mockImplementation(() => ({
-    otherAudioPlaying: mockRoute.otherAudioPlaying,
-  }));
-  mockRoute.otherAudioPlaying = false;
   mockEngine.inputAvailable = true;
   captureAppState();
-  (startSilence as jest.Mock).mockClear();
-  (stopSilence as jest.Mock).mockClear();
   resetDiagnostics();
   jest.useFakeTimers();
 };
 
 const micOf = (i = 0) => mockRooms[i].localParticipant.setMicrophoneEnabled;
 
-describe('the silent wait', () => {
+describe('stepping in, which is the claim', () => {
   beforeEach(reset);
   afterEach(() => jest.useRealTimers());
 
   /**
-   * The whole of capability (c): the microphone is open before the phone is
-   * locked, because afterwards iOS will not grant one.
+   * **The whole of the 2026-09-08 rule, in one assertion.** The microphone is
+   * open from the moment somebody steps in — before anybody has arrived,
+   * whether or not anybody ever does — so that an arriving voice is heard
+   * rather than attended to, and so that it can be *answered* from a pocket:
+   * iOS will not grant a backgrounded app a new microphone, so the one an
+   * arrival is answered with has to be open before the phone is locked.
    */
   it('opens the microphone in a quiet channel', async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
-      tree = renderer.create(<Probe audio={false} />);
+      tree = renderer.create(<Probe audio />);
     });
     await settle();
 
@@ -213,20 +197,24 @@ describe('the silent wait', () => {
   });
 
   /**
-   * The other branch. A call-shaped session stops another app's audio, so a
-   * wait with something already playing hands the audio system back instead —
-   * and gives up (c) for that visit.
+   * **And it does not consult anything else, which is the part that changed.**
+   * A quiet channel used to hand the audio system back when another app was
+   * playing, chosen from `otherAudioPlaying` — a reading that answers false
+   * with music plainly playing once our own session is active, and that flipped
+   * configuration five times in thirty seconds on build 150. Nothing branches
+   * on it now: the claim is unconditional, and somebody who wants the other
+   * trade is nearby instead.
    */
-  it('does not open one while another app is playing', async () => {
-    mockRoute.otherAudioPlaying = true;
+  it('claims whatever else the phone is doing', async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
-      tree = renderer.create(<Probe audio={false} />);
+      tree = renderer.create(<Probe audio />);
     });
     await settle();
 
-    expect(logged().some((l) => l.includes('IDLE'))).toBe(true);
-    expect(micOf()).not.toHaveBeenCalledWith(true);
+    const lines = logged();
+    expect(lines.some((l) => l.includes('other audio'))).toBe(false);
+    expect(lines.some((l) => l.includes('capturing CALL'))).toBe(true);
 
     await act(async () => {
       tree.unmount();
@@ -234,56 +222,26 @@ describe('the silent wait', () => {
   });
 
   /**
-   * **The reading is taken once and not overturned by a later one.**
-   *
-   * Build 153 asked again on the tick that connects, and the connect path
-   * activates this app's own session — after which iOS reports no other audio.
-   * So a step-in with music plainly playing took the *silent* wait, held a
-   * microphone, and stayed present when its owner expected to lapse. The flag
-   * is honest before our session is in play and not after, so the second
-   * answer here is the dishonest one and must not be consulted.
+   * **Leaving the room is leaving the audio system.** Every exit from
+   * stepped-in takes `mediaRoom` away and lands in the connection's teardown,
+   * which deactivates rather than applying a quieter configuration —
+   * `notifyOthersOnDeactivation`, which is what gives the interrupted app its
+   * audio back at full rate.
    */
-  it('keeps the first answer when a later one would disagree', async () => {
-    let asked = 0;
-    (routeSnapshot as jest.Mock).mockImplementation(() => ({
-      // True the first time, false ever after — the shape of the field
-      // failure, where our own session made the second reading a lie.
-      otherAudioPlaying: asked++ === 0,
-    }));
-
+  it('releases the session when the room goes', async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
-      tree = renderer.create(<Probe audio={false} />);
+      tree = renderer.create(<Probe audio />);
     });
     await settle();
-
-    expect(micOf()).not.toHaveBeenCalledWith(true);
-    expect(logged().some((l) => l.includes('other audio T'))).toBe(true);
+    logged();
 
     await act(async () => {
       tree.unmount();
     });
-  });
-
-  /**
-   * **Never asked is not the same as nothing playing.** `otherAudioPlaying`
-   * only tells the truth while this app is active, so an app that has had no
-   * such moment — launched straight into the background — must not take a
-   * microphone on an assumption and stop audio it never looked for.
-   */
-  it('does not open one before it has had an honest moment to ask', async () => {
-    (AppState as unknown as { currentState: string }).currentState = 'background';
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(<Probe audio={false} />);
-    });
     await settle();
 
-    expect(micOf()).not.toHaveBeenCalledWith(true);
-
-    await act(async () => {
-      tree.unmount();
-    });
+    expect(logged().some((l) => l.startsWith('released'))).toBe(true);
   });
 });
 
@@ -302,7 +260,7 @@ describe('a device with no microphone', () => {
     mockEngine.inputAvailable = false;
     let tree!: ReactTestRenderer;
     await act(async () => {
-      tree = renderer.create(<Probe audio={false} />);
+      tree = renderer.create(<Probe audio />);
     });
     await settle();
 
@@ -314,79 +272,23 @@ describe('a device with no microphone', () => {
   });
 
   /**
-   * **And it still hears.** The session is a call because there is audio to
-   * hear; only the microphone is withheld. A machine with no input can listen,
-   * it simply cannot speak — which is the difference between this and refusing
-   * to connect.
+   * **And it still hears.** Only the microphone is withheld: the session it
+   * takes is the listening one, which is exactly what having no input means —
+   * a machine with no microphone can listen, it simply cannot speak. That is
+   * the difference between this and refusing to connect, and since 2026-09-08
+   * it is the same configuration a guest without a speech grant is given
+   * rather than a special case.
    */
-  it('still takes the call session when somebody is there', async () => {
+  it('still listens when it cannot speak', async () => {
     mockEngine.inputAvailable = false;
     let tree!: ReactTestRenderer;
     await act(async () => {
-      tree = renderer.create(<Probe audio={true} />);
+      tree = renderer.create(<Probe audio />);
     });
     await settle();
 
-    expect(logged().some((l) => l.includes('CALL'))).toBe(true);
+    expect(logged().some((l) => l.includes('LISTENING'))).toBe(true);
     expect(micOf()).not.toHaveBeenCalledWith(true);
-
-    await act(async () => {
-      tree.unmount();
-    });
-  });
-});
-
-describe('a hold with nothing to hold', () => {
-  beforeEach(reset);
-  afterEach(() => jest.useRealTimers());
-
-  /** As `App.tsx` calls it: the playout hold is on. */
-  function Holding({ audio }: { audio: boolean }) {
-    useSessionAudio(
-      'room-1',
-      'chan-1',
-      'auth-token',
-      false,
-      audio,
-      audio,
-      false,
-      true,
-      true
-    );
-    return null;
-  }
-
-  /**
-   * **Observed as `connect muted CALL` on 2026-09-06.** A track is subscribed
-   * and the microphone is not otherwise needed, so `holdForPlayout` forces the
-   * `muted` intent — which means *keep the device you have*. On a fresh
-   * connection there is none, `holdMicrophone` returns having done nothing,
-   * and a silent wait that should have held presence lapsed to *Nearby*.
-   *
-   * The hold exists to preserve a device. With none to preserve it must fall
-   * through to what the channel wants, which here is a microphone.
-   */
-  it('opens a microphone rather than holding nothing', async () => {
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(<Holding audio={false} />);
-    });
-    await settle();
-
-    // Somebody else's track, with nobody present — the shape that forces the
-    // hold on a connection that has published nothing.
-    await act(async () => {
-      mockRooms[0].fire(
-        'trackSubscribed',
-        { kind: 'audio' },
-        {},
-        { identity: 'acct_them' }
-      );
-    });
-    await settle();
-
-    expect(micOf()).toHaveBeenCalledWith(true);
-    expect(logged().some((l) => l.includes('muted CALL'))).toBe(false);
 
     await act(async () => {
       tree.unmount();
@@ -399,12 +301,13 @@ describe('capture against the foreground', () => {
   afterEach(() => jest.useRealTimers());
 
   /**
-   * The deferral, reached through the accompanied wait — the only wait that is
-   * not already a call, and therefore the only one with a promotion left to
-   * defer.
+   * **The deferral, reached the one way that is left**: somebody in the room
+   * who could not publish and now may — a guest granted the microphone. That
+   * is the only transition from *no microphone* to *microphone* that does not
+   * also start a connection, and starting a connection is what a promotion
+   * from nearby does, which is why that one is a foreground rule outright.
    */
-  it('defers the call session when audio arrives in the background', async () => {
-    mockRoute.otherAudioPlaying = true;
+  it('defers the call session when the microphone is granted in the background', async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(<Probe audio={false} />);
@@ -427,7 +330,6 @@ describe('capture against the foreground', () => {
   });
 
   it('takes the call session at the foreground, which is when iOS grants it', async () => {
-    mockRoute.otherAudioPlaying = true;
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(<Probe audio={false} />);
@@ -440,9 +342,8 @@ describe('capture against the foreground', () => {
     await settle();
     logged();
 
-    // Foregrounding both re-asks the other-audio question and makes the
-    // microphone grantable, so the promotion happens here and only here.
-    mockRoute.otherAudioPlaying = false;
+    // Foregrounding is what makes the microphone grantable, so the promotion
+    // happens here and only here.
     await appState('active');
 
     expect(logged().some((l) => l.includes('capturing CALL'))).toBe(true);
