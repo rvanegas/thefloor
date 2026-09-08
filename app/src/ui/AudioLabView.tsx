@@ -128,20 +128,26 @@ const OPTIONS = [
 ];
 
 /**
- * What the observer is asked after each trial.
+ * What the other app sounds like *right now*, asked at every step.
  *
- * **Free text was tried in the head and does not survive the walk.** These are
- * the four outcomes the sources predict — kept playing, went quiet, moved to
- * the earpiece, stopped dead — and naming them in advance is what makes two
- * trials comparable. `moved to earpiece` is here because it is the documented
- * signature of voice-mode ducking and was recorded in build 147 without being
- * recognised as one.
+ * **States rather than transitions, since 2026-09-08.** These read
+ * "kept playing", "went quieter", "moved to earpiece", "stopped" — which is
+ * fine after Apply and wrong after Release, where the answer wanted is *did it
+ * come back*. A protocol that listens four times per row is taking four state
+ * readings; the transition is what two consecutive readings imply, and it is
+ * not something the person listening should have to work out in their head
+ * before they can pick a button.
+ *
+ * **Free text was tried in the head and does not survive the walk.** Naming the
+ * outcomes in advance is what makes two rows comparable. `on the earpiece` is
+ * here because it is the documented signature of voice-mode ducking and was
+ * recorded in build 147 without being recognised as one.
  */
 const OBSERVATIONS = [
-  'other app kept playing',
-  'other app went quieter',
-  'other app moved to earpiece',
-  'other app stopped',
+  'playing normally',
+  'quieter — ducked',
+  'on the earpiece',
+  'silent',
 ];
 
 export function AudioLabView({ onBack }: { onBack: () => void }) {
@@ -300,6 +306,10 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         <Text style={styles.step}>5 · Input off — listen, tap</Text>
         <Text style={styles.step}>6 · Release — listen, tap. Did it come back?</Text>
         <Text style={styles.note}>
+          If it is still silent after Release, stop. Something is holding the
+          audio system and the next row would measure that instead.
+        </Text>
+        <Text style={styles.note}>
           Four listens, not one. Activating the session and running the
           microphone are separate things that could interrupt the other app,
           and a row with a single verdict cannot tell them apart. Each tap
@@ -367,8 +377,10 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
 
       <SectionLabel>What happened</SectionLabel>
       <Text style={styles.note}>
-        Tap one after listening. This is the reading that decides the row —
-        everything above is only what was asked for.
+        Tap one after every step, Release included. This is a reading of how
+        the other app sounds right now, not a verdict on the row — the row is
+        what the four readings say together. After Release it answers the
+        question that matters for the next row: did it come back?
       </Text>
       <View style={styles.list}>
         {OBSERVATIONS.map((o) => (
