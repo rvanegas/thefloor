@@ -2608,6 +2608,13 @@ function ParticipantCard({
    * changes is that the button is there while it does.
    */
   const callable = nearby || reconnecting;
+  /**
+   * Whether this card is offering a ping — which is also the answer to whether
+   * the speaking indicator is worth drawing. Somebody callable is somebody the
+   * room is not hearing, so the dot would be hollow for as long as the button
+   * is there; two marks that can never disagree, one of which says nothing.
+   */
+  const pingable = !!onPing && callable;
   const [pinging, setPinging] = useState(false);
   /**
    * That this card sent one, which the server's window does not say yet.
@@ -2717,11 +2724,18 @@ function ParticipantCard({
           several times a second. Filled while they are audible, hollow
           otherwise — a shape that is always in the same place, so a card does
           not reflow every time somebody draws breath.
+
+          Dropped entirely on a card that is offering a ping. The place it
+          holds is only worth holding for a shape that changes, and on somebody
+          out of reach it cannot: they are not in the room, so it would sit
+          hollow beside a button that says why.
         */}
-        <View
-          style={[styles.speakingDot, speaking && styles.speakingDotLive]}
-          accessibilityElementsHidden
-        />
+        {pingable ? null : (
+          <View
+            style={[styles.speakingDot, speaking && styles.speakingDotLive]}
+            accessibilityElementsHidden
+          />
+        )}
       </View>
       <View style={styles.cardFoot}>
         <Text style={[type.muted, styles.cardStatus, failing && styles.statusBad]}>
@@ -2736,7 +2750,7 @@ function ParticipantCard({
           on every absent card would make the roster a row of buttons rather
           than a picture of the room.
         */}
-        {onPing && callable ? (
+        {pingable ? (
           <Button
             label={
               pinging ? 'Pinging…' : pinged || pingWait !== null ? 'Pinged' : 'Ping'
