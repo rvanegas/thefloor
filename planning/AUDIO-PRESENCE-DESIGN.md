@@ -259,6 +259,30 @@ anywhere in this app. Nothing mixes any more: a phone has either claimed the
 audio system or released it. That also makes *no claim on audio* literal rather
 than approximate, which is what nearby was defined to mean.
 
+### `IDLE` survives as a safety, not as a state
+
+**Delete it as a state; keep it as the value the observer is disarmed with.**
+
+`policyFor` hands the SDK's native observer a *pair of configurations* —
+`{ recording: CALL, playout: sessionFor(want) }` — which it applies at every
+audio-engine transition with no JavaScript in the path. **It cannot be handed
+"deactivated"**: it wants a category, a mode and options.
+
+So a teardown still has to arm it with something harmless in case it fires with
+no channel behind it, and **under this design harmless means *mixing*.** A
+non-mixing `playback` fired unbidden would interrupt other apps from a room
+nobody is in, which is the exact failure being designed out.
+
+**The trap is that deleting `IDLE` with its state is the obvious move**, and
+re-arming the observer with `LISTENING` because it is the quiet one is the
+obvious substitute. That ships a configuration that interrupts other apps from
+an empty channel — a state the route log would report on `screen home`, which
+is how the 2026-09-06 defect was found.
+
+So the teardown is three things, and the order matters because a disconnect is
+itself an engine transition: **arm the observer with the mixing playback
+configuration, deactivate the session, disconnect the room.**
+
 ### The three, entire
 
 | | configuration | who |
@@ -266,6 +290,9 @@ than approximate, which is what nearby was defined to mean.
 | **CALL** | `playAndRecord`, exclusive | stepped in — member, or guest who may speak |
 | **LISTENING** | `playback`, exclusive | guest without a speech grant |
 | — | **deactivated** | nearby, or not in a room |
+
+`IDLE` is absent from that table on purpose: it is no longer a state anything
+is in, and it still exists in the code as the observer's disarmed value.
 
 ## Occupancy
 
