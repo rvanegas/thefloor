@@ -111,6 +111,12 @@ anything has ever been configured that way.
 stereo out at 48 kHz, the phone's own microphone in, another app playing
 normally, an input tap running.
 
+**Rows 5 and 7 are indistinguishable in every reading**, which says the
+handover is not the mode's doing: `playAndRecord` plus `allowBluetooth` needs
+input from the headset, only the hands-free profile carries a microphone, and
+the whole route goes. **Leaving the voice family buys nothing on a headset.**
+The saving in row 8 comes from A2DP alone.
+
 **Row 9 is the price.** Under `videoChat`, `allowBluetoothA2DP` does not keep
 the split — the route leaves the headset altogether and lands on the phone.
 A2DP carries no microphone, so a voice mode will not hold a Bluetooth output it
@@ -146,9 +152,25 @@ far end and a second person, which this bench cannot produce.
 - **The rate reported at `apply` is not trustworthy.** At 01:15:53 the same
   configuration read 48000 at apply and 24000 after `input on`. The route
   settles asynchronously; **read the rate after the input is running.**
-- **Row 7 may be under-recorded.** `went mono` was tapped, `quieter — ducked`
-  was not, where the speaker pass showed `videoChat` ducking. The log cannot
-  distinguish *not ducked* from *not tapped*.
+- **Ducking cannot be judged on a Bluetooth headset, and this is structural.**
+  Rows 5 and 7 differ only in mode and produced identical readings — same
+  ports, same 24 kHz, same `went mono`. The speaker pass had shown `videoChat`
+  ducking and `default` not, so a difference was expected here and none was
+  recorded. That is not a mis-tap. **Applying either row hands the profile over
+  in the same instant**, and mono at a third of the bandwidth is itself an
+  apparent drop in loudness, so a level change arrives inseparable from two
+  others.
+
+  **And the pair cannot be fixed**: `videoChat` will not hold A2DP at all (row
+  9), so on Bluetooth there is no configuration pair that varies the mode and
+  holds the route. The comparison is unavailable on this hardware rather than
+  merely difficult.
+
+  It is also not needed. Rows 1 and 3 answered it on the speaker with the route
+  constant, and the configuration this work is heading for — row 8 — is
+  `default`, where nothing ducks on either route. **Wired headphones are the
+  rig that would isolate it**, having no profile to negotiate, if the question
+  is ever worth a trip.
 - **Release recovered cleanly every time** — A2DP, 48000, empty input, other
   app playing normally. `setActive(false, .notifyOthersOnDeactivation)` is what
   does that, and a row run without it would measure the previous row's leftover.
