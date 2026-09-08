@@ -1397,3 +1397,63 @@ describe('somebody else’s microphone, from their profile', () => {
     act(() => tree.unmount());
   });
 });
+
+/**
+ * The same control, reached the way a person reaches it: a card on the roster,
+ * their profile, the button.
+ *
+ * Separate from the block above because that one renders `ProfileView`
+ * directly, which is what let build 160 ship a "Mute them" that threw the
+ * moment it was pressed — `act` was declared below the early return that
+ * renders the profile, so the closure over it was never initialised and every
+ * test of the card passed. Pressing the button through `ChannelView` is the
+ * only shape of test that could have caught it.
+ */
+describe('muting somebody else, through the channel screen', () => {
+  /** Their roster card, which is the way into their profile. */
+  function openProfile(tree: ReactTestRenderer, name: string) {
+    const card = tree.root
+      .findAll(
+        (n) =>
+          String(n.props?.accessibilityLabel ?? '').startsWith(name) &&
+          typeof n.props?.onPress === 'function'
+      )
+      .at(0);
+    act(() => card!.props.onPress());
+  }
+
+  it('sends the mute when the button is pressed', async () => {
+    showChannel(channelOf());
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [],
+      recordings: [],
+    };
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          onClose={() => {}}
+          onExit={() => {}}
+        />
+      );
+    });
+
+    await act(async () => openProfile(tree, 'Dana Chu'));
+    const button = tree.root.findAll((n) => n.props?.label === 'Mute them')[0];
+    expect(button).toBeDefined();
+    // The press itself is the assertion. An uninitialised `act` throws out of
+    // this line and nowhere else — `TypeError: act is not a function` under
+    // Babel's TDZ, a `ReferenceError` on Hermes, a crash on a phone.
+    act(() => button.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_SELF_MUTE',
+      muted: true,
+      target: THEM,
+    });
+    act(() => tree.unmount());
+  });
+});

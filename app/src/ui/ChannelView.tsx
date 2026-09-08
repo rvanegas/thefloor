@@ -236,6 +236,20 @@ export function ChannelView({
    * leaving it showing a conversation that no longer exists.
    */
   const [transcriptFor, setTranscriptFor] = useState<string | null>(null);
+
+  /**
+   * Sends an action to this channel.
+   *
+   * **Declared above every early return, deliberately.** This screen returns
+   * early half a dozen times — the profile, the settings, an ended channel —
+   * and those branches hand callbacks to the screens they render. A `const`
+   * declared after the return they take is never initialised, so the closure
+   * over it throws a `ReferenceError` the moment it is called rather than
+   * when it is made: that is how "Mute them" on ProfileView crashed the app
+   * in build 160 while every test that rendered the card passed.
+   */
+  const act = (action: Parameters<typeof app.act>[1]) =>
+    app.act(channelId, action);
   /** While a guest link is being minted, which is a round trip. */
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -463,8 +477,6 @@ export function ChannelView({
       />
     );
   }
-
-  const act = (action: Parameters<typeof app.act>[1]) => app.act(channelId, action);
 
   /**
    * Whether you are in the room, as opposed to looking at it.
