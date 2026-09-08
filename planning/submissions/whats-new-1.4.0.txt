@@ -1,5 +1,3 @@
-Anybody present in a channel can mute anybody else, from their profile. It is a favour rather than moderation, and it only goes one way: nobody can open a microphone but their own. Somebody muted takes it straight back in one tap, from the control already in front of them, and for a minute afterwards nobody else can mute them again. Whoever holds the floor cannot be muted at all.
-
 The Floor runs on iPad. Above a certain width the list stays beside whatever you have open, so opening a channel or a profile no longer takes the list off the screen, and the window takes all four orientations and shares the screen with another app.
 
 Home holds both lists. Channels and Contacts are a switch on one screen, under the title, Settings and the channel you are present in, which stay pinned while the list scrolls. Start a channel and Add a contact are the first row of their list, and contact requests are on Contacts.
@@ -15,6 +13,8 @@ Two settings have new names, each naming what turning it on does. "Tap a channel
 The Headphones setting "Keep the connection steady" is gone, and headphones now hold the speaking connection whenever there is audio in the channel, for everybody.
 
 Stepping into a quiet channel leaves whatever else you are playing running. If something else is playing while you would be waiting alone in a channel, you are stepped out to Nearby rather than held there present.
+
+Anybody present in a channel can mute anybody else, from their profile. It is a favour rather than moderation, and it only goes one way: nobody can open a microphone but their own. Somebody muted takes it straight back in one tap, from the control already in front of them, and for a minute afterwards nobody else can mute them again. Whoever holds the floor cannot be muted at all.
 
 A channel where nobody is speaking and nothing is playing steps everybody out after fifteen minutes, so it stops reading as occupied to the people who are not in it. In a browser, a tab nobody has touched for fifteen minutes steps itself out.
 
