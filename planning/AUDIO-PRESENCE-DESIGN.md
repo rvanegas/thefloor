@@ -172,11 +172,12 @@ partyWithholds(channel.watch)) return false;`, and `handBack` carries the same
 answer into the session. A mute does the same work with machinery that already
 exists for another reason.
 
-**One sentence has to be settled first.** `core/micNeeded.ts` says the film
-*"is coming out of another app"*; the design above says another device. If it
-can be another app on the same phone, an exclusive claim silences the film for
-that person and this section is wrong. If it is always another device, the
-simplification stands. **They cannot both be right.**
+**Settled: the film is a browser on another device.** `core/micNeeded.ts` says
+it *"is coming out of another app"*, which is true and reads as though it means
+another app on the same phone — the reading that would make an exclusive claim
+silence the film. It does not. **That sentence wants correcting in the same
+commit as this change**, since it is the only thing that makes this section
+look wrong.
 
 ## Behind Labs
 
@@ -190,10 +191,33 @@ It is account-scoped, so it follows somebody to a second phone, which is right
 for this: the pair is a way of being in a room rather than a property of a
 handset.
 
+**Off means the declarations do not exist** — no step-in-nearby, no way to
+declare it after the fact. It does not mean a nearby person is rendered
+differently, and it has no bearing on the inferred kind, which is not an
+experiment and predates all of this.
+
 **Nothing else here is gated.** The exclusive claim on step-in, the notification
 rule and the watch-party simplification are the design rather than the
 experiment, and hiding them behind a flag would mean shipping two audio designs
 at once — which is the thing this whole review exists to stop.
+
+## Guests
+
+**Playback only until permitted to speak.** A guest whose token cannot publish
+does **not** take the exclusive claim: opening a device microphone that nothing
+is allowed to carry would buy the full call-profile handover — a headset
+dragged to hands-free, other apps stopped — to publish nothing.
+
+**So *stepped in* names two session configurations, and the two predicates do
+not collapse into one.** That was the hope; the guest is why it cannot happen.
+The divergence is narrower than today's, but it is real and permanent.
+
+**Open: does a guest's `playback` session mix?** Today's `IDLE` is `playback`
+*with* `mixWithOthers`, and reusing it would let somebody's podcast play over
+the voices the guest is listening to — the exact thing the exclusive claim
+exists to prevent, applied to the one person who cannot do anything about it.
+The argument in this document points at `playback` **without** mixing, which is
+a third configuration that does not exist yet.
 
 ## Occupancy
 
@@ -213,11 +237,18 @@ claim** — where today it is suppressed whenever they are in the app.
 That is the whole point of the pair. Somebody nearby with the app open is
 *asking* to be told, and is exactly the person the current rule silences.
 
-**No new signal is needed on the wire**, and the equivalence is confirmed:
-under this design an occupant is precisely somebody who has claimed the audio,
-so *suppress for occupants* is the same rule stated in terms the server already
-holds. It coheres with the promotion rule above — the people who are notified
-are exactly the people who were not going to hear the arrival anyway.
+**Say it as *suppress for occupants*, not as *suppress in `playAndRecord`*.**
+The two were taken to be the same, on the grounds that everybody stepped in
+claims the audio. **Guests are where they come apart**: a guest without a
+speech grant subscribes, so they are an occupant, and takes playback only, so
+they hold no claim. The `playAndRecord` phrasing would notify somebody about an
+arrival they are sitting there listening to.
+
+The question underneath is *will they hear it*, and **subscribing is what
+answers that** — which is also the formulation the server already holds, so it
+still needs no new signal on the wire. It coheres with the promotion rule
+above: the people notified are exactly the people who were not going to hear
+the arrival anyway.
 
 ---
 
@@ -232,12 +263,5 @@ are exactly the people who were not going to hear the arrival anyway.
   design it stops being something a person does occasionally and becomes
   something that happens automatically, mid-conversation, the moment somebody
   speaks. **The riskiest operation in the stack becomes the most frequent.**
-- **Does a guest who may not speak claim the audio system?** Their token cannot
-  publish, so *stepped in* cannot mean *audible* for them. If they take the
-  exclusive claim anyway, iOS opens a device microphone nothing is allowed to
-  carry — the full call-profile handover paid to publish nothing, which is
-  precisely why `microphoneNeeded` refuses them today. If they do not, then
-  *stepped in* names two session configurations and the two predicates cannot
-  collapse into one after all.
-- **Whether the film is another app or another device.** See *Watch parties*.
+- **Whether a guest's `playback` session mixes.** See *Guests*.
 - **The UI.** Undefined on purpose, and the reason the pair is behind `labs`.
