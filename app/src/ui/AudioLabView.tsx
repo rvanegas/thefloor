@@ -249,12 +249,29 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     );
   };
 
+  /**
+   * Whether the session became something other than what the **last call**
+   * asked for.
+   *
+   * **Against `result.asked`, not against the switches.** The switches are
+   * what the next trial will ask for; the readback answers the previous one,
+   * and after a Release — which writes `playback` on purpose — those differ by
+   * design. Comparing them cried wolf on the first trial anybody ran, which is
+   * the worst possible moment for a diagnostic to be wrong: it accused iOS of
+   * refusing a configuration that had been applied exactly as asked, with
+   * `error` reading none directly above it.
+   *
+   * The native side echoes `asked` back with the readback for this reason, so
+   * the two halves of the comparison can never drift apart.
+   */
+  const asked = result?.asked;
   const mismatch =
     result != null &&
+    asked != null &&
     result.categoryOptions != null &&
-    (shortName(result.category) !== category ||
-      shortName(result.mode) !== mode ||
-      options.some((o) => !result.categoryOptions?.includes(o)));
+    (shortName(result.category) !== asked.category ||
+      shortName(result.mode) !== asked.mode ||
+      asked.options.some((o) => !result.categoryOptions?.includes(o)));
 
   return (
     <Screen
@@ -367,6 +384,15 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           <Text style={styles.body}>Nothing applied yet.</Text>
         ) : (
           <>
+            <Reading
+              label="asked for"
+              value={
+                asked
+                  ? `${asked.category}/${asked.mode}` +
+                    `[${asked.options.join('+') || 'none'}]`
+                  : 'unknown'
+              }
+            />
             <Reading label="category" value={shortName(result.category)} />
             <Reading label="mode" value={shortName(result.mode)} />
             <Reading
