@@ -3057,12 +3057,19 @@ export class ChannelRegistry {
    * guests, and `media:<channelId>` is neither.
    */
   private reconcilePresence(state: ChannelState, inRoom: Set<string>): void {
+    // **Squared here as well as on every commit**, because a poll can run
+    // against a channel no commit has touched since it was restored — a boot
+    // that revives a channel holding guests reaches this with no record of when
+    // it started expecting them. Stamping them now gives them the join window
+    // from this moment, which is the right answer and bounds a case that would
+    // otherwise wait for a transition that may never come. Idempotent for
+    // everybody else.
+    this.trackOccupancy(state);
     const now = this.now();
     const seen = this.mediaSeen.get(state.id);
-    // No record means no commit has been made for this channel since it was
-    // restored, which is a state a poll can run in after a boot. Waiting for
-    // the next commit costs nothing and is the honest answer: this server has
-    // not yet said when it started expecting anybody.
+    // Only a channel that has ended has no record after that call, and one is
+    // never polled. Read rather than asserted, so the guard above staying true
+    // is not something this has to know.
     if (!seen) return;
     for (const id of roomOccupants(state)) {
       if (inRoom.has(id)) {
