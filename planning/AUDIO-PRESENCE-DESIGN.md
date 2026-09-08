@@ -149,6 +149,52 @@ stamp is left to the transport, so it stays fresh while the app is alive and
 freezes when the phone suspends. Filing a deliberate declaration under
 `'dropped'` would work and would read as a lie in every log that prints it.
 
+## Three states, and they are distinct
+
+**Stepped in unmuted · stepped in muted · nearby.** Not two.
+
+Stepped in muted and nearby are the pair that reads alike from outside and is
+not alike at all: a muted person **hears the room**, holds the audio claim, and
+is an occupant. A nearby person hears nothing, claims nothing, and is not.
+Muting is about what you send; being nearby is about whether you are in the
+room at all.
+
+## Watch parties
+
+**`playAndRecord` throughout, and no special case.** The film plays on another
+*device*, so a phone holding the audio system does not silence it. While the
+video runs, occupants are **muted but still publishing and subscribing** —
+which is ordinary self-mute, not a fourth state.
+
+**So the withholding clause leaves both core predicates.** Today
+`microphoneNeeded` and `channelHasAudio` each open with `if (channel.watch &&
+partyWithholds(channel.watch)) return false;`, and `handBack` carries the same
+answer into the session. A mute does the same work with machinery that already
+exists for another reason.
+
+**One sentence has to be settled first.** `core/micNeeded.ts` says the film
+*"is coming out of another app"*; the design above says another device. If it
+can be another app on the same phone, an exclusive claim silences the film for
+that person and this section is wrong. If it is always another device, the
+simplification stands. **They cannot both be right.**
+
+## Behind Labs
+
+**Stepping in nearby, and declaring nearby, both sit behind `labs`** until
+there is a UI worth shipping. `AccountSettings.labs` in `core/settings.ts`
+already exists, defaults false, and carries the reasoning: *an experimental
+feature that arrives without being asked for is not experimental — it has
+shipped.*
+
+It is account-scoped, so it follows somebody to a second phone, which is right
+for this: the pair is a way of being in a room rather than a property of a
+handset.
+
+**Nothing else here is gated.** The exclusive claim on step-in, the notification
+rule and the watch-party simplification are the design rather than the
+experiment, and hiding them behind a flag would mean shipping two audio designs
+at once — which is the thing this whole review exists to stop.
+
 ## Occupancy
 
 **An occupant publishes or subscribes, at least one.** A nearby person does
@@ -186,5 +232,12 @@ are exactly the people who were not going to hear the arrival anyway.
   design it stops being something a person does occasionally and becomes
   something that happens automatically, mid-conversation, the moment somebody
   speaks. **The riskiest operation in the stack becomes the most frequent.**
-- **The UI.** Undefined on purpose. How somebody steps in nearby, and how they
-  declare it after the fact, are not decided.
+- **Does a guest who may not speak claim the audio system?** Their token cannot
+  publish, so *stepped in* cannot mean *audible* for them. If they take the
+  exclusive claim anyway, iOS opens a device microphone nothing is allowed to
+  carry — the full call-profile handover paid to publish nothing, which is
+  precisely why `microphoneNeeded` refuses them today. If they do not, then
+  *stepped in* names two session configurations and the two predicates cannot
+  collapse into one after all.
+- **Whether the film is another app or another device.** See *Watch parties*.
+- **The UI.** Undefined on purpose, and the reason the pair is behind `labs`.
