@@ -304,9 +304,10 @@ deactivateOnStop: true }`, and **there is no slot left that wants a mixing
 configuration.**
 
 **Set `deactivateOnStop` explicitly rather than relying on the default.** The
-comment at `session.ts:240` records why: the native side reads a missing key as
-*false* where the SDK wrapper defaults it to *true*, so a call that omits it
-can leave the session active after the last engine stop, silently.
+header on `policyFor` in `app/src/audio/session.ts` records why: the native
+side reads a missing key as *false* where the SDK wrapper defaults it to
+*true*, so a call that omits it can leave the session active after the last
+engine stop, silently.
 
 **Every exit from stepped-in takes the same path**: a tap on step out,
 declaring nearby, and Rule B retiring an unattended phone. A process that is
