@@ -72,6 +72,14 @@ It is also a fact the app already has: an arrival comes over the ordinary
 websocket in channel state, which a nearby phone is still receiving. Nothing
 here needs the media room, which is what nearby has no subscription to.
 
+**Somebody already stepped in does not promote you, and this is the common
+case rather than a corner.** The trigger is the *arrival*, so declaring nearby
+in a room where somebody is already talking leaves you nearby, hearing nothing,
+until the next person steps in. That is intended — you chose nearby, and
+promotion is for arrivals — but it is the first thing that will look like a bug
+to somebody testing, and the first thing to reconsider if the pair does not
+feel right in use.
+
 Nearby, **background** → others see *Nearby* and may ping. On foreground, the
 same promotion.
 
@@ -359,6 +367,42 @@ above: the people notified are exactly the people who were not going to hear
 the arrival anyway.
 
 ---
+
+## Things an implementer needs that are not the design
+
+**Three writers share the process-wide session, and the last one wins.** This
+app, the SDK's native policy observer at every audio-engine transition, and
+WebRTC re-applying its own defaults. That is why `policyFor` exists at all —
+to hand the observer the same answer this app would apply, so the two cannot
+disagree — and it is why **reading back the value you asked for proves
+nothing.** `app/modules/audio-route`'s `snapshot()` reads `category`, `mode`
+and `categoryOptions` off the live session, and that is the only evidence worth
+having. See `POSTMORTEM-echo.md` before touching any of it.
+
+**`SessionWant` is `'call' | 'idle'` and now needs a third value**, since the
+design has three states and one of them is *no session*. Naming it is the first
+decision in the code rather than a detail: `'call' | 'listen' | 'none'` matches
+the three the observer already distinguishes.
+
+**Android is not addressed anywhere above, and it is not automatic.** The iOS
+half of this design leans on `deactivateOnStop`, which Android has no
+counterpart for — `pushPolicy` returns early off iOS deliberately, there being
+no observer to agree with. What Android has is `applyAndroidConfiguration`,
+`ANDROID_CALL` (`inCommunication`, the voice stream) and `ANDROID_IDLE`
+(`media`), applied once per edge and left. **So Android needs its own answer to
+what *no claim* means**, and `ANDROID_IDLE` is the obvious candidate precisely
+because it is the state an unconfigured Android build was already in. The
+foreground service is the other half: it is keyed on `mediaRoom`, so a nearby
+phone drops it without anything being changed — which is right, and is worth
+confirming rather than assuming. `planning/ANDROID.md` is the standing document.
+
+**One step needs the server before the client**, and only one. The new
+client→server action — *step in nearby*, *declare nearby* — must be taught to
+the server and deployed first, then the client shipped. Everything else is
+backwards compatible by construction, because the observer side rides on
+`waiting`, which every existing build already renders. AGENTS.md § *Never ship
+a wire change to a server before the client can speak it* is the rule and the
+reason.
 
 ## What this removes
 
