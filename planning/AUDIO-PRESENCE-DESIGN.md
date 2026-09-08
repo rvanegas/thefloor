@@ -267,9 +267,12 @@ time — see `AUDIO-LAB-FINDINGS.md`. Going nearby is *meant* to give somebody
 their podcast back, and only deactivating says so; holding a mixing playback
 session leaves us gripping something and tells the interrupted app nothing.
 
-**So `IDLE` leaves the design**, and with it the last use of `mixWithOthers`
-anywhere in this app. Nothing mixes any more: a phone has either claimed the
-audio system or released it. That also makes *no claim on audio* literal rather
+**So `IDLE` leaves the design as a state**, and with it the last use of
+`mixWithOthers` in any rule. Nothing a phone is ever *in* mixes: it has either
+claimed the audio system or released it. The constant itself survives one rung
+down, as what the SDK's observer is disarmed with — see *`IDLE` survives as a
+safety* below, which is the one place this document contradicts itself if read
+carelessly. That also makes *no claim on audio* literal rather
 than approximate, which is what nearby was defined to mean.
 
 ### Releasing is one operation, and it is coupled to the teardown
@@ -278,22 +281,42 @@ than approximate, which is what nearby was defined to mean.
 and not in a room are one audio state, and it is *none*. There is no case where
 the app holds a session it is not using.
 
-**So ending the claim is a single ordered operation, everywhere it happens**:
-disconnect from the room, let the teardown finish, *then* deactivate with
-`notifyOthersOnDeactivation`. Never deactivate first, and never deactivate
-without disconnecting.
+**So ending the claim is a single ordered operation, everywhere it happens**,
+and it is three steps rather than one: **arm the observer with the mixing
+playback configuration, deactivate the session with
+`notifyOthersOnDeactivation`, disconnect the room.**
 
-**The order is not stylistic.** Three writers share this process-wide
-configuration — this app, the SDK's policy observer at every engine transition,
-and WebRTC reapplying its defaults — so deactivating while the engine is still
-stopping invites a configuration to be re-asserted on the way down, and we
-would be releasing something that immediately returns. Once the engine has
-stopped there are no transitions left for the observer to fire on.
+**The order is not stylistic, and the observer is why.** `policyFor` hands the
+SDK's native observer a *pair* of configurations — `{ recording: CALL, playout:
+sessionFor(want) }` — which it applies at every audio-engine transition with no
+JavaScript in the path. **It cannot be handed "deactivated"**: it wants a
+category, a mode and options. And **a disconnect is itself an engine
+transition**, so the observer *will* fire on the way out. Arming it first is
+what decides whether what it applies is harmless.
 
 **Every exit from stepped-in takes the same path**: a tap on step out,
 declaring nearby, and Rule B retiring an unattended phone. A process that is
 suspended outright releases nothing, because it cannot — the session dies with
 it, which is the same outcome by a different route and needs no code.
+
+### `IDLE` survives as a safety, not as a state
+
+**Delete it as a state; keep it as the value the observer is disarmed with.**
+
+Under this design harmless means **mixing**. A non-mixing `playback` fired
+unbidden would interrupt other apps from a room nobody is in, which is the
+exact failure being designed out.
+
+**The trap is that deleting `IDLE` along with its state is the obvious move**,
+and re-arming the observer with `LISTENING` because it is the quiet one is the
+obvious substitute. That ships a configuration which interrupts other apps from
+an empty channel — a state the route log would report on `screen home`, which
+is how the 2026-09-06 defect was found.
+
+So `IDLE` stays in the code after nothing is in it. **The section above says
+`IDLE` leaves the design, and it means as a state**: no phone is ever in it,
+and no rule ever selects it. The observer still has to be handed something, and
+this is the something.
 
 ### The three, entire
 
