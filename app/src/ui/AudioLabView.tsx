@@ -106,6 +106,41 @@ const PRESETS: Preset[] = [
       '— a quieter podcast under an open microphone may be an acceptable ' +
       'trade where silence is not.',
   },
+  {
+    name: '5 · headset, HFP eligible',
+    category: 'playAndRecord',
+    mode: 'default',
+    options: ['mixWithOthers', 'allowBluetooth', 'defaultToSpeaker'],
+    why:
+      'Row 1 with a Bluetooth headset made eligible. `allowBluetooth` is the ' +
+      'hands-free profile, which is the only Bluetooth profile that carries a ' +
+      'microphone at all — A2DP is output-only. So the question is not whether ' +
+      'the headset can capture but what iOS charges for it: 16 kHz here means ' +
+      'the handover happened, 48 means it found another way.',
+  },
+  {
+    name: '6 · headset, A2DP eligible',
+    category: 'playAndRecord',
+    mode: 'default',
+    options: ['mixWithOthers', 'allowBluetoothA2DP', 'defaultToSpeaker'],
+    why:
+      'The third outcome, and the one that is a trap rather than a result. ' +
+      'iOS can keep A2DP for output and take input from the *built-in* ' +
+      'microphone — reported here on 2026-08-21, a participant audible on a ' +
+      'mic-less Bluetooth speaker. Full rate with the headset still playing is ' +
+      'therefore not a win: check where the input came from before believing ' +
+      'it. session.ts drops this option from CALL for exactly this reason.',
+  },
+  {
+    name: '7 · headset control (must fail)',
+    category: 'playAndRecord',
+    mode: 'videoChat',
+    options: ['mixWithOthers', 'allowBluetooth', 'defaultToSpeaker'],
+    why:
+      'Row 3 on a headset — the shipping CALL configuration plus ' +
+      'mixWithOthers. Should duck the other app and drop to 16 kHz. This is ' +
+      'the baseline every other headset row is a saving against.',
+  },
 ];
 
 const CATEGORIES = ['playAndRecord', 'playback', 'record', 'multiRoute'];
@@ -211,7 +246,8 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         `asked=${category}/${mode}[${options.join('+') || 'none'}] active=${active} ` +
         `got=${shortName(trial.category)}/${shortName(trial.mode)}` +
         `[${(trial.categoryOptions ?? ['unreadable']).join('+')}] ` +
-        `out=${trial.outputs.join(',') || 'none'} sr=${Math.round(trial.sampleRate)} ` +
+        `out=${trial.outputs.join(',') || 'none'} in=${trial.inputs.join(',') || 'none'} ` +
+        `sr=${Math.round(trial.sampleRate)} ` +
         `err=${trial.error ?? 'none'}`
     );
   };
@@ -224,7 +260,8 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     setPhase(next ? 'capturing' : 'input-off');
     recordEvent(
       `lab input ${next ? 'on' : 'off'} ` +
-        `out=${trial?.outputs.join(',') ?? '?'} sr=${Math.round(trial?.sampleRate ?? 0)} ` +
+        `out=${trial?.outputs.join(',') ?? '?'} in=${trial?.inputs.join(',') ?? '?'} ` +
+        `sr=${Math.round(trial?.sampleRate ?? 0)} ` +
         `err=${trial?.error ?? 'none'}`
     );
   };
@@ -249,9 +286,11 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
   };
 
   const observe = (what: string) => {
+    const here = routeSnapshot();
     recordEvent(
       `lab OBSERVED ${preset?.name ?? 'manual'} @${phase} · ${what} · ` +
-        `out=${routeSnapshot()?.outputs.join(',') ?? '?'}`
+        `out=${here?.outputs.join(',') ?? '?'} in=${here?.inputs.join(',') ?? '?'} ` +
+        `sr=${Math.round(here?.sampleRate ?? 0)}`
     );
   };
 
@@ -412,6 +451,15 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
               value={(result.categoryOptions ?? ['unreadable']).join(' + ') || 'none'}
             />
             <Reading label="output" value={result.outputs.join(', ') || 'none'} />
+            {/*
+              **The reading row 6 exists for.** A Bluetooth headset still
+              playing at full rate looks like a win until you notice the
+              microphone is the phone's — iOS keeping A2DP for output and
+              taking input from the built-in mic. Showing only outputs is how
+              that goes unnoticed, and it is a loudspeaker playing the far end
+              into an open microphone in the same room.
+            */}
+            <Reading label="input" value={result.inputs.join(', ') || 'none'} />
             <Reading
               label="sample rate"
               value={`${Math.round(result.sampleRate)} Hz${
