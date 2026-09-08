@@ -235,6 +235,38 @@ talk. Nothing is wrong with it and nobody will expect it. A listening guest is
 therefore on a *better* route than a member, which is a consequence of not
 needing a microphone rather than a decision.
 
+## Nearby holds no session at all
+
+**Not `IDLE`. Nothing.** The session is deactivated, with
+`notifyOthersOnDeactivation`.
+
+`IDLE` — `playback` with `mixWithOthers` — made sense while a nearby-ish phone
+was still *connected*: you hold a playback session because a voice could arrive
+at any moment. **Under this design nearby has no media subscription, so nothing
+can arrive.** The session would assert a readiness for audio that cannot
+happen, and it would not even buy process lifetime, an active session with
+nothing flowing being exactly what iOS suspends.
+
+**And deactivation is the thing that gives the audio system back.** Every
+`Release` in the 2026-09-08 lab run deactivated with
+`notifyOthersOnDeactivation` and the other app returned to full rate every
+time — see `AUDIO-LAB-FINDINGS.md`. Going nearby is *meant* to give somebody
+their podcast back, and only deactivating says so; holding a mixing playback
+session leaves us gripping something and tells the interrupted app nothing.
+
+**So `IDLE` leaves the design**, and with it the last use of `mixWithOthers`
+anywhere in this app. Nothing mixes any more: a phone has either claimed the
+audio system or released it. That also makes *no claim on audio* literal rather
+than approximate, which is what nearby was defined to mean.
+
+### The three, entire
+
+| | configuration | who |
+| --- | --- | --- |
+| **CALL** | `playAndRecord`, exclusive | stepped in — member, or guest who may speak |
+| **LISTENING** | `playback`, exclusive | guest without a speech grant |
+| — | **deactivated** | nearby, or not in a room |
+
 ## Occupancy
 
 **An occupant publishes or subscribes, at least one.** A nearby person does
