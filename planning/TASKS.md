@@ -4,6 +4,15 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+## Walk Stepping In And Nearby
+
+The 2026-09-08 redesign is built and none of it has been heard.
+planning/STEPPING-IN-WALK.md is the walk, in the order the risk runs: the
+claim, the release — which is the step most likely to fail, and it says why in
+advance — then promotion, then the question that gates the most, *does a
+self-mute move the route*. Two phones, a podcast and a Bluetooth headset. Fold
+what it finds into the decision record and delete it.
+
 ## Media Transience
 
 Why does media loaded for playback not persist?
