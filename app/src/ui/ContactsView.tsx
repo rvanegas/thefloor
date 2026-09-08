@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ContactView as Contact } from '../../../core/protocol';
-import { copyText } from '../clipboard';
+import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
 import { Button, Card, Empty, Field, SectionLabel } from './components';
@@ -446,7 +446,7 @@ function AddContact({
         </Text>
       ) : null}
 
-      <View style={styles.divider} />
+      <Text style={styles.or}>or</Text>
       <InviteLink onChooseUsername={onChooseUsername} />
     </Card>
   );
@@ -532,18 +532,27 @@ function InviteLink({
   /**
    * Mints on the press rather than handing over what was fetched on mount.
    *
-   * A link is good for one person, so copying twice has to produce two links
+   * A link is good for one person, so sharing twice has to produce two links
    * — otherwise somebody who sends one to two people has sent the second
    * person an invitation that is already spent. The mount fetch is what
    * decides whether this section exists at all; this is what is handed over.
+   *
+   * The share sheet rather than the clipboard, for the reason the channel's
+   * guest link uses it: the destination is a person, and this is how you
+   * reach somebody you already talk to somewhere else. A browser with no Web
+   * Share API falls back to a copy, which is why the button says which of the
+   * two it is about to do. See src/share.ts.
    */
-  async function copy() {
+  async function hand() {
     setMinting(true);
     try {
       const fresh = (await app.inviteLink()) ?? url;
       if (!fresh) return;
       setUrl(fresh);
-      setCopied((await copyText(fresh)) ? 'done' : 'failed');
+      const handoff = await shareLink(fresh);
+      setCopied(
+        handoff === 'copied' ? 'done' : handoff === 'failed' ? 'failed' : 'idle'
+      );
     } catch {
       setCopied('failed');
     } finally {
@@ -555,18 +564,30 @@ function InviteLink({
     <View style={styles.invite}>
       <View style={styles.addActions}>
         <Button
-          label={minting ? 'Copying…' : 'Copy Invite Link'}
-          onPress={copy}
+          label={
+            minting
+              ? 'Making a link…'
+              : canShare
+                ? 'Share Invite Link'
+                : 'Copy Invite Link'
+          }
+          onPress={hand}
           disabled={minting}
         />
       </View>
-      <Text style={type.muted}>
-        {copied === 'done'
-          ? 'Copied. It works once, for the first person who opens it.'
-          : copied === 'failed'
-            ? 'The clipboard refused. Try again.'
-            : 'A link for one person. Whoever opens it becomes a contact.'}
-      </Text>
+      {/*
+        Only an outcome, and only when there is one to report. A copy that
+        happened because there was nowhere to share to looks exactly like a
+        tap that did nothing, so it says where the link went; a share that
+        went to the sheet is its own evidence and says nothing.
+      */}
+      {copied === 'idle' ? null : (
+        <Text style={type.muted}>
+          {copied === 'done'
+            ? 'Link copied. It works once, for the first person who opens it.'
+            : 'The clipboard refused. Try again.'}
+        </Text>
+      )}
     </View>
   );
 }
@@ -621,13 +642,16 @@ const styles = StyleSheet.create({
   addLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
   addContact: { gap: spacing(1), marginBottom: spacing(1.5) },
   /**
-   * What separates the two ways of adding somebody. A rule rather than a
-   * heading: they are alternatives to each other, not a list of things to
-   * read, and a second title inside one card would make it look like two.
+   * What separates the two ways of adding somebody. A word rather than a rule:
+   * they are alternatives to each other, and a line reads as the end of one
+   * thing and the start of another where "or" says the two are one question
+   * answered twice. Lower case and italic so it is a joint rather than a
+   * heading — a second title inside one card would make it look like two.
    */
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
+  or: {
+    ...type.muted,
+    textAlign: 'center',
+    fontStyle: 'italic',
     marginVertical: spacing(0.5),
   },
   invite: { gap: spacing(0.75) },

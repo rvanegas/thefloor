@@ -9,7 +9,7 @@ import { ChannelView } from '../ChannelView';
 import { Screen } from '../components';
 import { ProfileView } from '../ProfileView';
 import { ContactsView } from '../ContactsView';
-import { Alert } from 'react-native';
+import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
   AUDIO,
@@ -393,8 +393,11 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
-  it('copies a fresh link, and mints a new one for the next person', async () => {
+  it('shares a fresh link, and mints a new one for the next person', async () => {
     withContacts([]);
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: 'sharedAction' } as never);
     mockApp.inviteLink
       .mockResolvedValueOnce('https://thefloor.example/i/dana_c/111111')
       .mockResolvedValueOnce('https://thefloor.example/i/dana_c/222222')
@@ -403,32 +406,70 @@ describe('Contacts', () => {
     await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
 
     expect(textOf(tree)).not.toContain('To generate an invite link');
-    await act(async () => findButton(tree, 'Copy Invite Link')!.props.onPress());
-    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
-      'https://thefloor.example/i/dana_c/222222'
+    await act(async () =>
+      findButton(tree, 'Share Invite Link')!.props.onPress()
     );
+    expect(share).toHaveBeenCalledWith({
+      message: 'https://thefloor.example/i/dana_c/222222',
+    });
 
     // A second press hands over a *different* link, because each is good for
     // one person and two people must not be sent the same one.
-    await act(async () => findButton(tree, 'Copy Invite Link')!.props.onPress());
-    expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith(
-      'https://thefloor.example/i/dana_c/333333'
+    await act(async () =>
+      findButton(tree, 'Share Invite Link')!.props.onPress()
     );
+    expect(share).toHaveBeenLastCalledWith({
+      message: 'https://thefloor.example/i/dana_c/333333',
+    });
     act(() => tree.unmount());
+    share.mockRestore();
+  });
+
+  /**
+   * The web with no Web Share API, where `shareLink` falls back to the
+   * clipboard — a copy that happened silently looks like a tap that did
+   * nothing, so the card says where the link went.
+   */
+  it('copies when there is nowhere to share to, and says so', async () => {
+    withContacts([]);
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockRejectedValue(new Error('Share is not supported in this browser'));
+    mockApp.inviteLink.mockResolvedValue(
+      'https://thefloor.example/i/dana_c/111111'
+    );
+    const tree = open();
+    await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
+    await act(async () =>
+      findButton(tree, 'Share Invite Link')!.props.onPress()
+    );
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
+      'https://thefloor.example/i/dana_c/111111'
+    );
+    expect(textOf(tree)).toContain('Link copied');
+    act(() => tree.unmount());
+    share.mockRestore();
   });
 
   it('says when the clipboard refused, rather than claiming a copy', async () => {
     withContacts([]);
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockRejectedValue(new Error('Share is not supported in this browser'));
     mockApp.inviteLink.mockResolvedValue(
       'https://thefloor.example/i/dana_c/111111'
     );
     (Clipboard.setStringAsync as jest.Mock).mockResolvedValueOnce(false);
     const tree = open();
     await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
-    await act(async () => findButton(tree, 'Copy Invite Link')!.props.onPress());
+    await act(async () =>
+      findButton(tree, 'Share Invite Link')!.props.onPress()
+    );
 
     expect(textOf(tree)).toContain('clipboard refused');
     act(() => tree.unmount());
+    share.mockRestore();
   });
 
   it('says so plainly when there is nobody yet', () => {
