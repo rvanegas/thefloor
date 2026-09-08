@@ -45,8 +45,19 @@ misattribution.
 
 ## Promotion
 
-Nearby, **foreground**, other occupants begin to publish → the phone takes the
-exclusive `playAndRecord` and **the user becomes audible.** Not listen-only.
+Nearby, **foreground**, somebody **steps in with their microphone open** → the
+phone takes the exclusive `playAndRecord` and **the user becomes audible.** Not
+listen-only.
+
+**The trigger is the arrival, not the first word**, and that is the whole of
+what makes it affordable. First words typically come a few seconds after
+somebody steps in, and those seconds are what the media connection has to get
+up in. Keying it on speech would start the reconnect at the exact moment there
+was already something to miss.
+
+It is also a fact the app already has: an arrival comes over the ordinary
+websocket in channel state, which a nearby phone is still receiving. Nothing
+here needs the media room, which is what nearby has no subscription to.
 
 Nearby, **background** → others see *Nearby* and may ping. On foreground, the
 same promotion.
@@ -156,18 +167,20 @@ claim** — where today it is suppressed whenever they are in the app.
 That is the whole point of the pair. Somebody nearby with the app open is
 *asking* to be told, and is exactly the person the current rule silences.
 
-**No new signal is needed on the wire**, if the equivalence holds: under this
-design an occupant is precisely somebody who has claimed the audio, so
-*suppress for occupants* is the same rule and the server already knows it.
-**Confirm before building on it** — it is the difference between a one-line
-change and a protocol change.
+**No new signal is needed on the wire**, and the equivalence is confirmed:
+under this design an occupant is precisely somebody who has claimed the audio,
+so *suppress for occupants* is the same rule stated in terms the server already
+holds. It coheres with the promotion rule above — the people who are notified
+are exactly the people who were not going to hear the arrival anyway.
 
 ---
 
 ## Open, and blocking nothing yet
 
 - **Promotion is a media reconnect**, and that is the operation with the
-  history. Nearby holds no subscription, so promoting means connecting to the
+  history — though keying it on the arrival rather than on the first word
+  gives it a few seconds of headroom it would otherwise not have. Nearby holds
+  no subscription, so promoting means connecting to the
   room and opening the microphone — the re-entry that froze playout for weeks
   and that `deferSubscribe` and `holdForPlayout` exist to survive. Under this
   design it stops being something a person does occasionally and becomes
