@@ -4,6 +4,10 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+## Insist on Notifications
+
+Maybe this was already implemented?
+
 ## New Screenshots for App Store
 
 Look has changed.
