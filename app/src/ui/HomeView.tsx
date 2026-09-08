@@ -451,7 +451,7 @@ function InstallNotice() {
 
   return (
     <Card style={styles.install}>
-      <View style={styles.rowMain}>
+      <View style={styles.noticeMain}>
         <Text style={type.body}>Put The Floor on your phone</Text>
         <Text style={type.muted}>
           A browser cannot notify you, so nobody can reach you here unless you
@@ -528,7 +528,7 @@ function NotificationNotice({ onExplain }: { onExplain: () => void }) {
 
   return (
     <Card style={styles.install}>
-      <View style={styles.rowMain}>
+      <View style={styles.noticeMain}>
         <Text style={type.body}>Nobody can reach you</Text>
         <Text style={type.muted}>
           Notifications are off for The Floor, so an invitation or a ping
@@ -660,6 +660,18 @@ const styles = StyleSheet.create({
     borderColor: colors.textFaint,
   },
   rowMain: { flex: 1, gap: 2 },
+  /**
+   * The same two lines of text, in a card rather than in a row.
+   *
+   * **Not `rowMain`, and that is the whole point of it existing.** `flex: 1`
+   * means *take what is left of the main axis*, and the main axis is the
+   * container's. In `liveBar` that is horizontal and it reads as intended; in
+   * `install`, which is a column, it sets `flexBasis: 0` vertically — so the
+   * text contributes no height to a card that is sizing itself to its
+   * content, then grows into the nothing that leaves. Both notices rendered
+   * as their buttons and a blank space above them.
+   */
+  noticeMain: { gap: 2 },
   /**
    * The install notice, which is a card in the header rather than the first
    * row of a list: it is about the application, and a list of channels that
