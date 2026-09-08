@@ -1,0 +1,23 @@
+Anybody present in a channel can mute anybody else, from their profile. It is a favour rather than moderation, and it only goes one way: nobody can open a microphone but their own. Somebody muted takes it straight back in one tap, from the control already in front of them, and for a minute afterwards nobody else can mute them again. Whoever holds the floor cannot be muted at all.
+
+The Floor runs on iPad. Above a certain width the list stays beside whatever you have open, so opening a channel or a profile no longer takes the list off the screen, and the window takes all four orientations and shares the screen with another app.
+
+Home holds both lists. Channels and Contacts are a switch on one screen, under the title, Settings and the channel you are present in, which stay pinned while the list scrolls. Start a channel and Add a contact are the first row of their list, and contact requests are on Contacts.
+
+Close and Settings are drawn as a cross and a gear, in every header that has them.
+
+You can choose a username on your profile — five characters or more, letters, digits and underscores — and Contacts then offers Copy Invite Link. The link seats one person: the first to open it becomes your contact outright, and it lasts thirty days. Invitations sent to an email address carry it too.
+
+Transcripts and watch parties are behind a new setting, "Show experimental features", under Labs in Settings, and it is off to begin with. Until you turn it on, Transcribe is not on a recording and "Watch something together" is not in a channel.
+
+Two settings have new names, each naming what turning it on does. "Tap a channel to step in" is now "Tap a channel to look, not step in", and "Repeat the channel controls as cards" is now "Hide the repeated channel controls". What you had chosen is kept.
+
+The Headphones setting "Keep the connection steady" is gone, and headphones now hold the speaking connection whenever there is audio in the channel, for everybody.
+
+Stepping into a quiet channel leaves whatever else you are playing running. If something else is playing while you would be waiting alone in a channel, you are stepped out to Nearby rather than held there present.
+
+A channel where nobody is speaking and nothing is playing steps everybody out after fifteen minutes, so it stops reading as occupied to the people who are not in it. In a browser, a tab nobody has touched for fifteen minutes steps itself out.
+
+Having the app open counts as attention for as long as it is open, so reading a channel keeps you present in it.
+
+Somebody stepping in and speaking is audible while your phone is locked and the app is in the background.
