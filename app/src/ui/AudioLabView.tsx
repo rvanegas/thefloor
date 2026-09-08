@@ -177,9 +177,22 @@ const OPTIONS = [
  * outcomes in advance is what makes two rows comparable. `on the earpiece` is
  * here because it is the documented signature of voice-mode ducking and was
  * recorded in build 147 without being recognised as one.
+ *
+ * **`went mono` is the fidelity reading, and the first four could not express
+ * it.** They describe the other app's presence, level and location; none of
+ * them describes how it *sounds*, and on a Bluetooth headset that is the
+ * change that matters — the A2DP to hands-free handover leaves a track playing
+ * at the same volume in the same place, in mono at a third of the bandwidth.
+ * It is also the cost this whole experiment is trying to price, so a rig that
+ * could not record it was measuring the cheap half.
+ *
+ * **These are not mutually exclusive and the buttons do not pretend otherwise.**
+ * Playing normally *and* mono is a real reading; so is ducked and mono. Each
+ * tap is its own line, so tapping two is how two are said.
  */
 const OBSERVATIONS = [
   'playing normally',
+  'went mono — lower fidelity',
   'quieter — ducked',
   'on the earpiece',
   'silent',
@@ -416,10 +429,11 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
 
       <SectionLabel>What happened</SectionLabel>
       <Text style={styles.note}>
-        Tap one after every step, Release included. This is a reading of how
-        the other app sounds right now, not a verdict on the row — the row is
-        what the four readings say together. After Release it answers the
-        question that matters for the next row: did it come back?
+        Tap after every step, Release included — and tap more than one where
+        more than one is true. Playing normally and mono is a real reading.
+        This is how the other app sounds right now, not a verdict on the row;
+        the row is what the readings say together. After Release it answers
+        the question that matters for the next row: did it come back?
       </Text>
       <View style={styles.list}>
         {OBSERVATIONS.map((o) => (
