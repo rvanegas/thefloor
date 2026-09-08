@@ -56,6 +56,7 @@ export function HomeView({
   onOpenSettings,
   onOpenSupport = () => {},
   onOpenLeaderboard,
+  onOpenAudioLab,
   onOpenProfile,
   liveChannel = null,
   liveChannelId,
@@ -74,6 +75,12 @@ export function HomeView({
    * row is the whole of how anybody learns the screen does.
    */
   onOpenLeaderboard?: () => void;
+  /**
+   * The audio bench. Present only for a `debug` account, absent for everybody
+   * else, and expected to disappear entirely once the experiment it exists for
+   * has an answer.
+   */
+  onOpenAudioLab?: () => void;
   /**
    * Hands a tapped contact upward instead of opening the profile here.
    *
@@ -328,7 +335,7 @@ export function HomeView({
         is passing through. That lives one tap away, where it has been chosen
         rather than imposed.
       */}
-      {canSupport || onOpenLeaderboard ? (
+      {canSupport || onOpenLeaderboard || onOpenAudioLab ? (
         <>
           <SectionLabel>Support</SectionLabel>
           {/* The gap between cards, as every other group of them here gets
@@ -360,6 +367,21 @@ export function HomeView({
                   label="Leaderboard"
                   variant="ghost"
                   onPress={onOpenLeaderboard}
+                />
+              </Card>
+            ) : null}
+            {/*
+              Alongside the standings because it is the same kind of thing —
+              granted by hand, invisible to everybody else. It is not really a
+              peer of these two: it is a bench, it writes the audio session
+              directly, and it is meant to be deleted with its answer.
+            */}
+            {onOpenAudioLab ? (
+              <Card>
+                <Button
+                  label="Audio lab"
+                  variant="ghost"
+                  onPress={onOpenAudioLab}
                 />
               </Card>
             ) : null}

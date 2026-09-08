@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
+import { AudioLabView } from './src/ui/AudioLabView';
 import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { AppProvider, useApp } from './src/state/AppProvider';
@@ -506,6 +507,11 @@ function Root() {
       case 'support':
         return <SupportView onBack={close} />;
 
+      // The bench, for a `debug` account only. See AudioLabView's header for
+      // why it exists and why it is meant to be deleted with its answer.
+      case 'audiolab':
+        return <AudioLabView onBack={close} />;
+
       case 'none':
         return null;
     }
@@ -540,6 +546,12 @@ function Root() {
       onEnterChannel={enterChannel}
       onOpenSettings={() => setDetail({ kind: 'settings' })}
       onOpenSupport={() => setDetail({ kind: 'support' })}
+      // Same gate as the diagnostic panel and the log shipper: the `debug`
+      // column, which comes from `hello`, so revoking it closes the way in at
+      // the next connection.
+      onOpenAudioLab={
+        app.debug ? () => setDetail({ kind: 'audiolab' }) : undefined
+      }
       onOpenLeaderboard={
         app.leaderboard ? () => setDetail({ kind: 'standings' }) : undefined
       }

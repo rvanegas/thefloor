@@ -41,7 +41,17 @@ export type Detail =
   | { kind: 'profile'; id: string; name: string; edit?: boolean }
   | { kind: 'settings' }
   | { kind: 'standings' }
-  | { kind: 'support' };
+  | { kind: 'support' }
+  /**
+   * The audio bench, reached from Home for a `debug` account and from nowhere
+   * else. Temporary by construction: it exists to answer whether a capturing
+   * session can mix with another app, and goes when that has an answer.
+   *
+   * It reaches no address — `webRoute.ts` does not name it — for the same
+   * reason a profile does not: it is not a place anybody should arrive at from
+   * a link.
+   */
+  | { kind: 'audiolab' };
 
 /** Nothing open, which on a phone means the tier and in a split an empty pane. */
 export const NO_DETAIL: Detail = { kind: 'none' };

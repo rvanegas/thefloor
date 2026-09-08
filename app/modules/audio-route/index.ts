@@ -89,6 +89,19 @@ interface NativeAudioRoute {
   snapshot(): RouteSnapshot;
   setAllowHapticsDuringRecording(allow: boolean): Promise<boolean>;
   vibrate(): boolean;
+  /**
+   * The lab's three. Optional on the type because a Metro reload can leave a
+   * new bundle talking to a binary built before they existed, and the lab says
+   * so rather than throwing.
+   */
+  configure?(
+    category: string,
+    mode: string,
+    options: string[],
+    active: boolean
+  ): TrialResult;
+  startInput?(): TrialResult;
+  stopInput?(): TrialResult;
   addListener(
     event: 'onRouteChange',
     listener: (payload: RouteSnapshot) => void
@@ -262,6 +275,65 @@ export function onOtherAudio(
     return () => sub?.remove();
   } catch {
     return () => {};
+  }
+}
+
+/**
+ * What a lab trial asked for and what the session became.
+ *
+ * `asked` is echoed back by the native side rather than remembered here, so a
+ * log line carries the request and the result together and neither can drift
+ * from the other.
+ */
+export interface TrialResult extends RouteSnapshot {
+  /** The thrown message, or null where iOS accepted the configuration. */
+  error?: string | null;
+  asked?: { category: string; mode: string; options: string[] };
+}
+
+/**
+ * Writes the session exactly as asked and returns what it became.
+ *
+ * **For the audio lab only.** Nothing on any ordinary path may call this: the
+ * app has two configurations and `session.ts` owns both. This exists so the
+ * matrix can be swept from the phone without a rebuild per row.
+ *
+ * Returns null where there is no native module — a web build, or a Metro
+ * reload against a binary that predates this function.
+ */
+export function configureSession(
+  category: string,
+  mode: string,
+  options: string[],
+  active: boolean
+): TrialResult | null {
+  try {
+    return native?.configure?.(category, mode, options, active) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Starts and stops a real input tap, which is the other half of a trial.
+ *
+ * Apple's claim about `mixWithOthers` under `playAndRecord` is scoped to *while
+ * your app has both audio input and output enabled*, so a trial that never
+ * captures has not tested it.
+ */
+export function startInput(): TrialResult | null {
+  try {
+    return native?.startInput?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function stopInput(): TrialResult | null {
+  try {
+    return native?.stopInput?.() ?? null;
+  } catch {
+    return null;
   }
 }
 

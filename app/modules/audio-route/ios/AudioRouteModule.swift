@@ -65,6 +65,16 @@ public class AudioRouteModule: Module {
    */
   private var hintObserver: NSObjectProtocol?
 
+  /**
+   The lab's input tap, held so it can be stopped.
+
+   Nil except while a trial is deliberately capturing. This is the only audio
+   engine this app ever starts outside the SDK's, and it exists so that
+   "playAndRecord" in a trial means the input chain is actually running rather
+   than merely permitted.
+   */
+  private var engine: AVAudioEngine?
+
   public func definition() -> ModuleDefinition {
     Name("AudioRoute")
 
@@ -117,6 +127,93 @@ public class AudioRouteModule: Module {
     Function("vibrate") { () -> Bool in
       AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
       return true
+    }
+
+    /**
+     Writes the session exactly as asked and hands back what it actually became.
+
+     **The whole point is that it does not know what a good configuration is.**
+     Every other writer in this app applies one of two named constants; this one
+     takes strings, so the matrix can be swept from a screen on the phone
+     without a rebuild per row. Nothing in the app calls it — it exists for the
+     lab in `AudioLabView`, and an experiment that needed a new build for each
+     cell would not get run.
+
+     **The return value is a `snapshot()` rather than a success flag**, on the
+     rule this module was written for: reading back the value you asked for
+     proves nothing, because three writers mutate the same process-wide
+     configuration and the last one wins. `category`, `mode` and
+     `categoryOptions` here are the session as it *is*. A row where the readback
+     disagrees with the request is the most interesting result this can produce,
+     so it is reported rather than treated as a failure.
+
+     `error` is the thrown message or nil. A refusal from iOS and a silent
+     rewrite by somebody else look identical from JavaScript otherwise.
+     */
+    Function("configure") {
+      (category: String, mode: String, options: [String], active: Bool)
+        -> [String: Any] in
+      let session = AVAudioSession.sharedInstance()
+      var failure: String? = nil
+      do {
+        try session.setCategory(
+          Self.category(category),
+          mode: Self.mode(mode),
+          options: Self.options(options)
+        )
+        // Activation is the moment another app is interrupted, not
+        // `setCategory` — so a test that never activates measures nothing.
+        try session.setActive(active, options: active ? [] : [.notifyOthersOnDeactivation])
+      } catch {
+        failure = String(describing: error)
+      }
+      var payload = Self.snapshot()
+      payload["error"] = failure as Any
+      payload["asked"] = ["category": category, "mode": mode, "options": options]
+      return payload
+    }
+
+    /**
+     Opens the microphone for real, which is half of what is being tested.
+
+     Apple's own wording for `mixWithOthers` under `playAndRecord` is that other
+     apps may play *"while your app has both audio input and output enabled"* —
+     so a trial that sets the category and never captures has not asked the
+     question. An `AVAudioEngine` input tap is the smallest thing that genuinely
+     engages the input chain, and it starts nothing that WebRTC would also
+     start: the lab runs outside any channel on purpose.
+
+     The tap discards its buffers. Nothing here is listening to anybody; the
+     capture is the experiment's independent variable and not a recording.
+     */
+    Function("startInput") { () -> [String: Any] in
+      if self.engine != nil { return Self.snapshot() }
+      let engine = AVAudioEngine()
+      var failure: String? = nil
+      do {
+        let input = engine.inputNode
+        input.installTap(onBus: 0, bufferSize: 1024, format: input.inputFormat(forBus: 0)) {
+          _, _ in
+        }
+        engine.prepare()
+        try engine.start()
+        self.engine = engine
+      } catch {
+        failure = String(describing: error)
+        self.engine = nil
+      }
+      var payload = Self.snapshot()
+      payload["error"] = failure as Any
+      return payload
+    }
+
+    Function("stopInput") { () -> [String: Any] in
+      if let engine = self.engine {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        self.engine = nil
+      }
+      return Self.snapshot()
     }
 
     AsyncFunction("setAllowHapticsDuringRecording") { (allow: Bool) -> Bool in
@@ -222,6 +319,68 @@ public class AudioRouteModule: Module {
    for by this app, so seeing one is itself the finding: somebody else wrote
    this session.
    */
+  /**
+   The inverse of `optionNames`, for the lab.
+
+   **Unknown names are dropped rather than rejected**, deliberately: a typo in a
+   switch label should produce a trial whose readback disagrees with what was
+   asked, which is visible in the log, rather than an exception that looks like
+   iOS refusing the configuration. The two failures are not the same and the
+   experiment has to be able to tell them apart.
+   */
+  private static func options(_ names: [String]) -> AVAudioSession.CategoryOptions {
+    var options: AVAudioSession.CategoryOptions = []
+    for name in names {
+      switch name {
+      case "mixWithOthers": options.insert(.mixWithOthers)
+      case "duckOthers": options.insert(.duckOthers)
+      case "allowBluetooth": options.insert(.allowBluetooth)
+      case "allowBluetoothA2DP": options.insert(.allowBluetoothA2DP)
+      case "allowAirPlay": options.insert(.allowAirPlay)
+      case "defaultToSpeaker": options.insert(.defaultToSpeaker)
+      case "interruptSpokenAudioAndMixWithOthers":
+        options.insert(.interruptSpokenAudioAndMixWithOthers)
+      default: break
+      }
+    }
+    return options
+  }
+
+  /** Category by name, defaulting to `playback` — the one that takes least. */
+  private static func category(_ name: String) -> AVAudioSession.Category {
+    switch name {
+    case "playAndRecord": return .playAndRecord
+    case "record": return .record
+    case "multiRoute": return .multiRoute
+    case "ambient": return .ambient
+    case "soloAmbient": return .soloAmbient
+    default: return .playback
+    }
+  }
+
+  /**
+   Mode by name, defaulting to `default`.
+
+   `voiceChat`, `videoChat` and `gameChat` are the voice-processing family —
+   the ones that switch on the system echo canceller and, per Apple's own
+   documentation of `mixWithOthers`, the ones whose presence is suspected of
+   overriding it. They are here so that the control row of the matrix can be
+   run, not because the app should be asking for them from this screen.
+   */
+  private static func mode(_ name: String) -> AVAudioSession.Mode {
+    switch name {
+    case "voiceChat": return .voiceChat
+    case "videoChat": return .videoChat
+    case "gameChat": return .gameChat
+    case "spokenAudio": return .spokenAudio
+    case "voicePrompt": return .voicePrompt
+    case "measurement": return .measurement
+    case "moviePlayback": return .moviePlayback
+    case "videoRecording": return .videoRecording
+    default: return .default
+    }
+  }
+
   private static func optionNames(
     _ options: AVAudioSession.CategoryOptions
   ) -> [String] {

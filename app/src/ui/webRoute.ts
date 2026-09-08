@@ -139,6 +139,10 @@ export function addressOf(detail: Detail, list: List): Address {
       return { list, named: 'support' };
     case 'channel':
     case 'profile':
+    // The lab is deliberately unaddressable, on the same reasoning as a
+    // profile: it is not somewhere anybody should arrive at from a link, and
+    // it is meant to be deleted with its answer.
+    case 'audiolab':
     case 'none':
       return { list, named: 'none' };
   }
