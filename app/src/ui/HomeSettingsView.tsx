@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
 import { useApp } from '../state/AppProvider';
+import { forgetInstall } from '../state/storage';
 import {
   Button,
   Card,
@@ -48,6 +49,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const app = useApp();
   const [deleting, setDeleting] = useState(false);
   const [signingOutOthers, setSigningOutOthers] = useState(false);
+  const [forgetting, setForgetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -90,6 +92,31 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       setError(e instanceof Error ? e.message : String(e));
       setDeleting(false);
     }
+  };
+
+  /**
+   * Clears everything this device has stored, and ends the session with it.
+   *
+   * **Signing out first, and it is not merely tidiness**: the sign-out request
+   * carries this phone's push address so the server drops the row, and it
+   * needs the token that the next line is about to delete. Doing it the other
+   * way round leaves the server holding an address for an install that has
+   * forgotten it has one.
+   *
+   * The sign-out is also what puts the app back on the auth screen, so there
+   * is nothing to navigate afterwards. Failures are swallowed on purpose —
+   * a server that cannot be reached must not stop this device forgetting
+   * itself, which is the whole of what was asked for.
+   */
+  const forget = async () => {
+    setForgetting(true);
+    try {
+      await app.signOut();
+    } catch {
+      // Offline, or a session the server has already revoked. Neither is a
+      // reason to keep the keychain.
+    }
+    await forgetInstall();
   };
 
   /**
@@ -293,6 +320,48 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           channels.
         </Text>
       </Card>
+
+      {/*
+        **Only with Labs on**, and it is the one thing under that switch which
+        is not a feature: it is here for testing what a new arrival sees, which
+        is otherwise unreachable on iOS. Deleting the app does not clear the
+        keychain, so a reinstall comes back signed in, with its palette, and
+        remembering having been asked about notifications — and short of
+        erasing the whole phone there is nothing outside the app that can
+        clear that. See `state/storage.ts`.
+
+        It cannot do the half that matters most on its own: the notification
+        permission belongs to the system. So the alert says the order —
+        forget, then delete, then install — because doing it the other way
+        round is the mistake that wastes an afternoon.
+      */}
+      {app.labs ? (
+        <Card style={styles.stack}>
+          <Text style={type.heading}>Forget this phone</Text>
+          <Button
+            label={forgetting ? 'Forgetting…' : 'Forget this phone'}
+            disabled={forgetting}
+            onPress={() =>
+              Alert.alert(
+                'Forget this phone?',
+                'This device forgets everything it has stored — the session, your appearance and tap settings, and that it has been asked about notifications. Your account, channels and recordings are untouched.\n\nDelete the app afterwards and install it again for a genuinely new install: the notification permission is the system’s and only deleting the app clears it.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Forget',
+                    style: 'destructive',
+                    onPress: () => void forget(),
+                  },
+                ]
+              )
+            }
+          />
+          <Text style={type.muted}>
+            For seeing what somebody arriving new sees. Signing out does not do
+            this, and neither does deleting the app.
+          </Text>
+        </Card>
+      ) : null}
 
       <SectionLabel>Appearance</SectionLabel>
       <Card style={styles.stack}>

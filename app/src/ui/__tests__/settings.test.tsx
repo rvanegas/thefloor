@@ -361,6 +361,77 @@ describe('the Labs setting', () => {
 });
 
 /**
+ * Making this phone forget it has ever run the app.
+ *
+ * It exists because iOS gives no other way: the keychain outlives the app that
+ * wrote it, so deleting and reinstalling comes back signed in and still
+ * remembering having been asked about notifications. Behind Labs, because it
+ * is for seeing what an arrival sees rather than for using the app.
+ */
+describe('forgetting this phone', () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  const alertSpy = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+  it('is not offered without Labs', async () => {
+    mockApp.labs = false;
+    const tree = await openSettings();
+    expect(findButton(tree, 'Forget this phone')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('asks first, and says what it cannot do', async () => {
+    mockApp.labs = true;
+    const asked = alertSpy();
+    const tree = await openSettings();
+
+    act(() => findButton(tree, 'Forget this phone')!.props.onPress());
+    expect(asked).toHaveBeenCalled();
+    expect(mockApp.signOut).not.toHaveBeenCalled();
+
+    // The half it cannot reach, and the order that follows from it: the
+    // notification permission is the system's, and only deleting the app
+    // clears it. Somebody who does this and then expects a fresh prompt
+    // without reinstalling has wasted an afternoon.
+    const body = asked.mock.calls[0][1] as string;
+    expect(body).toContain('Delete the app afterwards');
+
+    asked.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Signing out first is load-bearing rather than tidy: that request carries
+   * this phone's push address so the server drops the row, and it needs the
+   * token the next line deletes.
+   */
+  it('signs out before it forgets the token', async () => {
+    mockApp.labs = true;
+    const asked = alertSpy();
+    const tree = await openSettings();
+    act(() => findButton(tree, 'Forget this phone')!.props.onPress());
+
+    const actions = asked.mock.calls[0][2] as Array<{
+      style?: string;
+      onPress?: () => void;
+    }>;
+    await act(async () =>
+      actions.find((a) => a.style === 'destructive')!.onPress!()
+    );
+    expect(mockApp.signOut).toHaveBeenCalled();
+
+    asked.mockRestore();
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * Whether a tap on a channel arrives or only looks.
  *
  * The setting itself is a phone preference held in the provider; what this
