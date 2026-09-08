@@ -124,12 +124,11 @@ const PRESETS: Preset[] = [
     mode: 'default',
     options: ['mixWithOthers', 'allowBluetoothA2DP', 'defaultToSpeaker'],
     why:
-      'The third outcome, and the one that is a trap rather than a result. ' +
       'iOS can keep A2DP for output and take input from the *built-in* ' +
-      'microphone — reported here on 2026-08-21, a participant audible on a ' +
-      'mic-less Bluetooth speaker. Full rate with the headset still playing is ' +
-      'therefore not a win: check where the input came from before believing ' +
-      'it. session.ts drops this option from CALL for exactly this reason.',
+      'microphone. Whether that is a trap or the answer depends on what is on ' +
+      'the far end of the route — see rows 8 and 9, which test it deliberately. ' +
+      'Here it is the thing to notice: full rate with the headset still ' +
+      'playing is not a win by itself. Read the input port before believing it.',
   },
   {
     name: '7 · headset control (must fail)',
@@ -140,6 +139,39 @@ const PRESETS: Preset[] = [
       'Row 3 on a headset — the shipping CALL configuration plus ' +
       'mixWithOthers. Should duck the other app and drop to 16 kHz. This is ' +
       'the baseline every other headset row is a saving against.',
+  },
+  {
+    name: '8 · split — headphones out, phone mic',
+    category: 'playAndRecord',
+    mode: 'default',
+    options: ['mixWithOthers', 'allowBluetoothA2DP'],
+    why:
+      'The split, asked for on purpose. Output stays on A2DP at full rate and ' +
+      'in stereo; capture comes from the phone. If it holds, a session can ' +
+      'capture without ever charging the headset the hands-free handover — ' +
+      'which is the cost every other row on a headset is paying.\n\n' +
+      'session.ts forbids this option because of 2026-08-21, when a far end ' +
+      'came out of a *mic-less Bluetooth speaker* into an open microphone in ' +
+      'the same room. That is a loudspeaker argument. Headphones in somebody ' +
+      "ears are not a loudspeaker, and the rule was never re-examined for " +
+      'them. Confirm the ports: output BluetoothA2DP, input the built-in mic.\n\n' +
+      '`defaultToSpeaker` is deliberately absent — it decides where to go when ' +
+      'nothing else is connected, and leaving it out keeps this row about the ' +
+      'route iOS picks rather than about a tiebreak.',
+  },
+  {
+    name: '9 · does the split survive videoChat?',
+    category: 'playAndRecord',
+    mode: 'videoChat',
+    options: ['mixWithOthers', 'allowBluetoothA2DP'],
+    why:
+      'The question row 8 raises immediately. A silent wait can afford a ' +
+      'non-voice mode because nobody is being rendered, but the moment ' +
+      'somebody arrives the echo canceller is wanted — and `videoChat` implies ' +
+      'its own Bluetooth eligibility. If the route collapses to hands-free ' +
+      'here, then the split is only available while nobody is talking, and ' +
+      'arriving costs the handover after all. That is the whole design ' +
+      'question in one row.',
   },
 ];
 
