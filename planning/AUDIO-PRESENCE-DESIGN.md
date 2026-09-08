@@ -476,16 +476,30 @@ another app play*. `AUDIO-LAB-FINDINGS.md` § *What was falsified* is the record
 **And `GLOSSARY.md` § *Nearby / Stepped out* wants its first line widened**, so
 that *Nearby* stops being only what happens to somebody.
 
-## Open, and blocking nothing yet
+## What is still open
 
-- **Promotion is a media reconnect**, and that is the operation with the
-  history — though keying it on the arrival rather than on the first word
-  gives it a few seconds of headroom it would otherwise not have. Nearby holds
-  no subscription, so promoting means connecting to the
-  room and opening the microphone — the re-entry that froze playout for weeks
-  and that `deferSubscribe` and `holdForPlayout` exist to survive. Under this
-  design it stops being something a person does occasionally and becomes
-  something that happens automatically, mid-conversation, the moment somebody
-  speaks. **The riskiest operation in the stack becomes the most frequent.**
-- **Whether a guest's `playback` session mixes.** See *Guests*.
-- Nothing. The design is complete; what remains is building it.
+**The design is decided. These are things to measure, not things to choose.**
+
+- **Does self-mute disable the recording engine?** The gate on the most, and
+  the first thing to establish. If it does, the observer sees playout-only at
+  every mute and crosses `playAndRecord` to `playback` — a category change, a
+  Bluetooth route handover, and the 2026-08-19 route loss from a new direction.
+  It decides whether `SessionWant` survives, whether `holdForPlayout` can be
+  deleted, and whether a mute is audible on a headset. **Two phones and a mute.**
+- **Does any of this survive LiveKit?** Every reading in
+  `AUDIO-LAB-FINDINGS.md` was taken outside a channel, with only iOS writing
+  the session — deliberately, since that was the right first question. It is
+  not the last one. Three writers share this session and the bench measured
+  one.
+- **Promotion is a media reconnect, made automatic.** Nearby holds no
+  subscription, so promoting means connecting to the room and opening the
+  microphone — the re-entry that froze playout for weeks, and that
+  `deferSubscribe` and `holdForPlayout` exist to survive. Keying it on the
+  arrival rather than on the first word buys a few seconds of headroom, and
+  both fixes are already in place and confirmed. **It stops being something a
+  person does occasionally and becomes something the app does by itself**, so
+  build and test it first rather than last.
+- **Android's no-claim path**, which is the one part of the platform mapping
+  that is new code rather than a rename. See § *Android*.
+- **The UI beyond the two buttons.** Undecided, and the reason the pair is
+  behind `labs`.
