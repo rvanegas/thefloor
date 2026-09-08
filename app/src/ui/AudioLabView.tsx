@@ -155,6 +155,18 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
   const [capturing, setCapturing] = useState(false);
   const [result, setResult] = useState<TrialResult | null>(null);
   const [preset, setPreset] = useState<Preset | null>(null);
+  /**
+   * Which transition the phone is sitting after, so an observation says *when*
+   * as well as *what*.
+   *
+   * **Four listens per row, not one.** Activating a session and running an
+   * input chain are two separate things that could interrupt another app, and
+   * a row that produces one verdict cannot tell them apart. Stopping the input
+   * while the session stays active is the third, and releasing is the fourth —
+   * whether the other app comes back is as much a finding as whether it
+   * stopped.
+   */
+  const [phase, setPhase] = useState('before');
 
   const styles = useMemo(() => makeStyles(), []);
 
@@ -183,6 +195,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
   const apply = () => {
     const trial = configureSession(category, mode, options, active);
     setResult(trial);
+    setPhase(active ? 'applied' : 'applied-inactive');
     if (!trial) {
       recordEvent('lab apply — no native module (rebuild required)');
       return;
@@ -202,6 +215,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     const trial = next ? startInput() : stopInput();
     setCapturing(next);
     setResult(trial);
+    setPhase(next ? 'capturing' : 'input-off');
     recordEvent(
       `lab input ${next ? 'on' : 'off'} ` +
         `out=${trial?.outputs.join(',') ?? '?'} sr=${Math.round(trial?.sampleRate ?? 0)} ` +
@@ -224,12 +238,13 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     }
     const trial = configureSession('playback', 'default', ['mixWithOthers'], false);
     setResult(trial);
+    setPhase('released');
     recordEvent('lab release — session deactivated');
   };
 
   const observe = (what: string) => {
     recordEvent(
-      `lab OBSERVED ${preset?.name ?? 'manual'} · ${what} · ` +
+      `lab OBSERVED ${preset?.name ?? 'manual'} @${phase} · ${what} · ` +
         `out=${routeSnapshot()?.outputs.join(',') ?? '?'}`
     );
   };
@@ -263,9 +278,16 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         </Text>
         <Text style={styles.step}>1 · Start music or a podcast in another app</Text>
         <Text style={styles.step}>2 · Come back here and load a row below</Text>
-        <Text style={styles.step}>3 · Apply, then turn Input on</Text>
-        <Text style={styles.step}>4 · Listen, then tap what happened</Text>
-        <Text style={styles.step}>5 · Release before the next row</Text>
+        <Text style={styles.step}>3 · Apply — then listen, and tap what happened</Text>
+        <Text style={styles.step}>4 · Input on — listen again, tap again</Text>
+        <Text style={styles.step}>5 · Input off — listen, tap</Text>
+        <Text style={styles.step}>6 · Release — listen, tap. Did it come back?</Text>
+        <Text style={styles.note}>
+          Four listens, not one. Activating the session and running the
+          microphone are separate things that could interrupt the other app,
+          and a row with a single verdict cannot tell them apart. Each tap
+          records which step you were on.
+        </Text>
         <Text style={styles.note}>
           Run every row twice: once on the speaker, once on a Bluetooth headset.
           The headset is where the profile handover costs something.
