@@ -59,7 +59,7 @@ caused; the list carries the meaning.
 - **Present** — In a channel, able to hear and be heard, right now
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
-- **Self-mute** — A microphone closed by hand rather than by the floor: usually your own, and since 2026-09-07 anybody's, by anybody in the room
+- **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name somebody chooses for themselves, unique across everybody, written with an `@`. Optional, and most people have none
@@ -488,16 +488,21 @@ must not cost you presence — you are still in the room, still listening, still
 somebody others can talk to. Three other things in the code are also called
 "mute" and only this one is a person's; *mute* in Part Two separates them.
 
-**Since 2026-09-07 it is not necessarily your own hand.** Anybody present in a
-channel may close or open the microphone of anybody else in it, from that
-person's profile — the favour among people who invited each other into a room:
-a dog is barking, or somebody is talking to nobody with their microphone shut.
-A guest can be the object of it and cannot perform it, nobody can mute the
-floor-holder, and nobody can mute somebody who has unmuted themselves in the
-last minute — that last being what stops the favour becoming a loop, where a
-person unmutes to speak and is shut again each time. `canMuteOther` is the
-whole policy and argues each clause; `canSetSelfMute` is the self case and is
-unchanged.
+**Since 2026-09-07 it is not necessarily your own hand — but only in one
+direction.** Anybody present in a channel may *close* the microphone of anybody
+else in it, from that person's profile: the favour among people who invited
+each other into a room, when a dog is barking or somebody has walked away from
+a live microphone. **Nobody can open anybody's but their own.** That asymmetry
+is the design rather than a limit on it — the feature can never make a person
+louder than they chose to be, and the remedy for being muted is always in the
+muted person's own hand.
+
+Three further clauses: a guest can be the object of it and cannot perform it,
+nobody can mute the floor-holder, and nobody can mute somebody who has unmuted
+themselves in the last minute — that last being what stops the favour becoming
+a loop, where a person unmutes to speak and is shut again each time.
+`canMuteOther` is the whole policy and argues each clause; `canSetSelfMute` is
+the self case, goes both ways, and is unchanged.
 
 **So the name is now narrower than the thing, deliberately, and this is the
 disagreement to know about.** *Self* was accurate when the only hand was your
@@ -800,8 +805,9 @@ control, cleared by stepping out and *not* by losing a connection. A statement
 about transmission and nothing else: it does not affect the *floor*, and it has
 never meant "I am leaving". **The one of the four a person performs, which is
 not the same as the one a person performs *on themselves*** — since 2026-09-07
-anybody in the room may set anybody else's, from their profile, and the entry
-in Part One says why the name did not follow. See *self-mute*.
+anybody in the room may close anybody else's from their profile, though only
+its owner may open it. The entry in Part One says why the name did not follow.
+See *self-mute*.
 
 **2. What the footer icon shows — the appearance.** Not the same set. The icon
 reads muted when you self-muted, **and** when the device has no microphone at

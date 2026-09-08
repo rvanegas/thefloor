@@ -465,12 +465,13 @@ export interface ChannelState {
    * the plainest statement there is that you want to be heard, and this is how
    * long that statement stands against a second hand reaching for the control.
    *
-   * **Written only by the person it is about.** An unmute performed *for*
-   * somebody by another member does not stamp it: it is not their statement,
-   * and treating it as one would let anybody manufacture a protection window
-   * over somebody else. Nor does the claimant's automatic unmute on
-   * `CLAIM_FLOOR` — a holder is already unmutable while they hold, and on
-   * release they are an ordinary member again who has not touched the control.
+   * **Written only by the person it is about**, which is every unmute there
+   * is: `canMuteOther` refuses to open anybody's microphone but the actor's
+   * own, so there is no such thing as an unmute performed for somebody. The
+   * one exception the field has to exclude is the claimant's automatic unmute
+   * on `CLAIM_FLOOR` — a holder is already unmutable while they hold, and on
+   * release they are an ordinary member again who has not touched the
+   * control.
    *
    * Scoped to the visit exactly as `selfMuted` is: cleared on every departure,
    * removed outright when membership goes. A minute-long window has no meaning

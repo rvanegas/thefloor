@@ -1292,10 +1292,10 @@ describe('somebody else’s microphone, from their profile', () => {
   const buttonFor = (tree: ReactTestRenderer, label: string) =>
     tree.root.findAll((n) => n.props?.label === label)[0];
 
-  type Mic = { muted: boolean; mayChange: boolean; mutableAt: number | null };
+  type Mic = { muted: boolean; mayMute: boolean; mutableAt: number | null };
 
   /** Open, mutable, nobody having just unmuted themselves. */
-  const open: Mic = { muted: false, mayChange: true, mutableAt: null };
+  const open: Mic = { muted: false, mayMute: true, mutableAt: null };
 
   const renderProfile = async (
     mic: Mic | null,
@@ -1327,15 +1327,16 @@ describe('somebody else’s microphone, from their profile', () => {
     act(() => tree.unmount());
   });
 
-  it('offers to open one that is closed, which is the half worth having', async () => {
-    const sent: boolean[] = [];
-    const tree = await renderProfile(
-      { ...open, muted: true },
-      (muted) => sent.push(muted)
-    );
+  /**
+   * The direction that does not exist. A muted person's card is a readout and
+   * carries no button at all — opening a microphone is theirs to do.
+   */
+  it('offers nothing at all once they are muted, and says why', async () => {
+    const tree = await renderProfile({ ...open, muted: true }, () => {});
 
-    act(() => buttonFor(tree, 'Unmute them').props.onPress());
-    expect(sent).toEqual([false]);
+    expect(buttonFor(tree, 'Mute them')).toBeUndefined();
+    expect(buttonFor(tree, 'Unmute them')).toBeUndefined();
+    expect(textOf(tree)).toContain('Opening it again is theirs to do');
     act(() => tree.unmount());
   });
 
@@ -1356,7 +1357,7 @@ describe('somebody else’s microphone, from their profile', () => {
    * and an absence here would look like the control had never existed.
    */
   it('draws the floor-holder’s refusal instead of hiding the control', async () => {
-    const tree = await renderProfile({ ...open, mayChange: false }, () => {});
+    const tree = await renderProfile({ ...open, mayMute: false }, () => {});
 
     expect(buttonFor(tree, 'Mute them').props.disabled).toBe(true);
     expect(textOf(tree)).toContain('They have the floor');
@@ -1369,7 +1370,7 @@ describe('somebody else’s microphone, from their profile', () => {
    */
   it('says how long is left after somebody has unmuted themselves', async () => {
     const tree = await renderProfile(
-      { ...open, mayChange: false, mutableAt: NOW + 40_000 },
+      { ...open, mayMute: false, mutableAt: NOW + 40_000 },
       () => {}
     );
 

@@ -423,16 +423,10 @@ export function ChannelView({
           channel.present.includes(viewing.id)
             ? {
                 muted: channel.selfMuted[viewing.id] ?? false,
-                // Asked about the toggle this would actually send, so the
-                // button is disabled exactly when pressing it would do
-                // nothing.
-                mayChange: canMuteOther(
-                  channel,
-                  me,
-                  viewing.id,
-                  !(channel.selfMuted[viewing.id] ?? false),
-                  now
-                ),
+                // Always asked about muting, that being the only direction
+                // this control has — so the button is disabled exactly when
+                // pressing it would do nothing.
+                mayMute: canMuteOther(channel, me, viewing.id, true, now),
                 // Only for the wording. `mayChange` above has already taken
                 // this into account; this is what lets the screen say how long
                 // is left instead of leaving a dead button unexplained.
@@ -440,6 +434,9 @@ export function ChannelView({
               }
             : null
         }
+        // One direction. Unmuting somebody else is refused by `canMuteOther`
+        // and there is no control that asks for it, so the action this sends
+        // is always a mute.
         onSetMute={(muted) =>
           act({ type: 'SET_SELF_MUTE', muted, target: viewing.id })
         }

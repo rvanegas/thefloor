@@ -160,6 +160,10 @@ export const DISCONNECT_GRACE_MS = 60_000;
  * How long somebody who has just unmuted themselves cannot be muted by anybody
  * else.
  *
+ * Muting somebody in the room with you is one-directional — see
+ * `canMuteOther` — so this is the whole of what bounds it: the mute costs them
+ * one tap, and taking that tap buys a minute nobody can spend.
+ *
  * Muting a person in the room with you is a favour, and the favour has one
  * failure mode: it is done to somebody who is about to speak. Unmuting
  * yourself is the plainest statement there is that you want to be heard, so

@@ -66,15 +66,18 @@ allowed.
 optional `target`, absent meaning the sender, and anybody present may name
 anybody else in the room — the control is on that person's profile, and the
 footer still sends the field-less form. **Two guards, not one**: `canSetSelfMute`
-is the self case and stays as it was, `canMuteOther` is the favour and carries
-its four clauses — both ends in the room with the actor present, a guest may
-only name themselves, nobody may mute the floor-holder (delegated to
+is the self case, goes both ways and stays as it was; `canMuteOther` is the
+favour, and **it only closes**. Opening anybody's microphone but your own is
+refused outright, so the feature can never make somebody louder than they chose
+to be. Four further clauses — both ends in the room with the actor present, a
+guest may only name themselves, nobody may mute the floor-holder (delegated to
 `canSetSelfMute` for the target, so the rule has one home), and nobody may mute
 somebody within `SELF_UNMUTE_GRACE_MS` of that person's own unmute.
 
 **The last clause has state behind it**: `selfUnmutedAt`, written only when
-somebody unmutes *themselves* — not when another member unmutes them, and not
-by the claimant's automatic unmute on `CLAIM_FLOOR`. Scoped to the visit
+somebody unmutes *themselves* — which is every unmute there is, the direction
+being refused, with the one exception of the claimant's automatic unmute on
+`CLAIM_FLOOR`, which does not stamp it. Scoped to the visit
 exactly as `selfMuted` is, cleared in `stepOut` and removed on
 `LEAVE_CHANNEL`. It closes the loop the favour would otherwise leave open, of a
 person unmuting into a control that shuts them each time.

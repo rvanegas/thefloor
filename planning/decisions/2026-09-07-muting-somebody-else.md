@@ -1,4 +1,4 @@
-# 2026-09-07 — Anybody in the room may mute anybody else
+# 2026-09-07 — Anybody in the room may mute anybody else, and only they can unmute
 
 Asked for in one sentence: *it should be possible to toggle the self-mute
 control of other occupants in the channel — we are all friends, and sometimes
@@ -13,6 +13,14 @@ every build before this one sends, so the change is additive at both ends.
 `canSetSelfMute` kept its signature and its meaning — the self case — and the
 favour became a second guard, `canMuteOther`.
 
+**It closes and does not open.** Unmuting anybody but yourself is refused at
+the guard, and there is no control that asks for it — a muted person's card is
+a readout saying that opening it is theirs to do. This arrived last and is the
+most important line in the file: it is what the rest of the design hangs off.
+The feature can never make a person louder than they chose to be, so the worst
+it can do is make them quieter than they chose, briefly, with the remedy in
+their own hand and a minute's protection once they take it.
+
 The control is a card on `ProfileView`, above Ping, drawn only when the caller
 supplies a `mic`. `ChannelView` supplies one for somebody who is not you, who
 is present, while you are present too. That is the same shape `onPing` already
@@ -26,7 +34,12 @@ answer silently. The clock the fourth clause needs made it obvious — a `now`
 that defaults is a `now` that is skipped. Two acts, two predicates, and the
 reducer branches on whether `target` is the sender.
 
-## The four clauses, and why each is there
+## The five clauses, and why each is there
+
+- **It only mutes.** See above. `muted` stays a parameter of `canMuteOther`
+  rather than being dropped from the signature, so that a caller asking whether
+  it may unmute somebody is told no rather than left to infer it from a
+  function name.
 
 - **Both ends in the room, and the actor present.** Not a rule about
   permission but about there being anything to do: `selfMuted` is cleared on
@@ -57,9 +70,9 @@ reducer branches on whether `target` is the sender.
   stands.
 
   The state behind it is `selfUnmutedAt`, and the interesting half is what does
-  *not* write to it. An unmute performed **for** somebody by another member is
-  not their statement, and stamping it would let anybody manufacture a
-  protection window over a person who never asked for one. The claimant's
+  *not* write to it. Once the direction went away this got simpler than it was:
+  every unmute is now the person's own, so there is no way to manufacture a
+  protection window over somebody who never asked for one. The claimant's
   automatic unmute on `CLAIM_FLOOR` does not stamp it either: a holder cannot
   be muted at all while they hold, and on release they are an ordinary member
   who has not touched the control. It is scoped to the visit exactly as
@@ -68,14 +81,17 @@ reducer branches on whether `target` is the sender.
 
 ## What was decided against
 
-**Asking permission.** Opening somebody else's microphone opens it — no prompt
-on their phone, nothing to accept. That is a real cost and it was taken
-knowingly. What bounds it is the self-unmute clause above: the cost is one
-mute, because undoing it buys a minute nobody can take back. A channel here is people who invited each other; the alternative is
-an ask, an answer and a wait, which is slower than saying "you're muted" out
-loud, which is what everybody does today and what this is meant to replace.
-The person muted sees it in the same footer that shows their own mute and
-undoes it in one tap.
+**Asking permission.** There is no prompt on the muted person's phone and
+nothing to accept. An earlier draft of this feature went both ways and needed
+an argument for that, which was made and was not good enough: opening somebody
+else's microphone without asking is a real cost, and "we are all friends" is a
+reason to build the feature rather than a reason the cost is not there. Making
+it one-directional retired the argument instead of winning it — nothing is
+opened by anybody but its owner, so there is nothing left to ask about. What
+remains is a mute, which the person undoes in one tap from the footer already
+in front of them, and which cannot be repeated for a minute once they do. A
+channel is not a public room, and an ask-answer-wait would be slower than
+saying "you're muted" out loud, which is the thing this replaces.
 
 **Putting it on the roster card.** One tap from a list of faces is a tap that
 gets made by accident and made casually, and this is a favour rather than a

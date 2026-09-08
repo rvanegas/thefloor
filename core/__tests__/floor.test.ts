@@ -209,9 +209,25 @@ describe('muting somebody else', () => {
     expect(s.selfMuted[A]).toBe(false);
   });
 
-  it('lets them open it again, which is the half that matters', () => {
+  /**
+   * The direction that does not exist, and the clause the rest of the design
+   * hangs off: this feature can never make somebody louder than they chose to
+   * be. Refused at the guard rather than merely absent from the screen.
+   */
+  it('refuses to open anybody’s microphone but the actor’s own', () => {
     let s = reduce(joined(), mute(B, B), T0);
+    expect(s.selfMuted[B]).toBe(true);
+    expect(canMuteOther(s, A, B, false, T0 + 1_000)).toBe(false);
     s = reduce(s, mute(A, B, false), T0 + 1_000);
+    expect(s.selfMuted[B]).toBe(true);
+  });
+
+  it('leaves the muted person able to open it themselves', () => {
+    // The remedy is always in their own hand, which is what makes the mute a
+    // favour rather than a thing done to somebody.
+    let s = reduce(joined(), mute(A, B), T0);
+    expect(s.selfMuted[B]).toBe(true);
+    s = reduce(s, { type: 'SET_SELF_MUTE', userId: B, muted: false }, T0 + 1_000);
     expect(s.selfMuted[B]).toBe(false);
   });
 
@@ -238,8 +254,6 @@ describe('muting somebody else', () => {
     const s = reduce(joined(), { type: 'CLAIM_FLOOR', userId: A }, T0);
     expect(canMuteOther(s, B, A, true, T0 + 1_000)).toBe(false);
     expect(reduce(s, mute(B, A), T0 + 1_000).selfMuted[A]).toBe(false);
-    // Unmuting a holder is allowed, as it always is, and does nothing.
-    expect(canMuteOther(s, B, A, false, T0 + 1_000)).toBe(true);
   });
 
   it('still lets anybody mute themselves by naming themselves', () => {
@@ -311,18 +325,14 @@ describe('a self-unmute holds off everybody else', () => {
     expect(next.selfMuted[B]).toBe(true);
   });
 
-  it('is not bought for somebody by another member’s unmute', () => {
-    // Otherwise anybody could manufacture a protection window over a person
-    // who never asked for one — unmute them, and they are now unmutable.
+  it('cannot be bought for somebody by another member', () => {
+    // There is no unmuting anybody else, so a protection window cannot be
+    // manufactured over a person who never asked for one: the attempt leaves
+    // them muted and leaves the stamp unwritten.
     let s = reduce(joined(), { type: 'SET_SELF_MUTE', userId: B, muted: true }, T0);
     s = reduce(s, mute(A, B, false), T0 + 1_000);
-    expect(s.selfMuted[B]).toBe(false);
-    expect(canMuteOther(s, A, B, true, T0 + 2_000)).toBe(true);
-  });
-
-  it('never blocks unmuting, which is the direction it has no quarrel with', () => {
-    const s = bJustUnmuted();
-    expect(canMuteOther(s, A, B, false, T0 + 2_000)).toBe(true);
+    expect(s.selfMuted[B]).toBe(true);
+    expect(s.selfUnmutedAt[B]).toBeUndefined();
   });
 
   it('does not survive a step out, the window being scoped to the visit', () => {

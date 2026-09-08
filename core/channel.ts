@@ -456,13 +456,24 @@ export function canSetSelfMute(
 }
 
 /**
- * Whether one person may close or open **somebody else's** microphone.
+ * Whether one person may close **somebody else's** microphone.
  *
  * The favour among people who invited each other into a room: a dog is
- * barking, or somebody is talking to nobody with their microphone shut. Added
- * 2026-09-07, and narrowed the same day by the clause that makes it safe.
+ * barking, or somebody has walked away from a live microphone. Added
+ * 2026-09-07 and narrowed twice the same day, and the second narrowing is the
+ * shape of the thing rather than a limit on it.
  *
- * Four clauses, and each refuses a different way of getting this wrong:
+ * **It only closes. There is no unmuting anybody but yourself**, and this is
+ * the clause the rest of the design hangs off. Muting somebody takes away a
+ * thing they can take straight back, in one tap, from a control already in
+ * front of them; unmuting somebody would be opening a microphone in a room
+ * they did not open it in, which is not a favour anybody asked for and not
+ * something a friend needs to be able to do. The asymmetry means this feature
+ * can never make a person louder than they chose to be — the worst it can do
+ * is make them quieter than they chose, briefly, with the remedy in their own
+ * hand. So `muted` false is refused outright rather than merely unhandled.
+ *
+ * Four more clauses, each refusing a different way of getting this wrong:
  *
  * - **Both ends in the room, and the actor present.** Not a rule about
  *   permission but about there being anything to do: `selfMuted` is cleared on
@@ -470,7 +481,7 @@ export function canSetSelfMute(
  *   next step-in discards. `inRoom` at the target end rather than `isPresent`,
  *   so a guest can be the object of the favour — they are in the room and they
  *   are audible, which is the whole of what qualifies anybody.
- * - **A guest may not do it to anybody else.** `GUEST_ACTIONS` names
+ * - **A guest may not do it to anybody.** `GUEST_ACTIONS` names
  *   `SET_SELF_MUTE`, and that entry was written when the action could only
  *   ever be about the sender. Stated here rather than left to be inferred from
  *   a set that no longer says which sense it meant.
@@ -480,26 +491,19 @@ export function canSetSelfMute(
  *   request to be heard that the whole room is already honouring, and reaching
  *   past it would silence the one voice everybody is listening to.
  * - **Nor somebody who has just unmuted themselves.** The failure mode this
- *   whole feature has is the favour done to somebody who is about to speak,
- *   and worse, done again the moment they undo it — a person unmuting into a
+ *   feature has is the favour done to somebody who is about to speak, and
+ *   worse, done again the moment they undo it — a person unmuting into a
  *   control that shuts them each time, which is bullying with a friendly name
  *   on it. Unmuting yourself is the plainest statement there is that you want
- *   to be heard, so for SELF_UNMUTE_GRACE_MS it stands and this refuses.
+ *   to be heard, so for SELF_UNMUTE_GRACE_MS it stands and this refuses. It is
+ *   what bounds the cost of the whole feature at a single mute.
  *
- * **The last two bind the muting direction only.** Unmuting somebody is never
- * refused for either reason: opening the microphone of a person who has just
- * asked to be heard, or who holds the floor, is a no-op in the first case and
- * agrees with them in the second.
- *
- * **What this deliberately does not do is ask permission.** Opening somebody
- * else's microphone is opening it, with no prompt on their phone and nothing
- * to accept; they see it in the same footer that shows their own mute, and
- * they can close it again in one tap. That is a real cost, and it is the trade
- * this feature is: a channel is not a public room, and the alternative — an
- * ask, an answer, and a wait — is slower than saying "you're muted" out loud,
- * which is what everybody does today. The clause above is what stops that
- * trade being open-ended: the cost is bounded at one mute, because undoing it
- * buys a minute nobody can take back.
+ * **So nothing here asks permission, and nothing here needs to.** There is no
+ * prompt on the muted person's phone and nothing to accept; they see it in the
+ * same footer that shows their own mute and undo it in one tap, and having
+ * undone it they cannot be muted again for a minute. A channel is not a public
+ * room, and an ask-answer-wait would be slower than saying "you're muted" out
+ * loud, which is the thing this replaces.
  */
 export function canMuteOther(
   state: ChannelState,
@@ -512,11 +516,16 @@ export function canMuteOther(
   // that a caller which has not separated the two cannot get a different
   // answer from this function than the reducer gives.
   if (actorId === targetId) return canSetSelfMute(state, actorId, muted);
+  // The direction that does not exist. Kept as a parameter rather than dropped
+  // from the signature so that the question is askable and gets a truthful no
+  // — a caller wondering whether it may unmute somebody should be told, not
+  // left to infer it from a name.
+  if (!muted) return false;
   if (isGuest(state, actorId)) return false;
   if (!isPresent(state, actorId) || !inRoom(state, targetId)) return false;
   // Everything they may not do to their own microphone, nobody may do to it.
   if (!canSetSelfMute(state, targetId, muted)) return false;
-  return !muted || !hasJustUnmutedThemselves(state, targetId, now);
+  return !hasJustUnmutedThemselves(state, targetId, now);
 }
 
 /**
@@ -1492,9 +1501,10 @@ export function reduce(
       // cannot be authorised as one person and written as another.
       const target = action.target ?? action.userId;
       const isSelf = target === action.userId;
-      // Two acts, two guards. Muting yourself is unilateral; muting somebody
-      // else is a favour with four conditions, one of which needs the clock —
-      // which is the reason these are not one function.
+      // Two acts, two guards. Muting yourself is unilateral and goes both
+      // ways; muting somebody else goes one way only and carries four more
+      // conditions, one of which needs the clock — which is the reason these
+      // are not one function.
       const allowed = isSelf
         ? canSetSelfMute(state, action.userId, action.muted)
         : canMuteOther(state, action.userId, target, action.muted, now);
@@ -1502,11 +1512,12 @@ export function reduce(
       return {
         ...state,
         selfMuted: { ...state.selfMuted, [target]: action.muted },
-        // **Stamped only when they did it themselves.** This is what buys the
-        // minute in which nobody else may mute them, so it has to be their
-        // own statement — an unmute performed *for* somebody by another member
-        // would otherwise let anybody manufacture a protection window over a
-        // person who never asked for one.
+        // **Stamped only when they did it themselves**, which by the time
+        // control reaches here is the only unmute there is — `canMuteOther`
+        // refuses the direction outright. `isSelf` is tested anyway rather
+        // than relied upon: this is what buys the minute in which nobody else
+        // may mute them, and it should be true because the person said so, not
+        // because a guard two screens away happens to make it so.
         selfUnmutedAt:
           isSelf && !action.muted
             ? { ...state.selfUnmutedAt, [target]: now }

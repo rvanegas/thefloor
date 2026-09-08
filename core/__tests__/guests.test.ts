@@ -305,6 +305,26 @@ describe('muting somebody else, with a guest in the room', () => {
     expect(state.selfMuted[ALICE]).toBe(false);
   });
 
+  it('refuses a member who tries to open a guest’s microphone', () => {
+    // The direction does not exist for a guest either. A guest's microphone is
+    // theirs, and `maySpeak` is the grant that decides whether they may open
+    // it at all — reaching past that from the roster would hand a member a way
+    // to publish a stranger's audio.
+    let state = act(withGuest({ maySpeak: true }), {
+      type: 'SET_SELF_MUTE',
+      userId: DANA,
+      muted: true,
+      target: DANA,
+    });
+    state = act(state, {
+      type: 'SET_SELF_MUTE',
+      userId: ALICE,
+      muted: false,
+      target: DANA,
+    });
+    expect(state.selfMuted[DANA]).toBe(true);
+  });
+
   it('still lets a guest mute themselves', () => {
     const state = act(withGuest({ maySpeak: true }), {
       type: 'SET_SELF_MUTE',

@@ -208,28 +208,38 @@ export function ProfileView({
    * control that is present and refuses reads worse than one that is honestly
    * not there.
    *
-   * `mayChange` is the guard's whole answer and is what disables the button.
-   * `mutableAt` separates the two reasons it can be false, and exists only for
-   * the wording: a minute that is running out is a wait worth stating as a
-   * length, where holding the floor is a fact about them. The sentences are
-   * written below, where the rest of this screen's words are.
+   * `mayMute` is the guard's whole answer and is what disables the button.
+   * `mutableAt` separates the reasons it can be false, and exists only for the
+   * wording: a minute that is running out is a wait worth stating as a length,
+   * where holding the floor is a fact about them. The sentences are written
+   * below, where the rest of this screen's words are.
    */
   mic?: {
-    muted: boolean;
-    mayChange: boolean;
     /**
-     * When they may next be muted by somebody else, or null for now — they
-     * have just unmuted themselves, and that stands for a minute. The shape
-     * `pingableAt` has, for the same reason.
+     * Whether their microphone is closed. There is nothing to press when it
+     * is — this control only ever closes one — so the card becomes a readout
+     * saying so, which is worth having: it is the answer to why you cannot
+     * hear them.
+     */
+    muted: boolean;
+    mayMute: boolean;
+    /**
+     * When they may next be muted, or null for now — they have just unmuted
+     * themselves, and that stands for a minute. The shape `pingableAt` has,
+     * for the same reason.
      */
     mutableAt: number | null;
   } | null;
   /**
-   * Closes or opens their microphone, for them. Supplied alongside `mic`.
+   * Closes their microphone. Supplied alongside `mic`.
+   *
+   * Always called with `true` — the opening direction does not exist here, and
+   * the parameter is kept only so the call site reads as the action it sends
+   * rather than as a bare trigger.
    *
    * Nothing is awaited and nothing is confirmed: this is a channel action, so
-   * the answer arrives as the next snapshot and the button's own label is what
-   * changes. A spinner here would be showing a wait that is already over.
+   * the answer arrives as the next snapshot and the card is what changes. A
+   * spinner here would be showing a wait that is already over.
    */
   onSetMute?: (muted: boolean) => void;
   /**
@@ -1122,26 +1132,34 @@ export function ProfileView({
         <>
           <SectionLabel>Their microphone</SectionLabel>
           <Card style={styles.stack}>
-            <Button
-              label={mic.muted ? 'Unmute them' : 'Mute them'}
-              // The reducer refuses this either way; disabling is what stops
-              // the button and the refusal disagreeing on screen, which is the
-              // rule the footer's own mute follows.
-              disabled={!mic.mayChange}
-              onPress={() => onSetMute(!mic.muted)}
-            />
+            {/*
+              One button and one direction. There is no Unmute here and there
+              is not meant to be: opening somebody's microphone is theirs to
+              do, so when it is already closed this card is a sentence and
+              nothing else.
+            */}
+            {mic.muted ? null : (
+              <Button
+                label="Mute them"
+                // The reducer refuses it anyway; disabling is what stops the
+                // button and the refusal disagreeing on screen, which is the
+                // rule the footer's own mute follows.
+                disabled={!mic.mayMute}
+                onPress={() => onSetMute(true)}
+              />
+            )}
             <Text style={type.muted}>
-              {muteWait !== null
-                ? // Said as a length, and said before they press rather than
-                  // after — the same treatment the ping window gets, and for
-                  // the same reason: a control that refuses without saying
-                  // when teaches nothing.
-                  `They have just unmuted themselves. You can mute them again in ${duration(muteWait)}.`
-                : !mic.mayChange
-                  ? 'They have the floor, so their microphone stays open until they release it.'
-                  : mic.muted
-                    ? 'Muted. Opening it again is something they can do too, from their own footer.'
-                    : 'Open. Closing it does not tell them why — say so out loud as well.'}
+              {mic.muted
+                ? 'Muted. Opening it again is theirs to do, from their own footer — nobody else can.'
+                : muteWait !== null
+                  ? // Said as a length, and said before they press rather than
+                    // after — the same treatment the ping window gets, and for
+                    // the same reason: a control that refuses without saying
+                    // when teaches nothing.
+                    `They have just unmuted themselves. You can mute them again in ${duration(muteWait)}.`
+                  : !mic.mayMute
+                    ? 'They have the floor, so their microphone stays open until they release it.'
+                    : 'Closing it does not tell them why — say so out loud as well. They can open it again whenever they like.'}
             </Text>
           </Card>
         </>
