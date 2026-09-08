@@ -1229,7 +1229,24 @@ export function reduce(
 
   switch (action.type) {
     case 'ENTER': {
-      if (isPresent(state, action.userId)) return state;
+      if (isPresent(state, action.userId)) {
+        // **A re-entry from somebody still nominally present is not nothing,
+        // and used to be**, until 2026-09-08. It is the whole of what a client
+        // sends on a reconnect: `onopen` re-asserts ENTER from
+        // `enteredChannel`, and inside the grace the sender is still in
+        // `present` — so this arm was the one that ran, and it returned the
+        // state untouched, leaving the clock going. Nothing noticed, because
+        // `watch.channel` arrived a moment earlier and reported CONNECTED,
+        // which cancelled it. That line is gone, and this is the assertion it
+        // was standing in for: a device saying it is standing here, which is
+        // the same proof of life the arm below reads it as.
+        //
+        // Still `state` when there is no clock to cancel — identity is what
+        // tells the server there was no transition to commit or emit.
+        if (!(action.userId in state.disconnectedAt)) return state;
+        const { [action.userId]: _live, ...rest } = state.disconnectedAt;
+        return { ...state, disconnectedAt: rest };
+      }
       // Entering is itself proof of a live connection, so any pending
       // disconnect clock for this user is cancelled.
       const { [action.userId]: _back, ...others } = state.disconnectedAt;

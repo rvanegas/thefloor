@@ -761,6 +761,31 @@ export class MemoryMediaServer implements MediaServer {
     this.trackIds.delete(`${room}/${identity}`);
   }
 
+  /**
+   * A connection to the room going away with nobody deciding anything — a
+   * phone force-quit, a process killed, a network that stopped.
+   *
+   * **Distinct from `removeParticipant`, which is an ejection**, and the
+   * difference is the whole of what `Channels.reconcilePresence` exists to
+   * notice: an ejection is this server acting, and this is the room simply
+   * ceasing to hold somebody it was told about. Without it the fake could not
+   * express the state that motivated presence-from-the-room, because
+   * `issueToken` is what puts an identity in `known` — so asking for a token
+   * and being in the room were the same fact, and a ghost was unspellable.
+   */
+  leaveRoom(room: string, identity: string): void {
+    const key = `${room}/${identity}`;
+    this.known.delete(key);
+    this.unpublished.delete(key);
+    this.held.delete(key);
+    this.trackIds.delete(key);
+  }
+
+  /** The other half: arriving in the room, having got a token some time ago. */
+  joinRoom(room: string, identity: string): void {
+    this.known.add(`${room}/${identity}`);
+  }
+
   private trackId(room: string, identity: string): string {
     const key = `${room}/${identity}`;
     const existing = this.trackIds.get(key);

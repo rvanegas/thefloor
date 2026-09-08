@@ -56,7 +56,7 @@ caused; the list carries the meaning.
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
-- **Present** — In a channel, able to hear and be heard, right now
+- **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
@@ -469,9 +469,32 @@ and takes you out of `present`; only leaving the channel outright removes you
 from the roster. **And presence is exclusive** — an account is present in at
 most one channel at a time, and stepping into one steps you out of the last.
 
-**A dropped connection is not an absence.** A socket that dies and returns
-changes nothing; only staying gone past the grace period ends presence, and the
-roster distinguishes that case — see *Nearby*.
+**Which connection, since 2026-09-08: the media room.** *Able to hear and be
+heard* is publishing or subscribing — the same test the 2026-09-08 design gives
+for an occupant — so presence is holding a connection to the channel's LiveKit
+room, and a phone that holds none is not present however much else it is doing.
+This sentence is not new; the implementation of it is. The server used to take
+`ENTER` on trust and let a live **control socket** sustain it, which is a
+different fact about a different connection, and the two came apart: an app
+force-quit and reopened held a room it was not in, for ever, because merely
+watching the channel renewed the grace period. `Channels.reconcilePresence`
+asks the room instead. See
+planning/decisions/2026-09-08-present-is-the-media-connection.md.
+
+**Entering is still what creates it.** Only the room may take a presence away;
+the tap is what grants one, because a step-in has to move the screen without a
+round trip through LiveKit. The two directions are not symmetrical, and making
+them so would put the interface behind the network.
+
+**A dropped connection is still not an absence.** A connection that dies and
+returns changes nothing; only staying gone past the grace period ends presence,
+and the roster distinguishes that case — see *Nearby*. What changed is which
+connection is asked, not how patient the answer is.
+
+**The socket keeps the other clock.** How long ago somebody was last heard from
+— `lastPresentAt`, which ages *Nearby* to *Stepped out* at fifteen minutes — is
+still the websocket's, and rightly: that measures reachability, which is what
+being nearby means.
 
 **In a browser it can also end without anybody doing anything.** A tab nobody
 has attended for fifteen minutes steps itself out, there being no suspended

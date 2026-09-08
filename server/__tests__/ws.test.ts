@@ -859,11 +859,19 @@ describe('websocket', () => {
     await b.next('channel', (m) => m.view.channel.present.length === 2);
 
     // Gone, and back inside the window: the arm the constant exists for.
+    //
+    // **The re-entry is what recovers it, not the watch**, since 2026-09-08.
+    // This used to send `watch.channel` alone, which reported CONNECTED and
+    // cancelled the grace — the line that let a reopened app hold a presence no
+    // device was in the room for. It is also not what the client does: `onopen`
+    // in app/src/api/socket.ts sends the watch *and then* re-sends ENTER from
+    // `enteredChannel`, which is the pair reproduced here.
     b.close();
     await new Promise((r) => setTimeout(r, 200));
     const back = new Client(bob.token, baseUrl);
     await back.open();
     back.send({ type: 'watch.channel', channelId });
+    back.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
     await new Promise((r) => setTimeout(r, 200));
 
     const recovered = app.channels.connectivityCounts();
@@ -925,7 +933,13 @@ describe('websocket', () => {
     // to assert that the user was still in the room, so the grace was
     // cancelled and the server held them present in a channel the new process
     // had never heard of — for ever, since every reconnection renewed it.
-    // Presence is asserted by watching or entering, never by connecting.
+    //
+    // **Watching was the other half of that, and went on 2026-09-08.** This
+    // test passed all along because the reinstalled app watches Home and never
+    // opens the channel; open it and `watch.channel` renewed the presence by
+    // exactly the same mechanism, under a narrower name. Presence is asserted
+    // by entering, and sustained by the media room. Nothing a socket does can
+    // create one.
     const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
@@ -958,7 +972,55 @@ describe('websocket', () => {
     reinstalled.close();
   });
 
-  it('cancels the grace period when the user comes back', async () => {
+  it('does not let a reopened app hold a channel it has only opened', async () => {
+    // **The reported sequence, start to finish.** Step in alone, force quit,
+    // reopen, and go to the channel screen without stepping in. The new process
+    // has no `enteredChannel`, so it sends `watch.channel` and no ENTER — and
+    // until 2026-09-08 that reported CONNECTED and cancelled the grace, on
+    // every reconnection, for ever. Nothing else could recover it: `stillHere`
+    // is guarded on presence, so every heartbeat refreshed `lastPresentAt` and
+    // the account never aged to *Stepped out* either.
+    //
+    // What makes it a ghost rather than a mistake is that the phone agreed: the
+    // channel screen reads `standingIn`, knows it entered nothing, and offers
+    // *Step in* — while everybody else's roster says the person is here.
+    const { alice, bob, channelId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
+
+    b.kill();
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Reopened, signed in on the stored token, looking at the channel.
+    const reopened = new Client(bob.token, baseUrl);
+    await reopened.open();
+    reopened.send({ type: 'watch.channel', channelId });
+    await reopened.next('channel');
+
+    clock += DISCONNECT_GRACE_MS;
+    app.channels.tick();
+
+    expect(app.channels.get(channelId)!.present).not.toContain(bob.account.id);
+    // Nearby: within reach, one notification away — which is exactly what a
+    // phone with the app open and no room connection is.
+    expect(app.channels.get(channelId)!.waiting).toContain(bob.account.id);
+    a.close();
+    reopened.close();
+  });
+
+  it('cancels the grace period when the user re-enters', async () => {
+    // **Re-entering is what cancels it, and watching is not**, since
+    // 2026-09-08. The two were the same thing here until `watch.channel`
+    // stopped reporting CONNECTED, and the difference is the whole of the ghost
+    // it produced: a reopened app watching a channel it has not entered is
+    // looking, not standing. The client sends both, in this order — see
+    // `onopen` in app/src/api/socket.ts — so what this asserts is unchanged
+    // about the case it was written for.
     const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);
     const b = new Client(bob.token, baseUrl);
@@ -978,6 +1040,18 @@ describe('websocket', () => {
     await back.open();
     back.send({ type: 'watch.channel', channelId });
     await back.next('channel');
+
+    // The watch alone leaves the grace running. This is the assertion the
+    // reported bug turns on, and it is the one this file did not have.
+    expect(
+      app.channels.get(channelId)!.disconnectedAt[bob.account.id]
+    ).toBeDefined();
+
+    back.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    // Waited on the clock rather than on the next snapshot: several are already
+    // queued from the drop, so `next('channel')` resolves on one of those and
+    // asserts ahead of the action it is meant to be waiting for.
+    await new Promise((r) => setTimeout(r, 200));
 
     expect(
       app.channels.get(channelId)!.disconnectedAt[bob.account.id]

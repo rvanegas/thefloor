@@ -604,6 +604,25 @@ seized the audio session, the room died, the socket recovered on foreground via
 `realtime.resume()` — so the channel looked live, the roster was right, and the
 audio was dead until the app was force-quit.
 
+**Since 2026-09-08 the server reconciles them, and presence follows the room.**
+The pair being unrelated was tolerable while presence was the socket's to
+assert; it stopped being tolerable when the two came apart in the other
+direction. Step in, force quit, reopen, open the channel screen: the room is
+gone and the socket is new, and `watch.channel` reported `CONNECTED` and
+cancelled the grace period, on every reconnection, indefinitely. The roster said
+present; the phone's own screen, reading `standingIn`, offered *Step in*.
+
+`Channels.reconcilePresence` reads the roster the meter already fetches every
+`USAGE_POLL_INTERVAL_MS` and reports what it finds to the same `report` a socket
+does — so an absence takes the ordinary grace to *Nearby*. **The room may only
+falsify a presence; `ENTER` is still what creates one**, because a step-in
+cannot wait on LiveKit. A socket close still reports `DISCONNECTED`, which only
+starts a clock; what a socket may no longer do is assert that somebody is here.
+`MEDIA_JOIN_GRACE_MS` is the window a step-in is given to arrive in, and it
+exists because `disconnectedAt` is drawn on everybody's roster as
+*reconnecting*. See
+planning/decisions/2026-09-08-present-is-the-media-connection.md.
+
 **A third reading, since 2026-08-27: `SessionAudio.failing`.** The SFU's own
 continuous judgement of every participant's connection, from
 `RoomEvent.ConnectionQualityChanged`, kept for those reporting

@@ -740,7 +740,11 @@ export function registerWebsocket(deps: {
         return;
       }
       guestConnections.add(connection);
-      channels.reportGuest(resumed.channelId, guestId, 'CONNECTED');
+      // No `CONNECTED` report, since 2026-09-08, for the reason `watch.channel`
+      // no longer makes one: a page holding a socket is reachable, and being in
+      // the room is what presence is. `admit` asks for a media token next, and
+      // the room confirms them within a poll — inside the grace their close
+      // started. A guest is an occupant on the same terms as anybody else.
       void admit(connection, resumed.channelId, guestId, secret);
     } else if (linkToken) {
       const door = channels.doorFor(linkToken);
@@ -1041,18 +1045,24 @@ export function registerWebsocket(deps: {
 
         case 'watch.channel':
           connection.watchingChannels.add(message.channelId);
-          // Watching is itself proof of a connection to this channel, which
-          // matters on a reconnect: the socket is new, so nothing has told the
-          // channel its owner is reachable again.
+          // **Watching says nothing about presence, and used to cancel the
+          // grace period.** It reported `CONNECTED` here until 2026-09-08, on
+          // the reasoning that a new socket asking for a channel was proof its
+          // owner was reachable again — true, and not the question. Reachable
+          // is *Nearby*; present is being in the room.
           //
-          // From the app alone. A follower page opening is proof that a
-          // browser exists, and cancelling a grace period on the strength of
-          // it would let a laptop hold somebody in a room their phone has
-          // left — the same failure this call was narrowed to avoid when it
-          // was moved off the connect path.
-          if (connection.scope.kind === 'session') {
-            channels.report(message.channelId, connection.userId, 'CONNECTED');
-          }
+          // What it cost: step in, force quit, reopen, open the channel. The
+          // new process has no `enteredChannel` to re-assert, so it sends this
+          // and nothing else — and this cancelled the grace that was about to
+          // retire them, on every reconnection, for ever. An account pinned
+          // present with no device in the room, while its own screen correctly
+          // offered *Step in*.
+          //
+          // The socket keeps the other half. A close still reports
+          // `DISCONNECTED` below, which only *starts* a grace and makes the
+          // ordinary departure resolve without waiting for a poll. What a
+          // socket may no longer do is assert that somebody is here.
+          // `Channels.reconcilePresence` is what answers that now.
           pushChannel(connection, message.channelId);
           return;
 

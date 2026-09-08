@@ -89,6 +89,29 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 export const USAGE_POLL_INTERVAL_MS = 15_000;
 
 /**
+ * How long a presence may go unconfirmed by the room before the grace starts.
+ *
+ * **Not defensive slack — the connect is genuinely not instant.** Stepping in
+ * dispatches ENTER, and only then does the client fetch a token from
+ * `POST /channels/:id/media-token` and connect, with `deferSubscribe` adding
+ * `SUBSCRIBE_SETTLE_MS` before anything is subscribed. So there is always a
+ * window in which somebody is legitimately present and not yet in the roster,
+ * and this is what stops the poll reading it as an absence.
+ *
+ * **The cost of getting it wrong is visible to everybody**, which is why it is
+ * two intervals rather than one. A `DISCONNECTED` report writes
+ * `disconnectedAt`, which is on the snapshot, and the roster renders it as
+ * *reconnecting* — so a window shorter than a step-in would flash that under
+ * the name of every person who walks into a room, for as long as it took them
+ * to connect. One missed poll must not be enough.
+ *
+ * It is not the whole bound on a presence nothing joins: this only starts the
+ * ordinary DISCONNECT_GRACE_MS, so a phone that never arrives is retired at
+ * this plus that.
+ */
+export const MEDIA_JOIN_GRACE_MS = 30_000;
+
+/**
  * How long shared playback may go without producing a frame before it is
  * rebuilt.
  *
@@ -561,6 +584,23 @@ export class ChannelRegistry {
    * losing it costs a mark that was about to expire.
    */
   private lastEntry = new Map<string, { by: string; at: number }>();
+  /**
+   * When each occupant's presence was last squared with the media room —
+   * either asserted, by stepping in, or confirmed, by the poll finding them.
+   *
+   * **The clock `MEDIA_JOIN_GRACE_MS` is measured from**, and the whole of the
+   * state this server keeps for presence-from-the-room. Keyed by channel and
+   * then by identity, members and guests alike, because both are in the roster
+   * and both are occupants.
+   *
+   * In memory rather than on `ChannelState`, deliberately. It is not a fact
+   * about the channel — nothing renders it, nothing else reads it, and no
+   * client is told it — it is this server's record of how long it has been
+   * waiting for an answer it expects. Putting it on the state would be a wire
+   * change, a migration and a persisted value that means nothing after a
+   * restart, since a restart drops presence anyway.
+   */
+  private mediaSeen = new Map<string, Map<string, number>>();
   /**
    * When each person was last pinged in each channel, keyed channel-and-target.
    *
@@ -2151,6 +2191,33 @@ export class ChannelRegistry {
     return { ...this.connectivity };
   }
 
+  /**
+   * Squares `mediaSeen` with who claims to be in this room.
+   *
+   * Runs on every commit rather than on the transitions that change presence,
+   * because the question it answers is *who is this server waiting on an answer
+   * about*, and that is a property of the state it has just written rather than
+   * of how it got there. Every way in — a tap, a create, a knock answered, a
+   * conversation that moved — arrives here without having to be named.
+   *
+   * A new occupant starts the clock: they have said they are here, and the room
+   * has not yet agreed. Somebody who has stopped being an occupant is dropped,
+   * so a person who steps out and back in is waited on afresh rather than
+   * judged against a stamp from their last visit.
+   */
+  private trackOccupancy(after: ChannelState): void {
+    if (after.status !== 'active') {
+      this.mediaSeen.delete(after.id);
+      return;
+    }
+    const now = this.now();
+    const seen = this.mediaSeen.get(after.id) ?? new Map<string, number>();
+    this.mediaSeen.set(after.id, seen);
+    const occupants = new Set(roomOccupants(after));
+    for (const id of occupants) if (!seen.has(id)) seen.set(id, now);
+    for (const id of [...seen.keys()]) if (!occupants.has(id)) seen.delete(id);
+  }
+
   private countConnectivity(before: ChannelState, after: ChannelState): void {
     for (const id of Object.keys(after.disconnectedAt)) {
       if (!(id in before.disconnectedAt)) this.connectivity.dropped += 1;
@@ -2179,6 +2246,7 @@ export class ChannelRegistry {
       this.markDeleted(after.id, after.endedAt ?? this.now());
     }
     this.countConnectivity(before, after);
+    this.trackOccupancy(after);
     this.applySilenceToMedia(before, after);
     this.applyGuestSpeech(before, after);
     this.applyRecordingToMedia(before, after);
@@ -2311,6 +2379,7 @@ export class ChannelRegistry {
         this.channels.delete(after.id);
         this.persisted.delete(after.id);
         this.silenceStated.delete(after.id);
+        this.mediaSeen.delete(after.id);
       }, 30_000).unref?.();
     }
   }
@@ -2816,8 +2885,8 @@ export class ChannelRegistry {
    * the log, twice a second for as long as a claim lasted.
    */
   /**
-   * Asks every occupied room what it is carrying, and moves the meter's mic
-   * and listen spans to match.
+   * Asks every occupied room who is in it and what it is carrying, and moves
+   * presence, and the meter's mic and listen spans, to match.
    *
    * **Measured rather than modelled, and the difference is the reason this
    * exists.** The server holds every input to what the app computes —
@@ -2831,6 +2900,18 @@ export class ChannelRegistry {
    * does not. Asking removes the whole class for every installed build, with
    * no wire change and nothing for a client to have to send.
    *
+   * **Since 2026-09-08 that argument governs presence itself, which is the
+   * larger half.** The paragraph above was written about a meter reading, and
+   * every clause of it is about presence: a room that is dead while the socket
+   * is alive *is* somebody counted as present who is not there. So the roster
+   * this fetches is now the evidence that a presence is still real, and the
+   * websocket has stopped being able to assert one. The bug that forced it:
+   * step in, force quit, reopen, and open the channel — the new process sends
+   * `watch.channel`, which used to report `CONNECTED` and cancel the grace,
+   * pinning an account present for ever with no device in the room. See
+   * planning/decisions/2026-09-08-present-is-the-media-connection.md, and
+   * planning/GLOSSARY.md § *Present*, which defined it this way all along.
+   *
    * Playback and egress are deliberately *not* polled. Those are published by
    * this process — its own participant, its own egress jobs — so asking
    * LiveKit about them would introduce a second answer that can disagree with
@@ -2843,7 +2924,11 @@ export class ChannelRegistry {
     if (!this.media) return;
     for (const [id, channel] of this.channels) {
       if (channel.status !== 'active') continue;
-      if (channel.present.length === 0) {
+      // **Occupants rather than `present`, since this carries presence.** A
+      // room holding guests and no members is a room with people in it, and
+      // skipping it left the one kind of occupant this server cannot see any
+      // other way unmeasured — and, now, unreconciled.
+      if (roomOccupants(channel).length === 0) {
         this.usage.closeOthers(['mic', 'listen'], id, new Set());
         continue;
       }
@@ -2866,6 +2951,16 @@ export class ChannelRegistry {
     // state in `commit` — counting it here would double it, and under an
     // identity that is not an account.
     const media = playbackIdentity(state.id);
+
+    // **Presence, before the meter, and from the same answer.** Two readers of
+    // the roster could disagree, which is the reason `considerRetiring` is
+    // asked here rather than on its own timer, and it is the reason this is
+    // too. Nothing below is disturbed by it: a report writes `disconnectedAt`
+    // and nothing else, so `present` and `participants` are the same after it
+    // as before, and the removal it may lead to happens a grace period later
+    // in the tick.
+    this.reconcilePresence(now, new Set(roster.keys()));
+
     // **Muted tracks do not count, and that is the whole of what "publishing"
     // means here.** A device that publishes and then mutes is holding a
     // microphone rather than using one: it sends no uplink and gives its
@@ -2929,6 +3024,60 @@ export class ChannelRegistry {
     // a poll that misses a beat — or a microphone that closed while its phone
     // was unreachable — still close the span.
     this.usage.closeOthers(['mic', 'listen', 'participant'], state.id, keep);
+  }
+
+  /**
+   * Squares who claims to be in a channel against who is in its media room.
+   *
+   * **This is what makes `present` mean what planning/GLOSSARY.md says it
+   * means** — *able to hear and be heard, right now*, which is publishing or
+   * subscribing, which is holding a connection to the room. Before 2026-09-08
+   * the server took that on trust: `ENTER` asserted it and a live *control
+   * socket* sustained it, so an account whose phone had died stayed present as
+   * long as some later process held a websocket. See the entry above.
+   *
+   * **The room may only falsify a presence, never create one.** Stepping in
+   * has to move the interface without a round trip through LiveKit, so `ENTER`
+   * is still what admits somebody; this is what stops it being self-sustaining.
+   * The two are not symmetrical and should not be made so.
+   *
+   * **Nothing here removes anybody.** It reports what it sees to the same
+   * `report` a socket does, so an absence starts the ordinary
+   * DISCONNECT_GRACE_MS and leaves by the ordinary `DISCONNECT_EXPIRED` —
+   * `exit: 'dropped'`, which is *Nearby*, then *Stepped out* at fifteen
+   * minutes. There is deliberately no second way out of a room.
+   *
+   * **The keys of the roster, not the tracks.** A participant who publishes
+   * nothing is in the room and can hear it, which is exactly the guest with no
+   * speech grant, and the muted person `meterRoom` discounts just below is an
+   * occupant by anybody's reading. Publishing is a question about the meter;
+   * this one is answered by being there at all.
+   *
+   * The playback participant cannot reach this: `roomOccupants` is members and
+   * guests, and `media:<channelId>` is neither.
+   */
+  private reconcilePresence(state: ChannelState, inRoom: Set<string>): void {
+    const now = this.now();
+    const seen = this.mediaSeen.get(state.id);
+    // No record means no commit has been made for this channel since it was
+    // restored, which is a state a poll can run in after a boot. Waiting for
+    // the next commit costs nothing and is the honest answer: this server has
+    // not yet said when it started expecting anybody.
+    if (!seen) return;
+    for (const id of roomOccupants(state)) {
+      if (inRoom.has(id)) {
+        seen.set(id, now);
+        this.report(state.id, id, 'CONNECTED');
+        continue;
+      }
+      // Somebody who stepped in a moment ago is still fetching a token and
+      // connecting, and is not missing. See MEDIA_JOIN_GRACE_MS, and note that
+      // a report here is visible — the roster renders `disconnectedAt` as
+      // *reconnecting* — so being early is not a private mistake.
+      const since = seen.get(id);
+      if (since === undefined || now - since <= MEDIA_JOIN_GRACE_MS) continue;
+      this.report(state.id, id, 'DISCONNECTED', now);
+    }
   }
 
   private async reconcileSilence(state: ChannelState): Promise<void> {
