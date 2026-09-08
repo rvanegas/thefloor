@@ -695,6 +695,41 @@ describe('who is in the channel, and who is talking', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The window outlives the offer. `Ping` is drawn while somebody looks
+   * nearby, which lapses; the server's wait is five minutes and runs on
+   * regardless, and a card that dropped the word partway through would invite
+   * a second ping that is going to be refused.
+   */
+  it('keeps saying Pinged after they stop looking nearby', () => {
+    knowing(THEM);
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW))
+    );
+    // Long enough that the nearby window is gone, while the server's ping
+    // window still has minutes left on it.
+    mockApp.serverNow = () => NOW + WAITING_WINDOW_MS + 60_000;
+    mockApp.channelViews.sess_1 = {
+      ...mockApp.channelViews.sess_1,
+      pingableAt: { [THEM]: NOW + WAITING_WINDOW_MS + 4 * 60_000 },
+    };
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    expect(textOf(tree)).toContain('Stepped out');
+    const ping = findButton(tree, 'Pinged');
+    expect(ping).toBeDefined();
+    expect(ping!.props.accessibilityState.disabled).toBe(true);
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
   it('goes back to having stepped out once the wait has gone stale', () => {
     // The same clock throughout: fifteen minutes of waiting becomes sixteen
     // minutes of absence, never a fresh zero.

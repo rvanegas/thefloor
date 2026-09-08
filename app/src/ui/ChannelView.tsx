@@ -2697,6 +2697,22 @@ function ParticipantCard({
     pingableAt !== null && pingableAt > app.serverNow()
       ? pingableAt - app.serverNow()
       : null;
+  /**
+   * Whether a ping sent from anywhere is still spending its window — this
+   * card's own tap, or the one on the snapshot. The two say the same thing a
+   * few hundred milliseconds apart.
+   */
+  const windowOpen = pinged || pingWait !== null;
+  /**
+   * Whether the control is drawn at all, which outlives being able to press
+   * it. `pingable` is the offer and lapses the moment they stop looking
+   * nearby; the window is five minutes (`PING_INTERVAL_MS`), and a card that
+   * dropped the word "Pinged" partway through would invite a second ping the
+   * server is going to refuse. So it stays until they can be called again —
+   * except once they are here, which is the answer to the ping and makes the
+   * speaking dot the more useful thing to hold the space.
+   */
+  const showPing = pingable || (!here && windowOpen);
 
   const sendPing = async () => {
     if (!onPing) return;
@@ -2776,62 +2792,60 @@ function ParticipantCard({
         : 'Invited';
 
   const body = (
-    <>
-      <View style={styles.cardHead}>
+    /**
+     * A row, so the control on the right is centred against the pair of lines
+     * on the left rather than hung off the lower one. The ping is about the
+     * person, which is both lines; sitting it on the status line put it a
+     * half-line low and made the card look as though it had settled crooked.
+     */
+    <View style={styles.cardBody}>
+      <View style={styles.cardText}>
         {/* One string rather than a name and a suffix, so it is one run of
             text to a screen reader and to anything else reading the tree. */}
         <Text style={styles.cardName} numberOfLines={1}>
           {self ? `${participant.displayName} (you)` : participant.displayName}
         </Text>
-        {/*
-          The dynamic part, and the only thing on this screen that changes
-          several times a second. Filled while they are audible, hollow
-          otherwise — a shape that is always in the same place, so a card does
-          not reflow every time somebody draws breath.
-
-          Dropped entirely on a card that is offering a ping. The place it
-          holds is only worth holding for a shape that changes, and on somebody
-          out of reach it cannot: they are not in the room, so it would sit
-          hollow beside a button that says why.
-        */}
-        {pingable ? null : (
-          <View
-            style={[styles.speakingDot, speaking && styles.speakingDotLive]}
-            accessibilityElementsHidden
-          />
-        )}
-      </View>
-      <View style={styles.cardFoot}>
         <Text style={[type.muted, styles.cardStatus, failing && styles.statusBad]}>
           {status}
           {muted ? ' · muted' : ''}
           {holdsFloor ? ' · has the floor' : ''}
         </Text>
-        {/*
-          Offered only while they are out of reach and recently so, which is
-          the state it answers. Somebody who stepped out an hour ago is a
-          different act — open their profile and say something — and a button
-          on every absent card would make the roster a row of buttons rather
-          than a picture of the room.
-        */}
-        {pingable ? (
-          <Button
-            label={
-              pinging ? 'Pinging…' : pinged || pingWait !== null ? 'Pinged' : 'Ping'
-            }
-            variant="ghost"
-            style={styles.cardPing}
-            // Disabled rather than hidden inside the window. The button
-            // vanishing at the moment it is pressed reads as a mistake; saying
-            // "Pinged" and refusing a second one says what happened.
-            disabled={pinging || pinged || pingWait !== null}
-            onPress={() => {
-              void sendPing();
-            }}
-          />
-        ) : null}
       </View>
-    </>
+      {/*
+        One rail, holding whichever of the two this card has something to say
+        with. The ping is offered only while they are out of reach and recently
+        so, which is the state it answers — somebody who stepped out an hour ago
+        is a different act, open their profile and say something, and a button
+        on every absent card would make the roster a row of buttons rather than
+        a picture of the room.
+
+        The dot is the dynamic part, and the only thing on this screen that
+        changes several times a second: filled while they are audible, hollow
+        otherwise, always in the same place so a card does not reflow every time
+        somebody draws breath. It gives way to the ping, since somebody out of
+        reach is somebody the room is not hearing — the dot could only sit
+        hollow beside a button that says why.
+      */}
+      {showPing ? (
+        <Button
+          label={pinging ? 'Pinging…' : windowOpen ? 'Pinged' : 'Ping'}
+          variant="ghost"
+          style={styles.cardPing}
+          // Disabled rather than hidden inside the window. The button
+          // vanishing at the moment it is pressed reads as a mistake; saying
+          // "Pinged" and refusing a second one says what happened.
+          disabled={pinging || windowOpen || !pingable}
+          onPress={() => {
+            void sendPing();
+          }}
+        />
+      ) : (
+        <View
+          style={[styles.speakingDot, speaking && styles.speakingDotLive]}
+          accessibilityElementsHidden
+        />
+      )}
+    </View>
   );
 
   const label = `${participant.displayName}${self ? ', you' : ''}. ${status}.${
@@ -3031,26 +3045,23 @@ const styles = StyleSheet.create({
   /** The accent, the same one the floor gets: this is the app's one mechanic. */
   participantCardLive: { borderColor: colors.floor },
   participantCardPressed: { backgroundColor: colors.surfaceRaised },
-  cardHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing(1),
-  },
-  cardName: { flexShrink: 1, fontSize: 16, fontWeight: '600', color: colors.text },
   /**
-   * The status line and, when there is one, the ping beside it. A row rather
-   * than a second line under the card: the status is one clause long and the
-   * button is two words, and stacking them would make every roster card taller
-   * to hold a control that only a nearby person's card has.
+   * The name and status on the left, the ping or the speaking dot on the
+   * right, centred against the pair. A row rather than the control sharing the
+   * status line: the status is one clause long and the button is two words, and
+   * stacking them would make every roster card taller to hold something only a
+   * nearby person's card has.
    */
-  cardFoot: {
+  cardBody: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing(1),
   },
-  /** Takes the slack, so a long status wraps rather than crushing the button. */
+  /** Takes the slack, so a long name or status wraps rather than crushing the
+      control beside it. */
+  cardText: { flexShrink: 1, flexGrow: 1, gap: 2 },
+  cardName: { fontSize: 16, fontWeight: '600', color: colors.text },
   cardStatus: { flexShrink: 1 },
   /**
    * Tightened, since `Button` is sized for a card of its own and this one sits
