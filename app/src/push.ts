@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { ANDROID_CHANNEL_IDS } from '../../core/notifications';
 import { api } from './api/http';
+import type { Permission } from './state/notificationAsk';
 
 /**
  * Being reachable when the app is not running.
@@ -194,8 +195,18 @@ Notifications.setNotificationHandler({
   }),
 });
 
-/** The simulator mints no token, and the browser has no APNs at all. */
-function mayHoldToken(): boolean {
+/**
+ * The simulator mints no token, and the browser has no APNs at all.
+ *
+ * **Exported since 2026-09-08**, because there is a third question now beyond
+ * *may we ask* and *have we been granted*: whether there is anything to ask
+ * for. `permissionState` folds this case into `denied`, which is right for
+ * everything that reads a permission and wrong for the one thing that decides
+ * whether to raise a banner — a browser told daily that it cannot be reached
+ * would be told something it can do nothing about, and it has the install
+ * notice for exactly that.
+ */
+export function mayHoldToken(): boolean {
   return Platform.OS !== 'web' && Device.isDevice;
 }
 
@@ -294,28 +305,52 @@ async function ensureChannels(): Promise<void> {
 }
 
 /**
- * Tells the server where this install can be reached.
+ * What iOS says about this install, in the three answers that lead anywhere
+ * different. See `Permission` in `state/notificationAsk.ts`, which is where
+ * the policy that reads this lives.
  *
- * Called on sign-in and on every launch with a stored token, because a device
- * token is not permanent — iOS reissues it after a restore or a reinstall, and
- * registering only once would leave the server holding an address that no
- * longer resolves.
- *
- * Resolves to the token registered, or null when this device cannot receive
- * one. Never throws: nothing about signing in should fail because notifications
- * are unavailable.
+ * `canAskAgain` is what separates the two negatives, and it is the whole of
+ * why this is worth asking rather than assuming: a phone that has never been
+ * asked can still be shown the dialog, and one that has refused can only be
+ * sent to Settings. Never throws — a platform that cannot hold a token at all
+ * reads as `denied`, since there is nothing to ask for and nowhere to send
+ * anybody.
  */
-export async function registerForPush(
-  authToken: string
-): Promise<string | null> {
+export async function permissionState(): Promise<Permission> {
+  if (!mayHoldToken()) return 'denied';
+  try {
+    const existing = await Notifications.getPermissionsAsync();
+    if (existing.granted) return 'granted';
+    return existing.canAskAgain ? 'undetermined' : 'denied';
+  } catch {
+    return 'denied';
+  }
+}
+
+/**
+ * Spends the one dialog, and registers if it is answered yes.
+ *
+ * **Called from a button on the explanation and from nowhere else**, which is
+ * the change of 2026-09-08 and the point of it: this used to run on every
+ * sign-in, so a new account met the system dialog within seconds of arriving,
+ * with nothing on screen having said what it was for. iOS shows that dialog
+ * once per install and remembers the answer for good, so the ten seconds after
+ * an install is the worst moment there is to spend it — see
+ * `state/notificationAsk.ts` for when it is spent instead.
+ *
+ * Refusing is an answer rather than a failure, and reads here as `null` like
+ * everything else that leaves this install unreachable. A phone that has
+ * already refused gets no dialog and is not sent anywhere: `openSettings` is
+ * the caller's move, because it leaves the app and only a screen somebody is
+ * looking at may do that.
+ *
+ * Never throws, for `registerIfGranted`'s reason.
+ */
+export async function askForPush(authToken: string): Promise<string | null> {
   if (!mayHoldToken()) return null;
 
   try {
     const existing = await Notifications.getPermissionsAsync();
-    // Asked only when the answer is not yet known. iOS shows the prompt once
-    // and remembers a refusal; asking again does nothing except return the
-    // refusal, and treating that as an error would be wrong — declining
-    // notifications is a choice, not a failure.
     const granted = existing.granted
       ? true
       : existing.canAskAgain
@@ -332,7 +367,7 @@ export async function registerForPush(
 /**
  * Registers, but only if permission is already in hand, and never asks for it.
  *
- * The recovery half of `registerForPush`, and the reason it exists is that iOS
+ * The recovery half of `askForPush`, and the reason it exists is that iOS
  * **does not terminate the app for a notification-permission change** the way
  * it does for the microphone or the address book. So somebody who refused the
  * prompt and later turned notifications on in Settings comes back to a process
@@ -342,7 +377,7 @@ export async function registerForPush(
  *
  * There is no *asking* again to be done — iOS shows its dialog once ever, and
  * `requestPermissionsAsync` returns the stored refusal for good afterwards. So
- * this is `registerForPush` with the prompting branch removed, and the removal
+ * this is `askForPush` with the prompting branch removed, and the removal
  * is what makes it safe on every foreground: the one thing it must never do is
  * put a dialog in front of somebody who has just switched back to the app.
  *
@@ -351,7 +386,7 @@ export async function registerForPush(
  * costs no request and no dialog.
  *
  * Resolves to the token registered, or null when permission is absent or this
- * device can hold no token. Never throws, for `registerForPush`'s reason.
+ * device can hold no token. Never throws, for `askForPush`'s reason.
  */
 export async function registerIfGranted(
   authToken: string

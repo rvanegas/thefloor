@@ -3,7 +3,9 @@ import { Platform } from 'react-native';
 
 import { api } from '../api/http';
 import {
+  askForPush,
   onNotificationTap,
+  permissionState,
   registerIfGranted,
   sweepArrivals,
   sweepChannel,
@@ -514,5 +516,84 @@ describe('a tap on a notification', () => {
     onNotificationTap(jest.fn())();
 
     expect(remove).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The one dialog, and what may be done with it.
+ *
+ * iOS shows it once per install and keeps the answer for good, which is why it
+ * moved out of sign-in on 2026-09-08: it is a button on a screen that has
+ * explained itself first. What is tested here is that this module says
+ * honestly whether there is a dialog left, and that spending it still
+ * registers an address.
+ */
+describe('the permission this install holds', () => {
+  const permissions = Notifications.getPermissionsAsync as jest.Mock;
+  const request = Notifications.requestPermissionsAsync as jest.Mock;
+  const deviceToken = Notifications.getDevicePushTokenAsync as jest.Mock;
+  const registerDevice = api.registerDevice as jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockDevice.isDevice = true;
+    deviceToken.mockResolvedValue({ type: 'ios', data: 'apns-token' });
+  });
+
+  it('reads as granted for a phone that has said yes', async () => {
+    permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+    await expect(permissionState()).resolves.toBe('granted');
+  });
+
+  /** The only state in which a dialog can still be raised. */
+  it('reads as undetermined while the question is unasked', async () => {
+    permissions.mockResolvedValue({ granted: false, canAskAgain: true });
+    await expect(permissionState()).resolves.toBe('undetermined');
+  });
+
+  it('reads as denied once an answer is kept, however it was reached', async () => {
+    permissions.mockResolvedValue({ granted: false, canAskAgain: false });
+    await expect(permissionState()).resolves.toBe('denied');
+  });
+
+  /** A simulator holds no token at all, so there is nothing to ask for. */
+  it('reads as denied where no token can exist', async () => {
+    mockDevice.isDevice = false;
+    await expect(permissionState()).resolves.toBe('denied');
+    expect(permissions).not.toHaveBeenCalled();
+  });
+
+  it('spends the dialog and registers what it is given', async () => {
+    permissions.mockResolvedValue({ granted: false, canAskAgain: true });
+    request.mockResolvedValue({ granted: true });
+
+    await expect(askForPush('auth')).resolves.toBe('apns-token');
+    expect(request).toHaveBeenCalled();
+    expect(registerDevice).toHaveBeenCalledWith('auth', 'apns-token', 'ios');
+  });
+
+  /**
+   * Refusing is an answer rather than a failure, and nothing is registered —
+   * so the server holds no address that would silently drop everything sent
+   * to it.
+   */
+  it('registers nothing when the dialog is refused', async () => {
+    permissions.mockResolvedValue({ granted: false, canAskAgain: true });
+    request.mockResolvedValue({ granted: false });
+
+    await expect(askForPush('auth')).resolves.toBeNull();
+    expect(registerDevice).not.toHaveBeenCalled();
+  });
+
+  /**
+   * There is no second dialog, and asking for one is worse than useless: it
+   * returns the stored refusal, which reads exactly like a fresh no. The
+   * screen offers Settings instead.
+   */
+  it('raises no dialog for somebody who has already refused', async () => {
+    permissions.mockResolvedValue({ granted: false, canAskAgain: false });
+
+    await expect(askForPush('auth')).resolves.toBeNull();
+    expect(request).not.toHaveBeenCalled();
   });
 });

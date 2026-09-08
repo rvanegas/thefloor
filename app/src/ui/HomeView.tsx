@@ -54,6 +54,7 @@ export function HomeView({
   onList,
   onEnterChannel,
   onOpenSettings,
+  onOpenNotifications = () => {},
   onOpenSupport = () => {},
   onOpenLeaderboard,
   onOpenAudioLab,
@@ -67,6 +68,12 @@ export function HomeView({
   onList: (list: List) => void;
   onEnterChannel: (channelId: string) => void;
   onOpenSettings: () => void;
+  /**
+   * Opens the screen explaining what notifications are for, which is the only
+   * thing the banner here does. **Nothing in this tier asks the system for
+   * anything** — the dialog belongs to a screen somebody has read.
+   */
+  onOpenNotifications?: () => void;
   /** Opens the screen that explains donating, and carries the link out. */
   onOpenSupport?: () => void;
   /**
@@ -298,6 +305,8 @@ export function HomeView({
 
         <InstallNotice />
 
+        <NotificationNotice onExplain={onOpenNotifications} />
+
         <ListSwitch list={list} onList={onList} />
       </View>
     </View>
@@ -467,6 +476,80 @@ function InstallNotice() {
             void Linking.openURL(updateUrl);
           }}
         />
+      </View>
+    </Card>
+  );
+}
+
+/**
+ * That this phone cannot be reached, said once a day at most.
+ *
+ * **The sibling of `InstallNotice`, and the same argument one platform over.**
+ * A browser cannot notify; a phone that has refused notifications has chosen
+ * not to be notified — and in both cases the cost is not paid by the person
+ * choosing. It is other people finding somebody who never answers. That is
+ * worth mentioning, and worth mentioning quietly and rarely.
+ *
+ * **It does not ask for anything, and it cannot.** iOS has already been asked
+ * and has kept the answer; there is no second dialog to raise from here. So
+ * the banner offers the explanation, and the explanation offers Settings —
+ * which is also why *Not now* is not an ordinary dismissal that hides it for
+ * good. The state that decides the cadence lives in
+ * `state/notificationAsk.ts`; this component only says when it was seen.
+ *
+ * `notifications.ask` is what governs it, so a phone with notifications on
+ * never renders this at all, and neither does one that has not yet been asked
+ * — that install is heading for the explanation itself.
+ */
+function NotificationNotice({ onExplain }: { onExplain: () => void }) {
+  const { notifications } = useApp();
+  const { ask, noteShown } = notifications;
+  /**
+   * Whether it is up, which is **not** the same as whether it is due.
+   *
+   * Raising it spends the day, and spending the day makes it stop being due —
+   * so a banner drawn straight from `ask` would remove itself on the render
+   * after it appeared. What `ask` answers is *may this be raised now*; once
+   * raised it stays until this screen goes away or somebody dismisses it.
+   */
+  const [raised, setRaised] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  // The day is spent when the banner appears rather than when it is answered.
+  // See `askDue`: a banner that came back until it was formally dismissed
+  // would be one that punished ignoring it.
+  useEffect(() => {
+    if (ask !== 'nudge' || raised) return;
+    setRaised(true);
+    noteShown();
+  }, [ask, raised, noteShown]);
+
+  if (!raised || dismissed) return null;
+
+  return (
+    <Card style={styles.install}>
+      <View style={styles.rowMain}>
+        <Text style={type.body}>Nobody can reach you</Text>
+        <Text style={type.muted}>
+          Notifications are off for The Floor, so an invitation or a ping
+          arrives only if you happen to be looking.
+        </Text>
+      </View>
+      <View style={styles.installActions}>
+        {/*
+          *Not now* rather than *Never*, and it is the truth: the day was
+          already spent by the effect above, so this takes it off the screen
+          and the earliest it can return is tomorrow. An app that let somebody
+          switch this off for good would be an app quietly agreeing that they
+          should be unreachable, which is the one thing it is here to say is
+          worth knowing about.
+        */}
+        <Button
+          label="Not now"
+          variant="ghost"
+          onPress={() => setDismissed(true)}
+        />
+        <Button label="Tell me more" onPress={onExplain} />
       </View>
     </Card>
   );

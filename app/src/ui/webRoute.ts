@@ -143,6 +143,11 @@ export function addressOf(detail: Detail, list: List): Address {
     // profile: it is not somewhere anybody should arrive at from a link, and
     // it is meant to be deleted with its answer.
     case 'audiolab':
+    // Notifications has no address on the plainer version of the same
+    // argument: it is a screen about this *install's* permission, a browser
+    // has none to grant, and a link to it would be a link to a promise the
+    // page it opened in cannot keep.
+    case 'notifications':
     case 'none':
       return { list, named: 'none' };
   }

@@ -36,6 +36,19 @@ const mockApp = {
   displaced: false,
   recordingAsked: null as string | null,
   goneChannels: [] as string[],
+  /**
+   * Nothing due, which is the state of a phone that has already said yes and
+   * the one every test in this file is indifferent to. The root opens the
+   * explanation unbidden on `'pitch'` — see App.tsx — so a default of anything
+   * else would put that screen over half of these.
+   */
+  notifications: {
+    ask: 'none' as 'none' | 'pitch' | 'nudge',
+    permission: 'granted' as const,
+    canPrompt: false,
+    noteShown: jest.fn(),
+    allow: jest.fn(async () => true),
+  },
   status: 'open' as const,
   lastError: null,
   serverNow: () => NOW,
@@ -357,6 +370,122 @@ describe('asking to record', () => {
     });
     expect(audioCalls.at(-1)?.[4]).toBe(true);
 
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * The one screen this app puts up without being asked.
+ *
+ * The policy behind `ask` is pure and tested in
+ * `src/state/__tests__/notificationAsk.test.ts`; what is here is the rule
+ * about the *instant*, which only `Root` can enforce: it may interrupt
+ * nothing. Getting that wrong means an explanation of why being reached
+ * matters, drawn over a conversation somebody is having — which is the
+ * interruption it is warning about.
+ */
+describe('the explanation, unbidden', () => {
+  const CHANNEL = 'chan_1';
+
+  beforeEach(() => {
+    mockApp.ready = true;
+    mockApp.token = 'token';
+    mockApp.notificationTapped = false;
+    mockApp.home = null;
+    mockApp.channelViews = {};
+    mockApp.standingIn = null;
+    mockApp.notifications.ask = 'pitch';
+  });
+
+  afterEach(() => {
+    mockApp.notifications.ask = 'none';
+  });
+
+  it('comes up when the moment has come and nothing is open', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    expect(textOf(tree)).toContain('Being reachable');
+    act(() => tree.unmount());
+  });
+
+  it('stays away while nothing is due', () => {
+    mockApp.notifications.ask = 'none';
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    expect(textOf(tree)).not.toContain('Being reachable');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Presence outlives navigation here, so an empty pane is not evidence that
+   * nobody is talking. Covering a live room to explain notifications would be
+   * the app doing the thing it is asking permission to do sparingly.
+   */
+  it('waits while somebody is standing in a channel', () => {
+    mockApp.channelViews = {
+      [CHANNEL]: {
+        channel: {
+          id: CHANNEL,
+          mediaRoom: CHANNEL,
+          status: 'active',
+          participants: ['acct_me'],
+          present: ['acct_me'],
+          selfMuted: {},
+          disconnectedAt: {},
+          floor: {
+            holder: null,
+            claimedAt: null,
+            lastClaimedAt: {},
+            lastReleasedAt: null,
+          },
+          recording: {
+            status: 'idle',
+            runId: null,
+            startedAt: null,
+            accumulatedMs: 0,
+            segmentStartedAt: null,
+            failure: null,
+          },
+          playback: { track: null },
+          invited: {},
+          invitedBy: {},
+          everPresent: ['acct_me'],
+          name: null,
+        },
+        participants: [{ id: 'acct_me', displayName: 'Me' }],
+        recordings: [],
+        serverNow: NOW,
+      },
+    };
+    mockApp.standingIn = CHANNEL;
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    expect(textOf(tree)).not.toContain('Being reachable');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Nothing is lost by waiting: `ask` stays due, and the next render with an
+   * empty pane is the moment. Nothing is scheduled and nothing is dropped.
+   */
+  it('takes the first empty moment after one', () => {
+    mockApp.standingIn = 'chan_other';
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    act(() => {
+      mockApp.standingIn = null;
+      tree.update(<App />);
+    });
+    expect(textOf(tree)).toContain('Being reachable');
     act(() => tree.unmount());
   });
 });

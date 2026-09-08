@@ -18,6 +18,7 @@ import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
+import { NotificationsView } from './src/ui/NotificationsView';
 import { NoDetailView, Panes } from './src/ui/Panes';
 import { isPartyMuted } from '../core/channel';
 import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
@@ -354,6 +355,35 @@ function Root() {
   }, [ready, token, watchChannel, app]);
 
   /**
+   * The explanation, put up by the app rather than asked for — once, when the
+   * moment has come and the system dialog has never been spent.
+   *
+   * **The only screen in this file that opens itself**, which is why it is
+   * fenced about as narrowly as it is. `ask` has already decided that this
+   * install is worth asking and has not been asked; the two conditions here
+   * are about the *instant*, and both are the same rule: it may only interrupt
+   * nothing.
+   *
+   * - Nothing else is open. Whatever somebody last asked for outranks
+   *   something they did not ask for at all, and the detail pane is one value
+   *   — putting this in it would close a conversation to talk about
+   *   notifications.
+   * - They are not present anywhere. Covering a live room to explain why being
+   *   reached matters would be doing the interrupting it is warning about, and
+   *   `live` is on this screen because presence outlives navigation here.
+   *
+   * When neither holds it simply does not fire, and nothing is lost: `ask`
+   * stays due, every one of those states ends, and the next render with an
+   * empty pane is the moment. Nothing is scheduled and nothing waits.
+   */
+  useEffect(() => {
+    if (!ready || !token) return;
+    if (app.notifications.ask !== 'pitch') return;
+    if (detail.kind !== 'none' || live) return;
+    setDetail({ kind: 'notifications' });
+  }, [ready, token, app.notifications.ask, detail.kind, live]);
+
+  /**
    * The address bar, which on a phone does not exist and in a browser *is* the
    * navigation.
    *
@@ -512,6 +542,15 @@ function Root() {
       case 'audiolab':
         return <AudioLabView onBack={close} />;
 
+      /*
+        The one case here that can arrive without a tap — see the effect above
+        — and the only one whose *closing* is part of what it does: `onDone`
+        covers allowing, refusing and Not now alike, because all three end with
+        the screen having said its piece.
+      */
+      case 'notifications':
+        return <NotificationsView onDone={close} />;
+
       case 'none':
         return null;
     }
@@ -545,6 +584,9 @@ function Root() {
       onList={setList}
       onEnterChannel={enterChannel}
       onOpenSettings={() => setDetail({ kind: 'settings' })}
+      // The banner on the tier opens this and asks for nothing itself; see
+      // `NotificationNotice`.
+      onOpenNotifications={() => setDetail({ kind: 'notifications' })}
       onOpenSupport={() => setDetail({ kind: 'support' })}
       // Same gate as the diagnostic panel and the log shipper: the `debug`
       // column, which comes from `hello`, so revoking it closes the way in at

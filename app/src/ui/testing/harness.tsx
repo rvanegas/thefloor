@@ -82,6 +82,19 @@ export const mockApp = {
    * notice is not drawn at all.
    */
   updateUrl: null as string | null,
+  /**
+   * What is due about notifications, defaulting to nothing — which is what
+   * every view test but the notification ones wants, and is the state of a
+   * phone that said yes. A test that wants the banner sets `ask` to `'nudge'`.
+   * See `state/notificationAsk.ts`.
+   */
+  notifications: {
+    ask: 'none' as 'none' | 'pitch' | 'nudge',
+    permission: 'granted' as 'granted' | 'undetermined' | 'denied',
+    canPrompt: false,
+    noteShown: jest.fn(),
+    allow: jest.fn(async () => true),
+  },
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -427,6 +440,9 @@ export function resetHarness(): void {
   mockApp.displaced = false;
   mockApp.expired = false;
   mockApp.updateUrl = null;
+  mockApp.notifications.ask = 'none';
+  mockApp.notifications.permission = 'granted';
+  mockApp.notifications.canPrompt = false;
   mockApp.status = 'open';
   mockApp.appearance = 'system';
   mockApp.tapToLook = false;

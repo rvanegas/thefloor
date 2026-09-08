@@ -51,7 +51,14 @@ export type Detail =
    * reason a profile does not: it is not a place anybody should arrive at from
    * a link.
    */
-  | { kind: 'audiolab' };
+  | { kind: 'audiolab' }
+  /**
+   * Why notifications matter, shown before the system is allowed to ask. It is
+   * opened from the banner on the tier and by the app itself when the moment
+   * has come — see `state/notificationAsk.ts` — and it is the one thing here
+   * that can appear without anybody having tapped anything.
+   */
+  | { kind: 'notifications' };
 
 /** Nothing open, which on a phone means the tier and in a split an empty pane. */
 export const NO_DETAIL: Detail = { kind: 'none' };

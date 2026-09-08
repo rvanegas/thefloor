@@ -7,7 +7,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
 // Aliased: `AppState` is already the name of this file's own state shape.
 import { AppState as NativeAppState, Platform } from 'react-native';
 import type {
@@ -27,13 +26,17 @@ import { startShippingDiagnostics } from '../audio/shipping';
 import { mustUpdate } from '../api/expiry';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
+import { storage } from './storage';
 import {
   onNotificationTap,
-  registerForPush,
   registerIfGranted,
   sweepArrivals,
   sweepChannel,
 } from '../push';
+import {
+  useNotificationAsk,
+  type NotificationAsk,
+} from './useNotificationAsk';
 import {
   APPEARANCE_KEY,
   applyPreference,
@@ -119,34 +122,6 @@ const LABS_KEY = 'thefloor.labs';
  * as the app ignoring them.
  */
 const RECORD_PUBLISH_WAIT_MS = 2_000;
-
-/** SecureStore has no web implementation; the browser is only used for checks. */
-const storage = {
-  async get(key: string): Promise<string | null> {
-    if (Platform.OS === 'web') {
-      try {
-        return globalThis.localStorage?.getItem(key) ?? null;
-      } catch {
-        return null;
-      }
-    }
-    return SecureStore.getItemAsync(key);
-  },
-  async set(key: string, value: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      globalThis.localStorage?.setItem(key, value);
-      return;
-    }
-    await SecureStore.setItemAsync(key, value);
-  },
-  async remove(key: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      globalThis.localStorage?.removeItem(key);
-      return;
-    }
-    await SecureStore.deleteItemAsync(key);
-  },
-};
 
 interface AppState {
   ready: boolean;
@@ -495,6 +470,17 @@ interface AppValue extends AppState {
    */
   labs: boolean;
   setLabs: (value: boolean) => void;
+  /**
+   * Whether this install should be asked to turn notifications on, and what it
+   * takes to do it.
+   *
+   * **Not a setting**, which is why it is one object rather than a value and a
+   * setter beside the four above: notifications are not something this app
+   * holds an opinion about and stores, they are a permission the system holds
+   * and a decision about when to spend the one chance there is to request it.
+   * See `state/notificationAsk.ts`.
+   */
+  notifications: NotificationAsk;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -875,19 +861,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.token]);
 
-  // Registered on every sign-in and every restored launch, not once ever: iOS
-  // reissues a device token after a restore or a reinstall, so a registry
-  // written once slowly fills with addresses that no longer resolve.
+  /**
+   * Registered on every sign-in and every restored launch, not once ever: iOS
+   * reissues a device token after a restore or a reinstall, so a registry
+   * written once slowly fills with addresses that no longer resolve.
+   *
+   * **It registers and never asks, since 2026-09-08.** This used to be the one
+   * place the system dialog came from, which put it in front of a new account
+   * within seconds of arriving, before anything on screen had said what it was
+   * for — and iOS grants that dialog once per install, for ever. Asking is now
+   * a button on a screen that explains itself; see `useNotificationAsk`. What
+   * is left here is the half that was always the point: somebody who has
+   * already said yes gets their current address to the server at every launch.
+   */
   useEffect(() => {
     if (!state.token) return;
     let cancelled = false;
-    void registerForPush(state.token).then((token) => {
+    void registerIfGranted(state.token).then((token) => {
       if (!cancelled) deviceToken.current = token;
     });
     return () => {
       cancelled = true;
     };
   }, [state.token]);
+
+  /**
+   * Whether there is anybody at all who could reach you, which is the floor
+   * under every reason to ask about notifications — see `worthAsking`.
+   *
+   * Three sources because they are three ways of having somebody: a contact, a
+   * channel you can walk back into, and an invitation you have not answered.
+   * The last one matters most for a new account, since being invited is how
+   * most people arrive and the invitation is the first thing they have.
+   */
+  const somebody =
+    !!state.home &&
+    (state.home.contacts.length > 0 ||
+      state.home.rejoinable.length > 0 ||
+      state.home.invites.length > 0);
+
+  /**
+   * Whether a conversation is happening — you, in a channel, with somebody
+   * else in it.
+   *
+   * Read off the snapshots rather than from an event, because there is no
+   * event: presence is a fact the server restates, and the moment worth
+   * recording is simply the first time this is true. `useNotificationAsk`
+   * latches it and never asks again.
+   */
+  const mine = state.me?.id ?? '';
+  const conversing = Object.values(state.channelViews).some(
+    (view) =>
+      view.channel.present.includes(mine) && view.channel.present.length > 1
+  );
+
+  const notifications = useNotificationAsk({
+    token: state.token,
+    somebody,
+    conversing,
+    // The same ref the sign-in registration writes, so a token granted from
+    // the explanation is the one sign-out later revokes.
+    onRegistered: useCallback((token: string) => {
+      deviceToken.current = token;
+    }, []),
+  });
 
   /**
    * Looks again on every foreground, for permission that arrived late.
@@ -1148,6 +1185,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateUrl: expiry.updateUrl,
       notificationTapped,
       clearNotificationTap: () => setNotificationTapped(false),
+      notifications,
 
       appearance,
       /*
@@ -1571,6 +1609,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       realtime,
       tick,
       notificationTapped,
+      notifications,
       appearance,
       tapToLook,
       hideControlCards,
