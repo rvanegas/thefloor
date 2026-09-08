@@ -365,8 +365,12 @@ describe('the Labs setting', () => {
  *
  * It exists because iOS gives no other way: the keychain outlives the app that
  * wrote it, so deleting and reinstalling comes back signed in and still
- * remembering having been asked about notifications. Behind Labs, because it
- * is for seeing what an arrival sees rather than for using the app.
+ * remembering having been asked about notifications.
+ *
+ * **Behind `debug`, which the server grants per account, rather than behind
+ * Labs, which anybody may switch on.** Labs promises unfinished features; this
+ * is an instrument, useless to somebody using the app, and *forget everything*
+ * does not belong one tap from a switch people are invited to flip.
  */
 describe('forgetting this phone', () => {
   const openSettings = async () => {
@@ -379,15 +383,15 @@ describe('forgetting this phone', () => {
 
   const alertSpy = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
-  it('is not offered without Labs', async () => {
-    mockApp.labs = false;
+  it('is not offered to an account without diagnostics', async () => {
+    mockApp.debug = false;
     const tree = await openSettings();
     expect(findButton(tree, 'Forget this phone')).toBeUndefined();
     act(() => tree.unmount());
   });
 
   it('asks first, and says what it cannot do', async () => {
-    mockApp.labs = true;
+    mockApp.debug = true;
     const asked = alertSpy();
     const tree = await openSettings();
 
@@ -412,7 +416,7 @@ describe('forgetting this phone', () => {
    * token the next line deletes.
    */
   it('signs out before it forgets the token', async () => {
-    mockApp.labs = true;
+    mockApp.debug = true;
     const asked = alertSpy();
     const tree = await openSettings();
     act(() => findButton(tree, 'Forget this phone')!.props.onPress());

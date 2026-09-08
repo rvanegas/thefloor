@@ -322,20 +322,30 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       </Card>
 
       {/*
-        **Only with Labs on**, and it is the one thing under that switch which
-        is not a feature: it is here for testing what a new arrival sees, which
-        is otherwise unreachable on iOS. Deleting the app does not clear the
-        keychain, so a reinstall comes back signed in, with its palette, and
-        remembering having been asked about notifications — and short of
-        erasing the whole phone there is nothing outside the app that can
-        clear that. See `state/storage.ts`.
+        **Behind `debug` rather than Labs**, which is the difference between a
+        feature somebody may switch on for themselves and an instrument. Labs
+        is opt-in and is a promise that what appears is unfinished but real;
+        this is neither — it is for seeing what a new arrival sees, it is
+        useless to anybody using the app, and *forget everything* is not a
+        thing to leave one tap from a switch people are invited to flip. The
+        server grants `debug` per account on `hello`, on the same terms as the
+        audio diagnostic panel in `ChannelView`, so it cannot be turned on from
+        the phone at all.
+
+        It exists because iOS offers no other way. Deleting the app does not
+        clear the keychain, so a reinstall comes back signed in, with its
+        palette, and remembering having been asked about notifications — and
+        short of erasing the whole phone there is nothing outside the app that
+        can clear that. See `state/storage.ts`.
 
         It cannot do the half that matters most on its own: the notification
         permission belongs to the system. So the alert says the order —
         forget, then delete, then install — because doing it the other way
         round is the mistake that wastes an afternoon.
       */}
-      {app.labs ? (
+      {app.debug ? (
+        <>
+        <SectionLabel>Diagnostics</SectionLabel>
         <Card style={styles.stack}>
           <Text style={type.heading}>Forget this phone</Text>
           <Button
@@ -361,6 +371,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             this, and neither does deleting the app.
           </Text>
         </Card>
+        </>
       ) : null}
 
       <SectionLabel>Appearance</SectionLabel>

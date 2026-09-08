@@ -119,6 +119,16 @@ a fresh one, and clearing these would mean asking somebody who has already
 refused as though they had not. Same reasoning as `installNotice.ts`, about a
 stronger fact.
 
+**And that is why *Forget this phone* exists**, under Diagnostics in Settings
+and behind the server-granted `debug` flag rather than behind Labs — Labs is
+opt-in and promises unfinished features, while this is an instrument that is
+useless to anybody using the app, and *forget everything* does not belong one
+tap from a switch people are invited to flip. It signs out first, because that
+request carries the push address the server should drop and needs the token it
+is about to delete, then clears every key in `INSTALL_KEYS`. It cannot clear
+the notification permission, which is the system's: a genuinely new install is
+forget, delete, install, in that order, and the alert says so.
+
 **A browser and a simulator are asked nothing, ever.** Both read as `denied` —
 correctly, there being no token to be had — and the daily cadence would
 otherwise tell them about a permission neither can grant. `mayHoldToken` is
