@@ -6,8 +6,8 @@ audio session will actually do — `AUDIO-LAB-FINDINGS.md` is the evidence half
 and this is the intent half. When it ships, what survives moves to
 `decisions/` and both of these go.
 
-The UI is deliberately undefined here. This is the state machine and the
-vocabulary.
+This is the state machine and the vocabulary. The UI is two labelled buttons
+and is described under *Behind Labs*; everything beyond that is undecided.
 
 ---
 
@@ -191,6 +191,11 @@ It is account-scoped, so it follows somebody to a second phone, which is right
 for this: the pair is a way of being in a room rather than a property of a
 handset.
 
+**Both are plain labelled buttons in the scrollable body of the channel view**,
+not icons in the footer. The footer is for the controls somebody reaches for
+without reading, and neither of these is that yet — a way of being in a room
+that has to be explained is a button with words on it.
+
 **Off means the declarations do not exist** — no step-in-nearby, no way to
 declare it after the fact. It does not mean a nearby person is rendered
 differently, and it has no bearing on the inferred kind, which is not an
@@ -212,12 +217,23 @@ dragged to hands-free, other apps stopped — to publish nothing.
 not collapse into one.** That was the hope; the guest is why it cannot happen.
 The divergence is narrower than today's, but it is real and permanent.
 
-**Open: does a guest's `playback` session mix?** Today's `IDLE` is `playback`
-*with* `mixWithOthers`, and reusing it would let somebody's podcast play over
-the voices the guest is listening to — the exact thing the exclusive claim
-exists to prevent, applied to the one person who cannot do anything about it.
-The argument in this document points at `playback` **without** mixing, which is
-a third configuration that does not exist yet.
+**It does not mix.** A guest's session is `playback` **without**
+`mixWithOthers`: exclusive, but listen-only. Guest audio should resemble a
+member's in every respect except permission to speak, and letting somebody's
+podcast play over the voices a guest is listening to would single out the one
+person who cannot do anything about it.
+
+**This configuration existed and was deleted.** `session.ts`: *"`LISTENING` was
+`IDLE` without `mixWithOthers` and went at build 90 for interrupting other
+apps."* It returns **for the reason it was removed** — interrupting other apps
+is the intent here rather than the defect. Worth restoring the name with it.
+
+**One consequence, audible.** A guest granted permission to speak crosses from
+`playback` to `playAndRecord`, which on a Bluetooth headset is an A2DP to
+hands-free handover — stereo to mono, at the moment they are told they may
+talk. Nothing is wrong with it and nobody will expect it. A listening guest is
+therefore on a *better* route than a member, which is a consequence of not
+needing a microphone rather than a decision.
 
 ## Occupancy
 
@@ -236,6 +252,11 @@ claim** — where today it is suppressed whenever they are in the app.
 
 That is the whole point of the pair. Somebody nearby with the app open is
 *asking* to be told, and is exactly the person the current rule silences.
+
+**Narrower than what it replaces**, and that is the point: today an arrival is
+suppressed whenever the recipient is *in the app*, so somebody sitting in a
+different channel — or on Home — is silenced about a room they are not in.
+Suppression now reaches only the people in that room.
 
 **Say it as *suppress for occupants*, not as *suppress in `playAndRecord`*.**
 The two were taken to be the same, on the grounds that everybody stepped in
@@ -264,4 +285,4 @@ the arrival anyway.
   something that happens automatically, mid-conversation, the moment somebody
   speaks. **The riskiest operation in the stack becomes the most frequent.**
 - **Whether a guest's `playback` session mixes.** See *Guests*.
-- **The UI.** Undefined on purpose, and the reason the pair is behind `labs`.
+- Nothing. The design is complete; what remains is building it.
