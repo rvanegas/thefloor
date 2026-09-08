@@ -1,5 +1,29 @@
 # The deploy history
 
+## 2026-09-07 — `3e779d7` → `436d910`
+
+Two commits, both app-only: the build number bump to 160, and the fix for
+"Mute them" crashing the app. Nothing in `server/` or `core/` changed, so the
+box gained no behaviour — this is the inert kind of deploy the 2026-08-29 entry
+is about, restamping `deployed.json` so the sha agrees with the checkout the
+build is being cut from, and rebuilding the guest page on the way past. Health
+came back on the sha that was sent, `oldestBuild` 56 against a floor of 51 with
+no silent builds.
+
+**The box was on `3e779d7` rather than the `52cf864` the entry below names**,
+which is to say a deploy between the two went unrecorded. Left as found: what
+is running is a measurement `bin/health` takes, and a history that guesses at
+a missing entry is worse than one with a gap in it.
+
+**Worth noting what the mute feature's own sequencing did *not* need.** The
+wire half of it — `target` on `SET_SELF_MUTE`, and `selfUnmutedAt` on the
+channel — went out with `dedf7fc`, an ancestor of the `3e779d7` the box was
+already running. So the server has been able to speak this since before any
+client could, which is the order the standing rule asks for. The crash was
+purely the app's: a `const act` declared below the early return that renders
+the profile, so the closure that screen was handed threw the moment it was
+pressed.
+
 ## 2026-09-06 — `e9b40d1` → `52cf864`
 
 Usernames, which is the first schema change to reach the box in a while: a
