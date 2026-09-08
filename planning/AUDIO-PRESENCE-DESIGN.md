@@ -82,6 +82,62 @@ already exists. This design adds a way in, not a lifetime.
 `GLOSSARY.md` § *Nearby / Stepped out* needs its first line widened when this
 lands; the rest of the entry stands.
 
+## Nearby has three ways in and one clock
+
+- **Declared** — step in nearby.
+- **Declared** — step in, then declare nearby, which abandons the claim.
+- **Inferred** — stepped in, and the websocket goes before the inattention
+  clock expires. Lose the socket first and it is *Nearby*; outlast the
+  attention clock first and it is *Stepped out*. Whichever expired first is
+  what describes it.
+
+**One clock governs all three, and it measures the last sign of life** rather
+than the moment anything was declared. That is the same question in every
+case — how long since we heard from you, which is how likely a ping is to
+reach you.
+
+**It is already one constant.** `ATTENTION_WINDOW_MS = WAITING_WINDOW_MS` in
+`app/src/state/attention.ts`. The unification is a principle being stated, not
+a change being made. It also covers the third case Rodrigo named: somebody
+alone in a room, muted, expecting nobody, is spending the same fifteen minutes.
+
+Traced through, a declared nearby therefore reads:
+
+- **Foreground** — the app is alive, `stillHere` keeps stamping, and the card
+  reads *Nearby* continuously. Which is true: they are sitting there and will
+  see an arrival.
+- **Pocketed** — no audio claim, so iOS suspends within about a second, the
+  socket goes, and `lastPresentAt` freezes at the last thing actually heard.
+  Fifteen minutes from there.
+- **Then** — *Stepped out*. Stop pinging.
+
+So *nearby is not kept alive* is a statement about the **process**, and the
+roster label follows from it rather than fighting it.
+
+**The attention rules need no nearby case.** Rule A and Rule B act on people in
+`present`, and a nearby person is not one.
+
+## How it reaches other clients
+
+**The observer side needs no new field.** *Nearby* is carried by
+`state.waiting`, a `UserId[]` already on `ChannelState` and already sent;
+clients render it through `isWaiting`. `stepOut` adds somebody to `waiting`
+when and only when `exit === 'dropped'`.
+
+So a declared nearby has only to land in `waiting`, and **every existing build
+renders it correctly, with a ping, unchanged.** Backwards compatible by
+construction.
+
+**The wire addition is the new client→server action** — *step in nearby*, and
+*declare nearby* — and nothing in the snapshot.
+
+**A fourth `Exit` reason is worth adding for legibility, behaving exactly as
+`'dropped'` does** in both fields it touches: joins `waiting`, and does **not**
+stamp `lastPresentAt`. The second half is what implements the one clock — the
+stamp is left to the transport, so it stays fresh while the app is alive and
+freezes when the phone suspends. Filing a deliberate declaration under
+`'dropped'` would work and would read as a lie in every log that prints it.
+
 ## Occupancy
 
 **An occupant publishes or subscribes, at least one.** A nearby person does
@@ -117,11 +173,5 @@ change and a protocol change.
   design it stops being something a person does occasionally and becomes
   something that happens automatically, mid-conversation, the moment somebody
   speaks. **The riskiest operation in the stack becomes the most frequent.**
-- **How a declared nearby reaches other clients.** The inferred kind is derived
-  from an expiry the server can see. A declared one is a statement, made by
-  somebody whose websocket is alive and well, and it has to be distinguishable
-  from stepping out — `Exit` in `core/channel.ts` has three reasons and this
-  may want a fourth. Any wire change here is subject to the standing rule:
-  teach the server first, deploy, then the client.
 - **The UI.** Undefined on purpose. How somebody steps in nearby, and how they
   declare it after the fact, are not decided.
