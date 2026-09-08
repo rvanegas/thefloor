@@ -25,6 +25,15 @@ not all-or-nothing (the three levels, per channel, in `describeLevel`'s own
 words rather than a second copy of them). The system dialog is a button on this
 screen and is raised nowhere else.
 
+**It is shown to a refused install too, and that was a correction.** The first
+cut fired it only while the dialog was unspent, which reads the screen as an
+accessory to the system prompt. It is not: what it says is that this
+application is people reaching each other, and the person most likely never to
+have heard it is exactly the one who refused a two-word dialog that could not
+tell them. So it fires once for `denied` as well — every install of the builds
+before this one arrives in that state — and the button on it offers Settings.
+A banner is too small a thing to carry that the first time.
+
 **Then a delayed first ask.** `state/notificationAsk.ts` holds the policy,
 pure. `worthAsking` needs somebody who could reach you — a contact, a channel,
 or an unanswered invitation — and then either a conversation that has actually
@@ -37,6 +46,13 @@ there because waiting for the conversation alone is a trap** — the first
 conversation is the one most likely to need a notification to happen at all, so
 an install that is never reachable may never have one, and a criterion waiting
 for it would wait for ever.
+
+`ready` gates the explanation in both cases, but for different reasons: with
+the dialog unspent it is protecting the dialog, and with it already refused it
+is only the general one — a full screen about being unreachable, shown to
+somebody who has been here ten seconds and has nobody in the app yet, is an
+interruption about nothing. A refused install that is not ready gets the banner
+in the meantime.
 
 **Then a banner, once a day at most.** `NotificationNotice` on the tier, beside
 `InstallNotice` and on the same argument one platform over: the cost of being

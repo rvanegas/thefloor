@@ -29,11 +29,13 @@ export type Permission = 'granted' | 'undetermined' | 'denied';
  * What the app should be putting in front of somebody about notifications.
  *
  * - `'pitch'` — the explanation, unasked for, because the moment has come and
- *   the dialog has never been spent. It is shown *before* the OS prompt, never
- *   instead of it: the prompt follows from a button on it.
- * - `'nudge'` — the dismissable banner, for somebody who has already answered
- *   no. It offers the explanation rather than a dialog, since after a refusal
- *   there is no dialog left to offer.
+ *   nobody has read it here yet. Where a dialog is still to be had it is shown
+ *   *before* that dialog, never instead of it — the prompt follows from a
+ *   button on it. Where one has already been refused it is shown anyway, and
+ *   the button offers Settings.
+ * - `'nudge'` — the dismissable banner, afterwards, and in the meantime for a
+ *   refused install that is not ready for the screen yet. It never raises a
+ *   dialog; it opens the explanation.
  * - `'none'` — the ordinary case, including everybody who has said yes.
  */
 export type Ask = 'none' | 'pitch' | 'nudge';
@@ -90,12 +92,28 @@ export function worthAsking(state: {
  * What to put in front of somebody right now, which is nothing most of the
  * time.
  *
- * **`denied` skips the criteria deliberately.** They exist to hold the one
- * dialog back until it is worth spending; somebody who has already refused has
- * spent it, and there is nothing left to protect. That is also what carries
- * every install of the builds before this one, where the ask happened at
- * sign-in: they arrive here already denied, with no local record of anything,
- * and fall straight into the daily cadence.
+ * **The explanation is owed to somebody who has refused just as much as to
+ * somebody who has not been asked**, which is the correction of 2026-09-08.
+ * The first cut showed it only while the dialog was unspent, on the reasoning
+ * that it was there to spend the dialog well — and that reads the screen as an
+ * accessory to a permission prompt. It is not. What it says is that this
+ * application is people reaching each other and an unreachable install is
+ * barely an application at all, and the person who most needs to hear it is
+ * exactly the one who has already said no, most likely to a system dialog that
+ * could not tell them any of it. A banner is too small a thing to carry that
+ * once.
+ *
+ * So it fires for `denied` too, once, and the banner is what returns
+ * afterwards. Every install of the builds before this one arrives here in
+ * precisely that state — asked at sign-in, refused, holding no local record —
+ * and gets the explanation it was never given.
+ *
+ * **`ready` still gates it in both cases**, for part two's reason rather than
+ * the dialog's: a full screen about being unreachable, put in front of
+ * somebody who has been in the app for ten seconds and has nobody in it yet,
+ * is an interruption about nothing. What a refused install that is not ready
+ * yet gets in the meantime is the banner, which is the smaller thing and is
+ * what the daily cadence is for.
  *
  * **The cadence is measured from the last time somebody was asked, not from
  * the last time they said no.** A banner raised and ignored costs the day, on
@@ -117,14 +135,18 @@ export function askDue(
 ): Ask {
   if (state.permission === 'granted') return 'none';
 
-  // The one dialog is still unspent, and this is the first thing they will
-  // have seen about it. Everything the criteria are for.
-  if (state.permission === 'undetermined' && !state.pitched) {
-    return state.ready ? 'pitch' : 'none';
-  }
+  // Nobody has read it yet and the moment has come — whether the dialog is
+  // unspent or was refused years ago. It is the same thing to say either way,
+  // and it is only ever said unbidden once.
+  if (!state.pitched && state.ready) return 'pitch';
 
-  // Everything else is somebody who has answered, or been asked and put it
-  // off. A day apart at most, and never the dialog again — see `Ask`.
+  // Still exploring, and the dialog is intact. Nothing at all until it is
+  // worth spending — the whole of what the wait is for.
+  if (state.permission === 'undetermined' && !state.pitched) return 'none';
+
+  // Everything else is somebody who has read it, or who has refused and is not
+  // ready to be shown a screen about it. A day apart at most, and never the
+  // dialog again — see `Ask`.
   if (state.nudgedAt === null) return 'nudge';
   return now - state.nudgedAt >= NUDGE_INTERVAL_MS ? 'nudge' : 'none';
 }

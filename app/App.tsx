@@ -356,11 +356,14 @@ function Root() {
 
   /**
    * The explanation, put up by the app rather than asked for — once, when the
-   * moment has come and the system dialog has never been spent.
+   * moment has come and nobody has read it on this install. That includes an
+   * install that already refused: the screen is about what the application is,
+   * not about a permission dialog, and a phone nobody can reach is barely
+   * running the application at all. See `askDue`.
    *
    * **The only screen in this file that opens itself**, which is why it is
    * fenced about as narrowly as it is. `ask` has already decided that this
-   * install is worth asking and has not been asked; the two conditions here
+   * install is worth telling and has not been told; the two conditions here
    * are about the *instant*, and both are the same rule: it may only interrupt
    * nothing.
    *

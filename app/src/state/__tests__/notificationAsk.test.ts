@@ -68,29 +68,36 @@ describe('what is due', () => {
 
   /**
    * The case every install of the builds before this one arrives in: asked at
-   * sign-in, refused, and holding no local record of anything. The criteria
-   * are skipped because there is no longer a dialog to protect.
+   * sign-in, refused, and holding no local record of anything. **It is owed
+   * the explanation too** — the screen is not an accessory to the dialog, and
+   * somebody who refused a two-word system prompt is the person most likely
+   * never to have been told what it was about.
    */
-  it('goes straight to the banner for somebody who has already refused', () => {
+  it('explains itself to somebody who has already refused', () => {
+    expect(askDue(NOW, { ...state, permission: 'denied' })).toBe('pitch');
+  });
+
+  /**
+   * And still not before the moment has come. The reason is part two's rather
+   * than the dialog's: a full screen about being unreachable, shown to
+   * somebody who has been here ten seconds and has nobody in the app yet, is
+   * an interruption about nothing. The banner covers the meantime.
+   */
+  it('offers a refused install the banner until then', () => {
     expect(
       askDue(NOW, { ...state, permission: 'denied', ready: false })
     ).toBe('nudge');
   });
 
+  /** Somebody who has read it and refused anyway, which is the daily case. */
+  const read = { ...state, permission: 'denied' as const, pitched: true };
+
   it('says nothing again the same day', () => {
-    expect(
-      askDue(NOW, {
-        ...state,
-        permission: 'denied',
-        nudgedAt: NOW - DAY + 1_000,
-      })
-    ).toBe('none');
+    expect(askDue(NOW, { ...read, nudgedAt: NOW - DAY + 1_000 })).toBe('none');
   });
 
   it('comes back once the day is up', () => {
-    expect(
-      askDue(NOW, { ...state, permission: 'denied', nudgedAt: NOW - DAY })
-    ).toBe('nudge');
+    expect(askDue(NOW, { ...read, nudgedAt: NOW - DAY })).toBe('nudge');
   });
 
   /**
@@ -102,5 +109,6 @@ describe('what is due', () => {
   it('never puts the explanation up unbidden twice', () => {
     const read = { ...state, pitched: true, nudgedAt: NOW - DAY };
     expect(askDue(NOW, read)).toBe('nudge');
+    expect(askDue(NOW, { ...read, permission: 'denied' })).toBe('nudge');
   });
 });
