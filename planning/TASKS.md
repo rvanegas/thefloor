@@ -15,7 +15,15 @@ what it finds into the decision record and delete it.
 
 ## Media Transience
 
-Why does media loaded for playback not persist?
+Why does media loaded for playback not persist? It seems to drop during a server deploy.
+
+## On iPad Room One Is In
+
+It should display the same whether or detail shows.
+
+## Step Out Give Labs Setting
+
+Shouldn't return to Home
 
 ## Audio Announcement
 
