@@ -39,18 +39,25 @@
  * longer than the name above it reads as the name having been typed twice.
  *
  * There is a floor as well, and it is the more consequential of the two, since
- * a cap only ever refuses a name nobody would type twice. Five, which is
- * Telegram's, and the reasoning is theirs: the short names are a fixed and
- * tiny supply — 63 of one character, some 4,000 of two, about a quarter of a
- * million of three — against an unbounded supply of longer ones, and they would
- * otherwise go to whoever signed up first and never come back. A floor cannot
- * be raised later without taking names off people, so the cheap moment to
- * choose one is before any exist.
+ * a cap only ever refuses a name nobody would type twice. Four. The reasoning
+ * for having one at all is Telegram's, whose floor is five: the short names
+ * are a fixed and tiny supply — 63 of one character, some 4,000 of two, about
+ * a quarter of a million of three — against an unbounded supply of longer
+ * ones, and they would otherwise go to whoever signed up first and never come
+ * back. Four rather than five because the asymmetry is what matters and it has
+ * already bitten by three characters: the supply at four is some fifteen
+ * million, which is not scarce at the size this is, while five refuses ordinary
+ * short names people actually have.
+ *
+ * The direction it can move in is one way. A floor cannot be *raised* later
+ * without taking names off people already holding them, so raising this again
+ * is not a change that is available; lowering it, as this was lowered from
+ * five on 2026-09-08, only ever admits names nobody has yet.
  */
 export const MAX_USERNAME_LENGTH = 30;
 
 /** The fewest a username may hold. See above for why there is a floor at all. */
-export const MIN_USERNAME_LENGTH = 5;
+export const MIN_USERNAME_LENGTH = 4;
 
 /**
  * What a username may be made of: letters, digits and the underscore, and
