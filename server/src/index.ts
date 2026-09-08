@@ -28,6 +28,18 @@ try {
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? '0.0.0.0';
 const dbPath = process.env.DB_PATH ?? './thefloor.db';
+/**
+ * Where a track loaded for playback is kept, and the reason one survives a
+ * deploy.
+ *
+ * Beside the database by default, because it is the same kind of thing: state
+ * this box holds that nothing else can reproduce. **It must stay outside what
+ * `bin/deploy` synchronises** — that rsync runs with `--delete`, so a track
+ * root inside the synced tree would be emptied by the next deploy, which is
+ * the failure this whole arrangement exists to end. `server/tracks/` is
+ * excluded there for the same reason `*.db` is.
+ */
+const trackRoot = process.env.TRACK_DIR ?? './tracks';
 
 /**
  * MAIL_FROM must be an address on an SES-verified identity. Without it, codes
@@ -268,6 +280,7 @@ if (freeTranscriptMinutes !== undefined && !(freeTranscriptMinutes > 0)) {
 
 const app = buildApp({
   dbPath,
+  trackRoot,
   review,
   kofi,
   contactEmail: process.env.CONTACT_EMAIL,

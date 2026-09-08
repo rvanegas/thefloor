@@ -13,10 +13,6 @@ advance — then promotion, then the question that gates the most, *does a
 self-mute move the route*. Two phones, a podcast and a Bluetooth headset. Fold
 what it finds into the decision record and delete it.
 
-## Media Transience
-
-Why does media loaded for playback not persist? It seems to drop during a server deploy.
-
 ## On iPad Room One Is In
 
 It should display the same whether or not channel detail shows.

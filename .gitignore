@@ -106,6 +106,10 @@ app/modules/*/android/build/
 *.db
 *.db-wal
 *.db-shm
+# Tracks loaded for playback, which live beside the database because they are
+# the same kind of thing: state one box holds. Excluded from bin/deploy's
+# --delete too, or a deploy would empty it.
+/server/tracks/
 
 # local env — the wildcard matters: a .env.bak or .env.save is just as
 # secret-bearing as .env itself, and the bare pattern would not have caught it.

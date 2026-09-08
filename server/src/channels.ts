@@ -1,5 +1,5 @@
-import { readdirSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { existsSync, readdirSync } from 'node:fs';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -180,6 +180,16 @@ export const playbackIdentity = (channelId: string) => `media:${channelId}`;
  */
 const PRESENCE_RESOLUTION_MS = 60_000;
 
+/**
+ * Distinguishes the ephemeral track roots of registries sharing a process.
+ *
+ * Counted rather than random because a name that repeats between runs is one
+ * somebody can find and delete by hand; the pid it sits beside is what makes
+ * it unique across processes. Only registries built without a configured root
+ * ever consume one — see the constructor.
+ */
+let ephemeralRoots = 0;
+
 /** Every stamp floored to `PRESENCE_RESOLUTION_MS`, for the durable projection. */
 function quantise(
   stamps: ChannelState['lastPresentAt']
@@ -340,6 +350,51 @@ function revivedWatch(stored: ChannelState['watch'] | undefined): ChannelState['
 }
 
 /**
+ * Playback as it comes back from a restart: the same track, paused where it
+ * was banked, and only if the file it names is still on disk.
+ *
+ * **The file check is the whole of the safety here.** The blob says a track
+ * was loaded; the disk says whether it still is. Anything that can part the
+ * two — a track root wiped by hand, a boot that ran with a different root
+ * configured, a database restored beside a box that never held the audio —
+ * would otherwise revive a channel showing a track that cannot be played and
+ * offering no way to say why. An empty player is a state the interface
+ * already has and everybody understands.
+ *
+ * Paused rather than playing, for `revivedWatch`'s reason: nobody was driving
+ * the pump while the process was down, so the only honest position is the one
+ * banked at the last transition.
+ */
+function revivedPlayback(
+  stored:
+    | {
+        track: ChannelState['playback']['track'];
+        positionMs: number;
+        volume: number;
+      }
+    | undefined,
+  file: { file: string; dir: string } | null | undefined
+): ChannelState['playback'] {
+  const initial = initialPlaybackState();
+  if (!stored) return initial;
+  // The volume outlives the track, being a property of how the pair are
+  // listening — so it is restored even when the file has gone with it.
+  const volume = { ...initial, volume: stored.volume };
+  if (!stored.track || !file) return volume;
+  if (!existsSync(file.file)) return volume;
+  return {
+    ...volume,
+    track: stored.track,
+    status: 'paused',
+    positionMs: stored.positionMs,
+    startedAt: null,
+    // Dropped for `revivedWatch`'s reason: a failure is about the run that met
+    // it, and that run ended with the process.
+    failure: null,
+  };
+}
+
+/**
  * Why an operation was refused, for callers that must map it onto something
  * else — an HTTP status, today.
  *
@@ -382,9 +437,10 @@ export type ChangeListener = (channelIds: string[], departed: string[]) => void;
  * describing the process rather than the channel.
  *
  * The write is compared before it is made, which is what keeps this cheap: a
- * claim, a seek, a connection flap or a tick produces an identical projection
- * and no write at all, so the rate is bounded by how often people do things
- * that ought to outlive the server.
+ * claim, a connection flap or a tick produces an identical projection and no
+ * write at all, so the rate is bounded by how often people do things that
+ * ought to outlive the server. A seek is one of those things since playback
+ * became durable — see `persisted`.
  */
 export class ChannelRegistry {
   private channels = new Map<string, ChannelState>();
@@ -463,8 +519,10 @@ export class ChannelRegistry {
   private playback = new Map<string, PlaybackSession>();
   /** Channels whose playback participant is being opened, to avoid two. */
   private openingPlayback = new Set<string>();
-  /** The uploaded file per channel, and the directory to remove with it. */
+  /** The loaded file per channel, and the directory to remove with it. */
   private trackFiles = new Map<string, { file: string; dir: string }>();
+  /** Where this server keeps loaded tracks. See the constructor argument. */
+  private readonly trackRoot: string;
   private listeners = new Set<ChangeListener>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
@@ -487,9 +545,16 @@ export class ChannelRegistry {
   /**
    * The durable projection last written per channel, as its JSON. What makes
    * writing on every commit affordable: a transition that changes only
-   * volatile state — a claim, a seek, a connection flap, a tick — produces the
-   * same projection and is not written. The write rate is bounded by how often
+   * volatile state — a claim, a connection flap, a tick — produces the same
+   * projection and is not written. The write rate is bounded by how often
    * people do things that ought to survive a restart.
+   *
+   * **A seek is now one of those things**, and moved out of that list on
+   * 2026-09-08 when playback became durable. It writes, along with a play, a
+   * pause and a volume change; a track playing on undisturbed does not, the
+   * stored position being the banked one rather than the moving one. That
+   * distinction is what keeps the rate bounded by taps rather than by the
+   * clock — the same trade `quantise` makes for `lastPresentAt`.
    */
   private persisted = new Map<string, string>();
   /** When each live run's row was last checkpointed. Keyed by run id. */
@@ -627,10 +692,56 @@ export class ChannelRegistry {
      * `getWhenReady` for why it waits at all; zero means one attempt, which is
      * what a test wants when the objects are never going to appear.
      */
-    private mixWaitMs?: number
+    private mixWaitMs?: number,
+    /**
+     * Where loaded tracks live, and the reason they now outlive the process.
+     *
+     * A configured root is durable storage — it belongs beside the database,
+     * is excluded from `bin/deploy`'s `--delete`, and its contents survive a
+     * restart because `restore` reads them back. Absent, it falls back to a
+     * directory under the system temp belonging to this registry alone, which
+     * is what a test wants: nothing durable, and nothing shared.
+     *
+     * **A root nobody else writes to is what retires the old ownership
+     * question.** The sweep used to scan the whole of `tmpdir()` and ask of
+     * each `thefloor-track-<pid>-` directory whether that pid was still alive,
+     * because every server on the machine shared one directory and deleting by
+     * prefix would take a live upload out from under a peer. Now the sweep can
+     * ask the only question that was ever really being asked: does any channel
+     * still refer to this?
+     *
+     * **So the fallback is per registry rather than per process**, and that is
+     * load-bearing rather than tidy. A jest worker builds many apps in one
+     * pid; on a shared root, each one's boot sweep would find the others'
+     * tracks unreferenced — its own database having never heard of them — and
+     * delete audio a live test was in the middle of playing. Per-pid names
+     * were enough when the sweep asked about pids and are not enough now that
+     * it asks about the contents of one database.
+     *
+     * Nothing sweeps the ephemeral root, deliberately: it holds nothing that
+     * was meant to outlive the process, and the system temp directory is the
+     * system's to clean.
+     */
+    trackRoot?: string
   ) {
     this.usage = new UsageMeter(db, () => this.now());
     this.guests = new Guests(db);
+    this.trackRoot =
+      trackRoot ??
+      join(tmpdir(), `thefloor-tracks-${process.pid}-${++ephemeralRoots}`);
+  }
+
+  /**
+   * A fresh directory for one track, under this server's track root.
+   *
+   * Minted here rather than by the routes that upload and fetch, so that
+   * where a track lives is one fact in one place — the sweep and the restore
+   * both depend on every track being under the root, and a route that made
+   * its own temporary directory would be invisible to both.
+   */
+  async newTrackDir(): Promise<string> {
+    await mkdir(this.trackRoot, { recursive: true });
+    return mkdtemp(join(this.trackRoot, 'track-'));
   }
 
   // --- Lifecycle ----------------------------------------------------------
@@ -2237,6 +2348,11 @@ export class ChannelRegistry {
 
   private commit(before: ChannelState, after: ChannelState): void {
     this.channels.set(after.id, after);
+    // **Before `persistChannel`, deliberately.** The durable projection reads
+    // `trackFiles`, so a file discarded after the write would be written down
+    // as still there and revived at the next boot — a track the channel had
+    // cleared, coming back.
+    this.discardClearedTrack(before, after);
     this.persistChannel(after);
     // Ending is deletion and nothing else now: the last member cannot leave,
     // only delete. Keyed on the transition rather than on the action so that
@@ -3537,6 +3653,40 @@ export class ChannelRegistry {
     }
   }
 
+  /**
+   * Removes the file behind a track that has just been cleared.
+   *
+   * One of the three moments a track file is deleted, and the three are the
+   * whole list: replaced (`loadTrack`), cleared (here), channel ended
+   * (`closePlayback`). A restart is deliberately not one of them.
+   *
+   * **The media participant is left open**, unlike `closePlayback`. It
+   * publishes silence between tracks, and that silence is what keeps a
+   * recording stem in step with everybody else's — closing it here would
+   * collapse a cleared track's stretch of a recording to nothing. The pump
+   * goes on holding the path it was last given, which is now a file that does
+   * not exist; nothing reads it, because core refuses to play a channel with
+   * no track and loading another calls `setFile` before anything plays.
+   *
+   * Independent of whether media is configured, which is why it is not in
+   * `applyPlaybackToMedia`: the file is on this disk whether or not there is a
+   * LiveKit to hear it, and a server without one would otherwise never delete
+   * a track at all.
+   */
+  private discardClearedTrack(
+    before: ChannelState,
+    after: ChannelState
+  ): void {
+    if (!before.playback.track || after.playback.track) return;
+    const entry = this.trackFiles.get(after.id);
+    if (!entry) return;
+    this.trackFiles.delete(after.id);
+    this.run(
+      () => rm(entry.dir, { recursive: true, force: true }),
+      `removeTrack ${after.id}`
+    );
+  }
+
   /** Ends the media participant and removes the file it was playing. */
   private closePlayback(channelId: string): void {
     this.releasePlayback(channelId);
@@ -4406,6 +4556,39 @@ export class ChannelRegistry {
       // What is *not* preserved is that it was playing — see `revive`, which
       // brings it back paused.
       watch: channel.watch,
+      // Durable since 2026-09-08, where it deliberately was not before.
+      //
+      // The old reasoning was that a track points at a file the dead process
+      // owned, which was true only because the file was put in the system
+      // temp directory and swept at the next boot. That was the thing to fix:
+      // a track now lives under this server's own track root and is removed
+      // when it is replaced, cleared or the channel ends — and at no other
+      // time, restarts included. So the handle survives, and with it the
+      // track.
+      //
+      // `startedAt` is left out and the position is the banked one, because
+      // `revive` brings playback back **paused** — the same rule as the watch
+      // party above, and for the same reason: the clock ran on through the
+      // restart with nobody driving the pump, so any position derived from it
+      // is one no listener is at. The cost is the same too, and it is the
+      // reason this is affordable: a position that moved with the clock would
+      // change this projection on every commit and rewrite the row with it,
+      // where a banked one changes only when somebody plays, pauses or seeks.
+      //
+      // The volume rides along because it is a property of how the pair are
+      // listening rather than of the file — the same argument `setTrack` makes
+      // for carrying it across a track change.
+      playback: {
+        track: channel.playback.track,
+        positionMs: channel.playback.positionMs,
+        volume: channel.playback.volume,
+      },
+      // The server-side half of the same fact, and it is here rather than in
+      // `playback` because `ChannelState` has no room for it: core is pure and
+      // a path on this box is not one of the rules. Restoring the track
+      // without this would revive a channel pointing at a file nothing can
+      // find.
+      trackFile: this.trackFiles.get(channel.id) ?? null,
     });
   }
 
@@ -4437,7 +4620,9 @@ export class ChannelRegistry {
    * else with the fact of one.
    *
    * Order matters here and it is: finalize interrupted runs, revive channels,
-   * close their rooms, sweep dead upload files. The run finalization reads
+   * close their rooms, sweep track files no revived channel refers to — and
+   * that last one is only correct in that position, reviving being what says
+   * which files are still spoken for. The run finalization reads
    * rows the previous process last checkpointed; closing the rooms is what
    * actually terminates that process's orphaned egresses, since their handles
    * died with it — nobody is present in a revived channel by construction, so
@@ -4541,6 +4726,24 @@ export class ChannelRegistry {
       }
       const channel = this.revive(row);
       this.channels.set(channel.id, channel);
+      // The file the revived track names, put back in the map the pump reads
+      // from — `openPlayback` and `applyPlaybackToMedia` both go through it,
+      // so a track restored without this would be one nobody could hear.
+      //
+      // Conditional on the track having survived: `revivedPlayback` drops it
+      // when the file is gone, and the map has to agree, or the sweep below
+      // would spare a directory on behalf of a channel that is not playing it.
+      const trackFile = (
+        JSON.parse(row.state!) as {
+          trackFile?: { file: string; dir: string } | null;
+        }
+      ).trackFile;
+      if (channel.playback.track && trackFile) {
+        this.trackFiles.set(channel.id, trackFile);
+      }
+      // After the track file, because `durableOf` reads it: writing the
+      // baseline without it would make the next commit look like a change and
+      // rewrite every restored row for nothing.
       this.persisted.set(channel.id, this.durableOf(channel));
       // Every restored channel counts as having just announced itself, which
       // is what stops a deploy notifying everybody.
@@ -4564,44 +4767,41 @@ export class ChannelRegistry {
       this.run(() => this.media?.closeRoom(room), `closeRoom ${room}`);
     }
 
-    // An uploaded track belongs to one channel of one process, and dies with
-    // it. Nothing else ever removes these, so a server that crashed mid-call
-    // leaves somebody's audio file on disk indefinitely.
+    // A track directory no channel refers to any more.
     //
-    // The sweep therefore has to answer "whose is this?", and it answers it by
-    // pid: the upload route stamps its own into the directory name, so a
-    // directory is safe to delete only when its owner is neither this process
-    // nor any process still running. Deleting by prefix alone is not good
-    // enough and the difference is not academic — with several servers sharing
-    // a tmpdir, which is every jest worker in this suite, a boot would delete
-    // a *live* upload out from under a peer. That failed as an unreadable-audio
-    // 415 from a route that should have said 403, because the probe found
-    // nothing where the file had just been written.
+    // **This runs after every channel has been revived, and the order is the
+    // whole of its correctness**: the loop above is what fills `trackFiles`,
+    // so a sweep placed before it would find nothing referenced and delete
+    // every track on the box.
     //
-    // A recycled pid can make this skip a sweep it could have done. Leaving a
-    // dead file for one more boot is the cheaper mistake.
-    const mine = process.pid;
-    const orphans = readdirSync(tmpdir()).filter((entry) => {
-      const owner = /^thefloor-track-(\d+)-/.exec(entry)?.[1];
-      if (owner === undefined) return false;
-      const pid = Number(owner);
-      if (pid === mine) return false;
-      try {
-        // Signal 0 checks for existence without delivering anything.
-        process.kill(pid, 0);
-        return false;
-      } catch (error) {
-        // ESRCH is the only answer meaning "no such process". EPERM means it
-        // exists and belongs to someone else — a server running as another
-        // user — and sweeping that would delete a live upload rather than a
-        // dead one.
-        return (error as { code?: string }).code === 'ESRCH';
-      }
-    });
+    // What it collects is what a crash leaves behind. The ordinary removals —
+    // a track replaced, cleared, or a channel ended — happen at the moment
+    // they are decided, and a process that dies between deciding and
+    // unlinking is the only way a directory outlives the channel that named
+    // it. Since 2026-09-08 a restart is no longer such a moment, which is the
+    // point of the change: it used to be that *every* track was an orphan by
+    // the next boot.
+    //
+    // It sweeps this server's own root and nothing else, which retires the
+    // ownership question the pid-stamped names in `tmpdir()` existed to
+    // answer — see the constructor. Nothing else writes here, so anything
+    // unreferenced is dead by construction rather than by inference about
+    // some other process.
+    const referenced = new Set(
+      [...this.trackFiles.values()].map((entry) => entry.dir)
+    );
+    // Absent on a server that has never loaded a track, which is not a
+    // condition worth reporting.
+    const present = existsSync(this.trackRoot)
+      ? readdirSync(this.trackRoot)
+      : [];
+    const orphans = present
+      .map((entry) => join(this.trackRoot, entry))
+      .filter((dir) => !referenced.has(dir));
     if (orphans.length > 0) {
       this.run(async () => {
-        for (const entry of orphans) {
-          await rm(join(tmpdir(), entry), { recursive: true, force: true });
+        for (const dir of orphans) {
+          await rm(dir, { recursive: true, force: true });
         }
       }, 'sweepTrackFiles');
     }
@@ -4641,6 +4841,12 @@ export class ChannelRegistry {
       lastRecording?: ChannelState['lastRecording'];
       clip?: ChannelState['clip'];
       watch?: ChannelState['watch'];
+      playback?: {
+        track: ChannelState['playback']['track'];
+        positionMs: number;
+        volume: number;
+      };
+      trackFile?: { file: string; dir: string } | null;
     };
     const stored =
       durable.participants ??
@@ -4700,11 +4906,10 @@ export class ChannelRegistry {
       selfUnmutedAt: {},
       recording: initialRecordingState(),
       lastRecording: durable.lastRecording ?? null,
-      playback: initialPlaybackState(),
-      // Kept, where playback is not: this is the content itself rather than a
-      // handle on something the dead process owned. Absent on rows written
-      // before the field existed, which is an empty clipboard — the same thing
-      // those channels had.
+      playback: revivedPlayback(durable.playback, durable.trackFile),
+      // Kept: this is the content itself. Absent on rows written before the
+      // field existed, which is an empty clipboard — the same thing those
+      // channels had.
       clip: durable.clip ?? null,
       // Kept for the same reason the clipboard is, and brought back
       // **paused at its position** whatever the blob says. The clock ran on

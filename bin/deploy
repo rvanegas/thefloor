@@ -135,6 +135,14 @@ npm run build:web --prefix server --silent
 # person is exactly as secret-bearing as .env itself, and an exact-match exclude
 # catches neither — it would sync one up, or delete one that only exists on the
 # box. .env.example is the one that is documentation rather than a secret.
+# **`server/tracks/` is excluded for the same reason `*.db` is**, added
+# 2026-09-08 when a loaded track stopped being thrown away at every restart.
+# It is the box's own durable state — the audio somebody put on in a channel —
+# and it exists there and never here, so without this exclude `--delete` would
+# take every loaded track off the box on each deploy. That is precisely the
+# disappearance the persistence work was for, and it would have come straight
+# back through this line. Anchored, so nothing nested called `tracks` is caught.
+#
 # What is about to be running, recorded before it goes rather than inferred
 # afterwards. This syncs like any other file and is read by server/src/release.ts.
 #
@@ -168,6 +176,7 @@ rsync -az --delete -e "$SSH" \
   --exclude '/server/web/stable/' --exclude '/server/web/beta/' \
   --include '.env.example' --exclude '.env*' \
   --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
+  --exclude '/server/tracks/' \
   --exclude '*.p8' --exclude 'fcm-service-account.json' \
   ./ "$HOST:/home/ubuntu/thefloor/"
 

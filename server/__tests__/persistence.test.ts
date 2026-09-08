@@ -139,6 +139,9 @@ describe('a channel across a restart', () => {
     expect(after!.floor.lastClaimedAt).toEqual({});
     expect(after!.recording.status).toBe('idle');
     expect(after!.recording.runId).toBeNull();
+    // Nothing was loaded, so nothing comes back — which is all this says. A
+    // track that *was* loaded is durable since 2026-09-08 and has a suite of
+    // its own: track-persistence.test.ts.
     expect(after!.playback.track).toBeNull();
 
     // Self-mute is volatile by decision rather than by necessity: restoring a

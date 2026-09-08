@@ -1,5 +1,4 @@
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { access, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import Fastify, {
   type FastifyInstance,
@@ -104,6 +103,15 @@ export interface BuildOptions {
   mixWaitMs?: number;
   /** Grace period before an ended channel's audio room is torn down. */
   roomCloseGraceMs?: number;
+  /**
+   * Where loaded tracks are kept, and what makes them outlive the process.
+   *
+   * Durable storage, so it belongs beside the database and outside anything
+   * `bin/deploy` synchronises — see `server/.env.example`. Unset, tracks go to
+   * a per-pid directory under the system temp and are swept at the next boot,
+   * which is what every test wants and what production did until 2026-09-08.
+   */
+  trackRoot?: string;
   /**
    * Reaches an iOS device whose app is not running. Without one, nothing is
    * sent and the in-app path is all there is — which is what it was before
@@ -470,7 +478,8 @@ export function buildApp(options: BuildOptions = {}): App {
     options.roomCloseGraceMs,
     pushNotifier,
     options.store,
-    options.mixWaitMs
+    options.mixWaitMs,
+    options.trackRoot
   );
 
   // Reads the stems through the same gate the export does, and spends money,
@@ -2488,12 +2497,11 @@ export function buildApp(options: BuildOptions = {}): App {
         return reply.code(400).send({ error: 'No audio was uploaded.' });
       }
 
-      // Under the server's own temp directory, one per track, so removing it
-      // when the channel ends takes the file with it and nothing else.
-      // The pid is in the name so that a later boot can tell which of these
-      // directories are orphans and which belong to a process that is still
-      // using them — see ChannelRegistry.restore, which sweeps the dead ones.
-      const dir = await mkdtemp(join(tmpdir(), `thefloor-track-${process.pid}-`));
+      // One directory per track under the server's track root, so removing it
+      // when the track is replaced or the channel ends takes the file with it
+      // and nothing else. The registry mints it because the registry is what
+      // sweeps and restores the root — see `newTrackDir`.
+      const dir = await channels.newTrackDir();
       const safe = basename(name ?? '').replace(/[^\w\-. ]/g, '');
       const file = join(dir, `track${extname(safe) || ''}`);
 
@@ -2560,10 +2568,10 @@ export function buildApp(options: BuildOptions = {}): App {
         .send({ error: 'Recording storage is not configured.' });
     }
 
-    // Under the server's own temp directory, one per track, named with the pid
-    // so a later boot can tell an orphan from a directory still in use — the
-    // same convention an uploaded track follows, because this becomes one.
-    const dir = await mkdtemp(join(tmpdir(), `thefloor-track-${process.pid}-`));
+    // The same convention an uploaded track follows, because this becomes
+    // one: a directory of its own under the track root, minted by the
+    // registry that sweeps and restores it.
+    const dir = await channels.newTrackDir();
     const file = join(dir, 'track.ogg');
     try {
       // Normally already mixed, and then this is one fetch. See
