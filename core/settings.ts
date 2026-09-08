@@ -56,6 +56,15 @@ export interface AccountSettings {
    *
    * Unset, which is the default, a tap is arriving: the app enters and the
    * others can hear you. Set, a tap is only looking.
+   *
+   * **It governs the other door too, since 2026-09-08**, which is a thing the
+   * name does not say and the behaviour depends on: stepping out closes the
+   * channel screen only when the tap was what opened the room. Set, the screen
+   * and the room are two things — arriving at one did not put you in the other
+   * — so leaving the room leaves you looking at the channel, and the header's
+   * *Close* is what takes you off it. Unset, the two are one act in both
+   * directions, as they always were. See `stepOutClosesScreen` in
+   * `app/src/ui/ChannelView.tsx`.
    */
   tapToLook: boolean;
   /**

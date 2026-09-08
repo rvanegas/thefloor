@@ -1354,6 +1354,42 @@ describe('Channel', () => {
   });
 
   /**
+   * The other half of "Tap a channel to look, not step in", and the reason
+   * that setting is not only about taps.
+   *
+   * Stepping out closing this screen was never a decision about stepping out;
+   * it was true because arriving here *was* stepping in, so there was nothing
+   * to be left looking at. Somebody who has turned the tap off has said the
+   * screen and the room are two things, and a Step Out that closed the screen
+   * anyway would make them say it twice — walk in deliberately, step out, and
+   * find the channel gone from under you.
+   *
+   * Both sites, because the footer and the card are the same control drawn
+   * twice and this is exactly the pair that drifts.
+   */
+  it('leaves the screen open when stepping out, if a tap only looks', () => {
+    mockApp.tapToLook = true;
+    showChannel(channelOf());
+    const onExit = jest.fn();
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={onExit} />
+    );
+    const footer = footerOf(tree);
+
+    act(() => findButton(footer, 'Step out')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
+    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
+    expect(onExit).not.toHaveBeenCalled();
+
+    act(() => findButton(tree, 'Step out')!.props.onPress());
+    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
+    expect(onExit).not.toHaveBeenCalled();
+
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  /**
    * The one setting on this screen that is about the reader rather than about
    * the channel. It shows what they are on, and every level says in a sentence
    * what it does — "Quiet" in particular has to make clear that notifications

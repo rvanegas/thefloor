@@ -567,6 +567,48 @@ export function ChannelView({
    */
   const controlCards = !app.hideControlCards;
   /**
+   * What Step Out does about the screen, as against about the room.
+   *
+   * Stepping out closed this screen from the first build, because for that
+   * build the two were one act: every route in stepped in, so a screen you
+   * were looking at was a room you were in, and there was nothing left to look
+   * at once you had gone. "Tap a channel to step in" being turned off breaks
+   * that — see `AppValue.tapToLook`. A tap is then only looking, and looking
+   * at a channel you are not in is an ordinary state this screen already
+   * draws: the footer offers Step In, the cards say what the room is doing,
+   * and nothing about it wants closing.
+   *
+   * So it is that setting which decides, and it decides symmetrically, which
+   * is the whole of the argument. If arriving at this screen did not put you
+   * in the room, then leaving the room does not take you off this screen; if
+   * it did, it still does. Somebody who has said that a tap is only looking
+   * has said that this screen and that room are two things, and having said it
+   * once should not have to say it again at the other door.
+   *
+   * The way off the screen is then the header's *Close*, which is where it
+   * already was for anybody who arrived here without stepping in — the same
+   * tap doing the same thing, whether or not you were in the room a moment
+   * ago. Note that `onClose` is not `onExit` and does not unwatch: closing is
+   * navigation, and a screen you are still looking at is one whose snapshots
+   * you still want. Stepping out under this setting is neither of those — it
+   * gives up the room and leaves the screen exactly where it was.
+   */
+  const stepOutClosesScreen = !app.tapToLook;
+  /**
+   * Steps out, and closes the screen if that is what stepping out means here.
+   *
+   * One function for the footer and the card, which say the same thing twice
+   * by design — see `controlCards`. They were two copies of these three lines,
+   * and a pair like that is exactly the kind that drifts once there is a
+   * condition in it.
+   */
+  const stepOut = () => {
+    act({ type: 'STEP_OUT' });
+    if (!stepOutClosesScreen) return;
+    app.leaveChannelView(channelId);
+    onExit();
+  };
+  /**
    * Whether somebody is to be shown as speaking *on this screen*, as against
    * somebody the room happens to be hearing.
    *
@@ -1045,9 +1087,7 @@ export function ChannelView({
             act({ type: 'ENTER' });
             return;
           }
-          act({ type: 'STEP_OUT' });
-          app.leaveChannelView(channelId);
-          onExit();
+          stepOut();
         }}
       />
       </View>
@@ -1500,14 +1540,7 @@ export function ChannelView({
           <>
             <SectionLabel>Step out</SectionLabel>
             <Card style={styles.stack}>
-              <Button
-                label="Step out"
-                onPress={() => {
-                  act({ type: 'STEP_OUT' });
-                  app.leaveChannelView(channelId);
-                  onExit();
-                }}
-              />
+              <Button label="Step out" onPress={stepOut} />
               {/*
                 **Nearby, behind Labs**: the same declaration made from inside,
                 which abandons the claim. It gives the audio system back — the
@@ -1515,12 +1548,14 @@ export function ChannelView({
                 `waiting`, where every build already draws you as *Nearby* and
                 offers a ping.
 
-                **It does not close the screen**, where Step Out above does, and
-                that is the difference between the two rather than an
-                inconsistency: stepping out is leaving, and this is staying
-                within reach. Staying is also what promotion needs — the arrival
-                comes over the ordinary websocket, and this screen is what is
-                watching for it.
+                **It never closes the screen**, where Step Out above does when
+                the tap steps in — see `stepOutClosesScreen`. That is the
+                difference between the two rather than an inconsistency:
+                stepping out is leaving, and this is staying within reach.
+                Staying is also what promotion needs — the arrival comes over
+                the ordinary websocket, and this screen is what is watching for
+                it. So it is unconditional here, and the setting only decides
+                whether the button above it agrees with it.
               */}
               {app.labs ? (
                 <>

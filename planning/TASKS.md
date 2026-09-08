@@ -19,11 +19,7 @@ Why does media loaded for playback not persist? It seems to drop during a server
 
 ## On iPad Room One Is In
 
-It should display the same whether or detail shows.
-
-## Step Out Give Labs Setting
-
-Shouldn't return to Home
+It should display the same whether or not channel detail shows.
 
 ## Audio Announcement
 

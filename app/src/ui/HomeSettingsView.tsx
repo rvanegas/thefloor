@@ -224,9 +224,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         </View>
         <Text style={type.muted}>
           Off, which is where everybody starts: tapping a channel walks you
-          into it and everyone there can hear you. On, a tap only opens the
-          channel — you can see who is around and read what has been shared,
-          and step in when you mean to.
+          into it and everyone there can hear you, and stepping out closes the
+          channel again. On, a tap only opens the channel — you can see who is
+          around and read what has been shared, and step in when you mean to —
+          and stepping out leaves you looking at it, to close when you mean to
+          as well.
         </Text>
 
         <View style={styles.divider} />
