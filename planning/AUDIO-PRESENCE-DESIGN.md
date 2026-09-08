@@ -75,10 +75,17 @@ here needs the media room, which is what nearby has no subscription to.
 **Somebody already stepped in does not promote you, and this is the common
 case rather than a corner.** The trigger is the *arrival*, so declaring nearby
 in a room where somebody is already talking leaves you nearby, hearing nothing,
-until the next person steps in. That is intended — you chose nearby, and
-promotion is for arrivals — but it is the first thing that will look like a bug
-to somebody testing, and the first thing to reconsider if the pair does not
-feel right in use.
+until the next person steps in. That is intended: you chose nearby, and
+promotion is for arrivals.
+
+**The screen must not contradict the silence.** A speaking indicator is the
+visual accompaniment to audio, and the two are present or absent together —
+somebody who is not subscribed sees nobody speaking. **This already holds by
+construction** and is worth not breaking: `speakingHere` in `ChannelView` is
+`audioIsThisChannel && inRoom(channel, id) && audio.speaking.includes(id)`, and
+`audio.speaking` is the LiveKit room's active speakers, so no subscription
+means an empty list. The roster still shows who is *present*, which is honest —
+it says they are there, not that you can hear them.
 
 Nearby, **background** → others see *Nearby* and may ping. On foreground, the
 same promotion.
@@ -379,22 +386,58 @@ nothing.** `app/modules/audio-route`'s `snapshot()` reads `category`, `mode`
 and `categoryOptions` off the live session, and that is the only evidence worth
 having. See `POSTMORTEM-echo.md` before touching any of it.
 
-**`SessionWant` is `'call' | 'idle'` and now needs a third value**, since the
-design has three states and one of them is *no session*. Naming it is the first
-decision in the code rather than a detail: `'call' | 'listen' | 'none'` matches
-the three the observer already distinguishes.
+**`SessionWant` probably does not survive, and does not need a third value.**
+It is `'call' | 'idle'` in `session.ts`, and three functions fan out of it —
+`sessionFor`, `policyFor`, `androidSessionFor`. But **the three states here are
+*engine* states rather than values this app computes**: recording enabled is
+CALL, playout only is LISTENING, neither is deactivated, and the observer
+distinguishes them on the audio worker thread without being told. A guest
+cannot publish, so their engine is playout-only without anybody deciding it.
+`policyFor` stops being a function of anything and becomes a constant.
 
-**Android is not addressed anywhere above, and it is not automatic.** The iOS
-half of this design leans on `deactivateOnStop`, which Android has no
-counterpart for — `pushPolicy` returns early off iOS deliberately, there being
-no observer to agree with. What Android has is `applyAndroidConfiguration`,
-`ANDROID_CALL` (`inCommunication`, the voice stream) and `ANDROID_IDLE`
-(`media`), applied once per edge and left. **So Android needs its own answer to
-what *no claim* means**, and `ANDROID_IDLE` is the obvious candidate precisely
-because it is the state an unconfigured Android build was already in. The
-foreground service is the other half: it is keyed on `mediaRoom`, so a nearby
-phone drops it without anything being changed — which is right, and is worth
-confirming rather than assuming. `planning/ANDROID.md` is the standing document.
+**One question decides whether that holds — and it decides `holdForPlayout`
+too.** *Does self-mute disable the recording engine?* If it does, the observer
+sees playout-only and crosses `playAndRecord` to `playback` at every mute,
+which is a category change and therefore a Bluetooth route handover: the
+2026-08-19 route loss, arrived at from a new direction. If it does not, or if
+`holdForPlayout` is what prevents it, then the engine stays in recording
+through a mute and the mapping is safe.
+
+**The bench cannot answer this** — it has no LiveKit in it. It wants the real
+app, two phones and a mute.
+
+### Android
+
+**Two of the three states are already right, and the third is the only work.**
+Android has no `deactivateOnStop` and no observer to agree with — `pushPolicy`
+returns early off iOS deliberately — so nothing releases focus on this app's
+behalf and the release has to be explicit.
+
+**Both existing presets request `gain` audio focus, so `ANDROID_IDLE` already
+stops other apps.** The mixing this platform never verified is mixing it never
+did. Which makes the mapping fall out:
+
+| state | Android | status |
+| --- | --- | --- |
+| **CALL** | `ANDROID_CALL` — `inCommunication`, voiceCall stream, `gain` | already correct |
+| **LISTENING** | `ANDROID_IDLE` — media stream, `gain` focus | already correct; **wants renaming**, it was only ever called idle because iOS's `IDLE` mixed |
+| **no claim** | — | the gap |
+
+**For the gap, do both halves.** Do not start the audio session at all — a
+nearby phone has no media connection, so `startAudioSession` never runs and
+`applyAndroidConfiguration` is never called, and this may already be free —
+**and** assert `manageAudioFocus: false` with `audioMode: 'normal'` on any path
+that could have configured it earlier. Being explicit is what iOS gets for free
+from `deactivateOnStop`; on Android it has to be said.
+
+**The foreground service is the other half and already works out**: it is keyed
+on `mediaRoom`, so a nearby phone drops it with nothing changed. Confirm rather
+than assume.
+
+**A bonus worth noticing**: this removes Android's only unverified audio claim.
+Nothing needs to mix any more, so `ANDROID_IDLE`'s note that the mixing
+behaviour *"is not expressible as one flag here and has not been verified"*
+stops describing a risk. `planning/ANDROID.md` is the standing document.
 
 **One step needs the server before the client**, and only one. The new
 client→server action — *step in nearby*, *declare nearby* — must be taught to
