@@ -50,8 +50,13 @@ opening the channel, and compares them character for character; the title is
 then expected twice, once in the bar and once in the pane. Asserting merely
 that a bar exists in both states would pass on two bars that differed.
 
-**The vocabulary collision this sits on is unresolved.** GLOSSARY.md § *Live*
-is a property of a channel — somebody is in it — and holds whether or not that
-somebody is you, while the code's *live channel* (`liveChannelView`, `live` in
-`App.tsx`, "the live bar") means the one **you** are present in. Two subjects,
-one adjective. Nothing here renames anything; it is named as a thing to settle.
+**The vocabulary collision this sits on is now named, and not yet fixed.**
+GLOSSARY.md § *Live* is a property of a channel — somebody is in it — and holds
+whether or not that somebody is you, while the code's *live channel*
+(`liveChannelView`, `live` in `App.tsx`, "the live bar") means the one **you**
+are present in. Two subjects, one adjective. The phrase for the second is now
+**the channel one is present in**, built out of *present*, which is already the
+word for a fact about you and a channel; it has an entry of its own, and *live*
+and *live channel* both point at it. Nothing here renames any code — the rename
+touches the wire — so until it happens prose says *the channel one is present
+in* and the code says *live*.

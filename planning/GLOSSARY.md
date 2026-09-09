@@ -36,6 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
+- **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chip in** — The donation link, in Settings
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
@@ -153,6 +154,33 @@ walking out of one does not end it. Up to six members
 
 Never called a *room* on screen. See *room* in Part Two, which is the media
 plane's word for the audio underneath a channel and is a different thing.
+
+## Channel one is present in, the
+
+**The channel you have stepped into** — the one you can hear and be heard in
+right now. There is at most one, presence being exclusive, and it is the thing
+the tier's bar names.
+
+**Not a *live* channel, which is the contrast it exists for.** *Live* is a
+property of a channel and holds whether or not the person asking is in it:
+somebody is in there. This is a property of the pair — you and a channel — and
+the word for that is already *present*, so this is the phrase built out of it
+rather than a coinage. Asked from outside, *is it live?*; asked from inside,
+*is it the one I am present in?* A channel can be both, and every channel you
+are present in is also live, since you are somebody.
+
+**The name was settled 2026-09-08, and the code still disagrees.**
+`liveChannelView`, `live` in `App.tsx` and "the live bar" all mean this and
+say *live*, which is the Part One word for the other thing — see *live
+channel*, which is where the collision is recorded rather than resolved. The
+rename is outstanding; until it happens, prose says *the channel one is present
+in* and the code says *live*.
+
+**On screen it is the bar at the top of Home**, drawn whenever there is one.
+It used to be withheld in a split whose detail pane held that very channel, on
+the grounds that offering to take you back is false when you are already there
+— which left the sidebar naming it nowhere at all. See
+planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 
 ## Channels
 
@@ -381,7 +409,8 @@ its count instead of an interval.
 
 Also used loosely in the code for "the channel this account, or this device, is
 actually standing in" — see *live channel* in Part Two, which is a narrower
-thing and is not what the Home section means.
+thing and is not what the Home section means. **In prose that thing is *the
+channel one is present in***, settled 2026-09-08; the code has not caught up.
 
 ## Member
 
@@ -851,7 +880,11 @@ every snapshot the app holds rather than from the last one to arrive.
 microphone. An account is present whether the room is held here, on the phone
 in their hand, or by a process since killed.
 
-Not what Home's **Live** section means. See *live* in Part One.
+Not what Home's **Live** section means. See *live* in Part One — and *the
+channel one is present in*, which is what this ought to be called. The
+adjective is wrong here rather than there: *live* describes a channel,
+*present* describes you and a channel, and this is the second. Named
+2026-09-08, not yet renamed, the rename touching the wire.
 
 ## Media plane
 
