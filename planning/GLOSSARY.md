@@ -647,9 +647,17 @@ you claim the audio system. See *Nearby / Stepped out*.
 
 **So *Step out* names two acts, and one word is right for both**: leaving the
 room, and ending a declaration of nearby. Both land you on the same rung —
-*Stepped out* — which is what the word says. Since 2026-09-09 every control
-that offers either offers whichever of *Step in*, *Be nearby* and *Step out*
-are the two moves off the rung you are on, in that order.
+*Stepped out* — which is what the word says. Since 2026-09-09 every card that
+offers either offers whichever of *Step in*, *Be nearby* and *Step out* are the
+two moves off the rung you are on, in that order.
+
+**The footer names the rungs instead, and is the one place that does.** Its
+three slots are *In*, *Nearby* and *Out* — the same ladder, said as states
+rather than as acts, because the slot you are on is lit and a lit word naming
+an act would be naming one you cannot perform. They are short forms and not new
+terms: a roster card still says *Present* and *Stepped out* about other people,
+and at 11pt in a fifth of a phone those truncate. See
+`decisions/2026-09-09-presence-is-a-ladder.md`.
 
 **A session is held if and only if the phone is stepped in.** Nearby, stepped
 out and not in a room are one audio state, and it is *none*.

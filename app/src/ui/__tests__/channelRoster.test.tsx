@@ -1165,12 +1165,15 @@ describe('a channel screen without the repeated cards', () => {
     const text = textOf(tree);
     expect(text).not.toContain('Your microphone');
     expect(text).not.toContain('Mute yourself');
-    // Step out is in the footer, which `textOf` reaches through `Screen`, so
-    // the assertion is that there is one of it rather than none — the card
-    // and the heading above it are what went. The same holds for the nearby
-    // slot beside it, which the card carried the words for.
-    expect(text.split('Step out')).toHaveLength(2);
-    expect(text.split('Be nearby')).toHaveLength(2);
+    // The cards are what went, and their words with them. The footer's three
+    // rungs say "In", "Nearby" and "Out" rather than the acts, so the card's
+    // sentences are the only place these two phrases occurred at all — which
+    // is why this counts none of them rather than one, as it did while the
+    // footer flipped between the same words the cards used.
+    expect(text).not.toContain('Step out');
+    expect(text).not.toContain('Be nearby');
+    // And the bar itself is untouched by the setting.
+    expect(textOf(footerOf(tree))).toContain('Nearby');
     expect(text).not.toContain('Give the audio system back');
     act(() => tree.unmount());
   });
@@ -1225,18 +1228,19 @@ describe('a channel screen without the repeated cards', () => {
 
   /**
    * The point of the setting, and the reason nothing is actually lost: the bar
-   * is the same bar, with the same four acts on it, whichever way this is
+   * is the same bar, with the same five controls on it, whichever way this is
    * set. A footer that thinned out with the cards would be a preference that
    * removed abilities rather than repetition.
    */
-  it('keeps all four controls in the footer', () => {
+  it('keeps all five controls in the footer', () => {
     const tree = showBare();
     const footer = footerOf(tree);
     const text = textOf(footer);
     expect(text).toContain('Mute');
     expect(text).toContain('Claim');
-    expect(text).toContain('Be nearby');
-    expect(text).toContain('Step out');
+    expect(text).toContain('In');
+    expect(text).toContain('Nearby');
+    expect(text).toContain('Out');
     act(() => footer.unmount());
     act(() => tree.unmount());
   });

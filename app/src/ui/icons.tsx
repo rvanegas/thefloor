@@ -189,11 +189,16 @@ export function StepIcon({
  * the slot beside this one already *is* a door, and standing outside one is a
  * picture of not being let in rather than of being called.
  *
- * One glyph for both states, like the floor's and unlike the microphone's. A
- * struck-through bell reads as *notifications off*, which is a preference this
- * application does not have here; the state is carried by the accent colour
- * and by the word underneath, which changes between "Be nearby" and
- * "Step out".
+ * **One rung, and it never moves, since 2026-09-09.** This drew both halves of
+ * a slot whose word flipped, until the bell was found standing over "Step
+ * out" — a departure, and not a bell at all. The bar now has a slot per rung
+ * and this glyph is fixed to the middle one, so it is drawn exactly once
+ * whatever state the screen is in, lit when you are nearby and plain when you
+ * are not.
+ *
+ * A struck-through bell for the unlit case was the alternative and reads as
+ * *notifications off*, which is a preference this application does not have
+ * here.
  */
 export function BellIcon({
   color,

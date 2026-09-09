@@ -11,7 +11,11 @@ are on**, in that order:
 | Stepped in | *Be nearby*, *Step out* |
 
 Asked for by Rodrigo in exactly that shape, and out of Labs in the same
-change. The footer takes a fourth slot to carry it.
+change.
+
+**The footer draws one slot per rung, all three, and lights the one you are
+on** — revised the same evening, from the two flipping slots described below.
+The cards still offer the two moves, in acts, as the table says.
 
 ## What it replaced
 
@@ -33,7 +37,9 @@ existing cards, and the interface still described presence as a switch:
 
 ## The three decisions inside it
 
-**The nearby slot is permanent, and its label flips.** The footer's standing
+**The nearby slot is permanent, and its label flips.** *Superseded within the
+day by the three-slot bar below; kept because the rule it argues from is what
+the revision is built on.* The footer's standing
 rule is that position never changes with state — items appearing and
 disappearing move the other two under a finger already on its way, and the mute
 you meant becomes the floor you did not. So the pair is *two fixed slots*, one
@@ -45,8 +51,17 @@ words shown are always the two moves, and never the same word twice.
 **"Step out" is the word for leaving nearby**, chosen over *Not nearby*. It is
 the name of the rung you land on, and a control here names the act rather than
 the state it is leaving. The cost is real and was accepted: *Step out* appears
-in the nearby slot in one state and in the door slot in another. The glyphs
-differ — a bell and a door — and the two never appear at once.
+in the nearby slot in one state and in the door slot in another. The two never
+appear at once, so the words alone stay unambiguous.
+
+**The glyphs no longer differ there, corrected later the same day.** This said
+"a bell and a door", which was the accepted cost read one way too generously:
+it left a bell standing over the word *Step out*, the one control in the bar
+whose picture and word named different acts. The bell means *nearby* and
+nothing else, so the nearby slot draws the rung it is offering — a bell for
+"Be nearby", the departure's glyph for "Step out". In the nearby state both
+slots then carry a door pointing opposite ways, which is a weaker collision
+than a glyph contradicting its own label.
 
 **The cards stay in two positions.** Merging them into one card was the obvious
 reading of "one design", and it would have undone the split made a week
@@ -82,3 +97,40 @@ in a state no client used to send it from. The ordering that follows is the
 ordinary one and is worth saying anyway: **deploy the server before the build
 ships**, or a phone on the new client taps *Step out* while nearby and an old
 server does nothing at all with it.
+
+## The revision, the same evening: three slots, not two
+
+Rodrigo, on seeing the bar: the bell was sitting over the word *Step out*, and
+"maybe it would be better to have all three in the footer — then colour can
+indicate the current state."
+
+**Which the footer's own rule wanted all along.** The standing rule is that
+position never changes with state; two slots honoured it and paid for it by
+flipping their words. Three honour it completely: **no word and no glyph in
+this bar changes in any state**, and the only thing that moves is the accent.
+
+**So these three name rungs where every other control names an act** — *In*,
+*Nearby*, *Out*. That is what makes the colour mean here what it means on the
+microphone and the floor, *this is true of you now*: an accent on "Step in"
+while you are already in would have been the same fault as the bell over "Step
+out", a control lit for a state while lettered for an act. Read the trio as a
+three-position switch — the lit one is where you are, the other two are where a
+tap takes you.
+
+**Short forms, chosen over the roster's own words.** *Present / Nearby /
+Stepped out* would have put one vocabulary on the cards and the bar; at 11pt in
+a fifth of a phone "Stepped out" truncates on the narrowest screen supported,
+and a truncated rung name is worse than a short one. The cards keep the acts in
+full.
+
+**The rung you are on is inert, and accented rather than greyed.** Grey is this
+bar's word for *refused* — the floor with nobody else here, the microphone on a
+device without one. Being somewhere is not a refusal. `FooterAction` grew a
+`selected` prop for it, which outranks both `tone` and `disabled`, and sets
+`accessibilityState.selected` so a screen reader says which rung you are on
+rather than that two thirds of the bar is unavailable.
+
+**The bar is five controls now**, and that is the cost: mute, the floor, and
+three rungs. It was accepted because presence *is* three quarters of what this
+screen does, and because a fifth slot costs width where a flipping word cost
+comprehension.

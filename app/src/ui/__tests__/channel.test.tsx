@@ -5,7 +5,16 @@ import { type Guest } from '../../../../core/types';
 import { type RecordingView } from '../../../../core/protocol';
 import { ChannelView, GroupHeading, uploadingLabel } from '../ChannelView';
 import { Screen, SectionLabel } from '../components';
-import { Alert, KeyboardAvoidingView, Share, TextInput } from 'react-native';
+import { BellIcon, StepIcon } from '../icons';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+} from 'react-native';
+import { colors } from '../theme';
 import { PaneContext } from '../layout';
 import {
   AUDIO,
@@ -51,6 +60,24 @@ jest.mock('../../state/AppProvider', () =>
 beforeEach(resetHarness);
 
 describe('Channel', () => {
+  /**
+   * Every line of text currently drawn in `colors.danger`, as strings.
+   *
+   * By style rather than by wording, because what is being tested is that the
+   * red and the word cannot drift apart — a test that looked for the sentence
+   * would have passed throughout the period the roster said "Nearby" in it.
+   * Identity comparison is safe: `colors` builds one value per key at import
+   * and every style holds that same object.
+   */
+  const dangerLines = (tree: ReactTestRenderer) =>
+    tree.root
+      .findAll(
+        (node) =>
+          node.type === Text &&
+          StyleSheet.flatten(node.props.style)?.color === colors.danger
+      )
+      .map((node) => labelOf(node).trim());
+
   it('waits rather than rendering a stale screen before the first snapshot', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -500,6 +527,9 @@ describe('Channel', () => {
     const text = textOf(tree);
     expect(text).toContain('Present · not receiving you');
     expect(text).not.toContain('Present · reconnecting…');
+    // The one status that earns the red: they are here, and your voice is
+    // missing them.
+    expect(dangerLines(tree)).toEqual(['Present · not receiving you']);
     act(() => tree.unmount());
   });
 
@@ -522,6 +552,12 @@ describe('Channel', () => {
     const text = textOf(tree);
     expect(text).toContain('Nearby');
     expect(text).not.toContain('not receiving you');
+    // **And in the colour the word deserves, not the flag's.** The red is for
+    // a live problem you can act on; being out of reach is the rung half the
+    // roster sits on and is drawn muted everywhere else. The tone was still
+    // keyed on `failing` alone after the word gave way, so this card said
+    // "Nearby" in danger red.
+    expect(dangerLines(tree)).toEqual([]);
     act(() => tree.unmount());
   });
 
@@ -1293,7 +1329,7 @@ describe('Channel', () => {
     return render(screen.props.footer);
   };
 
-  it('pins four controls under the conversation', () => {
+  it('pins five controls under the conversation', () => {
     showChannel(channelOf());
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
@@ -1301,49 +1337,119 @@ describe('Channel', () => {
     const footer = footerOf(tree);
 
     // Present and unmuted with nobody else here: mute is yours to use, the
-    // floor is not (it wants two people), and both departures always are.
+    // floor is not (it wants two people), and all three rungs are always
+    // drawn, whichever one you are on.
     expect(textOf(footer)).toContain('Mute');
     expect(textOf(footer)).toContain('Claim');
-    expect(textOf(footer)).toContain('Be nearby');
-    expect(textOf(footer)).toContain('Step out');
+    expect(textOf(footer)).toContain('In');
+    expect(textOf(footer)).toContain('Nearby');
+    expect(textOf(footer)).toContain('Out');
     act(() => footer.unmount());
     act(() => tree.unmount());
   });
 
   /**
-   * Presence is three rungs — in, nearby, out — and the last two slots are the
-   * two moves off whichever one you are on. Asserted as three whole footers
-   * rather than three separate cases, because what is being tested is that the
-   * set is exactly the pair each time: an extra way out, or a *Step in* on a
-   * screen you are already in, is the failure this catches.
+   * Presence is three rungs — in, nearby, out — and since 2026-09-09 the bar
+   * draws one slot for each, in that order.
    *
-   * The words are the moves rather than the states, so no state says the same
-   * word twice — and *Step out* naming both the way off *Nearby* and the way
-   * out of the room is the one repetition, in different slots and never at
-   * once.
+   * **What is asserted is that nothing here moves.** The words are the same
+   * three on every rung and in the same places; the only thing that changes
+   * between the three cases below is which slot is lit. That is the whole of
+   * the design — a bar whose shape is a fact about the ladder rather than
+   * about you — and it replaced a pair of slots that flipped their words,
+   * where the accent could only ever sit on a word naming an act you had
+   * already performed.
    */
-  it('offers the two moves off the rung you are on', () => {
-    const wordsIn = (channel: Parameters<typeof showChannel>[0]) => {
+  it('draws all three rungs, and lights the one you are on', () => {
+    const barIn = (channel: Parameters<typeof showChannel>[0]) => {
       showChannel(channel);
       const tree = render(
         <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
       );
       const footer = footerOf(tree);
-      const words = ['Step in', 'Be nearby', 'Step out'].filter((word) =>
-        textOf(footer).includes(word)
-      );
+      const rungs = ['In', 'Nearby', 'Out'].map((word) => {
+        const slot = findButton(footer, word)!;
+        expect(slot).toBeDefined();
+        return {
+          word,
+          // Lit, and inert because it is lit: there is nothing for a tap to do
+          // on the rung you are standing on.
+          on: slot.props.accessibilityState.selected === true,
+          // Never greyed. Grey is this bar's word for refused, and no move
+          // along this ladder is ever refused.
+          refused: slot.props.accessibilityState.disabled === true,
+        };
+      });
       act(() => footer.unmount());
       act(() => tree.unmount());
-      return words;
+      return rungs;
     };
 
-    expect(wordsIn(channelOf())).toEqual(['Be nearby', 'Step out']);
+    const lit = (channel: Parameters<typeof showChannel>[0]) => {
+      const rungs = barIn(channel);
+      expect(rungs.map((r) => r.word)).toEqual(['In', 'Nearby', 'Out']);
+      expect(rungs.some((r) => r.refused)).toBe(false);
+      return rungs.filter((r) => r.on).map((r) => r.word);
+    };
+
+    // Exactly one at a time, which is what makes it a ladder rather than a set
+    // of switches.
+    expect(lit(channelOf())).toEqual(['In']);
     expect(
-      wordsIn(channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW)))
-    ).toEqual(['Step in', 'Step out']);
+      lit(channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW)))
+    ).toEqual(['Nearby']);
     expect(
-      wordsIn(channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW)))
-    ).toEqual(['Step in', 'Be nearby']);
+      lit(channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW)))
+    ).toEqual(['Out']);
+  });
+
+  /**
+   * The bell is the *nearby* glyph and draws nothing else.
+   *
+   * It sat over the word "Step out" for as long as the nearby slot flipped
+   * between two acts, which is what a screenshot caught: a bell is a claim on
+   * a notification, and leaving is not one. With a slot per rung the glyph is
+   * fixed to its meaning, so what this holds is that the bar carries exactly
+   * one bell and two doors whatever state it is drawn in.
+   */
+  it('draws one bell, in the nearby slot, on every rung', () => {
+    const glyphsIn = (channel: Parameters<typeof showChannel>[0]) => {
+      showChannel(channel);
+      const tree = render(
+        <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+      );
+      const footer = footerOf(tree);
+      const found = {
+        // The slot it is in, named by the control that contains it rather than
+        // by position, so a reordering of the bar cannot quietly pass this.
+        // Host nodes only: `findAll` matches the composite and the element it
+        // renders, so an unfiltered search counts one slot three times. The
+        // same filter `linksIn` uses in the harness.
+        bell: footer.root
+          .findAll(
+            (node) =>
+              typeof node.type === 'string' &&
+              node.props?.accessibilityRole === 'button'
+          )
+          .filter((slot) => slot.findAll((node) => node.type === BellIcon).length > 0)
+          .map(labelOf)
+          .join(),
+        // Both departures draw this one, so it is counted rather than found.
+        doors: footer.root.findAll((node) => node.type === StepIcon).length,
+      };
+      act(() => footer.unmount());
+      act(() => tree.unmount());
+      return found;
+    };
+
+    const expected = { bell: 'Nearby', doors: 2 };
+    expect(glyphsIn(channelOf())).toEqual(expected);
+    expect(
+      glyphsIn(channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW)))
+    ).toEqual(expected);
+    expect(
+      glyphsIn(channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW)))
+    ).toEqual(expected);
   });
 
   it('ends a declaration from the footer, as a departure rather than a toggle', () => {
@@ -1358,7 +1464,7 @@ describe('Channel', () => {
     );
     const footer = footerOf(tree);
 
-    act(() => findButton(footer, 'Step out')!.props.onPress());
+    act(() => findButton(footer, 'Out')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
     expect(mockApp.leaveChannelView).toHaveBeenCalledWith('sess_1');
     act(() => footer.unmount());
@@ -1376,7 +1482,7 @@ describe('Channel', () => {
     );
     const footer = footerOf(tree);
 
-    act(() => findButton(footer, 'Be nearby')!.props.onPress());
+    act(() => findButton(footer, 'Nearby')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'DECLARE_NEARBY' });
     expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
     expect(onExit).not.toHaveBeenCalled();
@@ -1483,7 +1589,7 @@ describe('Channel', () => {
 
     expect(findButton(footer, 'Mute')!.props.accessibilityState.disabled).toBe(true);
     expect(findButton(footer, 'Claim')!.props.accessibilityState.disabled).toBe(true);
-    const stepIn = findButton(footer, 'Step in')!;
+    const stepIn = findButton(footer, 'In')!;
     expect(stepIn.props.accessibilityState.disabled).toBe(false);
 
     act(() => stepIn.props.onPress());
@@ -1505,7 +1611,7 @@ describe('Channel', () => {
       muted: true,
     });
 
-    act(() => findButton(footer, 'Step out')!.props.onPress());
+    act(() => findButton(footer, 'Out')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
     // Stepping out of the footer leaves the screen exactly as the card does —
     // the view is dropped and the caller told, not just the reducer poked.
@@ -1537,11 +1643,12 @@ describe('Channel', () => {
     );
     const footer = footerOf(tree);
 
-    act(() => findButton(footer, 'Step out')!.props.onPress());
+    act(() => findButton(footer, 'Out')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
     expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
     expect(onExit).not.toHaveBeenCalled();
 
+    // And the card, which still says the act in full.
     act(() => findButton(tree, 'Step out')!.props.onPress());
     expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
     expect(onExit).not.toHaveBeenCalled();

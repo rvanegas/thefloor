@@ -1092,67 +1092,75 @@ export function ChannelView({
         }
       />
       {/*
-        The nearby slot, and the door beside it. **Two slots rather than one
-        toggle**, since 2026-09-09: presence is three rungs and not two, and a
-        single control could only ever offer one of the two moves off whichever
-        rung you are on. See `planning/decisions/2026-09-09-presence-is-a-ladder.md`.
+        The ladder itself, one slot per rung, in its own order: in, nearby,
+        out. **Three slots rather than two**, since 2026-09-09, replacing the
+        pair of flipping words adopted earlier the same day. See
+        `planning/decisions/2026-09-09-presence-is-a-ladder.md`.
 
-        What each slot means never changes — this one is *nearby*, the one
-        after it is the door — so the rule the whole bar is built on survives
-        intact: nothing here moves under a finger already on its way. Only the
-        word changes, which is what the floor's slot has always done between
-        Claim and Release.
+        The pair satisfied the footer's standing rule — position never changes
+        with state — by keeping two fixed slots and flipping the word in each.
+        Three satisfy it more completely: **no word here changes in any state**,
+        and neither does any glyph. What moves is the accent.
 
-        Between them they draw exactly the two moves off the rung you are on,
-        and never the same word twice:
+        **So these three name the rungs, where every other control in this bar
+        names an act.** That is what lets the colour mean what it means
+        everywhere else — *this is true of you now* — on a control whose
+        subject is a state rather than a toggle. A bell over "Step out" was the
+        symptom that this slot had been asked to do both; an accent on
+        "Step in" while you are already in would have been the same fault in
+        the other half. Read them as a three-position switch: the lit one is
+        where you are, the other two are where a tap takes you.
 
-        - stepped out — *Be nearby*, *Step in*
-        - nearby      — *Step out*, *Step in*
-        - stepped in  — *Be nearby*, *Step out*
+        **The rung you are on is inert**, and accented rather than greyed. Grey
+        is this bar's word for *refused*, and being somewhere is not a refusal.
 
-        **"Step out" for leaving *Nearby*, deliberately**, though the word then
-        appears in this slot in one state and in the next slot in another. It
-        is the name of the rung you land on — GLOSSARY.md § *Nearby / Stepped
-        out* — and the alternatives ("Not nearby") name the state you are
-        leaving instead of the act, which is the one thing a control here may
-        not do.
+        **Short forms, deliberately.** The cards below still say "Step in",
+        "Be nearby" and "Step out", which are acts and belong on a control with
+        a sentence under it; a roster card still says *Present* and *Stepped
+        out* about other people. These are the same three rungs at 11pt in a
+        fifth of a phone, and the long forms truncate there.
       */}
       <FooterAction
-        label={iAmNearby ? 'Step out' : 'Be nearby'}
+        label="In"
         hint={
-          iAmNearby
-            ? 'You are nearby. Stop being reachable here'
-            : 'Be reachable without joining the conversation'
+          iAmPresent
+            ? 'You are in this channel'
+            : 'Step in to the conversation'
         }
-        icon={(color) => <BellIcon color={color} />}
-        // Never refused either, and for the same reason as the door: from
-        // outside it claims nothing, and from inside it is a departure, which
-        // is the one act nothing on this screen can withhold.
-        tone={iAmNearby ? 'active' : 'idle'}
-        onPress={() => {
-          // The same `stepOut` the door uses, rather than a bare action: this
-          // is a departure, and whether a departure closes the screen is a
-          // question the setting answers once for both. See `stepOut`.
-          if (iAmNearby) {
-            stepOut();
-            return;
-          }
-          act({ type: 'DECLARE_NEARBY' });
-        }}
+        icon={(color) => <StepIcon color={color} out={false} />}
+        selected={iAmPresent}
+        onPress={() => act({ type: 'ENTER' })}
       />
       <FooterAction
-        label={iAmPresent ? 'Step out' : 'Step in'}
-        hint={iAmPresent ? 'Leave the conversation' : 'Join the conversation'}
-        icon={(color) => <StepIcon color={color} out={iAmPresent} />}
-        // Never refused. Stepping in is what a screen you are not in is for,
-        // and stepping out is the one act nothing on this screen can withhold.
-        onPress={() => {
-          if (!iAmPresent) {
-            act({ type: 'ENTER' });
-            return;
-          }
-          stepOut();
-        }}
+        label="Nearby"
+        hint={
+          iAmNearby
+            ? 'You are nearby'
+            : 'Be reachable without joining the conversation'
+        }
+        // The bell draws this rung and nothing else, which is the whole of why
+        // it is a bell: what being nearby buys you is a notification and not
+        // one thing more. See `BellIcon`.
+        icon={(color) => <BellIcon color={color} />}
+        selected={iAmNearby}
+        onPress={() => act({ type: 'DECLARE_NEARBY' })}
+      />
+      <FooterAction
+        label="Out"
+        hint={
+          iAmPresent
+            ? 'Leave the conversation'
+            : iAmNearby
+              ? 'Stop being reachable here'
+              : 'You are not in this channel'
+        }
+        icon={(color) => <StepIcon color={color} out />}
+        selected={!iAmPresent && !iAmNearby}
+        // Never refused, from either rung above it: a departure is the one act
+        // nothing on this screen can withhold. `stepOut` rather than a bare
+        // action, since whether leaving closes the screen is one question with
+        // one answer for the footer and the card alike.
+        onPress={stepOut}
       />
       </View>
     </View>
@@ -2538,6 +2546,7 @@ function FooterAction({
   hint,
   icon,
   disabled,
+  selected,
   tone = 'idle',
   onPress,
 }: {
@@ -2545,27 +2554,50 @@ function FooterAction({
   hint: string;
   icon: (color: ColorValue) => React.ReactNode;
   disabled?: boolean;
+  /**
+   * This control names a state you are already in — the rung of the ladder you
+   * are standing on — so there is nothing for a tap to do.
+   *
+   * **Accented and inert, which is not the same as disabled.** Grey is this
+   * bar's word for *refused*: the floor when nobody else is here, the
+   * microphone on a device without one. Being somewhere is not a refusal, and
+   * greying the rung you are on would say the interface had stopped you from
+   * doing the thing you have already done. The accent is the same one the
+   * microphone and the floor use, and means the same thing on all three —
+   * *this is true of you now*.
+   *
+   * Takes precedence over `tone` and `disabled` in the colour below, being the
+   * strongest statement any of them make. No caller passes it with either.
+   */
+  selected?: boolean;
   tone?: 'idle' | 'active' | 'silenced';
   onPress: () => void;
 }) {
-  const color = disabled
-    ? colors.textFaint
-    : tone === 'silenced'
-      ? colors.silenced
-      : tone === 'active'
-        ? colors.floor
-        : colors.text;
+  const color = selected
+    ? colors.floor
+    : disabled
+      ? colors.textFaint
+      : tone === 'silenced'
+        ? colors.silenced
+        : tone === 'active'
+          ? colors.floor
+          : colors.text;
+  const inert = !!disabled || !!selected;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={hint}
-      accessibilityState={{ disabled: !!disabled }}
-      disabled={disabled}
+      // `selected` rather than `disabled` for the rung you are on, so a screen
+      // reader says which of the three you are on rather than that two thirds
+      // of the bar is unavailable. The hint is written for it: "You are
+      // nearby", not "Be nearby".
+      accessibilityState={{ disabled: !!disabled, selected: !!selected }}
+      disabled={inert}
       onPress={onPress}
       style={({ pressed }) => [
         styles.footerAction,
-        pressed && !disabled && styles.footerActionPressed,
+        pressed && !inert && styles.footerActionPressed,
       ]}
     >
       {icon(color)}
@@ -2993,7 +3025,23 @@ function ParticipantCard({
         <Text style={styles.cardName} numberOfLines={1}>
           {self ? `${participant.displayName} (you)` : participant.displayName}
         </Text>
-        <Text style={[type.muted, styles.cardStatus, failing && styles.statusBad]}>
+        {/*
+          **The tone follows the word, not the flag it came from.** `failing`
+          gives way to `reconnecting` above, so a card in that state says
+          *Nearby* — and it was saying it in `danger` red, which is the colour
+          for a live problem you can act on. Being out of reach is not one:
+          it is the same rung half the roster sits on, drawn muted everywhere
+          else. Only "Present · not receiving you" earns the red, that being
+          the one status claiming somebody is here while your voice misses
+          them.
+        */}
+        <Text
+          style={[
+            type.muted,
+            styles.cardStatus,
+            failing && !reconnecting && styles.statusBad,
+          ]}
+        >
           {status}
           {muted ? ' · muted' : ''}
           {holdsFloor ? ' · has the floor' : ''}
