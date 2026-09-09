@@ -1,5 +1,22 @@
 # The deploy history
 
+## 2026-09-09 — `b3b346b` → `56c526b`
+
+One commit, and the first in a while that the box actually gains behaviour
+from: `declaredNearbyAt` on `ChannelState`, so a declared wait is timed from
+the declaration rather than from the last sign of life. See
+`2026-09-09-the-declaration-is-its-own-clock.md`.
+
+**Deployed before the build that reads it, which here is the point rather than
+a habit.** The field travels server → client only; a client that meets a box
+without it falls back to `idleMs` and shows exactly the old behaviour, which is
+why the shim is a `?.` and not a migration. Old installs — everything at or
+below build 171 — ignore the field and go on timing declarations the old way
+until they update.
+
+Health came back on the sha sent, `oldestBuild` 80 against a floor of 51, no
+silent builds. `drops` 0 on the restart, as ever: the counter starts again.
+
 ## 2026-09-09 — `d41f9c2` → `b3b346b`
 
 Two commits, both app-only: the build number bump to 169, and the footer
