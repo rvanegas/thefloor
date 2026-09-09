@@ -1348,13 +1348,24 @@ export function reduce(
       if (isPresent(state, action.userId)) {
         return stepOut(state, action.userId, now, { exit: 'nearby' });
       }
-      // **Re-declaring is still a no-op, and so does not refresh the clock.**
-      // The window is what somebody else may rely on — it is how long a card
-      // goes on saying *Nearby* and offering a ping — and letting the person
-      // being waited for extend it by tapping would make it a claim they could
-      // renew about themselves indefinitely. What extends a wait is being
-      // wanted: an arrival, or a ping. The footer's nearby slot is inert while
-      // you are on that rung anyway, so there is no tap here to lose.
+      // **Re-declaring in place changes nothing, which is not a policy about
+      // renewal.** This read as one for a day — that the window was a claim
+      // the person being waited for could not extend about themselves — and
+      // that was simply false: *Step out* clears the stamp and *Be nearby*
+      // writes a fresh one, so the two taps the ladder puts side by side in
+      // the footer restart the fifteen minutes, and go on restarting them.
+      // The rule was never enforced anywhere; it described a control that
+      // happens not to exist, the nearby slot being inert while you are on
+      // that rung.
+      //
+      // **And the behaviour is right, so it stays.** The window is there to
+      // stop a *stale* claim outliving somebody who wandered off, and a person
+      // tapping their phone is the one person that cannot be true of — the tap
+      // is the same evidence of attention that made the declaration worth
+      // timing from itself in the first place. Blocking the toggle would take
+      // a cooldown, which is machinery to stop somebody asserting something
+      // true. What this early return actually buys is a stable object for the
+      // watchers, and nothing else.
       if (state.waiting.includes(action.userId)) return state;
       // **`lastActiveAt` is deliberately not stamped.** It orders Home by when
       // a room was last a room, and somebody declaring themselves reachable

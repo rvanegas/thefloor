@@ -43,13 +43,26 @@ Home would reorder on it. Two questions, two clocks. `idleMs` is untouched and
 still answers *how long since we heard anything*, which is what a dropped
 connection is timed by and what *Stepped out* counts.
 
-**Not a renewable one, either.** Re-declaring while already nearby stays a
-no-op, so it cannot refresh the window. The window is what somebody *else*
-relies on — how long a card goes on saying *Nearby* and offering a ping — and a
-claim the person being waited for could renew about themselves indefinitely is
-not a wait. What extends a wait is being wanted: an arrival, or a ping. The
-footer's nearby slot is inert while you are on that rung, so there is no tap to
-lose.
+**Renewable, and that was recorded backwards for a few hours.** This said the
+window could not be extended by the person being waited for, on the grounds
+that re-declaring while already nearby is a no-op. Rodrigo found the hole from
+two screenshots of the same channel a moment apart: *Out* and *Nearby* are
+adjacent slots in the footer, and stepping out clears the stamp while declaring
+writes a fresh one, so the fifteen minutes restarts on two taps and goes on
+restarting. Nothing enforced the rule anywhere — it described a control that
+happens not to exist, the nearby slot being inert while you are on that rung.
+
+**The behaviour is right and stays; the claim was wrong and went.** The window
+is there to stop a *stale* claim outliving somebody who wandered off, and
+somebody tapping their phone is the one person that cannot be true of: the tap
+is the same evidence of attention that makes a declaration worth timing from
+itself. Blocking the toggle would need a cooldown on re-declaring, which is
+machinery to stop somebody asserting something true about themselves.
+
+The lesson is narrower than the correction. **A rule that is not enforced
+anywhere is a description, and this one described the absence of a button** —
+two routes to the same act, one of them refused because nothing on that rung
+can be tapped, written up as though the reducer had a policy.
 
 **Volatile, like `waiting` itself.** Not persisted and not restored: a
 declaration is a claim a live process made, and the process that heard it is
@@ -69,3 +82,17 @@ with no build gate for that reason.
 Deploy the server before the build ships, per AGENTS.md: an old box sends no
 `declaredNearbyAt`, and a new client then falls back to exactly today's
 behaviour rather than to anything worse.
+
+## A footnote on what the toggle looks like from outside
+
+Both screenshots are the ladder working: from *Nearby* the moves are Step in
+and Step out, from *Stepped out* they are Step in and Be nearby, and in each the
+lit slot and the card's offer agree.
+
+What they show that is worth knowing is the line about yourself flipping between
+two pasts — "Nearby for a few seconds" from the declaration, "Stepped out 4
+minutes ago" from `lastPresentAt`. Both are right, and to another member
+watching, a toggling person's history appears to rewrite itself. Left as it is:
+the alternative is timing *Stepped out* from the declaration, which would claim
+somebody was in the room until the moment they tapped, and that is the lie the
+two clocks exist to avoid.

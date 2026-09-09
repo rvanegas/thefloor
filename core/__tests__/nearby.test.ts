@@ -267,14 +267,35 @@ describe('how long a wait has been going on', () => {
     expect(gone.declaredNearbyAt[B]).toBeUndefined();
   });
 
-  it('does not let a declaration renew itself', () => {
-    // The window is what somebody *else* relies on — how long a card goes on
-    // saying Nearby and offering a ping — so the person being waited for
-    // cannot extend it by re-asserting. Re-declaring was already a no-op; the
-    // clock does not make it one that bites.
+  it('leaves the clock alone when a declaration is repeated in place', () => {
+    // The same object back, which is what the watchers need, and the same
+    // stamp. **Not a rule against renewal**, which is what this test said for
+    // a day: stepping out and declaring again restarts the window, and the
+    // case below is that two taps in the footer do exactly that.
     const first = declare(together(), B, T0 + 2_000);
     const again = declare(first, B, T0 + 10 * 60_000);
     expect(again).toBe(first);
     expect(again.declaredNearbyAt[B]).toBe(T0 + 2_000);
+  });
+
+  it('lets the toggle restart the window, indefinitely, and that is allowed', () => {
+    // Found from a screenshot: *Out* and *Nearby* are adjacent slots, so the
+    // fifteen minutes is two taps from starting again, however many times.
+    //
+    // Pinned rather than prevented. The window stops a stale claim outliving
+    // somebody who wandered off, and a person tapping their phone is the one
+    // person that cannot be true of — the tap is the same evidence of
+    // attention the declaration is timed from. Blocking it would take a
+    // cooldown, which is machinery to stop somebody asserting something true.
+    // What this holds is that nothing accidental stands in the way.
+    let s = declare(together(), B, T0);
+    for (const minute of [14, 28]) {
+      const at = T0 + minute * 60_000;
+      s = reduce(s, { type: 'STEP_OUT', userId: B }, at);
+      s = declare(s, B, at + 1_000);
+      expect(nearbyMs(s, B, at + 1_000)).toBe(0);
+      // A fresh fifteen from each toggle, long past the first declaration's.
+      expect(isWaiting(s, B, at + WAITING_WINDOW_MS - 1)).toBe(true);
+    }
   });
 });
