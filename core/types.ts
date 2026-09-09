@@ -518,6 +518,35 @@ export interface ChannelState {
    * anything.
    */
   waiting: UserId[];
+  /**
+   * When each *declared* wait was declared, for those that were.
+   *
+   * `waiting` holds two kinds of absence that used to be told apart by nothing
+   * but a comment: a connection that ran out of grace, and a declaration
+   * somebody made. The first is measured by `lastPresentAt` and rightly so —
+   * the question there is how long it is since any sign of life, and a phone
+   * in a pocket gives none. The second is a tap, and a tap is the sign of
+   * life. Dating it from the last heartbeat said "Nearby for four minutes"
+   * about somebody who had pressed the button a second earlier, and expired
+   * their declaration eleven minutes later rather than fifteen.
+   *
+   * So this is the second clock, and it exists because the two absences answer
+   * different questions rather than because one of them was wrong. Read
+   * through `nearbyMs`, which picks whichever clock applies; `idleMs` stays
+   * what it was, being the answer to *when did we last hear anything*, which
+   * a declaration does not change.
+   *
+   * **Not stamped for an expired connection**, which is the whole distinction:
+   * `stepOut` writes this only for `exit: 'nearby'`, and `DECLARE_NEARBY`
+   * writes it from outside. Cleared by entering and by every departure that
+   * clears `waiting`.
+   *
+   * Volatile, exactly as `waiting` is, and for the same reason: it describes
+   * a process, and a restart that dropped everybody's socket is not evidence
+   * about anybody's intentions. Absent on a snapshot from a server that
+   * predates it — see SHIMS.md.
+   */
+  declaredNearbyAt: Partial<Record<UserId, number>>;
   disconnectedAt: Partial<Record<UserId, number>>;
   /**
    * The last evidence that each user was in this channel — refreshed by

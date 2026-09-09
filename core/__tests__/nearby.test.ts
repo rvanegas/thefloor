@@ -1,4 +1,13 @@
-import { canPing, createChannel, isPresent, isWaiting, reduce } from '../channel';
+import {
+  canPing,
+  createChannel,
+  idleMs,
+  isPresent,
+  isWaiting,
+  nearbyMs,
+  reduce,
+} from '../channel';
+import { WAITING_WINDOW_MS } from '../constants';
 import type { ChannelState } from '../types';
 
 /**
@@ -12,9 +21,13 @@ import type { ChannelState } from '../types';
  * name for both since 2026-09-09, when it also gained a way out.
  *
  * What is tested here is that the declared kinds are indistinguishable from
- * the inferred one everywhere it matters: the same field, the same ping, the
- * same clock. That is what makes every build that predates this action render
- * a declared nearby correctly.
+ * the inferred one everywhere it matters: the same field and the same ping.
+ *
+ * **Not the same clock, since 2026-09-09.** That was the fourth item in this
+ * list for a day, and it was the bug: an inferred wait is timed from the last
+ * sign of life, and a declared one from the declaration, because a tap *is* a
+ * sign of life. The two questions differ, so the two answers do. See
+ * `nearbyMs`, and § *The second clock* below.
  */
 
 const A = 'user-a';
@@ -41,7 +54,7 @@ describe('declaring nearby from inside a channel', () => {
     expect(canPing(declare(together(), B), A, B)).toBe(true);
   });
 
-  it('does not stamp `lastPresentAt`, which is the one clock', () => {
+  it('does not stamp `lastPresentAt`, which answers a different question', () => {
     // The stamp is left to the transport, so it goes on being refreshed while
     // the app is alive and freezes when the phone suspends — and the fifteen
     // minutes to *Stepped out* is measured from the last sign of life rather
@@ -167,5 +180,101 @@ describe('stepping out of nearby', () => {
       T0 + 130_000
     );
     expect(expired.waiting).toContain(B);
+  });
+});
+
+/**
+ * The second clock.
+ *
+ * `waiting` holds two kinds of absence and they are timed from different
+ * moments: a lost connection from the last thing anybody heard, a declaration
+ * from the declaration. Reading both off `lastPresentAt` produced a card that
+ * said "Nearby for four minutes" about a tap one second old, and — since the
+ * window is measured from the same number — gave that declaration eleven
+ * minutes of life instead of fifteen.
+ */
+describe('how long a wait has been going on', () => {
+  const steppedOutAt = (when: number) =>
+    reduce(together(), { type: 'STEP_OUT', userId: B }, when);
+
+  it('times a declaration from the declaration, not from the last sign of life', () => {
+    // The case Rodrigo asked about: stepped out four minutes ago, and presses
+    // Nearby. The wait is a second old; only the silence is four minutes old.
+    const four = T0 + 4 * 60_000;
+    const s = declare(steppedOutAt(T0 + 1_000), B, four);
+    expect(nearbyMs(s, B, four)).toBe(0);
+    expect(nearbyMs(s, B, four + 30_000)).toBe(30_000);
+    // And the older question still has its old answer, which is the reason
+    // this is a second clock rather than a correction to the first.
+    expect(idleMs(s, B, four)).toBe(4 * 60_000 - 1_000);
+  });
+
+  it('gives the declaration a full window, however old the silence', () => {
+    const four = T0 + 4 * 60_000;
+    const s = declare(steppedOutAt(T0 + 1_000), B, four);
+    // Eleven minutes in, which is where it used to lapse.
+    expect(isWaiting(s, B, four + 11 * 60_000)).toBe(true);
+    expect(isWaiting(s, B, four + WAITING_WINDOW_MS - 1)).toBe(true);
+    expect(isWaiting(s, B, four + WAITING_WINDOW_MS)).toBe(false);
+  });
+
+  it('accepts a declaration made after the silence outran the window', () => {
+    // The sharp case, and the one that was visibly broken: past fifteen
+    // minutes the declaration was recorded and `isWaiting` was false from the
+    // instant it was made, so the footer lit *Nearby* while the person's own
+    // roster card read *Stepped out sixteen minutes ago*.
+    const late = T0 + 16 * 60_000;
+    const s = declare(steppedOutAt(T0 + 1_000), B, late);
+    expect(s.waiting).toContain(B);
+    expect(isWaiting(s, B, late)).toBe(true);
+    expect(nearbyMs(s, B, late)).toBe(0);
+  });
+
+  it('lets somebody be nearby in a channel they have never entered', () => {
+    // No `lastPresentAt` at all, so the old clock had nothing to say and the
+    // card said *Invited* for ever. A declaration is knowledge without a
+    // stamp.
+    const s = declare(alone(), B, T0 + 5_000);
+    expect(idleMs(s, B, T0 + 5_000)).toBeNull();
+    expect(nearbyMs(s, B, T0 + 5_000)).toBe(0);
+    expect(isWaiting(s, B, T0 + 5_000)).toBe(true);
+  });
+
+  it('times a lost connection from the last thing heard, as it always did', () => {
+    // The other kind, unchanged and deliberately so: a phone in a pocket gives
+    // no sign of life, so the last one is all anybody knows.
+    const dropped = reduce(
+      together(),
+      { type: 'DISCONNECT_EXPIRED', userId: B },
+      T0 + 60_000
+    );
+    const later = T0 + 5 * 60_000;
+    expect(dropped.waiting).toContain(B);
+    expect(dropped.declaredNearbyAt[B]).toBeUndefined();
+    expect(nearbyMs(dropped, B, later)).toBe(idleMs(dropped, B, later));
+  });
+
+  it('drops the clock when the wait ends, from either rung', () => {
+    // Left behind, it would time the *next* declaration from this one — the
+    // same fault, arrived at from the other side.
+    const nearbyNow = declare(together(), B, T0 + 2_000);
+    expect(nearbyNow.declaredNearbyAt[B]).toBe(T0 + 2_000);
+
+    const back = reduce(nearbyNow, { type: 'ENTER', userId: B }, T0 + 3_000);
+    expect(back.declaredNearbyAt[B]).toBeUndefined();
+
+    const gone = reduce(nearbyNow, { type: 'STEP_OUT', userId: B }, T0 + 3_000);
+    expect(gone.declaredNearbyAt[B]).toBeUndefined();
+  });
+
+  it('does not let a declaration renew itself', () => {
+    // The window is what somebody *else* relies on — how long a card goes on
+    // saying Nearby and offering a ping — so the person being waited for
+    // cannot extend it by re-asserting. Re-declaring was already a no-op; the
+    // clock does not make it one that bites.
+    const first = declare(together(), B, T0 + 2_000);
+    const again = declare(first, B, T0 + 10 * 60_000);
+    expect(again).toBe(first);
+    expect(again.declaredNearbyAt[B]).toBe(T0 + 2_000);
   });
 });

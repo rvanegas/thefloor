@@ -4989,6 +4989,12 @@ export class ChannelRegistry {
       // known" and shows no idle time — the honest answer, rather than dating
       // everybody's absence from the deploy that added the field.
       lastPresentAt: durable.lastPresentAt ?? {},
+      // Volatile, exactly as `waiting` and `disconnectedAt` above are: a
+      // declaration is a claim a live process made about being reachable, and
+      // the process that heard it is gone. Restoring one would tell a room
+      // somebody was standing by when nothing has heard from them since the
+      // restart.
+      declaredNearbyAt: {},
     };
   }
 

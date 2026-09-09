@@ -133,6 +133,7 @@ export function createChannel(params: {
     watch: initialWatchState(),
     clip: null,
     waiting: [],
+    declaredNearbyAt: {},
     disconnectedAt: {},
     lastPresentAt: {},
   };
@@ -221,8 +222,49 @@ export function isWaiting(
   now: number
 ): boolean {
   if (!state.waiting.includes(userId)) return false;
-  const away = idleMs(state, userId, now);
+  const away = nearbyMs(state, userId, now);
   return away !== null && away < WAITING_WINDOW_MS;
+}
+
+/**
+ * How long this wait has been going on, which is not always how long it is
+ * since anybody heard from them.
+ *
+ * Two absences live in `waiting` and they are timed from different moments. A
+ * connection that ran out of grace is timed by `idleMs`, from the last sign of
+ * life — the phone stopped talking, and when it stopped is the only thing
+ * anybody knows. A declaration is timed from the declaration, because the tap
+ * *is* the sign of life and the freshest one there is.
+ *
+ * **What this fixed.** Both were read off `lastPresentAt`, so pressing Nearby
+ * four minutes after stepping out produced "Nearby for 4 minutes" on a
+ * declaration one second old, and — because `isWaiting` measures the window
+ * from the same number — lapsed it to *Stepped out* after eleven more minutes
+ * instead of fifteen. Past the window it was worse than cosmetic: the
+ * declaration was accepted, `waiting` held them, and `isWaiting` was false
+ * from the instant they pressed it, so the footer lit *Nearby* while their own
+ * roster card said *Stepped out sixteen minutes ago*. Somebody who had never
+ * been present had no stamp at all and so could never be nearby to anybody.
+ *
+ * Null has the same two meanings `idleMs` gives it — they are here, or nothing
+ * is known — and now excludes the case a declaration answers: a declaration is
+ * knowledge, whether or not this channel has ever seen them.
+ *
+ * Read through by `isWaiting` and by the roster card. `idleMs` is deliberately
+ * left alone: *how long since we last heard anything* is a different question
+ * and still has the old answer.
+ */
+export function nearbyMs(
+  state: ChannelState,
+  userId: UserId,
+  now: number
+): number | null {
+  if (isPresent(state, userId)) return null;
+  // Optional, because a snapshot from a server older than this field has no
+  // such object at all. See SHIMS.md.
+  const declared = state.declaredNearbyAt?.[userId];
+  if (declared !== undefined) return Math.max(0, now - declared);
+  return idleMs(state, userId, now);
 }
 
 /**
@@ -1250,6 +1292,8 @@ export function reduce(
       // Entering is itself proof of a live connection, so any pending
       // disconnect clock for this user is cancelled.
       const { [action.userId]: _back, ...others } = state.disconnectedAt;
+      const { [action.userId]: _declared, ...stillDeclared } =
+        state.declaredNearbyAt;
       return {
         ...state,
         disconnectedAt: others,
@@ -1269,6 +1313,11 @@ export function reduce(
         lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
         // Whatever they were waiting for, they have stopped: they are here.
         waiting: state.waiting.filter((id) => id !== action.userId),
+        // And the declaration is over, so its clock goes with it. Left behind
+        // it would time their *next* nearby from this one, which is exactly
+        // the fault this stamp was added to fix, arrived at from the other
+        // side.
+        declaredNearbyAt: stillDeclared,
         present: [...state.present, action.userId],
         everPresent: state.everPresent.includes(action.userId)
           ? state.everPresent
@@ -1299,12 +1348,26 @@ export function reduce(
       if (isPresent(state, action.userId)) {
         return stepOut(state, action.userId, now, { exit: 'nearby' });
       }
+      // **Re-declaring is still a no-op, and so does not refresh the clock.**
+      // The window is what somebody else may rely on — it is how long a card
+      // goes on saying *Nearby* and offering a ping — and letting the person
+      // being waited for extend it by tapping would make it a claim they could
+      // renew about themselves indefinitely. What extends a wait is being
+      // wanted: an arrival, or a ping. The footer's nearby slot is inert while
+      // you are on that rung anyway, so there is no tap here to lose.
       if (state.waiting.includes(action.userId)) return state;
       // **`lastActiveAt` is deliberately not stamped.** It orders Home by when
       // a room was last a room, and somebody declaring themselves reachable
       // has not been in it. A new object is what the watchers need, and this
       // is one.
-      return { ...state, waiting: [...state.waiting, action.userId] };
+      //
+      // **`declaredNearbyAt` is**, being the moment the wait began rather than
+      // anything about the room. See `nearbyMs`.
+      return {
+        ...state,
+        waiting: [...state.waiting, action.userId],
+        declaredNearbyAt: { ...state.declaredNearbyAt, [action.userId]: now },
+      };
     }
 
     case 'DISCONNECT_EXPIRED':
@@ -1470,6 +1533,11 @@ export function reduce(
         // removing a key that is not there — stated anyway, so that the two
         // maps keyed by the same people go the same way.
         selfUnmutedAt: without(gone.selfUnmutedAt, action.userId),
+        // The same, and equally already done: `stepOut` above clears a
+        // declaration on the way past. Stated for the same reason as the line
+        // over it — every map keyed by these people goes the same way, so none
+        // of them is the one somebody forgets.
+        declaredNearbyAt: without(gone.declaredNearbyAt, action.userId),
         invitedBy,
         everPresent: gone.everPresent.filter((id) => id !== action.userId),
         // Dropped for tidiness rather than necessity: claimDelayMs ranks only
@@ -1803,6 +1871,7 @@ function tick(state: ChannelState, now: number): ChannelState {
  */
 type Exit = 'chosen' | 'dropped' | 'inattentive' | 'nearby';
 
+
 function stepOut(
   state: ChannelState,
   userId: UserId,
@@ -1835,7 +1904,14 @@ function stepOut(
      * untouched, so nothing about the room being empty has changed.
      */
     if (exit !== 'chosen' || !state.waiting.includes(userId)) return state;
-    return { ...state, waiting: state.waiting.filter((id) => id !== userId) };
+    const { [userId]: _ended, ...stillDeclared } = state.declaredNearbyAt;
+    return {
+      ...state,
+      waiting: state.waiting.filter((id) => id !== userId),
+      // The declaration is over, so its clock goes with it — the same clearing
+      // ENTER does, from the other rung.
+      declaredNearbyAt: stillDeclared,
+    };
   }
   const present = state.present.filter((id) => id !== userId);
   // However they went — a tap or a grace period running out — they are no
@@ -1878,6 +1954,17 @@ function stepOut(
             ? state.waiting
             : [...state.waiting, userId]
           : state.waiting.filter((id) => id !== userId),
+      // **And which of those two it was, which `waiting` alone cannot say.**
+      // A declaration is timed from itself; a lost connection is timed from
+      // the last thing anybody heard, which is what `lastPresentAt` already
+      // holds and what `dropped` must go on being measured by. The other two
+      // exits leave `waiting`, so they leave this with it. See `nearbyMs`.
+      declaredNearbyAt:
+        exit === 'nearby'
+          ? { ...state.declaredNearbyAt, [userId]: now }
+          : exit === 'dropped'
+            ? state.declaredNearbyAt
+            : without(state.declaredNearbyAt, userId),
       // A departing floor-holder's claim is force-released, exactly as if
       // released voluntarily. Dropped connections take this same path.
       floor:

@@ -29,6 +29,7 @@ import {
   canClaimFloor,
   idleMs,
   isWaiting,
+  nearbyMs,
   canInvite,
   canControlPlayback,
   canPauseRecording,
@@ -2850,12 +2851,28 @@ function ParticipantCard({
    */
   const away = idleMs(channel, participant.id, now);
   /**
-   * Present in spirit: their phone has gone to sleep on them, and they are
-   * inside the window where a notification would still fetch them. The status
-   * line says so and the ping button hangs off it, which is the one place in
-   * the app where those two are the same fact.
+   * How long this wait has been going on, which is the number the *Nearby*
+   * line shows and is not always `away`.
+   *
+   * A declaration is timed from the declaration and a lost connection from the
+   * last thing anybody heard. See `nearbyMs`, which holds the whole argument.
    */
-  const nearby = !here && away !== null && isWaiting(channel, participant.id, now);
+  const waitingFor = nearbyMs(channel, participant.id, now);
+  /**
+   * Present in spirit: their phone has gone to sleep on them, or they said
+   * they were within reach, and either way a notification would still fetch
+   * them. The status line says so and the ping button hangs off it, which is
+   * the one place in the app where those two are the same fact.
+   *
+   * **No `away !== null` guard any more.** It was there when the only way to
+   * be nearby was to have been present and gone quiet, so a missing stamp
+   * meant a missing person. A declaration is knowledge without a stamp —
+   * somebody can now be nearby in a channel they have never once entered —
+   * and the guard denied it, leaving them drawn as *Invited* while their own
+   * footer said *Nearby*. `isWaiting` already refuses anybody whose wait has
+   * no clock at all.
+   */
+  const nearby = !here && isWaiting(channel, participant.id, now);
   /**
    * Out of reach and worth calling — which is `nearby`, plus the minute before
    * anybody is allowed to call it that.
@@ -2976,7 +2993,7 @@ function ParticipantCard({
       : failing
         ? 'Present · not receiving you'
         : 'Present'
-    : away !== null && isWaiting(channel, participant.id, now)
+    : waitingFor !== null && isWaiting(channel, participant.id, now)
       ? // They did not leave; their phone did. Walking into a channel and
         // pocketing the phone suspends the process in under a second, so this
         // is what most absences from an otherwise empty channel actually are —
@@ -3004,7 +3021,7 @@ function ParticipantCard({
         // card. The state name in `core/` is still `waiting`, deliberately —
         // `ChannelState.waiting` is on the wire and cannot be renamed without
         // a two-step migration for a word no user ever sees.
-        `Nearby for ${duration(away)}`
+        `Nearby for ${duration(waitingFor)}`
       : channel.everPresent.includes(participant.id)
         ? away === null
           ? 'Stepped out'

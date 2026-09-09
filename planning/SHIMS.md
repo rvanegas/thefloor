@@ -37,8 +37,9 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 123 | `bio` accepted and ignored | `server/src/app.ts` |
 | 159 | The two renamed settings | `server/src/settings-wire.ts` |
 | — | `mediaRoom` | `core/channel.ts`, `server/src/channels.ts` |
+| — | `declaredNearbyAt` optionality | `core/channel.ts` |
 
-The floor is **51**. `oldestBuild` read **80** on 2026-09-08, so the first
+The floor is **51**. `oldestBuild` read **80** on 2026-09-09, so the first
 three are already free and the rest are not.
 
 `mediaRoom` has no gate because the client half that would fix one has not
@@ -207,6 +208,34 @@ read only when the current key is missing, negated on the way in, and removed
 the moment the server states anything. That half is cheaper to be wrong about —
 it is a cache, so the cost is one second of the wrong answer at a cold start
 rather than a setting — but it goes with the other half.
+
+---
+
+## No gate — `declaredNearbyAt` optionality
+
+One `?.`, in `nearbyMs` in `core/channel.ts`, reading a field added on
+2026-09-09. A snapshot from a server that predates it has no such object, and
+an unguarded index would throw on every roster row rather than degrade.
+
+**The one entry here whose retiring event is not a floor move**, which is why
+it has no gate rather than a distant one. `ChannelState` travels server →
+client and nothing else; the client renders snapshots and never runs the
+reducer, so the only build that can produce a state without this field is a
+*server*, and the only way to meet one is a rollback of the box. A deploy
+retires it, not a number — and since the deploy precedes the client that reads
+it, the guard is already redundant on the day it ships. It is here because a
+wire field's absence handled in code is exactly what this table is an index
+of, and the alternative was a `?.` nobody could account for.
+
+**The other direction needs nothing and is not a shim.** A client older than
+the field ignores it and goes on timing declarations from `lastPresentAt` —
+"Nearby for 4 minutes" on a tap one second old, and a window that lapses early.
+That is the bug the field fixes, still present on old installs, which is
+degradation rather than breakage and is not fixable from the server.
+
+**Do not delete `idleMs` alongside it.** The two clocks answer different
+questions and both are live: `idleMs` is how long since anybody heard anything,
+which is what a dropped connection is timed by and what *Stepped out* counts.
 
 ---
 

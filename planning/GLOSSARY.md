@@ -439,6 +439,18 @@ out* like anything else.
 The distinction is one bit, and it is the difference between telling somebody
 to give up on a person and telling them to ping.
 
+**Two clocks, since 2026-09-09, because the ways in are not all the same
+kind.** How long somebody has been nearby is `nearbyMs`, and it reads whichever
+of two stamps applies: a declaration is timed from the declaration, an expired
+connection from `lastPresentAt` — the last sign of life, which is all a pocketed
+phone leaves. The fifteen-minute window runs on the same number, so a
+declaration always gets a full fifteen minutes however long the silence before
+it was. `idleMs` is the older question — *how long since we heard anything* —
+and still has its old answer; it is what *Stepped out* counts, and a
+declaration does not touch it. Reading both off `lastPresentAt` said "Nearby
+for four minutes" about a tap one second old, and past the window it let the
+footer say *Nearby* while the roster said *Stepped out*.
+
 **Nearby has three ways in, and since 2026-09-08 two of them are declared.**
 It used to be only something that happened *to* somebody.
 

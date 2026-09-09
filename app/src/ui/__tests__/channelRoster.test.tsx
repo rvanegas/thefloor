@@ -487,6 +487,76 @@ describe('who is in the channel, and who is talking', () => {
   });
 
   /**
+   * The other kind of wait, and the reason there are two clocks.
+   *
+   * A dropped connection is timed from the last thing anybody heard, which the
+   * case above holds. A declaration is timed from the declaration — the tap is
+   * itself the freshest sign of life there is, and dating it from an older
+   * silence made the card say four minutes about something one second old.
+   * See `nearbyMs`.
+   */
+  it('times a declared wait from the tap, not from the silence before it', () => {
+    const four = NOW + 4 * 60_000;
+    showChannel(
+      channelOf((s) => {
+        const out = reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW);
+        return reduce(out, { type: 'DECLARE_NEARBY', userId: THEM }, four);
+      })
+    );
+    mockApp.serverNow = () => four;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    const text = textOf(tree);
+    expect(text).toContain('Nearby for a few seconds');
+    expect(text).not.toContain('Nearby for 4 minutes');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Somebody nearby in a room they have never once been in.
+   *
+   * Impossible until nearby could be declared, which is why the card had no
+   * word for it: with no `lastPresentAt` the old clock answered null, the
+   * roster fell through to *Invited*, and it said so indefinitely while that
+   * person's own footer said *Nearby*. A declaration is knowledge without a
+   * stamp.
+   */
+  it('draws somebody nearby in a channel they have never entered', () => {
+    const base = createChannel({
+      id: 'sess_1',
+      initiator: ME,
+      invitees: [THEM],
+      now: NOW,
+    });
+    showChannel(
+      reduce(base, { type: 'DECLARE_NEARBY', userId: THEM }, NOW + 1_000)
+    );
+    mockApp.serverNow = () => NOW + 1_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    const text = textOf(tree);
+    expect(text).toContain('Nearby for a few seconds');
+    expect(text).not.toContain('Invited');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
    * The shortcut the state exists to offer. Nearby means one notification
    * would fetch them, and the tap that sends it is on the card saying so
    * rather than two screens away — with no composer, because the thing being
