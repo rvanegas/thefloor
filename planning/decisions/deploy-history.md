@@ -1,5 +1,20 @@
 # The deploy history
 
+## 2026-09-09 — `72f4bd8` → `411acbb`
+
+Two commits: the build number bump to 173, and the heartbeat keeping a live
+nearby declaration from ageing. **The box is the whole of this one** — the rule
+is in `core/`, the cadence in `server/`, and no client change was needed, so
+every install that can read `declaredNearbyAt` gains the behaviour the moment
+the box has it. Builds below 172 never read the field and are unaffected.
+
+Worth knowing what changed in the traffic: `stillHere` now emits, for a nearby
+watcher only, at most once a minute per person per channel — see
+`NEARBY_ECHO_MS`. A present member's heartbeat still costs nothing at all.
+
+Health came back on the sha sent, `oldestBuild` 80 against a floor of 51, no
+silent builds.
+
 ## 2026-09-09 — `56c526b` → `72f4bd8`
 
 Two commits: the build number bump to 172, and the correction to what the
