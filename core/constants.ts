@@ -141,6 +141,20 @@ export const MAX_PING_TEXT_LENGTH = 100;
  * `/healthz` has carried `dropsRecovered` against `dropsExpired` since
  * 2026-08-27 for exactly this question; `bin/health` prints them.
  *
+ * **Shortening it to five seconds was tried and reverted on 2026-09-08**, and
+ * the reason is worth keeping so the argument is not had a third time: this
+ * window is what makes a **deploy** invisible. A phone sees a restart rounded
+ * up to its next retry — 500ms × 2ⁿ, capped at ten seconds — so a fifteen
+ * second restart can cost it twenty-five, and any grace shorter than that
+ * steps every live conversation out every time the box is deployed. See
+ * planning/INFRASTRUCTURE.md.
+ *
+ * **The complaint that prompted it was about the roster's wording, not this
+ * number**, and was answered there: somebody inside the grace now reads
+ * *Nearby* rather than *Present · reconnecting…*, which is what they are to
+ * everybody else and is already pingable. See
+ * planning/decisions/2026-09-08-the-grace-is-not-a-presence.md.
+ *
  * **And it is load-bearing well beyond somebody's dot on a roster**, which is
  * the other half of why it should not be shortened casually. When the grace
  * expires on the last present member, `settleEmpty` ends a solo recording,

@@ -78,7 +78,14 @@ same `report` a socket reports to. So an absence starts the ordinary
 **There is deliberately no second way out of a room.**
 
 **The two directions are not symmetrical, and must not be made so.** The room
-may only falsify a presence. Creating one stays with `ENTER`, because a step-in
+may only falsify a presence.
+
+> **This clause was not honoured by what was built, and was corrected the same
+> day** — `2026-09-08-the-socket-is-what-holds-a-place.md`. `reconcilePresence`
+> reported `CONNECTED`, which sustains a presence rather than falsifying one,
+> and it cancelled the grace a closing socket had started; a backgrounded phone
+> whose connection lingered in the SFU stayed *Present* while hearing nothing.
+> A grace is now ended by the plane that started it. Creating one stays with `ENTER`, because a step-in
 has to move the interface without a round trip through LiveKit; making presence
 wait for a webhook or a poll would put every tap behind the network.
 

@@ -4,18 +4,19 @@ import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
 import type { ChannelState } from '../../../../core/types';
 import type { ChannelView } from '../../../../core/protocol';
-import { somebodyArrived } from '../nearby';
+import { somebodyArrived, whoArrived } from '../nearby';
 import { useNearby } from '../useNearby';
 
 /**
- * **Promotion**: nearby, foreground, somebody steps in → the phone steps in
- * too.
+ * **The offer**: nearby, foreground, somebody steps in → the phone says who
+ * arrived and offers a step in. It does not step in.
  *
- * The transition the 2026-09-08 design said to build first, because it is the
- * one with real risk in it. A nearby phone holds no session and no
- * subscription, so promoting is an automatic media reconnect — the re-entry
- * that froze playout for weeks. What is testable here is the *rule*: when it
- * fires, when it must not, and the three conditions each doing its own work.
+ * Promotion — the automatic version — was built on 2026-09-08 and removed the
+ * same day, before it had been heard on a device;
+ * `decisions/2026-09-08-the-arrival-is-offered.md` is why. The detection
+ * survived it unchanged, so what is testable here is still the *rule*: when it
+ * reports, when it must not, and the three conditions each doing its own work.
+ * That nothing enters the room is now itself one of the assertions.
  */
 
 const ME = 'acct_me';
@@ -45,9 +46,9 @@ function captureAppState() {
   (AppState as unknown as { currentState: string }).currentState = 'active';
 }
 
-const acted: Array<{ channelId: string; type: string }> = [];
-const act_ = (channelId: string, action: { type: 'ENTER' }) => {
-  acted.push({ channelId, type: action.type });
+const offered: Array<{ channelId: string; who: string[] }> = [];
+const onArrival = (channelId: string, who: string[]) => {
+  offered.push({ channelId, who });
 };
 
 /** Me nearby, one other person in the room or not. */
@@ -86,7 +87,7 @@ function Probe({
   view: ChannelView | null;
   nearbyIn: string | null;
 }) {
-  useNearby(view, ME, nearbyIn, act_);
+  useNearby(view, ME, nearbyIn, onArrival);
   return null;
 }
 
@@ -111,8 +112,8 @@ async function nearby(present: string[] = []): Promise<ReactTestRenderer> {
 describe('the arrival rule', () => {
   it('is not the first sight of a room', () => {
     // The snapshot that arrives with the declaration is the room as it already
-    // was. Reading it as an arrival would promote somebody straight back out
-    // of the state they had just chosen.
+    // was. Reading it as an arrival would put an offer up against the state
+    // somebody had just chosen.
     expect(somebodyArrived(null, [THEM], ME)).toBe(false);
   });
 
@@ -123,8 +124,8 @@ describe('the arrival rule', () => {
 
   it('is not somebody who was already there', () => {
     // The common case rather than a corner: declaring nearby in a room where
-    // somebody is already talking leaves you nearby, hearing nothing, until
-    // the next person arrives. That is intended.
+    // somebody is already talking leaves you nearby, hearing nothing and with
+    // no offer, until the next person arrives. That is intended.
     expect(somebodyArrived([THEM], [THEM], ME)).toBe(false);
   });
 
@@ -135,15 +136,33 @@ describe('the arrival rule', () => {
   it('is not somebody leaving', () => {
     expect(somebodyArrived([THEM, THIRD], [THEM], ME)).toBe(false);
   });
+
+  it('names who arrived, and agrees with the predicate', () => {
+    // The offer says a name, so the same rule has to produce one. Empty
+    // exactly when there is no arrival is the invariant worth holding: two
+    // answers that could disagree would be a card naming nobody.
+    expect(whoArrived([THEM], [THEM, THIRD], ME)).toEqual([THIRD]);
+    expect(whoArrived([], [THEM, THIRD], ME)).toEqual([THEM, THIRD]);
+    for (const [before, after] of [
+      [null, [THEM]],
+      [[THEM], [THEM]],
+      [[], [ME]],
+      [[THEM, THIRD], [THEM]],
+    ] as Array<[string[] | null, string[]]>) {
+      expect(whoArrived(before, after, ME).length > 0).toBe(
+        somebodyArrived(before, after, ME)
+      );
+    }
+  });
 });
 
-describe('promotion', () => {
+describe('the offer', () => {
   beforeEach(() => {
-    acted.length = 0;
+    offered.length = 0;
     captureAppState();
   });
 
-  it('steps in when somebody arrives', async () => {
+  it('reports the arrival, naming who it was', async () => {
     const tree = await nearby();
 
     await act(async () => {
@@ -152,11 +171,11 @@ describe('promotion', () => {
       );
     });
 
-    expect(acted).toEqual([{ channelId: 'chan_1', type: 'ENTER' }]);
+    expect(offered).toEqual([{ channelId: 'chan_1', who: [THEM] }]);
     await act(async () => tree.unmount());
   });
 
-  it('does not step in for somebody who was already there', async () => {
+  it('does not report somebody who was already there', async () => {
     const tree = await nearby([THEM]);
 
     await act(async () => {
@@ -165,11 +184,11 @@ describe('promotion', () => {
       );
     });
 
-    expect(acted).toEqual([]);
+    expect(offered).toEqual([]);
     await act(async () => tree.unmount());
   });
 
-  it('does not step in from the background, where iOS refuses a microphone', async () => {
+  it('reports nothing from the background', async () => {
     const tree = await nearby();
     await appState('background');
 
@@ -179,14 +198,15 @@ describe('promotion', () => {
       );
     });
 
-    expect(acted).toEqual([]);
+    expect(offered).toEqual([]);
     await act(async () => tree.unmount());
   });
 
-  it('promotes at the foreground for an arrival it could not act on', async () => {
+  it('offers at the foreground an arrival it could not draw', async () => {
     // **The arrival is not consumed by the background.** Others see *Nearby*
-    // and may ping while the phone is away; picking it up is the moment the
-    // promotion becomes possible, and the design asks for it there.
+    // and may ping while the phone is away, and the arrival notification is
+    // what reaches somebody who is not looking; picking the phone up is the
+    // moment the offer can be drawn, and it is there when they do.
     const tree = await nearby();
     await appState('background');
     await act(async () => {
@@ -194,18 +214,18 @@ describe('promotion', () => {
         <Probe view={viewOf(channelOf([THEM], [ME]))} nearbyIn="chan_1" />
       );
     });
-    expect(acted).toEqual([]);
+    expect(offered).toEqual([]);
 
     await appState('active');
 
-    expect(acted).toEqual([{ channelId: 'chan_1', type: 'ENTER' }]);
+    expect(offered).toEqual([{ channelId: 'chan_1', who: [THEM] }]);
     await act(async () => tree.unmount());
   });
 
-  it('does not step in on a wait this device did not declare', async () => {
-    // The inferred kind, and a declaration made on another phone. Promotion
-    // opens a microphone nobody asked for, and a wait somebody's other device
-    // is in the middle of is not an ask.
+  it('reports nothing on a wait this device did not declare', async () => {
+    // The inferred kind, and a declaration made on another phone. A wait
+    // somebody's other device is in the middle of is not this screen's to
+    // answer.
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(
@@ -219,14 +239,14 @@ describe('promotion', () => {
       );
     });
 
-    expect(acted).toEqual([]);
+    expect(offered).toEqual([]);
     await act(async () => tree.unmount());
   });
 
   it('stops once the server no longer says nearby', async () => {
     // Lapsed to *Stepped out*, which the server decides. `waiting` is read
     // back rather than assumed from the device's own record, so a declaration
-    // that has expired promotes nobody.
+    // that has expired offers nothing.
     const tree = await nearby();
 
     await act(async () => {
@@ -235,11 +255,11 @@ describe('promotion', () => {
       );
     });
 
-    expect(acted).toEqual([]);
+    expect(offered).toEqual([]);
     await act(async () => tree.unmount());
   });
 
-  it('promotes once, not on every snapshot afterwards', async () => {
+  it('reports once, not on every snapshot afterwards', async () => {
     const tree = await nearby();
 
     await act(async () => {
@@ -247,14 +267,14 @@ describe('promotion', () => {
         <Probe view={viewOf(channelOf([THEM], [ME]))} nearbyIn="chan_1" />
       );
     });
-    // The server has not answered yet, so the snapshot still says nearby.
+    // The offer is standing and unanswered, so the snapshot still says nearby.
     await act(async () => {
       tree.update(
         <Probe view={viewOf(channelOf([THEM], [ME]))} nearbyIn="chan_1" />
       );
     });
 
-    expect(acted).toHaveLength(1);
+    expect(offered).toHaveLength(1);
     await act(async () => tree.unmount());
   });
 });

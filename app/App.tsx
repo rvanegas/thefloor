@@ -230,20 +230,24 @@ function Root() {
   useAttention(live, me, audio.speaking);
 
   /**
-   * Stepped **in** to a channel this device is standing nearby, because
-   * somebody arrived.
+   * Somebody arriving in a channel this device is standing nearby.
    *
-   * The counterpart of the hook above and the only automatic entry in the app:
-   * that one ends a visit nobody is attending, this one starts one nobody
-   * asked for — which is what being nearby is a request for. It reads the
-   * snapshot rather than `live`, because the whole point is that this device is
-   * *not* standing in the channel it is watching. See `state/useNearby.ts`.
+   * **It notices; it does not enter.** The counterpart of the hook above, and
+   * the asymmetry is deliberate: `useAttention` ends a visit nobody is
+   * attending, which is a departure the phone may take on somebody's behalf,
+   * where arriving is not — see
+   * `planning/decisions/2026-09-08-the-arrival-is-offered.md`. What this
+   * produces is `app.nearbyArrival`, which `ChannelView` draws as an offer.
+   *
+   * It reads the snapshot rather than `live`, because the whole point is that
+   * this device is *not* standing in the channel it is nearby in. See
+   * `state/useNearby.ts`.
    */
   useNearby(
     app.nearbyIn ? (app.channelViews[app.nearbyIn] ?? null) : null,
     me,
     app.nearbyIn,
-    app.act
+    app.noteNearbyArrival
   );
 
   /**

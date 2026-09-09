@@ -9,9 +9,13 @@ and things to go and find out. There are more in BACKLOG.md.
 The 2026-09-08 redesign is built and none of it has been heard.
 planning/STEPPING-IN-WALK.md is the walk, in the order the risk runs: the
 claim, the release — which is the step most likely to fail, and it says why in
-advance — then promotion, then the question that gates the most, *does a
-self-mute move the route*. Two phones, a podcast and a Bluetooth headset. Fold
+advance — then the question that gates the most, *does a self-mute move the
+route*, and then the offer. Two phones, a podcast and a Bluetooth headset. Fold
 what it finds into the decision record and delete it.
+
+Promotion is no longer part of it: it was removed before the walk was run, and
+`decisions/2026-09-08-the-arrival-is-offered.md` is why. Steps 5 and 7 are
+cheap now and step 6 no longer needs a third person.
 
 ## Audio Announcement
 

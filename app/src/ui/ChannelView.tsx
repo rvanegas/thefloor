@@ -498,11 +498,23 @@ export function ChannelView({
    * Read off `waiting` rather than off `app.nearbyIn`, because the three ways
    * into *Nearby* are one state and the roster does not distinguish them: two
    * are declared and one is inferred from a socket that went. What
-   * `app.nearbyIn` decides is narrower and is not this screen's business —
-   * whether *this device* may promote itself when somebody arrives. See
-   * `state/useNearby.ts`.
+   * `app.nearbyIn` decides is narrower — whether an arrival raises an offer
+   * on *this device* — and it reaches this screen as `arrived` below rather
+   * than as this flag. See `state/useNearby.ts`.
    */
   const iAmNearby = channel.waiting.includes(me);
+  /**
+   * Who has arrived since this device declared itself nearby here, and is
+   * still in the room.
+   *
+   * `app.nearbyArrival` is raised by `state/useNearby.ts` and cleared by
+   * everything that ends the declaration; the presence filter is this screen's,
+   * for the reason in the card below.
+   */
+  const arrived =
+    app.nearbyArrival?.channelId === channel.id
+      ? app.nearbyArrival.who.filter((id) => channel.present.includes(id))
+      : [];
   /**
    * Standing here, but not on this device.
    *
@@ -1272,6 +1284,47 @@ export function ChannelView({
         </View>
 
         {/*
+          **The offer**, which is what an arrival does since 2026-09-08.
+
+          Until that afternoon this was not a card at all: a nearby phone
+          stepped itself in when somebody arrived, opening a microphone nobody
+          had touched the phone for. That is
+          `decisions/2026-09-08-the-arrival-is-offered.md`, and what replaced it
+          is this — the same detection, `state/nearby.ts`, drawn as a thing to
+          tap rather than performed.
+
+          **It is not behind `controlCards`.** That setting decides whether the
+          footer's controls are repeated in the body; this is not a repeated
+          control but the answer to a question the app has just asked, and a
+          setting about duplication has no business taking it away.
+
+          **It is filtered against the roster rather than expired on a clock.**
+          Somebody who arrived and has since left is no longer a reason to step
+          in, and `channel.present` already says so — an offer that outlived the
+          arrival would be the screen contradicting the list directly above it.
+        */}
+        {iAmNearby && arrived.length > 0 ? (
+          <>
+            <SectionLabel>Somebody arrived</SectionLabel>
+            <Card style={styles.stack}>
+              <Text style={type.body}>
+                {`${describeChannel(arrived.map(nameOf))} stepped in.`}
+              </Text>
+              <Button
+                label="Step in"
+                variant="primary"
+                onPress={() => act({ type: 'ENTER' })}
+              />
+              <Button label="Stay nearby" onPress={app.dismissNearbyArrival} />
+              <Text style={type.muted}>
+                You are nearby, so you cannot hear them yet. Stepping in opens
+                your microphone and stops whatever else this phone is playing.
+              </Text>
+            </Card>
+          </>
+        ) : null}
+
+        {/*
           Stepping in, directly under the roster, because on a screen you are
           not in it is the only thing you came to decide — everything below it
           describes a conversation you are not part of yet. It used to share a
@@ -1324,8 +1377,8 @@ export function ChannelView({
                   />
                   <Text style={type.muted}>
                     {iAmNearby
-                      ? 'You are nearby. Nothing on this phone is claimed, and you will step in by yourself when somebody arrives.'
-                      : 'Be reachable without joining: no microphone, nothing heard, and whatever else this phone is playing goes on playing. You step in by yourself when somebody arrives.'}
+                      ? 'You are nearby. Nothing on this phone is claimed, and this screen offers you a step in when somebody arrives.'
+                      : 'Be reachable without joining: no microphone, nothing heard, and whatever else this phone is playing goes on playing. When somebody arrives you are told, and stepping in stays your tap.'}
                   </Text>
                 </>
               ) : null}
@@ -1552,10 +1605,11 @@ export function ChannelView({
                 the tap steps in — see `stepOutClosesScreen`. That is the
                 difference between the two rather than an inconsistency:
                 stepping out is leaving, and this is staying within reach.
-                Staying is also what promotion needs — the arrival comes over
-                the ordinary websocket, and this screen is what is watching for
-                it. So it is unconditional here, and the setting only decides
-                whether the button above it agrees with it.
+                Staying is also where the offer is drawn — the arrival comes
+                over the ordinary websocket, and this screen is what puts a
+                step in under your thumb when it lands. So it is unconditional
+                here, and the setting only decides whether the button above it
+                agrees with it.
               */}
               {app.labs ? (
                 <>
@@ -1565,8 +1619,8 @@ export function ChannelView({
                   />
                   <Text style={type.muted}>
                     Give the audio system back and stay within reach. Your
-                    microphone closes, you hear nothing, and you step back in by
-                    yourself when somebody arrives.
+                    microphone closes and you hear nothing, and when somebody
+                    arrives this screen offers you a step back in.
                   </Text>
                 </>
               ) : null}
@@ -2779,17 +2833,40 @@ function ParticipantCard({
       // in the channel and still hold whatever they hold. Saying so beats
       // making them vanish and reappear over a moment's bad signal.
       //
-      // **Two sources, and the earlier one goes first.** `failing` is the
-      // media plane's own judgement, pushed by the SFU about the connection
-      // the conversation is travelling on; `reconnecting` is the server
-      // noticing a control socket went quiet, which cannot beat the heartbeat.
-      // So this line says the useful thing while somebody is still
-      // mid-sentence rather than a quarter-minute after the damage — which is
-      // the whole of what it is for. See `SessionAudio.failing`.
-      failing
-      ? 'Present · not receiving you'
-      : reconnecting
-        ? 'Present · reconnecting…'
+      // **Two sources, and the earlier one goes first — unless they agree.**
+      // `failing` is the media plane's own judgement, pushed by the SFU about
+      // the connection the conversation is travelling on; `reconnecting` is
+      // the server noticing a control socket went quiet, which cannot beat the
+      // heartbeat. So `failing` leads, and says the useful thing while
+      // somebody is still mid-sentence rather than a quarter-minute after the
+      // damage — which is the whole of what it is for. See
+      // `SessionAudio.failing`.
+      //
+      // **When both hold, `failing` gives way**, since 2026-09-08. A lost
+      // stream *and* a lost socket is a phone that has gone, and the two
+      // planes are corroborating each other rather than describing different
+      // things. "Not receiving you" would then be saying the one thing that is
+      // not true of it — that they are here, and your voice is missing them.
+      //
+      // **And a socket that has gone reads *Nearby*, not *Present*.** The
+      // grace period is a window in which somebody may come back; it is not a
+      // claim that they can hear you, and for the length of it this card used
+      // to say they were present while they were not. *Nearby* is what they
+      // are to everybody else — out of reach, one notification away — and it
+      // is already what this card offers, `callable` having included
+      // `reconnecting` all along. So the ping was right and the word was
+      // wrong.
+      //
+      // **No duration on it, unlike the nearby case below.** That one counts
+      // from `lastPresentAt` and is minutes old by the time it renders; this
+      // one is at most the grace period, and a countdown of seconds under
+      // somebody's name invites watching it rather than pinging them. If they
+      // do not come back the row simply keeps the word and gains the number.
+      // See planning/decisions/2026-09-08-the-grace-is-not-a-presence.md.
+      reconnecting
+      ? 'Nearby'
+      : failing
+        ? 'Present · not receiving you'
         : 'Present'
     : away !== null && isWaiting(channel, participant.id, now)
       ? // They did not leave; their phone did. Walking into a channel and

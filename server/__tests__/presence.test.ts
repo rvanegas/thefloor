@@ -162,6 +162,60 @@ describe('a presence the room stops holding', () => {
   });
 });
 
+describe('a place the socket stopped holding', () => {
+  /**
+   * **A backgrounded phone keeps its claim for as long as it holds the audio,
+   * and the socket is what says whether it still does.**
+   *
+   * Observed on 2026-09-08: backgrounding stopped the engine, the session was
+   * released, iOS suspended the process — and the roster went on saying
+   * *Present* while nothing was heard, because the SFU still listed the
+   * suspended process and the poll reported it `CONNECTED` on every pass,
+   * cancelling the grace the closing socket had started. The person was
+   * present, deaf, and unpingable, which is the one combination no state in
+   * this app is supposed to have.
+   */
+  it('is not held open by a room that still lists the process', async () => {
+    const { alice, bob, channelId } = await roomOfTwo();
+    await poll();
+
+    // The socket goes; the room does not, which is exactly the suspended case.
+    app.channels.report(channelId, bob.id, 'DISCONNECTED', 'socket');
+    expect(graceOn(channelId, bob.id)).toBe(true);
+
+    // Polls all the way through the minute, each one seeing bob in the room.
+    await poll();
+    await poll();
+    expect(graceOn(channelId, bob.id)).toBe(true);
+
+    clock += DISCONNECT_GRACE_MS;
+    app.channels.tick();
+    expect(channel(channelId).present).not.toContain(bob.id);
+    // Nearby, by the one route out: within reach, and a ping reaches a phone
+    // whose process is gone where nothing else does.
+    expect(channel(channelId).waiting).toContain(bob.id);
+    expect(channel(channelId).present).toContain(alice.id);
+  });
+
+  it('is restored by the client re-entering inside the minute', async () => {
+    // The other half, and what makes the rule above safe: a reconnecting
+    // client re-sends `ENTER` from `enteredChannel`, and that arm clears the
+    // grace. The socket takes back its own report; nothing else has to.
+    const { bob, channelId } = await roomOfTwo();
+    await poll();
+
+    app.channels.report(channelId, bob.id, 'DISCONNECTED', 'socket');
+    expect(graceOn(channelId, bob.id)).toBe(true);
+
+    app.channels.dispatch(channelId, bob.id, { type: 'ENTER' });
+    expect(graceOn(channelId, bob.id)).toBe(false);
+
+    clock += DISCONNECT_GRACE_MS;
+    app.channels.tick();
+    expect(channel(channelId).present).toContain(bob.id);
+  });
+});
+
 describe('a presence the room has not yet confirmed', () => {
   it('is left alone while it is still connecting', async () => {
     const alice = await signIn('alice@example.com', 'Alice');

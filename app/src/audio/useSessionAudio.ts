@@ -1027,6 +1027,13 @@ export function useSessionAudio(
       // engine fault every earlier reading had shown. Nothing in the log said
       // when it went.
       recordEvent(`sub + ${participant.identity} (${audible.size})`);
+      // **A subscription is proof the connection is not lost**, and it is the
+      // evidence that was on hand and ignored in the stuck case above: the
+      // resubscribe landed four tenths of a second after the replacement
+      // joined, while the warning went on being drawn for minutes. You cannot
+      // be subscribed to somebody who is not reaching you.
+      clearFailing(participant.identity);
+      pruneFailing();
       update({ othersAudible: audible.size });
     };
     const onUnsubscribed = (
@@ -1059,6 +1066,50 @@ export function useSessionAudio(
      * early, so a hold would spend the lead time it exists to provide.
      */
     const failing = new Set<string>();
+
+    /**
+     * Drops a name from the warning and publishes if that changed anything.
+     *
+     * **Because the set can only be emptied by events a gone participant may
+     * never send**, which is how it got stuck on 2026-09-08: a force-quit
+     * phone rejoined with the same identity, LiveKit replaced the participant,
+     * and neither a further `ConnectionQualityChanged` nor a
+     * `ParticipantDisconnected` arrived for the old one. The red line outlived
+     * the condition by minutes — the box's journal has three
+     * `connection lost` for that account against one `connection restored` —
+     * and only went when they stepped out and back in. The comment on the
+     * quality handler below had the reasoning already: a participant who
+     * leaves stops reporting quality rather than reporting good quality.
+     */
+    const clearFailing = (id: string) => {
+      if (!failing.delete(id)) return;
+      recordEvent(`connection cleared ${id}`);
+      update({ failing: [...failing] });
+    };
+
+    /**
+     * Intersects the warning with the room as it is now.
+     *
+     * **The half that closes the class rather than the path.** `clearFailing`
+     * answers the one sequence that was observed; this answers every sequence,
+     * by making the set derived from the room at each event instead of
+     * accumulated from events the room may not send. Nothing can stay lit for
+     * an identity the room no longer holds, whatever did or did not fire.
+     *
+     * Cheap enough to run on every relevant event: the map is the size of the
+     * channel, and the common case deletes nothing and publishes nothing.
+     */
+    const pruneFailing = () => {
+      if (failing.size === 0) return;
+      let changed = false;
+      for (const id of [...failing]) {
+        if (room.remoteParticipants.has(id)) continue;
+        failing.delete(id);
+        recordEvent(`connection pruned ${id}`);
+        changed = true;
+      }
+      if (changed) update({ failing: [...failing] });
+    };
 
     /**
      * Publishes the hold, and arms a timer for the moment it next changes.
@@ -1150,6 +1201,15 @@ export function useSessionAudio(
         else failing.delete(id);
         recordEvent(`connection ${lost ? 'lost' : 'restored'} ${id}`);
         update({ failing: [...failing] });
+        pruneFailing();
+      })
+      // **A fresh arrival is not a failing connection**, and this is the event
+      // the replacement case produces when nothing else does: somebody
+      // rejoining under an identity already in the set is a new connection
+      // wearing an old warning.
+      .on(RoomEvent.ParticipantConnected, (participant) => {
+        clearFailing(participant.identity);
+        pruneFailing();
       })
       // Somebody who has gone is no longer somebody whose connection is
       // failing: the warning has been overtaken by the fact. Without this the
@@ -1572,11 +1632,13 @@ export function useSessionAudio(
      * is the ordinary case — switching apps mid-conversation — and iOS permits
      * it.
      *
-     * **This is the same refusal the *promotion* from nearby is built around**,
-     * and it is why that one is a foreground rule. A nearby phone holds no
-     * session and no subscription, so becoming audible means starting both —
-     * which iOS will not do in the background at all. The design only ever asks
-     * for it in the foreground; see `useNearby` in src/state.
+     * **This refusal is also why nearby never grew an automatic entry.** A
+     * nearby phone holds no session and no subscription, so becoming audible
+     * means starting both, which iOS will not do in the background at all —
+     * and an entry that works only when somebody is already looking at the
+     * screen is one they can be offered instead. `state/useNearby.ts` notices
+     * the arrival; the tap is theirs. See
+     * `planning/decisions/2026-09-08-the-arrival-is-offered.md`.
      */
     const inCall = appliedRef.current?.config === CALL;
     const deferring = micNeeded && !foreground && !inCall;

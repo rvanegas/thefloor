@@ -459,9 +459,14 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('shows a disconnected party as present but reconnecting', () => {
-    // Not "left": they are still in the channel, still hold whatever they
-    // hold, and have a minute to come back.
+  it('shows a disconnected party as nearby, not present', () => {
+    // **Not "left"**: they are still in the channel, still hold whatever they
+    // hold, and have a minute to come back — which is why the grace exists and
+    // why it is not being shortened. **And not "present"** either, since
+    // 2026-09-08: for the length of that minute they cannot hear anybody, and
+    // a card saying otherwise is the roster asserting the one thing that is
+    // not true of them. *Nearby* is what they are to everybody else, and the
+    // ping this row already offered was right before the word was.
     const channel = channelOf();
     showChannel({ ...channel, disconnectedAt: { [THEM]: NOW - 5_000 } });
 
@@ -472,7 +477,8 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     const text = textOf(tree);
-    expect(text).toContain('Present · reconnecting…');
+    expect(text).toContain('Nearby');
+    expect(text).not.toContain('Present · reconnecting…');
     expect(text).not.toContain('Stepped out');
     act(() => tree.unmount());
   });
@@ -494,6 +500,28 @@ describe('Channel', () => {
     const text = textOf(tree);
     expect(text).toContain('Present · not receiving you');
     expect(text).not.toContain('Present · reconnecting…');
+    act(() => tree.unmount());
+  });
+
+  it('says nearby when both planes agree, rather than unreachable', () => {
+    // **Both planes agreeing is a phone that has gone**, and the screenshot
+    // that produced this test read "not receiving you" for minutes after a
+    // force quit. That phrasing asserts the one thing a departed phone is not:
+    // that they are here and your voice is missing them. `failing` still leads
+    // on its own — the test above holds that case — and gives way the moment
+    // the socket corroborates it.
+    const channel = channelOf();
+    showChannel({ ...channel, disconnectedAt: { [THEM]: NOW - 5_000 } });
+
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={{ ...AUDIO, failing: [THEM] }}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    const text = textOf(tree);
+    expect(text).toContain('Nearby');
+    expect(text).not.toContain('not receiving you');
     act(() => tree.unmount());
   });
 

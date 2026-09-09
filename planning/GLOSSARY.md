@@ -55,7 +55,7 @@ caused; the list carries the meaning.
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare, and it offers you a step in when somebody arrives rather than taking one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
@@ -448,6 +448,14 @@ It used to be only something that happened *to* somebody.
 - **Inferred** — present, and the connection ran out of grace before the
   attention clock expired.
 
+**Nearby never enters a room by itself.** When somebody steps into a channel a
+declared-nearby phone is standing in, it says who arrived and **offers** a step
+in — a card with *Step in* and *Stay nearby*, `nearbyArrival` in the code.
+Answering the offer is not answering the declaration: *Stay nearby* leaves you
+nearby and the next arrival offers again. Promotion, where the phone stepped
+itself in, was built and removed on 2026-09-08 without ever running on a
+device; see `decisions/2026-09-08-the-arrival-is-offered.md`.
+
 **Nothing else about it changed, and that is the point.** It is not kept alive,
 it lapses to *Stepped out* after the same window, and it is carried by the same
 `waiting` field — so every build that predates the declaration renders one
@@ -510,14 +518,27 @@ watching the channel renewed the grace period. `Channels.reconcilePresence`
 asks the room instead. See
 planning/decisions/2026-09-08-present-is-the-media-connection.md.
 
-**Entering is still what creates it.** Only the room may take a presence away;
-the tap is what grants one, because a step-in has to move the screen without a
-round trip through LiveKit. The two directions are not symmetrical, and making
-them so would put the interface behind the network.
+**Entering is still what creates it.** The tap is what grants a presence,
+because a step-in has to move the screen without a round trip through LiveKit.
+The two directions are not symmetrical, and making them so would put the
+interface behind the network.
 
-**A dropped connection is still not an absence.** A connection that dies and
-returns changes nothing; only staying gone past the grace period ends presence,
-and the roster distinguishes that case — see *Nearby*. What changed is which
+**Either connection may take one away, and neither may give one back.** The
+room falsifies a presence it stops holding; the **socket** does the same, and a
+grace *it* started the room may not cancel — a phone keeps its claim for as long
+as it holds the audio, and the socket is what says whether it still does. So a
+suspended phone the SFU goes on listing reads *Nearby* rather than *Present*.
+Only a reconnecting client's own re-entry restores it. See
+planning/decisions/2026-09-08-the-socket-is-what-holds-a-place.md.
+
+**A dropped connection is still not an absence — and since 2026-09-08 the
+roster stops calling it presence.** A connection that dies and returns changes
+nothing, and only staying gone past the grace period ends presence; but for the
+length of that grace the card reads ***Nearby*** rather than *Present ·
+reconnecting…*, because a window in which somebody may come back is not a claim
+that they can hear you. The ping was already offered there — presence is not
+reachability — so the button was right before the word was. See
+planning/decisions/2026-09-08-the-grace-is-not-a-presence.md. What changed is which
 connection is asked, not how patient the answer is.
 
 **The socket keeps the other clock.** How long ago somebody was last heard from

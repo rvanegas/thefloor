@@ -246,6 +246,13 @@ nothing.
 
 ## Promotion
 
+**Superseded the same day by `2026-09-08-the-arrival-is-offered.md`, before any
+of it was heard on a device.** The phone no longer steps itself in: it says who
+arrived and offers a step in. The detection below is unchanged and so is
+everything outside this section; what follows is kept because the reasoning
+about the trigger, the foreground and whose declaration counts all survived the
+reversal and is where it is written down.
+
 Nearby, **foreground**, somebody **steps in** → the phone takes the exclusive
 `playAndRecord` and **the user becomes audible.** Not listen-only.
 

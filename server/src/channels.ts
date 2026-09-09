@@ -667,6 +667,26 @@ export class ChannelRegistry {
    */
   private mediaSeen = new Map<string, Map<string, number>>();
   /**
+   * Who is inside a grace period **that a lost websocket started**, per
+   * channel.
+   *
+   * The two planes may both start a grace and they do not have equal standing
+   * to end one. A phone keeps its claim on a channel for exactly as long as it
+   * holds the audio, and the socket is the thing that says whether it still
+   * does — so a socket that has gone is a claim that has gone, whatever the
+   * SFU still lists. Without this the media roster cancelled the socket's
+   * grace on the next poll, and a backgrounded phone whose WebRTC connection
+   * lingered stayed *Present* while hearing nothing.
+   *
+   * A grace the **room** started has no such asymmetry: the socket is fine,
+   * nobody has lost a claim, and a media blip coming back inside the minute is
+   * spared exactly as before.
+   *
+   * In memory, like `mediaSeen`, and for the same reasons: nothing renders it,
+   * no client is told it, and a restart drops presence anyway.
+   */
+  private socketDropped = new Map<string, Set<string>>();
+  /**
    * When each person was last pinged in each channel, keyed channel-and-target.
    *
    * Per target rather than per sender: the limit protects whoever is being
@@ -1460,6 +1480,12 @@ export class ChannelRegistry {
     userId: string,
     state: 'CONNECTED' | 'DISCONNECTED',
     /**
+     * Which plane is speaking. `socket` marks the grace as one only the socket
+     * may end — see `socketDropped`. Defaults to `room`, which is every
+     * caller that is not the transport itself.
+     */
+    origin: 'socket' | 'room',
+    /**
      * When it happened, for a report that is not about the present moment.
      *
      * A disconnect is noticed some time after it occurred — up to a heartbeat
@@ -1476,6 +1502,13 @@ export class ChannelRegistry {
   ): void {
     const channel = this.channels.get(channelId);
     if (!channel) return;
+    if (state === 'DISCONNECTED' && origin === 'socket') {
+      const dropped = this.socketDropped.get(channelId) ?? new Set<string>();
+      this.socketDropped.set(channelId, dropped);
+      dropped.add(userId);
+    } else if (state === 'CONNECTED') {
+      this.socketDropped.get(channelId)?.delete(userId);
+    }
     const next = reduce(channel, { type: state, userId }, at);
     if (next !== channel) {
       this.commit(channel, next);
@@ -2319,6 +2352,7 @@ export class ChannelRegistry {
   private trackOccupancy(after: ChannelState): void {
     if (after.status !== 'active') {
       this.mediaSeen.delete(after.id);
+      this.socketDropped.delete(after.id);
       return;
     }
     const now = this.now();
@@ -2496,6 +2530,7 @@ export class ChannelRegistry {
         this.persisted.delete(after.id);
         this.silenceStated.delete(after.id);
         this.mediaSeen.delete(after.id);
+      this.socketDropped.delete(after.id);
       }, 30_000).unref?.();
     }
   }
@@ -3187,10 +3222,38 @@ export class ChannelRegistry {
     // never polled. Read rather than asserted, so the guard above staying true
     // is not something this has to know.
     if (!seen) return;
+    const dropped = this.socketDropped.get(state.id);
     for (const id of roomOccupants(state)) {
+      // Self-healing rather than unwound at each of the several places a grace
+      // can end: no grace running means nothing to be the origin of.
+      if (dropped?.has(id) && state.disconnectedAt[id] === undefined) {
+        dropped.delete(id);
+      }
       if (inRoom.has(id)) {
+        // **Stamped, not reported.** The room may falsify a presence and may
+        // never sustain one — which is what
+        // `2026-09-08-present-is-the-media-connection.md` said it did, while
+        // the `CONNECTED` that stood here did the opposite: it cancelled the
+        // grace a lost websocket had started, so a suspended phone whose
+        // WebRTC connection lingered in the SFU stayed *Present* until the
+        // room let go of it.
+        //
+        // A backgrounded phone keeps its claim for as long as it holds the
+        // audio, and the socket is what says whether it still does. Losing the
+        // socket is losing the claim, and the ordinary minute then carries it
+        // to *Nearby*. See
+        // `2026-09-08-the-socket-is-what-holds-a-place.md`.
+        //
+        // **Nothing needed this to cancel a grace.** A client that reconnects
+        // inside the minute re-sends `ENTER` from `enteredChannel` — see
+        // `app/src/api/socket.ts` — and that arm clears `disconnectedAt`
+        // itself. Past the minute it deliberately stops asserting.
         seen.set(id, now);
-        this.report(state.id, id, 'CONNECTED');
+        // The claim is the socket's to lose, so a grace it started is the
+        // socket's to end — by the `ENTER` a reconnecting client re-sends
+        // inside the minute, which clears `disconnectedAt` itself.
+        if (dropped?.has(id)) continue;
+        this.report(state.id, id, 'CONNECTED', 'room');
         continue;
       }
       // Somebody who stepped in a moment ago is still fetching a token and
@@ -3199,7 +3262,7 @@ export class ChannelRegistry {
       // *reconnecting* — so being early is not a private mistake.
       const since = seen.get(id);
       if (since === undefined || now - since <= MEDIA_JOIN_GRACE_MS) continue;
-      this.report(state.id, id, 'DISCONNECTED', now);
+      this.report(state.id, id, 'DISCONNECTED', 'room', now);
     }
   }
 
@@ -4348,7 +4411,7 @@ export class ChannelRegistry {
     guestId: string,
     state: 'CONNECTED' | 'DISCONNECTED'
   ): void {
-    this.report(channelId, guestId, state);
+    this.report(channelId, guestId, state, 'room');
   }
 
   /**

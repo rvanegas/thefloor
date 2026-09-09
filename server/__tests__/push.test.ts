@@ -1035,7 +1035,8 @@ describe('a ping', () => {
   it('reaches somebody the grace period is still counting present', async () => {
     const { alice, bob, channelId } = await bobStepsOut();
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
-    app.channels.report(channelId, bob.account.id, 'DISCONNECTED');
+    // A phone that suspended: the socket is what went.
+    app.channels.report(channelId, bob.account.id, 'DISCONNECTED', 'socket');
     await settle();
     expect(app.channels.get(channelId)!.present).toContain(bob.account.id);
     pusher.sent.length = 0;

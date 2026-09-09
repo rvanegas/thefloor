@@ -606,11 +606,13 @@ describe('who is in the channel, and who is talking', () => {
    * A phone suspends within a second of being pocketed, so somebody who steps
    * in and vanishes is held in `present` for DISCONNECT_GRACE_MS after the
    * heartbeat gives up. Whoever came in on the arrival notification spent all
-   * of that reading "Present · reconnecting…" with nothing to press. The line
-   * is unchanged, because it is still true; the button is there while it
-   * stands.
+   * of that reading "Present · reconnecting…" with nothing to press. The
+   * button came first; **the line caught up on 2026-09-08** and now reads
+   * *Nearby*, which is what the button had been saying all along. The grace is
+   * a window in which somebody may come back, not a claim that they can hear
+   * you.
    */
-  it('offers a ping while the grace period still calls them present', async () => {
+  it('offers a ping, and calls them nearby, inside the grace period', async () => {
     knowing(THEM);
     showChannel(
       channelOf((s) => reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW))
@@ -624,7 +626,8 @@ describe('who is in the channel, and who is talking', () => {
       />
     );
 
-    expect(textOf(tree)).toContain('Present · reconnecting…');
+    expect(textOf(tree)).toContain('Nearby');
+    expect(textOf(tree)).not.toContain('Present · reconnecting…');
     const ping = findButton(tree, 'Ping');
     expect(ping).toBeDefined();
     await act(async () => {

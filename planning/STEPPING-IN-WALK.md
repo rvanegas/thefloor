@@ -19,7 +19,7 @@ Everything below needs hardware, and about half of it needs two people.
 | --- | --- |
 | both core predicates, including the guest case | `core/__tests__/micNeeded.test.ts` |
 | `DECLARE_NEARBY` from inside and outside a channel, and the clock | `core/__tests__/nearby.test.ts` |
-| the promotion rule — arrivals, non-arrivals, the foreground, whose declaration | `app/src/state/__tests__/nearby.test.tsx` |
+| the arrival rule — arrivals, non-arrivals, the foreground, whose declaration, and that nothing enters the room | `app/src/state/__tests__/nearby.test.tsx` |
 | the three configurations, and that nothing mixes | `app/src/audio/__tests__/session.test.ts` |
 | `deactivateOnStop` reaching the observer | same file |
 | the deferral, and the release firing on teardown | `app/src/audio/__tests__/backgroundCapture.test.tsx` |
@@ -63,7 +63,7 @@ three.
 - **A Bluetooth headset** for steps 3, 4 and 11. Rows 5–9 of the lab run were
   taken on `wachowskis`; anything that does HFP will do.
 - **`journalctl -u thefloor -f`** on the box, which is where A's audio log
-  lands about thirty seconds behind the event. `grep 'released\|promoted\|
+  lands about thirty seconds behind the event. `grep 'released\|arrival\|
   capturing\|LISTENING'` is most of what this walk cares about.
 
 ---
@@ -156,57 +156,71 @@ which point remove the "inert, kept pending a device check" hedging in
 
 ---
 
-## Promotion
+## The offer
+
+**Promotion was removed on 2026-09-08**, before any of this was run — a nearby
+phone offers a step in rather than taking one. See
+`decisions/2026-09-08-the-arrival-is-offered.md`. What was the riskiest step in
+this walk is now the cheapest, and it is no longer an audio test at all.
 
 ### 5. Nearby, and somebody arrives
-
-**The other transition with real risk**, because promoting is a media reconnect
-made automatic — connect to the room and open the microphone, which is the
-re-entry that froze playout for weeks.
 
 On A, with the channel screen open and the phone in your hand: tap **Step in
 nearby** (or step in and then tap **Nearby**). Confirm the roster on B says A is
 *Nearby*. Now B steps in.
 
-**What settles it, and the second half is the one that matters.**
+**What settles it.**
 
-1. A steps in by itself, within a second or two of B's arrival. The log carries
-   `promoted from nearby` followed by `capturing CALL`.
-2. **A is audible without touching the phone.** Speak into A. B hears it. Not
-   listen-only — a promotion that connects and stays silent is the whole fault
-   this step exists to catch, and it is invisible from A's side.
-3. And A hears B, from B's first word rather than several seconds later. The
-   arrival is the trigger precisely so that the connection has those seconds.
+1. A does **not** step in. Nothing about A's audio changes — a podcast keeps
+   playing, a headset stays in stereo at 48000, and the log carries
+   `nearby arrival offered` and no `capturing` line at all. **The absence is the
+   assertion**, and it is the whole point of the reversal.
+2. A card appears on A's screen naming B — *Dana stepped in.* — with **Step
+   in** and **Stay nearby**.
+3. **Step in** works from there: A becomes audible, B hears them, and A hears B.
+   That is the ordinary claim, already tested as step 1, and what is being
+   checked here is only that the button is wired to it.
+4. **Stay nearby** puts the card away and leaves A nearby. B steps out and back
+   in; the card comes back. An offer answered is not a declaration ended.
 
-**What a failure looks like.** Nothing happening at all is the declaration not
-being this device's (`nearbyIn`), or the channel screen not being open — a
-nearby phone is promoted from the snapshot of the channel it is *watching*.
-Stepping in but rendering nothing is the playout freeze, which is what
-`deferSubscribe` and `holdForPlayout` are there for; that is a `PLAYOUT.md`
-problem rather than this one.
+**What a failure looks like.** No card at all is the declaration not being this
+device's (`nearbyIn`), or the channel screen not being open — the offer is drawn
+on the screen of the channel declared in. A card naming somebody who has since
+left is the roster filter not working; leave B stepped out for a moment and the
+card should go by itself.
 
-### 6. Somebody already there does not promote you
+### 6. Somebody already there raises no offer
 
 **The common case, not a corner.** B steps in first and starts talking. *Then*
 A declares nearby.
 
-**What settles it.** A stays nearby. A hears nothing — and, correctly, **sees
-nobody speaking**: the speaking indicator is the visual accompaniment to audio
-and the two are absent together, since `audio.speaking` is the room's active
-speakers and there is no subscription. The roster still shows B as present,
-which is honest — it says B is there, not that A can hear them.
+**What settles it.** A stays nearby, with no card. A hears nothing — and,
+correctly, **sees nobody speaking**: the speaking indicator is the visual
+accompaniment to audio and the two are absent together, since `audio.speaking`
+is the room's active speakers and there is no subscription. The roster still
+shows B as present, which is honest — it says B is there, not that A can hear
+them.
 
-A third person arriving *then* promotes A. That is the rule.
+**The next arrival raises the offer, and B can be their own.** The rule is a
+diff against the roster last seen, not a headcount, so B stepping out and back
+in is an arrival and a third person is not needed. Run it that way if there are
+only two of you.
 
-### 7. Promotion at the foreground
+### 7. The offer waits at the foreground
 
 A declares nearby, then switches to another app — do not lock the phone. B steps
-in. Nothing should happen. Bring The Floor forward.
+in. Bring The Floor forward.
 
-**What settles it.** A promotes on the foreground, not before. iOS refuses a
-backgrounded app a *new* microphone (measured on build 146: four minutes, no
-engine start), so attempting it in the background would connect to the room and
-publish nothing.
+**What settles it.** The card is there when A comes forward, naming B. **The
+arrival is not consumed by the background**: the roster is not recorded while
+the phone is away, so the comparison happens against what A last saw on screen.
+A card that never appears means it was consumed — the arrival counted as *seen*
+while nobody could act on it.
+
+The old reason for this rule was iOS refusing a backgrounded app a *new*
+microphone (measured on build 146: four minutes, no engine start). Nothing asks
+for a microphone here any more, and the foreground gate was kept for the
+sentence above instead.
 
 **A pocketed nearby phone is expected to lapse, and that is not this test
 failing.** Nearby holds no session, so iOS suspends the process within about a
@@ -309,8 +323,9 @@ agrees proves nothing except at that instant.
 before somebody spends an evening trying to see it. It is the configuration for
 somebody in the room who cannot publish — a **guest with no speech grant** — and
 guests are the browser page, which has no iOS audio session at all. On a phone
-it is reached in exactly two ways: a promotion deferred while backgrounded (step
-7, for the moment before the foreground), and a device with no microphone.
+it is reached in exactly one way now that nothing promotes itself: a device
+with no microphone. The other — a promotion deferred while backgrounded — went
+with promotion.
 
 An iPad or a Mac with no input is the only way to sit in it and listen. If one
 is to hand, step in with it while B talks: B should be audible, nothing should

@@ -1225,6 +1225,13 @@ export function registerWebsocket(deps: {
             channelId,
             connection.userId,
             'DISCONNECTED',
+            // **The socket's own report**, which only the socket may take
+            // back. A phone holds its place for as long as it holds the
+            // audio, and this closing is the evidence that it no longer
+            // does — so the media roster must not cancel this grace on the
+            // next poll, however long the SFU goes on listing a suspended
+            // process. See `Channels.socketDropped`.
+            'socket',
             connection.lastSeen
           );
         }
