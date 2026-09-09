@@ -1,5 +1,20 @@
 # The deploy history
 
+## 2026-09-09 — `56c526b` → `72f4bd8`
+
+Two commits: the build number bump to 172, and the correction to what the
+nearby window claims about itself — a comment, a decision file and two tests,
+with no line of behaviour among them. The inert kind of deploy, restamping
+`deployed.json` so the sha agrees with the checkout the next build is cut from.
+
+**Deployed because the sha is the record, not because the box needed it.** What
+changed was `core/`, which the box does run, but only its comments and its
+tests; `bin/health` reporting a commit that is not this checkout's HEAD is the
+thing worth avoiding, and it costs a minute.
+
+Health came back on the sha sent, `oldestBuild` 80 against a floor of 51, no
+silent builds.
+
 ## 2026-09-09 — `b3b346b` → `56c526b`
 
 One commit, and the first in a while that the box actually gains behaviour
