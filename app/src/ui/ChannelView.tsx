@@ -66,6 +66,7 @@ import { TranscriptView } from './TranscriptView';
 import { ProfileView } from './ProfileView';
 import { InlineMarkdown, isSafeUrl, openUrl } from './markdown';
 import {
+  BellIcon,
   CloseIcon,
   FloorIcon,
   MicIcon,
@@ -1003,8 +1004,10 @@ export function ChannelView({
   );
 
   /*
-    The three things you do to a conversation while you are in it, always
-    within reach.
+    The four things you do to a conversation, always within reach. Three of
+    them are things you do while you are in it; the pair at the end is the two
+    ways in and the two ways out, which is what presence being three rungs
+    rather than a switch costs the bar — one more slot.
 
     **These are shortcuts, not the controls, by default.** Each of them still
     has its card further down — with the sentence saying why it is refused, the
@@ -1017,7 +1020,7 @@ export function ChannelView({
     shortcuts.
 
     **Unless the cards have been turned off, in which case this is the whole of
-    the microphone and the two departures.** `hideControlCards`, from Home
+    the microphone and the ways in and out.** `hideControlCards`, from Home
     settings, is a choice somebody makes after the sentences have done their
     work — see `AppValue.hideControlCards`. That is why the rule above is about
     what a screen may show somebody who has not asked, rather than about what a
@@ -1035,7 +1038,7 @@ export function ChannelView({
     the icon legible the first time and the icon is what makes it findable
     after that.
 
-    **All three are always present, greyed rather than absent**, which is the
+    **All four are always present, greyed rather than absent**, which is the
     opposite of what the cards do. On a screen that scrolls, a control that is
     not true of you should not be there at all; in a fixed bar, items appearing
     and disappearing move the other two under a finger already on its way — and
@@ -1047,9 +1050,9 @@ export function ChannelView({
     1300pt screen, and the bar is capped and centred there rather than run edge
     to edge — see `footerInner`, which exists because a third of 1300 is not a
     control. What the cap does *not* touch is the property above: each action
-    is still `flex: 1` within the bar, so all three are still a third of it
-    whatever their labels say, and the middle one still does not move when
-    "Claim" becomes "Release". **Stability of position is the rule; reach was
+    is still `flex: 1` within the bar, so all four are still a quarter of it
+    whatever their labels say, and the floor still does not move when "Claim"
+    becomes "Release", nor the door when a rung changes the word beside it. **Stability of position is the rule; reach was
     only ever the reason a phone had for wanting it.**
   */
   const footer = (
@@ -1087,6 +1090,55 @@ export function ChannelView({
         onPress={() =>
           act({ type: iHoldFloor ? 'RELEASE_FLOOR' : 'CLAIM_FLOOR' })
         }
+      />
+      {/*
+        The nearby slot, and the door beside it. **Two slots rather than one
+        toggle**, since 2026-09-09: presence is three rungs and not two, and a
+        single control could only ever offer one of the two moves off whichever
+        rung you are on. See `planning/decisions/2026-09-09-presence-is-a-ladder.md`.
+
+        What each slot means never changes — this one is *nearby*, the one
+        after it is the door — so the rule the whole bar is built on survives
+        intact: nothing here moves under a finger already on its way. Only the
+        word changes, which is what the floor's slot has always done between
+        Claim and Release.
+
+        Between them they draw exactly the two moves off the rung you are on,
+        and never the same word twice:
+
+        - stepped out — *Be nearby*, *Step in*
+        - nearby      — *Step out*, *Step in*
+        - stepped in  — *Be nearby*, *Step out*
+
+        **"Step out" for leaving *Nearby*, deliberately**, though the word then
+        appears in this slot in one state and in the next slot in another. It
+        is the name of the rung you land on — GLOSSARY.md § *Nearby / Stepped
+        out* — and the alternatives ("Not nearby") name the state you are
+        leaving instead of the act, which is the one thing a control here may
+        not do.
+      */}
+      <FooterAction
+        label={iAmNearby ? 'Step out' : 'Be nearby'}
+        hint={
+          iAmNearby
+            ? 'You are nearby. Stop being reachable here'
+            : 'Be reachable without joining the conversation'
+        }
+        icon={(color) => <BellIcon color={color} />}
+        // Never refused either, and for the same reason as the door: from
+        // outside it claims nothing, and from inside it is a departure, which
+        // is the one act nothing on this screen can withhold.
+        tone={iAmNearby ? 'active' : 'idle'}
+        onPress={() => {
+          // The same `stepOut` the door uses, rather than a bare action: this
+          // is a departure, and whether a departure closes the screen is a
+          // question the setting answers once for both. See `stepOut`.
+          if (iAmNearby) {
+            stepOut();
+            return;
+          }
+          act({ type: 'DECLARE_NEARBY' });
+        }}
       />
       <FooterAction
         label={iAmPresent ? 'Step out' : 'Step in'}
@@ -1354,34 +1406,53 @@ export function ChannelView({
                   ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
                   : elsewhereOnAnotherDevice
                     ? 'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.'
-                    : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
+                    : iAmNearby
+                      ? 'You are nearby rather than in this channel. Nobody can hear you, and your microphone stays closed until you step in.'
+                      : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
               </Text>
               {/*
-                **Step in nearby, behind Labs.** The other way of being in a
-                room: within reach, one notification away, claiming no audio at
-                all — so another app goes on playing and a Bluetooth headset
-                stays in stereo. Stepping in claims the audio system outright,
-                and this is the escape hatch for somebody who wants to be
-                reachable without their music stopping.
+                **The other move off this rung**, and which one it is depends
+                on which rung you are on: somebody stepped out is offered
+                *nearby*, and somebody already nearby is offered the way out of
+                it. The pair with Step in above is the whole of what this card
+                is — see the footer, where the same two moves are the same two
+                slots.
 
-                A plain labelled button in the body rather than an icon in the
-                footer, and deliberately: the footer is for the controls
-                somebody reaches for without reading, and a way of being in a
-                room that has to be explained is a button with words on it.
+                Nearby is the other way of being in a room: within reach, one
+                notification away, claiming no audio at all — so another app
+                goes on playing and a Bluetooth headset stays in stereo.
+                Stepping in claims the audio system outright, and this is the
+                escape hatch for somebody who wants to be reachable without
+                their music stopping.
+
+                Plain labelled buttons in the body rather than only icons in
+                the footer: the footer is for the controls somebody reaches for
+                without reading, and a way of being in a room that has to be
+                explained is a button with words under it.
               */}
-              {app.labs ? (
+              {iAmNearby ? (
+                <>
+                  <Button label="Step out" onPress={stepOut} />
+                  <Text style={type.muted}>
+                    You are nearby. Nothing on this phone is claimed, and this
+                    screen offers you a step in when somebody arrives; stepping
+                    out ends that until you are nearby again.
+                  </Text>
+                </>
+              ) : (
                 <>
                   <Button
-                    label="Step in nearby"
+                    label="Be nearby"
                     onPress={() => act({ type: 'DECLARE_NEARBY' })}
                   />
                   <Text style={type.muted}>
-                    {iAmNearby
-                      ? 'You are nearby. Nothing on this phone is claimed, and this screen offers you a step in when somebody arrives.'
-                      : 'Be reachable without joining: no microphone, nothing heard, and whatever else this phone is playing goes on playing. When somebody arrives you are told, and stepping in stays your tap.'}
+                    Be reachable without joining: no microphone, nothing heard,
+                    and whatever else this phone is playing goes on playing.
+                    When somebody arrives you are told, and stepping in stays
+                    your tap.
                   </Text>
                 </>
-              ) : null}
+              )}
             </Card>
           </>
         )}
@@ -1593,37 +1664,42 @@ export function ChannelView({
           <>
             <SectionLabel>Step out</SectionLabel>
             <Card style={styles.stack}>
-              <Button label="Step out" onPress={stepOut} />
               {/*
-                **Nearby, behind Labs**: the same declaration made from inside,
-                which abandons the claim. It gives the audio system back — the
-                session is deactivated rather than quietened — and leaves you in
-                `waiting`, where every build already draws you as *Nearby* and
-                offers a ping.
+                **Nearby first, and the way out under it.** The two moves off
+                this rung, in the order the rungs are in — in, nearby, out — so
+                that wherever this pair is drawn the gentler departure is above
+                the outright one and neither ever changes place with the other.
+                On the card above, where you are not in the room, the same
+                order puts Step in at the top.
 
-                **It never closes the screen**, where Step Out above does when
+                *Be nearby* is the same declaration as the one on that card,
+                made from inside, and here it abandons the claim. It gives the
+                audio system back — the session is deactivated rather than
+                quietened — and leaves you in `waiting`, where every build
+                already draws you as *Nearby* and offers a ping. One word for
+                it in both places, since `DECLARE_NEARBY` is one action and the
+                branch inside it is the whole of the difference; it was "Step
+                in nearby" from outside and "Nearby" from inside until
+                2026-09-09, which was two names for one act.
+
+                **It never closes the screen**, where Step Out below does when
                 the tap steps in — see `stepOutClosesScreen`. That is the
                 difference between the two rather than an inconsistency:
                 stepping out is leaving, and this is staying within reach.
                 Staying is also where the offer is drawn — the arrival comes
                 over the ordinary websocket, and this screen is what puts a
-                step in under your thumb when it lands. So it is unconditional
-                here, and the setting only decides whether the button above it
-                agrees with it.
+                step in under your thumb when it lands.
               */}
-              {app.labs ? (
-                <>
-                  <Button
-                    label="Nearby"
-                    onPress={() => act({ type: 'DECLARE_NEARBY' })}
-                  />
-                  <Text style={type.muted}>
-                    Give the audio system back and stay within reach. Your
-                    microphone closes and you hear nothing, and when somebody
-                    arrives this screen offers you a step back in.
-                  </Text>
-                </>
-              ) : null}
+              <Button
+                label="Be nearby"
+                onPress={() => act({ type: 'DECLARE_NEARBY' })}
+              />
+              <Text style={type.muted}>
+                Give the audio system back and stay within reach. Your
+                microphone closes and you hear nothing, and when somebody
+                arrives this screen offers you a step back in.
+              </Text>
+              <Button label="Step out" onPress={stepOut} />
             </Card>
           </>
         ) : null}
@@ -2439,7 +2515,7 @@ export function ChannelView({
 }
 
 /**
- * One of the three controls in the pinned footer: an icon, a word, and the
+ * One of the four controls in the pinned footer: an icon, a word, and the
  * same guard its card uses.
  *
  * Not a `Button`. `Button` is a filled rectangle sized for a card — its
@@ -3255,11 +3331,14 @@ const styles = StyleSheet.create({
   /**
    * The bar itself, capped and centred inside the full-bleed surface above.
    *
-   * Narrower than `measure`, and by a lot: 620 divided three ways is a 206pt
-   * target for an icon and one word, which stops reading as a control and
-   * starts reading as a row of banners. 480 puts each at 160, against the ~125
-   * a phone gives them — the same object, slightly larger, rather than a
-   * different one.
+   * Narrower than `measure`, and by a lot: 620 divided up is a target for an
+   * icon and one word wide enough to stop reading as a control and start
+   * reading as a row of banners. It was 480 while there were three of these,
+   * putting each at 160 against the ~125 a phone gives them — the same object,
+   * slightly larger, rather than a different one. 560 across four keeps that
+   * ratio at 140 against a phone's ~90, where holding 480 would have dropped
+   * an iPad's below the phone's and left the bar looking cramped on the wider
+   * screen.
    *
    * The rule and the fill stay full-bleed, for the reason the header's do: an
    * edge that stops short of the window is not an edge.
@@ -3267,15 +3346,16 @@ const styles = StyleSheet.create({
   footerInner: {
     flexDirection: 'row',
     width: '100%',
-    maxWidth: 480,
+    maxWidth: 560,
     alignSelf: 'center',
     paddingHorizontal: spacing(1),
   },
   /**
-   * `flex: 1` on all three, so each is a third of the bar whatever its label
-   * says. The alternative — sizing to content — moves the middle control when
-   * "Claim" becomes "Release", which is a target shifting under the thumb at
-   * the exact moment somebody is reaching for it a second time.
+   * `flex: 1` on all four, so each is a quarter of the bar whatever its label
+   * says. The alternative — sizing to content — moves its neighbours when
+   * "Claim" becomes "Release" or "Be nearby" becomes "Step out", which is a
+   * target shifting under the thumb at the exact moment somebody is reaching
+   * for it a second time.
    *
    * `minHeight` is the 44pt Apple asks for, which the icon and label do not
    * reach on their own.

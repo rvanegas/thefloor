@@ -1307,6 +1307,59 @@ describe('websocket', () => {
     });
 
     /**
+     * **A declaration is not a departure**, and since 2026-09-09 it is
+     * something anybody can make rather than a Labs experiment — so the case
+     * that used to be unreachable is now an ordinary tap.
+     *
+     * Displacement corrects one belief and one only: that this account is
+     * standing in a room. A phone making itself reachable in a channel it is
+     * not in withdraws nothing, and the tablet holding a different room is
+     * entitled to go on holding it. Told otherwise, it drops the room and goes
+     * quiet because somebody tapped *Be nearby* somewhere else entirely.
+     */
+    it('says nothing to other devices when nearby is declared from outside', async () => {
+      const { alice, channelId, phone, tablet } = await twoDevices();
+      // A second channel, and the tablet standing in *that* one — which is the
+      // whole of the case. The phone is about to make itself reachable
+      // somewhere the account is not, and nothing about where the tablet is
+      // standing has changed.
+      const created = await app.fastify.inject({
+        method: 'POST',
+        url: '/channels',
+        headers: auth(alice.token),
+        payload: {},
+      });
+      const elsewhere = (created.json() as { channelId: string }).channelId;
+      await enter(tablet, elsewhere, alice.account.id);
+      tablet.received.length = 0;
+
+      phone.send({
+        type: 'channel.action',
+        channelId,
+        action: { type: 'DECLARE_NEARBY' },
+      });
+      await phone.next('channel', (m) =>
+        m.view.channel.waiting.includes(alice.account.id)
+      );
+      // And stepping out of *Nearby* again is the same: it is a departure from
+      // a rung nobody else can be standing on.
+      phone.send({
+        type: 'channel.action',
+        channelId,
+        action: { type: 'STEP_OUT' },
+      });
+      await phone.next('channel', (m) =>
+        !m.view.channel.waiting.includes(alice.account.id)
+      );
+
+      expect(sawDisplaced(tablet)).toBe(false);
+      expect(app.channels.get(elsewhere)!.present).toContain(alice.account.id);
+
+      phone.close();
+      tablet.close();
+    });
+
+    /**
      * The same for leaving the channel outright, which gives up presence on
      * the way past. Keyed on the action rather than on a change of presence
      * for the reason ENTER is: a session's belief is about what it would do

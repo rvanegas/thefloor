@@ -1813,7 +1813,30 @@ function stepOut(
   // not in `present` and never were, and there is no membership for them to
   // keep on the way out.
   if (isGuest(state, userId)) return guestGone(state, userId, now);
-  if (!isPresent(state, userId)) return state;
+  if (!isPresent(state, userId)) {
+    /**
+     * **Stepping out of *Nearby***, which is the one departure that starts
+     * from outside `present` — and until 2026-09-09 was not a departure at
+     * all, because this line returned the state untouched and there was no
+     * way off that rung except stepping in or waiting fifteen minutes for the
+     * window to age out.
+     *
+     * A chosen exit only. `dropped` and `inattentive` arrive from clocks
+     * rather than from anybody, and a clock firing about somebody who is not
+     * present has nothing to say about a declaration they made deliberately;
+     * `nearby` is the declaration itself, which never reaches here.
+     *
+     * **Nothing else is stamped.** `lastActiveAt` is not, for the reason
+     * `DECLARE_NEARBY` does not stamp it — being reachable was never the room
+     * being a room, so withdrawing it is not the room going quiet either.
+     * `lastPresentAt` is not, because they were not present and the roster
+     * card that now reads *Stepped out* should go on ageing from the last
+     * time they actually were. And `settleEmpty` is not called: `present` is
+     * untouched, so nothing about the room being empty has changed.
+     */
+    if (exit !== 'chosen' || !state.waiting.includes(userId)) return state;
+    return { ...state, waiting: state.waiting.filter((id) => id !== userId) };
+  }
   const present = state.present.filter((id) => id !== userId);
   // However they went — a tap or a grace period running out — they are no
   // longer present, so a pending disconnect clock is moot. Left behind it

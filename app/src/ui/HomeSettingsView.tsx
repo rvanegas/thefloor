@@ -263,9 +263,9 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           ))}
         </View>
         <Text style={type.muted}>
-          A channel keeps the floor, your microphone and the way out under your
-          thumb at all times. Off, which is where everybody starts, each of
-          them also has a card further down the screen. On, the bar is the
+          A channel keeps the floor, your microphone and the ways in and out
+          under your thumb at all times. Off, which is where everybody starts,
+          each of them also has a card further down the screen. On, the bar is the
           whole of them and the screen below is who is in the room and what the
           room is carrying.
         </Text>

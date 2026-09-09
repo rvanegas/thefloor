@@ -23,6 +23,7 @@ import {
   heartbeatTimeoutFor,
   type ClientKind,
 } from './release';
+import { isPresent } from '../../core/channel';
 import { sha256 } from './db';
 import { settingsForWire } from './settings-wire';
 
@@ -1117,6 +1118,22 @@ export function registerWebsocket(deps: {
             pushChannel(connection, message.channelId);
             return;
           }
+          /**
+           * Whether this account was standing in this room *before* the
+           * action, which is the whole of what a sibling session can be
+           * wrong about. Asked here because after the dispatch it is gone.
+           *
+           * Two of the actions below give up presence only sometimes. Since
+           * 2026-09-09 *nearby* is an ordinary state rather than a Labs one,
+           * so a phone can send `DECLARE_NEARBY` from outside a channel and
+           * `STEP_OUT` from *Nearby* — neither of which withdraws any
+           * presence, because there was none. Displacing on those told every
+           * other device of the account that it had lost the room, and a
+           * laptop standing in a different channel would go quiet because a
+           * phone made itself reachable in this one.
+           */
+          const before = channels.get(message.channelId);
+          const wasPresent = !!before && isPresent(before, connection.userId);
           // The actor comes from the authenticated connection, never the
           // payload — a client cannot act as the other party.
           const result = channels.dispatch(
@@ -1143,7 +1160,7 @@ export function registerWebsocket(deps: {
           // hand is undone by another device reconnecting.
           if (
             message.action.type === 'ENTER' ||
-            message.action.type === 'STEP_OUT' ||
+            (message.action.type === 'STEP_OUT' && wasPresent) ||
             // Gives up presence exactly as a Step Out does, so it needs the
             // same treatment: an untold sibling session goes on believing it
             // is present and re-sends ENTER from that belief on reconnect,
@@ -1151,10 +1168,9 @@ export function registerWebsocket(deps: {
             message.action.type === 'ATTENTION_EXPIRED' ||
             // Declaring nearby from inside a channel gives up presence too,
             // and an untold sibling would re-send ENTER on its next reconnect
-            // and undo it. Declaring it from outside displaces nothing, there
-            // being no presence to withdraw — the account cannot be standing
-            // anywhere this action left it standing.
-            message.action.type === 'DECLARE_NEARBY' ||
+            // and undo it. Declaring it from outside withdraws nothing, which
+            // is what `wasPresent` says here rather than in prose.
+            (message.action.type === 'DECLARE_NEARBY' && wasPresent) ||
             message.action.type === 'LEAVE_CHANNEL'
           ) {
             displaceOtherSessions(connection);

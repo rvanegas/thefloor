@@ -1,4 +1,4 @@
-import { canPing, createChannel, isPresent, reduce } from '../channel';
+import { canPing, createChannel, isPresent, isWaiting, reduce } from '../channel';
 import type { ChannelState } from '../types';
 
 /**
@@ -7,8 +7,9 @@ import type { ChannelState } from '../types';
  * *Nearby* had one way in, and it was something that happened **to** somebody:
  * you were present, your socket went before the attention window expired, and
  * the grace period filed you under `waiting`. It now has three, and the two
- * new ones are deliberate — *step in nearby* from outside a channel, and
- * *nearby* from inside one, which abandons the claim on the audio system.
+ * new ones are deliberate — *be nearby* from outside a channel, and *be
+ * nearby* from inside one, which abandons the claim on the audio system. One
+ * name for both since 2026-09-09, when it also gained a way out.
  *
  * What is tested here is that the declared kinds are indistinguishable from
  * the inferred one everywhere it matters: the same field, the same ping, the
@@ -96,5 +97,75 @@ describe('stepping in nearby, from outside', () => {
     const entered = reduce(nearby, { type: 'ENTER', userId: B }, T0 + 4_000);
     expect(entered.waiting).not.toContain(B);
     expect(isPresent(entered, B)).toBe(true);
+  });
+});
+
+/**
+ * The way off the rung, added 2026-09-09 with the three-state controls.
+ *
+ * Until then `stepOut` returned the state untouched for anybody who was not
+ * present, so a declaration could only be ended by stepping in — or by the
+ * fifteen-minute window ageing it out, which is not something anybody can
+ * choose. See planning/decisions/2026-09-09-presence-is-a-ladder.md.
+ */
+describe('stepping out of nearby', () => {
+  const nearby = () => declare(alone(), B);
+  const stepOut = (state: ChannelState, who: string, now = T0 + 5_000) =>
+    reduce(state, { type: 'STEP_OUT', userId: who }, now);
+
+  it('ends the declaration', () => {
+    const s = stepOut(nearby(), B);
+    expect(s.waiting).not.toContain(B);
+    expect(isPresent(s, B)).toBe(false);
+  });
+
+  it('puts the roster card back to stepped out', () => {
+    // The one thing anybody else can see about a declaration: `isWaiting` is
+    // what the roster reads, and it is *Nearby* against *Stepped out*. Being
+    // worth calling is not affected either way — `canPing` asks only whether
+    // somebody is out of earshot, which they are on both rungs.
+    // Declared from inside, so there is a `lastPresentAt` for the window to
+    // be measured against — the roster says *Nearby* for fifteen minutes from
+    // the last sign of life, and nothing at all for somebody it has never
+    // heard from.
+    const inside = declare(together(), B);
+    expect(isWaiting(inside, B, T0 + 6_000)).toBe(true);
+    expect(isWaiting(stepOut(inside, B), B, T0 + 6_000)).toBe(false);
+    expect(canPing(stepOut(inside, B), A, B)).toBe(true);
+  });
+
+  it('does not stamp the clocks, having been in nobody\'s room', () => {
+    // `lastPresentAt` would claim they were here until this moment, which is
+    // the lie the whole `Exit` distinction exists to avoid — they were not.
+    // `lastActiveAt` orders Home by when a room was last a room, and
+    // withdrawing a claim on a notification is not the room going quiet.
+    const before = nearby();
+    const s = stepOut(before, B, T0 + 60_000);
+    expect(s.lastPresentAt[B]).toBe(before.lastPresentAt[B]);
+    expect(s.lastActiveAt).toBe(before.lastActiveAt);
+  });
+
+  it('changes nothing for somebody who was not nearby', () => {
+    const before = alone();
+    expect(stepOut(before, B)).toBe(before);
+  });
+
+  it('leaves a dropped connection where the grace period put it', () => {
+    // A clock firing has nothing to say about a declaration: `DISCONNECT_EXPIRED`
+    // is what *files* somebody under nearby, and `ATTENTION_EXPIRED` is the
+    // rung below it. Neither is a chosen departure, and only a chosen one ends
+    // a wait.
+    const dropped = reduce(
+      reduce(together(), { type: 'DISCONNECTED', userId: B }, T0 + 2_000),
+      { type: 'DISCONNECT_EXPIRED', userId: B },
+      T0 + 120_000
+    );
+    expect(dropped.waiting).toContain(B);
+    const expired = reduce(
+      dropped,
+      { type: 'ATTENTION_EXPIRED', userId: B },
+      T0 + 130_000
+    );
+    expect(expired.waiting).toContain(B);
   });
 });

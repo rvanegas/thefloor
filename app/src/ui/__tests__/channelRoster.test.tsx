@@ -1167,8 +1167,11 @@ describe('a channel screen without the repeated cards', () => {
     expect(text).not.toContain('Mute yourself');
     // Step out is in the footer, which `textOf` reaches through `Screen`, so
     // the assertion is that there is one of it rather than none — the card
-    // and the heading above it are what went.
+    // and the heading above it are what went. The same holds for the nearby
+    // slot beside it, which the card carried the words for.
     expect(text.split('Step out')).toHaveLength(2);
+    expect(text.split('Be nearby')).toHaveLength(2);
+    expect(text).not.toContain('Give the audio system back');
     act(() => tree.unmount());
   });
 
@@ -1222,16 +1225,17 @@ describe('a channel screen without the repeated cards', () => {
 
   /**
    * The point of the setting, and the reason nothing is actually lost: the bar
-   * is the same bar, with the same three acts on it, whichever way this is
+   * is the same bar, with the same four acts on it, whichever way this is
    * set. A footer that thinned out with the cards would be a preference that
    * removed abilities rather than repetition.
    */
-  it('keeps all three controls in the footer', () => {
+  it('keeps all four controls in the footer', () => {
     const tree = showBare();
     const footer = footerOf(tree);
     const text = textOf(footer);
     expect(text).toContain('Mute');
     expect(text).toContain('Claim');
+    expect(text).toContain('Be nearby');
     expect(text).toContain('Step out');
     act(() => footer.unmount());
     act(() => tree.unmount());

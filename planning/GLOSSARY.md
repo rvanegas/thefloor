@@ -55,13 +55,13 @@ caused; the list carries the meaning.
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare, and it offers you a step in when somebody arrives rather than taking one
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, and it offers you a step in when somebody arrives rather than taking one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
-- **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright
+- **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name somebody chooses for themselves, unique across everybody, written with an `@`. Optional, and most people have none
 - **Voice** — One speaker within a transcript
@@ -442,11 +442,25 @@ to give up on a person and telling them to ping.
 **Nearby has three ways in, and since 2026-09-08 two of them are declared.**
 It used to be only something that happened *to* somebody.
 
-- **Declared** — *step in nearby*, from outside a channel.
-- **Declared** — *nearby*, from inside one, which abandons the claim on the
+- **Declared** — *be nearby*, from outside a channel.
+- **Declared** — *be nearby*, from inside one, which abandons the claim on the
   audio system.
 - **Inferred** — present, and the connection ran out of grace before the
   attention clock expired.
+
+**One name for the two declarations, since 2026-09-09**, because they are one
+action — `DECLARE_NEARBY`, whose internal branch is the whole of the difference
+between them. They were *step in nearby* from outside and *nearby* from inside,
+which was two names for one act and read as two mechanics.
+
+**And there is a way out of it, from the same day.** *Step out* while nearby
+ends the declaration and puts the card back to *Stepped out* — an ordinary
+`STEP_OUT`, which until then did nothing at all for somebody who was not
+present, leaving *Nearby* as a rung you could only leave by stepping in or by
+waiting fifteen minutes. So the three states are a ladder — **in, nearby,
+out** — and every screen that offers any of them offers the two moves off the
+rung you are on, in that order. See
+`decisions/2026-09-09-presence-is-a-ladder.md`.
 
 **Nearby never enters a room by itself.** When somebody steps into a channel a
 declared-nearby phone is standing in, it says who arrived and **offers** a step
@@ -459,8 +473,8 @@ device; see `decisions/2026-09-08-the-arrival-is-offered.md`.
 **Nothing else about it changed, and that is the point.** It is not kept alive,
 it lapses to *Stepped out* after the same window, and it is carried by the same
 `waiting` field — so every build that predates the declaration renders one
-correctly, with a ping. The two new ways in are behind `labs` until there is a
-UI worth shipping.
+correctly, with a ping. The two new ways in were behind `labs` until
+2026-09-09, when the ladder above gave them a shape worth shipping.
 
 **One clock governs all three, and it measures the last sign of life** rather
 than the moment anything was declared: how long since we heard from you, which
@@ -630,6 +644,12 @@ attend to rather than one you simply hear.
 **The escape hatch is *nearby***, which claims nothing at all. The two are the
 two ways of being in a room and the difference between them is exactly whether
 you claim the audio system. See *Nearby / Stepped out*.
+
+**So *Step out* names two acts, and one word is right for both**: leaving the
+room, and ending a declaration of nearby. Both land you on the same rung —
+*Stepped out* — which is what the word says. Since 2026-09-09 every control
+that offers either offers whichever of *Step in*, *Be nearby* and *Step out*
+are the two moves off the rung you are on, in that order.
 
 **A session is held if and only if the phone is stepped in.** Nearby, stepped
 out and not in a room are one audio state, and it is *none*.

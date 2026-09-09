@@ -17,6 +17,12 @@ Promotion is no longer part of it: it was removed before the walk was run, and
 `decisions/2026-09-08-the-arrival-is-offered.md` is why. Steps 5 and 7 are
 cheap now and step 6 no longer needs a third person.
 
+Two more changes landed on it before it was run, and the walk has been brought
+up to both: presence became the media connection, which is step 13, and
+presence became three rungs with the controls to match — *Be nearby* is one
+word in one place now, *Nearby* has a way out, and the footer has a fourth
+slot. Steps 12 and 14 are the interface ones and cost a minute between them.
+
 ## Audio Announcement
 
 When member steps in or steps out, there ought to be an audible announcement, such as two inverse distinguishable subtle chimes.

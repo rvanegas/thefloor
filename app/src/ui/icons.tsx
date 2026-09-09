@@ -5,14 +5,14 @@ import type { ColorValue } from 'react-native';
 /**
  * The icons this app draws, from Lucide path data copied into this file.
  *
- * Three of them are the channel footer's, and were the reason the file
+ * Four of them are the channel footer's, and were the reason the file
  * exists; the two below them are the header's *Close* and *Settings*, which
  * were words until 2026-09-02.
  *
  * **Vendored rather than imported.** `lucide-react-native` would be a second
  * dependency on top of `react-native-svg`, and Metro does not tree-shake by
  * default on SDK 54 — so the barrel import that reads most naturally is the
- * one that risks dragging a 25MB, 9,251-file package into the graph. Six
+ * one that risks dragging a 25MB, 9,251-file package into the graph. Seven
  * glyphs do not need an icon system. See DECISIONS.md § *The channel grows a
  * footer*. That argument is about the dependency rather than about the number
  * of glyphs, so it holds unchanged as this file grows.
@@ -36,7 +36,7 @@ const BOX = 24;
  * These sit under 11px labels in a screen whose heaviest rule is a hairline,
  * and at 22px a 2-unit stroke reads as a heavier weight than any type on the
  * screen — the icon stops being a label and starts being a button. One
- * constant rather than a prop, because the three of them differing would be
+ * constant rather than a prop, because the four of them differing would be
  * the thing anybody notices first.
  */
 const STROKE = 1.75;
@@ -175,6 +175,37 @@ export function StepIcon({
           <Path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
         </>
       )}
+    </Glyph>
+  );
+}
+
+/**
+ * Nearby: within reach, one notification away. `lucide/bell`.
+ *
+ * **A bell, though nothing here rings.** What being nearby actually is, in the
+ * reducer, is a claim on a notification and on nothing else — no microphone,
+ * no subscription, no audio session — so the glyph names the one thing the
+ * state buys you. A door was the obvious alternative and is wrong twice over:
+ * the slot beside this one already *is* a door, and standing outside one is a
+ * picture of not being let in rather than of being called.
+ *
+ * One glyph for both states, like the floor's and unlike the microphone's. A
+ * struck-through bell reads as *notifications off*, which is a preference this
+ * application does not have here; the state is carried by the accent colour
+ * and by the word underneath, which changes between "Be nearby" and
+ * "Step out".
+ */
+export function BellIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M10.268 21a2 2 0 0 0 3.464 0" />
+      <Path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
     </Glyph>
   );
 }

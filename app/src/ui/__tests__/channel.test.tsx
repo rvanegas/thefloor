@@ -990,6 +990,64 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The card half of the three rungs, which is the same pair the footer draws
+   * and the place the words are.
+   *
+   * Out of Labs on 2026-09-09. It was gated while it was one experiment among
+   * two, and a gate is what let the same action carry two names — "Step in
+   * nearby" from outside, "Nearby" from inside — for something the reducer has
+   * always treated as one act.
+   */
+  it('offers being nearby above the way out, and no longer behind Labs', () => {
+    mockApp.labs = false;
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    // In the rungs' own order — in, nearby, out — so the gentler departure is
+    // always the one above.
+    expect(textOf(tree)).toContain('Give the audio system back');
+    const nearby = findButton(tree, 'Be nearby');
+    expect(nearby).toBeDefined();
+    expect(findButton(tree, 'Step out')).toBeDefined();
+
+    act(() => nearby!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'DECLARE_NEARBY' });
+    // Staying within reach is staying, so the screen it offers the step in on
+    // is not taken away.
+    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('offers a way in and a way out to somebody who is nearby', () => {
+    mockApp.labs = false;
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW))
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    const text = textOf(tree);
+    // The rung you are on is the one thing not offered, on the card or in the
+    // footer: there is no *Be nearby* anywhere on a screen you are nearby in.
+    expect(text).not.toContain('Be nearby');
+    expect(text).toContain('You are nearby rather than in this channel');
+    expect(findButton(tree, 'Step in')).toBeDefined();
+
+    act(() => findButton(tree, 'Step out')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
+    act(() => tree.unmount());
+  });
+
   it('orders the screen by what somebody in a conversation reaches for', () => {
     // Roughly by how often it is wanted, and pinned here because the order is
     // a decision rather than an accident of how the JSX was written. It has
@@ -1235,7 +1293,7 @@ describe('Channel', () => {
     return render(screen.props.footer);
   };
 
-  it('pins three controls under the conversation', () => {
+  it('pins four controls under the conversation', () => {
     showChannel(channelOf());
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
@@ -1243,10 +1301,85 @@ describe('Channel', () => {
     const footer = footerOf(tree);
 
     // Present and unmuted with nobody else here: mute is yours to use, the
-    // floor is not (it wants two people), and stepping out always is.
+    // floor is not (it wants two people), and both departures always are.
     expect(textOf(footer)).toContain('Mute');
     expect(textOf(footer)).toContain('Claim');
+    expect(textOf(footer)).toContain('Be nearby');
     expect(textOf(footer)).toContain('Step out');
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Presence is three rungs — in, nearby, out — and the last two slots are the
+   * two moves off whichever one you are on. Asserted as three whole footers
+   * rather than three separate cases, because what is being tested is that the
+   * set is exactly the pair each time: an extra way out, or a *Step in* on a
+   * screen you are already in, is the failure this catches.
+   *
+   * The words are the moves rather than the states, so no state says the same
+   * word twice — and *Step out* naming both the way off *Nearby* and the way
+   * out of the room is the one repetition, in different slots and never at
+   * once.
+   */
+  it('offers the two moves off the rung you are on', () => {
+    const wordsIn = (channel: Parameters<typeof showChannel>[0]) => {
+      showChannel(channel);
+      const tree = render(
+        <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+      );
+      const footer = footerOf(tree);
+      const words = ['Step in', 'Be nearby', 'Step out'].filter((word) =>
+        textOf(footer).includes(word)
+      );
+      act(() => footer.unmount());
+      act(() => tree.unmount());
+      return words;
+    };
+
+    expect(wordsIn(channelOf())).toEqual(['Be nearby', 'Step out']);
+    expect(
+      wordsIn(channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW)))
+    ).toEqual(['Step in', 'Step out']);
+    expect(
+      wordsIn(channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW)))
+    ).toEqual(['Step in', 'Be nearby']);
+  });
+
+  it('ends a declaration from the footer, as a departure rather than a toggle', () => {
+    // The same `stepOut` the door uses: the reducer is told, the view is
+    // dropped and the caller is told, because leaving *Nearby* is leaving and
+    // whether that closes the screen is one question with one answer.
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW))
+    );
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    const footer = footerOf(tree);
+
+    act(() => findButton(footer, 'Step out')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
+    expect(mockApp.leaveChannelView).toHaveBeenCalledWith('sess_1');
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('declares nearby from the footer without leaving the screen', () => {
+    // Being nearby is staying within reach, and the screen is where the offer
+    // is drawn when somebody arrives — so this one never closes it, whichever
+    // way "Tap a channel to step in" is set.
+    showChannel(channelOf());
+    const onExit = jest.fn();
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={onExit} />
+    );
+    const footer = footerOf(tree);
+
+    act(() => findButton(footer, 'Be nearby')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'DECLARE_NEARBY' });
+    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
+    expect(onExit).not.toHaveBeenCalled();
     act(() => footer.unmount());
     act(() => tree.unmount());
   });
