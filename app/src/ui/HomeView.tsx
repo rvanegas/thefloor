@@ -60,7 +60,6 @@ export function HomeView({
   onOpenAudioLab,
   onOpenProfile,
   liveChannel = null,
-  liveChannelId,
   onReturnToChannel = () => {},
 }: {
   /** Which of the two lists is in the body. See `List` in `ui/detail.ts`. */
@@ -111,7 +110,9 @@ export function HomeView({
   }) => void;
   /**
    * The channel you are present in right now, if you walked back here without
-   * stepping out. Null when you are not in one.
+   * stepping out. Null when you are not in one — and never null merely
+   * because that channel is also the pane next door, which is what makes this
+   * bar look the same whatever the other half of a split is showing.
    */
   liveChannel?: {
     channelId: string;
@@ -120,19 +121,6 @@ export function HomeView({
     /** Muted by your own choice — not the floor, which is a different thing. */
     muted: boolean;
   } | null;
-  /**
-   * Which channel you are present in, for the list below to leave out —
-   * which is *not* the same question as whether the bar is drawn, and was
-   * the same prop until 2026-09-04.
-   *
-   * The bar is suppressed when the channel is the pane next door, because
-   * what it says is false there. The list's row is not a sentence and stays
-   * true, but it is still a second rendering of the conversation already on
-   * screen, offering to open what is open — so it goes as well. Absent means
-   * *whatever the bar is showing*, which is what every caller but `App.tsx`
-   * wants and what this was before the two came apart.
-   */
-  liveChannelId?: string | null;
   onReturnToChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
@@ -318,9 +306,10 @@ export function HomeView({
         <ChannelsView
           onEnterChannel={onEnterChannel}
           // The bar above and a row down here are two renderings of one
-          // channel, so at most one of them appears — and sometimes neither,
-          // when the conversation itself is the pane next door. See the prop.
-          liveChannelId={liveChannelId ?? liveChannel?.channelId ?? null}
+          // channel, so exactly one of them appears. They were briefly
+          // separate questions, while the bar was suppressed in a split and
+          // the row was not — see `App.tsx`, which no longer suppresses it.
+          liveChannelId={liveChannel?.channelId ?? null}
         />
       ) : (
         <ContactsView onEnterChannel={onEnterChannel} onOpenProfile={openProfile} />

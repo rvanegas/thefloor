@@ -633,13 +633,20 @@ function Root() {
       // reason the bar belongs to the tier rather than to either list is that
       // switching lists used to take it off the screen.
       //
-      // **Not when that conversation is the pane next to this one.** The bar
-      // says you are somewhere else and offers to take you back, and both
-      // halves of that are false when the channel is on screen a hairline
-      // away. It returns the moment the other pane is showing anything else,
-      // which is when the sentence becomes true again.
+      // **Drawn whenever there is one, the pane next door included**, since
+      // 2026-09-08. It was suppressed while the detail pane held this same
+      // channel, on the argument that *you are somewhere else, tap to go
+      // back* is false a hairline away from the thing it points at. The
+      // sentence is the smaller half. The bar is the tier's standing
+      // statement of which room you are in, and a statement that blinks out
+      // whenever you happen to be looking at the room is one nobody can learn
+      // to find — worse, it took the row with it, so the sidebar omitted the
+      // one channel you were actually in and every row below the bar jumped
+      // by its height as the *other* pane navigated. A pinned line is
+      // supposed to be redundant; that is what pinning is. Pressing it while
+      // it is already the pane is the no-op it looks like.
       liveChannel={
-        live && !(layout === 'split' && channelId === live.id)
+        live
           ? {
               channelId: live.id,
               title: titleOf(live.name, here!.participants, me),
@@ -648,14 +655,6 @@ function Root() {
             }
           : null
       }
-      // And the list leaves it out whether or not the bar is drawn, which is
-      // why this is passed separately rather than read off `liveChannel`. The
-      // argument that takes the bar away in a split takes the row away too: a
-      // LIVE row is a way to open a channel, and the channel is already open
-      // in the pane beside it. Suppressing one and not the other left the
-      // conversation on screen twice, hoisted under a heading that offered to
-      // take you where you were.
-      liveChannelId={live?.id ?? null}
       onReturnToChannel={enterChannel}
     />
   );

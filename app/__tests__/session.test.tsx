@@ -567,17 +567,19 @@ describe('a window wide enough for two panes', () => {
   });
 
   /**
-   * The bar and the LIVE row are two renderings of one conversation, and in a
-   * split with that conversation open there should be neither.
+   * The tier says which room you are in, and goes on saying it when that room
+   * is the pane next door.
    *
-   * The bar has always gone: what it says — you are somewhere else, tap to go
-   * back — is false with the channel on screen a hairline away. The row is not
-   * a sentence and stayed, which left the channel drawn twice, once in the
-   * pane and once hoisted under a heading offering to open what was open. So
-   * `App` passes `liveChannelId` separately from `liveChannel`: which channel
-   * the list leaves out is not the same question as whether the bar is drawn.
+   * It did not, until 2026-09-08: the bar was suppressed in exactly that case,
+   * on the argument that *you are somewhere else, tap to go back* is false a
+   * hairline from the thing it points at — and it took the LIVE row with it,
+   * since the row is a way in to the pane beside it. Between them the sidebar
+   * stopped naming the one channel you were actually in, and every row below
+   * the bar moved by its height as the *other* pane navigated. **So the
+   * assertion is sameness**: the bar's label, before and after, character for
+   * character.
    */
-  it('shows the live channel neither as a bar nor as a row when it is the pane', () => {
+  it('says which room you are in identically whether or not it is the pane', () => {
     const CHANNEL = 'chan_live';
     // Built by the reducer rather than by hand: this one is rendered as a
     // whole screen, which reads far more of the state than the roster blobs
@@ -627,14 +629,34 @@ describe('a window wide enough for two panes', () => {
       tree = renderer.create(<App />);
     });
 
-    // With nothing in the pane the bar is the rendering, and it is the way in.
-    expect(textOf(tree)).toContain('tap to go back');
+    /**
+     * The tier's statement of the room — what it draws and what it reads out,
+     * together, so neither half can change unnoticed.
+     */
+    const bar = () => {
+      const node = tree.root
+        .findAll((n) => n.props?.accessibilityRole === 'button')
+        .find(
+          (n) =>
+            typeof n.props.accessibilityLabel === 'string' &&
+            n.props.accessibilityLabel.includes('Tap to return.')
+        );
+      return node ? `${node.props.accessibilityLabel} | ${labelOf(node)}` : null;
+    };
+
+    const before = bar();
+    expect(before).toContain('Book club');
     pressButton(tree, 'Book club');
 
+    // The whole of the point: opening the conversation beside it changes
+    // nothing about the line that says where you are.
+    expect(bar()).toBe(before);
+
     const shown = textOf(tree).replace(/\s+/g, ' ');
-    expect(shown).not.toContain('tap to go back');
-    // Once — in the pane. Not again in the tier under a heading.
-    expect(shown.match(/Book club/g)).toHaveLength(1);
+    // Twice now — the bar and the pane — which is what a pinned line is for.
+    expect(shown.match(/Book club/g)).toHaveLength(2);
+    // The row stays out, being the third rendering and the only one that is a
+    // way in to what is already open. The heading goes with it.
     expect(shown).not.toContain('Live');
 
     act(() => tree.unmount());
