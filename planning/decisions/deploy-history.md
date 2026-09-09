@@ -1,5 +1,25 @@
 # The deploy history
 
+## 2026-09-09 — `d41f9c2` → `b3b346b`
+
+Two commits, both app-only: the build number bump to 169, and the footer
+becoming three presence slots with the roster's red made to follow its word.
+Nothing in `core/` or `server/` changed between the two shas, so the box gained
+no behaviour — the inert kind of deploy the 2026-09-07 entry describes,
+restamping `deployed.json` so the sha agrees with the checkout the build is
+being cut from, and rebuilding the guest page on the way past.
+
+Health came back on the sha that was sent, `oldestBuild` 80 against a floor of
+51 with no silent builds. `drops` read 2 at `d41f9c2` (both expired, none
+recovered) and 0 on the restart, which is the counter starting again rather
+than anything being fixed — see what a restart costs in INFRASTRUCTURE.md.
+
+Deployed before the upload rather than after, per *What one build costs*: the
+client half of this change is what goes to App Store Connect next, and a box
+behind the build it is answering is the one failure mode that sequence exists
+to prevent. It could not have bitten here — no wire change since `d41f9c2` —
+but the order is not worth making conditional on remembering that.
+
 ## 2026-09-07 — `3e779d7` → `436d910`
 
 Two commits, both app-only: the build number bump to 160, and the fix for
