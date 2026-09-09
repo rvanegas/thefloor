@@ -278,6 +278,61 @@ describe('how long a wait has been going on', () => {
     expect(again.declaredNearbyAt[B]).toBe(T0 + 2_000);
   });
 
+  /**
+   * The heartbeat's half, added the same day and for the screen it fails on:
+   * nearby, channel open, card reading "Nearby for 14m", and no way to reach
+   * the fifteenth minute except stepping in or stepping out and back. The
+   * phone was already saying it was awake and holding this channel, several
+   * times a minute, and `STILL_HERE` was throwing that away because the sender
+   * was not in the room.
+   */
+  describe('a heartbeat from somebody nearby', () => {
+    const beat = (state: ChannelState, at: number) =>
+      reduce(state, { type: 'STILL_HERE', userId: B }, at);
+
+    it('keeps a live declaration from ageing', () => {
+      let s = declare(together(), B, T0);
+      // Fourteen minutes of heartbeats, one a minute, and it never lapses.
+      for (let minute = 1; minute <= 14; minute += 1) {
+        s = beat(s, T0 + minute * 60_000);
+        expect(nearbyMs(s, B, T0 + minute * 60_000)).toBe(0);
+      }
+      expect(isWaiting(s, B, T0 + 20 * 60_000)).toBe(true);
+      // And it is the declaration's clock that moved, not the presence one:
+      // nothing here says they were in the room.
+      expect(s.lastPresentAt[B]).toBe(together().lastPresentAt[B]);
+    });
+
+    it('does not resurrect a declaration that has already lapsed', () => {
+      // `waiting` outlives the window on purpose, so membership alone would
+      // have let a late heartbeat put somebody back to *Nearby* on a screen
+      // that had already said *Stepped out* — without anybody declaring
+      // anything, and with nothing to show them it had happened.
+      const s = declare(together(), B, T0);
+      const late = T0 + WAITING_WINDOW_MS + 1;
+      expect(isWaiting(s, B, late)).toBe(false);
+      expect(beat(s, late)).toBe(s);
+      expect(isWaiting(beat(s, late), B, late)).toBe(false);
+    });
+
+    it('leaves a dropped wait timed from the last thing heard', () => {
+      // Not a claim anybody made, so not a claim a socket may renew: the whole
+      // meaning of that wait is the moment the phone went quiet.
+      const dropped = reduce(
+        together(),
+        { type: 'DISCONNECT_EXPIRED', userId: B },
+        T0 + 60_000
+      );
+      expect(beat(dropped, T0 + 2 * 60_000)).toBe(dropped);
+    });
+
+    it('still stamps presence for somebody who is here', () => {
+      const s = beat(together(), T0 + 60_000);
+      expect(s.lastPresentAt[B]).toBe(T0 + 60_000);
+      expect(s.declaredNearbyAt[B]).toBeUndefined();
+    });
+  });
+
   it('lets the toggle restart the window, indefinitely, and that is allowed', () => {
     // Found from a screenshot: *Out* and *Nearby* are adjacent slots, so the
     // fifteen minutes is two taps from starting again, however many times.

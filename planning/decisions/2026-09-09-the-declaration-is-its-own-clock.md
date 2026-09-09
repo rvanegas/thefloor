@@ -96,3 +96,56 @@ watching, a toggling person's history appears to rewrite itself. Left as it is:
 the alternative is timing *Stepped out* from the declaration, which would claim
 somebody was in the room until the moment they tapped, and that is the lie the
 two clocks exist to avoid.
+
+## The heartbeat keeps it true, added the same day
+
+Asked from the screen it fails on: nearby, channel open, the card reading
+"Nearby for 14m", and no way to reach the fifteenth minute except stepping in,
+or stepping out and back. The toggle above is the only refresh there was, and
+it is the thing the question excluded.
+
+**The evidence was already arriving and being thrown away.** Every message a
+watching socket sends makes the server call `channels.stillHere` for each
+channel that socket holds — every two seconds — and `STILL_HERE`'s first line
+refused anybody not in the room. So the phone was saying *I am awake and
+holding this channel* several times a minute, and the rule discarded it because
+the sender had stepped out of the room it was talking about.
+
+`STILL_HERE` now refreshes a live declaration as well as a presence, and the
+scoping is three conditions rather than one:
+
+- **A declaration only, not any wait.** A connection that ran out of grace is
+  timed from the last thing anybody heard, and that is the whole of what it
+  means; refreshing it from a socket would say a pocketed phone had been heard
+  from. What is refreshed is a claim somebody made, by the process that made
+  it.
+- **Only while it is still standing.** `isWaiting`, not membership of
+  `waiting`, which outlives the window on purpose. A heartbeat arriving after
+  the fifteen minutes would silently resurrect a nearby that had already
+  lapsed, on a screen that had already said *Stepped out*, without anybody
+  declaring anything.
+- **`lastPresentAt` is not touched.** Nothing here says they were in the room.
+
+## What it cost the server, which is the half that is not free
+
+`stillHere` deliberately emits nothing: a present member's stamp is unreadable
+— `idleMs` answers null for them — so pushing it would redraw an identical
+screen. **A nearby member's stamp is readable**, and every other roster in the
+channel computes the fifteen minutes from it, so a silent refresh would leave
+everybody else lapsing a declaration the server considers live. That is exactly
+the divergence between members' rosters that was asked about an hour earlier,
+manufactured on purpose.
+
+So a refreshed declaration is echoed, and `NEARBY_ECHO_MS` is a minute —
+chosen against the window rather than against the cost. A roster can be at most
+a minute stale about a declaration, which against fifteen cannot make the
+difference between *Nearby* and *Stepped out* on anybody's screen, and the fan
+-out is one snapshot a minute per nearby watcher rather than one every two
+seconds. `ChannelRegistry.nearbyEchoedAt` holds the last echo per
+`channelId:userId` and is cleared the moment a heartbeat stops refreshing
+anything, so it holds one entry per person currently nearby with the app open.
+
+**No client change and no wire change.** The heartbeat exists, the field
+exists, and the cadence is the server's business — so this reaches every
+install that can read `declaredNearbyAt` as soon as the box has it. Builds
+below 172 are unaffected either way: they never read the field.

@@ -1174,11 +1174,38 @@ export function reduce(
   // on presence, not membership: a socket watching a channel its owner has
   // stepped out of is still sending heartbeats, and letting those land would
   // overwrite the departure with a stream of proof that they are gone.
+  //
+  // **Since 2026-09-09 it keeps a live declaration true as well**, which is
+  // the same idea applied to the rung below and is the second clock's half of
+  // this action. Asked for from the screen it fails on: nearby, channel open,
+  // card reading "Nearby for 14m", and no way to reach the fifteenth minute
+  // except stepping in or stepping out and back. The phone was already saying
+  // it was awake and holding this channel, several times a minute, and this
+  // rule was throwing it away because the sender was not in the room.
+  //
+  // **A declaration only, not any wait.** A connection that ran out of grace
+  // is timed from the last thing anybody heard, and that is the whole of what
+  // it means; refreshing it from a socket would say a pocketed phone had been
+  // heard from. What is refreshed here is a claim somebody made, by the
+  // process that made it, while it is still standing.
+  //
+  // **And only while it is still standing** — `isWaiting`, not membership of
+  // `waiting`, which outlives the window on purpose. A heartbeat arriving
+  // after the fifteen minutes would silently resurrect a nearby that had
+  // already lapsed, on a screen that says so, without anybody declaring
+  // anything.
   if (action.type === 'STILL_HERE') {
-    if (!isPresent(state, action.userId)) return state;
+    if (isPresent(state, action.userId)) {
+      return {
+        ...state,
+        lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
+      };
+    }
+    if (state.declaredNearbyAt?.[action.userId] === undefined) return state;
+    if (!isWaiting(state, action.userId, now)) return state;
     return {
       ...state,
-      lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
+      declaredNearbyAt: { ...state.declaredNearbyAt, [action.userId]: now },
     };
   }
 

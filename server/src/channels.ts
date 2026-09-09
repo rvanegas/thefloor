@@ -181,6 +181,25 @@ export const playbackIdentity = (channelId: string) => `media:${channelId}`;
 const PRESENCE_RESOLUTION_MS = 60_000;
 
 /**
+ * How often a refreshed declaration is echoed to the channel.
+ *
+ * `stillHere` runs on every message a watching socket sends, which is every
+ * two seconds, and for a present member it emits nothing at all because
+ * nothing readable changes. A nearby member's stamp *is* readable — every
+ * other screen computes the fifteen minutes from it — so this one has to be
+ * pushed, and pushing it at the heartbeat's cadence would fan out a snapshot
+ * per channel per two seconds to say a number moved.
+ *
+ * A minute is chosen against the window rather than against the cost: a
+ * roster can be at most this stale about a declaration, which against fifteen
+ * minutes cannot make the difference between *Nearby* and *Stepped out* on
+ * anybody's screen. Without it, other people's rosters would lapse a
+ * declaration the server considers live, which is the one divergence this
+ * whole refresh exists to prevent.
+ */
+const NEARBY_ECHO_MS = 60_000;
+
+/**
  * Distinguishes the ephemeral track roots of registries sharing a process.
  *
  * Counted rather than random because a name that repeats between runs is one
@@ -444,6 +463,15 @@ export type ChangeListener = (channelIds: string[], departed: string[]) => void;
  */
 export class ChannelRegistry {
   private channels = new Map<string, ChannelState>();
+  /**
+   * When each refreshed declaration was last pushed to its channel, keyed
+   * `channelId:userId`. See `NEARBY_ECHO_MS` and `stillHere`.
+   *
+   * Cleared the moment a heartbeat stops refreshing anything, so it holds one
+   * entry per person currently nearby in a channel their app is holding open,
+   * and not one per person who ever was.
+   */
+  private nearbyEchoedAt = new Map<string, number>();
   /**
    * One recording run's live capture. `requested` is who an egress has been
    * asked for this run — filled before the call returns, so a second
@@ -1536,10 +1564,28 @@ export class ChannelRegistry {
   stillHere(channelId: string, userId: string): void {
     const channel = this.channels.get(channelId);
     if (!channel) return;
+    const wasPresent = isPresent(channel, userId);
     const next = reduce(channel, { type: 'STILL_HERE', userId }, this.now());
-    if (next === channel) return;
+    const echoKey = `${channelId}:${userId}`;
+    if (next === channel) {
+      // Nothing was refreshed, so there is no declaration here to be keeping
+      // an echo time for — the commonest way to reach this line is a socket
+      // watching a channel its owner has stepped out of.
+      this.nearbyEchoedAt.delete(echoKey);
+      return;
+    }
     this.channels.set(channelId, next);
     this.persistChannel(next);
+    // A present member is the case this method was written for, and it goes on
+    // costing nothing: `idleMs` answers null for them whatever the stamp says,
+    // so there is no screen to redraw.
+    if (wasPresent) return;
+    // A declaration was refreshed, which every other roster in the channel is
+    // reading. Echoed on a cadence of its own rather than at the heartbeat's.
+    const at = this.now();
+    if (at - (this.nearbyEchoedAt.get(echoKey) ?? 0) < NEARBY_ECHO_MS) return;
+    this.nearbyEchoedAt.set(echoKey, at);
+    this.emit([channelId]);
   }
 
   /**

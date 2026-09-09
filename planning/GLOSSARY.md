@@ -439,6 +439,13 @@ out* like anything else.
 The distinction is one bit, and it is the difference between telling somebody
 to give up on a person and telling them to ping.
 
+**A declaration does not age while the app is holding the channel**, since
+2026-09-09. The heartbeat that keeps a present member's `lastPresentAt` true
+refreshes a live declaration too, so the fifteen minutes is a window on a phone
+that has gone quiet rather than on one whose owner is looking at the room. It
+refreshes a declaration only, never a wait a lost connection produced, and never
+one that has already lapsed.
+
 **Two clocks, since 2026-09-09, because the ways in are not all the same
 kind.** How long somebody has been nearby is `nearbyMs`, and it reads whichever
 of two stamps applies: a declaration is timed from the declaration, an expired

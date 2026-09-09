@@ -1,3 +1,4 @@
+import { isWaiting } from '../../core/channel';
 import { DISCONNECT_GRACE_MS } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
 import { MEDIA_JOIN_GRACE_MS, playbackIdentity } from '../src/channels';
@@ -293,5 +294,65 @@ describe('the shared-track participant', () => {
     clock += DISCONNECT_GRACE_MS;
     app.channels.tick();
     expect(channel(channelId).present).toHaveLength(0);
+  });
+});
+
+/**
+ * The heartbeat, on the rung below presence.
+ *
+ * `stillHere` runs on every message a watching socket sends, and until
+ * 2026-09-09 it was refused for anybody not in the room — so somebody nearby
+ * with the channel open watched their own card count towards fifteen minutes
+ * with no way to stop it but stepping in or out. The evidence was already
+ * arriving; the rule was discarding it.
+ *
+ * What is tested here is the half that only exists in the server: a present
+ * member's heartbeat stays free, and a nearby member's is pushed to the
+ * channel on a cadence of its own rather than at the heartbeat's. The clock
+ * rules themselves are `core/__tests__/nearby.test.ts`.
+ */
+describe('a heartbeat from somebody nearby', () => {
+  const beats = (channelId: string, userId: string, seconds: number) => {
+    for (let i = 0; i < seconds / 2; i += 1) {
+      clock += 2_000;
+      app.channels.stillHere(channelId, userId);
+    }
+  };
+
+  it('keeps the declaration alive without pushing at the heartbeat rate', async () => {
+    const { bob, channelId } = await roomOfTwo();
+    app.channels.dispatch(channelId, bob.id, { type: 'DECLARE_NEARBY' });
+
+    let pushes = 0;
+    const stop = app.channels.onChange(() => {
+      pushes += 1;
+    });
+    // Ten minutes of heartbeats, two seconds apart: three hundred of them.
+    beats(channelId, bob.id, 10 * 60);
+    stop();
+
+    // Still nearby well past the window it would have lapsed in, because every
+    // heartbeat moved the declaration's own clock.
+    expect(isWaiting(channel(channelId), bob.id, clock)).toBe(true);
+    // And the channel heard about it roughly once a minute rather than three
+    // hundred times. Bounded rather than exact: what matters is the order.
+    expect(pushes).toBeGreaterThan(0);
+    expect(pushes).toBeLessThanOrEqual(11);
+  });
+
+  it('costs a present member nothing, as it always did', async () => {
+    const { bob, channelId } = await roomOfTwo();
+    let pushes = 0;
+    const stop = app.channels.onChange(() => {
+      pushes += 1;
+    });
+    beats(channelId, bob.id, 10 * 60);
+    stop();
+
+    // Nothing readable changes while somebody is present — `idleMs` answers
+    // null for them whatever the stamp says — so there is no screen to redraw
+    // and no snapshot to spend.
+    expect(channel(channelId).present).toContain(bob.id);
+    expect(pushes).toBe(0);
   });
 });
