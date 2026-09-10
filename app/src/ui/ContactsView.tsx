@@ -416,7 +416,7 @@ function AddContact({
         onSubmit={query.trim() && !busy ? send : undefined}
         submitLabel="send"
       />
-      <View style={styles.addActions}>
+      <View style={styles.addActionsSpread}>
         <Button
           label="Cancel"
           variant="ghost"
@@ -573,6 +573,7 @@ function InviteLink({
           }
           onPress={hand}
           disabled={minting}
+          style={styles.wideButton}
         />
       </View>
       {/*
@@ -660,5 +661,18 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: spacing(0.5),
   },
+  /**
+   * The pair that ends the address form, pushed out to the card's two edges
+   * rather than huddled at the right: *Cancel* on the left, *Send request* on
+   * the right, which is where a phone puts a dismissal and a commitment.
+   */
+  addActionsSpread: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing(0.5),
+  },
+  /** A single action that owns its row, drawn the full width of the card. */
+  wideButton: { flex: 1 },
   message: { fontSize: 13 },
 });
