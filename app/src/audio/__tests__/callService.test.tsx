@@ -5,6 +5,7 @@ import {
   startCallService,
   stopCallService,
 } from '../../../modules/call-service';
+import { ensureMicPermission } from '../micPermission';
 
 /**
  * Android's foreground service is started for a *channel*, not for a room.
@@ -25,6 +26,15 @@ import {
 jest.mock('../../../modules/call-service', () => ({
   startCallService: jest.fn(async () => true),
   stopCallService: jest.fn(async () => true),
+}));
+
+/**
+ * Answers `true` off Android in reality, which is what these tests run as
+ * unless one of them says otherwise. Mocked so that the Android refusal — the
+ * case that crashed the app — can be reached without a device.
+ */
+jest.mock('../micPermission', () => ({
+  ensureMicPermission: jest.fn(async () => true),
 }));
 
 interface FakeRoom {
@@ -103,12 +113,15 @@ const settle = async () => {
 
 const started = startCallService as jest.Mock;
 const stopped = stopCallService as jest.Mock;
+const permitted = ensureMicPermission as jest.Mock;
 
 describe('the foreground service', () => {
   beforeEach(() => {
     mockRooms.length = 0;
     started.mockClear();
     stopped.mockClear();
+    permitted.mockClear();
+    permitted.mockResolvedValue(true);
     jest.useFakeTimers();
   });
 
@@ -160,6 +173,97 @@ describe('the foreground service', () => {
     await act(async () => {
       tree.unmount();
     });
+  });
+
+  /**
+   * The crash this file did not catch, from the other end.
+   *
+   * Android 14 refuses a `microphone` foreground service to a process that
+   * does not already hold `RECORD_AUDIO`, and refuses it by throwing inside the
+   * service — where the module's `try` cannot reach. So the app died on every
+   * entry to a channel, for every Android 14 user who had not yet been asked
+   * for the microphone, which on a fresh install is all of them: nothing asks
+   * until WebRTC opens the microphone, and that happens after this.
+   *
+   * The Kotlin now catches it where it is thrown. This is the half that means
+   * it is not thrown: the permission is asked for first, and a refusal declines
+   * to start rather than starting something that cannot work.
+   */
+  it('asks for the microphone before starting, and does not start without it', async () => {
+    permitted.mockResolvedValue(false);
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe room="room-1" />);
+    });
+    await settle();
+
+    expect(permitted).toHaveBeenCalledTimes(1);
+    expect(started).not.toHaveBeenCalled();
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * The ordering assertion, which is the one that matters and is invisible in
+   * the result: asking *after* the start would leave every call above passing
+   * and the crash exactly where it was.
+   */
+  it('asks before it starts, rather than merely asking', async () => {
+    const order: string[] = [];
+    permitted.mockImplementation(async () => {
+      order.push('asked');
+      return true;
+    });
+    started.mockImplementation(async () => {
+      order.push('started');
+      return true;
+    });
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe room="room-1" />);
+    });
+    await settle();
+
+    expect(order).toEqual(['asked', 'started']);
+
+    await act(async () => {
+      tree.unmount();
+    });
+    started.mockImplementation(async () => true);
+  });
+
+  /**
+   * A channel left while the dialog is still up. The permission resolves after
+   * the effect has been torn down, and starting a service for a room that has
+   * gone would leave a notification for a call with no UI behind it — the state
+   * `stopWithTask` exists to prevent, arrived at by a different route.
+   */
+  it('does not start a service for a channel already left', async () => {
+    let answer!: (granted: boolean) => void;
+    permitted.mockImplementation(
+      () => new Promise<boolean>((resolve) => (answer = resolve))
+    );
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe room="room-1" />);
+    });
+    await settle();
+    expect(started).not.toHaveBeenCalled();
+
+    await act(async () => {
+      tree.unmount();
+    });
+    await act(async () => {
+      answer(true);
+    });
+    await settle();
+
+    expect(started).not.toHaveBeenCalled();
   });
 
   it('does not start for a channel with no audio to be in', async () => {

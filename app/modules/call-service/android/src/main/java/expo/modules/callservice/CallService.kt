@@ -33,9 +33,20 @@ import android.os.IBinder
  *   service exists only for as long as JavaScript says so.
  * - **The type is stated twice**, here and in the manifest, and Android 14
  *   rejects the start unless they agree.
- * - **No `stopSelf` on error paths.** Every failure here is caught on the
- *   module side and reported as `false`; the audio must not go down because
- *   the notification did.
+ * - **`startForeground` is caught here, and it is the only place it can be.**
+ *   The module's `try` wraps `startForegroundService`, which merely *queues*
+ *   this service and returns; the permission check Android 14 does happens
+ *   later, inside `startForeground` below, on the main thread of this process.
+ *   An exception there is therefore invisible to that catch and is a crash.
+ *   That is not hypothetical — it took the app down on every entry to a
+ *   channel, for every Android 14 user who had not yet granted `RECORD_AUDIO`,
+ *   from 2026-09-03 until this was written. See planning/ANDROID.md.
+ * - **`stopSelf` on that path, and only that path.** A service that could not
+ *   go foreground is a started service with no notification, which Android
+ *   will kill on its own schedule and complain about first; stopping it is
+ *   tidying up something that never began. The audio does not go down with it
+ *   — the channel works on screen either way, which is the whole reason a
+ *   failure here is reported rather than raised.
  */
 class CallService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
@@ -47,14 +58,24 @@ class CallService : Service() {
     ensureChannel(this)
     val notification = build(title, body)
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      startForeground(
-        NOTIFICATION_ID,
-        notification,
-        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-      )
-    } else {
-      startForeground(NOTIFICATION_ID, notification)
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        startForeground(
+          NOTIFICATION_ID,
+          notification,
+          ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        )
+      } else {
+        startForeground(NOTIFICATION_ID, notification)
+      }
+    } catch (error: Exception) {
+      // `SecurityException` when `RECORD_AUDIO` is not granted and
+      // `ForegroundServiceStartNotAllowedException` when the process was
+      // backgrounded between the module's call and this one — but caught as
+      // `Exception`, on the same reasoning the module states: this is a list of
+      // classes that grows with the API level, and every entry on it means the
+      // same thing here. There is nothing to do beyond not dying.
+      stopSelf()
     }
 
     return START_NOT_STICKY

@@ -578,7 +578,12 @@ credential correctly sees a stale tree.
 
 ## Background audio, which was where the work genuinely diverged
 
-**Built 2026-09-03, and unverified on hardware.** `app/modules/call-service/`
+**Built 2026-09-03, and still unverified on hardware in the way that matters.**
+A handset reached it on 2026-09-10 and what that produced was the crash
+described in the last bullet below, not an answer about backgrounding: the
+service never started, so nothing was learned about whether it keeps a call
+alive. The question at the end of this section is still open.
+`app/modules/call-service/`
 is a local Expo module — the second this project has, after
 `modules/audio-route` — holding a foreground service typed `microphone` and two
 functions to start and stop it. `useSessionAudio` starts it when this app
@@ -629,10 +634,37 @@ Four things about it that are decisions rather than mechanics:
 - **Everything answers `false` rather than throwing**, on the same contract
   `modules/audio-route` keeps: a channel with no service behind it still works
   for as long as the app is on screen, which is every case except the one this
-  fixes. The start that genuinely fails is the one Android 14 refuses — a
-  service started while the app is not foregrounded — and it is recorded in the
-  audio log as `call service unavailable`, which is the only way to tell from
-  inside the app.
+  fixes. A failure is recorded in the audio log as `call service unavailable`,
+  which is the only way to tell from inside the app.
+
+  **That contract was broken from the day this was built until 2026-09-10, and
+  the break is worth understanding rather than just knowing.** The module's
+  `try` wraps `startForegroundService`, which merely *queues* the service and
+  returns — so it catches the Android 12 background refusal, which is raised
+  there, and cannot catch the Android 14 permission refusal, which is raised
+  later inside the service's own `startForeground`, on a stack the `try` has
+  already left. That one was an uncaught `SecurityException`: a crash, not a
+  `false`.
+
+  **And it fired on the first channel every new Android 14 user entered**, for
+  a reason that is the second half of the bug. A `microphone` service is
+  refused unless `RECORD_AUDIO` is *already* granted, and nothing in the app
+  asked for it — the permission was declared in `app.json` and left to WebRTC's
+  implicit prompt when the microphone opens, which happens **after** this
+  service starts, deliberately (see the first bullet). So the permission could
+  not have been held yet. It presented as *tapping any channel name crashes the
+  app*, and granting the microphone by hand in Settings cured it, which is the
+  shape of the report that finally identified it.
+
+  Three changes, and each is load-bearing: `CallService.onStartCommand` catches
+  and calls `stopSelf`, which is the only place that exception can be caught;
+  the module checks `checkSelfPermission` first, so it declines rather than
+  starting something that cannot work; and `app/src/audio/micPermission.ts`
+  asks for `RECORD_AUDIO` before the service starts, which is what makes the
+  service actually start for somebody's first channel rather than merely fail
+  quietly. `__tests__/micPermission.test.ts` and the ordering assertion in
+  `__tests__/callService.test.tsx` pin the last two; the Kotlin is covered by
+  nothing but a compile, which is the standing gap below.
 
 Verified as far as a Mac can: it compiles, autolinks, and the merged manifest
 carries the service and all three permissions. **That is not the same as

@@ -22,6 +22,7 @@ import {
   setAllowHapticsDuringRecording,
 } from '../../modules/audio-route';
 import { startCallService, stopCallService } from '../../modules/call-service';
+import { ensureMicPermission } from './micPermission';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
 import { engineSnapshot } from './engineState';
@@ -957,13 +958,35 @@ export function useSessionAudio(
    */
   useEffect(() => {
     if (!mediaRoom) return;
-    startCallService().then((started) => {
+    // Guards the start rather than the ask: the permission dialog is the user's
+    // to answer at their own pace, and a channel left while it is up must not
+    // be followed by a service for a room that has gone.
+    let cancelled = false;
+    (async () => {
+      // **Before the start, not after, and this is the whole reason it is
+      // here.** Android 14 refuses a `microphone` service to a process that
+      // does not already hold `RECORD_AUDIO`, and nothing else in this app asks
+      // for it until WebRTC opens the microphone — which happens after this.
+      // See `micPermission`.
+      const granted = await ensureMicPermission();
+      if (cancelled) return;
+      if (!granted) {
+        // Not a failure of the channel, and not fatal: it works on screen and
+        // the connection below reports the refusal properly as `denied`. What
+        // is lost is surviving the app switcher, which is worth its own line —
+        // it is otherwise indistinguishable from the service simply failing.
+        recordEvent('call service unavailable, microphone not granted');
+        return;
+      }
+      const started = await startCallService();
+      if (cancelled) return;
       // Worth a line in the audio log rather than silence: `false` here is the
       // difference between a channel that survives the app switcher and one
       // that does not, and there is no other way to tell from inside the app.
       recordEvent(`call service ${started ? 'started' : 'unavailable'}`);
-    });
+    })();
     return () => {
+      cancelled = true;
       stopCallService();
     };
   }, [mediaRoom]);
