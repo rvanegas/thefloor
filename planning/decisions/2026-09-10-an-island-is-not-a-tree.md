@@ -46,14 +46,27 @@ restricts *both* ends to `person` rather than filtering afterwards: they are
 contacts of each other and of whoever set them up, so left in they would bridge
 islands through somebody who is not a user at all.
 
-## The week series is a lower bound and says so
+## The week series errs in both directions, which took a second look
 
 `contacts` is current state. A row is deleted when either person ends the
 relationship, when a request is declined or cancelled, and when an account is
 erased — so the week-by-week reconstruction draws each past week with the edges
-that still exist today. It errs in one direction only: the past can look
-sparser than it was, never denser. An island that has since broken up never
-appears at all.
+that still exist today. An island that has since broken up never appears at
+all, and that makes the past look sparser than it was.
+
+**This was written as "it errs in one direction only", and that was wrong.**
+`contacts.created_at` is stamped when the request is *sent*: `acceptContact`
+flips `state` to `accepted` and never touches it. The week series dates an edge
+from that stamp, so a request that sat unanswered for three weeks is drawn as
+a connection through all three of them — the past looking *denser* than it was,
+which the paragraph above had ruled out. Both errors are live and they do not
+cancel; the series is the shape of the thing rather than a bound in either
+direction.
+
+The fix is an `accepted_at` column and it is a migration, so it is not taken
+here. What is taken is the claim: `bin/growth` now says the same thing at the
+query, since a caveat that lives only in a decision file is one nobody reads
+while looking at the numbers.
 
 ## The Monday bug, which moved four people
 

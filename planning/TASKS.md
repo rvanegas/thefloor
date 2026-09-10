@@ -27,7 +27,7 @@ slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
 When member steps in or steps out, there ought to be an audible announcement, such as two inverse distinguishable subtle chimes.
 
-## Introduction Checklist
+## Onboarding Checklist
 
 ## UI Restyling
 

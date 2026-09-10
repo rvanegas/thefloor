@@ -237,11 +237,28 @@ report_classes() {
 -- `never_connected` is an account that signed in once and never came back far
 -- enough to send a heartbeat. `seen_this_month` is the other end of the same
 -- question: how much of this class is still here.
+--
+-- **The inviter's class is read from `generation`, not from `arrival`**, and
+-- the difference is every inviter who has since erased their account. A
+-- tombstone is not in `person` and so not in `arrival`, but the walk passes
+-- through it and the people it brought keep their depth — so joining
+-- `arrival` to itself dropped those edges and credited them to nobody,
+-- breaking the identity the paragraph above states: `alone`'s `they_brought`
+-- was less than the size of first circle, by exactly the number of people
+-- whose inviter is gone. `defects` counts them as `invited_by_a_tombstone`.
+--
+-- `per_head` divides that restored numerator by a class that still excludes
+-- tombstones, so a class whose erasures did most of its inviting reads a
+-- little high. That is the right way round: the alternative loses whole
+-- arrivals to keep an average tidy.
 WITH brought AS (
-  SELECT inviter.class AS class, COUNT(*) AS n
+  SELECT CASE WHEN ig.depth = 0 THEN '1 alone'
+              WHEN ig.depth = 1 THEN '2 first circle'
+              ELSE '3 onward' END AS class,
+         COUNT(*) AS n
     FROM arrival a
-    JOIN arrival inviter ON inviter.id = a.invited_by
-   GROUP BY inviter.class
+    JOIN generation ig ON ig.id = a.invited_by
+   GROUP BY class
 )
 SELECT g.class,
        COUNT(*) AS people,
@@ -371,18 +388,29 @@ report_roots() {
 -- The root is read from `everyone` rather than from `arrival`, so a tree
 -- whose root has since erased their account is still a tree. It shows as
 -- `(gone)`, and everybody in it is still counted where they are.
+--
+-- **Which is why the descendants are counted rather than the group.** An
+-- erased root is not in `person` and so is not in `arrival`, while the walk
+-- still passes through it and its descendants still carry its id as `root` —
+-- so the group under a `(gone)` row holds the descendants and nothing else.
+-- `COUNT(*) - 1` was the count here, and it read that missing row as a person:
+-- it took one off every `(gone)` tree, leaving a row whose `brought_in_all`
+-- was less than its own `first_circle` plus `onward`, and `HAVING COUNT(*) >
+-- 1` then dropped an erased root's only child out of the report entirely —
+-- the one case the paragraph above promises is still a tree. `SUM(g.depth >
+-- 0)` asks the question directly and is the same number for a living root.
 SELECT CASE WHEN f.identifier GLOB 'erased:*' THEN '(gone)'
             ELSE f.display_name END AS root,
        date(f.created_at / 1000, 'unixepoch') AS arrived,
        SUM(g.depth = 1) AS first_circle,
        SUM(g.depth > 1) AS onward,
-       COUNT(*) - 1 AS brought_in_all,
+       SUM(g.depth > 0) AS brought_in_all,
        MAX(g.depth) AS deepest,
        date(MAX(g.created_at) / 1000, 'unixepoch') AS newest_arrival
   FROM arrival g
   JOIN everyone f ON f.id = g.root
  GROUP BY g.root
-HAVING COUNT(*) > 1
+HAVING SUM(g.depth > 0) > 0
  ORDER BY brought_in_all DESC, root;
 
 .print ''
@@ -476,12 +504,21 @@ SELECT roots AS roots_on_it,
 -- what the map would look like if they all did. It is the cheapest available
 -- measure of how close this is to being one network — and unlike the invited
 -- backlog it is not swept, so a bridge can sit here indefinitely.
+--
+-- The two states are named rather than left to the table. Only `pending` and
+-- `accepted` are ever stored — `declineContact` and `cancel` delete the row
+-- rather than marking it — so an unfiltered walk is the same walk today. It
+-- would stop being one the day a third state is added, silently and in the
+-- direction of claiming a community that had refused each other, which is the
+-- one thing this report must not do.
 WITH RECURSIVE hopeful(x, y) AS (
   SELECT c.a_id, c.b_id FROM contacts c
     JOIN person a ON a.id = c.a_id JOIN person b ON b.id = c.b_id
+   WHERE c.state IN ('accepted', 'pending')
   UNION ALL
   SELECT c.b_id, c.a_id FROM contacts c
     JOIN person a ON a.id = c.a_id JOIN person b ON b.id = c.b_id
+   WHERE c.state IN ('accepted', 'pending')
 ),
 reach(seed, node) AS (
   SELECT id, id FROM person
@@ -501,12 +538,23 @@ SELECT (SELECT COUNT(*) FROM contacts c
 .print ''
 .print '   islands week by week, as the graph stands today'
 .print ''
--- **This is a reconstruction and it is a lower bound.** `contacts` is current
--- state: a row is deleted when either person ends the relationship, when a
--- request is declined or cancelled, and when an account is erased. So a week
--- is drawn with the edges that still exist, and any island that has since
--- broken up never appears. It moves in one direction — the past can only look
--- sparser than it was, never denser.
+-- **This is a reconstruction and it errs in both directions.** `contacts` is
+-- current state: a row is deleted when either person ends the relationship,
+-- when a request is declined or cancelled, and when an account is erased. So a
+-- week is drawn with the edges that still exist, and any island that has since
+-- broken up never appears. That much makes the past look sparser than it was.
+--
+-- **And `created_at` is written when the request is sent, not when it is
+-- accepted**, which pushes the other way and is the correction of 2026-09-10.
+-- `acceptContact` flips `state` and leaves the stamp alone, so an edge is
+-- drawn here from the week somebody *asked* — and a request that sat for three
+-- weeks before anybody tapped accept puts those three weeks on the map as a
+-- connection that did not exist yet. This report was claimed as a lower bound
+-- and it is not one; it is the shape of the thing, not a measurement.
+--
+-- The honest fix is an `accepted_at` column, which is a migration and has not
+-- been decided. Until then the skew is bounded by how long people leave a
+-- request unanswered, which `bridges` above says is sometimes indefinitely.
 --
 -- The cost warning on the `island` view applies here once per week rather
 -- than once. It is the same closure with a date on both the people and the
@@ -641,6 +689,17 @@ opts=(-readonly -header -column -cmd '.timeout 2000')
 
 if $local_mode; then
   [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  # A checkout that has never run the server has the file — sqlite makes one on
+  # open — and nothing in it. The bare `no such table: accounts` that follows
+  # reads as a broken script rather than as an empty database, which is the
+  # same trap `bin/worktree-setup` exists for one level up.
+  if ! sqlite3 -readonly "$LOCAL_DB" \
+       "SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'" \
+       | grep -q 1; then
+    echo "The local database at $LOCAL_DB has no accounts table." >&2
+    echo "Run the server once to create it, or drop --local." >&2
+    exit 1
+  fi
   echo "→ local · accounts are arrivals, not installs"
   exec sqlite3 "${opts[@]}" "$LOCAL_DB" <<<"$sql"
 fi
