@@ -204,26 +204,56 @@ export function idleMs(
 }
 
 /**
- * Whether somebody is still to be described as waiting rather than as gone.
+ * Whether somebody is nearby: within reach, one notification away.
  *
- * Three things at once, and all three matter. They are not here — somebody
- * present is not waiting for anything. Their absence was not chosen, which is
- * what `waiting` records. And it is recent enough to still mean something,
- * which is WAITING_WINDOW_MS.
+ * **Membership alone, since 2026-09-09.** It used to apply the fifteen-minute
+ * window as well, on the reasoning that `waiting` outlives its own meaning and
+ * there was no tick worth spending to prune it. There is one now: attention is
+ * held by the server and the tick retires a wait the moment it goes
+ * inattentive, so the array no longer outlives anything and this function had
+ * become a second judge of the same question.
  *
- * A function rather than a field so that the window is applied in one place
- * and cannot be forgotten by a caller reading the array directly — the array
- * outlives the window on purpose, there being no tick worth spending to prune
- * a set whose only reader already has the clock in its hand.
+ * **Two judges is the bug rather than the belt.** They could disagree, and in
+ * the direction that matters: somebody nearby and demonstrably attentive for
+ * twenty minutes is kept in `waiting` by the server and was struck out here at
+ * fifteen, so a roster said *Stepped out* about somebody the server, their own
+ * footer, and everybody's ping button all called nearby.
+ *
+ * A function rather than a bare field read, still, because the name is the
+ * documentation and because where the truth lives has changed once already.
  */
-export function isWaiting(
-  state: ChannelState,
-  userId: UserId,
-  now: number
-): boolean {
-  if (!state.waiting.includes(userId)) return false;
-  const away = nearbyMs(state, userId, now);
-  return away !== null && away < WAITING_WINDOW_MS;
+export function isWaiting(state: ChannelState, userId: UserId): boolean {
+  return state.waiting.includes(userId);
+}
+
+/**
+ * Whether there is anything in this room for `userId` to be here *for*.
+ *
+ * The other half of the attention rule, and the half that stops it retiring
+ * people who are doing exactly what the application is for. Somebody who has
+ * not touched their phone for fifteen minutes while listening to a
+ * conversation, or to a track, or to a party, is attending it in the only way
+ * listening allows; the ghost this window hunts is a phone in a pocket with
+ * nothing on the other end.
+ *
+ * **Three things count and one does not.** Another occupant of the room —
+ * guests included, since a guest is somebody to hear. Playback playing. A
+ * watch party playing. What does not count is *you*: a room containing only
+ * you contains nothing to subscribe to, which is the solo wait the window was
+ * written for.
+ *
+ * **Presence rather than publishing**, unlike the server's `considerRetiring`,
+ * which asks whether anything is actually being published unmuted. The two are
+ * a pair rather than a duplication: this one keeps a listener in a room that
+ * somebody is holding, and that one retires the whole room when nobody in it
+ * is making a sound. Two pocketed phones satisfy this predicate and are
+ * removed by that rule, which is where the ambiguity between a quiet room and
+ * an abandoned one is resolved — see `ChannelRegistry.considerRetiring`.
+ */
+export function subscribeable(state: ChannelState, userId: UserId): boolean {
+  if (roomOccupants(state).some((id) => id !== userId)) return true;
+  if (state.playback.status === 'playing') return true;
+  return state.watch.status === 'playing';
 }
 
 /**
@@ -1189,11 +1219,18 @@ export function reduce(
   // heard from. What is refreshed here is a claim somebody made, by the
   // process that made it, while it is still standing.
   //
-  // **And only while it is still standing** — `isWaiting`, not membership of
-  // `waiting`, which outlives the window on purpose. A heartbeat arriving
-  // after the fifteen minutes would silently resurrect a nearby that had
-  // already lapsed, on a screen that says so, without anybody declaring
-  // anything.
+  // **And only while it is still standing.** A heartbeat arriving after the
+  // wait has ended must not resurrect it — on a screen that has already said
+  // *Stepped out*, without anybody declaring anything. That used to need the
+  // window applied here, `waiting` being a set that outlived its own meaning;
+  // since the tick strikes a lapsed wait out of the set, membership is the
+  // whole of the guard.
+  //
+  // **Kept for builds that predate the attention clock**, which is now what
+  // holds a declaration alive for everybody else. See SHIMS.md: a client that
+  // does not report attention still heartbeats, and this is the only thing
+  // between such an install and a declaration that ages while its owner is
+  // looking at it.
   if (action.type === 'STILL_HERE') {
     if (isPresent(state, action.userId)) {
       return {
@@ -1202,7 +1239,7 @@ export function reduce(
       };
     }
     if (state.declaredNearbyAt?.[action.userId] === undefined) return state;
-    if (!isWaiting(state, action.userId, now)) return state;
+    if (!isWaiting(state, action.userId)) return state;
     return {
       ...state,
       declaredNearbyAt: { ...state.declaredNearbyAt, [action.userId]: now },
@@ -1941,7 +1978,21 @@ function stepOut(
      * time they actually were. And `settleEmpty` is not called: `present` is
      * untouched, so nothing about the room being empty has changed.
      */
-    if (exit !== 'chosen' || !state.waiting.includes(userId)) return state;
+    // **Two exits end a wait from outside the room, and they are not the same
+    // act.** A tap is somebody deciding they are no longer within reach.
+    // `inattentive` is the fifteen minutes running out on somebody who said
+    // they were and then stopped attending anything — which since 2026-09-09
+    // is how *Nearby* ends, the server holding the attention clock and the
+    // tick reading it. This arm did nothing at all before that: `stepOut` for
+    // a person who was not present returned untouched unless the exit was
+    // chosen, so `ATTENTION_EXPIRED` for somebody nearby was a no-op and the
+    // rung had no way out but a window applied on each reader's screen.
+    if (
+      (exit !== 'chosen' && exit !== 'inattentive') ||
+      !state.waiting.includes(userId)
+    ) {
+      return state;
+    }
     const { [userId]: _ended, ...stillDeclared } = state.declaredNearbyAt;
     return {
       ...state,

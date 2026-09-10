@@ -479,7 +479,7 @@ describe('who is in the channel, and who is talking', () => {
         onExit={() => {}}
       />
     );
-    expect(textOf(tree)).toContain('Nearby for 5 minutes');
+    expect(textOf(tree)).toContain('Nearby 5 minutes');
     expect(textOf(tree)).not.toContain('Waiting');
     expect(textOf(tree)).not.toContain('Stepped out');
     mockApp.serverNow = () => NOW;
@@ -514,8 +514,8 @@ describe('who is in the channel, and who is talking', () => {
     );
 
     const text = textOf(tree);
-    expect(text).toContain('Nearby for a few seconds');
-    expect(text).not.toContain('Nearby for 4 minutes');
+    expect(text).toContain('Nearby a few seconds');
+    expect(text).not.toContain('Nearby 4 minutes');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });
@@ -550,7 +550,7 @@ describe('who is in the channel, and who is talking', () => {
     );
 
     const text = textOf(tree);
-    expect(text).toContain('Nearby for a few seconds');
+    expect(text).toContain('Nearby a few seconds');
     expect(text).not.toContain('Invited');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
@@ -804,15 +804,24 @@ describe('who is in the channel, and who is talking', () => {
   });
 
   it('goes back to having stepped out once the wait has gone stale', () => {
-    // The same clock throughout: fifteen minutes of waiting becomes sixteen
-    // minutes of absence, never a fresh zero.
+    // **The screen no longer decides this, since 2026-09-09.** It used to
+    // apply the fifteen minutes itself, on a set the server never pruned; the
+    // server prunes now, reading attention, so a stale wait arrives as a
+    // stale wait rather than as a fresh one every reader has to strike out.
+    // What is modelled here is therefore the expiry having happened —
+    // `ATTENTION_EXPIRED` is what the tick sends — and what is asserted is
+    // that the card follows the state rather than second-guessing it.
+    //
+    // The clock is still the same one throughout: fifteen minutes of waiting
+    // becomes sixteen minutes of absence, never a fresh zero.
     showChannel(
       channelOf((s) => {
         const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
+        const nearby = reduce(dropped, { type: 'TICK' }, NOW + DISCONNECT_GRACE_MS + 1);
         return reduce(
-          dropped,
-          { type: 'TICK' },
-          NOW + DISCONNECT_GRACE_MS + 1
+          nearby,
+          { type: 'ATTENTION_EXPIRED', userId: THEM },
+          NOW + WAITING_WINDOW_MS
         );
       })
     );
@@ -826,7 +835,10 @@ describe('who is in the channel, and who is talking', () => {
       />
     );
     expect(textOf(tree)).toContain('Stepped out 16 minutes ago');
-    expect(textOf(tree)).not.toContain('Waiting for');
+    // The word itself is on the screen twice regardless — the footer's nearby
+    // rung and the card that offers it — so what is asserted is the roster
+    // line, which is the only place it would be a claim about somebody.
+    expect(textOf(tree)).not.toContain('Nearby 16 minutes');
     mockApp.serverNow = () => NOW;
     act(() => tree.unmount());
   });

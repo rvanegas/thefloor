@@ -18,6 +18,7 @@ import type { Accounts } from './accounts';
 import type { NotificationPreferences } from './preferences';
 import type { ChannelRegistry } from './channels';
 import {
+  ATTENTION_BUILD,
   claimedClient,
   claimedBuild,
   heartbeatTimeoutFor,
@@ -237,24 +238,10 @@ export function createSettingsNotifier(): SettingsNotifier {
  */
 export interface Reachability {
   inApp: (userId: string) => boolean;
-  /**
-   * The sessions of this account that hold a live socket, as token hashes.
-   *
-   * The finer-grained half of `inApp`, and the two answer different questions.
-   * `inApp` asks whether a *person* is about, which is what a contact list
-   * renders; this asks which of their devices, which is what deciding whether
-   * to send a notification actually needs. They were the same question while
-   * one session per account was enforced.
-   *
-   * Hashes rather than tokens, because the caller is joining against
-   * `device_tokens.session_hash` and a bare credential has no business
-   * leaving this layer to be compared somewhere else.
-   */
-  liveSessions: (userId: string) => Set<string>;
 }
 
 export function createReachability(): Reachability {
-  return { inApp: () => false, liveSessions: () => new Set() };
+  return { inApp: () => false };
 }
 
 /**
@@ -530,6 +517,17 @@ export function registerWebsocket(deps: {
         participants,
         recordings: recordingsInChannel(channelId, connection.userId),
         pingableAt: channels.pingWindows(channelId),
+        // The one clock the roster shows about anybody absent. Per channel
+        // because that is where it is read, but the value is per account —
+        // see `ChannelView.attentiveAt`, and note that somebody whose build
+        // does not report is simply absent from this map rather than being
+        // reported as inattentive.
+        attentiveAt: Object.fromEntries(
+          channel.participants.flatMap((id) => {
+            const at = channels.attentionOf(channelId, id);
+            return at === null ? [] : [[id, at] as const];
+          })
+        ),
         // This connection's own setting and nobody else's. It rides the
         // channel snapshot because that is where it is read and changed, and
         // because a snapshot is already per connection — the same fact that
@@ -548,18 +546,12 @@ export function registerWebsocket(deps: {
   // requester's and the recipient's. Without this the recipient learns nothing
   // until they happen to reload — a request simply never appears.
   reachability.inApp = hasConnection;
-  // Session-scoped only, for the reason `hasConnection` is: a follower page is
-  // a second screen rather than a second place to be, and it holds a watch
-  // token, which is not a session and joins to no address.
-  reachability.liveSessions = (userId) => {
-    const live = new Set<string>();
-    for (const connection of connections) {
-      if (connection.scope.kind !== 'session') continue;
-      if (connection.userId !== userId) continue;
-      live.add(connection.tokenHash);
-    }
-    return live;
-  };
+  // **`liveSessions` was here and went on 2026-09-09**, with the rule that
+  // read it: which of somebody's devices held a socket was being used to
+  // decide which of them to withhold a notification from, and a socket stopped
+  // meaning anybody was looking at the screen when stepping in became an open
+  // microphone. `inApp` stays — it answers a different question, whether a
+  // person is about, which is what a contact list renders.
 
   // Session-scoped only. A follower page is a second screen rather than one of
   // this person's devices, holds a watch token rather than a session, and has
@@ -941,6 +933,26 @@ export function registerWebsocket(deps: {
     // thing that should be able to hold somebody in a room. A process that
     // asserts neither lets the grace run out and is stepped out, which is the
     // truth about it.
+    // **Connecting is attending, for a build that says so.** A process only
+    // reaches this line by being launched or foregrounded, and the reports
+    // that follow keep the stamp fresh while somebody is there.
+    //
+    // It matters most in the case that has no report to wait for: a phone in
+    // a pocket whose socket comes back after a deploy or a network blip. The
+    // server has no clock for it — the map is volatile — and without one it
+    // would never be retired, which is the ghost this whole window exists to
+    // remove. Seeding here bounds it at fifteen minutes from the reconnection
+    // rather than for ever.
+    //
+    // Gated on the build, because a clock nobody will ever refresh is worse
+    // than no clock at all. See `ATTENTION_BUILD`.
+    if (connection.build !== null && connection.build >= ATTENTION_BUILD) {
+      // Every room this account is standing in, which is what a reconnecting
+      // process is holding whether or not it says so. The report that follows
+      // names what is on screen; this covers the case that has no report to
+      // wait for — a phone in a pocket whose socket came back.
+      channels.attentive(connection.userId, channels.standingIn(connection.userId));
+    }
     send(connection, {
       type: 'hello',
       account: { id: account.id, displayName: account.display_name },
@@ -1035,6 +1047,30 @@ export function registerWebsocket(deps: {
       }
 
       switch (message.type) {
+        /**
+         * A person is attending the application. Not a channel event and not
+         * scoped to one — see `ClientMessage.attentive`.
+         *
+         * **Session sockets only**, which the `watch` guard above has already
+         * settled: a follower page is a second screen rather than a second
+         * place to be, and somebody watching a party on a laptop while their
+         * phone sits in a drawer is not attending the room the phone is
+         * holding. Control lives on the phone; so does attention.
+         */
+        case 'attentive': {
+          // A client naming rooms, so the shape is checked before it is
+          // believed. `attentive` itself refuses any the sender does not
+          // belong to; this refuses anything that is not a list of ids.
+          const named = Array.isArray(message.channelIds)
+            ? message.channelIds.filter((id) => typeof id === 'string')
+            : [];
+          // A phone attends what is on its screen and what it is standing in,
+          // which is two. The cap is not a policy about that, only a bound on
+          // what one message can cost to process.
+          channels.attentive(connection.userId, named.slice(0, 8));
+          return;
+        }
+
         case 'ping':
           send(connection, { type: 'pong', serverNow: now() });
           return;

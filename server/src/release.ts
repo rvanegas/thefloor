@@ -78,6 +78,23 @@ import {
 export const MIN_SUPPORTED_BUILD = 51;
 
 /**
+ * The first build that reports attention, and so the first the server may
+ * decide about.
+ *
+ * **A gate rather than a floor.** Nothing is refused below it; what happens
+ * below it is nothing at all — no clock is seeded, so `expireInattentive`
+ * leaves those installs to the judgement their own copy of the client is still
+ * making, which is exactly what they did before this existed. Seeding one for
+ * them would retire every old install fifteen minutes after a deploy, whatever
+ * its owner was doing, because the server would have a clock that nobody was
+ * ever going to refresh.
+ *
+ * Retired when `MIN_SUPPORTED_BUILD` passes this number, with the rest of the
+ * fallback. See SHIMS.md.
+ */
+export const ATTENTION_BUILD = 175;
+
+/**
  * The header an iOS build uses to say which build it is, mirrored as a
  * `?build=` query parameter on the websocket because React Native's WebSocket
  * carries no custom headers portably.

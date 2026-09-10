@@ -235,6 +235,49 @@ export const SELF_UNMUTE_GRACE_MS = 60_000;
 export const WAITING_WINDOW_MS = 15 * 60 * 1000;
 
 /**
+ * How long attention lasts without fresh evidence — the same fifteen minutes,
+ * named for the question it answers.
+ *
+ * **One number and two names, deliberately.** It was `ATTENTION_WINDOW_MS` in
+ * `app/src/state/attention.ts`, aliased to the constant above, on the argument
+ * that the two are one claim with two audiences: how long this reader is still
+ * attending, and how long everybody else is told they are within reach. Moved
+ * here on 2026-09-09 when attention stopped being a private client-side clock
+ * and became the one the server holds and everybody reads. If it ever needs to
+ * differ from the wait it governs, this is where the split happens; until then
+ * a second literal would be a second thing to keep in step.
+ */
+export const ATTENTION_WINDOW_MS = WAITING_WINDOW_MS;
+
+/**
+ * How often a client says it is still attending.
+ *
+ * Attention moves on a gesture and on the app being frontmost, neither of
+ * which is worth a message of its own — a scroll would otherwise send one per
+ * frame. The client refreshes its own clock as often as it likes and tells the
+ * server this often, so what the server holds is at most this stale, against a
+ * window of fifteen minutes.
+ *
+ * Matched to the native half's look interval so a phone reports on the same
+ * beat it re-reads the foreground on, rather than on a second timer that has
+ * to be reasoned about beside it.
+ */
+export const ATTENTION_REPORT_MS = 30_000;
+
+/**
+ * How often a moved attention stamp is pushed to the people who can see it.
+ *
+ * The same shape of answer as `NEARBY_ECHO_MS` in the server, and for the same
+ * reason: the stamp is read by every roster in every channel the person
+ * belongs to, so pushing it at the rate it changes would fan a snapshot out
+ * per report per channel per member. Every countdown in this application is
+ * drawn from a stamp plus a local tick, so a minute-stale stamp draws a
+ * correct clock; and against a fifteen-minute window a minute cannot change
+ * anybody's word for anybody.
+ */
+export const ATTENTION_ECHO_MS = 60_000;
+
+/**
  * How long a deleted channel and its recordings survive the tap that deleted
  * them, before the sweep removes the rows and the audio in the bucket.
  *

@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  ATTENTION_ECHO_MS,
+  ATTENTION_WINDOW_MS,
   DELETED_RETENTION_MS,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
@@ -26,11 +28,14 @@ import {
   isPartyMuted,
   isPresent,
   canPing,
+  isWaiting,
   isWithheld,
   lastPresenceAt,
   lastPresenceByOthers,
+  nearbyMs,
   otherParticipants,
   reduce,
+  subscribeable,
 } from '../../core/channel';
 import { initialFloorState } from '../../core/floor';
 import { inRoom, roomOccupants, statedIdentities } from '../../core/guests';
@@ -473,6 +478,27 @@ export class ChannelRegistry {
    */
   private nearbyEchoedAt = new Map<string, number>();
   /**
+   * When each person was last attending each channel, keyed
+   * `channelId:userId`, and when that was last pushed to the room.
+   *
+   * **Per channel rather than per person**, which is the whole shape of the
+   * thing: being stepped out of different rooms at different times is most of
+   * what a roster is for, and one stamp per person would make every roster say
+   * the same thing about them — that they are holding their phone. What is
+   * attended is a room: the one on screen, and the one this device is standing
+   * in. See `ClientMessage.attentive`.
+   *
+   * **Volatile.** A restart has heard from nobody, and the absence is honest —
+   * `inattentive` refuses to answer for a pair the server has no clock for, so
+   * nothing is retired on the strength of a deploy.
+   */
+  private attentiveAt = new Map<string, number>();
+  private attentionEchoedAt = new Map<string, number>();
+
+  private attentionKey(channelId: string, userId: string): string {
+    return `${channelId}:${userId}`;
+  }
+  /**
    * One recording run's live capture. `requested` is who an egress has been
    * asked for this run — filled before the call returns, so a second
    * transition or tick cannot ask twice. `retryAt` throttles the retries for
@@ -830,7 +856,8 @@ export class ChannelRegistry {
     const changed: string[] = [];
     for (const [id, channel] of this.channels) {
       if (channel.status !== 'active') continue;
-      const next = reduce(channel, { type: 'TICK' }, now);
+      const attended = this.expireInattentive(channel, now);
+      const next = reduce(attended, { type: 'TICK' }, now);
       if (next !== channel) {
         this.commit(channel, next);
         changed.push(id);
@@ -1586,6 +1613,74 @@ export class ChannelRegistry {
     if (at - (this.nearbyEchoedAt.get(echoKey) ?? 0) < NEARBY_ECHO_MS) return;
     this.nearbyEchoedAt.set(echoKey, at);
     this.emit([channelId]);
+  }
+
+  /**
+   * Somebody is attending the application right now.
+   *
+   * Not a channel event, and deliberately not scoped to one: what the window
+   * asks is whether this person is *there*, and a hand on Home answers it for
+   * every room they are in. See `ClientMessage.attentive` for why this is its
+   * own message rather than something read off the traffic already arriving.
+   *
+   * Pushed to the channels that can see it, at `ATTENTION_ECHO_MS` — reports
+   * arrive every half minute per attentive client, and the stamp is read by
+   * every roster in every channel they belong to, so pushing at the rate it
+   * moves would fan a snapshot out per report per channel per member. Clients
+   * draw the number from a stamp and a local tick like every other countdown
+   * here, so a minute-stale stamp still draws a correct clock.
+   */
+  attentive(userId: string, channelIds: readonly string[]): void {
+    const at = this.now();
+    const echo: string[] = [];
+    for (const channelId of channelIds) {
+      const channel = this.channels.get(channelId);
+      // Membership rather than a bare id: this is a client naming rooms, and
+      // the only rooms it may say anything about are its own.
+      if (!channel || channel.status !== 'active') continue;
+      if (!isParticipant(channel, userId)) continue;
+
+      const key = this.attentionKey(channelId, userId);
+      this.attentiveAt.set(key, at);
+      if (at - (this.attentionEchoedAt.get(key) ?? 0) < ATTENTION_ECHO_MS) continue;
+      this.attentionEchoedAt.set(key, at);
+      echo.push(channelId);
+    }
+    if (echo.length > 0) this.emit(echo);
+  }
+
+  /**
+   * When this person was last attending this channel, or null if nothing has
+   * said.
+   */
+  attentionOf(channelId: string, userId: string): number | null {
+    return this.attentiveAt.get(this.attentionKey(channelId, userId)) ?? null;
+  }
+
+  /**
+   * Whether this account's attention has run out, as far as anybody knows.
+   *
+   * **Null is not inattentive**, and that is the whole of the shim. A build
+   * that predates the report says nothing, so the server has no clock for it
+   * and must not act — those installs go on deciding for themselves and
+   * sending `ATTENTION_EXPIRED`, exactly as they did. Retiring them here
+   * because the server had not heard would retire every one of them fifteen
+   * minutes after a deploy, whatever their owners were doing. See SHIMS.md.
+   */
+  private inattentive(channelId: string, userId: string, now: number): boolean {
+    const at = this.attentiveAt.get(this.attentionKey(channelId, userId));
+    if (at === undefined) return false;
+    return now - at >= ATTENTION_WINDOW_MS;
+  }
+
+  /** Every live channel this person is present in, which is what they hold. */
+  standingIn(userId: string): string[] {
+    const held: string[] = [];
+    for (const [id, channel] of this.channels) {
+      if (channel.status !== 'active') continue;
+      if (isPresent(channel, userId)) held.push(id);
+    }
+    return held;
   }
 
   /**
@@ -2697,6 +2792,57 @@ export class ChannelRegistry {
    * The room is not misrepresented while a real person is in it, and they may
    * yet wake up — which one did, on 2026-09-06, while this was being designed.
    */
+  /**
+   * Everybody in this channel whose attention has run out, retired from
+   * whichever rung they were on.
+   *
+   * **Two rules, and the difference between them is what somebody is here
+   * for.** A person who is *nearby* is making one claim — that a notification
+   * would reach them — and fifteen minutes without attending anything ends it.
+   * A person who is *present* is holding a room, and the room may be the
+   * reason they are not touching anything: listening is attending, and
+   * `subscribeable` is what says whether there was anything to listen to. So
+   * presence is retired only when the room has nothing in it but them.
+   *
+   * **A clock per person per channel**, so the same person can be freshly
+   * attending one room and hours gone from another — which is the ordinary
+   * case and most of what a roster carries. What keeps a seat while somebody
+   * reads Home is not a global clock but the report itself: a device names the
+   * channel it is standing in as well as the one on screen, presence being a
+   * claim actively maintained. See `ClientMessage.attentive`.
+   *
+   * **Nobody without a clock is touched**, which is the shim: builds that
+   * predate the report decide for themselves and send `ATTENTION_EXPIRED`, and
+   * the fallback below is the only thing this does for them — striking out a
+   * nearby whose own fifteen minutes has run, since `isWaiting` on their
+   * behalf is now membership and somebody has to prune the set.
+   *
+   * Returns the state to go on with rather than committing: the caller folds
+   * it into the same TICK pass, so a retirement and its consequences settle
+   * together rather than in two emissions a beat apart.
+   */
+  private expireInattentive(state: ChannelState, now: number): ChannelState {
+    let next = state;
+    for (const userId of state.participants) {
+      const known =
+        this.attentiveAt.get(this.attentionKey(state.id, userId)) !== undefined;
+      if (known) {
+        if (!this.inattentive(state.id, userId, now)) continue;
+        if (isPresent(next, userId) && subscribeable(next, userId)) continue;
+        next = reduce(next, { type: 'ATTENTION_EXPIRED', userId }, now);
+        continue;
+      }
+      // No clock for them. The only judgement left is the one their own build
+      // is still making about itself, applied to the set it can no longer
+      // prune from a screen — see SHIMS.md.
+      if (!isWaiting(next, userId)) continue;
+      const waited = nearbyMs(next, userId, now);
+      if (waited === null || waited < WAITING_WINDOW_MS) continue;
+      next = reduce(next, { type: 'ATTENTION_EXPIRED', userId }, now);
+    }
+    return next;
+  }
+
   private considerRetiring(state: ChannelState, publishing: number): void {
     const at = this.now();
     const quiet = publishing === 0 && state.playback.status !== 'playing';

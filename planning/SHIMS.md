@@ -38,6 +38,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 159 | The two renamed settings | `server/src/settings-wire.ts` |
 | — | `mediaRoom` | `core/channel.ts`, `server/src/channels.ts` |
 | — | `declaredNearbyAt` optionality | `core/channel.ts` |
+| 175 | The pre-attention fallback | `server/src/channels.ts`, `server/src/release.ts`, `app/src/ui/ChannelView.tsx` |
 
 The floor is **51**. `oldestBuild` read **80** on 2026-09-09, so the first
 three are already free and the rest are not.
@@ -208,6 +209,42 @@ read only when the current key is missing, negated on the way in, and removed
 the moment the server states anything. That half is cheaper to be wrong about —
 it is a cache, so the cost is one second of the wrong answer at a cold start
 rather than a setting — but it goes with the other half.
+
+---
+
+## Gate 175 — the pre-attention fallback
+
+Attention became a clock the server holds on 2026-09-09, fed by an
+`{ type: 'attentive' }` report the client sends. Builds before 175 send no such
+report, and three pieces of code exist for them.
+
+**`ATTENTION_BUILD` in `server/src/release.ts`**, which is what decides who is
+in the new world. Below it no clock is seeded on connection, so
+`expireInattentive` has none to read and leaves those installs alone. Note the
+clock is keyed `channelId:userId`, so "no clock" is per room: an old install is
+unknown everywhere, and a new one is unknown in the rooms it has not attended.
+
+**The unknown-clock arm of `ChannelRegistry.expireInattentive`.** An old
+install goes on deciding for itself and sending `ATTENTION_EXPIRED`, exactly as
+it did — but `isWaiting` in `core/` is now membership, and somebody has to
+strike out a nearby whose fifteen minutes has run. That arm is the only reader
+left of **`nearbyMs`**, and of the `STILL_HERE` branch that refreshes
+`declaredNearbyAt`. All three go together.
+
+**The roster fallback in `ParticipantCard`.** Where `attentiveAt` has no entry
+the card shows the old numbers and the old words — *Nearby for 4 minutes*,
+*Stepped out 16 minutes ago* — rather than the attention clock. Mixed
+vocabulary between rows during the transition is the accepted cost; it
+self-heals as installs update.
+
+**Do not delete `idleMs` with any of it.** Home orders rooms by
+`lastPresenceAt`, which reads the same stamps, and *Stepped out* still counts
+from them for anybody the fallback is drawing.
+
+**Nothing is needed in the other direction.** A build below 175 ignores
+`attentiveAt` on the snapshot, and the server goes on accepting the
+`ATTENTION_EXPIRED` those builds send — that action is not a shim and does not
+leave with this entry; it is what the tick itself dispatches.
 
 ---
 

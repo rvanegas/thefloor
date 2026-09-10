@@ -610,6 +610,34 @@ export class Realtime {
     this.reconnectNow();
   }
 
+  /**
+   * Says somebody is attending the application, if there is a socket to say it
+   * on.
+   *
+   * **Named rooms rather than a bare "I am here"** — see
+   * `ClientMessage.attentive`. The caller passes what this device is
+   * attending: the channel on screen, and the one it is standing in.
+   *
+   * **Dropped rather than queued when there is no socket**, unlike an action.
+   * An action is something a person asked for and expects to have happened;
+   * this is evidence about a moment, and a moment that has passed is not worth
+   * replaying — the reconnection will produce fresh evidence of its own within
+   * the report interval, and `hello` seeds the rooms this device is standing
+   * in besides.
+   *
+   * Reports whether it went, so the caller's rate-limit gate only advances on
+   * a message that was actually sent.
+   */
+  attentive(channelIds: string[]): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    // Nothing to attribute it to is nothing to say. Somebody on Home with no
+    // channel open and standing nowhere is attending the application and no
+    // room in it, and there is no clock that fact belongs to.
+    if (channelIds.length === 0) return false;
+    this.send({ type: 'attentive', channelIds });
+    return true;
+  }
+
   disconnect(): void {
     this.closedByUs = true;
     if (this.reconnectTimer) {

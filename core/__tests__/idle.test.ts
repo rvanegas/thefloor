@@ -200,14 +200,14 @@ describe('waiting, which is an absence nobody chose', () => {
   }
 
   it('is not a thing somebody present is doing', () => {
-    expect(isWaiting(pair(), B, T0)).toBe(false);
+    expect(isWaiting(pair(), B)).toBe(false);
   });
 
   it('is what a lost connection leaves behind', () => {
     const heard = T0 + 30_000;
     const s = dropped(heard);
     expect(s.waiting).toContain(B);
-    expect(isWaiting(s, B, heard + DISCONNECT_GRACE_MS + 1)).toBe(true);
+    expect(isWaiting(s, B)).toBe(true);
   });
 
   it('is not what a tap leaves behind', () => {
@@ -215,14 +215,24 @@ describe('waiting, which is an absence nobody chose', () => {
     // not holding on for anybody.
     const s = reduce(pair(), { type: 'STEP_OUT', userId: B }, T0);
     expect(s.waiting).not.toContain(B);
-    expect(isWaiting(s, B, T0 + 60_000)).toBe(false);
+    expect(isWaiting(s, B)).toBe(false);
   });
 
-  it('stops being worth saying after the window', () => {
+  it('outlives nothing: the window is applied where the clock is', () => {
+    // **The window moved out of here on 2026-09-09.** It used to be applied on
+    // every reader's screen, `waiting` being a set that outlived its own
+    // meaning; attention is now held by the server and the tick strikes a
+    // lapsed wait out of the set itself. So this function is membership, and
+    // fifteen minutes later the answer is still whatever the set says —
+    // because by then the tick has changed the set.
     const heard = T0 + 30_000;
     const s = dropped(heard);
-    expect(isWaiting(s, B, heard + WAITING_WINDOW_MS - 1)).toBe(true);
-    expect(isWaiting(s, B, heard + WAITING_WINDOW_MS)).toBe(false);
+    expect(isWaiting(s, B)).toBe(true);
+    expect(s.waiting).toContain(B);
+    // Nothing in `core/` expires it on a clock any more. What does is
+    // `ChannelRegistry.tick`, and `server/__tests__/presence.test.ts` is where
+    // that is held.
+    expect(reduce(s, { type: 'TICK' }, heard + WAITING_WINDOW_MS).waiting).toContain(B);
   });
 
   it('hands over to idleness without resetting the clock', () => {
@@ -232,8 +242,9 @@ describe('waiting, which is an absence nobody chose', () => {
     const heard = T0 + 30_000;
     const s = dropped(heard);
     const lapsed = heard + WAITING_WINDOW_MS;
-    expect(isWaiting(s, B, lapsed)).toBe(false);
-    expect(idleMs(s, B, lapsed)).toBe(WAITING_WINDOW_MS);
+    const gone = reduce(s, { type: 'ATTENTION_EXPIRED', userId: B }, lapsed);
+    expect(isWaiting(gone, B)).toBe(false);
+    expect(idleMs(gone, B, lapsed)).toBe(WAITING_WINDOW_MS);
   });
 
   it('ends when they come back', () => {
@@ -241,7 +252,7 @@ describe('waiting, which is an absence nobody chose', () => {
     let s = dropped(heard);
     s = reduce(s, { type: 'ENTER', userId: B }, heard + 60_000);
     expect(s.waiting).not.toContain(B);
-    expect(isWaiting(s, B, heard + 60_000)).toBe(false);
+    expect(isWaiting(s, B)).toBe(false);
   });
 
   it('ends when they come back and then step out on purpose', () => {

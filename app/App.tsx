@@ -216,18 +216,23 @@ function Root() {
   useKnockNudge(live);
 
   /**
-   * Stepped out of a channel nobody is attending — **on both platforms since
-   * 2026-09-06**, where the native half used to be an empty stub on the
-   * argument that a pocketed phone loses its process anyway. This project
-   * spent two builds making that false on purpose: a held microphone keeps a
-   * backgrounded process alive, so a phone can now hold a channel open with
-   * nobody near it. `state/useAttention.ts` carries the whole reasoning.
+   * Says this device is being attended, which is all a client does about
+   * attention since 2026-09-09.
    *
-   * Here with the two above because it reads the same standing and the same
-   * active speakers they do, and because what it ends is presence rather than
-   * a screen.
+   * **It takes no arguments, and the emptiness is the change.** It used to
+   * read the channel being stood in and who was audible in it, hold a clock
+   * about that channel, and end the visit itself. The clock is the server's
+   * now — one per account rather than one per device per channel — so what is
+   * left here is evidence: the app is frontmost, or a hand is on it.
+   * `state/useAttention.ts` carries the reasoning and
+   * `ChannelRegistry.expireInattentive` the rule.
+   *
+   * Not scoped to standing any more, which is why it no longer sits with the
+   * hooks above that read `live`: somebody nearby, or reading Home, is
+   * attending the application, and every rung they hold is entitled to know
+   * it.
    */
-  useAttention(live, me, audio.speaking);
+  useAttention();
 
   /**
    * Somebody arriving in a channel this device is standing nearby.
@@ -699,13 +704,47 @@ function titleOf(
   );
 }
 
+/**
+ * A hand on this phone, anywhere in the application.
+ *
+ * **Capture rather than a handler, and it always declines.**
+ * `onStartShouldSetResponderCapture` is offered every touch before any child
+ * sees it, and answering `false` records the touch and leaves the gesture
+ * exactly where it was going — no button is stolen, no scroll is interrupted,
+ * and nothing below this view can consume the evidence by handling the event
+ * first.
+ *
+ * **The phone had no such listener until 2026-09-09**, only the app being
+ * frontmost. Frontmost is enough to say somebody is reading, which is why it
+ * is kept; it is not enough to say somebody is *doing* something, and a rule
+ * that says attention is any activity in the application has to be able to
+ * see the activity. `reportAttentive` rate-limits, so a scroll costs one
+ * message every half minute rather than one per frame.
+ */
+function Attending({ children }: { children: React.ReactNode }) {
+  const app = useApp();
+  return (
+    <View
+      style={styles.root}
+      onStartShouldSetResponderCapture={() => {
+        app.reportAttentive();
+        return false;
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
         <StatusBar style="auto" />
         <AppProvider>
-          <Root />
+          <Attending>
+            <Root />
+          </Attending>
         </AppProvider>
       </SafeAreaView>
     </SafeAreaProvider>

@@ -356,6 +356,22 @@ export function ChannelView({
   const nameOf = (id: string | null) =>
     view.participants.find((p) => p.id === id)?.displayName ?? 'Someone';
   const now = app.serverNow();
+  /**
+   * This screen is what its channel's attention clock is about, for as long as
+   * it is on screen — and not a moment longer. The snapshot behind it lives on
+   * when somebody presses Home, deliberately, because dropping it would be
+   * leaving the channel; a snapshot nobody is looking at is not attention, so
+   * the clock has to be told about the screen rather than about the snapshot.
+   *
+   * Reported at once as well as registered: opening a channel is the freshest
+   * evidence there is of attending it, and waiting up to half a minute for the
+   * next poll would let a room somebody just walked into keep ageing.
+   */
+  useEffect(() => {
+    app.lookAt(channelId);
+    app.reportAttentive(true);
+    return () => app.lookAt(null);
+  }, [channelId, app.lookAt, app.reportAttentive]);
 
   if (channel.status === 'ended') {
     return (
@@ -1210,6 +1226,7 @@ export function ChannelView({
                     : undefined
                 }
                 pingableAt={view.pingableAt?.[participant.id] ?? null}
+                attentiveAt={view.attentiveAt?.[participant.id] ?? null}
               />
             ))}
           </View>
@@ -2798,6 +2815,7 @@ function ParticipantCard({
   onPress,
   onPing,
   pingableAt = null,
+  attentiveAt = null,
 }: {
   channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   participant: { id: string; displayName: string };
@@ -2825,6 +2843,15 @@ function ParticipantCard({
   onPing?: () => Promise<void>;
   /** When they may next be pinged, or null for now. */
   pingableAt?: number | null;
+  /**
+   * When they were last attending the application, or null if the server has
+   * no clock for them — which since 2026-09-09 is the one clock this card
+   * shows about anybody who is not here.
+   *
+   * Null is not "never". It is a build that predates the report, and the card
+   * falls back to the two clocks it used to show. See SHIMS.md.
+   */
+  attentiveAt?: number | null;
 }) {
   const here = isPresent(channel, participant.id);
   const reconnecting = channel.disconnectedAt[participant.id] !== undefined;
@@ -2859,6 +2886,23 @@ function ParticipantCard({
    */
   const waitingFor = nearbyMs(channel, participant.id, now);
   /**
+   * How long since they were last attending the application, or null when the
+   * server has no clock for them.
+   *
+   * **The one clock this card shows about anybody absent**, since 2026-09-09,
+   * and the reason the two lines below no longer measure different things.
+   * *Nearby* used to count from a declaration and *Stepped out* from the last
+   * sign of life in this channel, so the same person crossing between them
+   * appeared to have their history rewritten, and neither number answered the
+   * question anybody actually had: will a notification find them.
+   *
+   * Clamped like every other duration here, and against the server's clock
+   * rather than the device's — a stamp taken a moment ago can arrive as a
+   * small negative across a round trip. See `duration`.
+   */
+  const attention =
+    attentiveAt === null ? null : Math.max(0, now - attentiveAt);
+  /**
    * Present in spirit: their phone has gone to sleep on them, or they said
    * they were within reach, and either way a notification would still fetch
    * them. The status line says so and the ping button hangs off it, which is
@@ -2872,7 +2916,7 @@ function ParticipantCard({
    * footer said *Nearby*. `isWaiting` already refuses anybody whose wait has
    * no clock at all.
    */
-  const nearby = !here && isWaiting(channel, participant.id, now);
+  const nearby = !here && isWaiting(channel, participant.id);
   /**
    * Out of reach and worth calling — which is `nearby`, plus the minute before
    * anybody is allowed to call it that.
@@ -2993,7 +3037,7 @@ function ParticipantCard({
       : failing
         ? 'Present · not receiving you'
         : 'Present'
-    : waitingFor !== null && isWaiting(channel, participant.id, now)
+    : isWaiting(channel, participant.id)
       ? // They did not leave; their phone did. Walking into a channel and
         // pocketing the phone suspends the process in under a second, so this
         // is what most absences from an otherwise empty channel actually are —
@@ -3021,12 +3065,41 @@ function ParticipantCard({
         // card. The state name in `core/` is still `waiting`, deliberately —
         // `ChannelState.waiting` is on the wire and cannot be renamed without
         // a two-step migration for a word no user ever sees.
-        `Nearby for ${duration(waitingFor)}`
+        //
+        // **The number is the attention clock, since 2026-09-09**, and the
+        // word lost "for" with the change of clock. It counted the declaration
+        // — how long this person had been nearby — which was a fact about a
+        // rung rather than about them, and went stale the moment the rung
+        // stopped being the thing anybody wanted to know. What a person
+        // reading this wants is whether the notification will find somebody,
+        // and *nearby 20s* answers it where *nearby for 14m* invites the
+        // reader to work out how much of the fifteen minutes is left. See
+        // `attentiveAt`, and `waitingFor` for what is shown when the server
+        // has no attention clock for them.
+        `Nearby ${duration(attention ?? waitingFor ?? 0)}`
       : channel.everPresent.includes(participant.id)
-        ? away === null
-          ? 'Stepped out'
-          : `Stepped out ${ago(away)}`
-        : 'Invited';
+        ? attention !== null
+          ? // **"Away", not "Stepped out", once the clock is attention.** The
+            // two words are not interchangeable and the number decides which
+            // is true: *stepped out four minutes ago* is a claim about when
+            // they left this room, and the attention clock does not know when
+            // that was — it knows when they last touched the application,
+            // which for somebody who left an hour ago and is using their phone
+            // now is a few seconds. Said as *stepped out*, that sentence is
+            // simply false; said as *away*, it is the useful thing, and the
+            // one *nearby* is already saying on the line above.
+            `Away ${duration(attention)}`
+          : away === null
+            ? 'Stepped out'
+            : `Stepped out ${ago(away)}`
+        : attention !== null
+          ? // Somebody who has never been in this channel and is attending the
+            // application. *Invited* is still true and is no longer the useful
+            // half: an invitation that has been sitting there a week and one
+            // whose recipient is holding their phone are the same card, and
+            // only one of them is worth waiting a moment for.
+            `Invited · away ${duration(attention)}`
+          : 'Invited';
 
   const body = (
     /**

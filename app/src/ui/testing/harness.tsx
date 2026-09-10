@@ -98,6 +98,8 @@ export const mockApp = {
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
+  reportAttentive: jest.fn(),
+  lookAt: jest.fn(),
   requestCode: jest.fn(),
   verify: jest.fn(),
   signOut: jest.fn(),

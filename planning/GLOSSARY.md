@@ -70,7 +70,8 @@ caused; the list carries the meaning.
 **Words that exist only in the codebase**
 
 - **Address** — What a URL says: which list the tier is showing, and what is open over it
-- **Attention** — The clock a web client keeps over its own *standing*, in `app/src/state/attention.ts`
+- **Attention** — Whether somebody is at a channel: frontmost on a phone, a hand on it in a browser, and never the audio. One server-held clock per person per channel, and the one the roster shows about anybody absent
+- **Subscribeable** — Whether there is anything in a room to hear — another occupant, a track, a party — which is what stops *attention* retiring a silent listener
 - **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
 - **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
 - **Claim** — One holding of the *floor*: `floor.holder` plus `claimedAt`
@@ -439,24 +440,35 @@ out* like anything else.
 The distinction is one bit, and it is the difference between telling somebody
 to give up on a person and telling them to ping.
 
-**A declaration does not age while the app is holding the channel**, since
-2026-09-09. The heartbeat that keeps a present member's `lastPresentAt` true
-refreshes a live declaration too, so the fifteen minutes is a window on a phone
-that has gone quiet rather than on one whose owner is looking at the room. It
-refreshes a declaration only, never a wait a lost connection produced, and never
-one that has already lapsed.
+**One clock, and it is attention**, since 2026-09-09. How long somebody has
+been nearby, and how long they have been away, are the same number: the time
+since they were last attending *this channel*. The server holds it, one stamp
+per person per channel, fed by a report the client sends when the app is
+frontmost or a hand is on it; the tick reads it and ends both states.
 
-**Two clocks, since 2026-09-09, because the ways in are not all the same
-kind.** How long somebody has been nearby is `nearbyMs`, and it reads whichever
-of two stamps applies: a declaration is timed from the declaration, an expired
-connection from `lastPresentAt` — the last sign of life, which is all a pocketed
-phone leaves. The fifteen-minute window runs on the same number, so a
-declaration always gets a full fifteen minutes however long the silence before
-it was. `idleMs` is the older question — *how long since we heard anything* —
-and still has its old answer; it is what *Stepped out* counts, and a
-declaration does not touch it. Reading both off `lastPresentAt` said "Nearby
-for four minutes" about a tap one second old, and past the window it let the
-footer say *Nearby* while the roster said *Stepped out*.
+**Per channel and not per person**, because the same person is stepped out of
+different rooms at different times and that difference is most of what a roster
+carries. A device names what it is attending: the channel on screen, and the
+channel it is standing in — so reading Home holds the conversation you are in,
+and a declaration in a room you are not looking at ages as it always did. So the roster says *nearby 20s* and *away 4 minutes*, and both answer
+the question anybody actually has — whether a notification will find them —
+rather than when somebody last left a room.
+
+**Three clocks preceded it inside a single day**, which is worth knowing only
+because the words still exist in the code: `lastPresentAt`, the last sign of
+life in a channel, which now orders Home and nothing else a reader sees;
+`declaredNearbyAt`, the moment a declaration was made, kept as the auto/manual
+bit and no longer a clock; and a private client-side attention clock that
+nobody but its own client could see. They disagreed at every seam — a
+declaration timed from an older silence, a footer lit *Nearby* over a roster
+reading *Stepped out*, a card nobody could refresh without stepping in or out.
+
+**Talking is not attending, and this is the sharp edge.** Neither your voice
+nor anybody else's refreshes the clock: the person being talked at may have
+walked away, and the phone in their pocket hears the voice perfectly well. What
+protects a silent listener from the window is *subscribeable* — whether there
+was anything in the room to listen to — so presence ends only when somebody is
+both inattentive and alone.
 
 **Nearby has three ways in, and since 2026-09-08 two of them are declared.**
 It used to be only something that happened *to* somebody.

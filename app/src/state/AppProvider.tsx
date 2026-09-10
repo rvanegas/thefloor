@@ -26,6 +26,7 @@ import { startShippingDiagnostics } from '../audio/shipping';
 import { mustUpdate } from '../api/expiry';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
+import { shouldReport } from './attention';
 import { storage } from './storage';
 import {
   onNotificationTap,
@@ -280,6 +281,22 @@ interface AppState {
 interface AppValue extends AppState {
   /** Server time, tracked against the server's clock rather than the device's. */
   serverNow: () => number;
+  /**
+   * Says somebody is attending this application, which is the whole of what a
+   * client does about attention since 2026-09-09. See `state/attention.ts`.
+   *
+   * Rate-limited here rather than by each caller, there being three with
+   * nothing in common: a touch anywhere in the tree, the app coming forward,
+   * and a poll of the foreground. `force` skips the gate for the one kind of
+   * evidence worth a message immediately — arriving back, which is what can
+   * rescue a clock about to run out.
+   */
+  reportAttentive: (force?: boolean) => void;
+  /**
+   * Says which channel screen is open, so a touch can be attributed to the
+   * room it was attention to. Null on the way out.
+   */
+  lookAt: (channelId: string | null) => void;
   requestCode: (identifier: string) => Promise<void>;
   verify: (
     identifier: string,
@@ -741,6 +758,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [tick, forceTick] = useState(0);
 
   const serverNow = useCallback(() => Date.now() + clockOffset.current, []);
+
+  /**
+   * When this client last said somebody was here.
+   *
+   * The device's own clock rather than the server's, because it is compared
+   * only against itself — what it gates is how often a message is sent, and
+   * the stamp that matters is the one the server takes on arrival.
+   */
+  const attentiveReportedAt = useRef(0);
+  /**
+   * The channel screen this device currently has open, or null.
+   *
+   * A ref rather than state because nothing renders from it: it exists to say
+   * which room a touch was attention to, and re-rendering the whole tree when
+   * a screen opens is what `channelViews` already does. Held here rather than
+   * derived from `channelViews`, which deliberately outlives the screen —
+   * pressing Home keeps the snapshot, because dropping it would be leaving the
+   * channel, and a snapshot nobody is looking at is not attention.
+   */
+  const lookingAt = useRef<string | null>(null);
+  const standing = useRef<string | null>(null);
+  standing.current = state.standingIn;
+  const reportAttentive = useCallback(
+    (force = false) => {
+      const at = Date.now();
+      if (!force && !shouldReport(attentiveReportedAt.current, at)) return;
+      // **What this device is attending, which is up to two rooms.** The one
+      // on screen, because looking at it is attending it; and the one it is
+      // standing in, because presence is a claim actively maintained and a
+      // phone in a hand is what says somebody is still there to maintain it.
+      // Reading Home therefore holds the conversation you are in and nothing
+      // else — which is the whole of why the clock is per channel.
+      const rooms = new Set<string>();
+      if (lookingAt.current) rooms.add(lookingAt.current);
+      if (standing.current) rooms.add(standing.current);
+      // Only advance the gate on a message that actually went. A report
+      // dropped for want of a socket — or for having no room to be about — is
+      // not evidence anybody received, and recording it would hold the next
+      // one back for half a minute at exactly the moment it mattered.
+      if (!realtime.attentive([...rooms])) return;
+      attentiveReportedAt.current = at;
+    },
+    [realtime]
+  );
+  /**
+   * Called by the channel screen for as long as it is the screen. See
+   * `lookingAt`.
+   */
+  const lookAt = useCallback((channelId: string | null) => {
+    lookingAt.current = channelId;
+  }, []);
 
   const connect = useCallback(
     (token: string) => {
@@ -1242,6 +1310,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...state,
       serverNow,
+      reportAttentive,
+      lookAt,
       expired: expiry.expired,
       updateUrl: expiry.updateUrl,
       notificationTapped,
@@ -1723,6 +1793,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [
       state,
       serverNow,
+      reportAttentive,
+      lookAt,
       connect,
       realtime,
       tick,

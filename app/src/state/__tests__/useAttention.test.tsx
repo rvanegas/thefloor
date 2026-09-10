@@ -1,42 +1,38 @@
 import React from 'react';
 import { AppState } from 'react-native';
-import renderer, { act as reactAct } from 'react-test-renderer';
+import renderer, {
+  act as reactAct,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { useAttention } from '../useAttention';
 import { recordEvent } from '../../audio/diagnostics';
-import { WAITING_WINDOW_MS } from '../../../../core/constants';
-import type { ChannelState } from '../../../../core/types';
 
 /**
- * What ends a visit on a phone, which is not what ends one in a browser.
+ * What a phone says about attention, which since 2026-09-09 is all it does.
  *
- * The pure rules are `attention.test.ts`; this is about the three things only
- * the hook knows — that it looks on a timer, that on a phone the whole of the
- * evidence a person is present is whether the app is in front, and that it
- * says so in the audio log on the way out.
+ * The rule it feeds is `server/__tests__/presence.test.ts`; the gate on how
+ * often it speaks is `attention.test.ts`. What is only knowable here is the
+ * evidence a phone has to offer — that being frontmost counts continuously
+ * rather than at the moment of arrival, and that a phone in a pocket offers
+ * nothing at all.
  *
- * **The last of those is why this file also asserts about logging**, which is
- * not normally worth a test. Two field reports in one afternoon on 2026-09-06
- * were diagnosed from usage spans and mute states on the server, and the
- * diagnosis was rewritten three times — each time by somebody who had been in
- * the channel remembering what the spans could not say. The facts that decide
- * the outcome exist nowhere but on the phone: who was in this device's
- * active-speaker set when a look ran, and how long since the previous look.
- * A line that stops being written is the regression that costs the next
- * afternoon, so both are pinned here.
+ * **The foreground rule is the one to hold on to.** It was read as an act
+ * first, refreshing only when the app came forward, and that is a materially
+ * different rule: it expires somebody who is looking at the screen and has
+ * simply not brought the app forward in the last fifteen minutes, which on a
+ * phone is what reading looks like. It is a state, re-read on a timer, and
+ * this file is what stops it quietly becoming an act again.
  */
 
-const ME = 'acct_me';
-const THEM = 'acct_them';
-const CHANNEL = 'chan_1';
 /** `LOOK_INTERVAL_MS` in the hook, which is not exported. */
 const LOOK = 30_000;
 
-const acted: Array<{ channelId: string; type: string }> = [];
+const reports: Array<boolean | undefined> = [];
 
 jest.mock('../AppProvider', () => ({
   useApp: () => ({
-    act: (channelId: string, action: { type: string }) => {
-      acted.push({ channelId, type: action.type });
+    reportAttentive: (force?: boolean) => {
+      reports.push(force);
     },
   }),
 }));
@@ -47,24 +43,8 @@ jest.mock('../../audio/diagnostics', () => ({
 
 const logged = recordEvent as jest.MockedFunction<typeof recordEvent>;
 
-/** Enough of a channel for `roomOccupants`, which is all the hook reads. */
-function channel(occupants: string[]): ChannelState {
-  return {
-    id: CHANNEL,
-    participants: occupants,
-    present: occupants,
-    guests: {},
-  } as unknown as ChannelState;
-}
-
-function Harness({
-  live,
-  speaking,
-}: {
-  live: ChannelState | null;
-  speaking: string[];
-}) {
-  useAttention(live, ME, speaking);
+function Harness() {
+  useAttention();
   return null;
 }
 
@@ -74,177 +54,95 @@ function setForeground(active: boolean) {
     : 'background';
 }
 
-function lines(): string[] {
-  return logged.mock.calls.map(([text]) => text);
+/** The listeners the hook registered, so a state change can be delivered. */
+const listeners: Array<(state: string) => void> = [];
+
+beforeEach(() => {
+  jest.useFakeTimers();
+  reports.length = 0;
+  listeners.length = 0;
+  logged.mockClear();
+  setForeground(true);
+  jest
+    .spyOn(AppState, 'addEventListener')
+    .mockImplementation(((_event: unknown, handler: (state: string) => void) => {
+      listeners.push(handler);
+      return { remove: () => {} };
+    }) as unknown as typeof AppState.addEventListener);
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
+
+function mount() {
+  let tree!: ReactTestRenderer;
+  reactAct(() => {
+    tree = renderer.create(<Harness />);
+  });
+  return tree;
 }
 
-describe('the attention clock on a phone', () => {
-  beforeEach(() => {
-    acted.length = 0;
-    logged.mockClear();
-    jest.useFakeTimers();
-    jest.setSystemTime(1_000_000);
+it('says so at once, rather than a look later', () => {
+  // Mounting is the app starting or the account signing in, and either way
+  // somebody is holding the phone.
+  const tree = mount();
+  expect(reports).toHaveLength(1);
+  reactAct(() => tree.unmount());
+});
+
+it('goes on saying so while the app is in front, untouched', () => {
+  const tree = mount();
+  reports.length = 0;
+  reactAct(() => {
+    jest.advanceTimersByTime(LOOK * 3);
+  });
+  // Three looks, three reports: being frontmost is a state and is re-read,
+  // not an event that happened once when the app came forward.
+  expect(reports).toHaveLength(3);
+  reactAct(() => tree.unmount());
+});
+
+it('says nothing at all from a pocket', () => {
+  const tree = mount();
+  reports.length = 0;
+  setForeground(false);
+  reactAct(() => {
+    jest.advanceTimersByTime(LOOK * 30);
+  });
+  // Fifteen minutes of silence, which is exactly what retires the phone that
+  // is holding a room open with nobody near it.
+  expect(reports).toHaveLength(0);
+  reactAct(() => tree.unmount());
+});
+
+it('forces a report the moment the app comes forward', () => {
+  const tree = mount();
+  reports.length = 0;
+  setForeground(false);
+  reactAct(() => {
+    jest.advanceTimersByTime(LOOK * 20);
+  });
+  setForeground(true);
+  reactAct(() => {
+    for (const listener of listeners) listener('active');
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
+  // `true`, past the rate limit: coming back is the one piece of evidence
+  // that can rescue a clock about to run out, and half a minute of gate is
+  // exactly the wrong thing to put in front of it.
+  expect(reports).toEqual([true]);
+  expect(logged).toHaveBeenCalledWith('attention foreground');
+  reactAct(() => tree.unmount());
+});
+
+it('stops when it goes away', () => {
+  const tree = mount();
+  reactAct(() => tree.unmount());
+  reports.length = 0;
+  reactAct(() => {
+    jest.advanceTimersByTime(LOOK * 5);
   });
-
-  it('steps a backgrounded phone out once the window is spent, alone', () => {
-    setForeground(false);
-    reactAct(() => {
-      renderer.create(<Harness live={channel([ME])} speaking={[]} />);
-    });
-
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS + 60_000);
-    });
-
-    expect(acted).toEqual([
-      { channelId: CHANNEL, type: 'ATTENTION_EXPIRED' },
-    ]);
-  });
-
-  it('leaves a backgrounded phone alone while anybody else is there', () => {
-    // The 2026-09-06 field case, which this rule used to get exactly wrong.
-    // Somebody else is present and never audible — asleep, muted, or listening
-    // to the person holding the phone — and no reading taken from the audio
-    // can tell that room from an abandoned one. So it is not judged.
-    setForeground(false);
-    reactAct(() => {
-      renderer.create(<Harness live={channel([ME, THEM])} speaking={[]} />);
-    });
-
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS * 3);
-    });
-
-    expect(acted).toEqual([]);
-  });
-
-  it('gives a full window to somebody the others have just left', () => {
-    // A departure refreshes the clock, so becoming solo does not hand you the
-    // remainder of a window that started while the others were still talking.
-    setForeground(false);
-    const view = renderer.create(
-      <Harness live={channel([ME, THEM])} speaking={[]} />
-    );
-
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS - 60_000);
-    });
-
-    reactAct(() => {
-      view.update(<Harness live={channel([ME])} speaking={[]} />);
-      jest.advanceTimersByTime(LOOK);
-    });
-
-    // Well past where the original window would have run out.
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS - LOOK * 3);
-    });
-    expect(acted).toEqual([]);
-
-    reactAct(() => {
-      jest.advanceTimersByTime(LOOK * 4);
-    });
-    expect(acted).toEqual([
-      { channelId: CHANNEL, type: 'ATTENTION_EXPIRED' },
-    ]);
-  });
-
-  it('keeps the seat of a foregrounded phone nobody has touched', () => {
-    setForeground(true);
-    reactAct(() => {
-      renderer.create(<Harness live={channel([ME, THEM])} speaking={[]} />);
-    });
-
-    // Twice the window, in silence, with no hand on the phone at all. A
-    // browser would expire here and should; an app somebody is looking at is
-    // being attended by the only means a phone has of saying so.
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS * 2);
-    });
-
-    expect(acted).toEqual([]);
-  });
-
-  it('lets a stale clock be rescued by the app coming back in front', () => {
-    // Alone, so the solo gate is open and the foreground rule is the only
-    // thing preventing an expiry — which is what this is about.
-    setForeground(false);
-    reactAct(() => {
-      renderer.create(<Harness live={channel([ME])} speaking={[]} />);
-    });
-
-    // Just short of the window, in the background and in silence.
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS - 60_000);
-    });
-    expect(acted).toEqual([]);
-
-    // Back in front. The look that follows finds a clock nearly spent and an
-    // app in front of somebody, and the second of those is the newer fact.
-    setForeground(true);
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS - 60_000);
-    });
-
-    expect(acted).toEqual([]);
-  });
-
-  it('says why it ended the visit, and what it believed at the time', () => {
-    setForeground(false);
-    reactAct(() => {
-      renderer.create(<Harness live={channel([ME])} speaking={[]} />);
-    });
-
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS + 60_000);
-    });
-
-    // **`self` is pinned because its absence cost an afternoon.** `audible`
-    // excludes you, so without this a room where you were the only sound for
-    // fifteen minutes and a silent room produce identical lines — which is
-    // what made the 2026-09-06 diagnosis take three attempts.
-    const expiry = lines().filter((l) => l.startsWith('attention expired'));
-    expect(expiry).toHaveLength(1);
-    expect(expiry[0]).toMatch(/others=0 audible=0 self=F fg=F gap=\d+s$/);
-  });
-
-  it('says nothing at all while somebody else is audible', () => {
-    setForeground(false);
-    reactAct(() => {
-      renderer.create(<Harness live={channel([ME, THEM])} speaking={[THEM]} />);
-    });
-
-    // Audible at every look, so the clock never ages: the seat is kept and
-    // there is nothing worth a line about it.
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS * 2);
-    });
-
-    expect(acted).toEqual([]);
-    expect(lines()).toEqual([]);
-  });
-
-  it('stays quiet until the clock is half spent, then ships the run-up', () => {
-    setForeground(false);
-    reactAct(() => {
-      renderer.create(<Harness live={channel([ME])} speaking={[]} />);
-    });
-
-    reactAct(() => {
-      jest.advanceTimersByTime(WAITING_WINDOW_MS / 2 - 60_000);
-    });
-    expect(lines()).toEqual([]);
-
-    reactAct(() => {
-      jest.advanceTimersByTime(120_000);
-    });
-
-    const aged = lines().filter((l) => l.startsWith('attention age'));
-    expect(aged.length).toBeGreaterThan(0);
-    expect(aged[0]).toMatch(/others=0 audible=0 self=F fg=F gap=\d+s$/);
-  });
+  expect(reports).toHaveLength(0);
 });

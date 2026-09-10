@@ -1,169 +1,85 @@
-import {
-  attend,
-  ATTENTION_WINDOW_MS,
-  NOT_STANDING,
-  touched,
-  unattended,
-  type Attention,
-  type Look,
-} from '../attention';
+import { shouldReport } from '../attention';
+import { ATTENTION_REPORT_MS } from '../../../../core/constants';
 
 /**
- * The whole of the web timeout, which is worth saying because the hook that
- * uses it is four listeners and an interval against browser globals that
- * nothing here can drive. Every rule about what does and does not hold a tab
- * open is in this file's subject, so it is pinned exhaustively and the
- * plumbing is kept as thin as it can be.
+ * All that is left of the client's half of attention.
+ *
+ * **This file used to be the whole rule** — who was audible, who had arrived,
+ * whether a hand had touched the page, and when fifteen minutes had passed —
+ * held twice, once per platform, and consulted by nobody but the client that
+ * held it. The clock is the server's since 2026-09-09, one per account, and
+ * the rules moved with it: `core/__tests__/nearby.test.ts` for what the window
+ * does, `server/__tests__/presence.test.ts` for when it fires.
+ *
+ * What is left here is the gate on how often a client says anything, which is
+ * worth its own test for one reason: it stands between a scroll gesture and
+ * the wire, and getting it wrong is either a message a frame or a window that
+ * quietly stops being refreshed.
  */
+describe('how often a client says somebody is here', () => {
+  const T0 = 1_700_000_000_000;
 
-const ME = 'user_me';
-const THEM = 'user_them';
-const GUEST = 'guest_1';
-const CHANNEL = 'chan_1';
-const NOW = 1_700_000_000_000;
-
-const look = (over: Partial<Look> = {}): Look => ({
-  channelId: CHANNEL,
-  me: ME,
-  occupants: [ME],
-  audible: [],
-  ...over,
-});
-
-/** Standing in the channel with nothing having happened since `at`. */
-const standing = (at: number, others: string[] = []): Attention => ({
-  channelId: CHANNEL,
-  others,
-  heardAt: at,
-});
-
-describe('entering', () => {
-  it('starts the clock, so somebody who steps in alone times out', () => {
-    const clock = attend(NOT_STANDING, look(), NOW);
-    expect(clock).toEqual({ channelId: CHANNEL, others: [], heardAt: NOW });
-    expect(unattended(clock, NOW + ATTENTION_WINDOW_MS)).toBe(true);
+  it('is due when nothing has been sent on this connection', () => {
+    // Zero is not "sent at the epoch"; it is the reset a new socket gets. The
+    // first evidence after a reconnection is the most valuable there is, being
+    // the one that says the app came back.
+    expect(shouldReport(0, T0)).toBe(true);
   });
 
-  it('restarts it when the channel changes', () => {
-    const stale = standing(NOW);
-    const moved = attend(stale, look({ channelId: 'chan_2' }), NOW + ATTENTION_WINDOW_MS);
-    expect(moved.channelId).toBe('chan_2');
-    expect(moved.heardAt).toBe(NOW + ATTENTION_WINDOW_MS);
+  it('holds one report per interval, however much evidence arrives', () => {
+    expect(shouldReport(T0, T0)).toBe(false);
+    expect(shouldReport(T0, T0 + ATTENTION_REPORT_MS - 1)).toBe(false);
+    expect(shouldReport(T0, T0 + ATTENTION_REPORT_MS)).toBe(true);
   });
 
-  it('disarms when this device is standing nowhere', () => {
-    expect(attend(standing(NOW), look({ channelId: null }), NOW)).toEqual(NOT_STANDING);
+  it('is two orders of magnitude below the heartbeat it rides beside', () => {
+    // Not arithmetic for its own sake: the reason this gate exists is that
+    // attention is continuous where a message is not, and the number has to
+    // stay small against the window it protects and large against the traffic
+    // already on the wire.
+    expect(ATTENTION_REPORT_MS).toBeGreaterThanOrEqual(10_000);
+    expect(ATTENTION_REPORT_MS).toBeLessThanOrEqual(60_000);
   });
 });
 
-describe('audio', () => {
-  it('does not count your own voice', () => {
-    const before = standing(NOW, [THEM]);
-    const after = attend(
-      before,
-      look({ occupants: [ME, THEM], audible: [ME] }),
-      NOW + 60_000
-    );
-    expect(after.heardAt).toBe(NOW);
+/**
+ * What a report is *about*, which is the half `shouldReport` does not decide.
+ *
+ * A device attends up to two rooms — the one on screen and the one it is
+ * standing in — and the pair is the whole reason the clock is per channel. The
+ * plumbing is in `AppProvider.reportAttentive`; what is pinned here is the set
+ * it composes, because getting it wrong is silent in both directions: too wide
+ * and reading Home holds every room somebody has ever opened, too narrow and
+ * the conversation they are in ages while they read the list.
+ */
+describe('which rooms a report is about', () => {
+  const rooms = (lookingAt: string | null, standingIn: string | null) => {
+    const set = new Set<string>();
+    if (lookingAt) set.add(lookingAt);
+    if (standingIn) set.add(standingIn);
+    return [...set];
+  };
+
+  it('is the channel on screen', () => {
+    expect(rooms('chan_a', null)).toEqual(['chan_a']);
   });
 
-  it('counts somebody else being audible', () => {
-    const before = standing(NOW, [THEM]);
-    const after = attend(
-      before,
-      look({ occupants: [ME, THEM], audible: [THEM] }),
-      NOW + 60_000
-    );
-    expect(after.heardAt).toBe(NOW + 60_000);
+  it('is the channel being stood in, even from Home', () => {
+    // Presence is a claim actively maintained, and a phone in a hand is what
+    // says somebody is still there to maintain it. Reading Home holds the
+    // conversation you are in — and nothing else.
+    expect(rooms(null, 'chan_a')).toEqual(['chan_a']);
   });
 
-  it('counts a guest, who is somebody else in the room', () => {
-    const before = standing(NOW, [GUEST]);
-    const after = attend(
-      before,
-      look({ occupants: [ME, GUEST], audible: [GUEST] }),
-      NOW + 60_000
-    );
-    expect(after.heardAt).toBe(NOW + 60_000);
+  it('is both, without saying the same room twice', () => {
+    expect(rooms('chan_a', 'chan_b')).toEqual(['chan_a', 'chan_b']);
+    expect(rooms('chan_a', 'chan_a')).toEqual(['chan_a']);
   });
 
-  it('reads the set as a state, so uninterrupted speech keeps resetting it', () => {
-    let clock = standing(NOW, [THEM]);
-    // One `ActiveSpeakersChanged` and nothing after it: the same set, looked
-    // at again and again, is what an unbroken minute of talking looks like.
-    for (let n = 1; n <= 40; n += 1) {
-      clock = attend(
-        clock,
-        look({ occupants: [ME, THEM], audible: [THEM] }),
-        NOW + n * 30_000
-      );
-    }
-    expect(unattended(clock, NOW + 40 * 30_000)).toBe(false);
-  });
-
-  it('leaves two silent tabs to expire, which is the case it exists for', () => {
-    const clock = attend(
-      standing(NOW, [THEM]),
-      look({ occupants: [ME, THEM], audible: [] }),
-      NOW + ATTENTION_WINDOW_MS
-    );
-    expect(unattended(clock, NOW + ATTENTION_WINDOW_MS)).toBe(true);
-  });
-});
-
-describe('the room changing', () => {
-  it('counts an arrival', () => {
-    const after = attend(
-      standing(NOW),
-      look({ occupants: [ME, THEM] }),
-      NOW + 60_000
-    );
-    expect(after.heardAt).toBe(NOW + 60_000);
-    expect(after.others).toEqual([THEM]);
-  });
-
-  it('does not count a departure', () => {
-    const after = attend(
-      standing(NOW, [THEM]),
-      look({ occupants: [ME] }),
-      NOW + 60_000
-    );
-    expect(after.heardAt).toBe(NOW);
-    expect(after.others).toEqual([]);
-  });
-
-  it('does not count your own arrival', () => {
-    const after = attend(
-      { channelId: CHANNEL, others: [], heardAt: NOW },
-      look({ occupants: [ME] }),
-      NOW + 60_000
-    );
-    expect(after.heardAt).toBe(NOW);
-  });
-});
-
-describe('the hand', () => {
-  it('resets the clock', () => {
-    expect(touched(standing(NOW), NOW + 60_000).heardAt).toBe(NOW + 60_000);
-  });
-
-  it('is inert when standing nowhere, so a click on Home arms nothing', () => {
-    expect(touched(NOT_STANDING, NOW)).toEqual(NOT_STANDING);
-  });
-});
-
-describe('expiry', () => {
-  it('lands exactly on the window', () => {
-    const clock = standing(NOW);
-    expect(unattended(clock, NOW + ATTENTION_WINDOW_MS - 1)).toBe(false);
-    expect(unattended(clock, NOW + ATTENTION_WINDOW_MS)).toBe(true);
-  });
-
-  it('never fires on a device standing nowhere', () => {
-    expect(unattended(NOT_STANDING, NOW + ATTENTION_WINDOW_MS * 100)).toBe(false);
-  });
-
-  it('is fifteen minutes', () => {
-    expect(ATTENTION_WINDOW_MS).toBe(15 * 60 * 1000);
+  it('is nothing at all on Home with nothing held', () => {
+    // Attending the application and no room in it. There is no clock that
+    // fact belongs to, and `Realtime.attentive` drops the message rather than
+    // sending one nothing can be attributed to.
+    expect(rooms(null, null)).toEqual([]);
   });
 });

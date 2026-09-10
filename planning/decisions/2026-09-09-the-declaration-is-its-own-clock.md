@@ -1,5 +1,14 @@
 # 2026-09-09 — The declaration is its own clock
 
+> **Superseded the same day by `2026-09-09-attention-is-one-clock.md`.** There
+> is one clock now — attention — and it is what both absent states count from.
+> `declaredNearbyAt` survives as the bit that tells a chosen nearby from one a
+> lost connection produced, and `nearbyMs` survives as the fallback for builds
+> that report no attention; neither is what any screen shows. This file is kept
+> because the argument below is the one the replacement is built on: that two
+> different questions must not share a stamp. It turned out there were three
+> questions and one of them mattered more than the other two.
+
 `waiting` holds two kinds of absence and they are timed from different moments.
 A connection that ran out of grace is timed from the last thing anybody heard.
 A declaration is timed from the declaration.

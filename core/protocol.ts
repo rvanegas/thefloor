@@ -666,6 +666,36 @@ export interface ChannelView {
    */
   pingableAt?: Partial<Record<UserId, number>>;
   /**
+   * When each participant was last attending **this channel**, for those the
+   * server has heard from.
+   *
+   * The one clock the roster shows about anybody absent, since 2026-09-09 —
+   * *away* and *nearby* both count from it — and the one the tick reads to
+   * decide when either state ends. See `ATTENTION_WINDOW_MS`.
+   *
+   * **Here rather than on `ChannelState`, for `pingableAt`'s reason.** No
+   * reducer knows about it, and it is server bookkeeping about people rather
+   * than a rule about a channel.
+   *
+   * **Per channel, not per person**, which was decided the other way for an
+   * hour and is worth saying plainly. One stamp per person is simpler and
+   * makes every roster identical about them: it reports that somebody is
+   * holding their phone, which is the same fact in every room they belong to.
+   * What a roster is for is the difference between rooms — stepped out of this
+   * one five minutes ago and that one since Tuesday — and a single stamp
+   * erases exactly that.
+   *
+   * **A person's presence in this map is a disclosure.** It says when somebody
+   * was last attending this channel, to the people in it. Scoping it to the
+   * channel is what keeps it that rather than a report on their phone.
+   *
+   * Optional, so a client older than the field ignores it and reads the two
+   * clocks it already knows; and absent for a *participant* whose own build
+   * does not report attention, which is the same fallback seen from the other
+   * end. See SHIMS.md.
+   */
+  attentiveAt?: Partial<Record<UserId, number>>;
+  /**
    * How loudly this channel may interrupt **the viewer**, and nobody else.
    *
    * One person's own setting, never the roster's. What somebody has chosen to
@@ -996,7 +1026,38 @@ export type ClientMessage =
    * protocol-level pings, so a single application-level exchange is what lets
    * *both* ends notice a connection that has died quietly.
    */
-  | { type: 'ping' };
+  | { type: 'ping' }
+  /**
+   * Somebody is attending these channels right now.
+   *
+   * Sent on its own rather than inferred from the traffic already arriving,
+   * because none of that traffic means this. A `ping` says the process is
+   * alive, which a pocketed phone with an open microphone also says; an action
+   * says something was done to a channel, which a script could say. This says
+   * a person is *there* — the app frontmost, or a hand on it — which is the
+   * only evidence the fifteen-minute window is about.
+   *
+   * **Named channels rather than a bare "I am here", and the difference
+   * matters more than it looks.** One stamp per person would make every roster
+   * say the same thing about them: somebody who stepped out of one channel
+   * three hours ago and another five minutes ago would read as equally away in
+   * both, because the only fact being reported would be that they are holding
+   * their phone. Being stepped out of different rooms at different times is
+   * most of what a roster is for.
+   *
+   * **Two kinds of channel go in it**, and both are attention to *that* room:
+   * the one on screen, and the one this device is standing in. The second is
+   * why reading Home does not retire the conversation you are in — presence is
+   * a claim you are actively maintaining, and a phone in your hand is what
+   * says you are still there to maintain it.
+   *
+   * Carries no timestamp: the server stamps its own clock, for the reason
+   * every other stamp here is server-side.
+   *
+   * Rate-limited by the sender to `ATTENTION_REPORT_MS`. A scroll would
+   * otherwise send one of these per frame.
+   */
+  | { type: 'attentive'; channelIds: string[] };
 
 export type ServerMessage =
   | {

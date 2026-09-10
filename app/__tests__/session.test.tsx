@@ -52,6 +52,8 @@ const mockApp = {
   status: 'open' as const,
   lastError: null,
   serverNow: () => NOW,
+  reportAttentive: jest.fn(),
+  lookAt: jest.fn(),
   // The wire App.tsx runs from `audio.micPublished`; see the provider's own
   // tests for what it is for.
   reportMicPublished: jest.fn(),

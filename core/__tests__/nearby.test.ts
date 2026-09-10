@@ -1,5 +1,6 @@
 import {
   canPing,
+  subscribeable,
   createChannel,
   idleMs,
   isPresent,
@@ -36,6 +37,9 @@ const T0 = 1_700_000_000_000;
 
 const alone = (): ChannelState =>
   createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+
+/** The same fixture under a name the later describes can use unshadowed. */
+const alone_ = alone;
 
 const together = () => reduce(alone(), { type: 'ENTER', userId: B }, T0 + 1_000);
 
@@ -142,8 +146,8 @@ describe('stepping out of nearby', () => {
     // the last sign of life, and nothing at all for somebody it has never
     // heard from.
     const inside = declare(together(), B);
-    expect(isWaiting(inside, B, T0 + 6_000)).toBe(true);
-    expect(isWaiting(stepOut(inside, B), B, T0 + 6_000)).toBe(false);
+    expect(isWaiting(inside, B)).toBe(true);
+    expect(isWaiting(stepOut(inside, B), B)).toBe(false);
     expect(canPing(stepOut(inside, B), A, B)).toBe(true);
   });
 
@@ -163,23 +167,46 @@ describe('stepping out of nearby', () => {
     expect(stepOut(before, B)).toBe(before);
   });
 
-  it('leaves a dropped connection where the grace period put it', () => {
-    // A clock firing has nothing to say about a declaration: `DISCONNECT_EXPIRED`
-    // is what *files* somebody under nearby, and `ATTENTION_EXPIRED` is the
-    // rung below it. Neither is a chosen departure, and only a chosen one ends
-    // a wait.
+  it('is how a wait ends when attention runs out, since 2026-09-09', () => {
+    // **This reverses what it asserted for a day.** It read: a clock firing
+    // has nothing to say about a declaration, and only a chosen departure ends
+    // a wait — which left `ATTENTION_EXPIRED` a no-op for anybody nearby, and
+    // so left the rung with no way out at all except stepping in or stepping
+    // out by hand. What ended it instead was a fifteen-minute window applied
+    // on each reader's screen, which is how two screens came to disagree.
+    //
+    // The two clocks firing are still not the same event. `DISCONNECT_EXPIRED`
+    // *files* somebody under nearby — their phone went, and they are within
+    // reach. `ATTENTION_EXPIRED` is the rung below: they have stopped
+    // attending anything, and are no longer within reach of anybody.
     const dropped = reduce(
       reduce(together(), { type: 'DISCONNECTED', userId: B }, T0 + 2_000),
       { type: 'DISCONNECT_EXPIRED', userId: B },
       T0 + 120_000
     );
     expect(dropped.waiting).toContain(B);
+
     const expired = reduce(
       dropped,
       { type: 'ATTENTION_EXPIRED', userId: B },
       T0 + 130_000
     );
-    expect(expired.waiting).toContain(B);
+    expect(expired.waiting).not.toContain(B);
+    expect(isWaiting(expired, B)).toBe(false);
+    // And it takes the declaration's clock with it, exactly as a tap does —
+    // there is no wait left for it to be timing.
+    expect(expired.declaredNearbyAt[B]).toBeUndefined();
+    // Still not a claim that they were in the room until this moment.
+    expect(expired.lastPresentAt[B]).toBe(dropped.lastPresentAt[B]);
+  });
+
+  it('says nothing about somebody who was not waiting at all', () => {
+    // Stepped out an hour ago and inattentive ever since: there is no wait to
+    // end, and the tick must not manufacture a transition to report.
+    const out = reduce(together(), { type: 'STEP_OUT', userId: B }, T0);
+    expect(reduce(out, { type: 'ATTENTION_EXPIRED', userId: B }, T0 + 60_000)).toBe(
+      out
+    );
   });
 });
 
@@ -212,10 +239,16 @@ describe('how long a wait has been going on', () => {
   it('gives the declaration a full window, however old the silence', () => {
     const four = T0 + 4 * 60_000;
     const s = declare(steppedOutAt(T0 + 1_000), B, four);
-    // Eleven minutes in, which is where it used to lapse.
-    expect(isWaiting(s, B, four + 11 * 60_000)).toBe(true);
-    expect(isWaiting(s, B, four + WAITING_WINDOW_MS - 1)).toBe(true);
-    expect(isWaiting(s, B, four + WAITING_WINDOW_MS)).toBe(false);
+    // Stated on the clock rather than on `isWaiting`, which since 2026-09-09
+    // is membership: what a wait is worth is decided by the server's tick,
+    // reading attention, and this is the fallback clock it reads for anybody
+    // whose build does not report any. Eleven minutes in — where it used to
+    // lapse — the declaration is eleven minutes old and not fifteen.
+    expect(nearbyMs(s, B, four + 11 * 60_000)).toBe(11 * 60_000);
+    expect(nearbyMs(s, B, four + WAITING_WINDOW_MS - 1)).toBeLessThan(
+      WAITING_WINDOW_MS
+    );
+    expect(nearbyMs(s, B, four + WAITING_WINDOW_MS)).toBe(WAITING_WINDOW_MS);
   });
 
   it('accepts a declaration made after the silence outran the window', () => {
@@ -226,7 +259,7 @@ describe('how long a wait has been going on', () => {
     const late = T0 + 16 * 60_000;
     const s = declare(steppedOutAt(T0 + 1_000), B, late);
     expect(s.waiting).toContain(B);
-    expect(isWaiting(s, B, late)).toBe(true);
+    expect(isWaiting(s, B)).toBe(true);
     expect(nearbyMs(s, B, late)).toBe(0);
   });
 
@@ -237,7 +270,7 @@ describe('how long a wait has been going on', () => {
     const s = declare(alone(), B, T0 + 5_000);
     expect(idleMs(s, B, T0 + 5_000)).toBeNull();
     expect(nearbyMs(s, B, T0 + 5_000)).toBe(0);
-    expect(isWaiting(s, B, T0 + 5_000)).toBe(true);
+    expect(isWaiting(s, B)).toBe(true);
   });
 
   it('times a lost connection from the last thing heard, as it always did', () => {
@@ -297,22 +330,25 @@ describe('how long a wait has been going on', () => {
         s = beat(s, T0 + minute * 60_000);
         expect(nearbyMs(s, B, T0 + minute * 60_000)).toBe(0);
       }
-      expect(isWaiting(s, B, T0 + 20 * 60_000)).toBe(true);
+      expect(isWaiting(s, B)).toBe(true);
+      expect(nearbyMs(s, B, T0 + 14 * 60_000)).toBe(0);
       // And it is the declaration's clock that moved, not the presence one:
       // nothing here says they were in the room.
       expect(s.lastPresentAt[B]).toBe(together().lastPresentAt[B]);
     });
 
-    it('does not resurrect a declaration that has already lapsed', () => {
-      // `waiting` outlives the window on purpose, so membership alone would
-      // have let a late heartbeat put somebody back to *Nearby* on a screen
-      // that had already said *Stepped out* — without anybody declaring
-      // anything, and with nothing to show them it had happened.
+    it('does not resurrect a wait that has already ended', () => {
+      // A late heartbeat must not put somebody back to *Nearby* on a screen
+      // that has already said *Stepped out*, without anybody declaring
+      // anything. The guard used to be the window applied here; it is now
+      // membership, `waiting` no longer outliving its own meaning — so what
+      // this holds is that the beat cannot undo the expiry.
       const s = declare(together(), B, T0);
       const late = T0 + WAITING_WINDOW_MS + 1;
-      expect(isWaiting(s, B, late)).toBe(false);
-      expect(beat(s, late)).toBe(s);
-      expect(isWaiting(beat(s, late), B, late)).toBe(false);
+      const ended = reduce(s, { type: 'ATTENTION_EXPIRED', userId: B }, late);
+      expect(isWaiting(ended, B)).toBe(false);
+      expect(beat(ended, late + 1_000)).toBe(ended);
+      expect(isWaiting(beat(ended, late + 1_000), B)).toBe(false);
     });
 
     it('leaves a dropped wait timed from the last thing heard', () => {
@@ -350,7 +386,65 @@ describe('how long a wait has been going on', () => {
       s = declare(s, B, at + 1_000);
       expect(nearbyMs(s, B, at + 1_000)).toBe(0);
       // A fresh fifteen from each toggle, long past the first declaration's.
-      expect(isWaiting(s, B, at + WAITING_WINDOW_MS - 1)).toBe(true);
+      expect(isWaiting(s, B)).toBe(true);
+      expect(nearbyMs(s, B, at + WAITING_WINDOW_MS - 1)).toBeLessThan(
+        WAITING_WINDOW_MS
+      );
     }
+  });
+});
+
+/**
+ * What being in a room is *for*, which is the other half of the attention
+ * rule.
+ *
+ * The window hunts a phone in a pocket with nothing on the other end. It must
+ * not catch somebody doing exactly what the application is for: listening.
+ * `subscribeable` is what tells the two apart, and the whole of the rule that
+ * keeps a silent listener where they are — attention itself stopped watching
+ * the audio on 2026-09-09, because the audio says nothing about whether
+ * anybody is there to hear it.
+ */
+describe('whether there is anything here to be here for', () => {
+  it('is another person in the room', () => {
+    expect(subscribeable(together(), B)).toBe(true);
+    expect(subscribeable(together(), A)).toBe(true);
+  });
+
+  it('is not yourself', () => {
+    // The solo wait, which is the case the window was written for: a phone
+    // alone in a channel is holding the room open against nobody.
+    const alone = reduce(alone_(), { type: 'ENTER', userId: A }, T0);
+    expect(alone.present).toEqual([A]);
+    expect(subscribeable(alone, A)).toBe(false);
+  });
+
+  it('is a track playing to whoever is left', () => {
+    // Somebody alone with something on is not alone with nothing on. This is
+    // the case that made presence worth keeping without a hand on the phone.
+    const alone = reduce(alone_(), { type: 'ENTER', userId: A }, T0);
+    const playing = {
+      ...alone,
+      playback: { ...alone.playback, status: 'playing' as const },
+    };
+    expect(subscribeable(playing, A)).toBe(true);
+  });
+
+  it('is a party playing, on the same reasoning', () => {
+    const alone = reduce(alone_(), { type: 'ENTER', userId: A }, T0);
+    const watching = {
+      ...alone,
+      watch: { ...alone.watch, status: 'playing' as const },
+    };
+    expect(subscribeable(watching, A)).toBe(true);
+  });
+
+  it('is somebody at the door, a guest being somebody to hear', () => {
+    const alone = reduce(alone_(), { type: 'ENTER', userId: A }, T0);
+    const withGuest = {
+      ...alone,
+      guests: { guest_1: { id: 'guest_1' } },
+    } as unknown as typeof alone;
+    expect(subscribeable(withGuest, A)).toBe(true);
   });
 });
