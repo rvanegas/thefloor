@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState as NativeAppState } from 'react-native';
 import { askForPush, mayHoldToken, permissionState } from '../push';
-import { storage } from './storage';
+import { isNewInstall, storage } from './storage';
 import {
   askDue,
   worthAsking,
@@ -24,6 +24,23 @@ const LAUNCHES_KEY = 'thefloor.notifications.launches';
 const CONVERSED_KEY = 'thefloor.notifications.conversed';
 const PITCHED_KEY = 'thefloor.notifications.pitched';
 const NUDGED_AT_KEY = 'thefloor.notifications.nudgedAt';
+
+/**
+ * What a new install has no business remembering — three of the four.
+ *
+ * `launches` counts cold starts of *this* install and is meaningless carried
+ * over; `pitched` and `nudgedAt` record what a previous install put on screen,
+ * and between them they are the whole of what suppresses the asking.
+ *
+ * **`conversed` is deliberately kept**, and the split is the point rather than
+ * an oversight. The other three describe an install; that one describes the
+ * person — you have been in a channel with somebody else, so you know what it
+ * is you would be missing — and deleting an app does not undo having had a
+ * conversation. It is also the signal `worthAsking` actually wants, so keeping
+ * it is what puts the explanation in front of a returning user on their first
+ * launch back rather than their second.
+ */
+const REINSTALL_FORGETS = [LAUNCHES_KEY, PITCHED_KEY, NUDGED_AT_KEY] as const;
 
 /** What the app knows and can do about being reachable. */
 export interface NotificationAsk {
@@ -107,6 +124,17 @@ export function useNotificationAsk(state: {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      // **Before the read, and that ordering is the whole of it.** These four
+      // keys outlive the app that wrote them, and the notification permission
+      // does not — so a reinstall would otherwise read a previous install's
+      // memory of having been asked and decline to ask, on a phone iOS has
+      // never shown the dialog to. `isNewInstall` is the only witness to the
+      // difference; see it for why nothing else can be.
+      if (await isNewInstall()) {
+        await Promise.all(
+          REINSTALL_FORGETS.map((key) => storage.remove(key))
+        );
+      }
       const [storedLaunches, storedConversed, storedPitched, storedNudged] =
         await Promise.all([
           storage.get(LAUNCHES_KEY),

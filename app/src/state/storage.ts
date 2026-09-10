@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
@@ -85,6 +86,58 @@ export const storage = {
     await SecureStore.deleteItemAsync(key);
   },
 };
+
+/**
+ * A file in the app's own container, which is the one thing on iOS that dies
+ * when the app is deleted.
+ *
+ * The keychain does not, which is the whole difficulty — see `INSTALL_KEYS`.
+ * Documents rather than cache: the cache directory is the system's to empty
+ * whenever it likes, and an install that got its marker swept would announce
+ * itself as new every time the phone was short of space.
+ */
+const INSTALL_MARKER = 'install.marker';
+
+/**
+ * Whether this launch is the first of a *new install*, answered once ever.
+ *
+ * **The keychain and the notification permission do not survive the same
+ * events, and that is a bug generator rather than a curiosity.** Deleting the
+ * app clears what iOS remembers about being asked; it leaves every key in
+ * `INSTALL_KEYS` exactly where it was. So a reinstall comes back believing it
+ * has already been asked, on a phone that has never been asked — and the
+ * install is unreachable for good, because the screen that would ask is the
+ * one thing the stale flag suppresses.
+ *
+ * Nothing else can tell the two apart. Refusing the system dialog and never
+ * seeing it both leave the permission `undetermined`, so the permission is no
+ * evidence; the keychain is the thing under suspicion and cannot testify about
+ * itself. A marker in the container is the only witness that dies with the
+ * app, which is what makes it one.
+ *
+ * **Answers true exactly once per install**, since it writes the marker on the
+ * way past. The caller therefore gets one chance to act on it, which is right
+ * for forgetting something and would be wrong for almost anything else.
+ *
+ * Never throws, and a failure answers `false` — the quiet direction. Being
+ * wrong that way leaves somebody where they already are; being wrong the other
+ * way discards what a working install remembers on every launch.
+ */
+export async function isNewInstall(): Promise<boolean> {
+  // A browser has no install to be new, and `localStorage` is the person's own
+  // to clear. `documentDirectory` is null there and on nothing else, so the
+  // check is belt and braces rather than a second platform switch.
+  if (Platform.OS === 'web' || !FileSystem.documentDirectory) return false;
+
+  const marker = `${FileSystem.documentDirectory}${INSTALL_MARKER}`;
+  try {
+    if ((await FileSystem.getInfoAsync(marker)).exists) return false;
+    await FileSystem.writeAsStringAsync(marker, String(Date.now()));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Removes every one of them, so that the next launch is a first launch.
