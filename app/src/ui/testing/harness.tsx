@@ -13,6 +13,7 @@ import type {
 } from '../../../../core/protocol';
 import type { UploadHooks } from '../../api/upload';
 import type { GuestLinkSummary } from '../../api/http';
+import type { Introduction } from '../../state/introduction';
 
 /**
  * The fixture every view test renders against: one mutable `mockApp` standing
@@ -137,6 +138,13 @@ export const mockApp = {
     noteShown: jest.fn(),
     allow: jest.fn(async () => true),
   },
+  /**
+   * What the introduction is showing, defaulting to nothing — the state of
+   * every account that has ever had a conversation, which is what every test
+   * here but the introduction ones wants. A test that wants the ladder or the
+   * card replaces it. See `state/introduction.ts`.
+   */
+  introduction: { show: 'none' } as Introduction,
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
@@ -496,6 +504,7 @@ export function resetHarness(): void {
   mockApp.notifications.ask = 'none';
   mockApp.notifications.permission = 'granted';
   mockApp.notifications.canPrompt = false;
+  mockApp.introduction = { show: 'none' };
   mockApp.status = 'open';
   mockApp.appearance = 'system';
   mockApp.tapToLook = false;

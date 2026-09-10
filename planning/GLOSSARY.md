@@ -72,6 +72,7 @@ caused; the list carries the meaning.
 **Words that exist only in the codebase**
 
 - **Address** — What a URL says: which list the tier is showing, and what is open over it
+- **Arrival (invited / alone)** — How an account got here, latched at its first Home snapshot; it decides which *introduction* is drawn and is never recomputed
 - **Attention** — Whether somebody is at a channel: frontmost on a phone, a hand on it in a browser, and never the audio. One server-held clock per person per channel, and the one the roster's *nearby* line counts — *stepped out* counts presence instead
 - **Subscribeable** — Whether there is anything in a room to hear — another occupant, a track, a party — which is what stops *attention* retiring a silent listener
 - **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
@@ -91,6 +92,7 @@ caused; the list carries the meaning.
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
+- **Introduction** — What a new account is shown above both lists until it has had a conversation: the four-rung ladder for an *alone* arrival, one card for an *invited* one
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
@@ -878,6 +880,19 @@ unlike the *presence* it ends — see STATES.md. And its expiry is an ordinary
 and *Nearby* is not what it produces. Which of the two words a browser produces
 is decided by which clock ran out first — see *Nearby / Stepped out*.
 
+## Arrival (invited / alone)
+
+How an account got here: `invited` when its first Home snapshot held anybody
+at all — a contact, a channel or an invitation, which is `somebody` in
+`AppProvider` — and `alone` when it held none of the three. Latched at that
+first snapshot and stored, never recomputed.
+
+**The latching is the point rather than an optimisation.** Asked continuously
+it would answer *invited* the moment an alone account finally got its first
+contact, which is exactly when that account is one rung from the top of the
+ladder — and the ladder would be replaced by a card about an invitation
+nobody ever sent. See *introduction*.
+
 ## Card
 
 One row in the *Channels* list, from either source — an invitation or a channel
@@ -1034,6 +1049,29 @@ composed and therefore decays: a client subtracting it from its own advancing
 clock reports the age of the snapshot on top of the real gap. A *fact* does not
 decay, which is what lets Home refresh on socket transitions rather than on a
 timer.
+
+## Introduction
+
+What a new account is shown above both of Home's lists, until it has had a
+conversation. `state/introduction.ts` decides it and `ui/Introduction.tsx`
+draws it; planning/ONBOARDING.md is the design.
+
+Two shapes, one per *arrival*. An `alone` arrival gets the four-rung ladder —
+say who you are, choose a username, get somebody here, step in — every rung
+derived from the Home snapshot rather than recorded as it is done. An
+`invited` one gets a single card, because three of those four are true before
+they arrive and a list congratulating somebody on what was done for them is
+theatre.
+
+**It retires on stepping in, not on every rung being ticked.** Once somebody
+has been in a channel with another person this has done its job, and a
+leftover unticked *say who you are* is not a reason to go on asking. That is
+also why the only thing stored is `thefloor.intro.doneAt` — every rung is
+derived, so there is nothing else worth keeping.
+
+Called *introduction* in the code and never on screen, where it says *Getting
+started*. The convention's name is an onboarding checklist; this is the
+activation-ladder half of it and deliberately not the guided-tour half.
 
 ## Island
 

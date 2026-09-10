@@ -40,6 +40,8 @@ import {
   useNotificationAsk,
   type NotificationAsk,
 } from './useNotificationAsk';
+import { useIntroduction } from './useIntroduction';
+import type { Introduction } from './introduction';
 import {
   APPEARANCE_KEY,
   applyPreference,
@@ -571,6 +573,16 @@ interface AppValue extends AppState {
    * See `state/notificationAsk.ts`.
    */
   notifications: NotificationAsk;
+  /**
+   * What a new account is shown above the two lists, before it has ever had a
+   * conversation — the ladder, the single card, or nothing at all.
+   *
+   * Computed here rather than in `HomeView` for the reason `notifications` is:
+   * it turns on `conversing`, which is read off every channel snapshot this
+   * client is watching, and that map is deliberately not on this context. See
+   * `state/introduction.ts`, and planning/ONBOARDING.md for the shape.
+   */
+  introduction: Introduction;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -1073,6 +1085,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, []),
   });
 
+  const myId = state.me?.id ?? null;
+  const introduction = useIntroduction({
+    token: state.token,
+    home: state.home,
+    displayName: state.me?.displayName ?? '',
+    conversing,
+    // Keyed on the id rather than on `me`, which is a fresh object at every
+    // `hello`: the request this authorises is about one account, and a
+    // callback whose identity changed on reconnection would ask again for an
+    // answer that cannot have changed.
+    loadUsername: useCallback(async () => {
+      if (!state.token || !myId) return null;
+      const profile = await api.profile(state.token, myId);
+      return profile.username ?? null;
+    }, [state.token, myId]),
+  });
+
   /**
    * Looks again on every foreground, for permission that arrived late.
    *
@@ -1337,6 +1366,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notificationTapped,
       clearNotificationTap: () => setNotificationTapped(false),
       notifications,
+      introduction,
 
       appearance,
       /*
@@ -1831,6 +1861,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tick,
       notificationTapped,
       notifications,
+      introduction,
       appearance,
       tapToLook,
       hideControlCards,

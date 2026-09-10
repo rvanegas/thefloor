@@ -29,6 +29,38 @@ When member steps in or steps out, there ought to be an audible announcement, su
 
 ## Onboarding Checklist
 
+**Built on 2026-09-10 and not yet landed** — planning/ONBOARDING.md is both the
+design and the account of what was written, including the three things building
+it changed. What is built is the checklist; the growth card and the three
+campaign gaps below are not, and one of them is more urgent than any of it.
+
+An activation ladder for a new account, not a guided first-run walkthrough:
+four items derived from the Home snapshot — say who you are, get somebody here,
+open a channel, step in — retiring on the last of them rather than on all boxes
+ticked. **planning/ONBOARDING.md is the design**, and it is where the argument
+lives: no third-party module and why, no modal because this codebase has
+refused overlays twice and has none, the render site in `HomeView` and the
+dated decision it displaces, and what is deliberately left off the list —
+notifications, Chip in, recordings, the microphone — each for a reason that
+predates this.
+
+**The list is derived because the two arrivals start from different places.**
+An invited account is born with items 1 and 2 ticked, which leaves it a single
+card rather than a checklist; an uninvited one — the cohort a campaign
+produces — needs *choose a username* as a real item, since that is the gate on
+the only recruitment route that works while you sleep. **The open question is
+what the invited majority sees**, and it is a scope call rather than a design
+one.
+
+Two things it turned up that are not this task and are larger. **The alone
+cohort can never be asked about notifications**: `worthAsking` stands on
+`somebody`, sharing an invite link creates none of the three, so a campaign
+install's most likely first action leaves no trace and the account is
+unreachable for good — that is a change to `notificationAsk.ts` and it should
+go before the campaign, not after. And **growth prompting is a standing card
+rather than a checklist**, ordered by warmth, whose first tier is already coded
+and unprompted: the guest who was just in your channel.
+
 ## UI Restyling
 
 Improve look and feel

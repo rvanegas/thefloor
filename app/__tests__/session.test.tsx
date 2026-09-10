@@ -49,6 +49,12 @@ const mockApp = {
     noteShown: jest.fn(),
     allow: jest.fn(async () => true),
   },
+  /**
+   * Nothing to introduce, for this file's reason above: every account here has
+   * long since had a conversation, and a ladder drawn over Home would be a
+   * card between these tests and the list they are about.
+   */
+  introduction: { show: 'none' } as const,
   status: 'open' as const,
   lastError: null,
   serverNow: () => NOW,

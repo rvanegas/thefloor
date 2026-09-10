@@ -12,6 +12,7 @@ import { Button, Card, IconButton, Screen, SectionLabel } from './components';
 import { SettingsIcon } from './icons';
 import { ChannelsView } from './ChannelsView';
 import { ContactsView } from './ContactsView';
+import { Introduction } from './Introduction';
 import { ProfileView } from './ProfileView';
 import type { List } from './detail';
 import { dismissInstallNotice, installNoticeDismissed } from './installNotice';
@@ -311,6 +312,36 @@ export function HomeView({
 
   return (
     <Screen header={header} contentStyle={styles.container}>
+      {/*
+        First in the scroll, above whichever list is showing, and only until
+        this account has had a conversation.
+
+        **It belongs to the tier for the live bar's reason.** A checklist
+        spanning *get somebody here* and *open a channel* is about neither
+        list, and drawing it inside one of them would put it in front of half
+        the people it is for — and take it away when they flipped tabs
+        mid-rung.
+
+        **In the scroll rather than pinned above it**, unlike the two notices,
+        because it is longer than a banner and pinning it would spend a fixed
+        share of a small screen on something nobody opened the app to read. It
+        is the mirror of Chip in at the foot: that sits last because everything
+        above it is what somebody came here to do, and for an account with
+        nothing in it yet, this *is* that.
+
+        The trade, said out loud: it pushes `StartChannelRow` down, and that
+        row went to the top of the scroll on 2026-09-02 so it would sit where
+        *Add contact* sits on the other tab. It is bounded — this is gone the
+        moment somebody has had a conversation, and the rungs point at that row
+        rather than competing with it — but it does contradict a dated
+        decision. See planning/ONBOARDING.md.
+      */}
+      <Introduction
+        onEnterChannel={onEnterChannel}
+        onOpenProfile={openProfile}
+        onList={onList}
+      />
+
       {list === 'channels' ? (
         <ChannelsView
           onEnterChannel={onEnterChannel}

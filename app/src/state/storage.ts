@@ -54,6 +54,8 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.notifications.pitched',
   'thefloor.notifications.nudgedAt',
   'thefloor.install.dismissed',
+  'thefloor.intro.arrival',
+  'thefloor.intro.doneAt',
   'thefloor.handover',
   'thefloor.seat.channel',
   'thefloor.invite',
