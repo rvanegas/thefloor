@@ -2241,4 +2241,49 @@ describe('Channel', () => {
     expect(textOf(tree)).toContain('The floor');
     act(() => tree.unmount());
   });
+
+  it('turns automatic recording on from the channel settings', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
+    expect(textOf(tree)).toContain('Record automatically');
+    act(() => findButton(tree, 'On')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_AUTO_RECORD',
+      autoRecord: true,
+    });
+    act(() => tree.unmount());
+  });
+
+  it('says on the channel screen that the channel records itself', () => {
+    // Idle and not yet recordable — the state a channel is in between one
+    // person arriving and the second. The Record button is dead here either
+    // way, and this is the difference between a channel that is waiting for a
+    // tap and one that is waiting for company.
+    showChannel(
+      channelOf((s) =>
+        reduce(
+          { ...s, autoRecord: true },
+          { type: 'STEP_OUT', userId: THEM },
+          NOW
+        )
+      )
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    expect(textOf(tree)).toContain(
+      'This channel records itself. One starts as soon as there is somebody else in the room.'
+    );
+    act(() => tree.unmount());
+  });
 });

@@ -15,6 +15,7 @@ import {
 import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
 import {
+  autoRecordStarter,
   canAnswerKnock,
   canClaimFloor,
   canDeleteChannel,
@@ -263,6 +264,7 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'INVITE',
   'SET_NAME',
   'SET_DESCRIPTION',
+  'SET_AUTO_RECORD',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
   'SET_SELF_MUTE',
@@ -468,6 +470,11 @@ export type ChangeListener = (channelIds: string[], departed: string[]) => void;
  */
 export class ChannelRegistry {
   private channels = new Map<string, ChannelState>();
+  /**
+   * The channels whose current occupancy has already had its recording, and so
+   * will not be given another automatically. See `autoRecord`.
+   */
+  private autoRecorded = new Set<string>();
   /**
    * When each refreshed declaration was last pushed to its channel, keyed
    * `channelId:userId`. See `NEARBY_ECHO_MS` and `stillHere`.
@@ -1326,6 +1333,15 @@ export class ChannelRegistry {
     // does not recognise it shows as the characters somebody typed.
     if (action.type === 'SET_DESCRIPTION') {
       if (typeof (action as { description?: unknown }).description !== 'string') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+    }
+
+    // The reducer treats anything but a change as no change; all this checks
+    // is that the wire carried a boolean at all, the reducer having no way to
+    // tell an absent field from a false one once it is inside the action.
+    if (action.type === 'SET_AUTO_RECORD') {
+      if (typeof (action as { autoRecord?: unknown }).autoRecord !== 'boolean') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
       }
     }
@@ -2672,8 +2688,60 @@ export class ChannelRegistry {
         this.silenceStated.delete(after.id);
         this.mediaSeen.delete(after.id);
       this.socketDropped.delete(after.id);
+      this.autoRecorded.delete(after.id);
       }, 30_000).unref?.();
     }
+
+    // Last, so that everything this commit did is already true of the channel
+    // in the map — the start below is an ordinary `apply` against it, and one
+    // that reads a half-committed room would ask for egress against a roster
+    // nobody had stated yet.
+    this.autoRecord(after);
+  }
+
+  /**
+   * Begins a run the channel asked for, once per occupancy.
+   *
+   * The setting says only how a run *begins*, so the whole difficulty is in
+   * not beginning a second one: without a latch, stopping an automatic
+   * recording would start another the instant the state came back to idle, and
+   * the Stop button would do nothing anybody could see. So the room's turn is
+   * spent by any run at all — the automatic one, or one somebody started by
+   * hand — and it is given back only when the room empties, which is the same
+   * event `settleEmpty` ends a run on. Turning the setting on during a
+   * conversation therefore does start a run, if that room has not recorded
+   * yet; turning it on after somebody stopped one does not, until everybody
+   * has left and come back.
+   *
+   * Server-held rather than in `ChannelState` because it is about this
+   * occupancy rather than about the channel: a restart empties every room by
+   * construction, so a latch that survived one would be a latch nobody set.
+   *
+   * There is no recursion to guard against. The `apply` below leaves the
+   * channel recording, and `autoRecordStarter` answers null for anything but
+   * an idle one.
+   */
+  private autoRecord(state: ChannelState): void {
+    if (state.status !== 'active' || state.present.length === 0) {
+      // The room is over, so the next one gets its own turn. Reached on the
+      // way out of `settleEmpty` as well as on the way out of the channel,
+      // which is why it is written against the state rather than against the
+      // transition.
+      this.autoRecorded.delete(state.id);
+      return;
+    }
+    if (state.recording.status !== 'idle') {
+      this.autoRecorded.add(state.id);
+      return;
+    }
+    if (this.autoRecorded.has(state.id)) return;
+    const starter = autoRecordStarter(state);
+    if (starter === null) return;
+    this.autoRecorded.add(state.id);
+    this.apply(state.id, starter, {
+      type: 'START_RECORDING',
+      runId: newId('rec'),
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
   }
 
   /**
@@ -4765,6 +4833,10 @@ export class ChannelRegistry {
     return JSON.stringify({
       name: channel.name,
       description: channel.description,
+      // Durable for the reason the name is: it is a setting somebody chose
+      // about the channel, and a deploy is not a thing that should quietly
+      // stop a channel recording itself.
+      autoRecord: channel.autoRecord,
       initiator: channel.initiator,
       participants: channel.participants,
       invitedBy: channel.invitedBy,
@@ -5085,6 +5157,7 @@ export class ChannelRegistry {
     const durable = JSON.parse(row.state!) as {
       name?: string | null;
       description?: string | null;
+      autoRecord?: boolean;
       initiator?: string;
       participants?: string[];
       invitedBy?: Record<string, string>;
@@ -5134,6 +5207,9 @@ export class ChannelRegistry {
       mediaRoom: durable.mediaRoom ?? row.id,
       name: durable.name ?? row.name ?? null,
       description: durable.description ?? row.description ?? null,
+      // Off on a row written before the field existed, which is what those
+      // channels did.
+      autoRecord: durable.autoRecord ?? false,
       initiator: durable.initiator ?? row.initiator_id,
       participants,
       invitedBy,

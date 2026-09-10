@@ -2380,6 +2380,26 @@ export function ChannelView({
                   {formatDuration(channel.lastRecording.durationMs)} captured.
                 </Text>
               ) : null}
+              {/*
+                Said here rather than only in the channel's settings, because
+                a screen showing an idle Record button in a channel that
+                records itself is otherwise telling half the truth.
+
+                Two sentences, because idle means two different things once
+                the setting is on. A room that is not yet recordable is
+                waiting for its recording; a room that is recordable and still
+                idle has already had one and been stopped, and the reason it
+                is not starting another is the thing somebody is about to
+                wonder. See `autoRecord` in core/types.ts for the rule both
+                sentences describe.
+              */}
+              {channel.autoRecord ? (
+                <Text style={type.muted}>
+                  {canStartRecording(channel, me)
+                    ? 'This channel records itself, and this room has had its recording. Press Record for another — one starts by itself again after everybody has left and come back.'
+                    : 'This channel records itself. One starts as soon as there is somebody else in the room.'}
+                </Text>
+              ) : null}
             </>
           ) : (
             <View style={styles.buttonRow}>

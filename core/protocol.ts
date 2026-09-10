@@ -936,6 +936,15 @@ export type ClientAction =
   | { type: 'SET_NAME'; name: string }
   /** Writes the channel's Markdown description; an empty string clears it. */
   | { type: 'SET_DESCRIPTION'; description: string }
+  /**
+   * Turns automatic recording on or off for the channel.
+   *
+   * **A server that predates the field refuses it as an unknown action**,
+   * which is the ordinary two-step read the usual way round: the server
+   * learns this first and the build that sends it ships after. The toggle
+   * would otherwise flip on screen and be corrected by the next snapshot.
+   */
+  | { type: 'SET_AUTO_RECORD'; autoRecord: boolean }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   /**

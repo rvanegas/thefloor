@@ -1,6 +1,7 @@
 import { DISCONNECT_GRACE_MS, FLOOR_CLAIM_MS } from '../constants';
 import { recordedMs } from '../recording';
 import {
+  autoRecordStarter,
   canPauseRecording,
   canResumeRecording,
   canStartRecording,
@@ -265,5 +266,62 @@ describe('recording and presence', () => {
     expect(s.status).toBe('ended');
     expect(s.recording.status).toBe('idle');
     expect(s.lastRecording?.durationMs).toBe(30_000);
+  });
+});
+
+/**
+ * The channel setting, which is only ever half the mechanism: the reducer
+ * holds what was asked for and `autoRecordStarter` says who would begin a run,
+ * and the server is what mints the id and remembers that this room has had its
+ * turn. What is tested here is the half that is a rule.
+ */
+describe('automatic recording', () => {
+  const on = (state: ChannelState, userId = A): ChannelState =>
+    reduce(state, { type: 'SET_AUTO_RECORD', userId, autoRecord: true }, T0);
+
+  it('is off on a channel nobody has set it on', () => {
+    expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).autoRecord).toBe(false);
+    expect(autoRecordStarter(joined())).toBeNull();
+  });
+
+  it('names the first present member once there are two of them', () => {
+    expect(autoRecordStarter(on(joined()))).toBe(A);
+  });
+
+  it('names nobody while somebody is alone in the room', () => {
+    const alone = on(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }));
+    expect(alone.autoRecord).toBe(true);
+    expect(autoRecordStarter(alone)).toBeNull();
+  });
+
+  it('names nobody once a run is going', () => {
+    expect(autoRecordStarter(reduce(on(joined()), start(A), T0))).toBeNull();
+  });
+
+  it('is refused to somebody who is not in the room', () => {
+    // `canEditChannel`, exactly as the name and the description are: the
+    // channel is occupied by somebody else, so this is theirs to arrange.
+    const busy = apply(joined(), [[{ type: 'STEP_OUT', userId: A }, T0 + 1]]);
+    expect(reduce(busy, { type: 'SET_AUTO_RECORD', userId: A, autoRecord: true }, T0 + 2)).toBe(busy);
+  });
+
+  it('starts nothing by itself and stops nothing when it goes off', () => {
+    // The setting decides how a run begins and has no other effect: turning it
+    // on is not a start, and turning it off mid-run is not a stop.
+    const asked = on(joined());
+    expect(asked.recording.status).toBe('idle');
+    const running = reduce(asked, start(A), T0 + 1);
+    const off = reduce(running, { type: 'SET_AUTO_RECORD', userId: B, autoRecord: false }, T0 + 2);
+    expect(off.recording.status).toBe('recording');
+    expect(off.autoRecord).toBe(false);
+  });
+
+  it('survives the run it began, so the next room records too', () => {
+    const stopped = apply(on(joined()), [
+      [start(A), T0],
+      [{ type: 'STOP_RECORDING', userId: A }, T0 + 5_000],
+    ]);
+    expect(stopped.autoRecord).toBe(true);
+    expect(stopped.lastRecording?.durationMs).toBe(5_000);
   });
 });

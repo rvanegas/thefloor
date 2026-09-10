@@ -4,10 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Automatic Recording
-
-Channel is configurable to record automatically.
-
 ## Walk Stepping In And Nearby
 
 The 2026-09-08 redesign is built and none of it has been heard.

@@ -69,6 +69,12 @@ export function ChannelSettingsView({
   // screen is already showing, so the number in the warning is the number of
   // rows the person can see above it.
   const recordingCount = app.channelViews[channel.id]?.recordings?.length ?? 0;
+  /**
+   * `?? false` because a snapshot from a server that predates the field says
+   * nothing, and a channel that has never heard of the setting does not have
+   * it on. See `autoRecord` in core/types.ts.
+   */
+  const autoRecord = channel.autoRecord ?? false;
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
 
@@ -277,6 +283,52 @@ export function ChannelSettingsView({
       </Card>
 
       {/*
+        Whether the channel records itself, which is about the channel rather
+        than about the conversation — the same reasoning that puts the name and
+        the description here, and the reason it is not a fourth button on the
+        Recording card of the channel screen. That card is where a run is
+        driven; this is where a channel is set up.
+
+        On the same terms as the name and the description, `mayEdit` included:
+        a member somewhere else must not arrange for a conversation they are
+        not in to be kept.
+      */}
+      <SectionLabel>Recording</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>Record automatically</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, 'On'],
+              [false, 'Off'],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              disabled={!mayEdit}
+              variant={autoRecord === value ? 'primary' : 'default'}
+              onPress={() => app.act(channel.id, {
+                type: 'SET_AUTO_RECORD',
+                autoRecord: value,
+              })}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>
+          Off, which is where every channel starts: a recording begins when
+          somebody presses Record. On, one begins by itself as soon as there
+          are two of you in the room, and everyone sees it running.
+        </Text>
+        <Text style={type.muted}>
+          {mayEdit
+            ? 'Pause and Stop work the same either way, and stopping is final — nothing starts a second recording until everybody has left the channel and come back.'
+            : 'Step in to change this. What is kept from a conversation is for whoever is in it.'}
+        </Text>
+      </Card>
+
+      {/*
         The system's own output picker, not a control of ours: iOS knows what is
         connected and we do not — nothing in the audio stack tells JavaScript
         what outputs exist.
@@ -383,6 +435,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   stack: { gap: spacing(1) },
+  choices: { flexDirection: 'row', gap: spacing(1) },
+  choice: { flex: 1 },
   warning: { ...type.muted, color: colors.danger },
   linkRow: {
     flexDirection: 'row',

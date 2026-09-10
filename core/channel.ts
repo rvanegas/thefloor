@@ -127,6 +127,9 @@ export function createChannel(params: {
     floor: initialFloorState(),
     selfMuted: Object.fromEntries(participants.map((p) => [p, false])),
     selfUnmutedAt: {},
+    // Off, like every other setting somebody has never touched: a channel
+    // that records itself is a thing to have asked for.
+    autoRecord: false,
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
@@ -677,6 +680,32 @@ export function canStartRecording(
     (roomOccupants(state).some((id) => id !== userId) ||
       state.playback.status !== 'idle')
   );
+}
+
+/**
+ * Who would begin an automatic run right now, or null if nobody would.
+ *
+ * The whole of what `autoRecord` means, in one place and pure, so that the
+ * server's only part in it is minting the run id and deciding *once* — see the
+ * latch in `ChannelRegistry`, which is what stops a stopped run being started
+ * again a moment later.
+ *
+ * It answers with a person rather than a boolean because a run belongs to
+ * somebody: the id is filed against them and their name is what a recording is
+ * attributed to. **The first present member**, who is whoever has been holding
+ * the room longest — not the arrival that made recording possible, on the
+ * grounds that the person waiting in the channel is the one whose channel this
+ * is behaving as they asked. Guests are never it; they cannot start a run by
+ * hand either.
+ *
+ * Every condition beyond that is `canStartRecording`'s, deliberately: an
+ * automatic start and the Record button must be possible in exactly the same
+ * states, or a channel would begin recording in one nobody could have started
+ * by hand.
+ */
+export function autoRecordStarter(state: ChannelState): UserId | null {
+  if (!state.autoRecord) return null;
+  return state.present.find((id) => canStartRecording(state, id)) ?? null;
 }
 
 /**
@@ -1660,6 +1689,16 @@ export function reduce(
       const description = trimmed === '' ? null : trimmed;
       if (description === state.description) return state;
       return { ...state, description };
+    }
+
+    case 'SET_AUTO_RECORD': {
+      if (!canEditChannel(state, action.userId)) return state;
+      if (action.autoRecord === state.autoRecord) return state;
+      // Nothing else moves. Turning it on mid-conversation does not start a
+      // run here — `autoRecordStarter` is asked on every commit, so the
+      // server starts one on the next if the room is ready for it, and
+      // turning it off leaves whatever is capturing alone.
+      return { ...state, autoRecord: action.autoRecord };
     }
 
     case 'CLAIM_FLOOR': {

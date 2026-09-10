@@ -478,6 +478,25 @@ export interface ChannelState {
    * carried across a step-out that reset the microphone anyway.
    */
   selfUnmutedAt: Record<UserId, number>;
+  /**
+   * Whether this channel begins recording of its own accord.
+   *
+   * A property of the channel rather than of anybody's phone or account: a
+   * channel that is kept is kept for everyone in it, and a member who set this
+   * on one handset must not find it off on the next. It is shared furniture in
+   * the sense the name and the description are, and `canEditChannel` governs
+   * it for the same reason — the person changing it has to be in the room.
+   *
+   * **It decides only how a run begins, never how one continues.** Pause,
+   * resume and stop are untouched, and stopping a run that started by itself
+   * stops it for good: nothing starts a second one until the room has emptied
+   * and filled again. See `autoRecordStarter`, which is the whole of the
+   * mechanism, and the latch the server keeps beside it.
+   *
+   * Absent on a snapshot from a server that predates the field, which the app
+   * reads as off — the same thing every channel had before it existed.
+   */
+  autoRecord: boolean;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
@@ -661,6 +680,17 @@ export type ChannelAction =
    * An empty or whitespace-only value clears it.
    */
   | { type: 'SET_DESCRIPTION'; userId: UserId; description: string }
+  /**
+   * Turns automatic recording on or off for the channel. Any participant with
+   * the room may, exactly as with the name and the description — see
+   * `autoRecord` in `ChannelState` for why it is the channel's rather than the
+   * person's.
+   *
+   * It does nothing to a run already going: this action never starts, pauses
+   * or stops capture. What it changes is what happens the next time the room
+   * fills.
+   */
+  | { type: 'SET_AUTO_RECORD'; userId: UserId; autoRecord: boolean }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
   /**

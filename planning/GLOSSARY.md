@@ -58,6 +58,7 @@ caused; the list carries the meaning.
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, and it offers you a step in when somebody arrives rather than taking one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
+- **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
@@ -609,6 +610,28 @@ being nearby means.
 **In a browser it can also end without anybody doing anything.** A tab nobody
 has attended for fifteen minutes steps itself out, there being no suspended
 process to infer an absence from — see *Attention*.
+
+## Record automatically
+
+A channel setting, in Channel settings, off until somebody in the room turns it
+on. On, a *recording* begins by itself as soon as the room holds two people —
+which is exactly when *Record* stops being greyed out, and is the same
+condition, deliberately, so that nothing is recorded automatically that could
+not have been recorded by hand.
+
+**It decides how a recording begins and nothing else.** Pause, resume and stop
+are what they always were, and stopping is final: the room gets one automatic
+recording, and the next one comes when everybody has left the channel and come
+back. Without that the Stop button would appear not to work — the state returns
+to idle, and a rule written as "record when you can" would start another at
+once.
+
+It belongs to the channel rather than to the person, like the name and the
+description, and any *member* with the room may change it. The latch that
+spends the room's turn belongs to the server and to this process: a restart
+empties every room, so the setting survives one and the turn comes back with
+it. `autoRecord` in `core/types.ts` and `autoRecordStarter` in
+`core/channel.ts` are the whole of the rule.
 
 ## Recording
 

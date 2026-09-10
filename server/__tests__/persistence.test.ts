@@ -101,6 +101,10 @@ describe('a channel across a restart', () => {
       type: 'SET_DESCRIPTION',
       description: 'Reading **Dune**',
     } as never);
+    first.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_AUTO_RECORD',
+      autoRecord: true,
+    } as never);
     first.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
     first.channels.dispatch(channelId, bob.account.id, {
       type: 'SET_SELF_MUTE',
@@ -123,6 +127,11 @@ describe('a channel across a restart', () => {
     expect(after!.status).toBe('active');
     expect(after!.name).toBe('Book club');
     expect(after!.description).toBe('Reading **Dune**');
+    // Durable in the same sense as those two, and worth stating separately:
+    // it is the one setting here that makes the channel do something on its
+    // own, so a restart that lost it would stop recording conversations
+    // somebody had arranged to keep, silently.
+    expect(after!.autoRecord).toBe(true);
     expect(after!.participants).toEqual([alice.account.id, bob.account.id]);
     expect(after!.invitedBy).toEqual({ [bob.account.id]: alice.account.id });
     expect(after!.everPresent.sort()).toEqual(
