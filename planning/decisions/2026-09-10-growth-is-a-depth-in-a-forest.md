@@ -1,9 +1,8 @@
 # 2026-09-10: Growth is a depth in a forest
 
-`bin/founders`, written that day as `bin/growth` and renamed within it, was
-asked for as a classification of users into classes: those who installed
-without being invited, those invited by one of them, and those invited by
-anyone else. All three turn out to be one number already in the
+`bin/growth` was asked for as a classification of users into classes: those who
+installed without being invited, those invited by one of them, and those
+invited by anyone else. All three turn out to be one number already in the
 database — depth in the forest `accounts.invited_by` describes — so the script
 computes that once, as a temp view, and every report is a `GROUP BY` over it.
 
@@ -61,6 +60,3 @@ is the guard for the case where it is wrong anyway: `UNION ALL` down a cycle
 produces rows forever. Capped, the walk produces a wrong number instead, and
 the `defects` report shows anybody sitting at the cap. The same trade
 `invitedCount` makes.
-
-The rename, and what it does and does not change about the classes, is
-2026-09-10-the-tool-is-named-for-the-roots.md.

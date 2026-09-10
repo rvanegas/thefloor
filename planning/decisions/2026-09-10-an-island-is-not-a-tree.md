@@ -1,6 +1,6 @@
 # 2026-09-10: An island is not a tree
 
-`bin/founders islands` was asked for on the premise that *founders define an
+`bin/growth islands` was asked for on the premise that *founders define an
 island of contacts, accounts mutually reachable by mutual contacts*. The second
 half is the definition and it is exactly right: an island is a connected
 component of the accepted-contacts graph, computed as a transitive closure
@@ -9,19 +9,19 @@ labelled by the smallest reachable id.
 **The first half is false on this box, and the report is built to say so rather
 than to assume it.** As of today, six of the eight accounts that arrived
 uninvited sit on one island of nineteen. That is not a defect — it is what a
-network working looks like — but a report that had assumed one founder per
-island would have had nowhere to put them.
+network working looks like — but a report that had assumed one root per island
+would have had nowhere to put them.
 
 The reason the two structures come apart is worth stating once, because the
 words invite the mistake: **an invitation is not a contact and nothing makes it
 one.** Somebody can be invited, arrive, and never accept a single contact
-request; they are an island of one hanging under a founder with a tree of
-twelve. And two people who each came alone can become contacts afterwards,
-which merges their islands while the invitation forest — where neither invited
-the other — still shows two separate trees. So `founders_on_it` is printed as
-a distribution, with both failure modes explained in the query: two or more
-founders is a merge, none at all is a founder who erased their account or who
-never accepted a contact with anybody they brought in.
+request; they are an island of one hanging under a root with a tree of twelve.
+And two people who each came alone can become contacts afterwards, which merges
+their islands while the invitation forest — where neither invited the other —
+still shows two separate trees. So `roots_on_it` is printed as a distribution,
+with both failure modes explained in the query: two or more roots is a merge,
+none at all is a root who erased their account or who never accepted a contact
+with anybody they brought in.
 
 ## Pending requests are not edges
 

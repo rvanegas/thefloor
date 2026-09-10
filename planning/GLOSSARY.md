@@ -84,7 +84,7 @@ caused; the list carries the meaning.
 - **Egress** — LiveKit's recording jobs
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
 - **Ghost** — A button variant and nothing else: transparent, muted, for a control that must not compete
-- **Growth classes — alone, first circle, onward** — The three cohorts `bin/founders` sorts every account into, by its depth in the invitation forest
+- **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Has the room** — `hasTheRoom` — you are in the channel, or nobody is
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
@@ -102,6 +102,7 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Restore** — Reviving every unended channel from its state blob at startup
 - **Room** — The media plane's word for a media thing; never appears in the interface, which says *channel*
+- **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
 - **Session want — `call`, `idle`** — What this app is asking iOS for, decided in one place (`wantFor`)
@@ -952,7 +953,7 @@ described as a ghost.
 
 ## Growth classes — alone, first circle, onward
 
-The three cohorts `bin/founders` sorts every account into, by its depth in the
+The three cohorts `bin/growth` sorts every account into, by its depth in the
 invitation forest that `accounts.invited_by` describes. **Alone** arrived with
 no inviter and is the top of a tree; **first circle** was invited by somebody
 who came alone; **onward** was invited by somebody who was themselves invited,
@@ -964,6 +965,9 @@ same arrival.
 Not frozen: `creditInviter` can name an inviter for an account that has been
 here for weeks, which moves that person out of *alone* and everybody under
 them down a class. It cannot happen twice to the same account.
+
+An account in *alone* is a **root**, which is the word for its position in
+the forest and carries no claim beyond it.
 
 Distinct from the *leaderboard*, which ranks every inviter by their whole
 subtree. These say what a person *is*, not what they have done.
@@ -1013,14 +1017,14 @@ timer.
 
 A connected component of the accepted-contacts graph: a set of accounts every
 one of whom can be reached from every other by walking mutual contacts.
-Somebody with no accepted contact is an island of one. `bin/founders islands`
+Somebody with no accepted contact is an island of one. `bin/growth islands`
 is the only thing that computes them; nothing in the server has the concept
 and no screen says the word.
 
-**Not a founder's tree, and the two do not have to agree.** An invitation is
+**Not a root's tree, and the two do not have to agree.** An invitation is
 not a contact and nothing makes it one, so somebody can be invited, arrive,
 and sit on an island of their own; and two people who each came *alone* can
-become contacts, putting two founders on one island — which the invitation
+become contacts, putting two roots on one island — which the invitation
 forest cannot see, neither having invited the other. See *growth classes* for
 the other structure, and use the right word: a tree is who brought whom, an
 island is who can reach whom.
@@ -1180,6 +1184,23 @@ interface, which only ever says *channel*.
 Separately, "the room" in prose and in `core/guests.ts` means **everybody
 present including guests** — `roomOccupants`, `inRoom` — as against
 `state.present`, which is members only.
+
+## Root
+
+An account at depth 0 in the invitation forest — nobody's invitation brought it,
+so it is the top of a tree. `root` is the column `bin/growth` labels each person
+with, and `bin/growth roots` is one row per tree that has anything in it.
+
+**It is a position and not an achievement.** A root is where somebody sits in
+the forest, whatever grew under them, and most roots grow nothing: the report
+gives them a single count at the bottom, `roots_who_brought_nobody`. The word
+here was *founder* until 2026-09-10, which read true while eight people had
+arrived on their own and stops reading true the moment a marketing campaign
+produces accounts that have founded nothing. Depth 0 says only that the box
+knows of no invitation — see *growth classes*, which is what the depth means.
+
+Not an island. Two roots can end up on one island by becoming contacts, and a
+root can be an island of one; see *island*.
 
 ## Run
 

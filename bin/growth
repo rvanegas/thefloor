@@ -3,11 +3,11 @@
 # Where the people here came from: who arrived on their own, who one of them
 # brought, and who arrived further down the chain — over time.
 #
-#   bin/founders                 every report, against the deployed server
-#   bin/founders classes         one report
-#   bin/founders classes weeks   several, in the order given
-#   bin/founders --local         the development database on this machine
-#   bin/founders --list          the report names and what each answers
+#   bin/growth                 every report, against the deployed server
+#   bin/growth classes         one report
+#   bin/growth classes weeks   several, in the order given
+#   bin/growth --local         the development database on this machine
+#   bin/growth --list          the report names and what each answers
 #
 # Read-only, always. Nothing here is a thing you would edit by hand; bin/db
 # --write is where editing lives and it makes you ask for it.
@@ -21,7 +21,7 @@
 #   * **alone** (depth 0) — nobody's invitation brought them. They found this
 #     by some route the box cannot see, and they are the top of a tree.
 #   * **first circle** (depth 1) — invited by somebody who came alone. Growth
-#     that one of the founders did directly.
+#     that one of the roots did directly.
 #   * **onward** (depth 2 and deeper) — invited by somebody who was themselves
 #     invited. This is the class that says whether the thing spreads at all:
 #     first circle can be bought with effort, onward cannot.
@@ -37,9 +37,16 @@
 # listing found by accident, a marketing campaign — all of it lands in
 # *alone*, and none of it is distinguishable from any other. So the size of
 # that class is not a measure of growth, and a campaign will swell it without
-# a single thing here having spread. This was `bin/growth` for a day, and is
-# named for the roots instead because that is what it can honestly count:
-# who is at the top of a tree, and what grew under them.
+# a single thing here having spread.
+#
+# **Which is why depth 0 is a *root* and not a founder.** A root is a
+# position in the forest: the top of a tree, however large that tree is, and
+# most of them are trees of one. *Founder* was the word here for a day, and
+# it read true while eight people had arrived — but it is a claim about
+# having started something, and an advertisement can produce eight hundred
+# accounts that have started nothing. The `roots` report separates the two
+# honestly: a row each for the roots something grew under, and a single count
+# at the bottom for the roots that brought nobody.
 #
 # **The classes are not frozen at arrival.** `creditInviter` can name an
 # inviter for an account that has been here for weeks, and the moment it does,
@@ -69,15 +76,15 @@
 # **It is not the invitation forest and does not have to agree with it**, which
 # is the thing to hold on to. An invitation is not a contact and nothing makes
 # it one: somebody can be invited, arrive, and never accept a single contact
-# request, and they are an island of one under a founder who has a tree of
+# request, and they are an island of one under a root who has a tree of
 # twelve. Two people who each arrived alone can become contacts, and then one
-# island holds two founders — which the forest cannot see, neither having
+# island holds two roots — which the forest cannot see, neither having
 # invited the other.
 #
-# So `founders_on_it` is a premise being tested rather than a fact being
+# So `roots_on_it` is a premise being tested rather than a fact being
 # reported. On this box, as of 2026-09-10, it fails: six of the eight who came
 # alone are on one island of nineteen. That is the network working, not a
-# defect — but it means an island is not a founder's tree and a report that
+# defect — but it means an island is not a root's tree and a report that
 # assumed it was would be wrong.
 #
 # ── What these numbers are not ──────────────────────────────────────────────
@@ -349,10 +356,10 @@ SELECT depth AS generation,
 SQL
 }
 
-report_founders() {
+report_roots() {
   cat <<'SQL'
 .print ''
-.print '── Each tree, by the founder at the top of it ──────────────────'
+.print '── Each tree, by the root at the top of it ─────────────────────'
 .print ''
 -- One row per person who came alone and brought at least one other; the count
 -- at the bottom is how many came alone and brought nobody, which is the rest
@@ -361,11 +368,11 @@ report_founders() {
 -- that one ranks every inviter by their whole subtree, this one asks what
 -- each *root* is responsible for, which is the question this report has.
 --
--- The founder is read from `everyone` rather than from `arrival`, so a tree
+-- The root is read from `everyone` rather than from `arrival`, so a tree
 -- whose root has since erased their account is still a tree. It shows as
 -- `(gone)`, and everybody in it is still counted where they are.
 SELECT CASE WHEN f.identifier GLOB 'erased:*' THEN '(gone)'
-            ELSE f.display_name END AS founder,
+            ELSE f.display_name END AS root,
        date(f.created_at / 1000, 'unixepoch') AS arrived,
        SUM(g.depth = 1) AS first_circle,
        SUM(g.depth > 1) AS onward,
@@ -376,10 +383,10 @@ SELECT CASE WHEN f.identifier GLOB 'erased:*' THEN '(gone)'
   JOIN everyone f ON f.id = g.root
  GROUP BY g.root
 HAVING COUNT(*) > 1
- ORDER BY brought_in_all DESC, founder;
+ ORDER BY brought_in_all DESC, root;
 
 .print ''
-SELECT COUNT(*) AS founders_who_brought_nobody
+SELECT COUNT(*) AS roots_who_brought_nobody
   FROM arrival
  WHERE depth = 0
    AND id NOT IN (SELECT root FROM arrival WHERE depth > 0);
@@ -423,7 +430,7 @@ SELECT (SELECT COUNT(*) FROM person) AS people,
 -- whose `invited_by` names a row that is not there has no class, which is a
 -- defect and has its own report.
 SELECT COUNT(*) AS people,
-       SUM(g.depth = 0) AS founders,
+       SUM(g.depth = 0) AS roots,
        SUM(g.depth = 1) AS first_circle,
        SUM(g.depth > 1) AS onward,
        (SELECT p2.display_name
@@ -439,27 +446,27 @@ SELECT COUNT(*) AS people,
  ORDER BY people DESC, settled;
 
 .print ''
-.print '   founders per island — one each is the premise, not a finding'
+.print '   roots per island — one each is the premise, not a finding'
 .print ''
--- The claim this report was built to test: that a founder defines an island,
+-- The claim this report was built to test: that a root defines an island,
 -- everybody on it being there because of them. Two ways it fails, and both are
--- ordinary rather than defects. **Two or more founders on one island** means
+-- ordinary rather than defects. **Two or more roots on one island** means
 -- people who each arrived alone have since become contacts, and the island is
 -- a merge rather than a tree — the invitation forest cannot see this, since
--- neither of them invited the other. **No founder at all** means the founder
+-- neither of them invited the other. **No root at all** means the root
 -- has erased their account, or has no accepted contact with anybody they
 -- brought in: an invitation is not a contact, and nothing makes it one.
 WITH per_island AS (
-  SELECT i.island, COUNT(*) AS people, SUM(g.depth = 0) AS founders
+  SELECT i.island, COUNT(*) AS people, SUM(g.depth = 0) AS roots
     FROM island i LEFT JOIN generation g ON g.id = i.id
    GROUP BY i.island
 )
-SELECT founders AS founders_on_it,
+SELECT roots AS roots_on_it,
        COUNT(*) AS islands,
        SUM(people) AS people
   FROM per_island
- GROUP BY founders
- ORDER BY founders;
+ GROUP BY roots
+ ORDER BY roots;
 
 .print ''
 .print '   what the pending asks would join'
@@ -574,7 +581,7 @@ SELECT COUNT(*) AS contacts_with_a_tombstone
 -- Not a defect: an account whose inviter has since erased theirs. Here
 -- because it is the one case where the name behind a class is unavailable
 -- while the class itself is sound, and somebody reading `(gone)` in the
--- founders report should be able to see how much of it there is.
+-- roots report should be able to see how much of it there is.
 SELECT COUNT(*) AS invited_by_a_tombstone
   FROM arrival g
   JOIN everyone i ON i.id = g.invited_by
@@ -582,7 +589,7 @@ SELECT COUNT(*) AS invited_by_a_tombstone
 SQL
 }
 
-report_names=(classes weeks months depth founders islands defects)
+report_names=(classes weeks months depth roots islands defects)
 
 list_reports() {
   cat <<'TXT'
@@ -590,7 +597,7 @@ classes   the three classes: how many, what share, and how many each brought
 weeks     arrivals per week by class, with the running total
 months    the same by calendar month, for comparing against anything monthly
 depth     how many people sit at each generation, and how recent each is
-founders  one row per tree: who came alone, and what grew under them
+roots     one row per tree: who came alone, and what grew under them
 islands   connected components of the contacts graph, now and week by week
 defects   edges naming nobody, self-invites, cycles, contacts with the gone
 TXT

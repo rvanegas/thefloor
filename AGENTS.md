@@ -112,11 +112,11 @@ the way English suggests is how somebody builds the adjacent thing, twice so
 far.
 
 **This one is worth reading routinely, and since 2026-09-07 it is cheap to.**
-Its § *Every term, in one line each* is the whole vocabulary, sixty-eight terms
-at a clause apiece, front-loaded so that section alone is enough for ordinary
-work — seven kilobytes rather than forty-two. Read the list; go down to an
-entry only when the one-liner will not settle the question, or when you are
-about to argue with it. These are the terms of communication, so a session that
+Its § *Every term, in one line each* is the whole vocabulary, seventy-three
+terms at a clause apiece, front-loaded so that section alone is enough for
+ordinary work — seven kilobytes rather than forty-two. Read the list; go down
+to an entry only when the one-liner will not settle the question, or when you
+are about to argue with it. These are the terms of communication, so a session that
 has skimmed the list and one that has not are not having the same conversation.
 
 **Maintain it as the code evolves**: rename there in the same commit as the
