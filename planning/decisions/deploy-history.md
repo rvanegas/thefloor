@@ -1,5 +1,27 @@
 # The deploy history
 
+## 2026-09-09 — `411acbb` → `2924355`
+
+Three commits: the build number bump to 174, notifications no longer being
+withheld from a device with a live socket, and attention becoming one clock the
+server holds.
+
+**The box is most of both changes.** Nothing was suppressed from this deploy
+onwards, on every build already installed — the rule was entirely server-side,
+so phones on 172, 173 and 174 stop being silenced the moment this restarted.
+The attention half needs a client that reports, which is 175 and not yet
+uploaded; below `ATTENTION_BUILD` no clock is seeded and those installs go on
+deciding for themselves, exactly as before. So the visible change today is
+notifications arriving, and the roster falling back to the clocks it already
+had.
+
+**The debug ledger is live**, for accounts with `debug = 1` only: `push
+intended` before a send is attempted and `push delivered` per address with what
+APNs said. That is the thing to read next time something does not arrive.
+
+Health came back on the sha sent, `oldestBuild` 80 against a floor of 51, no
+silent builds.
+
 ## 2026-09-09 — `72f4bd8` → `411acbb`
 
 Two commits: the build number bump to 173, and the heartbeat keeping a live
