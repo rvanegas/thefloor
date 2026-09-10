@@ -1,5 +1,32 @@
 # The deploy history
 
+## 2026-09-10 — `2924355` → `5482243`
+
+Twelve commits, but only one of them is behaviour the box carries: the
+notification payload moving under `body`. Everything else since `2924355` is
+app-side or documentation — the microphone permission and the Android 14 crash,
+the reinstall fix that lets an install ask for notifications again, four build
+number bumps, and one comment-only pass over `core/protocol.ts` and
+`server/src/ws.ts`.
+
+**The box is the whole of the payload fix, and it reaches every phone already
+installed.** `expo-notifications` hands a remote notification's `content.data`
+from `userInfo["body"]` and discards everything else; this server had been
+sending `channelId`, `reachesInApp`, `alert` and `kind` beside `aps`. So no
+push has ever carried data the app could read, no banner has ever appeared over
+the open app, and `sweepArrivals` has never dismissed anything. No shim and no
+build: every install reads `content.data.<key>` already and was simply being
+handed nothing, so builds down to 51 gain this on the restart.
+
+**Two things to watch for, both of which will look like new behaviour.**
+Banners now appear over the open app for pings — and only pings, and not
+passive ones. And stale arrival notifications start being swept from
+Notification Centre on foreground, which is a function that has been running
+and doing nothing since it was written.
+
+Health came back on the sha sent, `oldestBuild` 80 against a floor of 51, no
+silent builds.
+
 ## 2026-09-09 — `411acbb` → `2924355`
 
 Three commits: the build number bump to 174, notifications no longer being
