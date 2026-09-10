@@ -340,24 +340,30 @@ export function buildApp(options: BuildOptions = {}): App {
     platform === 'android' ? androidPusher : pusher;
   const pushNotifier = createPushNotifier();
 
-  /** Nothing is suppressed for a ping; see the notifier below. */
-  const EMPTY_SESSIONS: ReadonlySet<string> = new Set();
 
   /**
    * Turns "these people should know" into notifications actually sent.
    *
-   * Three filters, in this order, and the order is the point: drop anyone
-   * already looking at the app, look up where the rest can be reached, and
-   * forget every address Apple says is dead. The registry supplies none of
-   * this — it knows only that something happened.
+   * Two filters now, in this order: look up where each person can be reached,
+   * and forget every address Apple says is dead. The registry supplies neither
+   * — it knows only that something happened.
    *
-   * **The first filter is the message's to skip, not this code's to decide.**
-   * `reachesInApp` says whether a notification is a duplicate of what a live
-   * socket has already drawn, and only a ping is not — see `notifications` in
-   * push.ts, which owns that judgement the same way it owns the lifetimes. The
-   * test here is on the flag rather than on the name of the notification, so a
-   * fifth kind arrives with the question already answered instead of reaching
-   * a filter that has never heard of it.
+   * **There was a third and it is gone, on 2026-09-09.** It dropped any device
+   * with a live session socket, on the premise that such a device is one
+   * somebody is looking at, so the notification would be a second copy of what
+   * is already on screen. The premise stopped being true when stepping in
+   * became an open microphone: capturing keeps a backgrounded process alive,
+   * so a phone in a pocket holds a socket for hours and was the one device
+   * being silenced — the one that most needed telling.
+   *
+   * **The duplicate it guarded against is handled where it can be seen.** The
+   * client's notification handler shows a banner only for a notification whose
+   * `reachesInApp` is set — a ping — and never plays a sound in the
+   * foreground, so an arrival landing on the app it is about is silent and
+   * goes to Notification Centre rather than over the screen. That judgement
+   * belongs on the device, which knows what is in front of somebody; the
+   * server only ever knew that a socket was open. `reachesInApp` survives for
+   * exactly that, and is now read by the client alone.
    *
    * Deliberately not awaited. A notification is a courtesy, and a channel
    * transition must not wait on Apple or fail because of it.
@@ -375,37 +381,50 @@ export function buildApp(options: BuildOptions = {}): App {
     // request whenever they share both answers, which for a single-platform
     // deployment is the same grouping this did before.
     const byGroup = new Map<string, { platform: DevicePlatform; alert: NotificationAlert; tokens: string[] }>();
-    let suppressed = 0;
+    /**
+     * Every address belonging to an account with `debug` set, so that what was
+     * sent to it can be read back afterwards.
+     *
+     * **Only the debug account, deliberately.** A line per notification per
+     * device, for everybody, is a log nobody can read and a record of who is
+     * being told what about whom — which is not a thing to accumulate on a box
+     * because it was easy. The flag already gates the audio diagnostics panel
+     * and is the switch for exactly this kind of looking.
+     *
+     * Keyed by token because that is the only thing a delivery result carries
+     * back: the send is grouped by platform and alert across people, so the
+     * answer arrives with no idea whose device it was about.
+     */
+    const watched = new Map<string, string>();
     for (const [id, addresses] of devices.addressesByAccount(userIds)) {
-      // Which of this person's devices are looking at a screen right now.
-      // Asked once per person rather than once per address, and not asked at
-      // all for a ping, which reaches an open app deliberately.
-      const live = message.reachesInApp
-        ? EMPTY_SESSIONS
-        : reachability.liveSessions(id);
       const alert = alertFor(message.kind, levels.get(id) ?? DEFAULT_NOTIFICATION_LEVEL);
+      if (accounts.byId(id)?.debug === 1) {
+        for (const address of addresses) watched.set(address.token, id);
+        // Logged before the send rather than after it, and whether or not
+        // there is anything to send: *nothing was even attempted* is the
+        // commonest answer to "why did that not arrive", and it leaves no
+        // trace anywhere else.
+        fastify.log.info(
+          {
+            account: id,
+            channelId: message.channelId,
+            kind: message.kind,
+            alert,
+            level: levels.get(id) ?? DEFAULT_NOTIFICATION_LEVEL,
+            addresses: addresses.map((address) => ({
+              token: address.token.slice(0, 8),
+              platform: address.platform,
+            })),
+          },
+          'push intended'
+        );
+      }
       for (const address of addresses) {
-        // **Per address, not per person, since 2026-08-24.** The rule is
-        // unchanged — a notification to somebody already reading it on screen
-        // is a second copy of what they are looking at — but its premise was
-        // that a live socket meant *the* screen, which held while one session
-        // per account was enforced. With a tablet signed in, dropping the
-        // person silences the phone in their pocket on the strength of a
-        // screen in another room.
-        //
-        // An address whose session cannot be identified falls back to the
-        // person-level test, which is what every address got before this. That
-        // covers rows written before the column existed and rows whose session
-        // has since been revoked, and it means the behaviour changes only as
-        // devices re-register — each at its next launch — rather than all at
-        // once on deploy, in the direction of a duplicate rather than silence.
-        const quiet = address.sessionHash
-          ? live.has(address.sessionHash)
-          : !message.reachesInApp && reachability.inApp(id);
-        if (quiet) {
-          suppressed += 1;
-          continue;
-        }
+        // **Every registered address, since 2026-09-09.** What used to stand
+        // here decided which of somebody's devices were "looking at a screen
+        // right now" from whether each had a live socket — see the note above
+        // this function for why that stopped being an answer to that question,
+        // and where the judgement went instead.
         const key = `${address.platform}:${alert}`;
         const group = byGroup.get(key) ?? {
           platform: address.platform,
@@ -416,18 +435,13 @@ export function buildApp(options: BuildOptions = {}): App {
         byGroup.set(key, group);
       }
     }
-    // Logged even when nothing is sent, and with the reason it was not. The
-    // two ways of sending nothing — everybody is already looking, and nobody
-    // has registered a device — are indistinguishable from a delivery failure
-    // otherwise, which is exactly the confusion this feature shipped with.
     if (byGroup.size === 0) {
+      // Logged even though nothing was sent. There is one way to send nothing
+      // now — nobody has registered a device — where there used to be two, and
+      // the other was indistinguishable from a delivery failure, which is the
+      // confusion this feature shipped with.
       fastify.log.info(
-        {
-          channelId: message.channelId,
-          asked: userIds.length,
-          suppressed,
-          why: suppressed > 0 ? 'every device is looking' : 'no registered devices',
-        },
+        { channelId: message.channelId, asked: userIds.length, why: 'no registered devices' },
         'push skipped'
       );
       return;
@@ -438,6 +452,26 @@ export function buildApp(options: BuildOptions = {}): App {
         .then((results) => {
           for (const result of results) {
             if (result.dead) devices.forget(result.token);
+            const account = watched.get(result.token);
+            if (account === undefined) continue;
+            // The other half of the ledger: what Apple or Google actually
+            // said about this one address. `status` 200 is delivered to the
+            // service, which is as far as any server can see.
+            fastify.log.info(
+              {
+                account,
+                channelId: message.channelId,
+                kind: message.kind,
+                platform,
+                alert,
+                token: result.token.slice(0, 8),
+                status: result.status,
+                reason: result.reason,
+                dead: result.dead === true,
+                error: result.error,
+              },
+              'push delivered'
+            );
           }
           const failed = results.filter((r) => r.status !== 200);
           fastify.log.info(

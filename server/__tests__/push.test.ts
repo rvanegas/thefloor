@@ -391,13 +391,27 @@ describe('an invite', () => {
    * whole person and the phone stayed silent — see DECISIONS.md § *Several
    * sessions, one voice*.
    */
-  it('reaches the phone in a pocket while the tablet is looking', async () => {
+  /**
+   * **Every registered device, since 2026-09-09.**
+   *
+   * What stood here was three tests of one rule: a device with a live session
+   * socket was one somebody was looking at, so a notification to it would be a
+   * second copy of what was on screen. The premise stopped being true when
+   * stepping in became an open microphone — capturing keeps a backgrounded
+   * process alive, so a phone in a pocket holds a socket for hours, and it was
+   * precisely the device being silenced.
+   *
+   * The duplicate is still prevented, on the device that can see it:
+   * `app/src/push.ts` shows a banner only for a notification whose
+   * `reachesInApp` is set, and never plays a sound in the foreground. What was
+   * asserted here as silence is now asserted there as a banner withheld.
+   */
+  it('reaches every device, including one with the app open', async () => {
     const { alice, bob } = await twoContacts();
     const tablet = app.accounts.issueToken(bob.account.id, clock);
     await registerDevice(bob.token, 'bob-phone');
     await registerDevice(tablet, 'bob-tablet');
 
-    // Only the tablet is connected.
     const socket = new WebSocket(`ws://${baseUrl}/ws?token=${tablet}`);
     await new Promise((resolve, reject) => {
       socket.once('open', resolve);
@@ -407,22 +421,19 @@ describe('an invite', () => {
     await createChannel(alice.token, [bob.account.id]);
     await settle();
 
-    // The tablet has already drawn it; the phone has not drawn anything.
-    expect(pusher.messagesFor('bob-tablet')).toEqual([]);
+    // The connected tablet and the pocketed phone alike. A socket says a
+    // process is alive; it has never said anybody is looking at it.
+    expect(pusher.messagesFor('bob-tablet')).toHaveLength(1);
     expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
     socket.close();
   });
 
-  /**
-   * An address registered before the session column existed cannot be matched
-   * to a socket, so it gets the person-level test — which is what every
-   * address got until 2026-08-24. This is what keeps a deploy from turning
-   * every open app into a duplicate notification before the devices have
-   * re-registered, which each does at its next launch.
-   */
-  it('falls back to the person for an address with no session recorded', async () => {
+  it('reaches an address with no session recorded', async () => {
+    // These rows exist — written before the column did — and used to take a
+    // person-level test that silenced them whenever any device was connected.
+    // With no test at all they simply arrive, which is what the column was
+    // being consulted to approximate.
     const { alice, bob } = await twoContacts();
-    // The five-argument form is what the route calls; this is the old one.
     app.devices.register('bob-legacy', bob.account.id, 'ios', clock);
 
     const socket = new WebSocket(`ws://${baseUrl}/ws?token=${bob.token}`);
@@ -434,27 +445,81 @@ describe('an invite', () => {
     await createChannel(alice.token, [bob.account.id]);
     await settle();
 
-    expect(pusher.messagesFor('bob-legacy')).toEqual([]);
+    expect(pusher.messagesFor('bob-legacy')).toHaveLength(1);
     socket.close();
   });
+});
 
-  it('is not sent to somebody who already has the app open', async () => {
+/**
+ * A record of what was sent to one account, for reading back afterwards.
+ *
+ * Asked for on 2026-09-09 from the other end of the problem: notifications
+ * were not arriving as expected, and there was no way to tell an unsent one
+ * from a refused one from one the phone simply did not show. The server's
+ * existing line is per group — platform, alert, counts — and deliberately
+ * names nobody, so it cannot answer *did that reach me*.
+ *
+ * **Only an account with `debug` set.** A line per notification per device for
+ * everybody is a log nobody reads and a record of who is being told what about
+ * whom; the flag that already gates the audio diagnostics panel gates this.
+ */
+describe('the notification ledger', () => {
+  const debugOn = (accountId: string) => {
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(accountId);
+  };
+
+  it('records what was intended and what became of it', async () => {
     const { alice, bob } = await twoContacts();
+    debugOn(bob.account.id);
     await registerDevice(bob.token, 'bob-phone');
 
-    const socket = new WebSocket(`ws://${baseUrl}/ws?token=${bob.token}`);
-    await new Promise((resolve, reject) => {
-      socket.once('open', resolve);
-      socket.once('error', reject);
-    });
+    const logged: Array<Record<string, unknown>> = [];
+    const info = jest
+      .spyOn(app.fastify.log, 'info')
+      .mockImplementation(((entry: unknown, message?: string) => {
+        if (typeof entry === 'object' && entry !== null) {
+          logged.push({ ...(entry as Record<string, unknown>), message });
+        }
+      }) as unknown as typeof app.fastify.log.info);
 
     await createChannel(alice.token, [bob.account.id]);
     await settle();
+    info.mockRestore();
 
-    // The websocket has already delivered it as a banner. A notification would
-    // be a second copy of what is on screen.
-    expect(pusher.messagesFor('bob-phone')).toEqual([]);
-    socket.close();
+    // What was going to be sent, before anything could refuse it — the answer
+    // to "was it even attempted", which nothing else records.
+    const intended = logged.find((line) => line.message === 'push intended');
+    expect(intended).toMatchObject({ account: bob.account.id, kind: 'invited' });
+    expect(intended?.addresses).toHaveLength(1);
+
+    // And what the service said about that one address.
+    const delivered = logged.find((line) => line.message === 'push delivered');
+    expect(delivered).toMatchObject({
+      account: bob.account.id,
+      status: 200,
+      dead: false,
+    });
+  });
+
+  it('says nothing about anybody else', async () => {
+    // The whole of the scoping. Alice has no `debug`, so a notification to her
+    // leaves no per-person trace at all.
+    const { alice, bob } = await twoContacts();
+    await registerDevice(alice.token, 'alice-phone');
+
+    const logged: string[] = [];
+    const info = jest
+      .spyOn(app.fastify.log, 'info')
+      .mockImplementation(((_entry: unknown, message?: string) => {
+        if (message) logged.push(message);
+      }) as unknown as typeof app.fastify.log.info);
+
+    await createChannel(bob.token, [alice.account.id]);
+    await settle();
+    info.mockRestore();
+
+    expect(logged).not.toContain('push intended');
+    expect(logged).not.toContain('push delivered');
   });
 });
 
