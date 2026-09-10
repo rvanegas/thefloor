@@ -84,7 +84,7 @@ caused; the list carries the meaning.
 - **Egress** — LiveKit's recording jobs
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
 - **Ghost** — A button variant and nothing else: transparent, muted, for a control that must not compete
-- **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
+- **Growth classes — alone, first circle, onward** — The three cohorts `bin/founders` sorts every account into, by its depth in the invitation forest
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Has the room** — `hasTheRoom` — you are in the channel, or nobody is
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
@@ -952,7 +952,7 @@ described as a ghost.
 
 ## Growth classes — alone, first circle, onward
 
-The three cohorts `bin/growth` sorts every account into, by its depth in the
+The three cohorts `bin/founders` sorts every account into, by its depth in the
 invitation forest that `accounts.invited_by` describes. **Alone** arrived with
 no inviter and is the top of a tree; **first circle** was invited by somebody
 who came alone; **onward** was invited by somebody who was themselves invited,
@@ -1013,7 +1013,7 @@ timer.
 
 A connected component of the accepted-contacts graph: a set of accounts every
 one of whom can be reached from every other by walking mutual contacts.
-Somebody with no accepted contact is an island of one. `bin/growth islands`
+Somebody with no accepted contact is an island of one. `bin/founders islands`
 is the only thing that computes them; nothing in the server has the concept
 and no screen says the word.
 

@@ -1,6 +1,6 @@
 # 2026-09-10: An island is not a tree
 
-`bin/growth islands` was asked for on the premise that *founders define an
+`bin/founders islands` was asked for on the premise that *founders define an
 island of contacts, accounts mutually reachable by mutual contacts*. The second
 half is the definition and it is exactly right: an island is a connected
 component of the accepted-contacts graph, computed as a transitive closure

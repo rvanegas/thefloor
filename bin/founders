@@ -3,11 +3,11 @@
 # Where the people here came from: who arrived on their own, who one of them
 # brought, and who arrived further down the chain — over time.
 #
-#   bin/growth                 every report, against the deployed server
-#   bin/growth classes         one report
-#   bin/growth classes weeks   several, in the order given
-#   bin/growth --local         the development database on this machine
-#   bin/growth --list          the report names and what each answers
+#   bin/founders                 every report, against the deployed server
+#   bin/founders classes         one report
+#   bin/founders classes weeks   several, in the order given
+#   bin/founders --local         the development database on this machine
+#   bin/founders --list          the report names and what each answers
 #
 # Read-only, always. Nothing here is a thing you would edit by hand; bin/db
 # --write is where editing lives and it makes you ask for it.
@@ -31,6 +31,15 @@
 # gets written — an email address resolving at sign-up, and `creditInviter`
 # when somebody makes an account inside a room to accept a member's ask — and
 # neither is more of an arrival than the other.
+#
+# **Depth 0 is not a claim about how somebody got here.** It says only that
+# the box knows of no invitation: word of mouth, a link passed on, a store
+# listing found by accident, a marketing campaign — all of it lands in
+# *alone*, and none of it is distinguishable from any other. So the size of
+# that class is not a measure of growth, and a campaign will swell it without
+# a single thing here having spread. This was `bin/growth` for a day, and is
+# named for the roots instead because that is what it can honestly count:
+# who is at the top of a tree, and what grew under them.
 #
 # **The classes are not frozen at arrival.** `creditInviter` can name an
 # inviter for an account that has been here for weeks, and the moment it does,
@@ -103,7 +112,7 @@ wanted=()
 # the temp database rather than in the file, so `-readonly` permits them; the
 # pragma keeps that database in memory rather than in whatever /tmp the box
 # has, which matters only in that it leaves nothing behind.
-growth_preamble() {
+preamble() {
   cat <<'SQL'
 PRAGMA temp_store = MEMORY;
 
@@ -113,7 +122,7 @@ CREATE TEMP VIEW everyone AS
   SELECT id, identifier, display_name, created_at, last_seen_at, invited_by
     FROM accounts;
 
--- The people a growth number is about.
+-- The people a report here is about.
 CREATE TEMP VIEW person AS
   SELECT * FROM everyone
    WHERE identifier NOT GLOB 'erased:*'
@@ -144,7 +153,7 @@ CREATE TEMP VIEW generation AS
 -- which can only happen if `invited_by` names a row that is not there. That
 -- is a defect and has its own report; it is also why the totals below can be
 -- short of `SELECT COUNT(*) FROM person` without any of them being wrong.
-CREATE TEMP VIEW growth AS
+CREATE TEMP VIEW arrival AS
   SELECT p.id, p.identifier, p.display_name, p.created_at, p.last_seen_at,
          p.invited_by, g.root, g.depth,
          CASE WHEN g.depth = 0 THEN '1 alone'
@@ -206,7 +215,7 @@ CREATE TEMP VIEW island AS
 SQL
 }
 
-growth_classes() {
+report_classes() {
   cat <<'SQL'
 .print ''
 .print '── The three classes ───────────────────────────────────────────'
@@ -223,19 +232,19 @@ growth_classes() {
 -- question: how much of this class is still here.
 WITH brought AS (
   SELECT inviter.class AS class, COUNT(*) AS n
-    FROM growth arrival
-    JOIN growth inviter ON inviter.id = arrival.invited_by
+    FROM arrival a
+    JOIN arrival inviter ON inviter.id = a.invited_by
    GROUP BY inviter.class
 )
 SELECT g.class,
        COUNT(*) AS people,
-       ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM growth), 1) AS share,
+       ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM arrival), 1) AS share,
        COALESCE(b.n, 0) AS they_brought,
        ROUND(COALESCE(b.n, 0) * 1.0 / COUNT(*), 2) AS per_head,
        SUM(g.last_seen_at IS NULL) AS never_connected,
        SUM(g.last_seen_at > unixepoch() * 1000 - 2592000000)
          AS seen_this_month
-  FROM growth g
+  FROM arrival g
   LEFT JOIN brought b ON b.class = g.class
  GROUP BY g.class
  ORDER BY g.class;
@@ -259,12 +268,12 @@ SELECT (SELECT COUNT(*) FROM everyone) AS rows_in_accounts,
          AS erased,
        (SELECT COUNT(*) FROM everyone WHERE identifier GLOB 'appreview*')
          AS app_review,
-       (SELECT COUNT(*) FROM person) - (SELECT COUNT(*) FROM growth)
+       (SELECT COUNT(*) FROM person) - (SELECT COUNT(*) FROM arrival)
          AS unreachable;
 SQL
 }
 
-growth_weeks() {
+report_weeks() {
   cat <<'SQL'
 .print ''
 .print '── Arrivals by week, Monday-dated ──────────────────────────────'
@@ -290,13 +299,13 @@ SELECT date(created_at / 1000, 'unixepoch', '-6 days', 'weekday 1') AS week,
        SUM(COUNT(*)) OVER (
          ORDER BY date(created_at / 1000, 'unixepoch', '-6 days', 'weekday 1')
        ) AS to_date
-  FROM growth
+  FROM arrival
  GROUP BY week
  ORDER BY week;
 SQL
 }
 
-growth_months() {
+report_months() {
   cat <<'SQL'
 .print ''
 .print '── Arrivals by calendar month ──────────────────────────────────'
@@ -314,13 +323,13 @@ SELECT strftime('%Y-%m', created_at / 1000, 'unixepoch') AS month,
        SUM(COUNT(*)) OVER (
          ORDER BY strftime('%Y-%m', created_at / 1000, 'unixepoch')
        ) AS to_date
-  FROM growth
+  FROM arrival
  GROUP BY month
  ORDER BY month;
 SQL
 }
 
-growth_depth() {
+report_depth() {
   cat <<'SQL'
 .print ''
 .print '── How far the chains reach ────────────────────────────────────'
@@ -334,13 +343,13 @@ SELECT depth AS generation,
        COUNT(DISTINCT root) AS trees,
        date(MIN(created_at) / 1000, 'unixepoch') AS first,
        date(MAX(created_at) / 1000, 'unixepoch') AS latest
-  FROM growth
+  FROM arrival
  GROUP BY depth
  ORDER BY depth;
 SQL
 }
 
-growth_founders() {
+report_founders() {
   cat <<'SQL'
 .print ''
 .print '── Each tree, by the founder at the top of it ──────────────────'
@@ -350,9 +359,9 @@ growth_founders() {
 -- of that class and would otherwise be a long tail of noughts. The same shape
 -- as `AccountRegistry.leaderboard`, and deliberately not the same query:
 -- that one ranks every inviter by their whole subtree, this one asks what
--- each *root* is responsible for, which is the question growth has.
+-- each *root* is responsible for, which is the question this report has.
 --
--- The founder is read from `everyone` rather than from `growth`, so a tree
+-- The founder is read from `everyone` rather than from `arrival`, so a tree
 -- whose root has since erased their account is still a tree. It shows as
 -- `(gone)`, and everybody in it is still counted where they are.
 SELECT CASE WHEN f.identifier GLOB 'erased:*' THEN '(gone)'
@@ -363,7 +372,7 @@ SELECT CASE WHEN f.identifier GLOB 'erased:*' THEN '(gone)'
        COUNT(*) - 1 AS brought_in_all,
        MAX(g.depth) AS deepest,
        date(MAX(g.created_at) / 1000, 'unixepoch') AS newest_arrival
-  FROM growth g
+  FROM arrival g
   JOIN everyone f ON f.id = g.root
  GROUP BY g.root
 HAVING COUNT(*) > 1
@@ -371,13 +380,13 @@ HAVING COUNT(*) > 1
 
 .print ''
 SELECT COUNT(*) AS founders_who_brought_nobody
-  FROM growth
+  FROM arrival
  WHERE depth = 0
-   AND id NOT IN (SELECT root FROM growth WHERE depth > 0);
+   AND id NOT IN (SELECT root FROM arrival WHERE depth > 0);
 SQL
 }
 
-growth_islands() {
+report_islands() {
   cat <<'SQL'
 .print ''
 .print '── The islands: who can reach whom through contacts ────────────'
@@ -528,7 +537,7 @@ SELECT w AS week,
 SQL
 }
 
-growth_defects() {
+report_defects() {
   cat <<'SQL'
 .print ''
 .print '── Defects ─────────────────────────────────────────────────────'
@@ -567,7 +576,7 @@ SELECT COUNT(*) AS contacts_with_a_tombstone
 -- while the class itself is sound, and somebody reading `(gone)` in the
 -- founders report should be able to see how much of it there is.
 SELECT COUNT(*) AS invited_by_a_tombstone
-  FROM growth g
+  FROM arrival g
   JOIN everyone i ON i.id = g.invited_by
  WHERE i.identifier GLOB 'erased:*';
 SQL
@@ -614,9 +623,9 @@ done
 
 [ ${#wanted[@]} -eq 0 ] && wanted=("${report_names[@]}")
 
-sql=$(growth_preamble)$'\n'
+sql=$(preamble)$'\n'
 for report in "${wanted[@]}"; do
-  sql+=$("growth_$report")$'\n'
+  sql+=$("report_$report")$'\n'
 done
 
 # Column headers and aligned output: this is for reading, not for piping into
