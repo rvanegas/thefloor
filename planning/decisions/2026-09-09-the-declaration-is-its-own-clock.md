@@ -1,7 +1,10 @@
 # 2026-09-09 — The declaration is its own clock
 
-> **Superseded the same day by `2026-09-09-attention-is-one-clock.md`.** There
-> is one clock now — attention — and it is what both absent states count from.
+> **Superseded the same day by `2026-09-09-attention-is-one-clock.md`, as
+> corrected by `2026-09-09-one-clock-ends-two-states-but-times-one.md`.**
+> Attention is what ends both absent states, and what *nearby* counts from;
+> *stepped out* went on counting `lastPresentAt`, for the reason this file
+> gives below and briefly stopped being read for.
 > `declaredNearbyAt` survives as the bit that tells a chosen nearby from one a
 > lost connection produced, and `nearbyMs` survives as the fallback for builds
 > that report no attention; neither is what any screen shows. This file is kept

@@ -520,11 +520,13 @@ it lapses to *Stepped out* after the same window, and it is carried by the same
 correctly, with a ping. The two new ways in were behind `labs` until
 2026-09-09, when the ladder above gave them a shape worth shipping.
 
-**One clock governs all three, and it measures the last sign of life** rather
-than the moment anything was declared: how long since we heard from you, which
-is how likely a ping is to reach you. `ATTENTION_WINDOW_MS = WAITING_WINDOW_MS`
-in `app/src/state/attention.ts`, and `Exit` in `core/channel.ts` is what leaves
-`lastPresentAt` alone for every kind but a tap.
+**One clock ends all three, and since 2026-09-09 it is attention** rather than
+the last sign of life or the moment anything was declared: fifteen minutes
+without evidence that somebody is at this channel and the wait is over, however
+they got onto the rung. `ATTENTION_WINDOW_MS = WAITING_WINDOW_MS` in
+`core/constants.ts`, read by the server's tick. `Exit` in `core/channel.ts` is
+still what leaves `lastPresentAt` alone for every kind but a tap — that stamp
+is what *stepped out* counts, and it is a different question from this one.
 
 **A declared nearby holds no audio session and no media subscription**, which
 is what distinguishes it from being stepped in and muted. A muted person hears

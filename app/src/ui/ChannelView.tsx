@@ -2854,11 +2854,12 @@ function ParticipantCard({
   pingableAt?: number | null;
   /**
    * When they were last attending the application, or null if the server has
-   * no clock for them — which since 2026-09-09 is the one clock this card
-   * shows about anybody who is not here.
+   * no clock for them. It is what the *Nearby* line counts, and nothing else
+   * on this card: *Stepped out* is timed from presence. See `attention`
+   * below for why the two cannot be the same number.
    *
-   * Null is not "never". It is a build that predates the report, and the card
-   * falls back to the two clocks it used to show. See SHIMS.md.
+   * Null is not "never". It is a build that predates the report, and the
+   * *Nearby* line falls back to `nearbyMs`. See SHIMS.md.
    */
   attentiveAt?: number | null;
 }) {

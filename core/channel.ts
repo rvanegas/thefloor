@@ -1928,13 +1928,15 @@ function tick(state: ChannelState, now: number): ChannelState {
  * connection expired* would work and would read as a lie in every log that
  * prints it.
  *
- * **Leaving `lastPresentAt` alone is what implements the one clock.** Nearby
+ * **Leaving `lastPresentAt` alone is what keeps *stepped out* honest.** Nearby
  * has three ways in — declared from outside, declared from inside, and
- * inferred when the socket goes — and one clock governs all three, measuring
- * the last sign of life rather than the moment anything was declared. The
- * stamp is left to the transport, so it stays fresh while the app is alive and
- * freezes when the phone suspends; fifteen minutes from there is *Stepped
- * out*. See planning/GLOSSARY.md § *Nearby / Stepped out*.
+ * inferred when the socket goes — and stamping this on any of them would claim
+ * the person was in the room until the moment they left it by not being in it.
+ * What ends all three is attention, held by the server; what this stamp
+ * answers is the separate question *when were they last actually here*, which
+ * is the number *Stepped out* shows. See planning/GLOSSARY.md § *Nearby /
+ * Stepped out*, and
+ * planning/decisions/2026-09-09-one-clock-ends-two-states-but-times-one.md.
  *
  * **`inattentive` is why this stopped being a boolean.** It matches neither
  * existing row: nobody chose it, so stamping `lastPresentAt` would claim they

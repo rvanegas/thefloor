@@ -231,15 +231,18 @@ strike out a nearby whose fifteen minutes has run. That arm is the only reader
 left of **`nearbyMs`**, and of the `STILL_HERE` branch that refreshes
 `declaredNearbyAt`. All three go together.
 
-**The roster fallback in `ParticipantCard`.** Where `attentiveAt` has no entry
-the card shows the old numbers and the old words — *Nearby for 4 minutes*,
-*Stepped out 16 minutes ago* — rather than the attention clock. Mixed
-vocabulary between rows during the transition is the accepted cost; it
-self-heals as installs update.
+**The roster fallback in `ParticipantCard`, which is now one line rather than
+two.** Where `attentiveAt` has no entry the *Nearby* line falls back to
+`nearbyMs` — the declaration, or the last sign of life. *Stepped out* is not
+part of this any more: it counts presence for everybody, fallback or not, since
+the correction of 2026-09-09 (`decisions/…-one-clock-ends-two-states-but-times-one.md`).
+So the mixed vocabulary during the transition is confined to one line and one
+number; it self-heals as installs update.
 
-**Do not delete `idleMs` with any of it.** Home orders rooms by
-`lastPresenceAt`, which reads the same stamps, and *Stepped out* still counts
-from them for anybody the fallback is drawing.
+**Do not delete `idleMs` with any of it, and this is no longer a shim's
+reason.** *Stepped out* counts from `lastPresentAt` permanently, and Home
+orders rooms by `lastPresenceAt`, which reads the same stamps. Nothing about
+retiring this entry touches either.
 
 **Nothing is needed in the other direction.** A build below 175 ignores
 `attentiveAt` on the snapshot, and the server goes on accepting the

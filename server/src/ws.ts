@@ -517,7 +517,8 @@ export function registerWebsocket(deps: {
         participants,
         recordings: recordingsInChannel(channelId, connection.userId),
         pingableAt: channels.pingWindows(channelId),
-        // The one clock the roster shows about anybody absent. Per channel
+        // What ends both absent states, and what the roster's *nearby* line
+        // counts — *stepped out* counts presence instead. Per channel
         // because that is where it is read, but the value is per account —
         // see `ChannelView.attentiveAt`, and note that somebody whose build
         // does not report is simply absent from this map rather than being

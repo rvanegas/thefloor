@@ -669,9 +669,17 @@ export interface ChannelView {
    * When each participant was last attending **this channel**, for those the
    * server has heard from.
    *
-   * The one clock the roster shows about anybody absent, since 2026-09-09 —
-   * *away* and *nearby* both count from it — and the one the tick reads to
-   * decide when either state ends. See `ATTENTION_WINDOW_MS`.
+   * **The clock that ends both absent states, and that times one of them.**
+   * The tick reads it to decide when nearby and presence end — see
+   * `ATTENTION_WINDOW_MS` — and the roster's *nearby* line counts from it,
+   * that line being a claim about reach and this being the evidence for it.
+   *
+   * *Stepped out* counts `lastPresentAt` instead, and it was briefly wired
+   * here too: that line claims when somebody was last in this room, which
+   * attention cannot say. Somebody attending a channel they have never
+   * entered has a stamp here and no presence at all, and the roster duly told
+   * them they had been away four seconds. Ending a state and timing it are
+   * separate jobs.
    *
    * **Here rather than on `ChannelState`, for `pingableAt`'s reason.** No
    * reducer knows about it, and it is server bookkeeping about people rather
