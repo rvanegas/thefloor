@@ -50,6 +50,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const [deleting, setDeleting] = useState(false);
   const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [forgetting, setForgetting] = useState(false);
+  const [forgettingIntro, setForgettingIntro] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -117,6 +118,29 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       // reason to keep the keychain.
     }
     await forgetInstall();
+  };
+
+  /**
+   * Puts the introduction back, without touching anything else.
+   *
+   * **The narrow sibling of *Forget this phone*, and it is here because that
+   * one is too blunt to use for this.** Forgetting the phone clears the
+   * checklist as one of eighteen keys, then signs out and asks for a code by
+   * email — so seeing the ladder a second time costs a round trip through a
+   * mailbox, every time, for the one screen somebody is iterating on.
+   *
+   * It stays on this screen afterwards rather than closing itself onto Home.
+   * Nothing here navigates, and a control that did would be the only one; the
+   * alert says where to look instead, which is also the only way of saying
+   * *and leave the channel first*.
+   */
+  const forgetIntroduction = async () => {
+    setForgettingIntro(true);
+    try {
+      await app.forgetIntroduction();
+    } finally {
+      setForgettingIntro(false);
+    }
   };
 
   /**
@@ -371,6 +395,38 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           <Text style={type.muted}>
             For seeing what somebody arriving new sees. Signing out does not do
             this, and neither does deleting the app.
+          </Text>
+        </Card>
+        {/*
+          Under it, because it is the same errand at a tenth of the cost: the
+          card above is what you reach for to see a whole new install, this is
+          what you reach for when the thing you are looking at is the
+          checklist itself. It is not destructive in the way its neighbour is
+          — nothing is signed out and nothing else is forgotten — so it asks
+          for a confirmation only to have somewhere to say the two things that
+          are not guessable from the button: leave the channel first, and what
+          comes back is decided by what this account looks like now.
+        */}
+        <Card style={styles.stack}>
+          <Text style={type.heading}>Show the checklist again</Text>
+          <Button
+            label={forgettingIntro ? 'Forgetting…' : 'Show the checklist again'}
+            disabled={forgettingIntro}
+            onPress={() =>
+              Alert.alert(
+                'Show the checklist again?',
+                'This account forgets how it arrived and that it has ever stepped in, so Home draws the introduction again. Nothing else changes — you stay signed in, and your channels, contacts and settings are untouched.\n\nStep out of any channel first: being in one with somebody retires it again immediately. What comes back is whichever introduction this account would get today, so an account with contacts gets the card rather than the ladder.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Show it', onPress: () => void forgetIntroduction() },
+                ]
+              )
+            }
+          />
+          <Text style={type.muted}>
+            The introduction above the lists on Home. It goes for good the
+            first time you step in with somebody, and this is the only way of
+            getting it back short of forgetting the phone.
           </Text>
         </Card>
         </>

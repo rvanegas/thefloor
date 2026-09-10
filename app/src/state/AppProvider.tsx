@@ -583,6 +583,17 @@ interface AppValue extends AppState {
    * `state/introduction.ts`, and planning/ONBOARDING.md for the shape.
    */
   introduction: Introduction;
+  /**
+   * Puts the introduction back, on this account, for a debug account to look
+   * at it again.
+   *
+   * On the context rather than imported straight from the module it writes,
+   * because the state that decides what is drawn is held in this hook and a
+   * bare `storage.remove` would clear the keys under a component that goes on
+   * believing the old answer until the next launch. See
+   * `state/useIntroduction.ts` for what it does and what it cannot undo.
+   */
+  forgetIntroduction: () => Promise<void>;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -1086,7 +1097,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const myId = state.me?.id ?? null;
-  const introduction = useIntroduction({
+  const { introduction, forget: forgetIntroduction } = useIntroduction({
     token: state.token,
     home: state.home,
     displayName: state.me?.displayName ?? '',
@@ -1367,6 +1378,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearNotificationTap: () => setNotificationTapped(false),
       notifications,
       introduction,
+      forgetIntroduction,
 
       appearance,
       /*
@@ -1862,6 +1874,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notificationTapped,
       notifications,
       introduction,
+      forgetIntroduction,
       appearance,
       tapToLook,
       hideControlCards,

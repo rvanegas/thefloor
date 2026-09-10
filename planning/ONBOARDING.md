@@ -204,6 +204,28 @@ thing worth storing is *this is over*. **Any such key must be added to
 `__tests__/storageKeys.test.ts` fails on the drift — which is the intended
 behaviour of that test, not an obstacle.
 
+## Getting it back, which only a debug account can
+
+**The checklist has exactly one exit and it is one-way**, which is right for
+everybody using the app and impossible for anybody working on it: step in with
+somebody once and `doneAt` is written, and nothing in the app un-writes it.
+Signing out and back in does not, because the keys are cleared on sign-out but
+re-derived immediately from the same account. *Forget this phone* does clear
+both, as two of eighteen `INSTALL_KEYS` — at the cost of the session and a
+fresh code by email, every time somebody wants to look at the screen they are
+iterating on.
+
+So *Show the checklist again* sits under it in Diagnostics, behind the same
+per-account `debug` grant on the same reasoning: it is an instrument, useless
+to somebody using the app. It clears the two keys and the state that mirrors
+them, which re-arms the latch — and the arrival is then decided again by the
+snapshot already in hand. **An account that has since gained contacts gets the
+*invited* card rather than the ladder**, which is honest rather than a defect:
+that is what this account looks like to a first snapshot today. The alert says
+so, and says the other thing that is not guessable — *step out of the channel
+first*, since `doneAt` is written off `conversing` and being in one with
+somebody re-retires it within a frame.
+
 ## Files
 
 What was written, which is close to what the design predicted:
@@ -211,14 +233,16 @@ What was written, which is close to what the design predicted:
 | File | Change |
 |---|---|
 | `app/src/state/introduction.ts` | new, pure — the steps, which arrival it is, and when all of it stops; beside `notificationAsk.ts` for the reason that file gives |
-| `app/src/state/useIntroduction.ts` | new — the two keys, the latch, the retirement, and the one profile fetch |
+| `app/src/state/useIntroduction.ts` | new — the two keys, the latch, the retirement, the one profile fetch, and `forget`, which un-retires it |
 | `app/src/ui/Introduction.tsx` | new — the card and the ladder. Its own file rather than in-file beside `InstallNotice` (`HomeView.tsx:470`) and `NotificationNotice` (`:530`), a checklist being bigger than a notice |
-| `app/src/state/AppProvider.tsx` | calls the hook and puts `introduction` on the context, for `conversing`'s sake |
+| `app/src/state/AppProvider.tsx` | calls the hook and puts `introduction` and `forgetIntroduction` on the context, for `conversing`'s sake |
+| `app/src/ui/HomeSettingsView.tsx` | *Show the checklist again*, under Diagnostics — see below |
 | `app/src/ui/HomeView.tsx` | renders it at `:339`, first child of `<Screen>` |
 | `app/src/state/storage.ts` | both `thefloor.intro.*` keys into `INSTALL_KEYS` |
 | `app/src/state/__tests__/introduction.test.ts` | new — 19 cases, the policy |
 | `app/src/ui/__tests__/introduction.test.tsx` | new — 7 cases, what Home draws |
-| `app/src/ui/testing/harness.tsx`, `app/__tests__/session.test.tsx` | both mocks of `AppProvider` gain the field, defaulting to `none` |
+| `app/src/ui/__tests__/settings.test.tsx` | 3 cases, the debug action |
+| `app/src/ui/testing/harness.tsx`, `app/__tests__/session.test.tsx` | both mocks of `AppProvider` gain the field, defaulting to `none`, and a stub `forgetIntroduction` |
 | `planning/GLOSSARY.md` | *introduction* and *arrival*, entries and one-liners |
 
 **Reuse rather than re-derive.** `AppProvider.tsx:1044` already computes

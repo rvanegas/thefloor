@@ -436,6 +436,74 @@ describe('forgetting this phone', () => {
 });
 
 /**
+ * Putting the introduction back, which is the narrow sibling of the card
+ * above.
+ *
+ * Behind the same `debug` grant, and for the same reason — it is an
+ * instrument. What it must not do is what its neighbour does: this one leaves
+ * the session alone, and a version of it that signed out would make the
+ * checklist cost a code by email to look at, which is the whole reason it
+ * exists.
+ */
+describe('showing the checklist again', () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  const alertSpy = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+  it('is not offered to an account without diagnostics', async () => {
+    mockApp.debug = false;
+    const tree = await openSettings();
+    expect(findButton(tree, 'Show the checklist again')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('asks first, and says to step out of the channel', async () => {
+    mockApp.debug = true;
+    const asked = alertSpy();
+    const tree = await openSettings();
+
+    act(() => findButton(tree, 'Show the checklist again')!.props.onPress());
+    expect(asked).toHaveBeenCalled();
+    expect(mockApp.forgetIntroduction).not.toHaveBeenCalled();
+
+    // The one thing that is not guessable from the button: `doneAt` is
+    // written off `conversing`, so doing this from inside a channel with
+    // somebody retires the checklist again before it can be looked at.
+    const body = asked.mock.calls[0][1] as string;
+    expect(body).toContain('Step out of any channel first');
+
+    asked.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('forgets the introduction and nothing else', async () => {
+    mockApp.debug = true;
+    const asked = alertSpy();
+    const tree = await openSettings();
+    act(() => findButton(tree, 'Show the checklist again')!.props.onPress());
+
+    const actions = asked.mock.calls[0][2] as Array<{
+      style?: string;
+      onPress?: () => void;
+    }>;
+    await act(async () =>
+      actions.find((a) => a.style !== 'cancel')!.onPress!()
+    );
+    expect(mockApp.forgetIntroduction).toHaveBeenCalled();
+    expect(mockApp.signOut).not.toHaveBeenCalled();
+
+    asked.mockRestore();
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * Whether a tap on a channel arrives or only looks.
  *
  * The setting itself is a phone preference held in the provider; what this

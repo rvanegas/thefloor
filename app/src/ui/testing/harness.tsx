@@ -145,6 +145,7 @@ export const mockApp = {
    * card replaces it. See `state/introduction.ts`.
    */
   introduction: { show: 'none' } as Introduction,
+  forgetIntroduction: jest.fn(async () => undefined),
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,

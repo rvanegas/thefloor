@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { HomeView } from '../../../core/protocol';
 import { storage } from './storage';
 import {
@@ -34,6 +34,40 @@ const DONE_AT_KEY = 'thefloor.intro.doneAt';
  */
 
 /**
+ * What this hook hands back: what to draw, and the one way of undoing it.
+ *
+ * A pair rather than the bare `Introduction` it used to be, because the
+ * checklist has no other exit than being finished — see `forget`.
+ */
+export interface IntroductionState {
+  introduction: Introduction;
+  /**
+   * Puts this account back where it started, for a debug account only.
+   *
+   * **There is nothing else that does this.** The two keys are cleared on
+   * sign-out, but signing in again re-latches the arrival from the same
+   * snapshot and `doneAt` is written off `conversing`, which by then is a
+   * fact about an account that has conversed — so signing out and back in
+   * returns somebody to exactly the silence they were in. *Forget this phone*
+   * clears both as part of `INSTALL_KEYS`, but it takes the session with it
+   * and is aimed at the whole install; this is the checklist alone, on an
+   * account that stays signed in.
+   *
+   * The state is reset alongside the keys rather than left to a relaunch,
+   * which is what makes the ladder reappear on the tap: clearing `arrival`
+   * re-arms the latch, and the next snapshot — the one already in hand —
+   * decides the arrival again. Somebody with contacts is therefore returned
+   * to the *invited* card and not to the ladder, which is honest: that is
+   * what this account looks like to a first snapshot now.
+   *
+   * **Leave the channel first.** `doneAt` is written off `conversing`, so
+   * doing this while in a channel with somebody re-retires it within a frame.
+   * The caller says so; see `HomeSettingsView`.
+   */
+  forget: () => Promise<void>;
+}
+
+/**
  * When to put the introduction in front of somebody, and the state that
  * decides it.
  *
@@ -60,7 +94,7 @@ export function useIntroduction(state: {
    * pushed to every client.
    */
   loadUsername: () => Promise<string | null>;
-}): Introduction {
+}): IntroductionState {
   const { token, home, displayName, conversing, loadUsername } = state;
 
   const [loaded, setLoaded] = useState(false);
@@ -156,13 +190,26 @@ export function useIntroduction(state: {
     };
   }, [token, loaded, arrival, doneAt, username, loadUsername]);
 
-  return introduction({
-    loaded,
-    home,
-    arrival,
-    doneAt,
-    displayName,
-    username,
-    conversing,
-  });
+  const forget = useCallback(async () => {
+    setArrival(null);
+    setDoneAt(null);
+    setUsername(undefined);
+    await Promise.all([
+      storage.remove(ARRIVAL_KEY),
+      storage.remove(DONE_AT_KEY),
+    ]);
+  }, []);
+
+  return {
+    introduction: introduction({
+      loaded,
+      home,
+      arrival,
+      doneAt,
+      displayName,
+      username,
+      conversing,
+    }),
+    forget,
+  };
 }
