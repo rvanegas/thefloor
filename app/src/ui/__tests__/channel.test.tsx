@@ -90,6 +90,39 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  it('survives the snapshot arriving after the screen has opened', () => {
+    // What a tap on any channel actually does: this screen opens first and the
+    // snapshot follows a moment later, so the wait above and the channel below
+    // are two renders of one mount. Every hook has to run in both.
+    //
+    // It did not, for one build. The attention clock's `useEffect` was written
+    // below the `!view` return, where the code it belongs beside sits — so the
+    // second render called one hook more than the first and React refused it,
+    // crashing the app on entering any channel at all. The suite missed it
+    // because every other test here seeds the snapshot before mounting, which
+    // is the one order the app never takes.
+    //
+    // The assertion is that this does not throw. `not.toContain` is the proof
+    // the second render really went past the return; without it a screen stuck
+    // on "Loading channel…" would pass by never running the extra hook.
+    const screen = () => (
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const tree = render(screen());
+    expect(textOf(tree)).toContain('Loading channel');
+
+    showChannel(channelOf());
+    act(() => tree.update(screen()));
+
+    expect(textOf(tree)).not.toContain('Loading channel');
+    act(() => tree.unmount());
+  });
+
   it('is not emptied by a snapshot for another channel', () => {
     // The app watches several channels and is sent a snapshot for each. This
     // screen reads the one it is about; taking whichever arrived last is what

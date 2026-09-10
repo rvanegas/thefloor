@@ -319,6 +319,32 @@ export function ChannelView({
     // drop the user out of a live conversation.
   }, [channelId]);
 
+  /**
+   * This screen is what its channel's attention clock is about, for as long as
+   * it is on screen — and not a moment longer. The snapshot behind it lives on
+   * when somebody presses Home, deliberately, because dropping it would be
+   * leaving the channel; a snapshot nobody is looking at is not attention, so
+   * the clock has to be told about the screen rather than about the snapshot.
+   *
+   * Reported at once as well as registered: opening a channel is the freshest
+   * evidence there is of attending it, and waiting up to half a minute for the
+   * next poll would let a room somebody just walked into keep ageing.
+   *
+   * **Above the early return below, and every hook must stay above it.** This
+   * sat under it for one build, which crashed the app on entering any channel
+   * at all: a tap opens this screen before its snapshot has arrived, so the
+   * first render takes that return and the second — a moment later, snapshot
+   * in hand — runs one hook more than the first. React counts hooks by call
+   * order and refuses the difference outright. Nothing here needs `view`; the
+   * clock is about the screen, which exists either way, and a channel being
+   * looked at while it loads is exactly as true.
+   */
+  useEffect(() => {
+    app.lookAt(channelId);
+    app.reportAttentive(true);
+    return () => app.lookAt(null);
+  }, [channelId, app.lookAt, app.reportAttentive]);
+
   if (!view || !channel) {
     // A channel the server has said is gone is not one a snapshot is coming
     // for, so saying "Loading channel…" is a wait with no end: the ended
@@ -356,23 +382,6 @@ export function ChannelView({
   const nameOf = (id: string | null) =>
     view.participants.find((p) => p.id === id)?.displayName ?? 'Someone';
   const now = app.serverNow();
-  /**
-   * This screen is what its channel's attention clock is about, for as long as
-   * it is on screen — and not a moment longer. The snapshot behind it lives on
-   * when somebody presses Home, deliberately, because dropping it would be
-   * leaving the channel; a snapshot nobody is looking at is not attention, so
-   * the clock has to be told about the screen rather than about the snapshot.
-   *
-   * Reported at once as well as registered: opening a channel is the freshest
-   * evidence there is of attending it, and waiting up to half a minute for the
-   * next poll would let a room somebody just walked into keep ageing.
-   */
-  useEffect(() => {
-    app.lookAt(channelId);
-    app.reportAttentive(true);
-    return () => app.lookAt(null);
-  }, [channelId, app.lookAt, app.reportAttentive]);
-
   if (channel.status === 'ended') {
     return (
       <View style={styles.centered}>
