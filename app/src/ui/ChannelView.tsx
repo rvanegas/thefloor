@@ -2610,6 +2610,15 @@ function FooterAction({
           ? colors.floor
           : colors.text;
   const inert = !!disabled || !!selected;
+  /**
+   * The disc behind the glyph, which says the same thing the colour does and
+   * is drawn wherever the colour is not `text`: the rung you are standing on,
+   * the microphone you have shut, the floor you hold, the silence somebody
+   * else imposed. Not on a refusal — grey on a tinted disc would read as a
+   * control that is on and unavailable at once, which is neither of the two
+   * things this bar says.
+   */
+  const accented = !inert ? tone !== 'idle' : !!selected;
 
   return (
     <Pressable
@@ -2627,7 +2636,9 @@ function FooterAction({
         pressed && !inert && styles.footerActionPressed,
       ]}
     >
-      {icon(color)}
+      <View style={[styles.footerIcon, accented && styles.footerIconAccented]}>
+        {icon(color)}
+      </View>
       <Text style={[styles.footerLabel, { color }]} numberOfLines={1}>
         {label}
       </Text>
@@ -3524,6 +3535,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing(0.25),
   },
   footerActionPressed: { opacity: 0.6 },
+  /**
+   * A fixed box around a 22px glyph, so the disc below can appear and vanish
+   * without moving the label under it or resizing the bar. Round rather than
+   * a rounded rectangle: a rectangle at this size reads as a second button
+   * inside the button.
+   */
+  footerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerIconAccented: { backgroundColor: colors.surfaceRaised },
   /**
    * 11px, which is smaller than anything else in this application and is the
    * one place that is right: it is a caption under a glyph that has already
